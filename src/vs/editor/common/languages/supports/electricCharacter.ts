@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from 'vs/base/common/arrays';
-import { ScopedLineTokens, ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
-import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { ScopedLineTokens, ignoreBracketsInToken } from 'vs/editor/common/languages/supports';
+import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/languages/supports/richEditBrackets';
 
 /**
  * Interface used to support electric characters
@@ -26,7 +26,7 @@ export class BracketElectricCharacterSupport {
 	}
 
 	public getElectricCharacters(): string[] {
-		let result: string[] = [];
+		const result: string[] = [];
 
 		if (this._richEditBrackets) {
 			for (const bracket of this._richEditBrackets.brackets) {

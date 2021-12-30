@@ -21,7 +21,7 @@ import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands'
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { getDocumentSymbols } from 'vs/editor/contrib/documentSymbols/documentSymbols';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import { getCodeLensModel } from 'vs/editor/contrib/codelens/codelens';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from 'vs/editor/contrib/gotoSymbol/goToSymbol';
 import { getHoverPromise } from 'vs/editor/contrib/hover/getHover';

@@ -854,7 +854,7 @@ function applyUpdate<T>(value: T, update: T): ApplyUpdateResult<T> {
 		return new ApplyUpdateResult(update, arrayEquals);
 	}
 	let didChange = false;
-	for (let key in update) {
+	for (const key in update) {
 		if ((update as T & object).hasOwnProperty(key)) {
 			const result = applyUpdate(value[key], update[key]);
 			if (result.didChange) {
@@ -1596,7 +1596,7 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 	}
 
 	public override validate(input: any): number {
-		let r = EditorFloatOption.float(input, this.defaultValue);
+		const r = EditorFloatOption.float(input, this.defaultValue);
 		if (r === 0) {
 			return EDITOR_FONT_DEFAULTS.fontSize;
 		}
@@ -3055,7 +3055,7 @@ class EditorRulers extends BaseEditorOption<EditorOption.rulers, (number | IRule
 
 	public validate(input: any): IRulerOption[] {
 		if (Array.isArray(input)) {
-			let rulers: IRulerOption[] = [];
+			const rulers: IRulerOption[] = [];
 			for (let _element of input) {
 				if (typeof _element === 'number') {
 					rulers.push({

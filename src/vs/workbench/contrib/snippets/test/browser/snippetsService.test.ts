@@ -6,13 +6,13 @@
 import * as assert from 'assert';
 import { SnippetCompletion, SnippetCompletionProvider } from 'vs/workbench/contrib/snippets/browser/snippetCompletionProvider';
 import { Position } from 'vs/editor/common/core/position';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind } from 'vs/editor/common/modes';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind } from 'vs/editor/common/languages';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 

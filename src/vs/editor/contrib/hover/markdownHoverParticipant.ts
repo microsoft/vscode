@@ -14,7 +14,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { HoverProviderRegistry } from 'vs/editor/common/modes';
+import { HoverProviderRegistry } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';

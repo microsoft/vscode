@@ -58,7 +58,8 @@ export class PartFingerprints {
 	}
 
 	public static collect(child: Element | null, stopAt: Element): Uint8Array {
-		let result: PartFingerprint[] = [], resultLen = 0;
+		const result: PartFingerprint[] = [];
+		let resultLen = 0;
 
 		while (child && child !== document.body) {
 			if (child === stopAt) {

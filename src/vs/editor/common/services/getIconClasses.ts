@@ -6,7 +6,7 @@
 import { Schemas } from 'vs/base/common/network';
 import { DataUri, basenameOrAuthority } from 'vs/base/common/resources';
 import { URI as uri } from 'vs/base/common/uri';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -89,7 +89,7 @@ function detectLanguageId(modelService: IModelService, languageService: ILanguag
 		}
 	}
 
-	// only take if the mode is specific (aka no just plain text)
+	// only take if the language id is specific (aka no just plain text)
 	if (languageId && languageId !== PLAINTEXT_LANGUAGE_ID) {
 		return languageId;
 	}

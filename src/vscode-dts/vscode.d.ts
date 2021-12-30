@@ -136,9 +136,8 @@ declare module 'vscode' {
 		/**
 		 * Save the underlying file.
 		 *
-		 * @return A promise that will resolve to true when the file
-		 * has been saved. If the file was not dirty or the save failed,
-		 * will return false.
+		 * @return A promise that will resolve to `true` when the file
+		 * has been saved. If the save failed, will return `false`.
 		 */
 		save(): Thenable<boolean>;
 
@@ -10984,7 +10983,8 @@ declare module 'vscode' {
 		 * Save all dirty files.
 		 *
 		 * @param includeUntitled Also save files that have been created during this session.
-		 * @return A thenable that resolves when the files have been saved.
+		 * @return A thenable that resolves when the files have been saved. Will return `false`
+		 * for any file that failed to save.
 		 */
 		export function saveAll(includeUntitled?: boolean): Thenable<boolean>;
 

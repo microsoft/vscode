@@ -15,8 +15,8 @@ import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/edit
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { CodeLens, CodeLensProviderRegistry, Command } from 'vs/editor/common/modes';
-import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
+import { CodeLens, CodeLensProviderRegistry, Command } from 'vs/editor/common/languages';
+import { LanguageFeatureRequestDelays } from 'vs/editor/common/languages/languageFeatureRegistry';
 import { CodeLensItem, CodeLensModel, getCodeLensModel } from 'vs/editor/contrib/codelens/codelens';
 import { ICodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
 import { CodeLensHelper, CodeLensWidget } from 'vs/editor/contrib/codelens/codelensWidget';

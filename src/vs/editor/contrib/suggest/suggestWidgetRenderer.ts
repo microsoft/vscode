@@ -15,7 +15,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { CompletionItemKind, CompletionItemKinds, CompletionItemTag } from 'vs/editor/common/modes';
+import { CompletionItemKind, CompletionItemKinds, CompletionItemTag } from 'vs/editor/common/languages';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/services/language';

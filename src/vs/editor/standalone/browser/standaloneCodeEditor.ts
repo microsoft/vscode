@@ -34,8 +34,8 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/language';
 import { URI } from 'vs/base/common/uri';
 import { StandaloneCodeEditorService } from 'vs/editor/standalone/browser/standaloneCodeEditorService';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 /**
  * Description of an action contribution
@@ -292,8 +292,8 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 			console.warn('Cannot add command because the editor is configured with an unrecognized KeybindingService');
 			return null;
 		}
-		let commandId = 'DYNAMIC_' + (++LAST_GENERATED_COMMAND_ID);
-		let whenExpression = ContextKeyExpr.deserialize(context);
+		const commandId = 'DYNAMIC_' + (++LAST_GENERATED_COMMAND_ID);
+		const whenExpression = ContextKeyExpr.deserialize(context);
 		this._standaloneKeybindingService.addDynamicKeybinding(commandId, keybinding, handler, whenExpression);
 		return commandId;
 	}
@@ -340,7 +340,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 		// Register the context menu item
 		if (contextMenuGroupId) {
-			let menuItem: IMenuItem = {
+			const menuItem: IMenuItem = {
 				command: {
 					id: uniqueId,
 					title: label
@@ -360,7 +360,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		}
 
 		// Finally, register an internal editor action
-		let internalAction = new InternalEditorAction(
+		const internalAction = new InternalEditorAction(
 			uniqueId,
 			label,
 			label,
@@ -424,7 +424,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		if (typeof options.autoDetectHighContrast !== 'undefined') {
 			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
 		}
-		let _model: ITextModel | null | undefined = options.model;
+		const _model: ITextModel | null | undefined = options.model;
 		delete options.model;
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService, accessibilityService, languageConfigurationService);
 
@@ -444,7 +444,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 		this._attachModel(model);
 		if (model) {
-			let e: IModelChangedEvent = {
+			const e: IModelChangedEvent = {
 				oldModelUrl: null,
 				newModelUrl: model.uri
 			};

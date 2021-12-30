@@ -6,17 +6,17 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
-import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, CompleteEnterAction, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
-import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
-import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
-import { BracketElectricCharacterSupport } from 'vs/editor/common/modes/supports/electricCharacter';
-import { IndentConsts, IndentRulesSupport } from 'vs/editor/common/modes/supports/indentRules';
-import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
-import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, CompleteEnterAction, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
+import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/languages/supports';
+import { CharacterPairSupport } from 'vs/editor/common/languages/supports/characterPair';
+import { BracketElectricCharacterSupport } from 'vs/editor/common/languages/supports/electricCharacter';
+import { IndentConsts, IndentRulesSupport } from 'vs/editor/common/languages/supports/indentRules';
+import { OnEnterSupport } from 'vs/editor/common/languages/supports/onEnter';
+import { RichEditBrackets } from 'vs/editor/common/languages/supports/richEditBrackets';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -199,12 +199,12 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	public getLanguageConfiguration(languageId: string): ResolvedLanguageConfiguration | null {
-		let entries = this._entries.get(languageId);
+		const entries = this._entries.get(languageId);
 		return entries?.getResolvedConfiguration() || null;
 	}
 
 	public getComments(languageId: string): ICommentsConfiguration | null {
-		let value = this.getLanguageConfiguration(languageId);
+		const value = this.getLanguageConfiguration(languageId);
 		if (!value) {
 			return null;
 		}
@@ -214,7 +214,7 @@ export class LanguageConfigurationRegistryImpl {
 	// begin Indent Rules
 
 	public getIndentRulesSupport(languageId: string): IndentRulesSupport | null {
-		let value = this.getLanguageConfiguration(languageId);
+		const value = this.getLanguageConfiguration(languageId);
 		if (!value) {
 			return null;
 		}
@@ -229,16 +229,16 @@ export class LanguageConfigurationRegistryImpl {
 	 * else: nearest preceding line of the same language
 	 */
 	private getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentRulesSupport: IndentRulesSupport) {
-		let languageID = model.getLanguageIdAtPosition(lineNumber, 0);
+		const languageId = model.getLanguageIdAtPosition(lineNumber, 0);
 		if (lineNumber > 1) {
 			let lastLineNumber: number;
 			let resultLineNumber = -1;
 
 			for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
-				if (model.getLanguageIdAtPosition(lastLineNumber, 0) !== languageID) {
+				if (model.getLanguageIdAtPosition(lastLineNumber, 0) !== languageId) {
 					return resultLineNumber;
 				}
-				let text = model.getLineContent(lastLineNumber);
+				const text = model.getLineContent(lastLineNumber);
 				if (indentRulesSupport.shouldIgnore(text) || /^\s+$/.test(text) || text === '') {
 					resultLineNumber = lastLineNumber;
 					continue;
@@ -906,19 +906,19 @@ export class ResolvedLanguageConfiguration {
 	private static _handleComments(
 		conf: LanguageConfiguration
 	): ICommentsConfiguration | null {
-		let commentRule = conf.comments;
+		const commentRule = conf.comments;
 		if (!commentRule) {
 			return null;
 		}
 
 		// comment configuration
-		let comments: ICommentsConfiguration = {};
+		const comments: ICommentsConfiguration = {};
 
 		if (commentRule.lineComment) {
 			comments.lineCommentToken = commentRule.lineComment;
 		}
 		if (commentRule.blockComment) {
-			let [blockStart, blockEnd] = commentRule.blockComment;
+			const [blockStart, blockEnd] = commentRule.blockComment;
 			comments.blockCommentStartToken = blockStart;
 			comments.blockCommentEndToken = blockEnd;
 		}

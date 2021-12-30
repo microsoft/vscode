@@ -11,9 +11,9 @@ import { Length, lengthAdd, lengthsToRange, lengthZero } from 'vs/editor/common/
 import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet';
 import { TextBufferTokenizer, Token, Tokenizer, TokenKind } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IState, ITokenizationSupport, LanguageId, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { IState, ITokenizationSupport, LanguageId, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';

@@ -11,7 +11,7 @@ import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorM
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/base/test/common/utils';
-import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { timeout } from 'vs/base/common/async';
@@ -408,20 +408,20 @@ suite('Files - TextFileEditorModelManager', () => {
 		manager.dispose();
 	});
 
-	test('mode', async function () {
-		const mode = 'text-file-model-manager-test';
+	test('language', async function () {
+		const languageId = 'text-file-model-manager-test';
 		ModesRegistry.registerLanguage({
-			id: mode,
+			id: languageId,
 		});
 
 		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
 		const resource = toResource.call(this, '/path/index_something.txt');
 
-		let model = await manager.resolve(resource, { mode });
-		assert.strictEqual(model.textEditorModel!.getLanguageId(), mode);
+		let model = await manager.resolve(resource, { languageId: languageId });
+		assert.strictEqual(model.textEditorModel!.getLanguageId(), languageId);
 
-		model = await manager.resolve(resource, { mode: 'text' });
+		model = await manager.resolve(resource, { languageId: 'text' });
 		assert.strictEqual(model.textEditorModel!.getLanguageId(), PLAINTEXT_LANGUAGE_ID);
 
 		model.dispose();

@@ -31,15 +31,15 @@ import { LanguageDetectionService } from 'vs/workbench/services/languageDetectio
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
 
 suite('EditorModel', () => {
 
 	class MyEditorModel extends EditorModel { }
 	class MyTextEditorModel extends BaseTextEditorModel {
-		override createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredMode?: string) {
-			return super.createTextEditorModel(value, resource, preferredMode);
+		override createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredLanguageId?: string) {
+			return super.createTextEditorModel(value, resource, preferredLanguageId);
 		}
 
 		override isReadonly(): boolean {

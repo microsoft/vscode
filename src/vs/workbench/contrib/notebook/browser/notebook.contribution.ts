@@ -88,6 +88,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/vie
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
 import 'vs/workbench/contrib/notebook/browser/contrib/codeRenderer/codeRenderer';
 import 'vs/workbench/contrib/notebook/browser/contrib/breakpoints/notebookBreakpoints';
+import 'vs/workbench/contrib/notebook/browser/contrib/execute/executionEditorProgress';
 
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
@@ -101,7 +102,7 @@ import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/
 import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/notebookKeymapService';
 import { NotebookKeymapService } from 'vs/workbench/contrib/notebook/browser/notebookKeymapServiceImpl';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 /*--------------------------------------------------------------------------------------------- */

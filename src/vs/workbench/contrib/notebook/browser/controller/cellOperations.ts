@@ -7,7 +7,7 @@ import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/brow
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { INotebookActionContext, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';

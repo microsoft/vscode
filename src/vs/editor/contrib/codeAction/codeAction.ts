@@ -12,7 +12,7 @@ import { TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorS
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';

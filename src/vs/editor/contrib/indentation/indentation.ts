@@ -16,9 +16,9 @@ import { ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorContr
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { StandardTokenType, TextEdit } from 'vs/editor/common/modes';
-import { ILanguageConfigurationService, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
+import { StandardTokenType, TextEdit } from 'vs/editor/common/languages';
+import { ILanguageConfigurationService, LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
 import { IModelService } from 'vs/editor/common/services/model';
 import * as indentUtils from 'vs/editor/contrib/indentation/indentUtils';
 import * as nls from 'vs/nls';

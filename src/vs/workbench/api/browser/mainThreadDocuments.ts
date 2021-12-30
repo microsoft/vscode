@@ -271,10 +271,10 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		});
 	}
 
-	private _doCreateUntitled(associatedResource?: URI, mode?: string, initialValue?: string): Promise<URI> {
+	private _doCreateUntitled(associatedResource?: URI, languageId?: string, initialValue?: string): Promise<URI> {
 		return this._textFileService.untitled.resolve({
 			associatedResource,
-			mode,
+			languageId,
 			initialValue
 		}).then(model => {
 			const resource = model.resource;

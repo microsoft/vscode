@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { StandardTokenType } from 'vs/editor/common/modes';
-import { StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { StandardTokenType } from 'vs/editor/common/languages';
+import { StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 suite('StandardAutoClosingPairConditional', () => {
 

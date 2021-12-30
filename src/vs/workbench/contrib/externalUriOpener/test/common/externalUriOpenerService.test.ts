@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ExternalUriOpenerPriority } from 'vs/editor/common/modes';
+import { ExternalUriOpenerPriority } from 'vs/editor/common/languages';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';

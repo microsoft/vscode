@@ -12,8 +12,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IChange } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import * as modes from 'vs/editor/common/languages';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { IDiffComputationResult, IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -23,7 +23,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { canceled } from 'vs/base/common/errors';
-import { UnicodeHighlighterOptions } from 'vs/editor/common/modes/unicodeTextModelHighlighter';
+import { UnicodeHighlighterOptions } from 'vs/editor/common/languages/unicodeTextModelHighlighter';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -36,7 +36,7 @@ const STOP_SYNC_MODEL_DELTA_TIME_MS = 60 * 1000;
 const STOP_WORKER_DELTA_TIME_MS = 5 * 60 * 1000;
 
 function canSyncModel(modelService: IModelService, resource: URI): boolean {
-	let model = modelService.getModel(resource);
+	const model = modelService.getModel(resource);
 	if (!model) {
 		return false;
 	}
@@ -226,7 +226,7 @@ class WorkerManager extends Disposable {
 		this._editorWorkerClient = null;
 		this._lastWorkerUsedTime = (new Date()).getTime();
 
-		let stopWorkerInterval = this._register(new IntervalTimer());
+		const stopWorkerInterval = this._register(new IntervalTimer());
 		stopWorkerInterval.cancelAndSet(() => this._checkStopIdleWorker(), Math.round(STOP_WORKER_DELTA_TIME_MS / 2));
 
 		this._register(this._modelService.onModelRemoved(_ => this._checkStopEmptyWorker()));
@@ -248,7 +248,7 @@ class WorkerManager extends Disposable {
 			return;
 		}
 
-		let models = this._modelService.getModels();
+		const models = this._modelService.getModels();
 		if (models.length === 0) {
 			// There are no more models => nothing possible for me to do
 			this._editorWorkerClient.dispose();
@@ -264,7 +264,7 @@ class WorkerManager extends Disposable {
 			return;
 		}
 
-		let timeSinceLastWorkerUsedTime = (new Date()).getTime() - this._lastWorkerUsedTime;
+		const timeSinceLastWorkerUsedTime = (new Date()).getTime() - this._lastWorkerUsedTime;
 		if (timeSinceLastWorkerUsedTime > STOP_WORKER_DELTA_TIME_MS) {
 			this._editorWorkerClient.dispose();
 			this._editorWorkerClient = null;
@@ -293,7 +293,7 @@ class EditorModelManager extends Disposable {
 		this._modelService = modelService;
 
 		if (!keepIdleModels) {
-			let timer = new IntervalTimer();
+			const timer = new IntervalTimer();
 			timer.cancelAndSet(() => this._checkStopModelSync(), Math.round(STOP_SYNC_MODEL_DELTA_TIME_MS / 2));
 			this._register(timer);
 		}
@@ -310,7 +310,7 @@ class EditorModelManager extends Disposable {
 
 	public ensureSyncedResources(resources: URI[], forceLargeModels: boolean): void {
 		for (const resource of resources) {
-			let resourceStr = resource.toString();
+			const resourceStr = resource.toString();
 
 			if (!this._syncedModels[resourceStr]) {
 				this._beginModelSync(resource, forceLargeModels);
@@ -322,11 +322,11 @@ class EditorModelManager extends Disposable {
 	}
 
 	private _checkStopModelSync(): void {
-		let currentTime = (new Date()).getTime();
+		const currentTime = (new Date()).getTime();
 
-		let toRemove: string[] = [];
+		const toRemove: string[] = [];
 		for (let modelUrl in this._syncedModelsLastUsedTime) {
-			let elapsedTime = currentTime - this._syncedModelsLastUsedTime[modelUrl];
+			const elapsedTime = currentTime - this._syncedModelsLastUsedTime[modelUrl];
 			if (elapsedTime > STOP_SYNC_MODEL_DELTA_TIME_MS) {
 				toRemove.push(modelUrl);
 			}
@@ -338,7 +338,7 @@ class EditorModelManager extends Disposable {
 	}
 
 	private _beginModelSync(resource: URI, forceLargeModels: boolean): void {
-		let model = this._modelService.getModel(resource);
+		const model = this._modelService.getModel(resource);
 		if (!model) {
 			return;
 		}
@@ -346,7 +346,7 @@ class EditorModelManager extends Disposable {
 			return;
 		}
 
-		let modelUrl = resource.toString();
+		const modelUrl = resource.toString();
 
 		this._proxy.acceptNewModel({
 			url: model.uri.toString(),
@@ -370,7 +370,7 @@ class EditorModelManager extends Disposable {
 	}
 
 	private _stopModelSync(modelUrl: string): void {
-		let toDispose = this._syncedModels[modelUrl];
+		const toDispose = this._syncedModels[modelUrl];
 		delete this._syncedModels[modelUrl];
 		delete this._syncedModelsLastUsedTime[modelUrl];
 		dispose(toDispose);
@@ -521,26 +521,26 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 
 	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> {
 		return this._withSyncedResources([resource]).then(proxy => {
-			let model = this._modelService.getModel(resource);
+			const model = this._modelService.getModel(resource);
 			if (!model) {
 				return Promise.resolve(null);
 			}
 			const wordDefRegExp = this.languageConfigurationService.getLanguageConfiguration(model.getLanguageId()).getWordDefinition();
-			let wordDef = wordDefRegExp.source;
-			let wordDefFlags = regExpFlags(wordDefRegExp);
+			const wordDef = wordDefRegExp.source;
+			const wordDefFlags = regExpFlags(wordDefRegExp);
 			return proxy.computeWordRanges(resource.toString(), range, wordDef, wordDefFlags);
 		});
 	}
 
 	public navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<modes.IInplaceReplaceSupportResult | null> {
 		return this._withSyncedResources([resource]).then(proxy => {
-			let model = this._modelService.getModel(resource);
+			const model = this._modelService.getModel(resource);
 			if (!model) {
 				return null;
 			}
 			const wordDefRegExp = this.languageConfigurationService.getLanguageConfiguration(model.getLanguageId()).getWordDefinition();
-			let wordDef = wordDefRegExp.source;
-			let wordDefFlags = regExpFlags(wordDefRegExp);
+			const wordDef = wordDefRegExp.source;
+			const wordDefFlags = regExpFlags(wordDefRegExp);
 			return proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);
 		});
 	}

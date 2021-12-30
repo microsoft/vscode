@@ -133,13 +133,13 @@ import { IWorkingCopyEditorService, WorkingCopyEditorService } from 'vs/workbenc
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { BrowserElevatedFileService } from 'vs/workbench/services/files/browser/elevatedFileService';
 import { IDiffComputationResult, IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
-import { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
+import { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
 import { ResourceMap } from 'vs/base/common/map';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ITextEditorService, TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -157,8 +157,8 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerFile
 
 	typeId: FILE_EDITOR_INPUT_ID,
 
-	createFileEditor: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, preferredContents, instantiationService): IFileEditorInput => {
-		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, preferredContents);
+	createFileEditor: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredLanguageId, preferredContents, instantiationService): IFileEditorInput => {
+		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredLanguageId, preferredContents);
 	},
 
 	isFileEditor: (obj): obj is IFileEditorInput => {
@@ -887,7 +887,7 @@ export class TestEditorService implements EditorServiceImpl {
 	public set activeTextEditorControl(value: ICodeEditor | IDiffEditor | undefined) { this._activeTextEditorControl = value; }
 
 	activeEditorPane: IVisibleEditorPane | undefined;
-	activeTextEditorMode: string | undefined;
+	activeTextEditorLanguageId: string | undefined;
 
 	private _activeEditor: EditorInput | undefined;
 	public get activeEditor(): EditorInput | undefined { return this._activeEditor; }
@@ -1590,8 +1590,8 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	setPreferredDescription(description: string): void { }
 	setPreferredEncoding(encoding: string) { }
 	setPreferredContents(contents: string): void { }
-	setMode(mode: string) { }
-	setPreferredMode(mode: string) { }
+	setLanguageId(languageId: string) { }
+	setPreferredLanguageId(languageId: string) { }
 	setForceOpenAsBinary(): void { }
 	setFailToOpen(): void {
 		this.fails = true;

@@ -11,7 +11,7 @@ import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { Position } from 'vs/editor/common/core/position';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';

@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSymbol } from 'vs/editor/common/modes';
+import { DocumentSymbol } from 'vs/editor/common/languages';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';

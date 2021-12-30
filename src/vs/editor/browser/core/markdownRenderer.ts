@@ -8,14 +8,14 @@ import { renderMarkdown, MarkdownRenderOptions, MarkedOptions } from 'vs/base/br
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { URI } from 'vs/base/common/uri';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	element: HTMLElement;

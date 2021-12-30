@@ -36,7 +36,7 @@ import 'vs/workbench/electron-sandbox/parts/dialogs/dialog.contribution';
 import 'vs/workbench/services/textfile/electron-sandbox/nativeTextFileService';
 import 'vs/workbench/services/dialogs/electron-sandbox/fileDialogService';
 import 'vs/workbench/services/workspaces/electron-sandbox/workspacesService';
-import 'vs/workbench/services/textMate/electron-sandbox/textMateService';
+import 'vs/workbench/services/textMate/browser/nativeTextMateService';
 import 'vs/workbench/services/menubar/electron-sandbox/menubarService';
 import 'vs/workbench/services/issue/electron-sandbox/issueService';
 import 'vs/workbench/services/update/electron-sandbox/updateService';

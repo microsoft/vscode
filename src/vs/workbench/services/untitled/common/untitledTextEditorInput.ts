@@ -7,7 +7,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, findViewStateForEditor, GroupIdentifier, IU
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { EncodingMode, IEncodingSupport, IModeSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { EncodingMode, IEncodingSupport, ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -20,7 +20,7 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 /**
  * An editor input to be used for untitled text buffers.
  */
-export class UntitledTextEditorInput extends AbstractTextResourceEditorInput implements IEncodingSupport, IModeSupport {
+export class UntitledTextEditorInput extends AbstractTextResourceEditorInput implements IEncodingSupport, ILanguageSupport {
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
@@ -109,12 +109,12 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return this.model.setEncoding(encoding);
 	}
 
-	setMode(mode: string): void {
-		this.model.setMode(mode);
+	setLanguageId(languageId: string): void {
+		this.model.setLanguageId(languageId);
 	}
 
-	getMode(): string | undefined {
-		return this.model.getMode();
+	getLanguageId(): string | undefined {
+		return this.model.getLanguageId();
 	}
 
 	override async resolve(): Promise<IUntitledTextEditorModel> {
@@ -138,7 +138,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 
 		if (typeof options?.preserveViewState === 'number') {
 			untypedInput.encoding = this.getEncoding();
-			untypedInput.mode = this.getMode();
+			untypedInput.languageId = this.getLanguageId();
 			untypedInput.contents = this.model.isDirty() ? this.model.textEditorModel?.getValue() : undefined;
 			untypedInput.options.viewState = findViewStateForEditor(this, options.preserveViewState, this.editorService);
 		}

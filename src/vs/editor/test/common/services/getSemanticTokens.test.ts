@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSemanticTokensProvider, DocumentSemanticTokensProviderRegistry, ProviderResult, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/modes';
+import { DocumentSemanticTokensProvider, DocumentSemanticTokensProviderRegistry, ProviderResult, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/languages';
 import { getDocumentSemanticTokens } from 'vs/editor/common/services/getSemanticTokens';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 

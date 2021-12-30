@@ -6,8 +6,8 @@
 import * as dom from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
-import { FontStyle, TokenizationRegistry, TokenMetadata } from 'vs/editor/common/modes';
-import { ITokenThemeRule, TokenTheme, generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
+import { FontStyle, TokenizationRegistry, TokenMetadata } from 'vs/editor/common/languages';
+import { ITokenThemeRule, TokenTheme, generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
 import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { hc_black, vs, vs_dark } from 'vs/editor/standalone/common/themes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -37,7 +37,7 @@ class StandaloneTheme implements IStandaloneTheme {
 
 	constructor(name: string, standaloneThemeData: IStandaloneThemeData) {
 		this.themeData = standaloneThemeData;
-		let base = standaloneThemeData.base;
+		const base = standaloneThemeData.base;
 		if (name.length > 0) {
 			if (isBuiltinTheme(name)) {
 				this.id = name;
@@ -76,7 +76,7 @@ class StandaloneTheme implements IStandaloneTheme {
 				colors.set(id, Color.fromHex(this.themeData.colors[id]));
 			}
 			if (this.themeData.inherit) {
-				let baseData = getBuiltinRules(this.themeData.base);
+				const baseData = getBuiltinRules(this.themeData.base);
 				for (let id in baseData.colors) {
 					if (!colors.has(id)) {
 						colors.set(id, Color.fromHex(baseData.colors[id]));
@@ -126,7 +126,7 @@ class StandaloneTheme implements IStandaloneTheme {
 			let rules: ITokenThemeRule[] = [];
 			let encodedTokensColors: string[] = [];
 			if (this.themeData.inherit) {
-				let baseData = getBuiltinRules(this.themeData.base);
+				const baseData = getBuiltinRules(this.themeData.base);
 				rules = baseData.rules;
 				if (baseData.encodedTokensColors) {
 					encodedTokensColors = baseData.encodedTokensColors;
@@ -196,7 +196,7 @@ function getBuiltinRules(builtinTheme: BuiltinTheme): IStandaloneThemeData {
 }
 
 function newBuiltInTheme(builtinTheme: BuiltinTheme): StandaloneTheme {
-	let themeData = getBuiltinRules(builtinTheme);
+	const themeData = getBuiltinRules(builtinTheme);
 	return new StandaloneTheme(builtinTheme, themeData);
 }
 
@@ -353,9 +353,9 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 	}
 
 	private _updateThemeOrColorMap(): void {
-		let cssRules: string[] = [];
-		let hasRule: { [rule: string]: boolean; } = {};
-		let ruleCollector: ICssStyleCollector = {
+		const cssRules: string[] = [];
+		const hasRule: { [rule: string]: boolean; } = {};
+		const ruleCollector: ICssStyleCollector = {
 			addRule: (rule: string) => {
 				if (!hasRule[rule]) {
 					cssRules.push(rule);

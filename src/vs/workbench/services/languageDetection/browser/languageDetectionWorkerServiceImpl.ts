@@ -17,7 +17,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorWorkerClient, EditorWorkerHost } from 'vs/editor/common/services/editorWorkerService';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 const moduleLocation = '../../../../../../node_modules/@vscode/vscode-languagedetection';
 const moduleLocationAsar = '../../../../../../node_modules.asar/@vscode/vscode-languagedetection';
@@ -55,7 +55,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		);
 	}
 
-	public isEnabledForMode(languageId: string): boolean {
+	public isEnabledForLanguage(languageId: string): boolean {
 		return !!languageId && this._configurationService.getValue<boolean>(LanguageDetectionService.enablementSettingKey, { overrideIdentifier: languageId });
 	}
 

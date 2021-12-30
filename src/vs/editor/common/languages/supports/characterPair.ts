@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAutoClosingPair, StandardAutoClosingPairConditional, LanguageConfiguration, CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
+import { IAutoClosingPair, StandardAutoClosingPairConditional, LanguageConfiguration, CharacterPair } from 'vs/editor/common/languages/languageConfiguration';
 
 export class CharacterPairSupport {
 

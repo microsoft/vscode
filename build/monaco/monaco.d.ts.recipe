@@ -57,7 +57,7 @@ declare namespace monaco.editor {
 #include(vs/editor/browser/widget/diffNavigator): IDiffNavigator
 #includeAll(vs/editor/standalone/browser/standaloneEditor;modes.=>languages.;editorCommon.=>):
 #include(vs/editor/standalone/common/standaloneTheme): BuiltinTheme, IStandaloneThemeData, IColors
-#include(vs/editor/common/modes/supports/tokenization): ITokenThemeRule
+#include(vs/editor/common/languages/supports/tokenization): ITokenThemeRule
 #include(vs/editor/common/services/webWorker): MonacoWebWorker, IWebWorkerOptions
 #include(vs/editor/standalone/browser/standaloneCodeEditor): IActionDescriptor, IGlobalEditorOptions, IStandaloneEditorConstructionOptions, IStandaloneDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
 export interface ICommandHandler {
@@ -86,8 +86,8 @@ export type IModel = ITextModel;
 declare namespace monaco.languages {
 
 #includeAll(vs/editor/standalone/browser/standaloneLanguages;modes.=>;editorCommon.=>editor.;model.=>editor.;IMarkerData=>editor.IMarkerData):
-#includeAll(vs/editor/common/modes/languageConfiguration):
-#includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IMarkerData=>editor.IMarkerData;model.=>editor.):
+#includeAll(vs/editor/common/languages/languageConfiguration):
+#includeAll(vs/editor/common/languages;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IMarkerData=>editor.IMarkerData;model.=>editor.):
 #include(vs/editor/common/services/language): ILanguageExtensionPoint
 #includeAll(vs/editor/standalone/common/monarch/monarchTypes):
 

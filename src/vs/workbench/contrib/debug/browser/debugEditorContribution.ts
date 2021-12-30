@@ -12,7 +12,7 @@ import { setProperty } from 'vs/base/common/jsonEdit';
 import { Constants } from 'vs/base/common/uint';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { InlineValueContext, InlineValuesProviderRegistry, StandardTokenType } from 'vs/editor/common/modes';
+import { InlineValueContext, InlineValuesProviderRegistry, StandardTokenType } from 'vs/editor/common/languages';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { distinct, flatten } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';

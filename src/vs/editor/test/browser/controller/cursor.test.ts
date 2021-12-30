@@ -14,10 +14,10 @@ import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IState, ITokenizationSupport, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/modes';
-import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/modes/nullMode';
+import { IState, ITokenizationSupport, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
+import { IndentAction, IndentationRule } from 'vs/editor/common/languages/languageConfiguration';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { NullState } from 'vs/editor/common/languages/nullMode';
 import { withTestCodeEditor, TestCodeEditorInstantiationOptions, ITestCodeEditor, createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
 import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
@@ -26,7 +26,7 @@ import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 
 // --------- utils
 

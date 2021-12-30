@@ -19,7 +19,7 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
-import { ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
+import { ChangeEncodingAction, ChangeEOLAction, ChangeLanguageAction, EditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor, MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -162,7 +162,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 
 // Editor Status
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeModeAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyM) }), 'Change Language Mode', undefined, ContextKeyExpr.not('notebookEditorFocused'));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeLanguageAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyM) }), 'Change Language Mode', undefined, ContextKeyExpr.not('notebookEditorFocused'));
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeEOLAction), 'Change End of Line Sequence');
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeEncodingAction), 'Change File Encoding');
 

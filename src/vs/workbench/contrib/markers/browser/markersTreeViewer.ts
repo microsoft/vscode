@@ -42,7 +42,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
-import { CodeActionTriggerType } from 'vs/editor/common/modes';
+import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Progress } from 'vs/platform/progress/common/progress';

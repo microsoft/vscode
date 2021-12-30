@@ -10,7 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
@@ -233,7 +233,7 @@ suite('Untitled text editors', () => {
 		const service = accessor.untitledTextEditorService;
 		const input = service.create();
 
-		assert.strictEqual(input.getMode(), defaultLanguage);
+		assert.strictEqual(input.getLanguageId(), defaultLanguage);
 
 		config.setUserConfiguration('files', { 'defaultLanguage': undefined });
 
@@ -244,74 +244,74 @@ suite('Untitled text editors', () => {
 		const config = accessor.testConfigurationService;
 		config.setUserConfiguration('files', { 'defaultLanguage': '${activeEditorLanguage}' });
 
-		accessor.editorService.activeTextEditorMode = 'typescript';
+		accessor.editorService.activeTextEditorLanguageId = 'typescript';
 
 		const service = accessor.untitledTextEditorService;
 		const model = service.create();
 
-		assert.strictEqual(model.getMode(), 'typescript');
+		assert.strictEqual(model.getLanguageId(), 'typescript');
 
 		config.setUserConfiguration('files', { 'defaultLanguage': undefined });
-		accessor.editorService.activeTextEditorMode = undefined;
+		accessor.editorService.activeTextEditorLanguageId = undefined;
 
 		model.dispose();
 	});
 
-	test('created with mode overrides files.defaultLanguage setting', () => {
-		const mode = 'typescript';
+	test('created with language overrides files.defaultLanguage setting', () => {
+		const language = 'typescript';
 		const defaultLanguage = 'javascript';
 		const config = accessor.testConfigurationService;
 		config.setUserConfiguration('files', { 'defaultLanguage': defaultLanguage });
 
 		const service = accessor.untitledTextEditorService;
-		const input = service.create({ mode });
+		const input = service.create({ languageId: language });
 
-		assert.strictEqual(input.getMode(), mode);
+		assert.strictEqual(input.getLanguageId(), language);
 
 		config.setUserConfiguration('files', { 'defaultLanguage': undefined });
 
 		input.dispose();
 	});
 
-	test('can change mode afterwards', async () => {
-		const mode = 'untitled-input-test';
+	test('can change language afterwards', async () => {
+		const languageId = 'untitled-input-test';
 
 		ModesRegistry.registerLanguage({
-			id: mode,
+			id: languageId,
 		});
 
 		const service = accessor.untitledTextEditorService;
-		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create({ mode }));
+		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create({ languageId: languageId }));
 
-		assert.strictEqual(input.getMode(), mode);
+		assert.strictEqual(input.getLanguageId(), languageId);
 
 		const model = await input.resolve();
-		assert.strictEqual(model.getMode(), mode);
+		assert.strictEqual(model.getLanguageId(), languageId);
 
-		input.setMode(PLAINTEXT_LANGUAGE_ID);
+		input.setLanguageId(PLAINTEXT_LANGUAGE_ID);
 
-		assert.strictEqual(input.getMode(), PLAINTEXT_LANGUAGE_ID);
+		assert.strictEqual(input.getLanguageId(), PLAINTEXT_LANGUAGE_ID);
 
 		input.dispose();
 		model.dispose();
 	});
 
-	test('remembers that mode was set explicitly', async () => {
-		const mode = 'untitled-input-test';
+	test('remembers that language was set explicitly', async () => {
+		const language = 'untitled-input-test';
 
 		ModesRegistry.registerLanguage({
-			id: mode,
+			id: language,
 		});
 
 		const service = accessor.untitledTextEditorService;
 		const model = service.create();
 		const input = instantiationService.createInstance(UntitledTextEditorInput, model);
 
-		assert.ok(!input.model.hasModeSetExplicitly);
-		input.setMode(PLAINTEXT_LANGUAGE_ID);
-		assert.ok(input.model.hasModeSetExplicitly);
+		assert.ok(!input.model.hasLanguageSetExplicitly);
+		input.setLanguageId(PLAINTEXT_LANGUAGE_ID);
+		assert.ok(input.model.hasLanguageSetExplicitly);
 
-		assert.strictEqual(input.getMode(), PLAINTEXT_LANGUAGE_ID);
+		assert.strictEqual(input.getLanguageId(), PLAINTEXT_LANGUAGE_ID);
 
 		input.dispose();
 		model.dispose();
