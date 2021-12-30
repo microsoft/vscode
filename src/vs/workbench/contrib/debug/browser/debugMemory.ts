@@ -200,7 +200,7 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 			offset,
 			readOnly: !!session.capabilities.supportsWriteMemoryRequest,
 			sessionId: uri.authority,
-			memoryReference,
+			memoryReference: decodeURIComponent(memoryReference),
 		};
 	}
 }

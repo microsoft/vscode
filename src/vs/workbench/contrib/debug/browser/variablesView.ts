@@ -32,11 +32,13 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { IMenuService, IMenu, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
 import { coalesce } from 'vs/base/common/arrays';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -475,6 +477,10 @@ CommandsRegistry.registerCommand({
 });
 
 export const VIEW_MEMORY_ID = 'workbench.debug.viewlet.action.viewMemory';
+
+const HEX_EDITOR_EXTENSION_ID = 'ms-vscode.hexeditor';
+const HEX_EDITOR_EDITOR_ID = 'hexEditor.hexedit';
+
 CommandsRegistry.registerCommand({
 	id: VIEW_MEMORY_ID,
 	handler: async (accessor: ServicesAccessor, arg: IVariablesContext, ctx?: (Variable | Expression)[]) => {
@@ -482,10 +488,19 @@ CommandsRegistry.registerCommand({
 			return;
 		}
 
-		accessor.get(IOpenerService).open(getUriForDebugMemory(
-			arg.sessionId,
-			arg.variable.memoryReference,
-		));
+		const commandService = accessor.get(ICommandService);
+		const editorService = accessor.get(IEditorService);
+		const ext = await accessor.get(IExtensionService).getExtension(HEX_EDITOR_EXTENSION_ID);
+		if (!ext) {
+			await commandService.executeCommand('workbench.extensions.search', `@id:${HEX_EDITOR_EXTENSION_ID}`);
+		} else {
+			await editorService.openEditor({
+				resource: getUriForDebugMemory(arg.sessionId, arg.variable.memoryReference),
+				options: {
+					override: HEX_EDITOR_EDITOR_ID,
+				},
+			});
+		}
 	}
 });
 
