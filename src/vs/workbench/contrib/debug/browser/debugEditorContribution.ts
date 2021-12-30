@@ -71,7 +71,7 @@ class InlineSegment {
 function createInlineValueDecoration(lineNumber: number, contentText: string, column = Constants.MAX_SAFE_SMALL_INTEGER): IModelDeltaDecoration {
 	// If decoratorText is too long, trim and add ellipses. This could happen for minified files with everything on a single line
 	if (contentText.length > MAX_INLINE_DECORATOR_LENGTH) {
-		contentText = contentText.substr(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
+		contentText = contentText.substring(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
 	}
 
 	return {

@@ -233,7 +233,7 @@ export class ReplModel {
 			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
 			this.removeReplExpressions();
 			this.appendToRepl(session, nls.localize('consoleCleared', "Console was cleared"), severity.Ignore);
-			data = data.substr(data.lastIndexOf(clearAnsiSequence) + clearAnsiSequence.length);
+			data = data.substring(data.lastIndexOf(clearAnsiSequence) + clearAnsiSequence.length);
 		}
 
 		if (typeof data === 'string') {

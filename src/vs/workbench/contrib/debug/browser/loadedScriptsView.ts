@@ -339,7 +339,7 @@ class SessionTreeItem extends BaseTreeItem {
 				folder = this.rootProvider ? this.rootProvider.getWorkspaceFolder(resource) : null;
 				if (folder) {
 					// strip off the root folder path
-					path = normalize(ltrim(resource.path.substr(folder.uri.path.length), posix.sep));
+					path = normalize(ltrim(resource.path.substring(folder.uri.path.length), posix.sep));
 					const hasMultipleRoots = this.rootProvider.getWorkspace().folders.length > 1;
 					if (hasMultipleRoots) {
 						path = posix.sep + path;

@@ -100,7 +100,7 @@ export function getSpecificSourceName(stackFrame: IStackFrame): string {
 	}
 
 	const from = Math.max(0, stackFrame.source.uri.path.lastIndexOf(posix.sep, stackFrame.source.uri.path.length - suffixLength - 1));
-	return (from > 0 ? '...' : '') + stackFrame.source.uri.path.substr(from);
+	return (from > 0 ? '...' : '') + stackFrame.source.uri.path.substring(from);
 }
 
 async function expandTo(session: IDebugSession, tree: WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>): Promise<void> {
