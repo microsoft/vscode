@@ -3,30 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI, URI as uri } from 'vs/base/common/uri';
+import { distinct, lastIndex } from 'vs/base/common/arrays';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { mixin } from 'vs/base/common/objects';
 import * as resources from 'vs/base/common/resources';
-import { Event, Emitter } from 'vs/base/common/event';
-import { generateUuid } from 'vs/base/common/uuid';
-import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
 import { isString, isUndefinedOrNull } from 'vs/base/common/types';
-import { binarySearch, distinct, flatten, lastIndex } from 'vs/base/common/arrays';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import {
-	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel,
-	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State, IDataBreakpoint, IInstructionBreakpoint, IMemoryRegion, IMemoryInvalidationEvent, MemoryRange, MemoryRangeType, DEBUG_MEMORY_SCHEME
-} from 'vs/workbench/contrib/debug/common/debug';
-import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
+import { URI, URI as uri } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import * as nls from 'vs/nls';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IEditorPane } from 'vs/workbench/common/editor';
+import { DEBUG_MEMORY_SCHEME, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointsChangeEvent, IBreakpointUpdateData, IDataBreakpoint, IDebugModel, IDebugSession, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
+import { getUriFromSource, Source, UNKNOWN_SOURCE_LABEL } from 'vs/workbench/contrib/debug/common/debugSource';
+import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
+import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { mixin } from 'vs/base/common/objects';
-import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
 
 interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
 	__vscodeVariableMenuContext?: string;
@@ -596,12 +593,6 @@ export class Thread implements IThread {
 	}
 }
 
-interface IMemoryRangeWrapper {
-	fromOffset: number;
-	toOffset: number;
-	value: DeferredPromise<MemoryRange[]>
-}
-
 /**
  * Gets a URI to a memory in the given session ID.
  */
@@ -620,7 +611,6 @@ export const getUriForDebugMemory = (
 };
 
 export class MemoryRegion extends Disposable implements IMemoryRegion {
-	protected readonly ranges: IMemoryRangeWrapper[] = [];
 	private readonly invalidateEmitter = this._register(new Emitter<IMemoryInvalidationEvent>());
 
 	/** @inheritdoc */
@@ -638,30 +628,40 @@ export class MemoryRegion extends Disposable implements IMemoryRegion {
 		}));
 	}
 
-	public read(fromOffset: number, toOffset: number): Promise<MemoryRange[]> {
-		// here, we make requests for all ranges within the offset bounds which
-		// we've not already requested.
-		let startIndex = this.getInsertIndex(fromOffset);
+	public async read(fromOffset: number, toOffset: number): Promise<MemoryRange[]> {
+		const length = toOffset - fromOffset;
+		const offset = fromOffset;
+		const result = await this.session.readMemory(this.memoryReference, offset, length);
 
-		let index = startIndex;
-		for (let lastEnd = fromOffset; lastEnd < toOffset;) {
-			const next = this.ranges[index];
-			if (!next) {
-				this.ranges.push(this.makeRangeRequest(lastEnd, toOffset));
-				index++;
-				break;
-			}
-
-			if (next.fromOffset > lastEnd) {
-				this.ranges.splice(index, 0, this.makeRangeRequest(lastEnd, next.fromOffset));
-				index++;
-			}
-
-			lastEnd = next.toOffset;
-			index++;
+		if (result === undefined || !result.body?.data) {
+			return [{ type: MemoryRangeType.Unreadable, offset, length }];
 		}
 
-		return Promise.all(this.ranges.slice(startIndex, index).map(r => r.value.p)).then(flatten);
+		let data: VSBuffer;
+		try {
+			data = decodeBase64(result.body.data);
+		} catch {
+			return [{ type: MemoryRangeType.Error, offset, length, error: 'Invalid base64 data from debug adapter' }];
+		}
+
+		const unreadable = result.body.unreadableBytes || 0;
+		const dataLength = length - unreadable;
+		if (data.byteLength < dataLength) {
+			const pad = VSBuffer.alloc(dataLength - data.byteLength);
+			pad.buffer.fill(0);
+			data = VSBuffer.concat([data, pad], dataLength);
+		} else if (data.byteLength > dataLength) {
+			data = data.slice(0, dataLength);
+		}
+
+		if (!unreadable) {
+			return [{ type: MemoryRangeType.Valid, offset, length, data }];
+		}
+
+		return [
+			{ type: MemoryRangeType.Valid, offset, length: dataLength, data },
+			{ type: MemoryRangeType.Unreadable, offset: offset + dataLength, length: unreadable },
+		];
 	}
 
 	public async write(offset: number, data: VSBuffer): Promise<number> {
@@ -673,79 +673,10 @@ export class MemoryRegion extends Disposable implements IMemoryRegion {
 
 	public override dispose() {
 		super.dispose();
-		this.ranges.forEach(r => {
-			if (!r.value.isSettled) {
-				r.value.cancel();
-			}
-		});
 	}
 
 	private invalidate(fromOffset: number, toOffset: number) {
-		// Here we want to remove any read ranges for invalidated data so they
-		// can be read again later.
-
-		let startIndex = this.getInsertIndex(fromOffset);
-		const endIndex = this.getInsertIndex(toOffset) + 1;
-
-		if (this.ranges[startIndex]?.toOffset === fromOffset) {
-			startIndex++;
-		}
-
-		// no-op if there were no read ranges that got invalidated
-		if (endIndex - startIndex <= 0) {
-			return;
-		}
-
-		this.ranges.splice(startIndex, endIndex - startIndex);
 		this.invalidateEmitter.fire({ fromOffset, toOffset });
-	}
-
-	private getInsertIndex(fromOffset: number) {
-		const searchIndex = binarySearch<{ toOffset: number }>(this.ranges, { toOffset: fromOffset }, (a, b) => a.toOffset - b.toOffset);
-		return searchIndex < 0 ? (~searchIndex) : searchIndex;
-	}
-
-	private makeRangeRequest(fromOffset: number, toOffset: number): IMemoryRangeWrapper {
-		const length = toOffset - fromOffset;
-		const offset = fromOffset;
-		const promise = new DeferredPromise<MemoryRange[]>();
-
-		this.session.readMemory(this.memoryReference, fromOffset, toOffset - fromOffset).then(
-			(result): MemoryRange[] => {
-				if (result === undefined || !result.body?.data) {
-					return [{ type: MemoryRangeType.Unreadable, offset, length }];
-				}
-
-				let data: VSBuffer;
-				try {
-					data = decodeBase64(result.body.data);
-				} catch {
-					return [{ type: MemoryRangeType.Error, offset, length, error: 'Invalid base64 data from debug adapter' }];
-				}
-
-				const unreadable = result.body.unreadableBytes || 0;
-				const dataLength = length - unreadable;
-				if (data.byteLength < dataLength) {
-					const pad = VSBuffer.alloc(dataLength - data.byteLength);
-					pad.buffer.fill(0);
-					data = VSBuffer.concat([data, pad], dataLength);
-				} else if (data.byteLength > dataLength) {
-					data = data.slice(0, dataLength);
-				}
-
-				if (!unreadable) {
-					return [{ type: MemoryRangeType.Valid, offset, length, data }];
-				}
-
-				return [
-					{ type: MemoryRangeType.Valid, offset, length: dataLength, data },
-					{ type: MemoryRangeType.Unreadable, offset: offset + dataLength, length: unreadable },
-				];
-			},
-			(error): MemoryRange[] => [{ type: MemoryRangeType.Error, offset, length, error: error.message }]
-		).then(r => promise.complete(r));
-
-		return { fromOffset, toOffset, value: promise };
 	}
 }
 

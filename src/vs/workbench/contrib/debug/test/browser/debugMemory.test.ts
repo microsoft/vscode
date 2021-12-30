@@ -25,17 +25,7 @@ suite('Debug - Memory', () => {
 		let unreadable: number;
 		let invalidateMemoryEmitter: Emitter<DebugProtocol.MemoryEvent>;
 		let session: MockObject<MockSession, 'onDidInvalidateMemory'>;
-		let region: TestMemoryRegion;
-
-		class TestMemoryRegion extends MemoryRegion {
-			public assertNoOverlaps() {
-				for (const range of this.ranges) {
-					if (this.ranges.some(r => r !== range && r.toOffset > range.fromOffset && r.fromOffset < range.toOffset)) {
-						throw new Error(`Discovered overlapping ranges`);
-					}
-				}
-			}
-		}
+		let region: MemoryRegion;
 
 		setup(() => {
 			const memoryBuf = new Uint8Array(1024);
@@ -80,48 +70,15 @@ suite('Debug - Memory', () => {
 				});
 			});
 
-			region = new TestMemoryRegion('ref', session as any);
+			region = new MemoryRegion('ref', session as any);
 		});
 
 		teardown(() => {
-			region.assertNoOverlaps();
 			region.dispose();
 		});
 
 		test('reads a simple range', async () => {
 			assert.deepStrictEqual(await region.read(10, 14), [
-				{ type: MemoryRangeType.Valid, offset: 10, length: 4, data: VSBuffer.wrap(new Uint8Array([10, 11, 12, 13])) }
-			]);
-		});
-
-		test('reads an end-overlapping range', async () => {
-			await region.read(10, 14);
-			assert.deepStrictEqual(await region.read(12, 16), [
-				{ type: MemoryRangeType.Valid, offset: 10, length: 4, data: VSBuffer.wrap(new Uint8Array([10, 11, 12, 13])) },
-				{ type: MemoryRangeType.Valid, offset: 14, length: 2, data: VSBuffer.wrap(new Uint8Array([14, 15])) },
-			]);
-		});
-
-		test('reads an start-overlapping range', async () => {
-			await region.read(10, 14);
-			assert.deepStrictEqual(await region.read(8, 12), [
-				{ type: MemoryRangeType.Valid, offset: 8, length: 2, data: VSBuffer.wrap(new Uint8Array([8, 9])) },
-				{ type: MemoryRangeType.Valid, offset: 10, length: 4, data: VSBuffer.wrap(new Uint8Array([10, 11, 12, 13])) },
-			]);
-		});
-
-		test('reads an entirely-overlapping range', async () => {
-			await region.read(10, 14);
-			assert.deepStrictEqual(await region.read(8, 16), [
-				{ type: MemoryRangeType.Valid, offset: 8, length: 2, data: VSBuffer.wrap(new Uint8Array([8, 9])) },
-				{ type: MemoryRangeType.Valid, offset: 10, length: 4, data: VSBuffer.wrap(new Uint8Array([10, 11, 12, 13])) },
-				{ type: MemoryRangeType.Valid, offset: 14, length: 2, data: VSBuffer.wrap(new Uint8Array([14, 15])) },
-			]);
-		});
-
-		test('reads an entirely-inset range', async () => {
-			await region.read(10, 14);
-			assert.deepStrictEqual(await region.read(11, 13), [
 				{ type: MemoryRangeType.Valid, offset: 10, length: 4, data: VSBuffer.wrap(new Uint8Array([10, 11, 12, 13])) }
 			]);
 		});
@@ -132,59 +89,6 @@ suite('Debug - Memory', () => {
 				{ type: MemoryRangeType.Valid, offset: 10, length: 1, data: VSBuffer.wrap(new Uint8Array([10])) },
 				{ type: MemoryRangeType.Unreadable, offset: 11, length: 3 },
 			]);
-
-			assert.deepStrictEqual(await region.read(10, 16), [
-				{ type: MemoryRangeType.Valid, offset: 10, length: 1, data: VSBuffer.wrap(new Uint8Array([10])) },
-				{ type: MemoryRangeType.Unreadable, offset: 11, length: 3 },
-				{ type: MemoryRangeType.Valid, offset: 14, length: 2, data: VSBuffer.wrap(new Uint8Array([14, 15])) },
-			]);
-		});
-
-		test('writes memory when overlapping', async () => {
-			await region.read(10, 14);
-			await region.read(8, 10);
-			await region.read(15, 18);
-
-			const readCalls = session.readMemory.callCount;
-			await region.write(12, VSBuffer.wrap(new Uint8Array([22, 23, 24, 25])));
-
-			assert.deepStrictEqual(await region.read(8, 18), [
-				{ type: MemoryRangeType.Valid, offset: 8, length: 2, data: VSBuffer.wrap(new Uint8Array([8, 9])) },
-				{ type: MemoryRangeType.Valid, offset: 10, length: 8, data: VSBuffer.wrap(new Uint8Array([10, 11, 22, 23, 24, 25, 16, 17])) },
-			]);
-			assert.strictEqual(session.readMemory.callCount, readCalls + 1);
-		});
-
-		test('writes memory when inset', async () => {
-			await region.read(10, 14);
-			await region.read(8, 10);
-			await region.read(14, 18);
-
-			await region.write(12, VSBuffer.wrap(new Uint8Array([22])));
-
-			const readCalls = session.readMemory.callCount;
-			assert.deepStrictEqual(await region.read(8, 18), [
-				{ type: MemoryRangeType.Valid, offset: 8, length: 2, data: VSBuffer.wrap(new Uint8Array([8, 9])) },
-				{ type: MemoryRangeType.Valid, offset: 10, length: 4, data: VSBuffer.wrap(new Uint8Array([10, 11, 22, 13])) },
-				{ type: MemoryRangeType.Valid, offset: 14, length: 4, data: VSBuffer.wrap(new Uint8Array([14, 15, 16, 17])) },
-			]);
-			assert.strictEqual(session.readMemory.callCount, readCalls + 1);
-		});
-
-		test('writes memory when exact', async () => {
-			await region.read(10, 14);
-			await region.read(8, 10);
-			await region.read(14, 18);
-
-			await region.write(10, VSBuffer.wrap(new Uint8Array([20, 21, 22, 23])));
-
-			const readCalls = session.readMemory.callCount;
-			assert.deepStrictEqual(await region.read(8, 18), [
-				{ type: MemoryRangeType.Valid, offset: 8, length: 2, data: VSBuffer.wrap(new Uint8Array([8, 9])) },
-				{ type: MemoryRangeType.Valid, offset: 10, length: 4, data: VSBuffer.wrap(new Uint8Array([20, 21, 22, 23])) },
-				{ type: MemoryRangeType.Valid, offset: 14, length: 4, data: VSBuffer.wrap(new Uint8Array([14, 15, 16, 17])) },
-			]);
-			assert.strictEqual(session.readMemory.callCount, readCalls + 1);
 		});
 	});
 });

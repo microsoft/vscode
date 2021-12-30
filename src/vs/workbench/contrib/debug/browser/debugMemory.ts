@@ -152,12 +152,13 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 					} else {
 						throw new FileSystemProviderError(range.error, FileSystemProviderErrorCode.Unknown);
 					}
-				case MemoryRangeType.Valid:
+				case MemoryRangeType.Valid: {
 					const start = Math.max(0, pos - range.offset);
 					const toWrite = range.data.slice(start, Math.min(range.data.byteLength, start + (length - readSoFar)));
 					data.set(toWrite.buffer, offset + readSoFar);
 					readSoFar += toWrite.byteLength;
 					break;
+				}
 				default:
 					assertNever(range);
 			}
