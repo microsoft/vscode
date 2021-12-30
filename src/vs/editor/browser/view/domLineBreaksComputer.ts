@@ -8,7 +8,7 @@ import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { createStringBuilder, IStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
 import { InjectedTextOptions } from 'vs/editor/common/model';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, ModelLineProjectionData } from 'vs/editor/common/viewModel/modelLineProjectionData';
@@ -70,7 +70,7 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 	const additionalIndentLength = Math.ceil(fontInfo.spaceWidth * additionalIndentSize);
 
 	const containerDomNode = document.createElement('div');
-	Configuration.applyFontInfoSlow(containerDomNode, fontInfo);
+	applyFontInfo(containerDomNode, fontInfo);
 
 	const sb = createStringBuilder(10000);
 	const firstNonWhitespaceIndices: number[] = [];

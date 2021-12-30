@@ -16,7 +16,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { EditorConfiguration } from 'vs/editor/browser/config/editorConfiguration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -57,6 +57,8 @@ import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 
 let EDITOR_ID = 0;
 
@@ -222,7 +224,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _domElement: HTMLElement;
 	private readonly _overflowWidgetsDomNode: HTMLElement | undefined;
 	private readonly _id: number;
-	private readonly _configuration: editorCommon.IConfiguration;
+	private readonly _configuration: IEditorConfiguration;
 
 	protected _contributions: { [key: string]: editorCommon.IEditorContribution; };
 	protected _actions: { [key: string]: editorCommon.IEditorAction; };
@@ -351,8 +353,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._codeEditorService.addCodeEditor(this);
 	}
 
-	protected _createConfiguration(isSimpleWidget: boolean, options: Readonly<editorBrowser.IEditorConstructionOptions>, accessibilityService: IAccessibilityService): Configuration {
-		return new Configuration(isSimpleWidget, options, this._domElement, accessibilityService);
+	protected _createConfiguration(isSimpleWidget: boolean, options: Readonly<editorBrowser.IEditorConstructionOptions>, accessibilityService: IAccessibilityService): EditorConfiguration {
+		return new EditorConfiguration(isSimpleWidget, options, this._domElement, accessibilityService);
 	}
 
 	public getId(): string {
@@ -1493,7 +1495,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public applyFontInfo(target: HTMLElement): void {
-		Configuration.applyFontInfoSlow(target, this._configuration.options.get(EditorOption.fontInfo));
+		applyFontInfo(target, this._configuration.options.get(EditorOption.fontInfo));
 	}
 
 	public setBanner(domNode: HTMLElement | null, domNodeHeight: number): void {

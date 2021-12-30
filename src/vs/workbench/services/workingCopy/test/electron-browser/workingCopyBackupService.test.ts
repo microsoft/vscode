@@ -15,7 +15,7 @@ import { dirname, join } from 'vs/base/common/path';
 import { Promises, readdirSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { WorkingCopyBackupsModel, hashIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { Schemas } from 'vs/base/common/network';
 import { FileService } from 'vs/platform/files/common/fileService';

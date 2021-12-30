@@ -16,7 +16,8 @@ import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/v
 import { RenderMinimap, EditorOption, MINIMAP_GUTTER_WIDTH, EditorLayoutInfoComputer } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
-import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { ColorId } from 'vs/editor/common/modes';
 import { MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
 import { Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
@@ -105,7 +106,7 @@ class MinimapOptions {
 	 */
 	public readonly foregroundAlpha: number;
 
-	constructor(configuration: IConfiguration, theme: EditorTheme, tokensColorTracker: MinimapTokensColorTracker) {
+	constructor(configuration: IEditorConfiguration, theme: EditorTheme, tokensColorTracker: MinimapTokensColorTracker) {
 		const options = configuration.options;
 		const pixelRatio = options.get(EditorOption.pixelRatio);
 		const layoutInfo = options.get(EditorOption.layoutInfo);

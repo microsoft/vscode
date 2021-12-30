@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry } from 'vs/editor/common/modes';
 import { CompletionOptions, provideSuggestionItems, SnippetSortOrder } from 'vs/editor/contrib/suggest/suggest';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 
 suite('Suggest', function () {

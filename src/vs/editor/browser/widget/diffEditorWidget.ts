@@ -13,7 +13,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -2276,10 +2276,10 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			const lineChange = this._pendingLineChange[i];
 			const viewZone = this._pendingViewZones[i];
 			const domNode = viewZone.domNode;
-			Configuration.applyFontInfoSlow(domNode, fontInfo);
+			applyFontInfo(domNode, fontInfo);
 
 			const marginDomNode = viewZone.marginDomNode;
-			Configuration.applyFontInfoSlow(marginDomNode, fontInfo);
+			applyFontInfo(marginDomNode, fontInfo);
 
 			const decorations: InlineDecoration[] = [];
 			if (lineChange.charChanges) {

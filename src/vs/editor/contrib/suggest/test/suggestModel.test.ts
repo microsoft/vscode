@@ -27,7 +27,7 @@ import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import { LineContext, SuggestModel } from 'vs/editor/contrib/suggest/suggestModel';
 import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
 import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createModelServices, createTextModel, createTextModel2 } from 'vs/editor/test/common/editorTestUtils';
+import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -43,8 +43,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 
 
 function createMockEditor(model: TextModel): ITestCodeEditor {
-	let editor = createTestCodeEditor({
-		model: model,
+	const editor = createTestCodeEditor(model, {
 		serviceCollection: new ServiceCollection(
 			[ITelemetryService, NullTelemetryService],
 			[IStorageService, new InMemoryStorageService()],
@@ -144,7 +143,7 @@ suite('SuggestModel - Context', function () {
 		const outerMode = disposables.add(instantiationService.createInstance(OuterMode));
 		disposables.add(instantiationService.createInstance(InnerMode));
 
-		const model = disposables.add(createTextModel2(instantiationService, 'a<xx>a<x>', outerMode.languageId));
+		const model = disposables.add(instantiateTextModel(instantiationService, 'a<xx>a<x>', outerMode.languageId));
 
 		assertAutoTrigger(model, 1, true, 'a|<x — should trigger at end of word');
 		assertAutoTrigger(model, 2, false, 'a<|x — should NOT trigger at start of word');

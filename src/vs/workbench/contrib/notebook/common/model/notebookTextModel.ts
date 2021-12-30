@@ -159,6 +159,7 @@ export class NotebookEventEmitter extends PauseableEmitter<NotebookTextModelChan
 
 export class NotebookTextModel extends Disposable implements INotebookTextModel {
 
+	private _isDisposed = false;
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	private readonly _onWillAddRemoveCells = this._register(new Emitter<NotebookTextModelWillAddRemoveEvent>());
 	private readonly _onDidChangeContent = this._register(new Emitter<NotebookTextModelChangedEvent>());
@@ -344,6 +345,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	override dispose() {
+		if (this._isDisposed) {
+			// NotebookEditorModel can be disposed twice, don't fire onWillDispose again
+			return;
+		}
+
+		this._isDisposed = true;
 		this._onWillDispose.fire();
 		this._undoService.removeElements(this.uri);
 

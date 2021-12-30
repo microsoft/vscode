@@ -15,7 +15,7 @@ import { deserializePipePositions, serializePipePositions, testRepeatedActionAnd
 import { CursorWordAccessibilityLeft, CursorWordAccessibilityLeftSelect, CursorWordAccessibilityRight, CursorWordAccessibilityRightSelect, CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteInsideWord, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight } from 'vs/editor/contrib/wordOperations/wordOperations';
 import { StaticServiceAccessor } from 'vs/editor/contrib/wordPartOperations/test/utils';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
@@ -752,10 +752,7 @@ suite('WordOperations', () => {
 		const mode = new TestMode();
 		const model = createTextModel('a ""', languageId, undefined);
 
-		withTestCodeEditor(null, {
-			model,
-			autoClosingDelete: 'always'
-		}, (editor, _) => {
+		withTestCodeEditor(model, { autoClosingDelete: 'always' }, (editor, _) => {
 			editor.setPosition(new Position(1, 4));
 			deleteWordLeft(editor); assert.strictEqual(model.getLineContent(1), 'a ');
 		});

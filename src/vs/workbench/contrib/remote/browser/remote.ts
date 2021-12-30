@@ -603,7 +603,7 @@ class VisibleProgress {
 	private _lastReport: string | null;
 	private _currentProgressPromiseResolve: (() => void) | null;
 	private _currentProgress: IProgress<IProgressStep> | null;
-	private _currentTimer: ReconnectionTimer2 | null;
+	private _currentTimer: ReconnectionTimer | null;
 
 	public get lastReport(): string | null {
 		return this._lastReport;
@@ -655,7 +655,7 @@ class VisibleProgress {
 
 	public startTimer(completionTime: number): void {
 		this.stopTimer();
-		this._currentTimer = new ReconnectionTimer2(this, completionTime);
+		this._currentTimer = new ReconnectionTimer(this, completionTime);
 	}
 
 	public stopTimer(): void {
@@ -666,7 +666,7 @@ class VisibleProgress {
 	}
 }
 
-class ReconnectionTimer2 implements IDisposable {
+class ReconnectionTimer implements IDisposable {
 	private readonly _parent: VisibleProgress;
 	private readonly _completionTime: number;
 	private readonly _token: any;

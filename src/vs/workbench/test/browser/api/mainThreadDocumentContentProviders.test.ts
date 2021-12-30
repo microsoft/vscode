@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { MainThreadDocumentContentProviders } from 'vs/workbench/api/browser/mainThreadDocumentContentProviders';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { mock } from 'vs/base/test/common/mock';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';

@@ -10,7 +10,6 @@ import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 
@@ -129,7 +128,6 @@ export interface INotebookEventEmitter {
 	emitModelChange(events: vscode.NotebookCellsChangeEvent): void;
 	emitCellOutputsChange(event: vscode.NotebookCellOutputsChangeEvent): void;
 	emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void;
-	emitCellExecutionStateChange(event: vscode.NotebookCellExecutionStateChangeEvent): void;
 }
 
 
@@ -373,14 +371,7 @@ export class ExtHostNotebookDocument {
 
 	private _changeCellInternalMetadata(index: number, newInternalMetadata: notebookCommon.NotebookCellInternalMetadata): void {
 		const cell = this._cells[index];
-
-		const originalInternalMetadata = cell.internalMetadata;
 		cell.setInternalMetadata(newInternalMetadata);
-
-		if (originalInternalMetadata.runState !== newInternalMetadata.runState) {
-			const executionState = newInternalMetadata.runState ?? extHostTypes.NotebookCellExecutionState.Idle;
-			this._emitter.emitCellExecutionStateChange(deepFreeze({ document: this.apiNotebook, cell: cell.apiCell, state: executionState }));
-		}
 	}
 
 	getCellFromApiCell(apiCell: vscode.NotebookCell): ExtHostCell | undefined {

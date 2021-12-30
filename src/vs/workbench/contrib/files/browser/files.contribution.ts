@@ -27,7 +27,7 @@ import { ExplorerService, UNDO_REDO_SOURCE } from 'vs/workbench/contrib/files/br
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
 import { Schemas } from 'vs/base/common/network';
 import { WorkspaceWatcher } from 'vs/workbench/contrib/files/browser/workspaceWatcher';
-import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
+import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
 import { DirtyFilesIndicator } from 'vs/workbench/contrib/files/common/dirtyFilesIndicator';
 import { UndoCommand, RedoCommand } from 'vs/editor/browser/editorExtensions';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';

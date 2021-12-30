@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorLayoutInfo, EditorLayoutInfoComputer, RenderMinimap, EditorOption, EditorMinimapOptions, InternalEditorScrollbarOptions, EditorOptions, RenderLineNumbersType, InternalEditorRenderLineNumbersOptions } from 'vs/editor/common/config/editorOptions';
-import { ComputedEditorOptions } from 'vs/editor/browser/config/configuration';
+import { ComputedEditorOptions } from 'vs/editor/browser/config/editorConfiguration';
 
 interface IEditorLayoutProviderOpts {
 	readonly outerWidth: number;

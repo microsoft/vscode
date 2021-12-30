@@ -20,7 +20,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -50,7 +50,7 @@ suite('suggest, word distance', function () {
 		disposables.clear();
 		let mode = new BracketMode();
 		let model = createTextModel('function abc(aa, ab){\na\n}', mode.languageId, undefined, URI.parse('test:///some.path'));
-		let editor = createTestCodeEditor({ model: model });
+		let editor = createTestCodeEditor(model);
 		editor.updateOptions({ suggest: { localityBonus: true } });
 		editor.setPosition({ lineNumber: 2, column: 2 });
 

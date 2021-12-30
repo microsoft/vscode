@@ -14,8 +14,8 @@ import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
 import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/utils';
-import { ITestCodeEditor, TestCodeEditorCreationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { inlineCompletionToGhostText } from '../inlineCompletionToGhostText';
 
 suite('Inline Completions', () => {
@@ -537,7 +537,7 @@ suite('Inline Completions', () => {
 
 async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 	text: string,
-	options: TestCodeEditorCreationOptions & { provider?: InlineCompletionsProvider, fakeClock?: boolean },
+	options: TestCodeEditorInstantiationOptions & { provider?: InlineCompletionsProvider, fakeClock?: boolean },
 	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: InlineCompletionsModel, context: GhostTextContext }) => Promise<T>
 ): Promise<T> {
 	return await runWithFakedTimers({

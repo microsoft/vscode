@@ -3,127 +3,83 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+import * as nls from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellExecutionUpdateType, ICellExecuteUpdate, INotebookCellExecution, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { CellKind, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 export class NotebookExecutionService implements INotebookExecutionService {
 	declare _serviceBrand: undefined;
 
 	constructor(
-		@INotebookService private readonly _notebookService: INotebookService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@ILogService private readonly _logService: ILogService,
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService
 	) {
 	}
 
-	createNotebookCellExecution(notebook: URI, cellHandle: number): INotebookCellExecution {
-		return new CellExecution(notebook, cellHandle, this._notebookService);
+	getSelectedOrSuggestedKernel(notebook: INotebookTextModel): INotebookKernel | undefined {
+		// TODO later can be inlined in notebookEditorWidget
+		// returns SELECTED or the ONLY available kernel
+		const info = this._notebookKernelService.getMatchingKernel(notebook);
+		return info.selected ?? (info.all.length === 1 ? info.all[0] : undefined);
 	}
-}
 
-function updateToEdit(update: ICellExecuteUpdate, cellHandle: number, model: NotebookCellTextModel): ICellEditOperation {
-	if (update.editType === CellExecutionUpdateType.Output) {
-		return {
-			editType: CellEditType.Output,
-			handle: update.cellHandle,
-			append: update.append,
-			outputs: update.outputs,
-		};
-	} else if (update.editType === CellExecutionUpdateType.OutputItems) {
-		return {
-			editType: CellEditType.OutputItems,
-			items: update.items,
-			append: update.append,
-			outputId: update.outputId
-		};
-	} else if (update.editType === CellExecutionUpdateType.Complete) {
-		return {
-			editType: CellEditType.PartialInternalMetadata,
-			handle: cellHandle,
-			internalMetadata: {
-				runState: null,
-				lastRunSuccess: update.lastRunSuccess,
-				runStartTime: model.internalMetadata.didPause ? null : model.internalMetadata.runStartTime,
-				runEndTime: model.internalMetadata.didPause ? null : update.runEndTime,
-				isPaused: false,
-				didPause: false
+	async executeNotebookCells(notebook: INotebookTextModel, cells: Iterable<NotebookCellTextModel>): Promise<void> {
+		const cellsArr = Array.from(cells);
+		this._logService.debug(`NotebookExecutionService#executeNotebookCells ${JSON.stringify(cellsArr.map(c => c.handle))}`);
+		const message = nls.localize('notebookRunTrust', "Executing a notebook cell will run code from this workspace.");
+		const trust = await this._workspaceTrustRequestService.requestWorkspaceTrust({ message });
+		if (!trust) {
+			return;
+		}
+
+		let kernel = this.getSelectedOrSuggestedKernel(notebook);
+		if (!kernel) {
+			await this._commandService.executeCommand(SELECT_KERNEL_ID);
+			kernel = this.getSelectedOrSuggestedKernel(notebook);
+		}
+
+		if (!kernel) {
+			return;
+		}
+
+		const cellHandles: number[] = [];
+		for (const cell of cellsArr) {
+			const cellExe = this._notebookExecutionStateService.getCellExecutionState(cell.uri);
+			if (cell.cellKind !== CellKind.Code || !!cellExe) {
+				continue;
 			}
-		};
-	} else if (update.editType === CellExecutionUpdateType.ExecutionState) {
-		const newInternalMetadata: Partial<NotebookCellInternalMetadata> = {
-			runState: NotebookCellExecutionState.Executing,
-		};
-		if (typeof update.executionOrder !== 'undefined') {
-			newInternalMetadata.executionOrder = update.executionOrder;
-		}
-		if (typeof update.runStartTime !== 'undefined') {
-			newInternalMetadata.runStartTime = update.runStartTime;
-		}
-		return {
-			editType: CellEditType.PartialInternalMetadata,
-			handle: cellHandle,
-			internalMetadata: newInternalMetadata
-		};
-	}
-
-	throw new Error('Unknown cell update type');
-}
-
-class CellExecution implements INotebookCellExecution, IDisposable {
-	private readonly _notebookModel: NotebookTextModel;
-
-	private _isDisposed = false;
-
-	constructor(
-		readonly notebook: URI,
-		readonly cellHandle: number,
-		private readonly _notebookService: INotebookService,
-	) {
-		const notebookModel = this._notebookService.getNotebookTextModel(notebook);
-		if (!notebookModel) {
-			throw new Error('Notebook not found: ' + notebook);
-		}
-
-		this._notebookModel = notebookModel;
-
-		const startExecuteEdit: ICellEditOperation = {
-			editType: CellEditType.PartialInternalMetadata,
-			handle: cellHandle,
-			internalMetadata: {
-				runState: NotebookCellExecutionState.Pending,
-				executionOrder: null,
-				didPause: false
+			if (!kernel.supportedLanguages.includes(cell.language)) {
+				continue;
 			}
-		};
-		this._applyExecutionEdits([startExecuteEdit]);
-	}
-
-	update(updates: ICellExecuteUpdate[]): void {
-		if (this._isDisposed) {
-			throw new Error('Cannot update disposed execution');
+			cellHandles.push(cell.handle);
 		}
 
-		const cellModel = this._notebookModel.cells.find(c => c.handle === this.cellHandle);
-		if (!cellModel) {
-			throw new Error('Cell not found: ' + this.cellHandle);
-		}
-
-		const edits = updates.map(update => updateToEdit(update, this.cellHandle, cellModel));
-		this._applyExecutionEdits(edits);
-
-		if (updates.some(u => u.editType === CellExecutionUpdateType.Complete)) {
-			this.dispose();
+		if (cellHandles.length > 0) {
+			this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
+			await kernel.executeNotebookCellsRequest(notebook.uri, cellHandles);
 		}
 	}
 
-	dispose(): void {
-		this._isDisposed = true;
+	async cancelNotebookCellHandles(notebook: INotebookTextModel, cells: Iterable<number>): Promise<void> {
+		const cellsArr = Array.from(cells);
+		this._logService.debug(`NotebookExecutionService#cancelNotebookCellHandles ${JSON.stringify(cellsArr)}`);
+		const kernel = this.getSelectedOrSuggestedKernel(notebook);
+		if (kernel) {
+			await kernel.cancelNotebookCellExecution(notebook.uri, cellsArr);
+		}
 	}
 
-	private _applyExecutionEdits(edits: ICellEditOperation[]): void {
-		this._notebookModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+	async cancelNotebookCells(notebook: INotebookTextModel, cells: Iterable<NotebookCellTextModel>): Promise<void> {
+		this.cancelNotebookCellHandles(notebook, Array.from(cells, cell => cell.handle));
 	}
 }

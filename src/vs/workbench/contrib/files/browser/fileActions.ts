@@ -931,13 +931,21 @@ export const cutFileHandler = async (accessor: ServicesAccessor) => {
 
 const downloadFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
+	const notificationService = accessor.get(INotificationService);
 	const instantiationService = accessor.get(IInstantiationService);
 
 	const context = explorerService.getContext(true);
 	const explorerItems = context.length ? context : explorerService.roots;
 
 	const downloadHandler = instantiationService.createInstance(FileDownload);
-	return downloadHandler.download(explorerItems);
+
+	try {
+		await downloadHandler.download(explorerItems);
+	} catch (error) {
+		notificationService.error(error);
+
+		throw error;
+	}
 };
 
 CommandsRegistry.registerCommand({
@@ -947,15 +955,22 @@ CommandsRegistry.registerCommand({
 
 const uploadFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
+	const notificationService = accessor.get(INotificationService);
 	const instantiationService = accessor.get(IInstantiationService);
 
 	const context = explorerService.getContext(true);
 	const element = context.length ? context[0] : explorerService.roots[0];
 
-	const files = await triggerUpload();
-	if (files) {
-		const browserUpload = instantiationService.createInstance(BrowserFileUpload);
-		return browserUpload.upload(element, files);
+	try {
+		const files = await triggerUpload();
+		if (files) {
+			const browserUpload = instantiationService.createInstance(BrowserFileUpload);
+			await browserUpload.upload(element, files);
+		}
+	} catch (error) {
+		notificationService.error(error);
+
+		throw error;
 	}
 };
 

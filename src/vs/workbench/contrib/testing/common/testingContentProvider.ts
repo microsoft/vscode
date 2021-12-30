@@ -76,6 +76,6 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 			return null;
 		}
 
-		return this.modelService.createModel(text, language, resource, true);
+		return this.modelService.createModel(text, language, resource, false);
 	}
 }

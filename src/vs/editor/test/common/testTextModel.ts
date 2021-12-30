@@ -39,7 +39,7 @@ class TestTextModel extends TextModel {
 }
 
 export function withEditorModel(text: string[], callback: (model: TextModel) => void): void {
-	let model = createTextModel(text.join('\n'));
+	const model = createTextModel(text.join('\n'));
 	callback(model);
 	model.dispose();
 }
@@ -74,12 +74,12 @@ function resolveOptions(_options: IRelaxedTextModelCreationOptions): ITextModelC
 export function createTextModel(text: string | ITextBufferFactory, languageId: string | null = null, options: IRelaxedTextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, uri: URI | null = null): TextModel {
 	const disposables = new DisposableStore();
 	const instantiationService = createModelServices(disposables);
-	const model = createTextModel2(instantiationService, text, languageId, options, uri);
+	const model = instantiateTextModel(instantiationService, text, languageId, options, uri);
 	model.registerDisposable(disposables);
 	return model;
 }
 
-export function createTextModel2(instantiationService: IInstantiationService, text: string | ITextBufferFactory, languageId: string | null = null, _options: IRelaxedTextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, uri: URI | null = null): TestTextModel {
+export function instantiateTextModel(instantiationService: IInstantiationService, text: string | ITextBufferFactory, languageId: string | null = null, _options: IRelaxedTextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, uri: URI | null = null): TestTextModel {
 	const options = resolveOptions(_options);
 	return instantiationService.createInstance(TestTextModel, text, languageId || PLAINTEXT_LANGUAGE_ID, options, uri);
 }

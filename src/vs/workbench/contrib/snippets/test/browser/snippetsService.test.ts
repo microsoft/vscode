@@ -8,7 +8,7 @@ import { SnippetCompletion, SnippetCompletionProvider } from 'vs/workbench/contr
 import { Position } from 'vs/editor/common/core/position';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { LanguageService } from 'vs/editor/common/services/languageService';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';

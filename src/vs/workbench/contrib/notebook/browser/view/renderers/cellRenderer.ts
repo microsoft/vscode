@@ -396,7 +396,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
 
 		const editor = editorInstaService.createInstance(CodeEditorWidget, editorContainer, {
-			...this.editorOptions.getValue(),
+			...this.editorOptions.getDefaultValue(),
 			dimension: {
 				width: 0,
 				height: 0
@@ -408,7 +408,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		templateDisposables.add(editor);
 
-		const progressBar = templateDisposables.add(new CellProgressBar(editorPart, cellInputCollapsedContainer));
+		const progressBar = templateDisposables.add(this.instantiationService.createInstance(CellProgressBar, editorPart, cellInputCollapsedContainer));
 
 		const statusBar = templateDisposables.add(this.instantiationService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart));
 

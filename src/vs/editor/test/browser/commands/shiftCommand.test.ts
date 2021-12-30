@@ -10,7 +10,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { getEditOperation, testCommand } from 'vs/editor/test/browser/testCommand';
-import { withEditorModel } from 'vs/editor/test/common/editorTestUtils';
+import { withEditorModel } from 'vs/editor/test/common/testTextModel';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';

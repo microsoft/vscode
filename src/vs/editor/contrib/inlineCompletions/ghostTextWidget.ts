@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import 'vs/css!./ghostText';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
@@ -154,7 +154,7 @@ export class GhostTextWidget extends Disposable {
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 		const domNode = document.createElement('div');
 		domNode.className = 'suggest-preview-additional-widget';
-		Configuration.applyFontInfoSlow(domNode, fontInfo);
+		applyFontInfo(domNode, fontInfo);
 
 		const spacer = document.createElement('span');
 		spacer.className = 'content-spacer';
@@ -352,7 +352,7 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	}
 	sb.appendASCIIString('</div>');
 
-	Configuration.applyFontInfoSlow(domNode, fontInfo);
+	applyFontInfo(domNode, fontInfo);
 	const html = sb.build();
 	const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
 	domNode.innerHTML = trustedhtml as string;

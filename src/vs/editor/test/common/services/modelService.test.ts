@@ -20,7 +20,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { DocumentSemanticTokensProvider, DocumentSemanticTokensProviderRegistry, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';

@@ -40,7 +40,8 @@ import { ViewCursors } from 'vs/editor/browser/viewParts/viewCursors/viewCursors
 import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
@@ -92,7 +93,7 @@ export class View extends ViewEventHandler {
 
 	constructor(
 		commandDelegate: ICommandDelegate,
-		configuration: IConfiguration,
+		configuration: IEditorConfiguration,
 		themeService: IThemeService,
 		model: IViewModel,
 		userInputEvents: ViewUserInputEvents,

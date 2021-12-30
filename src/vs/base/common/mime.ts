@@ -239,18 +239,6 @@ function guessMimeTypeByFirstline(firstLine: string): string | null {
 	return null;
 }
 
-export function isUnspecific(mime: string[] | string): boolean {
-	if (!mime) {
-		return true;
-	}
-
-	if (typeof mime === 'string') {
-		return mime === Mimes.binary || mime === Mimes.text || mime === Mimes.unknown;
-	}
-
-	return mime.length === 1 && isUnspecific(mime[0]);
-}
-
 interface MapExtToMediaMimes {
 	[index: string]: string;
 }

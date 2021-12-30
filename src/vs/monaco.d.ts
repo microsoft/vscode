@@ -3300,6 +3300,7 @@ declare namespace monaco.editor {
 		*/
 		guides?: IGuidesOptions;
 		unicodeHighlight?: IUnicodeHighlightOptions;
+		bracketPairColorization?: IBracketPairColorizationOptions;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -3374,8 +3375,8 @@ declare namespace monaco.editor {
 		get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
 	}
 
-	export interface IEditorOption<K1 extends EditorOption, V> {
-		readonly id: K1;
+	export interface IEditorOption<K extends EditorOption, V> {
+		readonly id: K;
 		readonly name: string;
 		defaultValue: V;
 		/**

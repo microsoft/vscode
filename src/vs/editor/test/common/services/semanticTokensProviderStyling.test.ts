@@ -9,7 +9,7 @@ import { MultilineTokens2, SparseEncodedTokens } from 'vs/editor/common/model/to
 import { MetadataConsts } from 'vs/editor/common/modes';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
-import { createModelServices } from 'vs/editor/test/common/editorTestUtils';
+import { createModelServices } from 'vs/editor/test/common/testTextModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IThemeService, ITokenStyle } from 'vs/platform/theme/common/themeService';
 

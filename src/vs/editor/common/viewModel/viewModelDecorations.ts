@@ -6,7 +6,7 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { IModelDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { IViewModelLines } from 'vs/editor/common/viewModel/viewModelLines';
 import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
@@ -28,7 +28,7 @@ export class ViewModelDecorations implements IDisposable {
 
 	private readonly editorId: number;
 	private readonly model: ITextModel;
-	private readonly configuration: editorCommon.IConfiguration;
+	private readonly configuration: IEditorConfiguration;
 	private readonly _linesCollection: IViewModelLines;
 	private readonly _coordinatesConverter: ICoordinatesConverter;
 
@@ -37,7 +37,7 @@ export class ViewModelDecorations implements IDisposable {
 	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
 
-	constructor(editorId: number, model: ITextModel, configuration: editorCommon.IConfiguration, linesCollection: IViewModelLines, coordinatesConverter: ICoordinatesConverter) {
+	constructor(editorId: number, model: ITextModel, configuration: IEditorConfiguration, linesCollection: IViewModelLines, coordinatesConverter: ICoordinatesConverter) {
 		this.editorId = editorId;
 		this.model = model;
 		this.configuration = configuration;

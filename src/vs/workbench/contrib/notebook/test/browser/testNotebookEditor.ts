@@ -15,10 +15,10 @@ import { mock } from 'vs/base/test/common/mock';
 import { EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ModelService } from 'vs/editor/common/services/modelService';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { LanguageService } from 'vs/editor/common/services/languageService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
@@ -29,6 +29,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -49,13 +50,13 @@ import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/vie
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, CellUri, INotebookDiffEditorModel, INotebookEditorModel, IOutputDto, IResolvedNotebookEditorModel, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionEntry, ICellExecutionStateChangedEvent, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -174,6 +175,7 @@ export function setupInstantiationService(disposables = new DisposableStore()) {
 	instantiationService.stub(IClipboardService, instantiationService.createInstance(BrowserClipboardService));
 	instantiationService.stub(IStorageService, new TestStorageService());
 	instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(true));
+	instantiationService.stub(INotebookExecutionStateService, new TestNotebookExecutionStateService());
 
 	return instantiationService;
 }
@@ -192,7 +194,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	}), {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false });
 
 	const model = new NotebookEditorTestModel(notebook);
-	const notebookOptions = new NotebookOptions(instantiationService.get(IConfigurationService));
+	const notebookOptions = new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService));
 	const viewContext = new ViewContext(notebookOptions, new NotebookEventDispatcher());
 	const viewModel: NotebookViewModel = instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null, { isReadOnly: false });
 
@@ -385,7 +387,7 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 		'NotebookCellList',
 		DOM.$('container'),
 		DOM.$('body'),
-		viewContext ?? new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService)), new NotebookEventDispatcher()),
+		viewContext ?? new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService)), new NotebookEventDispatcher()),
 		delegate,
 		[renderer],
 		instantiationService.get<IContextKeyService>(IContextKeyService),
@@ -405,4 +407,27 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 
 export function valueBytesFromString(value: string): VSBuffer {
 	return VSBuffer.fromString(value);
+}
+
+class TestNotebookExecutionStateService implements INotebookExecutionStateService {
+	_serviceBrand: undefined;
+
+	onDidChangeCellExecution = new Emitter<ICellExecutionStateChangedEvent>().event;
+
+	getCellExecutionStatesForNotebook(notebook: URI): ICellExecutionEntry[] {
+		return [];
+	}
+
+	getCellExecutionState(cellUri: URI): ICellExecutionEntry | undefined {
+		return undefined;
+	}
+
+	createNotebookCellExecution(notebook: URI, cellHandle: number): void {
+	}
+
+	updateNotebookCellExecution(notebook: URI, cellHandle: number, updates: ICellExecuteUpdate[]): void {
+	}
+
+	completeNotebookCellExecution(notebook: URI, cellHandle: number, complete: ICellExecutionComplete): void {
+	}
 }

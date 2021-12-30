@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from 'vs/base/browser/browser';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import * as arrays from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -15,31 +14,14 @@ import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { migrateOptions } from 'vs/editor/browser/config/migrateOptions';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, EDITOR_FONT_DEFAULTS, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from 'vs/editor/common/config/editorOptions';
+import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { BareFontInfo, FontInfo, IValidatedEditorOptions } from 'vs/editor/common/config/fontInfo';
-import { IConfiguration, IDimension } from 'vs/editor/common/editorCommon';
+import { IDimension } from 'vs/editor/common/editorCommon';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
-export class Configuration extends Disposable implements IConfiguration {
-
-	public static applyFontInfoSlow(domNode: HTMLElement, fontInfo: BareFontInfo): void {
-		domNode.style.fontFamily = fontInfo.getMassagedFontFamily(browser.isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null);
-		domNode.style.fontWeight = fontInfo.fontWeight;
-		domNode.style.fontSize = fontInfo.fontSize + 'px';
-		domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
-		domNode.style.lineHeight = fontInfo.lineHeight + 'px';
-		domNode.style.letterSpacing = fontInfo.letterSpacing + 'px';
-	}
-
-	public static applyFontInfo(domNode: FastDomNode<HTMLElement>, fontInfo: BareFontInfo): void {
-		domNode.setFontFamily(fontInfo.getMassagedFontFamily(browser.isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null));
-		domNode.setFontWeight(fontInfo.fontWeight);
-		domNode.setFontSize(fontInfo.fontSize);
-		domNode.setFontFeatureSettings(fontInfo.fontFeatureSettings);
-		domNode.setLineHeight(fontInfo.lineHeight);
-		domNode.setLetterSpacing(fontInfo.letterSpacing);
-	}
+export class EditorConfiguration extends Disposable implements IEditorConfiguration {
 
 	private _onDidChange = this._register(new Emitter<ConfigurationChangedEvent>());
 	public readonly onDidChange: Event<ConfigurationChangedEvent> = this._onDidChange.event;
@@ -273,10 +255,10 @@ export class ComputedEditorOptions implements IComputedEditorOptions {
 
 class EditorOptionsUtil {
 
-	public static validateOptions(rawOptions: IEditorOptions): ValidatedEditorOptions {
+	public static validateOptions(options: IEditorOptions): ValidatedEditorOptions {
 		const result = new ValidatedEditorOptions();
 		for (const editorOption of editorOptionsRegistry) {
-			const value = (editorOption.name === '_never_' ? undefined : (rawOptions as any)[editorOption.name]);
+			const value = (editorOption.name === '_never_' ? undefined : (options as any)[editorOption.name]);
 			result._write(editorOption.id, editorOption.validate(value));
 		}
 		return result;

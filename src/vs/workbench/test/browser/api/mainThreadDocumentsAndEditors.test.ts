@@ -43,8 +43,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let deltas: IDocumentsAndEditorsDelta[] = [];
 
 	function myCreateTestCodeEditor(model: ITextModel | undefined): ITestCodeEditor {
-		return createTestCodeEditor({
-			model: model,
+		return createTestCodeEditor(model, {
 			hasTextFocus: false,
 			serviceCollection: new ServiceCollection(
 				[ICodeEditorService, codeEditorService]

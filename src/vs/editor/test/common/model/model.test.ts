@@ -15,7 +15,7 @@ import { IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/m
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NullState } from 'vs/editor/common/modes/nullMode';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { createModelServices, createTextModel, createTextModel2 } from 'vs/editor/test/common/editorTestUtils';
+import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { ILanguageService } from 'vs/editor/common/services/language';
 
 // --------- utils
@@ -459,7 +459,7 @@ suite('Editor Model - Words', () => {
 		const outerMode = disposables.add(instantiationService.createInstance(OuterMode));
 		disposables.add(new InnerMode());
 
-		const model = disposables.add(createTextModel2(instantiationService, 'ab<xx>ab<x>', outerMode.languageId));
+		const model = disposables.add(instantiateTextModel(instantiationService, 'ab<xx>ab<x>', outerMode.languageId));
 
 		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 1)), { word: 'ab', startColumn: 1, endColumn: 3 });
 		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 2)), { word: 'ab', startColumn: 1, endColumn: 3 });

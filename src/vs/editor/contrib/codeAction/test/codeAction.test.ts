@@ -11,7 +11,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { CodeActionItem, getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { Progress } from 'vs/platform/progress/common/progress';
 

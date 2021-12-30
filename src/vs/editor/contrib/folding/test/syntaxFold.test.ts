@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModel } from 'vs/editor/common/model';
 import { FoldingContext, FoldingRange, FoldingRangeProvider, ProviderResult } from 'vs/editor/common/modes';
 import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/syntaxRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 interface IndentRange {
 	start: number;

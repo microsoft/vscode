@@ -15,7 +15,7 @@ import { IState, ITokenizationSupport, LanguageId, MetadataConsts, StandardToken
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/services/language';
-import { createModelServices, createTextModel2 } from 'vs/editor/test/common/editorTestUtils';
+import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('Bracket Pair Colorizer - Tokenizer', () => {
@@ -41,7 +41,7 @@ suite('Bracket Pair Colorizer - Tokenizer', () => {
 			brackets: [['{', '}'], ['[', ']'], ['(', ')'], ['begin', 'end']],
 		}));
 
-		const model = disposableStore.add(createTextModel2(instantiationService, document.getText(), mode1));
+		const model = disposableStore.add(instantiateTextModel(instantiationService, document.getText(), mode1));
 		model.forceTokenization(model.getLineCount());
 
 		const languageConfigService = new TestLanguageConfigurationService();

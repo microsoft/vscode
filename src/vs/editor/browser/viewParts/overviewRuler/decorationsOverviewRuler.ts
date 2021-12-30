@@ -8,7 +8,7 @@ import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Position } from 'vs/editor/common/core/position';
-import { IConfiguration } from 'vs/editor/common/editorCommon';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { editorCursorForeground, editorOverviewRulerBorder, editorOverviewRulerBackground } from 'vs/editor/common/view/editorColorRegistry';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -42,7 +42,7 @@ class Settings {
 	public readonly x: number[];
 	public readonly w: number[];
 
-	constructor(config: IConfiguration, theme: EditorTheme) {
+	constructor(config: IEditorConfiguration, theme: EditorTheme) {
 		const options = config.options;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.pixelRatio = options.get(EditorOption.pixelRatio);

@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { DocumentSymbol, DocumentSymbolProviderRegistry, SymbolKind } from 'vs/editor/common/modes';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { OutlineElement, OutlineGroup, OutlineModel } from '../outlineModel';
 

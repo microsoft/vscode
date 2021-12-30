@@ -18,7 +18,7 @@ import { GhostTextContext } from 'vs/editor/contrib/inlineCompletions/test/utils
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
-import { ITestCodeEditor, TestCodeEditorCreationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -28,7 +28,7 @@ import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/com
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import assert = require('assert');
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { minimizeInlineCompletion } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
@@ -138,7 +138,7 @@ const provider: CompletionItemProvider = {
 
 async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 	text: string,
-	options: TestCodeEditorCreationOptions & { provider?: CompletionItemProvider, fakeClock?: boolean, serviceCollection?: never },
+	options: TestCodeEditorInstantiationOptions & { provider?: CompletionItemProvider, fakeClock?: boolean, serviceCollection?: never },
 	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: SuggestWidgetPreviewModel, context: GhostTextContext }) => Promise<void>
 ): Promise<void> {
 	await runWithFakedTimers({ useFakeTimers: options.fakeClock }, async () => {

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Configuration, IEnvConfiguration } from 'vs/editor/browser/config/configuration';
+import { EditorConfiguration, IEnvConfiguration } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorFontLigatures, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
 
-export class TestConfiguration extends Configuration {
+export class TestConfiguration extends EditorConfiguration {
 
 	constructor(opts: IEditorOptions) {
 		super(false, opts, null, new TestAccessibilityService());

@@ -14,7 +14,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { URI } from 'vs/base/common/uri';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 export interface IMarkdownRenderResult extends IDisposable {
@@ -91,7 +91,7 @@ export class MarkdownRenderer {
 				// use "good" font
 				if (this._options.editor) {
 					const fontInfo = this._options.editor.getOption(EditorOption.fontInfo);
-					Configuration.applyFontInfoSlow(element, fontInfo);
+					applyFontInfo(element, fontInfo);
 				} else if (this._options.codeBlockFontFamily) {
 					element.style.fontFamily = this._options.codeBlockFontFamily;
 				}
