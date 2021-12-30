@@ -95,7 +95,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			await app.workbench.editors.waitForTab('readme.md', !autoSave);
 
 			if (typeof restartDelay === 'number') {
-				// this is an OK use of a timeout in a smoke test
+				// this is an OK use of a timeout in a smoke test:
 				// we want to simulate a user having typed into
 				// the editor and pausing for a moment before
 				// terminating
