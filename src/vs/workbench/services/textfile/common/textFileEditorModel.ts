@@ -711,7 +711,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		await this.doSave(options);
 		this.logService.trace('[text file model] save() - exit', this.resource.toString(true));
 
-		return true;
+		return this.hasState(TextFileEditorModelState.SAVED);
 	}
 
 	private async doSave(options: ITextFileSaveOptions): Promise<void> {

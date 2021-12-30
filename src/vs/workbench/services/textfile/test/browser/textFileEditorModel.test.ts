@@ -194,6 +194,26 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(!accessor.modelService.getModel(model.resource));
 	});
 
+	test('save - returns false when save fails', async function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+
+		await model.resolve();
+
+		accessor.fileService.writeShouldThrowError = new Error('failed to write');
+		try {
+			const res = await model.save({ force: true });
+			assert.strictEqual(res, false);
+		} finally {
+			accessor.fileService.writeShouldThrowError = undefined;
+		}
+
+		const res = await model.save({ force: true });
+		assert.strictEqual(res, true);
+
+		model.dispose();
+		assert.ok(!accessor.modelService.getModel(model.resource));
+	});
+
 	test('save error (generic)', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 

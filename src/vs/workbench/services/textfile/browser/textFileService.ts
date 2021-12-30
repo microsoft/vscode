@@ -426,14 +426,14 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			}
 		}
 
-		// Revert the source if result is success
-		if (success) {
-			await this.revert(source);
-
-			return target;
+		if (!success) {
+			return undefined;
 		}
 
-		return undefined;
+		// Revert the source
+		await this.revert(source);
+
+		return target;
 	}
 
 	private async doSaveAsTextFile(sourceModel: IResolvedTextEditorModel | ITextModel, source: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
