@@ -42,7 +42,7 @@ import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/n
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewElement, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ICreationRequestMessage, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
+import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -355,6 +355,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					tbody th {
 						font-weight: normal;
 					}
+
+					#_defaultColorPalatte {
+						color: var(--vscode-editor-findMatchHighlightBackground);
+						background-color: var(--vscode-editor-findMatchBackground);
+					}
 				</style>
 				<style id="vscode-tokenization-styles" nonce="${this.nonce}">${getTokenizationCss()}</style>
 			</head>
@@ -363,9 +368,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					self.require = {};
 				</script>
 				${coreDependencies}
+				<div id='findStart' tabIndex=-1></div>
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
 				<script type="module">${preloadScript}</script>
 				<div id="container" class="widgetarea" style="position: absolute; width:100%; top: 0px"></div>
+				<div id="_defaultColorPalatte"></div>
 			</body>
 		</html>`;
 	}
@@ -1260,6 +1267,55 @@ var requirejs = (function() {
 			});
 		}, 50);
 	}
+
+	async find(query: string): Promise<IFindMatch[]> {
+		if (query === '') {
+			return [];
+		}
+
+		const p = new Promise<IFindMatch[]>(resolve => {
+			const sub = this.webview?.onMessage(e => {
+				if (e.message.type === 'didFind') {
+					resolve(e.message.matches);
+					sub?.dispose();
+				}
+			});
+		});
+
+		this._sendMessageToWebview({
+			type: 'find',
+			query: query
+		});
+
+		const ret = await p;
+		return ret;
+	}
+
+	findStop() {
+		this._sendMessageToWebview({
+			type: 'findStop'
+		});
+	}
+
+	async findHighlight(index: number): Promise<number> {
+		const p = new Promise<number>(resolve => {
+			const sub = this.webview?.onMessage(e => {
+				if (e.message.type === 'didFindHighlight') {
+					resolve(e.message.offset);
+					sub?.dispose();
+				}
+			});
+		});
+
+		this._sendMessageToWebview({
+			type: 'findHighlight',
+			index
+		});
+
+		const ret = await p;
+		return ret;
+	}
+
 
 	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
 		this._sendMessageToWebview({

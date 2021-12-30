@@ -220,6 +220,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		super.hide();
 		this._state.change({ isRevealed: false }, false);
 		this._findModel.clear();
+		this._notebookEditor.findStop();
 
 		if (this._hideTimeout === null) {
 			if (this._showTimeout !== null) {

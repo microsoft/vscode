@@ -533,6 +533,213 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	window.addEventListener('wheel', handleWheel);
 
+	let _findingMatches: {
+		type: any;
+		cellId: string;
+		id: string;
+		container: any;
+		range: any;
+	}[] = [];
+	let _findMatchIndex = -1;
+	let matchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).color;
+	let currentMatchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).backgroundColor;
+
+	const find = (query: string) => {
+		let find = true;
+		let matches = [];
+
+		let range = document.createRange();
+		range.selectNodeContents(document.getElementById('findStart')!);
+		let sel = window.getSelection();
+		sel?.removeAllRanges();
+		sel?.addRange(range);
+
+		while (find && matches.length < 200) {
+			find = (window as any).find(query, /* caseSensitive*/ false,
+			/* backwards*/ false,
+			/* wrapAround*/ false,
+			/* wholeWord */ false,
+			/* searchInFrames*/ true,
+				false);
+
+			if (find) {
+				const selection = window.getSelection();
+				if (!selection) {
+					console.log('no selection');
+					break;
+				}
+
+				const anchorNode = selection?.anchorNode?.parentElement;
+
+				if (anchorNode) {
+					const lastEl: any = matches.length ? matches[matches.length - 1] : null;
+
+					if (lastEl && lastEl.container.contains(anchorNode)) {
+						document.designMode = 'On';
+						// document.execCommand('hiliteColor', false, '#ff0000');
+						window.document.execCommand('hiliteColor', false, matchColor);
+						document.designMode = 'Off';
+
+						const range = window.getSelection()!.getRangeAt(0).cloneRange();
+						matches.push({
+							type: lastEl.type,
+							id: lastEl.id,
+							cellId: lastEl.cellId,
+							container: lastEl.container,
+							range: {
+								collapsed: range.collapsed,
+								commonAncestorContainer: range.commonAncestorContainer,
+								endContainer: range.endContainer,
+								endOffset: range.endOffset,
+								startContainer: range.startContainer,
+								startOffset: range.startOffset
+							}
+						});
+
+					} else {
+						for (let node = anchorNode as Element | null; node; node = node.parentElement) {
+							if (!(node instanceof Element)) {
+								break;
+							}
+
+							if (node.classList.contains('output')) {
+								// inside output
+								const cellId = node.parentElement?.parentElement?.id;
+								if (cellId) {
+									document.designMode = 'On';
+									// document.execCommand('hiliteColor', false, '#ff0000');
+									window.document.execCommand('hiliteColor', false, matchColor);
+									document.designMode = 'Off';
+
+									const range = window.getSelection()!.getRangeAt(0);
+
+									matches.push({
+										type: 'output',
+										id: node.id,
+										cellId: cellId,
+										container: node,
+										range: {
+											collapsed: range.collapsed,
+											commonAncestorContainer: range.commonAncestorContainer,
+											endContainer: range.endContainer,
+											endOffset: range.endOffset,
+											startContainer: range.startContainer,
+											startOffset: range.startOffset
+										}
+									});
+
+								}
+								break;
+							}
+
+							if (node.id === 'container' || node === document.body) {
+								break;
+							}
+						}
+					}
+
+				} else {
+					break;
+				}
+			}
+		}
+
+		_findingMatches = matches;
+		postNotebookMessage('didFind', {
+			matches: matches.map((match, index) => ({
+				type: match.type,
+				id: match.id,
+				cellId: match.cellId,
+				index
+			}))
+		});
+	};
+
+	const highlightCurrentMatch = (index: number) => {
+		const oldMatch = _findingMatches[_findMatchIndex];
+		if (oldMatch) {
+			const sel = window.getSelection();
+			if (sel) {
+				try {
+					sel.removeAllRanges();
+					const r = document.createRange();
+					r.setStart(oldMatch.range.startContainer, oldMatch.range.startOffset);
+					r.setEnd(oldMatch.range.endContainer, oldMatch.range.endOffset);
+					sel.addRange(r);
+					document.designMode = 'On';
+					document.execCommand('removeFormat', false, undefined);
+					window.document.execCommand('hiliteColor', false, matchColor);
+					document.designMode = 'Off';
+
+					sel.removeAllRanges();
+				} catch (e) {
+					console.log(e);
+				}
+			}
+		}
+		const match = _findingMatches[index];
+		_findMatchIndex = index;
+		const sel = window.getSelection();
+		if (!!match && !!sel) {
+			// const outputOffset = match.cellId
+			let offset = 0;
+			try {
+				const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
+				const tempRange = document.createRange();
+				tempRange.selectNode(match.range.startContainer);
+				const rangeOffset = tempRange.getBoundingClientRect().top;
+				tempRange.detach();
+				offset = rangeOffset - outputOffset;
+			} catch (e) {
+			}
+
+			try {
+				sel.removeAllRanges();
+				const r = document.createRange();
+				r.setStart(match.range.startContainer, match.range.startOffset);
+				r.setEnd(match.range.endContainer, match.range.endOffset);
+				sel.addRange(r);
+				document.designMode = 'On';
+				window.document.execCommand('hiliteColor', false, currentMatchColor);
+				document.designMode = 'Off';
+
+				sel.removeAllRanges();
+
+				postNotebookMessage('didFindHighlight', {
+					offset
+				});
+			} catch (e) {
+				console.log(e);
+			}
+		}
+	};
+
+	const clearFindMatches = () => {
+		_findingMatches.forEach(match => {
+			const sel = window.getSelection();
+			if (sel) {
+				try {
+					sel.removeAllRanges();
+					const r = document.createRange();
+					r.setStart(match.range.startContainer, match.range.startOffset);
+					r.setEnd(match.range.endContainer, match.range.endOffset);
+					sel.addRange(r);
+					document.designMode = 'On';
+					// document.execCommand('hiliteColor', false, '#ff0000');
+					document.execCommand('removeFormat', false, undefined);
+					document.designMode = 'Off';
+
+					sel.removeAllRanges();
+				} catch (e) {
+					console.log(e);
+				}
+			}
+		});
+
+		_findingMatches = [];
+		_findMatchIndex = -1;
+	};
+
 	window.addEventListener('message', async rawEvent => {
 		const event = rawEvent as ({ data: webviewMessages.ToWebviewMessage; });
 
@@ -692,6 +899,19 @@ async function webviewPreloads(ctx: PreloadContext) {
 				if (tokenizationStyleElement) {
 					tokenizationStyleElement.textContent = event.data.css;
 				}
+				break;
+			}
+			case 'find': {
+				clearFindMatches();
+				find(event.data.query);
+				break;
+			}
+			case 'findHighlight': {
+				highlightCurrentMatch(event.data.index);
+				break;
+			}
+			case 'findStop': {
+				clearFindMatches();
 				break;
 			}
 		}

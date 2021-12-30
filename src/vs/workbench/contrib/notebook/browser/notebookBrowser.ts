@@ -574,6 +574,11 @@ export interface INotebookEditor {
 	revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void>;
 
 	/**
+	 * Reveal a position with `offset` in a cell into viewport center.
+	 */
+	revealCellOffsetInCenterAsync(cell: ICellViewModel, offset: number): Promise<void>;
+
+	/**
 	 * Convert the view range to model range
 	 * @param startIndex Inclusive
 	 * @param endIndex Exclusive
@@ -630,6 +635,8 @@ export interface INotebookEditor {
 	getCellIndex(cell: ICellViewModel): number | undefined;
 	getNextVisibleCellIndex(index: number): number | undefined;
 	find(query: string, options: INotebookSearchOptions, token: CancellationToken): Promise<CellFindMatchWithIndex[]>;
+	highlightFind(cell: ICellViewModel, matchIndex: number): Promise<number>;
+	findStop(): void;
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {
@@ -674,15 +681,21 @@ export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate {
 	getNextVisibleCellIndex(index: number): number;
 }
 
+export interface OutputFindMatch {
+	readonly index: number;
+}
+
 export interface CellFindMatch {
 	cell: CellViewModel;
-	matches: FindMatch[];
+	matches: (FindMatch | OutputFindMatch)[];
+	modelMatchCount: number;
 }
 
 export interface CellFindMatchWithIndex {
 	cell: CellViewModel;
 	index: number;
-	matches: FindMatch[];
+	matches: (FindMatch | OutputFindMatch)[];
+	modelMatchCount: number;
 }
 
 export enum CellRevealType {
