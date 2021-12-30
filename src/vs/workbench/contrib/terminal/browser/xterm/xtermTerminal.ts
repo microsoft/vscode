@@ -139,9 +139,36 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 		// Load addons
 		this._updateUnicodeVersion();
-
+		this.raw.onIntegratedShellChange((e: { type: string, value: string }) => this._handleIntegratedShellChange(e));
 		this._commandTrackerAddon = new CommandTrackerAddon();
 		this.raw.loadAddon(this._commandTrackerAddon);
+	}
+
+	private _handleIntegratedShellChange(event: { type: string, value: string }): void {
+		//TODO: remove
+		console.log('handling shell change', event);
+		switch (event.type) {
+			case ShellIntegrationInfo.CurrentDir:
+				//fire an event to update cwd
+				break;
+			case ShellIntegrationInfo.RemoteHost:
+				//fire an event to update username/host info
+				break;
+			case ShellIntegrationInteraction.PromptStart:
+				//add marker
+				break;
+			case ShellIntegrationInteraction.CommandStart:
+				//save command
+				break;
+			case ShellIntegrationInteraction.CommandExecuted:
+				//do something?
+				break;
+			case ShellIntegrationInteraction.CommandFinished:
+				// do something with exit code if not 0?
+				break;
+			default:
+				return;
+		}
 	}
 
 	attachToElement(container: HTMLElement) {
@@ -484,3 +511,17 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		}
 	}
 }
+
+enum ShellIntegrationInteraction {
+	PromptStart = 'PROMPT_START',
+	CommandStart = 'COMMAND_START',
+	CommandExecuted = 'COMMAND_EXECUTED',
+	CommandFinished = 'COMMAND_FINISHED'
+}
+
+enum ShellIntegrationInfo {
+	RemoteHost = 'RemoteHost',
+	CurrentDir = 'CurrentDir',
+}
+
+export interface IShellChangeEvent { type: ShellIntegrationInfo | ShellIntegrationInteraction, value: string }
