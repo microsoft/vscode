@@ -35,6 +35,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import * as marked from 'vs/base/common/marked/marked';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { executingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 
 export interface IOutlineMarkerInfo {
 	readonly count: number;
@@ -47,12 +49,17 @@ export class OutlineEntry {
 	private _parent: OutlineEntry | undefined;
 	private _markerInfo: IOutlineMarkerInfo | undefined;
 
+	get icon(): ThemeIcon {
+		return this.isExecuting ? ThemeIcon.modify(executingStateIcon, 'spin') :
+			this.cell.cellKind === CellKind.Markup ? Codicon.markdown : Codicon.code;
+	}
+
 	constructor(
 		readonly index: number,
 		readonly level: number,
 		readonly cell: ICellViewModel,
 		readonly label: string,
-		readonly icon: ThemeIcon
+		readonly isExecuting: boolean
 	) { }
 
 	addChild(entry: OutlineEntry) {
@@ -164,7 +171,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 			extraClasses: []
 		};
 
-		if (node.element.cell.cellKind === CellKind.Code && this._themeService.getFileIconTheme().hasFileIcons) {
+		if (node.element.cell.cellKind === CellKind.Code && this._themeService.getFileIconTheme().hasFileIcons && !node.element.isExecuting) {
 			template.iconClass.className = '';
 			options.extraClasses?.push(...getIconClassesForLanguageId(node.element.cell.language ?? ''));
 		} else {
@@ -299,6 +306,7 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super();
 		const selectionListener = this._register(new MutableDisposable());
@@ -328,6 +336,8 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 		this._register(themeService.onDidFileIconThemeChange(() => {
 			this._onDidChange.fire({});
 		}));
+
+		this._register(_notebookExecutionStateService.onDidChangeCellExecution(() => this._recomputeState()));
 
 		this._recomputeState();
 		installSelectionListener();
@@ -416,7 +426,7 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 				for (const token of marked.lexer(content, { gfm: true })) {
 					if (token.type === 'heading') {
 						hasHeader = true;
-						entries.push(new OutlineEntry(entries.length, token.depth, cell, renderMarkdownAsPlaintext({ value: token.text }).trim(), Codicon.markdown));
+						entries.push(new OutlineEntry(entries.length, token.depth, cell, renderMarkdownAsPlaintext({ value: token.text }).trim(), false));
 					}
 				}
 				if (!hasHeader) {
@@ -431,7 +441,8 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 					preview = localize('empty', "empty cell");
 				}
 
-				entries.push(new OutlineEntry(entries.length, 7, cell, preview, isMarkdown ? Codicon.markdown : Codicon.code));
+				const executing = !isMarkdown && !!this._notebookExecutionStateService.getCellExecutionState(cell.uri);
+				entries.push(new OutlineEntry(entries.length, 7, cell, preview, executing));
 			}
 
 			if (cell.handle === focused) {
