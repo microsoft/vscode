@@ -326,6 +326,7 @@ export interface ICommandTracker {
 	selectToNextCommand(): void;
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
+	clearMarker(): void;
 }
 
 export interface INavigationMode {

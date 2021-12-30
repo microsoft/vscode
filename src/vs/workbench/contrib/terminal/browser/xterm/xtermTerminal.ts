@@ -158,13 +158,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 				//add marker
 				break;
 			case ShellIntegrationInteraction.CommandStart:
-				//save command
+
 				break;
 			case ShellIntegrationInteraction.CommandExecuted:
 				//do something?
 				break;
 			case ShellIntegrationInteraction.CommandFinished:
-				// do something with exit code if not 0?
+				// already handled in command tracker
 				break;
 			default:
 				return;
@@ -512,14 +512,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	}
 }
 
-enum ShellIntegrationInteraction {
+export enum ShellIntegrationInteraction {
 	PromptStart = 'PROMPT_START',
 	CommandStart = 'COMMAND_START',
 	CommandExecuted = 'COMMAND_EXECUTED',
 	CommandFinished = 'COMMAND_FINISHED'
 }
 
-enum ShellIntegrationInfo {
+export enum ShellIntegrationInfo {
 	RemoteHost = 'RemoteHost',
 	CurrentDir = 'CurrentDir',
 }

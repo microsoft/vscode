@@ -5,12 +5,10 @@
 
 import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
 import { ICommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
-
 /**
  * The minimum size of the prompt in which to assume the line is a command.
  */
 const MINIMUM_PROMPT_LENGTH = 2;
-
 enum Boundary {
 	Top,
 	Bottom
@@ -29,30 +27,25 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
-		terminal.onKey(e => this._onKey(e.key));
+		terminal.onIntegratedShellChange(e => {
+			if (this._terminal && this._terminal.buffer.active.cursorX >= MINIMUM_PROMPT_LENGTH) {
+				if (e.type === 'COMMAND_FINISHED') {
+					//TODO check exit code?
+					this._terminal?.registerMarker(0);
+					this.clearMarker();
+				}
+			}
+		});
 	}
 
 	dispose(): void {
 	}
 
-	private _onKey(key: string): void {
-		if (key === '\x0d') {
-			this._onEnter();
-		}
-
+	clearMarker(): void {
 		// Clear the current marker so successive focus/selection actions are performed from the
 		// bottom of the buffer
 		this._currentMarker = Boundary.Bottom;
 		this._selectionStart = null;
-	}
-
-	private _onEnter(): void {
-		if (!this._terminal) {
-			return;
-		}
-		if (this._terminal.buffer.active.cursorX >= MINIMUM_PROMPT_LENGTH) {
-			this._terminal.registerMarker(0);
-		}
 	}
 
 	scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
