@@ -789,7 +789,7 @@ export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INote
 export function expandCellRangesWithHiddenCells(editor: INotebookEditor, ranges: ICellRange[]) {
 	// assuming ranges are sorted and no overlap
 	const indexes = cellRangesToIndexes(ranges);
-	let modelRanges: ICellRange[] = [];
+	const modelRanges: ICellRange[] = [];
 	indexes.forEach(index => {
 		const viewCell = editor.cellAt(index);
 

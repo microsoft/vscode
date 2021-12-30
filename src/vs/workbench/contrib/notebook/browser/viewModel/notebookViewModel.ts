@@ -752,7 +752,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			result.push(...ret);
 		});
 
-		for (let _handle in deletesByHandle) {
+		for (const _handle in deletesByHandle) {
 			const handle = parseInt(_handle);
 			const ids = deletesByHandle[handle];
 			const cell = this.getCellByHandle(handle);

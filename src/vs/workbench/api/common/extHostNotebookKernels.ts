@@ -87,7 +87,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	createNotebookController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler?: (cells: vscode.NotebookCell[], notebook: vscode.NotebookDocument, controller: vscode.NotebookController) => void | Thenable<void>, preloads?: vscode.NotebookRendererScript[]): vscode.NotebookController {
 
-		for (let data of this._kernelData.values()) {
+		for (const data of this._kernelData.values()) {
 			if (data.controller.id === id && ExtensionIdentifier.equals(extension.identifier, data.extensionId)) {
 				throw new Error(`notebook controller with id '${id}' ALREADY exist`);
 			}
@@ -284,7 +284,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 		const document = this._extHostNotebook.getNotebookDocument(URI.revive(uri));
 		const cells: vscode.NotebookCell[] = [];
-		for (let cellHandle of handles) {
+		for (const cellHandle of handles) {
 			const cell = document.getCell(cellHandle);
 			if (cell) {
 				cells.push(cell.apiCell);
@@ -315,7 +315,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			await obj.controller.interruptHandler.call(obj.controller, document.apiNotebook);
 
 		} else {
-			for (let cellHandle of handles) {
+			for (const cellHandle of handles) {
 				const cell = document.getCell(cellHandle);
 				if (cell) {
 					this._activeExecutions.get(cell.uri)?.cancel();

@@ -50,7 +50,7 @@ class Kernel {
 	}
 
 	protected async _execute(cells: vscode.NotebookCell[]): Promise<void> {
-		for (let cell of cells) {
+		for (const cell of cells) {
 			await this._runCell(cell);
 		}
 	}

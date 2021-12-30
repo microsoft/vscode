@@ -1550,7 +1550,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			const scrollBottom = scrollTop + Math.max(this._dimension?.height ?? 0, 1080);
 
 			let offset = 0;
-			let requests: [ICellViewModel, number][] = [];
+			const requests: [ICellViewModel, number][] = [];
 
 			for (let i = 0; i < viewModel.length; i++) {
 				const cell = viewModel.cellAt(i)!;

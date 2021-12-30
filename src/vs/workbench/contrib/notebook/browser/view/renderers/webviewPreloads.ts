@@ -1048,7 +1048,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public ensureOutputCell(cellId: string, cellTop: number, skipCellTopUpdateIfExist: boolean): OutputCell {
 			let cell = this._outputCells.get(cellId);
-			let existed = !!cell;
+			const existed = !!cell;
 			if (!cell) {
 				cell = new OutputCell(cellId);
 				this._outputCells.set(cellId, cell);

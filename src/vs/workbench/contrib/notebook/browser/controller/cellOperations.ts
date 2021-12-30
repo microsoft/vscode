@@ -150,7 +150,7 @@ export function runDeleteAction(editor: IActiveNotebookEditor, cell: ICellViewMo
 			editType: CellEditType.Replace, index: targetCellIndex, count: 1, cells: []
 		}];
 
-		let finalSelections: ICellRange[] = [];
+		const finalSelections: ICellRange[] = [];
 		for (let i = 0; i < selections.length; i++) {
 			const selection = selections[i];
 
@@ -273,7 +273,7 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 	let range: ICellRange | undefined = undefined;
 
 	if (context.ui) {
-		let targetCell = context.cell;
+		const targetCell = context.cell;
 		const targetCellIndex = editor.getCellIndex(targetCell);
 		range = { start: targetCellIndex, end: targetCellIndex + 1 };
 	} else {
@@ -460,9 +460,9 @@ export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, 
 		const focus = editor.getFocus();
 		const focusMode = editor.cellAt(focus.start)?.focusMode;
 
-		let edits: ResourceEdit[] = [];
+		const edits: ResourceEdit[] = [];
 		let cell: ICellViewModel | null = null;
-		let cells: ICellViewModel[] = [];
+		const cells: ICellViewModel[] = [];
 
 		for (let i = selections.length - 1; i >= 0; i--) {
 			const selection = selections[i];

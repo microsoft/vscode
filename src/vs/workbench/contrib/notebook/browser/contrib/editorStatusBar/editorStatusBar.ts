@@ -139,7 +139,7 @@ registerAction2(class extends Action2 {
 		let newKernel: INotebookKernel | undefined;
 		if (controllerId) {
 			const wantedId = `${extensionId}/${controllerId}`;
-			for (let candidate of all) {
+			for (const candidate of all) {
 				if (candidate.id === wantedId) {
 					newKernel = candidate;
 					break;
@@ -267,7 +267,7 @@ class ImplictKernelSelector implements IDisposable {
 		// IMPLICITLY select a suggested kernel when the notebook has been changed
 		// e.g change cell source, move cells, etc
 		disposables.add(notebook.onDidChangeContent(e => {
-			for (let event of e.rawEvents) {
+			for (const event of e.rawEvents) {
 				switch (event.kind) {
 					case NotebookCellsChangeType.ChangeCellContent:
 					case NotebookCellsChangeType.ModelChange:
@@ -346,7 +346,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 		this._kernelInfoElement.clear();
 
-		let { selected, suggestions, all } = this._notebookKernelService.getMatchingKernel(notebook);
+		const { selected, suggestions, all } = this._notebookKernelService.getMatchingKernel(notebook);
 		const suggested = (suggestions.length === 1 && all.length === 1) ? suggestions[0] : undefined;
 		let isSuggested = false;
 
