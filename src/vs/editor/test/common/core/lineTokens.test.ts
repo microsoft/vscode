@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
+import { IViewLineTokens, LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
 import { MetadataConsts } from 'vs/editor/common/modes';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 

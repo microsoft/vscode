@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
+import { IViewLineTokens } from 'vs/editor/common/model/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { EncodedTokenizationResult } from 'vs/editor/common/core/token';

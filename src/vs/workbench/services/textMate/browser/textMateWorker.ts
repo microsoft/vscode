@@ -12,8 +12,9 @@ import { IModelChangedEvent, MirrorTextModel } from 'vs/editor/common/model/mirr
 import { TextMateWorkerHost } from 'vs/workbench/services/textMate/browser/nativeTextMateService';
 import { TokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
 import type { IGrammar, StackElement, IRawTheme, IOnigLib } from 'vscode-textmate';
-import { MultilineTokensBuilder, countEOL } from 'vs/editor/common/model/tokensStore';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/model/tokens/contiguousMultilineTokensBuilder';
+import { countEOL } from 'vs/editor/common/model/pieceTreeTextBuffer/eolCounter';
+import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
 import { FileAccess } from 'vs/base/common/network';
 
 export interface IValidGrammarDefinitionDTO {
@@ -100,7 +101,7 @@ class TextMateWorkerModel extends MirrorTextModel {
 		if (!this._grammar) {
 			return;
 		}
-		const builder = new MultilineTokensBuilder();
+		const builder = new ContiguousMultilineTokensBuilder();
 		const lineCount = this._lines.length;
 
 		// Validate all states up to and including endLineIndex

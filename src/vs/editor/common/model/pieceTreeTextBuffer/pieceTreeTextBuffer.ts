@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ApplyEditsResult, EndOfLinePreference, FindMatch, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer, ITextSnapshot, ValidAnnotatedEditOperation, IValidEditOperation } from 'vs/editor/common/model';
 import { PieceTreeBase, StringBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { countEOL, StringEOL } from 'vs/editor/common/model/tokensStore';
+import { countEOL, StringEOL } from 'vs/editor/common/model/pieceTreeTextBuffer/eolCounter';
 import { TextChange } from 'vs/editor/common/model/textChange';
 import { Disposable } from 'vs/base/common/lifecycle';
 

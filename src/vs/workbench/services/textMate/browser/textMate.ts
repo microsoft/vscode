@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IGrammar } from 'vscode-textmate';
+import type { IGrammar } from 'vscode-textmate';
 
 export const ITextMateService = createDecorator<ITextMateService>('textMateService');
 

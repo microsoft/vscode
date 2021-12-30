@@ -16,7 +16,7 @@ import * as strings from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -35,7 +35,11 @@ import { TextChange } from 'vs/editor/common/model/textChange';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
 import { TextModelTokenization } from 'vs/editor/common/model/textModelTokens';
-import { countEOL, MultilineTokens, MultilineTokens2, TokensStore, TokensStore2 } from 'vs/editor/common/model/tokensStore';
+import { countEOL } from 'vs/editor/common/model/pieceTreeTextBuffer/eolCounter';
+import { ContiguousMultilineTokens } from 'vs/editor/common/model/tokens/contiguousMultilineTokens';
+import { SparseMultilineTokens } from 'vs/editor/common/model/tokens/sparseMultilineTokens';
+import { ContiguousTokensStore } from 'vs/editor/common/model/tokens/contiguousTokensStore';
+import { SparseTokensStore } from 'vs/editor/common/model/tokens/sparseTokensStore';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { FormattingOptions, StandardTokenType } from 'vs/editor/common/modes';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -293,8 +297,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	//#region Tokenization
 	private _languageId: string;
 	private readonly _languageRegistryListener: IDisposable;
-	private readonly _tokens: TokensStore;
-	private readonly _tokens2: TokensStore2;
+	private readonly _tokens: ContiguousTokensStore;
+	private readonly _semanticTokens: SparseTokensStore;
 	private readonly _tokenization: TextModelTokenization;
 	//#endregion
 
@@ -399,8 +403,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._isRedoing = false;
 		this._trimAutoWhitespaceLines = null;
 
-		this._tokens = new TokensStore(this._languageService.languageIdCodec);
-		this._tokens2 = new TokensStore2(this._languageService.languageIdCodec);
+		this._tokens = new ContiguousTokensStore(this._languageService.languageIdCodec);
+		this._semanticTokens = new SparseTokensStore(this._languageService.languageIdCodec);
 		this._tokenization = new TextModelTokenization(this, this._languageService.languageIdCodec);
 
 		this._bracketPairColorizer = this._register(new BracketPairsTextModelPart(this, this._languageConfigurationService));
@@ -496,7 +500,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		// Flush all tokens
 		this._tokens.flush();
-		this._tokens2.flush();
+		this._semanticTokens.flush();
 
 		// Destroy all my decorations
 		this._decorations = Object.create(null);
@@ -1476,7 +1480,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				const change = contentChanges[i];
 				const [eolCount, firstLineLength, lastLineLength] = countEOL(change.text);
 				this._tokens.acceptEdit(change.range, eolCount, firstLineLength);
-				this._tokens2.acceptEdit(change.range, eolCount, firstLineLength, lastLineLength, change.text.length > 0 ? change.text.charCodeAt(0) : CharCode.Null);
+				this._semanticTokens.acceptEdit(change.range, eolCount, firstLineLength, lastLineLength, change.text.length > 0 ? change.text.charCodeAt(0) : CharCode.Null);
 				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
 			}
 
@@ -1964,7 +1968,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._tokens.setTokens(this._languageId, lineNumber - 1, this._buffer.getLineLength(lineNumber), tokens, false);
 	}
 
-	public setTokens(tokens: MultilineTokens[], backgroundTokenizationCompleted: boolean = false): void {
+	public setTokens(tokens: ContiguousMultilineTokens[], backgroundTokenizationCompleted: boolean = false): void {
 		if (tokens.length !== 0) {
 			const ranges: { fromLineNumber: number; toLineNumber: number; }[] = [];
 
@@ -1973,13 +1977,12 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				let minChangedLineNumber = 0;
 				let maxChangedLineNumber = 0;
 				let hasChange = false;
-				for (let j = 0, lenJ = element.tokens.length; j < lenJ; j++) {
-					const lineNumber = element.startLineNumber + j;
+				for (let lineNumber = element.startLineNumber; lineNumber <= element.endLineNumber; lineNumber++) {
 					if (hasChange) {
-						this._tokens.setTokens(this._languageId, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.tokens[j], false);
+						this._tokens.setTokens(this._languageId, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.getLineTokens(lineNumber), false);
 						maxChangedLineNumber = lineNumber;
 					} else {
-						const lineHasChange = this._tokens.setTokens(this._languageId, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.tokens[j], true);
+						const lineHasChange = this._tokens.setTokens(this._languageId, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.getLineTokens(lineNumber), true);
 						if (lineHasChange) {
 							hasChange = true;
 							minChangedLineNumber = lineNumber;
@@ -2003,8 +2006,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this.handleTokenizationProgress(backgroundTokenizationCompleted);
 	}
 
-	public setSemanticTokens(tokens: MultilineTokens2[] | null, isComplete: boolean): void {
-		this._tokens2.set(tokens, isComplete);
+	public setSemanticTokens(tokens: SparseMultilineTokens[] | null, isComplete: boolean): void {
+		this._semanticTokens.set(tokens, isComplete);
 
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
@@ -2014,18 +2017,18 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	public hasCompleteSemanticTokens(): boolean {
-		return this._tokens2.isComplete();
+		return this._semanticTokens.isComplete();
 	}
 
 	public hasSomeSemanticTokens(): boolean {
-		return !this._tokens2.isEmpty();
+		return !this._semanticTokens.isEmpty();
 	}
 
-	public setPartialSemanticTokens(range: Range, tokens: MultilineTokens2[]): void {
+	public setPartialSemanticTokens(range: Range, tokens: SparseMultilineTokens[]): void {
 		if (this.hasCompleteSemanticTokens()) {
 			return;
 		}
-		const changedRange = this._tokens2.setPartial(range, tokens);
+		const changedRange = this._semanticTokens.setPartial(range, tokens);
 
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
@@ -2053,7 +2056,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	public clearSemanticTokens(): void {
-		this._tokens2.flush();
+		this._semanticTokens.flush();
 
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
@@ -2101,7 +2104,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private _getLineTokens(lineNumber: number): LineTokens {
 		const lineText = this.getLineContent(lineNumber);
 		const syntacticTokens = this._tokens.getTokens(this._languageId, lineNumber - 1, lineText);
-		return this._tokens2.addSemanticTokens(lineNumber, syntacticTokens);
+		return this._semanticTokens.addSparseTokens(lineNumber, syntacticTokens);
 	}
 
 	public getLanguageId(): string {

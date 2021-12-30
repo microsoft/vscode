@@ -19,7 +19,7 @@ import { TextMateWorker } from 'vs/workbench/services/textMate/browser/textMateW
 import { ITextModel } from 'vs/editor/common/model';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { MultilineTokensBuilder } from 'vs/editor/common/model/tokensStore';
+import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/model/tokens/contiguousMultilineTokensBuilder';
 import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
@@ -109,7 +109,7 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 
 	public setTokens(versionId: number, rawTokens: ArrayBuffer): void {
 		this._confirm(versionId);
-		const tokens = MultilineTokensBuilder.deserialize(new Uint8Array(rawTokens));
+		const tokens = ContiguousMultilineTokensBuilder.deserialize(new Uint8Array(rawTokens));
 
 		for (let i = 0; i < this._pendingChanges.length; i++) {
 			const change = this._pendingChanges[i];

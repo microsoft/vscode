@@ -135,7 +135,7 @@ export class LineTokens implements IViewLineTokens {
 	}
 
 	public sliceAndInflate(startOffset: number, endOffset: number, deltaOffset: number): IViewLineTokens {
-		return new SlicedLineTokens(this, startOffset, endOffset, deltaOffset);
+		return new SliceLineTokens(this, startOffset, endOffset, deltaOffset);
 	}
 
 	public static convertToEndOffset(tokens: Uint32Array, lineTextLength: number): void {
@@ -220,7 +220,7 @@ export class LineTokens implements IViewLineTokens {
 	}
 }
 
-export class SlicedLineTokens implements IViewLineTokens {
+class SliceLineTokens implements IViewLineTokens {
 
 	private readonly _source: LineTokens;
 	private readonly _startOffset: number;
@@ -252,7 +252,7 @@ export class SlicedLineTokens implements IViewLineTokens {
 	}
 
 	public equals(other: IViewLineTokens): boolean {
-		if (other instanceof SlicedLineTokens) {
+		if (other instanceof SliceLineTokens) {
 			return (
 				this._startOffset === other._startOffset
 				&& this._endOffset === other._endOffset

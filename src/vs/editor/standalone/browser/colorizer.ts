@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
+import { IViewLineTokens, LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
 import { ITextModel } from 'vs/editor/common/model';
 import { ColorId, FontStyle, ILanguageIdCodec, ITokenizationSupport, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
 import { ILanguageService } from 'vs/editor/common/services/language';
