@@ -873,7 +873,7 @@ suite('Notebook API tests', function () {
 
 	});
 
-	test.skip('execution cancelled when delete while executing', async () => {
+	test('execution cancelled when delete while executing', async () => {
 		const document = await openRandomNotebookDocument();
 		const cell = document.cellAt(0);
 
@@ -891,9 +891,8 @@ suite('Notebook API tests', function () {
 		};
 		testDisposables.push(cancelledKernel.controller);
 
-		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
-		await assertKernel(cancelledKernel, notebook);
+		await vscode.window.showNotebookDocument(document);
+		await assertKernel(cancelledKernel, document);
 		await vscode.commands.executeCommand('notebook.cell.execute');
 
 		// Delete executing cell
