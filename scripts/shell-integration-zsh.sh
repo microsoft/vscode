@@ -12,8 +12,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-if [[ -o interactive ]]; then
-  if [ "${ENABLE_SHELL_INTEGRATION_WITH_TMUX-}""$TERM" != "screen" -a "${SHELL_INTEGRATION_INSTALLED-}" = "" -a "$TERM" != linux -a "$TERM" != dumb ]; then
     SHELL_INTEGRATION_INSTALLED=Yes
     SHOULD_DECORATE_PROMPT="1"
     # Indicates start of command output. Runs just before command executes.
@@ -32,7 +30,6 @@ if [[ -o interactive ]]; then
       fi
       printf "\033]1337;RemoteHost=%s@%s\007" "$USER" "${_hostname-}"
       printf "\033]1337;CurrentDir=%s\007" "$PWD"
-      print_user_vars
     }
 
     # Report return code of command; runs after command finishes but before prompt
@@ -153,5 +150,3 @@ if [[ -o interactive ]]; then
 
     print_state_data
     printf "\033]1337;ShellIntegrationVersion=12;shell=zsh\007"
-  fi
-fi

@@ -596,5 +596,3 @@ function __prompt_command () {
 
 # Install my function
 preexec_functions+=(__preexec)
-
-echo $prompt_prefix_value
