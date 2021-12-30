@@ -419,7 +419,7 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 			// cap the amount of characters that we look at and use the following logic
 			// - for MD prefer headings (each header is an entry)
 			// - otherwise use the first none-empty line of the cell (MD or code)
-			let content = cell.getText().substr(0, 10_000);
+			let content = cell.getText().substring(0, 10_000);
 			let hasHeader = false;
 
 			if (isMarkdown) {

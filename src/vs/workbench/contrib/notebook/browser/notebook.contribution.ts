@@ -274,7 +274,7 @@ class CellContentProvider implements ITextModelContentProvider {
 						return { textBuffer: cell.textBuffer as ITextBuffer, disposable: Disposable.None };
 					},
 					getFirstLineText: (limit: number) => {
-						return cell.textBuffer.getLineContent(1).substr(0, limit);
+						return cell.textBuffer.getLineContent(1).substring(0, limit);
 					}
 				};
 				const languageId = this._languageService.getLanguageIdByLanguageName(cell.language);

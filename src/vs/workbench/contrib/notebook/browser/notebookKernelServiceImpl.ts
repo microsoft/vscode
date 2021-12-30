@@ -37,8 +37,8 @@ class NotebookTextModelLikeId {
 	static obj(s: string): INotebookTextModelLike {
 		const idx = s.indexOf('/');
 		return {
-			viewType: s.substr(0, idx),
-			uri: URI.parse(s.substr(idx + 1))
+			viewType: s.substring(0, idx),
+			uri: URI.parse(s.substring(idx + 1))
 		};
 	}
 }

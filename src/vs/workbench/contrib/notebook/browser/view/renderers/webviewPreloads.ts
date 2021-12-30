@@ -76,7 +76,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					handleDataUrl(node.href, node.download);
 				} else if (node.hash && node.getAttribute('href') === node.hash) {
 					// Scrolling to location within current doc
-					const targetId = node.hash.substr(1, node.hash.length - 1);
+					const targetId = node.hash.substring(1);
 
 					// Check outer document first
 					let scrollTarget: Element | null | undefined = event.view.document.getElementById(targetId);

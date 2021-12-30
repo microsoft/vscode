@@ -119,7 +119,7 @@ export class CellEditorOptions extends CellPart {
 		const editorOptionsOverride: { [key: string]: any; } = {};
 		for (const key in editorOptionsOverrideRaw) {
 			if (key.indexOf('editor.') === 0) {
-				editorOptionsOverride[key.substr(7)] = editorOptionsOverrideRaw[key];
+				editorOptionsOverride[key.substring(7)] = editorOptionsOverrideRaw[key];
 			}
 		}
 		const computed = {

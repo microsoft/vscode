@@ -524,7 +524,7 @@ export namespace CellUri {
 		return {
 			handle,
 			notebook: cell.with({
-				scheme: cell.fragment.substr(match[0].length) || Schemas.file,
+				scheme: cell.fragment.substring(match[0].length) || Schemas.file,
 				fragment: null
 			})
 		};
@@ -578,7 +578,7 @@ export namespace CellUri {
 		return {
 			handle,
 			notebook: metadata.with({
-				scheme: metadata.fragment.substr(match[0].length) || Schemas.file,
+				scheme: metadata.fragment.substring(match[0].length) || Schemas.file,
 				fragment: null
 			})
 		};
@@ -967,7 +967,7 @@ export class NotebookWorkingCopyTypeIdentifier {
 
 	static parse(candidate: string): string | undefined {
 		if (candidate.startsWith(NotebookWorkingCopyTypeIdentifier._prefix)) {
-			return candidate.substr(NotebookWorkingCopyTypeIdentifier._prefix.length);
+			return candidate.substring(NotebookWorkingCopyTypeIdentifier._prefix.length);
 		}
 		return undefined;
 	}
