@@ -20,7 +20,8 @@ import { Schemas } from 'vs/base/common/network';
 import { basename, extname } from 'vs/base/common/resources';
 import { match } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
-import { Mimes, guessMimeTypes } from 'vs/base/common/mime';
+import { Mimes } from 'vs/base/common/mime';
+import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/services/language';
@@ -241,7 +242,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		const mimeTypes = guessMimeTypes(uri);
+		const mimeTypes = getMimeTypes(uri);
 		if (mimeTypes.length !== 1 || mimeTypes[0] !== Mimes.unknown) {
 			return;
 		}

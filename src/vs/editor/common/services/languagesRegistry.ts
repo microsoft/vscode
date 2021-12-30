@@ -7,8 +7,8 @@ import { coalesce } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import * as mime from 'vs/base/common/mime';
-import * as strings from 'vs/base/common/strings';
+import { compareIgnoreCase, regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
+import { clearLanguageAssociations, getMimeTypes, registerLanguageAssociation } from 'vs/editor/common/services/languagesAssociations';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec, LanguageId } from 'vs/editor/common/modes';
 import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
@@ -114,7 +114,7 @@ export class LanguagesRegistry extends Disposable {
 		this._nameMap = {};
 		this._lowercaseNameMap = {};
 
-		mime.clearTextMimes();
+		clearLanguageAssociations();
 		const desc = (<ILanguageExtensionPoint[]>[]).concat(ModesRegistry.getLanguages()).concat(this._dynamicLanguages);
 		this._registerLanguages(desc);
 	}
@@ -193,20 +193,20 @@ export class LanguagesRegistry extends Disposable {
 				resolvedLanguage.extensions = resolvedLanguage.extensions.concat(lang.extensions);
 			}
 			for (let extension of lang.extensions) {
-				mime.registerTextMime({ id: langId, mime: primaryMime, extension: extension }, this._warnOnOverwrite);
+				registerLanguageAssociation({ id: langId, mime: primaryMime, extension: extension }, this._warnOnOverwrite);
 			}
 		}
 
 		if (Array.isArray(lang.filenames)) {
 			for (let filename of lang.filenames) {
-				mime.registerTextMime({ id: langId, mime: primaryMime, filename: filename }, this._warnOnOverwrite);
+				registerLanguageAssociation({ id: langId, mime: primaryMime, filename: filename }, this._warnOnOverwrite);
 				resolvedLanguage.filenames.push(filename);
 			}
 		}
 
 		if (Array.isArray(lang.filenamePatterns)) {
 			for (let filenamePattern of lang.filenamePatterns) {
-				mime.registerTextMime({ id: langId, mime: primaryMime, filepattern: filenamePattern }, this._warnOnOverwrite);
+				registerLanguageAssociation({ id: langId, mime: primaryMime, filepattern: filenamePattern }, this._warnOnOverwrite);
 			}
 		}
 
@@ -217,8 +217,8 @@ export class LanguagesRegistry extends Disposable {
 			}
 			try {
 				let firstLineRegex = new RegExp(firstLineRegexStr);
-				if (!strings.regExpLeadsToEndlessLoop(firstLineRegex)) {
-					mime.registerTextMime({ id: langId, mime: primaryMime, firstline: firstLineRegex }, this._warnOnOverwrite);
+				if (!regExpLeadsToEndlessLoop(firstLineRegex)) {
+					registerLanguageAssociation({ id: langId, mime: primaryMime, firstline: firstLineRegex }, this._warnOnOverwrite);
 				}
 			} catch (err) {
 				// Most likely, the regex was bad
@@ -283,7 +283,7 @@ export class LanguagesRegistry extends Disposable {
 				});
 			}
 		}
-		result.sort((a, b) => strings.compareIgnoreCase(a.languageName, b.languageName));
+		result.sort((a, b) => compareIgnoreCase(a.languageName, b.languageName));
 		return result;
 	}
 
@@ -345,7 +345,7 @@ export class LanguagesRegistry extends Disposable {
 		if (!resource && !firstLine) {
 			return [];
 		}
-		const mimeTypes = mime.guessMimeTypes(resource, firstLine);
+		const mimeTypes = getMimeTypes(resource, firstLine);
 		return coalesce(mimeTypes.map(mimeType => this.getLanguageIdByMimeType(mimeType)));
 	}
 }
