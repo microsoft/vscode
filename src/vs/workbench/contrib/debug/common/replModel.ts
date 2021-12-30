@@ -306,7 +306,7 @@ export class ReplModel {
 		// add output for each argument logged
 		let simpleVals: any[] = [];
 		for (let i = 0; i < args.length; i++) {
-			let a = args[i];
+			const a = args[i];
 
 			// undefined gets printed as 'undefined'
 			if (typeof a === 'undefined') {

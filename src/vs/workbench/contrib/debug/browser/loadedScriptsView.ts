@@ -164,7 +164,7 @@ class BaseTreeItem {
 			return child.getChildren();
 		}
 		const array: BaseTreeItem[] = [];
-		for (let child of this._children.values()) {
+		for (const child of this._children.values()) {
 			array.push(child);
 		}
 		return array.sort((a, b) => this.compare(a, b));
@@ -185,7 +185,7 @@ class BaseTreeItem {
 		if (this._source && this._parent && this._parent._source) {
 			return this._source.raw.path || this._source.raw.name;
 		}
-		let label = this.getLabel(false);
+		const label = this.getLabel(false);
 		const parent = this.getParent();
 		if (parent) {
 			const hover = parent.getHoverLabel();

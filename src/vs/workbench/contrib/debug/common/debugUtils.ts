@@ -78,13 +78,13 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 
 	// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
 	// Match any character except a set of characters which often break interesting sub-expressions
-	let expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
+	const expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
 	let result: RegExpExecArray | null = null;
 
 	// First find the full expression under the cursor
 	while (result = expression.exec(lineContent)) {
-		let start = result.index + 1;
-		let end = start + result[0].length;
+		const start = result.index + 1;
+		const end = start + result[0].length;
 
 		if (start <= looseStart && end >= looseEnd) {
 			matchingExpression = result[0];
@@ -96,10 +96,10 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 	// If there are non-word characters after the cursor, we want to truncate the expression then.
 	// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
 	if (matchingExpression) {
-		let subExpression: RegExp = /\w+/g;
+		const subExpression: RegExp = /\w+/g;
 		let subExpressionResult: RegExpExecArray | null = null;
 		while (subExpressionResult = subExpression.exec(matchingExpression)) {
-			let subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
+			const subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
 			if (subEnd >= looseEnd) {
 				break;
 			}

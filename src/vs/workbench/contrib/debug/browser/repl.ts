@@ -528,7 +528,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			if (session) {
 				// Automatically expand repl group elements when specified
 				const autoExpandElements = async (elements: IReplElement[]) => {
-					for (let element of elements) {
+					for (const element of elements) {
 						if (element instanceof ReplGroup) {
 							if (element.autoExpand && !autoExpanded.has(element.getId())) {
 								autoExpanded.add(element.getId());

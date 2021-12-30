@@ -617,7 +617,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		const sb = createStringBuilder(1000);
 
 		if (this._disassemblyView.isSourceCodeRender && instruction.location?.path && instruction.line) {
-			let sourceURI = this.getUriFromSource(instruction);
+			const sourceURI = this.getUriFromSource(instruction);
 
 			if (sourceURI) {
 				let textModel: ITextModel | undefined = undefined;
@@ -699,7 +699,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 	private openSourceCode(instruction: DebugProtocol.DisassembledInstruction | undefined) {
 		if (instruction) {
-			let sourceURI = this.getUriFromSource(instruction);
+			const sourceURI = this.getUriFromSource(instruction);
 			const selection = instruction.endLine ? {
 				startLineNumber: instruction.line!,
 				endLineNumber: instruction.endLine!,
