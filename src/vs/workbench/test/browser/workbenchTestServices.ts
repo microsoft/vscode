@@ -1680,7 +1680,9 @@ export class TestPathService implements IPathService {
 
 	constructor(private readonly fallbackUserHome: URI = URI.from({ scheme: Schemas.vscodeRemote, path: '/' })) { }
 
-	async hasValidBasename(resource: URI): Promise<boolean> {
+	hasValidBasename(resource: URI, basename?: string): Promise<boolean>;
+	hasValidBasename(resource: URI, os: OperatingSystem, basename?: string): boolean;
+	hasValidBasename(resource: URI, arg2?: string | OperatingSystem, name?: string): boolean | Promise<boolean> {
 		return isValidBasename(basename(resource));
 	}
 

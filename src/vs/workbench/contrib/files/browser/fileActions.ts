@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { isWindows } from 'vs/base/common/platform';
-import * as extpath from 'vs/base/common/extpath';
+import { isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { extname, basename } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -50,6 +49,8 @@ import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { BrowserFileUpload, FileDownload } from 'vs/workbench/contrib/files/browser/fileImportExport';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -621,7 +622,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 }
 
-export function validateFileName(item: ExplorerItem, name: string): { content: string, severity: Severity } | null {
+export function validateFileName(pathService: IPathService, item: ExplorerItem, name: string, os: OperatingSystem): { content: string, severity: Severity } | null {
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
 
@@ -655,9 +656,8 @@ export function validateFileName(item: ExplorerItem, name: string): { content: s
 		}
 	}
 
-	// Invalid File name
-	const windowsBasenameValidity = item.resource.scheme === Schemas.file && isWindows;
-	if (names.some((folderName) => !extpath.isValidBasename(folderName, windowsBasenameValidity))) {
+	// Check for invalid file name.
+	if (names.some(folderName => !pathService.hasValidBasename(item.resource, os, folderName))) {
 		return {
 			content: nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name)),
 			severity: Severity.Error
@@ -780,7 +780,9 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const editorService = accessor.get(IEditorService);
 	const viewsService = accessor.get(IViewsService);
 	const notificationService = accessor.get(INotificationService);
+	const remoteAgentService = accessor.get(IRemoteAgentService);
 	const commandService = accessor.get(ICommandService);
+	const pathService = accessor.get(IPathService);
 
 	const wasHidden = !viewsService.isViewVisible(VIEW_ID);
 	const view = await viewsService.openView(VIEW_ID, true);
@@ -834,8 +836,10 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 		}
 	};
 
+	const os = (await remoteAgentService.getEnvironment())?.os ?? OS;
+
 	await explorerService.setEditable(newStat, {
-		validationMessage: value => validateFileName(newStat, value),
+		validationMessage: value => validateFileName(pathService, newStat, value, os),
 		onFinish: async (value, success) => {
 			folder.removeChild(newStat);
 			await explorerService.setEditable(newStat, null);
@@ -863,6 +867,8 @@ CommandsRegistry.registerCommand({
 export const renameHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const notificationService = accessor.get(INotificationService);
+	const remoteAgentService = accessor.get(IRemoteAgentService);
+	const pathService = accessor.get(IPathService);
 
 	const stats = explorerService.getContext(false);
 	const stat = stats.length > 0 ? stats[0] : undefined;
@@ -870,8 +876,10 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 		return;
 	}
 
+	const os = (await remoteAgentService.getEnvironment())?.os ?? OS;
+
 	await explorerService.setEditable(stat, {
-		validationMessage: value => validateFileName(stat, value),
+		validationMessage: value => validateFileName(pathService, stat, value, os),
 		onFinish: async (value, success) => {
 			if (success) {
 				const parentResource = stat.parent!.resource;
