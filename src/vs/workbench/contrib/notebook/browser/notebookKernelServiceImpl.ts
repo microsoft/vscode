@@ -194,6 +194,11 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		return { all, selected, suggestions };
 	}
 
+	getSelectedOrSuggestedKernel(notebook: INotebookTextModel): INotebookKernel | undefined {
+		const info = this.getMatchingKernel(notebook);
+		return info.selected ?? (info.all.length === 1 ? info.all[0] : undefined);
+	}
+
 	// default kernel for notebookType
 	selectKernelForNotebookType(kernel: INotebookKernel, typeId: string): void {
 		const existing = this._typeBindings.get(typeId);
