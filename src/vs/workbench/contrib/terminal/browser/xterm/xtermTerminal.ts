@@ -15,7 +15,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ICommandTracker, ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IXtermTerminal, ShellIntegrationInfo, ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -511,17 +511,3 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		}
 	}
 }
-
-export enum ShellIntegrationInteraction {
-	PromptStart = 'PROMPT_START',
-	CommandStart = 'COMMAND_START',
-	CommandExecuted = 'COMMAND_EXECUTED',
-	CommandFinished = 'COMMAND_FINISHED'
-}
-
-export enum ShellIntegrationInfo {
-	RemoteHost = 'RemoteHost',
-	CurrentDir = 'CurrentDir',
-}
-
-export interface IShellChangeEvent { type: ShellIntegrationInfo | ShellIntegrationInteraction, value: string }

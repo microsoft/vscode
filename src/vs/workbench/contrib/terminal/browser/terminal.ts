@@ -850,3 +850,18 @@ export const enum LinuxDistro {
 	Fedora = 2,
 	Ubuntu = 3,
 }
+
+
+export enum ShellIntegrationInteraction {
+	PromptStart = 'PROMPT_START',
+	CommandStart = 'COMMAND_START',
+	CommandExecuted = 'COMMAND_EXECUTED',
+	CommandFinished = 'COMMAND_FINISHED'
+}
+
+export enum ShellIntegrationInfo {
+	RemoteHost = 'RemoteHost',
+	CurrentDir = 'CurrentDir',
+}
+
+export interface IShellChangeEvent { type: ShellIntegrationInfo | ShellIntegrationInteraction, value: string }
