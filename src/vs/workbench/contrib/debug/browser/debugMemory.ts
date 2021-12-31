@@ -5,11 +5,12 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
-import { toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { clamp } from 'vs/base/common/numbers';
 import { assertNever } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { FileChangeType, FileOpenOptions, FilePermission, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileChange, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { DEBUG_MEMORY_SCHEME, IDebugService, IDebugSession, IMemoryRegion, MemoryRangeType } from 'vs/workbench/contrib/debug/common/debug';
+import { DEBUG_MEMORY_SCHEME, IDebugService, IDebugSession, IMemoryInvalidationEvent, IMemoryRegion, MemoryRange, MemoryRangeType } from 'vs/workbench/contrib/debug/common/debug';
 
 const rangeRe = /range=([0-9]+):([0-9]+)/;
 
@@ -86,9 +87,14 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 
 	/** @inheritdoc */
 	public open(resource: URI, _opts: FileOpenOptions): Promise<number> {
-		const { session, memoryReference } = this.parseUri(resource);
+		const { session, memoryReference, offset } = this.parseUri(resource);
 		const fd = this.memoryFdCounter++;
-		this.fdMemory.set(fd, { session, region: session.getMemory(memoryReference) });
+		let region = session.getMemory(memoryReference);
+		if (offset) {
+			region = new MemoryRegionView(region, offset);
+		}
+
+		this.fdMemory.set(fd, { session, region });
 		return Promise.resolve(fd);
 	}
 
@@ -198,9 +204,46 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 		return {
 			session,
 			offset,
-			readOnly: !!session.capabilities.supportsWriteMemoryRequest,
+			readOnly: !session.capabilities.supportsWriteMemoryRequest,
 			sessionId: uri.authority,
 			memoryReference: decodeURIComponent(memoryReference),
 		};
+	}
+}
+
+/** A wrapper for a MemoryRegion that references a subset of data in another region. */
+class MemoryRegionView extends Disposable implements IMemoryRegion {
+	private readonly invalidateEmitter = new Emitter<IMemoryInvalidationEvent>();
+
+	public readonly onDidInvalidate = this.invalidateEmitter.event;
+	public readonly writable: boolean;
+	private readonly width = this.range.toOffset - this.range.fromOffset;
+
+	constructor(private readonly parent: IMemoryRegion, public readonly range: { fromOffset: number; toOffset: number }) {
+		super();
+		this.writable = parent.writable;
+
+		this._register(parent.onDidInvalidate(e => {
+			const fromOffset = clamp(e.fromOffset - range.fromOffset, 0, this.width);
+			const toOffset = clamp(e.toOffset - range.fromOffset, 0, this.width);
+			if (toOffset > fromOffset) {
+				this.invalidateEmitter.fire({ fromOffset, toOffset });
+			}
+		}));
+	}
+
+	public read(fromOffset: number, toOffset: number): Promise<MemoryRange[]> {
+		if (fromOffset < 0) {
+			throw new RangeError(`Invalid fromOffset: ${fromOffset}`);
+		}
+
+		return this.parent.read(
+			this.range.fromOffset + fromOffset,
+			this.range.fromOffset + Math.min(toOffset, this.width),
+		);
+	}
+
+	public write(offset: number, data: VSBuffer): Promise<number> {
+		return this.parent.write(this.range.fromOffset + offset, data);
 	}
 }

@@ -526,7 +526,7 @@ export class RawDebugSession implements IDisposable {
 			return await this.send('readMemory', args);
 		}
 
-		return Promise.reject(new Error('disassemble is not supported'));
+		return Promise.reject(new Error('readMemory is not supported'));
 	}
 
 	async writeMemory(args: DebugProtocol.WriteMemoryArguments): Promise<DebugProtocol.WriteMemoryResponse | undefined> {
@@ -534,7 +534,7 @@ export class RawDebugSession implements IDisposable {
 			return await this.send('writeMemory', args);
 		}
 
-		return Promise.reject(new Error('disassemble is not supported'));
+		return Promise.reject(new Error('writeMemory is not supported'));
 	}
 
 	cancel(args: DebugProtocol.CancelArguments): Promise<DebugProtocol.CancelResponse | undefined> {
