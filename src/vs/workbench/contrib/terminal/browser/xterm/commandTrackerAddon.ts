@@ -25,32 +25,14 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
 	private _terminal: Terminal | undefined;
-	private _exitCode: number | undefined;
-	private _cwd: string | undefined;
-	private _prompt: string | undefined;
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
 		terminal.onIntegratedShellChange(e => {
 			if (this._terminal && this._terminal.buffer.active.cursorX >= MINIMUM_PROMPT_LENGTH) {
 				if (e.type === ShellIntegrationInteraction.CommandFinished) {
-					this._exitCode = Number.parseInt(e.value);
 					this._terminal?.registerMarker(0);
 					this.clearMarker();
-				}
-			} else if (this._terminal) {
-				if (e.type === ShellIntegrationInfo.CurrentDir) {
-					this._cwd = e.value;
-				} else if (e.type === ShellIntegrationInfo.RemoteHost) {
-					console.log('remote host', e.value);
-					console.log('line is', this._terminal.buffer.active.getLine(this._terminal.buffer.active.baseY)?.translateToString());
-				} else if (e.type === ShellIntegrationInteraction.PromptStart) {
-					console.log('prompt');
-					this._prompt = this._terminal.buffer.active.getLine(0)?.translateToString();
-					console.log('line is', this._prompt);
-				} else if (e.type === ShellIntegrationInteraction.CommandStart) {
-					console.log('command start ');
-					this._prompt = this._terminal.buffer.active.getLine(this._terminal.buffer.active.baseY)?.translateToString();
 				}
 			}
 		});

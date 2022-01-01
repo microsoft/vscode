@@ -66,6 +66,17 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	}
 	get target(): TerminalLocation | undefined { return this._target; }
 
+	private _dataIsCommand = false;
+
+	private _commands: string[] = [];
+
+	private _exitCode: number | undefined;
+	private _cwd: string | undefined;
+
+	private _currentCommand = '';
+
+
+
 	/**
 	 * @param xtermCtor The xterm.js constructor, this is passed in so it can be fetched lazily
 	 * outside of this class such that {@link raw} is not nullable.
@@ -139,32 +150,40 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 		// Load addons
 		this._updateUnicodeVersion();
+		this.raw.onData(data => {
+			if (this._dataIsCommand) {
+				this._currentCommand += data;
+			}
+		});
 		this.raw.onIntegratedShellChange((e: { type: string, value: string }) => this._handleIntegratedShellChange(e));
 		this._commandTrackerAddon = new CommandTrackerAddon();
 		this.raw.loadAddon(this._commandTrackerAddon);
 	}
 
 	private _handleIntegratedShellChange(event: { type: string, value: string }): void {
-		//TODO: remove
-		console.log('handling shell change', event);
 		switch (event.type) {
 			case ShellIntegrationInfo.CurrentDir:
+				this._cwd = event.value;
 				//fire an event to update cwd
+				console.log('updated cwd', this._cwd);
 				break;
 			case ShellIntegrationInfo.RemoteHost:
-				//fire an event to update username/host info
 				break;
 			case ShellIntegrationInteraction.PromptStart:
-				//add marker
 				break;
 			case ShellIntegrationInteraction.CommandStart:
-
+				this._dataIsCommand = true;
 				break;
 			case ShellIntegrationInteraction.CommandExecuted:
-				//do something?
+				if (!this._currentCommand.startsWith('\\')) {
+					this._commands.push(this._currentCommand);
+					console.log('added command', this._commands);
+				}
 				break;
 			case ShellIntegrationInteraction.CommandFinished:
-				// already handled in command tracker
+				this._currentCommand = '';
+				this._exitCode = Number.parseInt(event.value);
+				console.log('command finished with exit code', this._exitCode);
 				break;
 			default:
 				return;
