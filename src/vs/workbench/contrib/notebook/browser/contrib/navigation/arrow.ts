@@ -16,6 +16,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 
 const NOTEBOOK_FOCUS_TOP = 'notebook.focusTop';
 const NOTEBOOK_FOCUS_BOTTOM = 'notebook.focusBottom';
@@ -24,6 +25,10 @@ const NOTEBOOK_FOCUS_NEXT_EDITOR = 'notebook.focusNextEditor';
 const FOCUS_IN_OUTPUT_COMMAND_ID = 'notebook.cell.focusInOutput';
 const FOCUS_OUT_OUTPUT_COMMAND_ID = 'notebook.cell.focusOutOutput';
 export const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
+const NOTEBOOK_CURSOR_PAGEUP_COMMAND_ID = 'notebook.cell.cursorPageUp';
+const NOTEBOOK_CURSOR_PAGEUP_SELECT_COMMAND_ID = 'notebook.cell.cursorPageUpSelect';
+const NOTEBOOK_CURSOR_PAGEDOWN_COMMAND_ID = 'notebook.cell.cursorPageDown';
+const NOTEBOOK_CURSOR_PAGEDOWN_SELECT_COMMAND_ID = 'notebook.cell.cursorPageDownSelect';
 
 
 registerAction2(class extends NotebookCellAction {
@@ -233,6 +238,110 @@ registerAction2(class CenterActiveCellAction extends NotebookCellAction {
 		return context.notebookEditor.revealInCenter(context.cell);
 	}
 });
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super({
+			id: NOTEBOOK_CURSOR_PAGEUP_COMMAND_ID,
+			title: localize('cursorPageUp', "Cell Cursor Page Up"),
+			keybinding: [
+				{
+					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_FOCUSED,
+						ContextKeyExpr.has(InputFocusedContextKey),
+						EditorContextKeys.editorTextFocus,
+					),
+					primary: KeyCode.PageUp,
+					weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+				}
+			]
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		EditorExtensionsRegistry.getEditorCommand('cursorPageUp').runCommand(accessor, { pageSize: getPageSize(context) });
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super({
+			id: NOTEBOOK_CURSOR_PAGEUP_SELECT_COMMAND_ID,
+			title: localize('cursorPageUpSelect', "Cell Cursor Page Up Select"),
+			keybinding: [
+				{
+					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_FOCUSED,
+						ContextKeyExpr.has(InputFocusedContextKey),
+						EditorContextKeys.editorTextFocus,
+					),
+					primary: KeyMod.Shift | KeyCode.PageUp,
+					weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+				}
+			]
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		EditorExtensionsRegistry.getEditorCommand('cursorPageUpSelect').runCommand(accessor, { pageSize: getPageSize(context) });
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super({
+			id: NOTEBOOK_CURSOR_PAGEDOWN_COMMAND_ID,
+			title: localize('cursorPageDown', "Cell Cursor Page Down"),
+			keybinding: [
+				{
+					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_FOCUSED,
+						ContextKeyExpr.has(InputFocusedContextKey),
+						EditorContextKeys.editorTextFocus,
+					),
+					primary: KeyCode.PageDown,
+					weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+				}
+			]
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		EditorExtensionsRegistry.getEditorCommand('cursorPageDown').runCommand(accessor, { pageSize: getPageSize(context) });
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super({
+			id: NOTEBOOK_CURSOR_PAGEDOWN_SELECT_COMMAND_ID,
+			title: localize('cursorPageDownSelect', "Cell Cursor Page Down Select"),
+			keybinding: [
+				{
+					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_FOCUSED,
+						ContextKeyExpr.has(InputFocusedContextKey),
+						EditorContextKeys.editorTextFocus,
+					),
+					primary: KeyMod.Shift | KeyCode.PageDown,
+					weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+				}
+			]
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		EditorExtensionsRegistry.getEditorCommand('cursorPageDownSelect').runCommand(accessor, { pageSize: getPageSize(context) });
+	}
+});
+
+
+function getPageSize(context: INotebookCellActionContext) {
+	const editor = context.notebookEditor;
+	const layoutInfo = editor._getViewModel().layoutInfo;
+	const lineHeight = layoutInfo?.fontInfo.lineHeight || 17;
+	return Math.max(1, Math.floor((layoutInfo?.height || 0) / lineHeight) - 2);
+}
 
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({

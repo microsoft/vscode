@@ -598,7 +598,7 @@ export namespace CoreNavigationCommands {
 					direction: this._staticArgs.direction,
 					unit: this._staticArgs.unit,
 					select: this._staticArgs.select,
-					value: viewModel.cursorConfig.pageSize
+					value: dynamicArgs.pageSize || viewModel.cursorConfig.pageSize
 				};
 			}
 
