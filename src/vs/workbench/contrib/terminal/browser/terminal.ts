@@ -867,6 +867,7 @@ export enum ShellIntegrationInteraction {
 
 export interface TerminalCommand {
 	command: string;
+	dateTime: string;
 	cwd?: string;
 	exitCode?: number;
 }

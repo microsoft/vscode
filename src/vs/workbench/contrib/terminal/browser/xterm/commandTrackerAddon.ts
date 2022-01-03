@@ -78,13 +78,20 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 			case ShellIntegrationInteraction.CommandFinished:
 				this._exitCode = Number.parseInt(event.value);
 				if (!this._currentCommand.startsWith('\\') && this._currentCommand !== '') {
-					this._commands.push({ command: this._currentCommand, cwd: this._cwd, exitCode: this._exitCode });
+					this._commands.push({ command: this._currentCommand, dateTime: this._getCurrentTimestamp(), cwd: this._cwd, exitCode: this._exitCode });
 				}
 				this._currentCommand = '';
 				break;
 			default:
 				return;
 		}
+	}
+
+	private _getCurrentTimestamp(): string {
+		const toTwoDigits = (v: number) => v < 10 ? `0${v}` : v;
+		const toThreeDigits = (v: number) => v < 10 ? `00${v}` : v < 100 ? `0${v}` : v;
+		const currentTime = new Date();
+		return `${currentTime.getFullYear()}-${toTwoDigits(currentTime.getMonth() + 1)}-${toTwoDigits(currentTime.getDate())} ${toTwoDigits(currentTime.getHours())}:${toTwoDigits(currentTime.getMinutes())}:${toTwoDigits(currentTime.getSeconds())}.${toThreeDigits(currentTime.getMilliseconds())}`;
 	}
 
 	getCommands(): TerminalCommand[] {

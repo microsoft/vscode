@@ -919,7 +919,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async rerunCommand(): Promise<void> {
 		const commands = this.xterm?.commandTracker.getCommands();
-		if (!commands || commands.length === 0) {
+		if (!commands) {
 			return;
 		}
 		type Item = IQuickPickItem;
@@ -931,7 +931,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			const cwdDescription = terminalCommand.cwd ? `cwd: ${terminalCommand.cwd}` : '';
 			const exitCodeDescription = terminalCommand.exitCode ? `exitCode: ${terminalCommand.exitCode}` : '';
-			items.push({ label: c, description: cwdDescription + ' ' + exitCodeDescription, id: JSON.stringify(new Date().getTime()) });
+			items.push({ label: c, description: cwdDescription + ' ' + exitCodeDescription + ' ' + terminalCommand.dateTime, id: terminalCommand.dateTime });
 		}
 		const result = await this._quickInputService.pick(items, {});
 		if (result) {
