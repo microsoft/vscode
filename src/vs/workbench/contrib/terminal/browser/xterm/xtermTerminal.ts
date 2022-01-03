@@ -15,7 +15,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ProcessCapability, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ICommandTracker, ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IXtermTerminal, ShellIntegrationInfo, ShellIntegrationInteraction, TerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -65,17 +65,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this._target = location;
 	}
 	get target(): TerminalLocation | undefined { return this._target; }
-
-	private _dataIsCommand = false;
-
-	private _commands: TerminalCommand[] = [];
-
-	private _exitCode: number | undefined;
-	private _cwd: string | undefined;
-
-	private _currentCommand = '';
-
-	private _capabilities: ProcessCapability[] | undefined = undefined;
 
 	/**
 	 * @param xtermCtor The xterm.js constructor, this is passed in so it can be fetched lazily
@@ -150,12 +139,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 		// Load addons
 		this._updateUnicodeVersion();
-		this.raw.onData(data => {
-			if (this._dataIsCommand) {
-				this._currentCommand += data;
-			}
-		});
-		this.raw.onIntegratedShellChange((e: { type: string, value: string }) => this._handleIntegratedShellChange(e));
 		this._commandTrackerAddon = new CommandTrackerAddon();
 		this.raw.loadAddon(this._commandTrackerAddon);
 	}
@@ -163,38 +146,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	setCapabilites(capabilties: ProcessCapability[]): void {
 		// this is created before the onProcessReady event
 		// gets fired, which has the capabilities
-		this._capabilities = capabilties;
-		this._commandTrackerAddon.setCapabilites(this._capabilities);
-	}
-
-	private _handleIntegratedShellChange(event: { type: string, value: string }): void {
-		if (!this._capabilities?.includes(ProcessCapability.ShellIntegration)) {
-			return;
-		}
-		switch (event.type) {
-			case ShellIntegrationInfo.CurrentDir:
-				this._cwd = event.value;
-				//TODO:fire an event to update cwd
-				break;
-			case ShellIntegrationInfo.RemoteHost:
-				break;
-			case ShellIntegrationInteraction.PromptStart:
-				break;
-			case ShellIntegrationInteraction.CommandStart:
-				this._dataIsCommand = true;
-				break;
-			case ShellIntegrationInteraction.CommandExecuted:
-				break;
-			case ShellIntegrationInteraction.CommandFinished:
-				this._exitCode = Number.parseInt(event.value);
-				if (!this._currentCommand.startsWith('\\') && this._currentCommand !== '') {
-					this._commands.push({ command: this._currentCommand, cwd: this._cwd, exitCode: this._exitCode });
-				}
-				this._currentCommand = '';
-				break;
-			default:
-				return;
-		}
+		this._commandTrackerAddon.setCapabilites(capabilties);
 	}
 
 	attachToElement(container: HTMLElement) {

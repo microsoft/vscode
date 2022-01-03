@@ -5,7 +5,7 @@
 
 import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
 import { ICommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ShellIntegrationInfo, ShellIntegrationInteraction, TerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ProcessCapability } from 'vs/platform/terminal/common/terminal';
 /**
  * The minimum size of the prompt in which to assume the line is a command.
@@ -26,7 +26,13 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
 	private _terminal: Terminal | undefined;
+
 	private _capabilities: ProcessCapability[] | undefined = undefined;
+	private _dataIsCommand = false;
+	private _commands: TerminalCommand[] = [];
+	private _exitCode: number | undefined;
+	private _cwd: string | undefined;
+	private _currentCommand = '';
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
@@ -42,7 +48,44 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 					this.clearMarker();
 				}
 			}
+			this._handleIntegratedShellChange(e);
 		});
+		terminal.onData(data => {
+			if (this._dataIsCommand) {
+				this._currentCommand += data;
+			}
+		});
+	}
+
+	private _handleIntegratedShellChange(event: { type: string, value: string }): void {
+		if (!this._capabilities?.includes(ProcessCapability.ShellIntegration)) {
+			return;
+		}
+		switch (event.type) {
+			case ShellIntegrationInfo.CurrentDir:
+				this._cwd = event.value;
+				//TODO:fire an event to update cwd
+				break;
+			case ShellIntegrationInfo.RemoteHost:
+				break;
+			case ShellIntegrationInteraction.PromptStart:
+				break;
+			case ShellIntegrationInteraction.CommandStart:
+				this._dataIsCommand = true;
+				break;
+			case ShellIntegrationInteraction.CommandExecuted:
+				break;
+			case ShellIntegrationInteraction.CommandFinished:
+				this._exitCode = Number.parseInt(event.value);
+				if (!this._currentCommand.startsWith('\\') && this._currentCommand !== '') {
+					this._commands.push({ command: this._currentCommand, cwd: this._cwd, exitCode: this._exitCode });
+				}
+				console.log(this._commands);
+				this._currentCommand = '';
+				break;
+			default:
+				return;
+		}
 	}
 
 	dispose(): void {
