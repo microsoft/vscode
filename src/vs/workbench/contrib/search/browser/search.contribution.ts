@@ -882,6 +882,12 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},
+		'search.useParentIgnoreFiles': {
+			type: 'boolean',
+			markdownDescription: nls.localize('useParentIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files in parent directories when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
+			default: false,
+			scope: ConfigurationScope.RESOURCE
+		},
 		'search.quickOpen.includeSymbols': {
 			type: 'boolean',
 			description: nls.localize('search.quickOpen.includeSymbols', "Whether to include results from a global symbol search in the file results for Quick Open."),
