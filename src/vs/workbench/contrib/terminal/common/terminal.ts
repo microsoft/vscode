@@ -327,7 +327,7 @@ export interface ICommandTracker {
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
 	clearMarker(): void;
-	getCommands(): { command: string, dateTime: string, cwd?: string, exitCode?: number }[];
+	getCommands(): { command: string, timestamp: string, cwd?: string, exitCode?: number }[];
 }
 
 export interface INavigationMode {

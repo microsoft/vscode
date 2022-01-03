@@ -78,7 +78,13 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 			case ShellIntegrationInteraction.CommandFinished:
 				this._exitCode = Number.parseInt(event.value);
 				if (!this._currentCommand.startsWith('\\') && this._currentCommand !== '') {
-					this._commands.push({ command: this._currentCommand, dateTime: this._getCurrentTimestamp(), cwd: this._cwd, exitCode: this._exitCode });
+					this._commands.push(
+						{
+							command: this._currentCommand,
+							timestamp: this._getCurrentTimestamp(),
+							cwd: this._cwd,
+							exitCode: this._exitCode
+						});
 				}
 				this._currentCommand = '';
 				break;

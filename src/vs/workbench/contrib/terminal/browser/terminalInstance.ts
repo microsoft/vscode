@@ -924,16 +924,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		type Item = IQuickPickItem;
 		const items: Item[] = [];
-		for (const terminalCommand of commands) {
-			const c = terminalCommand.command.substring(0, terminalCommand.command.length - 1);
-			if (c.length === 0) {
+		for (const { command, timestamp, cwd, exitCode } of commands) {
+			// trim off /r
+			const label = command.substring(0, command.length - 1);
+			if (label.length === 0) {
 				continue;
 			}
-			const cwdDescription = terminalCommand.cwd ? `cwd: ${terminalCommand.cwd}` : '';
-			const exitCodeDescription = terminalCommand.exitCode ? `exitCode: ${terminalCommand.exitCode}` : '';
-			items.push({ label: c, description: cwdDescription + ' ' + exitCodeDescription + ' ' + terminalCommand.dateTime, id: terminalCommand.dateTime });
+			const cwdDescription = cwd ? `cwd: ${cwd} ` : '';
+			const exitCodeDescription = exitCode ? `exitCode: ${exitCode} ` : '';
+			items.push({
+				label,
+				description: exitCodeDescription + cwdDescription,
+				detail: timestamp,
+				id: timestamp
+			});
 		}
-		const result = await this._quickInputService.pick(items, {});
+		const result = await this._quickInputService.pick(items.reverse(), {});
 		if (result) {
 			this.sendText(result.label, true);
 		}
