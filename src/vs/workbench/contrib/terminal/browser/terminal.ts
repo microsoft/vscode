@@ -859,6 +859,12 @@ export enum ShellIntegrationInteraction {
 	CommandFinished = 'COMMAND_FINISHED'
 }
 
+export interface TerminalCommand {
+	command: string;
+	cwd?: string;
+	exitCode?: number;
+}
+
 export enum ShellIntegrationInfo {
 	RemoteHost = 'RemoteHost',
 	CurrentDir = 'CurrentDir',

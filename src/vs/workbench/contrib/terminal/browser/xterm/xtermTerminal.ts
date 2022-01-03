@@ -15,7 +15,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ProcessCapability, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ICommandTracker, ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IXtermTerminal, ShellIntegrationInfo, ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IXtermTerminal, ShellIntegrationInfo, ShellIntegrationInteraction, TerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -68,7 +68,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	private _dataIsCommand = false;
 
-	private _commands: string[] = [];
+	private _commands: TerminalCommand[] = [];
 
 	private _exitCode: number | undefined;
 	private _cwd: string | undefined;
@@ -160,7 +160,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.loadAddon(this._commandTrackerAddon);
 	}
 
-	public setCapabilites(capabilties: ProcessCapability[]): void {
+	setCapabilites(capabilties: ProcessCapability[]): void {
 		// this is created before the onProcessReady event
 		// gets fired, which has the capabilities
 		this._capabilities = capabilties;
@@ -174,8 +174,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		switch (event.type) {
 			case ShellIntegrationInfo.CurrentDir:
 				this._cwd = event.value;
-				//fire an event to update cwd
-				console.log('updated cwd', this._cwd);
+				//TODO:fire an event to update cwd
 				break;
 			case ShellIntegrationInfo.RemoteHost:
 				break;
@@ -185,15 +184,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 				this._dataIsCommand = true;
 				break;
 			case ShellIntegrationInteraction.CommandExecuted:
-				if (!this._currentCommand.startsWith('\\')) {
-					this._commands.push(this._currentCommand);
-					console.log('added command', this._commands);
-				}
 				break;
 			case ShellIntegrationInteraction.CommandFinished:
-				this._currentCommand = '';
 				this._exitCode = Number.parseInt(event.value);
-				console.log('command finished with exit code', this._exitCode);
+				if (!this._currentCommand.startsWith('\\') && this._currentCommand !== '') {
+					this._commands.push({ command: this._currentCommand, cwd: this._cwd, exitCode: this._exitCode });
+				}
+				this._currentCommand = '';
 				break;
 			default:
 				return;

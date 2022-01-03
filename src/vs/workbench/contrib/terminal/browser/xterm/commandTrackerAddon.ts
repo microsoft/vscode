@@ -28,12 +28,6 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 	private _terminal: Terminal | undefined;
 	private _capabilities: ProcessCapability[] | undefined = undefined;
 
-	public setCapabilites(capabilties: ProcessCapability[]): void {
-		// this is created before the onProcessReady event
-		// gets fired, which has the capabilities
-		this._capabilities = capabilties;
-	}
-
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
 		terminal.onIntegratedShellChange(e => {
@@ -58,6 +52,7 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		if (key === '\x0d') {
 			this._onEnter();
 		}
+		this.clearMarker();
 	}
 
 	private _onEnter(): void {
@@ -74,6 +69,12 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		// bottom of the buffer
 		this._currentMarker = Boundary.Bottom;
 		this._selectionStart = null;
+	}
+
+	setCapabilites(capabilties: ProcessCapability[]): void {
+		// this is created before the onProcessReady event
+		// gets fired, which has the capabilities
+		this._capabilities = capabilties;
 	}
 
 	scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
