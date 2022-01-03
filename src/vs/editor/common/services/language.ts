@@ -7,7 +7,6 @@ import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const ILanguageService = createDecorator<ILanguageService>('languageService');
 
@@ -23,7 +22,7 @@ export interface ILanguageExtensionPoint {
 	/**
 	 * @internal
 	 */
-	icon?: ThemeIcon;
+	icon?: ILanguageIcon;
 }
 
 export interface ILanguageSelection {
@@ -34,6 +33,11 @@ export interface ILanguageSelection {
 export interface ILanguageNameIdPair {
 	readonly languageName: string;
 	readonly languageId: string;
+}
+
+export interface ILanguageIcon {
+	readonly light: URI;
+	readonly dark: URI;
 }
 
 export interface ILanguageService {
@@ -84,7 +88,7 @@ export interface ILanguageService {
 	/**
 	 * Get the default icon for the language.
 	 */
-	getIcon(languageId: string): ThemeIcon | null;
+	getIcon(languageId: string): ILanguageIcon | null;
 
 	/**
 	 * Get all file extensions for a language.

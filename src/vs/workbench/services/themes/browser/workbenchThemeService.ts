@@ -127,7 +127,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		this.fileIconThemeWatcher = new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentFileIconTheme.bind(this));
 		this.fileIconThemeRegistry = new ThemeRegistry(fileIconThemesExtPoint, FileIconThemeData.fromExtensionTheme, true, FileIconThemeData.noIconTheme);
-		this.fileIconThemeLoader = new FileIconThemeLoader(extensionResourceLoaderService, modeService, this);
+		this.fileIconThemeLoader = new FileIconThemeLoader(extensionResourceLoaderService, modeService);
 		this.onFileIconThemeChange = new Emitter<IWorkbenchFileIconTheme>();
 		this.currentFileIconTheme = FileIconThemeData.createUnloadedTheme('');
 		this.fileIconThemeSequencer = new Sequencer();

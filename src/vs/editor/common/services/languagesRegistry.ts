@@ -12,10 +12,9 @@ import { clearLanguageAssociations, getMimeTypes, registerLanguageAssociation } 
 import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec, LanguageId } from 'vs/editor/common/languages';
 import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageExtensionPoint, ILanguageNameIdPair } from 'vs/editor/common/services/language';
+import { ILanguageExtensionPoint, ILanguageNameIdPair, ILanguageIcon } from 'vs/editor/common/services/language';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 const NULL_LANGUAGE_ID = 'vs.editor.nullLanguage';
@@ -28,7 +27,7 @@ export interface IResolvedLanguage {
 	extensions: string[];
 	filenames: string[];
 	configurationFiles: URI[];
-	icons: ThemeIcon[];
+	icons: ILanguageIcon[];
 }
 
 export class LanguageIdCodec implements ILanguageIdCodec {
@@ -323,7 +322,7 @@ export class LanguagesRegistry extends Disposable {
 		return this._languages[languageId].filenames;
 	}
 
-	public getIcon(languageId: string): ThemeIcon | null {
+	public getIcon(languageId: string): ILanguageIcon | null {
 		if (!hasOwnProperty.call(this._languages, languageId)) {
 			return null;
 		}

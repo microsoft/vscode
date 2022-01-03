@@ -10,12 +10,10 @@ import * as resources from 'vs/base/common/resources';
 import * as Json from 'vs/base/common/json';
 import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { asCSSPropertyValue, asCSSUrl } from 'vs/base/browser/dom';
+import { asCSSUrl } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { ILanguageService } from 'vs/editor/common/services/language';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
@@ -106,9 +104,9 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 			return undefined;
 		}
 		try {
-			let data = JSON.parse(input);
+			const data = JSON.parse(input);
 			const theme = new FileIconThemeData('', '', null);
-			for (let key in data) {
+			for (const key in data) {
 				switch (key) {
 					case 'id':
 					case 'label':
@@ -194,8 +192,7 @@ export class FileIconThemeLoader {
 
 	constructor(
 		private readonly fileService: IExtensionResourceLoaderService,
-		private readonly modeService: ILanguageService,
-		private readonly themeService: IThemeService
+		private readonly modeService: ILanguageService
 	) {
 	}
 
@@ -216,8 +213,8 @@ export class FileIconThemeLoader {
 
 	private loadIconThemeDocument(location: URI): Promise<IconThemeDocument> {
 		return this.fileService.readExtensionResource(location).then((content) => {
-			let errors: Json.ParseError[] = [];
-			let contentValue = Json.parse(content, errors);
+			const errors: Json.ParseError[] = [];
+			const contentValue = Json.parse(content, errors);
 			if (errors.length > 0) {
 				return Promise.reject(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing file icons file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
 			} else if (Json.getNodeType(contentValue) !== 'object') {
@@ -230,6 +227,8 @@ export class FileIconThemeLoader {
 	private processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, iconThemeDocument: IconThemeDocument): { content: string; hasFileIcons: boolean; hasFolderIcons: boolean; hidesExplorerArrows: boolean; } {
 
 		const result = { content: '', hasFileIcons: false, hasFolderIcons: false, hidesExplorerArrows: !!iconThemeDocument.hidesExplorerArrows };
+
+		let hasSpecificFileIcons = false;
 
 		if (!iconThemeDocument.iconDefinitions) {
 			return result;
@@ -271,8 +270,8 @@ export class FileIconThemeLoader {
 					result.hasFolderIcons = true;
 				}
 
-				let rootFolder = associations.rootFolder || associations.folder;
-				let rootFolderExpanded = associations.rootFolderExpanded || associations.folderExpanded;
+				const rootFolder = associations.rootFolder || associations.folder;
+				const rootFolderExpanded = associations.rootFolderExpanded || associations.folderExpanded;
 
 				if (rootFolder) {
 					addSelector(`${qualifier} .rootfolder-icon::before`, rootFolder);
@@ -289,37 +288,38 @@ export class FileIconThemeLoader {
 					result.hasFileIcons = true;
 				}
 
-				let folderNames = associations.folderNames;
+				const folderNames = associations.folderNames;
 				if (folderNames) {
-					for (let folderName in folderNames) {
+					for (const folderName in folderNames) {
 						addSelector(`${qualifier} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
 						result.hasFolderIcons = true;
 					}
 				}
-				let folderNamesExpanded = associations.folderNamesExpanded;
+				const folderNamesExpanded = associations.folderNamesExpanded;
 				if (folderNamesExpanded) {
-					for (let folderName in folderNamesExpanded) {
+					for (const folderName in folderNamesExpanded) {
 						addSelector(`${qualifier} ${expanded} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
 						result.hasFolderIcons = true;
 					}
 				}
 
-				let languageIds = associations.languageIds;
+				const languageIds = associations.languageIds;
 				if (languageIds) {
 					if (!languageIds.jsonc && languageIds.json) {
 						languageIds.jsonc = languageIds.json;
 					}
-					for (let languageId in languageIds) {
+					for (const languageId in languageIds) {
 						addSelector(`${qualifier} .${escapeCSS(languageId)}-lang-file-icon.file-icon::before`, languageIds[languageId]);
 						result.hasFileIcons = true;
+						hasSpecificFileIcons = true;
 						coveredLanguages[languageId] = true;
 					}
 				}
-				let fileExtensions = associations.fileExtensions;
+				const fileExtensions = associations.fileExtensions;
 				if (fileExtensions) {
-					for (let fileExtension in fileExtensions) {
-						let selectors: string[] = [];
-						let segments = fileExtension.toLowerCase().split('.');
+					for (const fileExtension in fileExtensions) {
+						const selectors: string[] = [];
+						const segments = fileExtension.toLowerCase().split('.');
 						if (segments.length) {
 							for (let i = 0; i < segments.length; i++) {
 								selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
@@ -328,15 +328,16 @@ export class FileIconThemeLoader {
 						}
 						addSelector(`${qualifier} ${selectors.join('')}.file-icon::before`, fileExtensions[fileExtension]);
 						result.hasFileIcons = true;
+						hasSpecificFileIcons = true;
 					}
 				}
-				let fileNames = associations.fileNames;
+				const fileNames = associations.fileNames;
 				if (fileNames) {
 					for (let fileName in fileNames) {
-						let selectors: string[] = [];
+						const selectors: string[] = [];
 						fileName = fileName.toLowerCase();
 						selectors.push(`.${escapeCSS(fileName)}-name-file-icon`);
-						let segments = fileName.split('.');
+						const segments = fileName.split('.');
 						if (segments.length) {
 							for (let i = 1; i < segments.length; i++) {
 								selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
@@ -345,6 +346,7 @@ export class FileIconThemeLoader {
 						}
 						addSelector(`${qualifier} ${selectors.join('')}.file-icon::before`, fileNames[fileName]);
 						result.hasFileIcons = true;
+						hasSpecificFileIcons = true;
 					}
 				}
 			}
@@ -357,61 +359,55 @@ export class FileIconThemeLoader {
 			return result;
 		}
 
-		let cssRules: string[] = [];
+		const showLanguageModeIcons = iconThemeDocument.showLanguageModeIcons === true || (hasSpecificFileIcons && iconThemeDocument.showLanguageModeIcons !== false);
 
-		let fonts = iconThemeDocument.fonts;
+		const cssRules: string[] = [];
+
+		const fonts = iconThemeDocument.fonts;
 		if (Array.isArray(fonts)) {
 			fonts.forEach(font => {
-				let src = font.src.map(l => `${asCSSUrl(resolvePath(l.path))} format('${l.format}')`).join(', ');
+				const src = font.src.map(l => `${asCSSUrl(resolvePath(l.path))} format('${l.format}')`).join(', ');
 				cssRules.push(`@font-face { src: ${src}; font-family: '${font.id}'; font-weight: ${font.weight}; font-style: ${font.style}; font-display: block; }`);
 			});
 			cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: '${fonts[0].id}'; font-size: ${fonts[0].size || '150%'}; }`);
 		}
 
-		for (let defId in selectorByDefinitionId) {
-			let selectors = selectorByDefinitionId[defId];
-			let definition = iconThemeDocument.iconDefinitions[defId];
+		for (const defId in selectorByDefinitionId) {
+			const selectors = selectorByDefinitionId[defId];
+			const definition = iconThemeDocument.iconDefinitions[defId];
 			if (definition) {
 				if (definition.iconPath) {
 					cssRules.push(`${selectors.join(', ')} { content: ' '; background-image: ${asCSSUrl(resolvePath(definition.iconPath))}; }`);
-				}
-				if (definition.fontCharacter || definition.fontColor) {
-					let body = '';
+				} else if (definition.fontCharacter || definition.fontColor) {
+					const body = [];
 					if (definition.fontColor) {
-						body += ` color: ${definition.fontColor};`;
+						body.push(`color: ${definition.fontColor};`);
 					}
 					if (definition.fontCharacter) {
-						body += ` content: '${definition.fontCharacter}';`;
+						body.push(`content: '${definition.fontCharacter}';`);
 					}
 					if (definition.fontSize) {
-						body += ` font-size: ${definition.fontSize};`;
+						body.push(`font-size: ${definition.fontSize};`);
 					}
 					if (definition.fontId) {
-						body += ` font-family: ${definition.fontId};`;
+						body.push(`font-family: ${definition.fontId};`);
 					}
-					else if (Array.isArray(fonts)) {
-						body += ` font-family: ${fonts[0].id};`;
+					if (showLanguageModeIcons) {
+						body.push(`background-image: unset;`); // potentially set by the language default
 					}
-					cssRules.push(`${selectors.join(', ')} { ${body} }`);
+					cssRules.push(`${selectors.join(', ')} { ${body.join(' ')} }`);
 				}
 			}
 		}
 
-		if (iconThemeDocument.showLanguageModeIcons === true || (result.hasFileIcons && iconThemeDocument.showLanguageModeIcons !== false)) {
-			const iconRegistry = getIconRegistry();
+		if (showLanguageModeIcons) {
 			for (const languageId of this.modeService.getRegisteredLanguageIds()) {
 				if (!coveredLanguages[languageId]) {
-					const iconName = this.modeService.getIcon(languageId);
-					if (iconName) {
-						const iconContribution = iconRegistry.getIcon(iconName.id);
-						if (iconContribution) {
-							const definition = this.themeService.getProductIconTheme().getIcon(iconContribution);
-							if (definition) {
-								const content = definition.fontCharacter;
-								const fontFamily = asCSSPropertyValue(definition.font?.id ?? 'codicon');
-								cssRules.push(`.show-file-icons .${escapeCSS(languageId)}-lang-file-icon.file-icon::before { content: '${content}'; font-family: ${fontFamily}; font-size: 16px; background-image: none };`);
-							}
-						}
+					const icon = this.modeService.getIcon(languageId);
+					if (icon) {
+						const selector = `.show-file-icons .${escapeCSS(languageId)}-lang-file-icon.file-icon::before`;
+						cssRules.push(`${selector} { content: ' '; background-image: ${asCSSUrl(icon.dark)}; }`);
+						cssRules.push(`.vs ${selector} { content: ' '; background-image: ${asCSSUrl(icon.light)}; }`);
 					}
 				}
 			}
