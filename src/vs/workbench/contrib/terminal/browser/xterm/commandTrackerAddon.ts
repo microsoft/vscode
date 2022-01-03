@@ -80,12 +80,15 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 				if (!this._currentCommand.startsWith('\\') && this._currentCommand !== '') {
 					this._commands.push({ command: this._currentCommand, cwd: this._cwd, exitCode: this._exitCode });
 				}
-				console.log(this._commands);
 				this._currentCommand = '';
 				break;
 			default:
 				return;
 		}
+	}
+
+	getCommands(): TerminalCommand[] {
+		return this._commands;
 	}
 
 	dispose(): void {

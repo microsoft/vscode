@@ -792,6 +792,12 @@ export interface ITerminalInstance {
 	 * Triggers a quick pick that displays links from the viewport of the active terminal.
 	 */
 	showLinkQuickpick(type: TerminalLinkProviderType): Promise<void>;
+
+	/**
+	 * Triggers a quick pick that displays recent commands. Selecting one will
+	 * re-run it in the active terminal.
+	 */
+	rerunCommand(): Promise<void>;
 }
 
 export interface IXtermTerminal {

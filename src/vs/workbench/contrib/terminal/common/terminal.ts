@@ -327,6 +327,7 @@ export interface ICommandTracker {
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
 	clearMarker(): void;
+	getCommands(): { command: string, cwd?: string, exitCode?: number }[];
 }
 
 export interface INavigationMode {
@@ -498,6 +499,7 @@ export const enum TerminalCommandId {
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
 	RunSelectedText = 'workbench.action.terminal.runSelectedText',
 	RunActiveFile = 'workbench.action.terminal.runActiveFile',
+	RerunCommand = 'workbench.action.termianl.rerunCommand',
 	SwitchTerminal = 'workbench.action.terminal.switchTerminal',
 	ScrollDownLine = 'workbench.action.terminal.scrollDown',
 	ScrollDownPage = 'workbench.action.terminal.scrollDownPage',

@@ -917,6 +917,36 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm?.raw.selectAll();
 	}
 
+	async rerunCommand(): Promise<void> {
+		const commands = this.xterm?.commandTracker.getCommands();
+		if (!commands) {
+			return;
+		}
+		type Item = IQuickPickItem;
+		const items: Item[] = [];
+		for (const terminalCommand of commands) {
+			const c = terminalCommand.command.substring(0, terminalCommand.command.length - 1);
+			if (c.length === 0) {
+				continue;
+			}
+			const cwdDescription = terminalCommand.cwd ? `cwd: ${terminalCommand.cwd}` : '';
+			const exitCodeDescription = terminalCommand.exitCode ? `exitCode: ${terminalCommand.exitCode}` : '';
+			items.push({ label: c, description: cwdDescription + ' ' + exitCodeDescription, id: JSON.stringify(new Date().getTime()) });
+			const quickPick = this._quickInputService.createQuickPick();
+			quickPick.items = items;
+			quickPick.matchOnDescription = true;
+			quickPick.show();
+			const disposables: IDisposable[] = [];
+			const result = await new Promise<IQuickPickItem | undefined>(r => {
+				disposables.push(quickPick.onDidHide(() => r(undefined)));
+				disposables.push(quickPick.onDidAccept(() => r(quickPick.selectedItems[0])));
+			});
+			if (result) {
+				this.sendText(result.label, true);
+			}
+		}
+	}
+
 	notifyFindWidgetFocusChanged(isFocused: boolean): void {
 		if (!this.xterm) {
 			return;
