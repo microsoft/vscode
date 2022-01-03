@@ -82,7 +82,7 @@
     "vscode-oniguruma": "1.6.1",
     "vscode-proxy-agent": "^0.11.0",
     "vscode-regexpp": "^3.1.0",
-    "vscode-ripgrep": "^1.12.1",
+    "vscode-ripgrep": "^1.13.2",
     "vscode-textmate": "6.0.0",
     "xterm": "4.16.0",
     "xterm-addon-search": "0.9.0-beta.6",
