@@ -4,3 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 // empty placeholder declaration for the `icon` property of the language contribution point
+
+// https://github.com/microsoft/vscode/issues/14662 @aeschli
+
