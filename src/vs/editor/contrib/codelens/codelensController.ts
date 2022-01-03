@@ -439,8 +439,8 @@ export class CodeLensContribution implements IEditorContribution {
 		});
 	}
 
-	getLenses(): readonly CodeLensWidget[] {
-		return this._lenses;
+	getModel(): CodeLensModel | undefined {
+		return this._currentCodeLensModel;
 	}
 }
 
@@ -472,19 +472,20 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 		if (!codelensController) {
 			return;
 		}
-		const items: { label: string, command: Command }[] = [];
 
-		for (let lens of codelensController.getLenses()) {
-			if (lens.getLineNumber() === lineNumber) {
-				for (let item of lens.getItems()) {
-					const { command } = item.symbol;
-					if (command) {
-						items.push({
-							label: command.title,
-							command: command
-						});
-					}
-				}
+		const model = codelensController.getModel();
+		if (!model) {
+			// nothing
+			return;
+		}
+
+		const items: { label: string, command: Command }[] = [];
+		for (const lens of model.lenses) {
+			if (lens.symbol.command && lens.symbol.range.startLineNumber === lineNumber) {
+				items.push({
+					label: lens.symbol.command.title,
+					command: lens.symbol.command
+				});
 			}
 		}
 
@@ -497,6 +498,11 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 		if (!item) {
 			// Nothing picked
 			return;
+		}
+
+		if (model.isDisposed) {
+			// retry whenever the model has been disposed
+			return await commandService.executeCommand(this.id);
 		}
 
 		try {

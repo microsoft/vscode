@@ -28,6 +28,10 @@ export class CodeLensModel {
 		this._disposables.dispose();
 	}
 
+	get isDisposed(): boolean {
+		return this._disposables.isDisposed;
+	}
+
 	add(list: CodeLensList, provider: CodeLensProvider): void {
 		this._disposables.add(list);
 		for (const symbol of list.lenses) {
