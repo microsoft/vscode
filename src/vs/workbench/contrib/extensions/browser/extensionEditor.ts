@@ -521,7 +521,7 @@ export class ExtensionEditor extends EditorPane {
 		template.publisher.classList.toggle('clickable', !!extension.url);
 		template.publisherDisplayName.textContent = extension.publisherDisplayName;
 		template.verifiedPublisherIcon.style.display = extension.publisherDomain?.verified ? 'inherit' : 'none';
-		template.publisher.title = extension.publisherDomain?.link ? localize('publisher verified tooltip', "This publisher has verified ownership of {0}", URI.parse(extension.publisherDomain.link).authority) : '';
+		template.publisher.title = extension.publisherDomain?.verified && extension.publisherDomain.link ? localize('publisher verified tooltip', "This publisher has verified ownership of {0}", URI.parse(extension.publisherDomain.link).authority) : '';
 
 		template.installCount.parentElement?.classList.toggle('hide', !extension.url);
 		template.rating.parentElement?.classList.toggle('hide', !extension.url);
