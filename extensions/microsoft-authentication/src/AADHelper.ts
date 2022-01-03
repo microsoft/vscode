@@ -12,7 +12,7 @@ import { createServer, startServer } from './authServer';
 import { v4 as uuid } from 'uuid';
 import { Keychain } from './keychain';
 import Logger from './logger';
-import { toBase64UrlEncoding } from './utils';
+import { isSupportedEnvironment, toBase64UrlEncoding } from './utils';
 import fetch, { Response } from 'node-fetch';
 import { sha256 } from './env/node/sha256';
 import * as nls from 'vscode-nls';
@@ -24,6 +24,13 @@ const redirectUrl = 'https://vscode-redirect.azurewebsites.net/';
 const loginEndpointUrl = 'https://login.microsoftonline.com/';
 const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56';
 const tenant = 'organizations';
+
+interface IMicrosoftDeviceCodeResponse {
+	device_code: string;
+	user_code: string;
+	verification_uri: string;
+	interval: number;
+}
 
 interface IToken {
 	accessToken?: string; // When unable to refresh due to network problems, the access token becomes undefined
@@ -108,10 +115,14 @@ export class AzureActiveDirectoryService {
 	private _pendingStates = new Map<string, string[]>();
 	private _codeExchangePromises = new Map<string, Promise<vscode.AuthenticationSession>>();
 	private _codeVerfifiers = new Map<string, string>();
+	private readonly _supportDeviceCodeFlow: boolean;
 
 	private _keychain: Keychain;
 
 	constructor(private _context: vscode.ExtensionContext) {
+		// We only can use the Device Code flow when we are running with a remote extension host.
+		this._supportDeviceCodeFlow = _context.extension.extensionKind === vscode.ExtensionKind.Workspace;
+
 		this._keychain = new Keychain(_context);
 		this._uriHandler = new UriEventHandler();
 		this._disposable = vscode.Disposable.from(
@@ -338,7 +349,10 @@ export class AzureActiveDirectoryService {
 		const runsRemote = vscode.env.remoteName !== undefined;
 		const runsServerless = vscode.env.remoteName === undefined && vscode.env.uiKind === vscode.UIKind.Web;
 		if (runsRemote || runsServerless) {
-			return this.loginWithoutLocalServer(scope);
+			const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.microsoft-authentication`));
+			return this._supportDeviceCodeFlow && !isSupportedEnvironment(callbackUri)
+				? this.doDeviceCodeFlow(scope)
+				: this.loginWithoutLocalServer(callbackUri, scope);
 		}
 
 		const nonce = randomBytes(16).toString('base64');
@@ -394,7 +408,8 @@ export class AzureActiveDirectoryService {
 
 			// If the error was about starting the server, try directly hitting the login endpoint instead
 			if (e.message === 'Error listening to server' || e.message === 'Closed' || e.message === 'Timeout waiting for port') {
-				return this.loginWithoutLocalServer(scope);
+				const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.microsoft-authentication`));
+				return this.loginWithoutLocalServer(callbackUri, scope);
 			}
 
 			throw e;
@@ -403,6 +418,112 @@ export class AzureActiveDirectoryService {
 				server.close();
 			}, 5000);
 		}
+	}
+
+	private async doDeviceCodeFlow(scopes: string): Promise<vscode.AuthenticationSession> {
+		Logger.info(`Starting device code flow with scopes: ${scopes}`);
+		// Get initial device code
+		const uri = `${loginEndpointUrl}${tenant}/oauth2/v2.0/devicecode`;
+		const result = await fetch(uri, {
+			method: 'POST',
+			headers: {
+				Accept: 'application/json',
+				'Content-Type': 'application/x-www-form-urlencoded',
+			},
+			body: querystring.stringify({
+				client_id: clientId,
+				scope: scopes,
+			}),
+		});
+		if (!result.ok) {
+			throw new Error(`Failed to get one-time code: ${await result.text()}`);
+		}
+
+		const json = await result.json() as IMicrosoftDeviceCodeResponse;
+
+		await vscode.env.clipboard.writeText(json.user_code);
+
+		const modalResult = await vscode.window.showInformationMessage(
+			localize('code.title', "Your Code: {0}", json.user_code),
+			{
+				modal: true,
+				detail: localize('code.detail', "The above one-time code has been copied to your clipboard. To finish authenticating, paste it on Microsoft.")
+			}, 'Continue to Microsoft');
+
+		if (modalResult !== 'Continue to Microsoft') {
+			throw new Error('Cancelled');
+		}
+
+		const uriToOpen = await vscode.env.asExternalUri(vscode.Uri.parse(json.verification_uri));
+		await vscode.env.openExternal(uriToOpen);
+
+		return await vscode.window.withProgress<vscode.AuthenticationSession>({
+			location: vscode.ProgressLocation.Notification,
+			cancellable: true,
+			title: localize(
+				'progress',
+				"Open [{0}]({0}) in a new tab and paste your one-time code: {1}",
+				json.verification_uri,
+				json.user_code)
+		}, async (_, token) => {
+			return await this.waitForDeviceCodeAccessToken(json, scopes, token);
+		});
+	}
+
+	private async waitForDeviceCodeAccessToken(
+		json: IMicrosoftDeviceCodeResponse,
+		scopes: string,
+		token: vscode.CancellationToken
+	): Promise<vscode.AuthenticationSession> {
+
+		const refreshTokenUri = `${loginEndpointUrl}${tenant}/oauth2/v2.0/token`;
+
+		// Try for 2 minutes
+		const attempts = 120 / json.interval;
+		for (let i = 0; i < attempts; i++) {
+			await new Promise(resolve => setTimeout(resolve, json.interval * 1000));
+			if (token.isCancellationRequested) {
+				throw new Error('Cancelled');
+			}
+			let accessTokenResult;
+			try {
+				accessTokenResult = await fetch(refreshTokenUri, {
+					method: 'POST',
+					headers: {
+						Accept: 'application/json',
+						'Content-Type': 'application/x-www-form-urlencoded'
+					},
+					body: querystring.stringify({
+						client_id: clientId,
+						device_code: json.device_code,
+						grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
+					}),
+				});
+			} catch {
+				continue;
+			}
+
+			if (!accessTokenResult.ok) {
+				continue;
+			}
+
+			const accessTokenJson = await accessTokenResult.json();
+
+			if (accessTokenJson.error === 'authorization_pending') {
+				continue;
+			}
+
+			if (accessTokenJson.error) {
+				throw new Error(accessTokenJson.error_description);
+			}
+
+			const itoken = this.getTokenFromResponse(accessTokenJson as ITokenResponse, scopes);
+			await this.setToken(itoken, scopes);
+			return await this.convertToSession(itoken);
+
+		}
+
+		throw new Error('Cancelled');
 	}
 
 	public dispose(): void {
@@ -426,8 +547,7 @@ export class AzureActiveDirectoryService {
 		}
 	}
 
-	private async loginWithoutLocalServer(scope: string): Promise<vscode.AuthenticationSession> {
-		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.microsoft-authentication`));
+	private async loginWithoutLocalServer(callbackUri: vscode.Uri, scope: string): Promise<vscode.AuthenticationSession> {
 		const nonce = randomBytes(16).toString('base64');
 		const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
 		const callbackEnvironment = this.getCallbackEnvironment(callbackUri);
