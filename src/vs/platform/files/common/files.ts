@@ -845,6 +845,14 @@ export class FileChangesEvent {
 	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
 	 * - correctly handles `FileChangeType.DELETED` events
 	 */
+	get rawUpdated(): TernarySearchTree<URI, IFileChange> | undefined { return this.updated; }
+
+	/**
+	 * @deprecated use the `contains` or `affects` method to efficiently find
+	 * out if the event relates to a given resource. these methods ensure:
+	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
+	 * - correctly handles `FileChangeType.DELETED` events
+	 */
 	get rawDeleted(): TernarySearchTree<URI, IFileChange> | undefined { return this.deleted; }
 
 }

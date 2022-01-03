@@ -216,6 +216,7 @@ class SharedProcessMain extends Disposable {
 			// processes, we want a single process handling these operations.
 			this._register(new DiskFileSystemProviderClient(mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux })),
 			Schemas.userData,
+			fileService,
 			logService
 		));
 		fileService.registerProvider(Schemas.userData, userDataFileSystemProvider);
