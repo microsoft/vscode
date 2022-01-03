@@ -26,9 +26,12 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
 	private _terminal: Terminal | undefined;
+	private _capabilities: ProcessCapability[] | undefined = undefined;
 
-	constructor(private readonly _capabilities: ProcessCapability[]) {
-
+	public setCapabilites(capabilties: ProcessCapability[]): void {
+		// this is created before the onProcessReady event
+		// gets fired, which has the capabilities
+		this._capabilities = capabilties;
 	}
 
 	activate(terminal: Terminal): void {
@@ -38,7 +41,7 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 				return;
 			}
 			if (this._terminal.buffer.active.cursorX >= MINIMUM_PROMPT_LENGTH) {
-				if (!this._capabilities.includes(ProcessCapability.ShellIntegration)) {
+				if (!this._capabilities?.includes(ProcessCapability.ShellIntegration)) {
 					terminal.onKey(e => this._onKey(e.key));
 				} else if (e.type === ShellIntegrationInteraction.CommandFinished) {
 					this._terminal?.registerMarker(0);

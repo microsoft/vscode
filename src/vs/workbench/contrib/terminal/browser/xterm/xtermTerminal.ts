@@ -75,7 +75,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	private _currentCommand = '';
 
-
+	private _capabilities: ProcessCapability[] | undefined = undefined;
 
 	/**
 	 * @param xtermCtor The xterm.js constructor, this is passed in so it can be fetched lazily
@@ -87,7 +87,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		cols: number,
 		rows: number,
 		location: TerminalLocation,
-		private readonly _capabilities: ProcessCapability[],
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -157,11 +156,21 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			}
 		});
 		this.raw.onIntegratedShellChange((e: { type: string, value: string }) => this._handleIntegratedShellChange(e));
-		this._commandTrackerAddon = new CommandTrackerAddon(this._capabilities);
+		this._commandTrackerAddon = new CommandTrackerAddon();
 		this.raw.loadAddon(this._commandTrackerAddon);
 	}
 
+	public setCapabilites(capabilties: ProcessCapability[]): void {
+		// this is created before the onProcessReady event
+		// gets fired, which has the capabilities
+		this._capabilities = capabilties;
+		this._commandTrackerAddon.setCapabilites(this._capabilities);
+	}
+
 	private _handleIntegratedShellChange(event: { type: string, value: string }): void {
+		if (!this._capabilities?.includes(ProcessCapability.ShellIntegration)) {
+			return;
+		}
 		switch (event.type) {
 			case ShellIntegrationInfo.CurrentDir:
 				this._cwd = event.value;
