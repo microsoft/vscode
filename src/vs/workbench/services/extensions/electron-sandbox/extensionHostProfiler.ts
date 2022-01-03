@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TernarySearchTree } from 'vs/base/common/map';
-import { realpathSync } from 'vs/base/node/extpath';
 import { IExtensionHostProfile, IExtensionService, ProfileSegmentId, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -39,7 +38,7 @@ export class ExtensionHostProfiler {
 		let searchTree = TernarySearchTree.forUris<IExtensionDescription>();
 		for (let extension of extensions) {
 			if (extension.extensionLocation.scheme === Schemas.file) {
-				searchTree.set(URI.file(realpathSync(extension.extensionLocation.fsPath)), extension);
+				searchTree.set(URI.file(extension.extensionLocation.fsPath), extension);
 			}
 		}
 
