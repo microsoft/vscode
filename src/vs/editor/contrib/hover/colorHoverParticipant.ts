@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -10,7 +11,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IIdentifiedSingleEditOperation, IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/modes';
+import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/languages';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
@@ -54,17 +55,29 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return [];
 	}
 
-	public async computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<ColorHover[]> {
+	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<ColorHover> {
+		return AsyncIterableObject.fromPromise(this._computeAsync(anchor, lineDecorations, token));
+	}
+
+	private async _computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<ColorHover[]> {
 		if (!this._editor.hasModel()) {
 			return [];
 		}
 		const colorDetector = ColorDetector.get(this._editor);
+		if (!colorDetector) {
+			return [];
+		}
 		for (const d of lineDecorations) {
+			if (!colorDetector.isColorDecorationId(d.id)) {
+				continue;
+			}
+
 			const colorData = colorDetector.getColorData(d.range.getStartPosition());
 			if (colorData) {
 				const colorHover = await this._createColorHover(this._editor.getModel(), colorData.colorInfo, colorData.provider);
 				return [colorHover];
 			}
+
 		}
 		return [];
 	}

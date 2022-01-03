@@ -18,7 +18,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import { peekViewResultsBackground, peekViewResultsSelectionBackground, peekViewTitleBackground } from 'vs/editor/contrib/peekView/peekView';
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -187,6 +187,7 @@ export class CommentController implements IEditorContribution {
 			this.beginCompute();
 		}));
 		this.globalToDispose.add(this.commentService.onDidSetDataProvider(_ => this.beginCompute()));
+		this.globalToDispose.add(this.commentService.onDidUpdateCommentingRanges(_ => this.beginCompute()));
 
 		this.globalToDispose.add(this.commentService.onDidSetResourceCommentInfos(e => {
 			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
@@ -242,7 +243,7 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
-	public static get(editor: ICodeEditor): CommentController {
+	public static get(editor: ICodeEditor): CommentController | null {
 		return editor.getContribution<CommentController>(ID);
 	}
 
@@ -319,7 +320,7 @@ export class CommentController implements IEditorContribution {
 
 		this._commentWidgets.forEach(widget => widget.dispose());
 
-		this.editor = null!; // Strict null override — nulling out in dispose
+		this.editor = null!; // Strict null override - nulling out in dispose
 	}
 
 	public onModelChanged(e: IModelChangedEvent): void {

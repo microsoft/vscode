@@ -132,11 +132,11 @@ export async function getPackageManager(extensionContext: ExtensionContext, fold
 	let packageManagerName = workspace.getConfiguration('npm', folder).get<string>('packageManager', 'npm');
 
 	if (packageManagerName === 'auto') {
-		const { name, multiplePMDetected } = await findPreferredPM(folder.fsPath);
+		const { name, multipleLockFilesDetected: multiplePMDetected } = await findPreferredPM(folder.fsPath);
 		packageManagerName = name;
 		const neverShowWarning = 'npm.multiplePMWarning.neverShow';
 		if (showWarning && multiplePMDetected && !extensionContext.globalState.get<boolean>(neverShowWarning)) {
-			const multiplePMWarning = localize('npm.multiplePMWarning', 'Using {0} as the preferred package manager. Found multiple lockfiles for {1}.', packageManagerName, folder.fsPath);
+			const multiplePMWarning = localize('npm.multiplePMWarning', 'Using {0} as the preferred package manager. Found multiple lockfiles for {1}.  To resolve this issue, delete the lockfiles that don\'t match your preferred package manager or change the setting "npm.packageManager" to a value other than "auto".', packageManagerName, folder.fsPath);
 			const neverShowAgain = localize('npm.multiplePMWarning.doNotShow', "Do not show again");
 			const learnMore = localize('npm.multiplePMWarning.learnMore', "Learn more");
 			window.showInformationMessage(multiplePMWarning, learnMore, neverShowAgain).then(result => {

@@ -10,7 +10,7 @@ import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebo
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { score } from 'vs/editor/common/modes/languageSelector';
+import { score } from 'vs/editor/common/languages/languageSelector';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -42,8 +42,8 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		this._disposables.add(extHostDocuments.onDidChangeDocument(e => {
 			const cellIdx = this._cellUris.get(e.document.uri);
 			if (cellIdx !== undefined) {
-				this._cellLengths.changeValue(cellIdx, this._cells[cellIdx].document.getText().length + 1);
-				this._cellLines.changeValue(cellIdx, this._cells[cellIdx].document.lineCount);
+				this._cellLengths.setValue(cellIdx, this._cells[cellIdx].document.getText().length + 1);
+				this._cellLines.setValue(cellIdx, this._cells[cellIdx].document.lineCount);
 				this._versionId += 1;
 				this._onDidChange.fire(undefined);
 			}

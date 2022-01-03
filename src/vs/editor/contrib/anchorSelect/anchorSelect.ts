@@ -24,7 +24,7 @@ class SelectionAnchorController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.selectionAnchorController';
 
-	static get(editor: ICodeEditor): SelectionAnchorController {
+	static get(editor: ICodeEditor): SelectionAnchorController | null {
 		return editor.getContribution<SelectionAnchorController>(SelectionAnchorController.ID);
 	}
 
@@ -102,15 +102,14 @@ class SetSelectionAnchor extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_B),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyB),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
 	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const controller = SelectionAnchorController.get(editor);
-		controller.setSelectionAnchor();
+		SelectionAnchorController.get(editor)?.setSelectionAnchor();
 	}
 }
 
@@ -125,8 +124,7 @@ class GoToSelectionAnchor extends EditorAction {
 	}
 
 	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const controller = SelectionAnchorController.get(editor);
-		controller.goToSelectionAnchor();
+		SelectionAnchorController.get(editor)?.goToSelectionAnchor();
 	}
 }
 
@@ -139,15 +137,14 @@ class SelectFromAnchorToCursor extends EditorAction {
 			precondition: SelectionAnchorSet,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyK),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
 	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const controller = SelectionAnchorController.get(editor);
-		controller.selectFromAnchorToCursor();
+		SelectionAnchorController.get(editor)?.selectFromAnchorToCursor();
 	}
 }
 
@@ -167,8 +164,7 @@ class CancelSelectionAnchor extends EditorAction {
 	}
 
 	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const controller = SelectionAnchorController.get(editor);
-		controller.cancelSelectionAnchor();
+		SelectionAnchorController.get(editor)?.cancelSelectionAnchor();
 	}
 }
 

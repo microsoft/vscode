@@ -25,7 +25,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
@@ -230,12 +230,12 @@ class WorkbenchConfigurationContribution {
 	constructor(
 		@IInstantiationService _instantiationService: IInstantiationService,
 		@IConfigurationService _configurationService: IConfigurationService,
-		@ITASExperimentService _experimentSevice: ITASExperimentService,
+		@IWorkbenchAssignmentService _experimentSevice: IWorkbenchAssignmentService,
 	) {
 		this.registerConfigs(_experimentSevice);
 	}
 
-	private async registerConfigs(_experimentSevice: ITASExperimentService) {
+	private async registerConfigs(_experimentSevice: IWorkbenchAssignmentService) {
 		const preferReduced = await _experimentSevice.getTreatment('welcomePage.preferReducedMotion').catch(e => false);
 		if (preferReduced) {
 			configurationRegistry.updateConfigurations({ add: [prefersReducedMotionConfig], remove: [prefersStandardMotionConfig] });
@@ -295,7 +295,7 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.MACHINE,
 			type: 'boolean',
 			default: true,
-			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install the extension.")
+			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install of the extension.")
 		}
 	}
 });

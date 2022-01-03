@@ -13,7 +13,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -27,12 +27,12 @@ import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/strin
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
-import { ILineBreaksComputer, InlineDecoration, InlineDecorationType, IViewModel, ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecoration, InlineDecorationType, IViewModel, ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -49,9 +49,10 @@ import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/co
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { Codicon } from 'vs/base/common/codicons';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
+import { IViewLineTokens } from 'vs/editor/common/model/tokens/lineTokens';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { ILineBreaksComputer } from 'vs/editor/common/viewModel/modelLineProjectionData';
 
 export interface IDiffCodeEditorWidgetOptions {
 	originalEditor?: ICodeEditorWidgetOptions;
@@ -137,7 +138,10 @@ class VisualEditorState {
 
 				if (newDecorations.zones[i].diff && viewZone.marginDomNode) {
 					viewZone.suppressMouseDown = false;
-					this._inlineDiffMargins.push(new InlineDiffMargin(zoneId, viewZone.marginDomNode, editor, newDecorations.zones[i].diff!, this._contextMenuService, this._clipboardService));
+					if (newDecorations.zones[i].diff?.originalModel.getValueLength() !== 0) {
+						// do not contribute diff margin actions for newly created files
+						this._inlineDiffMargins.push(new InlineDiffMargin(zoneId, viewZone.marginDomNode, editor, newDecorations.zones[i].diff!, this._contextMenuService, this._clipboardService));
+					}
 				}
 			}
 		});
@@ -321,7 +325,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._isVisible = true;
 		this._isHandlingScrollEvent = false;
 
-		this._elementSizeObserver = this._register(new ElementSizeObserver(this._containerDomElement, options.dimension, () => this._onDidContainerSizeChanged()));
+		this._elementSizeObserver = this._register(new ElementSizeObserver(this._containerDomElement, options.dimension));
+		this._register(this._elementSizeObserver.onDidChange(() => this._onDidContainerSizeChanged()));
 		if (options.automaticLayout) {
 			this._elementSizeObserver.startObserving();
 		}
@@ -334,7 +339,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._originalOverviewRuler = null;
 		this._modifiedOverviewRuler = null;
 
-		this._reviewPane = new DiffReview(this);
+		this._reviewPane = instantiationService.createInstance(DiffReview, this);
 		this._containerDomElement.appendChild(this._reviewPane.domNode.domNode);
 		this._containerDomElement.appendChild(this._reviewPane.shadow.domNode);
 		this._containerDomElement.appendChild(this._reviewPane.actionBarContainer.domNode);
@@ -480,6 +485,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			}
 		}));
 
+		this._register(editor.onDidChangeHiddenAreas(() => {
+			this._updateDecorationsRunner.cancel();
+			this._updateDecorations();
+		}));
+
 		this._register(editor.onDidChangeModelContent(() => {
 			if (this._isVisible) {
 				this._beginUpdateDecorationsSoon();
@@ -540,6 +550,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				this._updateDecorationsRunner.cancel();
 				this._updateDecorations();
 			}
+		}));
+
+		this._register(editor.onDidChangeHiddenAreas(() => {
+			this._updateDecorationsRunner.cancel();
+			this._updateDecorations();
 		}));
 
 		this._register(editor.onDidChangeModelContent(() => {
@@ -733,7 +748,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._layoutOverviewViewport();
 	}
 
-	public getDomNode(): HTMLElement {
+	public getContainerDomNode(): HTMLElement {
 		return this._domElement;
 	}
 
@@ -2261,10 +2276,10 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			const lineChange = this._pendingLineChange[i];
 			const viewZone = this._pendingViewZones[i];
 			const domNode = viewZone.domNode;
-			Configuration.applyFontInfoSlow(domNode, fontInfo);
+			applyFontInfo(domNode, fontInfo);
 
 			const marginDomNode = viewZone.marginDomNode;
-			Configuration.applyFontInfoSlow(marginDomNode, fontInfo);
+			applyFontInfo(marginDomNode, fontInfo);
 
 			const decorations: InlineDecoration[] = [];
 			if (lineChange.charChanges) {

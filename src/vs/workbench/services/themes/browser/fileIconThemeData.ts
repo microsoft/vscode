@@ -9,12 +9,13 @@ import * as Paths from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import * as Json from 'vs/base/common/json';
 import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { asCSSPropertyValue, asCSSUrl } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { getIconRegistry, IconContribution } from 'vs/platform/theme/common/iconRegistry';
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
+import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
@@ -192,8 +193,9 @@ interface IconThemeDocument extends IconsAssociation {
 export class FileIconThemeLoader {
 
 	constructor(
-		private readonly fileService: IFileService,
-		private readonly modeService: IModeService
+		private readonly fileService: IExtensionResourceLoaderService,
+		private readonly modeService: ILanguageService,
+		private readonly themeService: IThemeService
 	) {
 	}
 
@@ -213,9 +215,9 @@ export class FileIconThemeLoader {
 	}
 
 	private loadIconThemeDocument(location: URI): Promise<IconThemeDocument> {
-		return this.fileService.readFile(location).then((content) => {
+		return this.fileService.readExtensionResource(location).then((content) => {
 			let errors: Json.ParseError[] = [];
-			let contentValue = Json.parse(content.value.toString(), errors);
+			let contentValue = Json.parse(content, errors);
 			if (errors.length > 0) {
 				return Promise.reject(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing file icons file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
 			} else if (Json.getNodeType(contentValue) !== 'object') {
@@ -397,16 +399,16 @@ export class FileIconThemeLoader {
 
 		if (iconThemeDocument.showLanguageModeIcons === true || (result.hasFileIcons && iconThemeDocument.showLanguageModeIcons !== false)) {
 			const iconRegistry = getIconRegistry();
-			for (const languageId of this.modeService.getRegisteredModes()) {
+			for (const languageId of this.modeService.getRegisteredLanguageIds()) {
 				if (!coveredLanguages[languageId]) {
-					const iconName = this.modeService.getIconForMode(languageId);
+					const iconName = this.modeService.getIcon(languageId);
 					if (iconName) {
 						const iconContribution = iconRegistry.getIcon(iconName.id);
 						if (iconContribution) {
-							const definition = IconContribution.getDefinition(iconContribution, iconRegistry);
+							const definition = this.themeService.getProductIconTheme().getIcon(iconContribution);
 							if (definition) {
 								const content = definition.fontCharacter;
-								const fontFamily = asCSSPropertyValue(definition.fontId ?? 'codicon');
+								const fontFamily = asCSSPropertyValue(definition.font?.id ?? 'codicon');
 								cssRules.push(`.show-file-icons .${escapeCSS(languageId)}-lang-file-icon.file-icon::before { content: '${content}'; font-family: ${fontFamily}; font-size: 16px; background-image: none };`);
 							}
 						}

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Ikuyadeu/vscode-R/commit/c6a9803fbda262ea68c427a2339bddafed41a9d5",
+	"version": "https://github.com/Ikuyadeu/vscode-R/commit/f99fdd79533b62b0b6eb6142190963349aa621d7",
 	"name": "R",
 	"scopeName": "source.r",
 	"patterns": [
@@ -245,6 +245,27 @@
 							"name": "constant.character.escape.r"
 						}
 					]
+				},
+				{
+					"begin": "`",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.r"
+						}
+					},
+					"end": "`",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.end.r"
+						}
+					},
+					"name": "variable.parameter.r",
+					"patterns": [
+						{
+							"match": "\\\\.",
+							"name": "variable.parameter.r"
+						}
+					]
 				}
 			]
 		},
@@ -459,7 +480,7 @@
 		"roxygen": {
 			"patterns": [
 				{
-					"begin": "^(#')\\s*",
+					"begin": "^\\s*(#')\\s*",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.comment.r"

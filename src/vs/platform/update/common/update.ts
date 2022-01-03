@@ -29,7 +29,7 @@ export interface IUpdate {
  *
  * Available: There is an update available for download (linux).
  * Ready: Code will be updated as soon as it restarts (win32, darwin).
- * Donwloaded: There is an update ready to be installed in the background (win32).
+ * Downloaded: There is an update ready to be installed in the background (win32).
  */
 
 export const enum StateType {

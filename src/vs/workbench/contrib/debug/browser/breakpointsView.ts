@@ -1249,6 +1249,7 @@ registerAction2(class extends Action2 {
 		debugService.removeBreakpoints();
 		debugService.removeFunctionBreakpoints();
 		debugService.removeDataBreakpoints();
+		debugService.removeInstructionBreakpoints();
 	}
 });
 
@@ -1364,7 +1365,7 @@ registerAction2(class extends ViewAction<BreakpointsView> {
 			if (editor) {
 				const codeEditor = editor.getControl();
 				if (isCodeEditor(codeEditor)) {
-					codeEditor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(breakpoint.lineNumber, breakpoint.column);
+					codeEditor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)?.showBreakpointWidget(breakpoint.lineNumber, breakpoint.column);
 				}
 			}
 		} else if (breakpoint instanceof FunctionBreakpoint) {

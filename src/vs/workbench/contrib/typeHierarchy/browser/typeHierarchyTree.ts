@@ -9,11 +9,12 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { SymbolKinds, SymbolTag } from 'vs/editor/common/modes';
+import { SymbolKinds, SymbolTag } from 'vs/editor/common/languages';
 import { compare } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { localize } from 'vs/nls';
+import { CSSIcon } from 'vs/base/common/codicons';
 
 export class Type {
 	constructor(
@@ -114,7 +115,7 @@ export class TypeRenderer implements ITreeRenderer<Type, FuzzyScore, TypeRenderi
 	renderElement(node: ITreeNode<Type, FuzzyScore>, _index: number, template: TypeRenderingTemplate): void {
 		const { element, filterData } = node;
 		const deprecated = element.item.tags?.includes(SymbolTag.Deprecated);
-		template.icon.className = SymbolKinds.toCssClassName(element.item.kind, true);
+		template.icon.classList.add('inline', ...CSSIcon.asClassNameArray(SymbolKinds.toIcon(element.item.kind)));
 		template.label.setLabel(
 			element.item.name,
 			element.item.detail,

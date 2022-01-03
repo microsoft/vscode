@@ -11,7 +11,7 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
+import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -27,7 +27,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { diffSets, diffMaps } from 'vs/base/common/collections';
@@ -397,7 +397,7 @@ export class MainThreadDocumentsAndEditors {
 			versionId: model.getVersionId(),
 			lines: model.getLinesContent(),
 			EOL: model.getEOL(),
-			modeId: model.getLanguageIdentifier().language,
+			languageId: model.getLanguageId(),
 			isDirty: this._textFileService.isDirty(model.uri)
 		};
 	}

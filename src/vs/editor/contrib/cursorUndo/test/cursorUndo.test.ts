@@ -15,9 +15,7 @@ suite('FindController', () => {
 	const cursorUndoAction = new CursorUndo();
 
 	test('issue #82535: Edge case with cursorUndo', () => {
-		withTestCodeEditor([
-			''
-		], {}, (editor) => {
+		withTestCodeEditor('', {}, (editor) => {
 
 			editor.registerAndInstantiateContribution(CursorUndoRedoController.ID, CursorUndoRedoController);
 
@@ -43,9 +41,7 @@ suite('FindController', () => {
 	});
 
 	test('issue #82535: Edge case with cursorUndo (reverse)', () => {
-		withTestCodeEditor([
-			''
-		], {}, (editor) => {
+		withTestCodeEditor('', {}, (editor) => {
 
 			editor.registerAndInstantiateContribution(CursorUndoRedoController.ID, CursorUndoRedoController);
 

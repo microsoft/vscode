@@ -19,6 +19,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { getViewsStateStorageId, ViewContainerModel } from 'vs/workbench/services/views/common/viewContainerModel';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface ICachedViewContainerInfo {
 	containerId: string;
@@ -94,6 +95,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -116,6 +118,11 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		// Register all containers that were registered before this ctor
 		this.viewContainers.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer));
+
+		// TODO@sbatten remove with setting for side panel/auxiliary bar
+		if (!this.configurationService.getValue<boolean>('workbench.experimental.sidePanel.enabled')) {
+			this.fallbackDisabledAuxiliaryBar();
+		}
 
 		this._register(this.viewsRegistry.onViewsRegistered(views => this.onDidRegisterViews(views)));
 		this._register(this.viewsRegistry.onViewsDeregistered(({ views, viewContainer }) => this.onDidDeregisterViews(views, viewContainer)));
@@ -181,6 +188,35 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			}
 
 			this.removeViews(viewContainer, groupedViews.get(viewContainerId)!.views);
+		}
+	}
+
+	private fallbackDisabledAuxiliaryBar(): void {
+		for (const [containerId, containerLocation] of this.cachedViewContainerInfo.entries()) {
+			if (containerLocation === ViewContainerLocation.AuxiliaryBar) {
+				const container = this.getViewContainerById(containerId);
+				if (!container || this.isGeneratedContainerId(containerId)) {
+					continue;
+				}
+
+				this.moveViewContainerToLocation(container, this.getDefaultViewContainerLocation(container));
+			}
+		}
+
+
+		for (const [viewId, containerInfo] of this.cachedViewInfo.entries()) {
+			const containerId = containerInfo.containerId;
+
+			if (!this.isGeneratedContainerId(containerId) || this.cachedViewContainerInfo.get(containerId) !== ViewContainerLocation.AuxiliaryBar) {
+				continue;
+			}
+
+			// check if view has been registered to default location
+			const viewContainer = this.viewsRegistry.getViewContainer(viewId);
+			const viewDescriptor = this.getViewDescriptorById(viewId);
+			if (viewContainer && viewDescriptor) {
+				this.addViews(viewContainer, [viewDescriptor]);
+			}
 		}
 	}
 

@@ -17,6 +17,6 @@
 		],
 	},
 	"include": [
-		"vs/vscode.d.ts"
+		"vscode-dts/vscode.d.ts"
 	]
 }

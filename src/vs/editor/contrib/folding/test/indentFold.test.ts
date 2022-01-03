@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 interface IndentRange {
 	start: number;
@@ -70,6 +70,8 @@ suite('Indentation Folding', () => {
 		assertLimit(2, [r1, r9], '2');
 		assertLimit(1, [r1], '1');
 		assertLimit(0, [], '0');
+
+		model.dispose();
 	});
 
 });

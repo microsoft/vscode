@@ -149,6 +149,24 @@ export function addDisposableNonBubblingPointerOutListener(node: Element, handle
 	});
 }
 
+export function createEventEmitter<K extends keyof HTMLElementEventMap>(target: HTMLElement, type: K, options?: boolean | AddEventListenerOptions): Emitter<HTMLElementEventMap[K]> {
+	let domListener: DomListener | null = null;
+	const handler = (e: HTMLElementEventMap[K]) => result.fire(e);
+	const onFirstListenerAdd = () => {
+		if (!domListener) {
+			domListener = new DomListener(target, type, handler, options);
+		}
+	};
+	const onLastListenerRemove = () => {
+		if (domListener) {
+			domListener.dispose();
+			domListener = null;
+		}
+	};
+	const result = new Emitter<HTMLElementEventMap[K]>({ onFirstListenerAdd, onLastListenerRemove });
+	return result;
+}
+
 interface IRequestAnimationFrame {
 	(callback: (time: number) => void): number;
 }
@@ -846,6 +864,8 @@ export const EventType = {
 	LOAD: 'load',
 	BEFORE_UNLOAD: 'beforeunload',
 	UNLOAD: 'unload',
+	PAGE_SHOW: 'pageshow',
+	PAGE_HIDE: 'pagehide',
 	ABORT: 'abort',
 	ERROR: 'error',
 	RESIZE: 'resize',
@@ -906,7 +926,7 @@ export const EventHelper = {
 export interface IFocusTracker extends Disposable {
 	onDidFocus: Event<void>;
 	onDidBlur: Event<void>;
-	refreshState?(): void;
+	refreshState(): void;
 }
 
 export function saveParentsScrollTop(node: Element): number[] {
@@ -937,9 +957,15 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 	private _refreshStateHandler: () => void;
 
+	private static hasFocusWithin(element: HTMLElement): boolean {
+		const shadowRoot = getShadowRoot(element);
+		const activeElement = (shadowRoot ? shadowRoot.activeElement : document.activeElement);
+		return isAncestor(activeElement, element);
+	}
+
 	constructor(element: HTMLElement | Window) {
 		super();
-		let hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
+		let hasFocus = FocusTracker.hasFocusWithin(<HTMLElement>element);
 		let loosingFocus = false;
 
 		const onFocus = () => {
@@ -964,7 +990,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 		};
 
 		this._refreshStateHandler = () => {
-			let currentNodeHasFocus = isAncestor(document.activeElement, <HTMLElement>element);
+			let currentNodeHasFocus = FocusTracker.hasFocusWithin(<HTMLElement>element);
 			if (currentNodeHasFocus !== hasFocus) {
 				if (hasFocus) {
 					onBlur();
@@ -976,6 +1002,8 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 		this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
 		this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
+		this._register(addDisposableListener(element, EventType.FOCUS_IN, () => this._refreshStateHandler()));
+		this._register(addDisposableListener(element, EventType.FOCUS_OUT, () => this._refreshStateHandler()));
 	}
 
 	refreshState() {
@@ -1180,7 +1208,7 @@ export function computeScreenAwareSize(cssPx: number): number {
 /**
  * Open safely a new window. This is the best way to do so, but you cannot tell
  * if the window was opened or if it was blocked by the browser's popup blocker.
- * If you want to tell if the browser blocked the new window, use `windowOpenNoOpenerWithSuccess`.
+ * If you want to tell if the browser blocked the new window, use {@link windowOpenWithSuccess}.
  *
  * See https://github.com/microsoft/monaco-editor/issues/601
  * To protect against malicious code in the linked site, particularly phishing attempts,
@@ -1199,19 +1227,49 @@ export function windowOpenNoOpener(url: string): void {
 }
 
 /**
- * Open safely a new window. This technique is not appropriate in certain contexts,
- * like for example when the JS context is executing inside a sandboxed iframe.
- * If it is not necessary to know if the browser blocked the new window, use
- * `windowOpenNoOpener`.
+ * Open a new window in a popup. This is the best way to do so, but you cannot tell
+ * if the window was opened or if it was blocked by the browser's popup blocker.
+ * If you want to tell if the browser blocked the new window, use {@link windowOpenWithSuccess}.
+ *
+ * Note: this does not set {@link window.opener} to null. This is to allow the opened popup to
+ * be able to use {@link window.close} to close itself. Because of this, you should only use
+ * this function on urls that you trust.
+ *
+ * In otherwords, you should almost always use {@link windowOpenNoOpener} instead of this function.
+ */
+const popupWidth = 780, popupHeight = 640;
+export function windowOpenPopup(url: string): void {
+	const left = Math.floor(window.screenLeft + window.innerWidth / 2 - popupWidth / 2);
+	const top = Math.floor(window.screenTop + window.innerHeight / 2 - popupHeight / 2);
+	window.open(
+		url,
+		'_blank',
+		`width=${popupWidth},height=${popupHeight},top=${top},left=${left}`
+	);
+}
+
+/**
+ * Attempts to open a window and returns whether it succeeded. This technique is
+ * not appropriate in certain contexts, like for example when the JS context is
+ * executing inside a sandboxed iframe. If it is not necessary to know if the
+ * browser blocked the new window, use {@link windowOpenNoOpener}.
  *
  * See https://github.com/microsoft/monaco-editor/issues/601
  * See https://github.com/microsoft/monaco-editor/issues/2474
  * See https://mathiasbynens.github.io/rel-noopener/
+ *
+ * @param url the url to open
+ * @param noOpener whether or not to set the {@link window.opener} to null. You should leave the default
+ * (true) unless you trust the url that is being opened.
+ * @returns boolean indicating if the {@link window.open} call succeeded
  */
-export function windowOpenNoOpenerWithSuccess(url: string): boolean {
+export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
 	const newTab = window.open();
 	if (newTab) {
-		(newTab as any).opener = null;
+		if (noOpener) {
+			// see `windowOpenNoOpener` for details on why this is important
+			(newTab as any).opener = null;
+		}
 		newTab.location.href = url;
 		return true;
 	}

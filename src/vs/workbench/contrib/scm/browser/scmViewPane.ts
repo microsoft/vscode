@@ -11,7 +11,7 @@ import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/par
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton } from 'vs/workbench/contrib/scm/common/scm';
-import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -49,7 +49,7 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/wi
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
@@ -67,7 +67,7 @@ import { LinkDetector } from 'vs/editor/contrib/links/links';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
@@ -75,7 +75,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
 import { Selection } from 'vs/editor/common/core/selection';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -83,7 +83,7 @@ import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/m
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Command } from 'vs/editor/common/modes';
+import { Command } from 'vs/editor/common/languages';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
@@ -113,6 +113,9 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 	) { }
 
 	renderTemplate(container: HTMLElement): ActionButtonTemplate {
+		// Disable hover for list item
+		container.parentElement!.parentElement!.classList.add('force-no-hover');
+
 		const buttonContainer = append(container, $('.button-container'));
 		const actionButton = new ScmActionButton(buttonContainer, this.commandService, this.themeService, this.notificationService);
 
@@ -166,6 +169,9 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	renderTemplate(container: HTMLElement): InputTemplate {
 		// hack
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+
+		// Disable hover for list item
+		container.parentElement!.parentElement!.classList.add('force-no-hover');
 
 		const disposables = new DisposableStore();
 		const inputElement = append(container, $('.scm-input'));
@@ -344,6 +350,13 @@ interface ResourceTemplate {
 	disposables: IDisposable;
 }
 
+interface RenderedResourceData {
+	readonly tooltip: string;
+	readonly uri: URI;
+	readonly fileLabelOptions: Partial<IFileLabelOptions>;
+	readonly iconResource: ISCMResource | undefined;
+}
+
 class RepositoryPaneActionRunner extends ActionRunner {
 
 	constructor(private getSelectedResources: () => (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[]) {
@@ -368,14 +381,20 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 	static readonly TEMPLATE_ID = 'resource';
 	get templateId(): string { return ResourceRenderer.TEMPLATE_ID; }
 
+	private disposables = new DisposableStore();
+	private renderedResources = new Map<ResourceTemplate, RenderedResourceData>();
+
 	constructor(
 		private viewModelProvider: () => ViewModel,
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
 		private actionRunner: ActionRunner,
+		@ILabelService private labelService: ILabelService,
 		@ISCMViewService private scmViewService: ISCMViewService,
 		@IThemeService private themeService: IThemeService
-	) { }
+	) {
+		themeService.onDidColorThemeChange(this.onDidColorThemeChange, this, this.disposables);
+	}
 
 	renderTemplate(container: HTMLElement): ResourceTemplate {
 		const element = append(container, $('.resource'));
@@ -409,66 +428,45 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		let matches: IMatch[] | undefined;
 		let descriptionMatches: IMatch[] | undefined;
+		let strikethrough: boolean | undefined;
 
 		if (ResourceTree.isResourceNode(resourceOrFolder)) {
 			if (resourceOrFolder.element) {
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.element.resourceGroup.provider);
 				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder.element), template.actionBar));
-				template.name.classList.toggle('strike-through', resourceOrFolder.element.decorations.strikeThrough);
 				template.element.classList.toggle('faded', resourceOrFolder.element.decorations.faded);
+				strikethrough = resourceOrFolder.element.decorations.strikeThrough;
 			} else {
 				matches = createMatches(node.filterData as FuzzyScore | undefined);
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.context.provider);
 				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(resourceOrFolder.context), template.actionBar));
-				template.name.classList.remove('strike-through');
 				template.element.classList.remove('faded');
 			}
 		} else {
 			[matches, descriptionMatches] = this._processFilterData(uri, node.filterData);
 			const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.resourceGroup.provider);
 			elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder), template.actionBar));
-			template.name.classList.toggle('strike-through', resourceOrFolder.decorations.strikeThrough);
 			template.element.classList.toggle('faded', resourceOrFolder.decorations.faded);
+			strikethrough = resourceOrFolder.decorations.strikeThrough;
 		}
 
-		const render = () => {
-			const theme = this.themeService.getColorTheme();
-			const icon = iconResource && (theme.type === ColorScheme.LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
-
-			template.fileLabel.setFile(uri, {
-				fileDecorations: { colors: false, badges: !icon },
+		const renderedData: RenderedResourceData = {
+			tooltip,
+			uri,
+			fileLabelOptions: {
 				hidePath: viewModel.mode === ViewModelMode.Tree,
 				fileKind,
 				matches,
-				descriptionMatches
-			});
-
-			if (icon) {
-				if (ThemeIcon.isThemeIcon(icon)) {
-					template.decorationIcon.className = `decoration-icon ${ThemeIcon.asClassName(icon)}`;
-					if (icon.color) {
-						template.decorationIcon.style.color = theme.getColor(icon.color.id)?.toString() ?? '';
-					}
-					template.decorationIcon.style.display = '';
-					template.decorationIcon.style.backgroundImage = '';
-				} else {
-					template.decorationIcon.className = 'decoration-icon';
-					template.decorationIcon.style.color = '';
-					template.decorationIcon.style.display = '';
-					template.decorationIcon.style.backgroundImage = asCSSUrl(icon);
-				}
-				template.decorationIcon.title = tooltip;
-			} else {
-				template.decorationIcon.className = 'decoration-icon';
-				template.decorationIcon.style.color = '';
-				template.decorationIcon.style.display = 'none';
-				template.decorationIcon.style.backgroundImage = '';
-				template.decorationIcon.title = '';
-			}
+				descriptionMatches,
+				strikethrough
+			},
+			iconResource
 		};
 
-		elementDisposables.add(this.themeService.onDidColorThemeChange(render));
-		render();
+		this.renderIcon(template, renderedData);
+
+		this.renderedResources.set(template, renderedData);
+		elementDisposables.add(toDisposable(() => this.renderedResources.delete(template)));
 
 		template.element.setAttribute('data-tooltip', tooltip);
 		template.elementDisposables = elementDisposables;
@@ -485,14 +483,15 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const compressed = node.element as ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>;
 		const folder = compressed.elements[compressed.elements.length - 1];
 
-		const label = compressed.elements.map(e => e.name).join('/');
+		const label = compressed.elements.map(e => e.name);
 		const fileKind = FileKind.FOLDER;
 
 		const matches = createMatches(node.filterData as FuzzyScore | undefined);
 		template.fileLabel.setResource({ resource: folder.uri, name: label }, {
 			fileDecorations: { colors: false, badges: true },
 			fileKind,
-			matches
+			matches,
+			separator: this.labelService.getSeparator(folder.uri.scheme)
 		});
 
 		template.actionBar.clear();
@@ -567,6 +566,49 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		}
 
 		return [labelMatches, descriptionMatches];
+	}
+
+	private onDidColorThemeChange(): void {
+		for (const [template, data] of this.renderedResources) {
+			this.renderIcon(template, data);
+		}
+	}
+
+	private renderIcon(template: ResourceTemplate, data: RenderedResourceData): void {
+		const theme = this.themeService.getColorTheme();
+		const icon = theme.type === ColorScheme.LIGHT ? data.iconResource?.decorations.icon : data.iconResource?.decorations.iconDark;
+
+		template.fileLabel.setFile(data.uri, {
+			...data.fileLabelOptions,
+			fileDecorations: { colors: false, badges: !icon },
+		});
+
+		if (icon) {
+			if (ThemeIcon.isThemeIcon(icon)) {
+				template.decorationIcon.className = `decoration-icon ${ThemeIcon.asClassName(icon)}`;
+				if (icon.color) {
+					template.decorationIcon.style.color = theme.getColor(icon.color.id)?.toString() ?? '';
+				}
+				template.decorationIcon.style.display = '';
+				template.decorationIcon.style.backgroundImage = '';
+			} else {
+				template.decorationIcon.className = 'decoration-icon';
+				template.decorationIcon.style.color = '';
+				template.decorationIcon.style.display = '';
+				template.decorationIcon.style.backgroundImage = asCSSUrl(icon);
+			}
+			template.decorationIcon.title = data.tooltip;
+		} else {
+			template.decorationIcon.className = 'decoration-icon';
+			template.decorationIcon.style.color = '';
+			template.decorationIcon.style.display = 'none';
+			template.decorationIcon.style.backgroundImage = '';
+			template.decorationIcon.title = '';
+		}
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
 	}
 }
 
@@ -1222,6 +1264,8 @@ class ViewModel {
 			this.scmProviderHasRootUriContextKey.set(false);
 		}
 
+		const focusedInput = this.inputRenderer.getFocusedInput();
+
 		if (!this.alwaysShowRepositories && (this.items.size === 1 && (!item || isRepositoryItem(item)))) {
 			const item = Iterable.first(this.items.values())!;
 			this.tree.setChildren(null, this.render(item, this.treeViewState).children);
@@ -1230,6 +1274,10 @@ class ViewModel {
 		} else {
 			const items = coalesce(this.scmViewService.visibleRepositories.map(r => this.items.get(r)));
 			this.tree.setChildren(null, items.map(item => this.render(item, this.treeViewState)));
+		}
+
+		if (focusedInput) {
+			this.inputRenderer.getRenderedInputWidget(focusedInput)?.focus();
 		}
 
 		this.updateRepositoryCollapseAllContextKeys();
@@ -1601,7 +1649,7 @@ class SCMInputWidget extends Disposable {
 			this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
 		}
 
-		const textModel = this.modelService.getModel(uri) ?? this.modelService.createModel('', this.modeService.create('scminput'), uri);
+		const textModel = this.modelService.getModel(uri) ?? this.modelService.createModel('', this.languageService.createById('scminput'), uri);
 		this.inputEditor.setModel(textModel);
 
 		// Validation
@@ -1619,7 +1667,7 @@ class SCMInputWidget extends Disposable {
 		this.repositoryDisposables.add(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
 
 		// Adaptive indentation rules
-		const opts = this.modelService.getCreationOptions(textModel.getLanguageIdentifier().language, textModel.uri, textModel.isForSimpleWidget);
+		const opts = this.modelService.getCreationOptions(textModel.getLanguageId(), textModel.uri, textModel.isForSimpleWidget);
 		const onEnter = Event.filter(this.inputEditor.onKeyDown, e => e.keyCode === KeyCode.Enter);
 		this.repositoryDisposables.add(onEnter(() => textModel.detectIndentation(opts.insertSpaces, opts.tabSize)));
 
@@ -1721,7 +1769,7 @@ class SCMInputWidget extends Disposable {
 		overflowWidgetsDomNode: HTMLElement,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
+		@ILanguageService private languageService: ILanguageService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -2052,7 +2100,7 @@ export class SCMViewPane extends ViewPane {
 			this.inputRenderer,
 			this.instantiationService.createInstance(ActionButtonRenderer),
 			this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
-			this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner)
+			this._register(this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner))
 		];
 
 		const filter = new SCMTreeFilter();
@@ -2075,7 +2123,7 @@ export class SCMViewPane extends ViewPane {
 				sorter,
 				keyboardNavigationLabelProvider,
 				overrideStyles: {
-					listBackground: this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
+					listBackground: this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND
 				},
 				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
 			}) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;

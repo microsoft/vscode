@@ -866,7 +866,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		switch (event.event) {
 			case EventName.syntaxDiag:
 			case EventName.semanticDiag:
-			case EventName.suggestionDiag:
+			case EventName.suggestionDiag: {
 				// This event also roughly signals that projects have been loaded successfully (since the TS server is synchronous)
 				this.loadingIndicator.reset();
 
@@ -879,34 +879,32 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					});
 				}
 				break;
-
+			}
 			case EventName.configFileDiag:
 				this._onConfigDiagnosticsReceived.fire(event as Proto.ConfigFileDiagnosticEvent);
 				break;
 
-			case EventName.telemetry:
-				{
-					const body = (event as Proto.TelemetryEvent).body;
-					this.dispatchTelemetryEvent(body);
-					break;
+			case EventName.telemetry: {
+				const body = (event as Proto.TelemetryEvent).body;
+				this.dispatchTelemetryEvent(body);
+				break;
+			}
+			case EventName.projectLanguageServiceState: {
+				const body = (event as Proto.ProjectLanguageServiceStateEvent).body!;
+				if (this.serverState.type === ServerState.Type.Running) {
+					this.serverState.updateLanguageServiceEnabled(body.languageServiceEnabled);
 				}
-			case EventName.projectLanguageServiceState:
-				{
-					const body = (event as Proto.ProjectLanguageServiceStateEvent).body!;
-					if (this.serverState.type === ServerState.Type.Running) {
-						this.serverState.updateLanguageServiceEnabled(body.languageServiceEnabled);
-					}
-					this._onProjectLanguageServiceStateChanged.fire(body);
-					break;
-				}
-			case EventName.projectsUpdatedInBackground:
+				this._onProjectLanguageServiceStateChanged.fire(body);
+				break;
+			}
+			case EventName.projectsUpdatedInBackground: {
 				this.loadingIndicator.reset();
 
 				const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
 				const resources = body.openFiles.map(file => this.toResource(file));
 				this.bufferSyncSupport.getErr(resources);
 				break;
-
+			}
 			case EventName.beginInstallTypes:
 				this._onDidBeginInstallTypings.fire((event as Proto.BeginInstallTypesEvent).body);
 				break;
@@ -936,7 +934,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private dispatchTelemetryEvent(telemetryData: Proto.TelemetryEventBody): void {
 		const properties: { [key: string]: string } = Object.create(null);
 		switch (telemetryData.telemetryEventName) {
-			case 'typingsInstalled':
+			case 'typingsInstalled': {
 				const typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
 				properties['installedPackages'] = typingsInstalledPayload.installedPackages;
 
@@ -947,8 +945,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					properties['typingsInstallerVersion'] = typingsInstalledPayload.typingsInstallerVersion;
 				}
 				break;
-
-			default:
+			}
+			default: {
 				const payload = telemetryData.payload;
 				if (payload) {
 					Object.keys(payload).forEach((key) => {
@@ -962,6 +960,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					});
 				}
 				break;
+			}
 		}
 		if (telemetryData.telemetryEventName === 'projectInfo') {
 			if (this.serverState.type === ServerState.Type.Running) {
@@ -1059,11 +1058,12 @@ function getDignosticsKind(event: Proto.Event) {
 }
 
 class ServerInitializingIndicator extends Disposable {
-	private _task?: { project: string | undefined, resolve: () => void, reject: () => void };
+
+	private _task?: { project: string | undefined, resolve: () => void };
 
 	public reset(): void {
 		if (this._task) {
-			this._task.reject();
+			this._task.resolve();
 			this._task = undefined;
 		}
 	}
@@ -1079,8 +1079,8 @@ class ServerInitializingIndicator extends Disposable {
 		vscode.window.withProgress({
 			location: vscode.ProgressLocation.Window,
 			title: localize('serverLoading.progress', "Initializing JS/TS language features"),
-		}, () => new Promise<void>((resolve, reject) => {
-			this._task = { project: projectName, resolve, reject };
+		}, () => new Promise<void>(resolve => {
+			this._task = { project: projectName, resolve };
 		}));
 	}
 

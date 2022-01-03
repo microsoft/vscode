@@ -22,7 +22,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorAction, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { isLocationLink, Location, LocationLink } from 'vs/editor/common/modes';
+import { isLocationLink, Location, LocationLink } from 'vs/editor/common/languages';
 import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
 import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/referencesModel';
 import { ISymbolNavigationService } from 'vs/editor/contrib/gotoSymbol/symbolNavigation';
@@ -108,7 +108,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 				// no result -> show message
 				if (!this._configuration.muteMessage) {
 					const info = model.getWordAtPosition(pos);
-					MessageController.get(editor).showMessage(this._getNoResultFoundMessage(info), pos);
+					MessageController.get(editor)?.showMessage(this._getNoResultFoundMessage(info), pos);
 				}
 			} else if (referenceCount === 1 && altAction) {
 				// already at the only result, run alternative
@@ -202,7 +202,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 	}
 
 	private _openInPeek(target: ICodeEditor, model: ReferencesModel) {
-		let controller = ReferencesController.get(target);
+		const controller = ReferencesController.get(target);
 		if (controller && target.hasModel()) {
 			controller.toggleWidget(target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), this._configuration.openInPeek);
 		} else {
@@ -286,7 +286,7 @@ registerGoToAction(class OpenDefinitionToSideAction extends DefinitionAction {
 				EditorContextKeys.isInWalkThroughSnippet.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDefinitionKb),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, goToDefinitionKb),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -672,8 +672,8 @@ class GenericGoToLocationAction extends SymbolNavigationAction {
 	) {
 		super(config, {
 			id: 'editor.action.goToLocation',
-			label: nls.localize('label.generic', "Go To Any Symbol"),
-			alias: 'Go To Any Symbol',
+			label: nls.localize('label.generic', "Go to Any Symbol"),
+			alias: 'Go to Any Symbol',
 			precondition: ContextKeyExpr.and(
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInWalkThroughSnippet.toNegated()

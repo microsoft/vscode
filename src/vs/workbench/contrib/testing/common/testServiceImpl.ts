@@ -30,7 +30,8 @@ export class TestService extends Disposable implements ITestService {
 	private testControllers = new Map<string, IMainThreadTestController>();
 
 	private readonly cancelExtensionTestRunEmitter = new Emitter<{ runId: string | undefined }>();
-	private readonly processDiffEmitter = new Emitter<TestsDiff>();
+	private readonly willProcessDiffEmitter = new Emitter<TestsDiff>();
+	private readonly didProcessDiffEmitter = new Emitter<TestsDiff>();
 	private readonly providerCount: IContextKey<number>;
 	/**
 	 * Cancellation for runs requested by the user being managed by the UI.
@@ -41,7 +42,12 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly onDidProcessDiff = this.processDiffEmitter.event;
+	public readonly onWillProcessDiff = this.willProcessDiffEmitter.event;
+
+	/**
+	 * @inheritdoc
+	 */
+	public readonly onDidProcessDiff = this.didProcessDiffEmitter.event;
 
 	/**
 	 * @inheritdoc
@@ -204,8 +210,9 @@ export class TestService extends Disposable implements ITestService {
 	 * @inheritdoc
 	 */
 	public publishDiff(_controllerId: string, diff: TestsDiff) {
+		this.willProcessDiffEmitter.fire(diff);
 		this.collection.apply(diff);
-		this.processDiffEmitter.fire(diff);
+		this.didProcessDiffEmitter.fire(diff);
 	}
 
 	/**

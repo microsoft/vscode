@@ -31,9 +31,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: EditorContextKeys.focus.toNegated(),
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR,
 	win: {
-		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
+		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyR
 	},
 	handler: (accessor: ServicesAccessor, resource: URI | object) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
@@ -46,7 +46,7 @@ const REVEAL_ACTIVE_FILE_IN_OS_COMMAND_ID = 'workbench.action.files.revealActive
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R),
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyR),
 	id: REVEAL_ACTIVE_FILE_IN_OS_COMMAND_ID,
 	handler: (accessor: ServicesAccessor) => {
 		const editorService = accessor.get(IEditorService);

@@ -9,7 +9,7 @@ import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
@@ -1042,7 +1042,9 @@ class InlineCompletionAdapter {
 				context.selectedSuggestionInfo
 					? {
 						range: typeConvert.Range.to(context.selectedSuggestionInfo.range),
-						text: context.selectedSuggestionInfo.text
+						text: context.selectedSuggestionInfo.text,
+						isSnippetText: context.selectedSuggestionInfo.isSnippetText,
+						completionKind: typeConvert.CompletionItemKind.to(context.selectedSuggestionInfo.completionKind),
 					}
 					: undefined,
 			triggerKind: context.triggerKind
@@ -1845,7 +1847,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	registerWorkspaceSymbolProvider(extension: IExtensionDescription, provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new NavigateTypeAdapter(provider, this._logService), extension);
-		this._proxy.$registerNavigateTypeSupport(handle);
+		this._proxy.$registerNavigateTypeSupport(handle, typeof provider.resolveWorkspaceSymbol === 'function');
 		return this._createDisposable(handle);
 	}
 

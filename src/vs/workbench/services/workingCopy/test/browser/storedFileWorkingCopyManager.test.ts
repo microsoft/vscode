@@ -15,16 +15,19 @@ import { timeout } from 'vs/base/common/async';
 import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/storedFileWorkingCopy.test';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('StoredFileWorkingCopyManager', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	let manager: IStoredFileWorkingCopyManager<TestStoredFileWorkingCopyModel>;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		manager = new StoredFileWorkingCopyManager<TestStoredFileWorkingCopyModel>(
@@ -39,6 +42,7 @@ suite('StoredFileWorkingCopyManager', () => {
 
 	teardown(() => {
 		manager.dispose();
+		disposables.dispose();
 	});
 
 	test('resolve', async () => {
@@ -142,6 +146,48 @@ suite('StoredFileWorkingCopyManager', () => {
 
 		await manager.resolve(resource, { reload: { async: false, force: true } });
 		assert.strictEqual(didResolve, true);
+	});
+
+	test('resolve (sync) - model disposed when error and first call to resolve', async () => {
+		const resource = URI.file('/path/index.txt');
+
+		accessor.fileService.readShouldThrowError = new FileOperationError('fail', FileOperationResult.FILE_OTHER_ERROR);
+
+		try {
+			let error: Error | undefined = undefined;
+			try {
+				await manager.resolve(resource);
+			} catch (e) {
+				error = e;
+			}
+
+			assert.ok(error);
+			assert.strictEqual(manager.workingCopies.length, 0);
+		} finally {
+			accessor.fileService.readShouldThrowError = undefined;
+		}
+	});
+
+	test('resolve (sync) - model not disposed when error and model existed before', async () => {
+		const resource = URI.file('/path/index.txt');
+
+		await manager.resolve(resource);
+
+		accessor.fileService.readShouldThrowError = new FileOperationError('fail', FileOperationResult.FILE_OTHER_ERROR);
+
+		try {
+			let error: Error | undefined = undefined;
+			try {
+				await manager.resolve(resource, { reload: { async: false } });
+			} catch (e) {
+				error = e;
+			}
+
+			assert.ok(error);
+			assert.strictEqual(manager.workingCopies.length, 1);
+		} finally {
+			accessor.fileService.readShouldThrowError = undefined;
+		}
 	});
 
 	test('resolve with initial contents', async () => {

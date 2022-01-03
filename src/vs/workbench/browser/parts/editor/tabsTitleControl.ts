@@ -1801,7 +1801,7 @@ export class TabsTitleControl extends TitleControl {
 				if (sourceGroup) {
 
 					// Move editor to target position and index
-					if (this.isMoveOperation(e, draggedEditor.groupId)) {
+					if (this.isMoveOperation(e, draggedEditor.groupId, draggedEditor.editor)) {
 						sourceGroup.moveEditor(draggedEditor.editor, this.group, { index: targetIndex });
 					}
 
@@ -1843,10 +1843,14 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private isMoveOperation(e: DragEvent, source: GroupIdentifier) {
+	private isMoveOperation(e: DragEvent, sourceGroup: GroupIdentifier, sourceEditor?: EditorInput) {
+		if (sourceEditor?.hasCapability(EditorInputCapabilities.Singleton)) {
+			return true; // Singleton editors cannot be split
+		}
+
 		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 
-		return !isCopy || source === this.group.id;
+		return !isCopy || sourceGroup === this.group.id;
 	}
 
 	override dispose(): void {

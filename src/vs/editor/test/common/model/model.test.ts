@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Disposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
-import { IState, LanguageIdentifier, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { NullState } from 'vs/editor/common/languages/nullMode';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import { ILanguageService } from 'vs/editor/common/services/language';
 
 // --------- utils
 
@@ -378,25 +379,30 @@ suite('Editor Model - Model Line Separators', () => {
 
 suite('Editor Model - Words', () => {
 
-	const OUTER_LANGUAGE_ID = new LanguageIdentifier('outerMode', 3);
-	const INNER_LANGUAGE_ID = new LanguageIdentifier('innerMode', 4);
+	const OUTER_LANGUAGE_ID = 'outerMode';
+	const INNER_LANGUAGE_ID = 'innerMode';
 
 	class OuterMode extends MockMode {
-		constructor() {
+		constructor(
+			@ILanguageService languageService: ILanguageService
+		) {
 			super(OUTER_LANGUAGE_ID);
-			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {}));
+			const languageIdCodec = languageService.languageIdCodec;
 
-			this._register(TokenizationRegistry.register(this.getLanguageIdentifier().language, {
-				getInitialState: (): IState => NULL_STATE,
+			this._register(LanguageConfigurationRegistry.register(this.languageId, {}));
+
+			this._register(TokenizationRegistry.register(this.languageId, {
+				getInitialState: (): IState => NullState,
 				tokenize: undefined!,
-				tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
+				tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
 					const tokensArr: number[] = [];
-					let prevLanguageId: LanguageIdentifier | undefined = undefined;
+					let prevLanguageId: string | undefined = undefined;
 					for (let i = 0; i < line.length; i++) {
 						const languageId = (line.charAt(i) === 'x' ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
+						const encodedLanguageId = languageIdCodec.encodeLanguageId(languageId);
 						if (prevLanguageId !== languageId) {
 							tokensArr.push(i);
-							tokensArr.push((languageId.id << MetadataConsts.LANGUAGEID_OFFSET));
+							tokensArr.push((encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET));
 						}
 						prevLanguageId = languageId;
 					}
@@ -405,7 +411,7 @@ suite('Editor Model - Words', () => {
 					for (let i = 0; i < tokens.length; i++) {
 						tokens[i] = tokensArr[i];
 					}
-					return new TokenizationResult2(tokens, state);
+					return new EncodedTokenizationResult(tokens, state);
 				}
 			}));
 		}
@@ -414,7 +420,7 @@ suite('Editor Model - Words', () => {
 	class InnerMode extends MockMode {
 		constructor() {
 			super(INNER_LANGUAGE_ID);
-			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {}));
+			this._register(LanguageConfigurationRegistry.register(this.languageId, {}));
 		}
 	}
 
@@ -448,12 +454,12 @@ suite('Editor Model - Words', () => {
 	});
 
 	test('getWordAtPosition at embedded language boundaries', () => {
-		const outerMode = new OuterMode();
-		const innerMode = new InnerMode();
-		disposables.push(outerMode, innerMode);
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
+		const outerMode = disposables.add(instantiationService.createInstance(OuterMode));
+		disposables.add(new InnerMode());
 
-		const model = createTextModel('ab<xx>ab<x>', undefined, outerMode.getLanguageIdentifier());
-		disposables.push(model);
+		const model = disposables.add(instantiateTextModel(instantiationService, 'ab<xx>ab<x>', outerMode.languageId));
 
 		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 1)), { word: 'ab', startColumn: 1, endColumn: 3 });
 		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 2)), { word: 'ab', startColumn: 1, endColumn: 3 });
@@ -462,22 +468,24 @@ suite('Editor Model - Words', () => {
 		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 5)), { word: 'xx', startColumn: 4, endColumn: 6 });
 		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 6)), { word: 'xx', startColumn: 4, endColumn: 6 });
 		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 7)), { word: 'ab', startColumn: 7, endColumn: 9 });
+
+		disposables.dispose();
 	});
 
 	test('issue #61296: VS code freezes when editing CSS file with emoji', () => {
-		const MODE_ID = new LanguageIdentifier('testMode', 4);
+		const MODE_ID = 'testMode';
 
 		const mode = new class extends MockMode {
 			constructor() {
 				super(MODE_ID);
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+				this._register(LanguageConfigurationRegistry.register(this.languageId, {
 					wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
 				}));
 			}
 		};
 		disposables.push(mode);
 
-		const thisModel = createTextModel('.🐷-a-b', undefined, MODE_ID);
+		const thisModel = createTextModel('.🐷-a-b', MODE_ID);
 		disposables.push(thisModel);
 
 		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 1)), { word: '.', startColumn: 1, endColumn: 2 });

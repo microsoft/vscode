@@ -29,7 +29,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { isWindows } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IEditorIdentifier, SaveReason } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, SaveReason, SideBySideEditor } from 'vs/workbench/common/editor';
 import { hash } from 'vs/base/common/hash';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
@@ -224,6 +224,8 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 	}
 
 	override async run(notification: IDisposable): Promise<void> {
+
+		// Remember this as global state
 		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.GLOBAL, StorageTarget.USER);
 
 		// Hide notification
@@ -337,7 +339,7 @@ class SaveModelAsAction extends Action {
 	private findEditor(): IEditorIdentifier | undefined {
 		let preferredMatchingEditor: IEditorIdentifier | undefined;
 
-		const editors = this.editorService.findEditors(this.model.resource);
+		const editors = this.editorService.findEditors(this.model.resource, { supportSideBySide: SideBySideEditor.PRIMARY });
 		for (const identifier of editors) {
 			if (identifier.editor instanceof FileEditorInput) {
 				// We prefer a `FileEditorInput` for "Save As", but it is possible

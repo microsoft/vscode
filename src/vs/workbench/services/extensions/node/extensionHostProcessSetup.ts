@@ -120,13 +120,17 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 
 			process.on('message', (msg: IExtHostSocketMessage | IExtHostReduceGraceTimeMessage, handle: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
+					// Disable Nagle's algorithm. We also do this on the server process,
+					// but nodejs doesn't document if this option is transferred with the socket
+					handle.setNoDelay(true);
+
 					const initialDataChunk = VSBuffer.wrap(Buffer.from(msg.initialDataChunk, 'base64'));
 					let socket: NodeSocket | WebSocketNodeSocket;
 					if (msg.skipWebSocketFrames) {
-						socket = new NodeSocket(handle);
+						socket = new NodeSocket(handle, 'extHost-socket');
 					} else {
 						const inflateBytes = VSBuffer.wrap(Buffer.from(msg.inflateBytes, 'base64'));
-						socket = new WebSocketNodeSocket(new NodeSocket(handle), msg.permessageDeflate, inflateBytes, false);
+						socket = new WebSocketNodeSocket(new NodeSocket(handle, 'extHost-socket'), msg.permessageDeflate, inflateBytes, false);
 					}
 					if (protocol) {
 						// reconnection case
@@ -134,9 +138,11 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 						disconnectRunner2.cancel();
 						protocol.beginAcceptReconnection(socket, initialDataChunk);
 						protocol.endAcceptReconnection();
+						protocol.sendResume();
 					} else {
 						clearTimeout(timer);
 						protocol = new PersistentProtocol(socket, initialDataChunk);
+						protocol.sendResume();
 						protocol.onDidDispose(() => onTerminate('renderer disconnected'));
 						resolve(protocol);
 
@@ -174,7 +180,7 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 
 			const socket = net.createConnection(pipeName, () => {
 				socket.removeListener('error', reject);
-				resolve(new PersistentProtocol(new NodeSocket(socket)));
+				resolve(new PersistentProtocol(new NodeSocket(socket, 'extHost-renderer')));
 			});
 			socket.once('error', reject);
 
@@ -239,41 +245,6 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				}
 			}
 
-			// Print a console message when rejection isn't handled within N seconds. For details:
-			// see https://nodejs.org/api/process.html#process_event_unhandledrejection
-			// and https://nodejs.org/api/process.html#process_event_rejectionhandled
-			const unhandledPromises: Promise<any>[] = [];
-			process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
-				unhandledPromises.push(promise);
-				setTimeout(() => {
-					const idx = unhandledPromises.indexOf(promise);
-					if (idx >= 0) {
-						promise.catch(e => {
-							unhandledPromises.splice(idx, 1);
-							if (!isPromiseCanceledError(e)) {
-								console.warn(`rejected promise not handled within 1 second: ${e}`);
-								if (e && e.stack) {
-									console.warn(`stack trace: ${e.stack}`);
-								}
-								onUnexpectedError(reason);
-							}
-						});
-					}
-				}, 1000);
-			});
-
-			process.on('rejectionHandled', (promise: Promise<any>) => {
-				const idx = unhandledPromises.indexOf(promise);
-				if (idx >= 0) {
-					unhandledPromises.splice(idx, 1);
-				}
-			});
-
-			// Print a console message when an exception isn't handled.
-			process.on('uncaughtException', function (err: Error) {
-				onUnexpectedError(err);
-			});
-
 			// Kill oneself if one's parent dies. Much drama.
 			let epermErrors = 0;
 			setInterval(function () {
@@ -319,6 +290,44 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 }
 
 export async function startExtensionHostProcess(): Promise<void> {
+
+	// Print a console message when rejection isn't handled within N seconds. For details:
+	// see https://nodejs.org/api/process.html#process_event_unhandledrejection
+	// and https://nodejs.org/api/process.html#process_event_rejectionhandled
+	const unhandledPromises: Promise<any>[] = [];
+	process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+		unhandledPromises.push(promise);
+		setTimeout(() => {
+			const idx = unhandledPromises.indexOf(promise);
+			if (idx >= 0) {
+				promise.catch(e => {
+					unhandledPromises.splice(idx, 1);
+					if (!isPromiseCanceledError(e)) {
+						console.warn(`rejected promise not handled within 1 second: ${e}`);
+						if (e && e.stack) {
+							console.warn(`stack trace: ${e.stack}`);
+						}
+						if (reason) {
+							onUnexpectedError(reason);
+						}
+					}
+				});
+			}
+		}, 1000);
+	});
+
+	process.on('rejectionHandled', (promise: Promise<any>) => {
+		const idx = unhandledPromises.indexOf(promise);
+		if (idx >= 0) {
+			unhandledPromises.splice(idx, 1);
+		}
+	});
+
+	// Print a console message when an exception isn't handled.
+	process.on('uncaughtException', function (err: Error) {
+		onUnexpectedError(err);
+	});
+
 	performance.mark(`code/extHost/willConnectToRenderer`);
 	const protocol = await createExtHostProtocol();
 	performance.mark(`code/extHost/didConnectToRenderer`);
@@ -333,6 +342,7 @@ export async function startExtensionHostProcess(): Promise<void> {
 	// host abstraction
 	const hostUtils = new class NodeHost implements IHostUtils {
 		declare readonly _serviceBrand: undefined;
+		public readonly pid = process.pid;
 		exit(code: number) { nativeExit(code); }
 		exists(path: string) { return Promises.exists(path); }
 		realpath(path: string) { return realpath(path); }

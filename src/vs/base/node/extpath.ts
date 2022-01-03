@@ -5,6 +5,7 @@
 
 import * as fs from 'fs';
 import { basename, dirname, join, normalize, sep } from 'vs/base/common/path';
+import { isLinux } from 'vs/base/common/platform';
 import { rtrim } from 'vs/base/common/strings';
 import { Promises, readdirSync } from 'vs/base/node/pfs';
 
@@ -18,6 +19,13 @@ import { Promises, readdirSync } from 'vs/base/node/pfs';
  * realcaseSync does not handle '..' or '.' path segments and it does not take the locale into account.
  */
 export function realcaseSync(path: string): string | null {
+	if (isLinux) {
+		// This method is unsupported on OS that have case sensitive
+		// file system where the same path can exist in different forms
+		// (see also https://github.com/microsoft/vscode/issues/139709)
+		return path;
+	}
+
 	const dir = dirname(path);
 	if (path === dir) {	// end recursion
 		return path;

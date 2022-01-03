@@ -20,7 +20,7 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, GroupIdentifier, IRevertOptions, ISaveOptions, isEditorInputWithOptionsAndGroup, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
@@ -66,7 +66,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		resource: URI,
 		viewType: string,
 		id: string,
-		webview: WebviewOverlay,
+		webview: IOverlayWebview,
 		options: { startsDirty?: boolean, backupId?: string, untitledDocumentData?: VSBuffer, readonly oldResource?: URI },
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

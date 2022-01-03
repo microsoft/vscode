@@ -398,8 +398,8 @@ export namespace CoreNavigationCommands {
 			const validatedPosition = viewModel.model.validatePosition(args.position);
 			const validatedViewPosition = viewModel.coordinatesConverter.validateViewPosition(new Position(args.viewPosition.lineNumber, args.viewPosition.column), validatedPosition);
 
-			let fromViewLineNumber = args.doColumnSelect ? prevColumnSelectData.fromViewLineNumber : validatedViewPosition.lineNumber;
-			let fromViewVisualColumn = args.doColumnSelect ? prevColumnSelectData.fromViewVisualColumn : args.mouseColumn - 1;
+			const fromViewLineNumber = args.doColumnSelect ? prevColumnSelectData.fromViewLineNumber : validatedViewPosition.lineNumber;
+			const fromViewVisualColumn = args.doColumnSelect ? prevColumnSelectData.fromViewVisualColumn : args.mouseColumn - 1;
 			return ColumnSelection.columnSelect(viewModel.cursorConfig, viewModel, fromViewLineNumber, fromViewVisualColumn, validatedViewPosition.lineNumber, args.mouseColumn - 1);
 		}
 	});
@@ -625,7 +625,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyCode.LeftArrow,
-			mac: { primary: KeyCode.LeftArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_B] }
+			mac: { primary: KeyCode.LeftArrow, secondary: [KeyMod.WinCtrl | KeyCode.KeyB] }
 		}
 	}));
 
@@ -658,7 +658,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyCode.RightArrow,
-			mac: { primary: KeyCode.RightArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_F] }
+			mac: { primary: KeyCode.RightArrow, secondary: [KeyMod.WinCtrl | KeyCode.KeyF] }
 		}
 	}));
 
@@ -691,7 +691,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyCode.UpArrow,
-			mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_P] }
+			mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.WinCtrl | KeyCode.KeyP] }
 		}
 	}));
 
@@ -759,7 +759,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyCode.DownArrow,
-			mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_N] }
+			mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.WinCtrl | KeyCode.KeyN] }
 		}
 	}));
 
@@ -979,7 +979,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: 0,
-			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_A }
+			mac: { primary: KeyMod.WinCtrl | KeyCode.KeyA }
 		}
 	}));
 
@@ -991,7 +991,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: 0,
-			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_A }
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyA }
 		}
 	}));
 
@@ -1112,7 +1112,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: 0,
-			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_E }
+			mac: { primary: KeyMod.WinCtrl | KeyCode.KeyE }
 		}
 	}));
 
@@ -1124,7 +1124,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: 0,
-			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_E }
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyE }
 		}
 	}));
 
@@ -1518,31 +1518,6 @@ export namespace CoreNavigationCommands {
 		precondition: undefined
 	}));
 
-	export const ExpandLineSelection: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'expandLineSelection',
-				precondition: undefined,
-				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_L
-				}
-			});
-		}
-
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
-				CursorMoveCommands.expandLineSelection(viewModel, viewModel.getCursorStates())
-			);
-			viewModel.revealPrimaryCursor(args.source, true);
-		}
-
-	});
-
 	export const CancelSelection: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
 		constructor() {
 			super({
@@ -1749,7 +1724,7 @@ export namespace CoreEditingCommands {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
 					primary: 0,
-					mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_O }
+					mac: { primary: KeyMod.WinCtrl | KeyCode.KeyO }
 				}
 			});
 		}
@@ -1816,7 +1791,7 @@ export namespace CoreEditingCommands {
 					kbExpr: EditorContextKeys.textInputFocus,
 					primary: KeyCode.Backspace,
 					secondary: [KeyMod.Shift | KeyCode.Backspace],
-					mac: { primary: KeyCode.Backspace, secondary: [KeyMod.Shift | KeyCode.Backspace, KeyMod.WinCtrl | KeyCode.KEY_H, KeyMod.WinCtrl | KeyCode.Backspace] }
+					mac: { primary: KeyCode.Backspace, secondary: [KeyMod.Shift | KeyCode.Backspace, KeyMod.WinCtrl | KeyCode.KeyH, KeyMod.WinCtrl | KeyCode.Backspace] }
 				}
 			});
 		}
@@ -1840,7 +1815,7 @@ export namespace CoreEditingCommands {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
 					primary: KeyCode.Delete,
-					mac: { primary: KeyCode.Delete, secondary: [KeyMod.WinCtrl | KeyCode.KEY_D, KeyMod.WinCtrl | KeyCode.Delete] }
+					mac: { primary: KeyCode.Delete, secondary: [KeyMod.WinCtrl | KeyCode.KeyD, KeyMod.WinCtrl | KeyCode.Delete] }
 				}
 			});
 		}

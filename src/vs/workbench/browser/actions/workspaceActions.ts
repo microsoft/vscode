@@ -38,7 +38,7 @@ export class OpenFileAction extends Action2 {
 			precondition: IsMacNativeContext.toNegated(),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_O
+				primary: KeyMod.CtrlCmd | KeyCode.KeyO
 			}
 		});
 	}
@@ -65,10 +65,10 @@ export class OpenFolderAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: undefined,
 				linux: {
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O)
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyO)
 				},
 				win: {
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O)
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyO)
 				}
 			}
 		});
@@ -95,7 +95,7 @@ export class OpenFileFolderAction extends Action2 {
 			precondition: ContextKeyExpr.and(IsMacNativeContext, OpenFolderWorkspaceSupportContext),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_O
+				primary: KeyMod.CtrlCmd | KeyCode.KeyO
 			}
 		});
 	}
@@ -141,7 +141,7 @@ class CloseWorkspaceAction extends Action2 {
 			precondition: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), EmptyWorkspaceSupportContext),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyF)
 			}
 		});
 	}
@@ -247,9 +247,10 @@ class SaveWorkspaceAsAction extends Action2 {
 		if (configPathUri && hasWorkspaceFileExtension(configPathUri)) {
 			switch (contextService.getWorkbenchState()) {
 				case WorkbenchState.EMPTY:
-				case WorkbenchState.FOLDER:
+				case WorkbenchState.FOLDER: {
 					const folders = contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
 					return workspaceEditingService.createAndEnterWorkspace(folders, configPathUri);
+				}
 				case WorkbenchState.WORKSPACE:
 					return workspaceEditingService.saveAndEnterWorkspace(configPathUri);
 			}
@@ -284,7 +285,7 @@ class DuplicateWorkspaceInNewWindowAction extends Action2 {
 		const newWorkspace = await workspacesService.createUntitledWorkspace(folders, remoteAuthority);
 		await workspaceEditingService.copyWorkspaceSettings(newWorkspace);
 
-		return hostService.openWindow([{ workspaceUri: newWorkspace.configPath }], { forceNewWindow: true });
+		return hostService.openWindow([{ workspaceUri: newWorkspace.configPath }], { forceNewWindow: true, remoteAuthority });
 	}
 }
 

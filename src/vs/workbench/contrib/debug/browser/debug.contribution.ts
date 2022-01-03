@@ -54,7 +54,6 @@ import { EditorExtensions } from 'vs/workbench/common/editor';
 import { DisassemblyView, DisassemblyViewContribution } from 'vs/workbench/contrib/debug/browser/disassemblyView';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
-import { Codicon } from 'vs/base/common/codicons';
 import { DebugLifecycle } from 'vs/workbench/contrib/debug/common/debugLifecycle';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
@@ -187,7 +186,7 @@ if (isMacintosh) {
 
 // Editor Title Menu's "Run/Debug" dropdown item
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { submenu: MenuId.EditorTitleRun, rememberDefaultAction: true, title: { value: nls.localize('run', "Run or Debug..."), original: 'Run or Debug...', }, icon: Codicon.run, group: 'navigation', order: -1 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { submenu: MenuId.EditorTitleRun, rememberDefaultAction: true, title: { value: nls.localize('run', "Run or Debug..."), original: 'Run or Debug...', }, icon: icons.debugRun, group: 'navigation', order: -1 });
 
 // Debug menu
 
@@ -357,7 +356,7 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 	openCommandActionDescriptor: {
 		id: 'workbench.debug.action.toggleRepl',
 		mnemonicTitle: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console"),
-		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Y },
+		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY },
 		order: 2
 	}
 }], VIEW_CONTAINER);
@@ -369,7 +368,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewCo
 	openCommandActionDescriptor: {
 		id: VIEWLET_ID,
 		mnemonicTitle: nls.localize({ key: 'miViewRun', comment: ['&& denotes a mnemonic'] }, "&&Run"),
-		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_D },
+		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyD },
 		order: 3
 	},
 	ctorDescriptor: new SyncDescriptor(DebugViewPaneContainer),
@@ -537,6 +536,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('debug.confirmOnExit.always', "Always confirm if there are debug sessions."),
 			],
 			default: 'never'
-		}
+		},
+		'debug.disassemblyView.showSourceCode': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('debug.disassemblyView.showSourceCode', "Show Source Code in Disassembly View.")
+		},
 	}
 });

@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -16,13 +17,15 @@ import { TestInMemoryFileSystemProvider, TestServiceAccessor, workbenchInstantia
 
 suite('UntitledFileWorkingCopyManager', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	let manager: IFileWorkingCopyManager<TestStoredFileWorkingCopyModel, TestUntitledFileWorkingCopyModel>;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		accessor.fileService.registerProvider(Schemas.file, new TestInMemoryFileSystemProvider());
@@ -42,6 +45,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 
 	teardown(() => {
 		manager.dispose();
+		disposables.dispose();
 	});
 
 	test('basics', async () => {

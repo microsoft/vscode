@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal, IViewportRange, IBufferLine } from 'xterm';
-import { ILinkComputerTarget, LinkComputer } from 'vs/editor/common/modes/linkComputer';
+import { ILinkComputerTarget, LinkComputer } from 'vs/editor/common/languages/linkComputer';
 import { getXtermLineContent, convertLinkRangeToBuffer } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { TerminalLink, OPEN_FILE_LABEL, FOLDER_IN_WORKSPACE_LABEL, FOLDER_NOT_IN_WORKSPACE_LABEL } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -14,7 +14,7 @@ import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/l
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { Schemas } from 'vs/base/common/network';
 
 export class TerminalProtocolLinkProvider extends TerminalBaseLinkProvider {

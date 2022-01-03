@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ipcRenderer } from 'electron';
-import * as fs from 'fs';
-import { gracefulify } from 'graceful-fs';
 import { hostname, release } from 'os';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
@@ -16,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
 import { CodeCacheCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/codeCacheCleaner';
-import { DeprecatedExtensionsCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/deprecatedExtensionsCleaner';
+import { ExtensionsCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/extensionsCleaner';
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { LocalizationsUpdater } from 'vs/code/electron-browser/sharedProcess/contrib/localizationsUpdater';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
@@ -30,7 +28,7 @@ import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsServ
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { SharedProcessEnvironmentService } from 'vs/platform/sharedProcess/node/sharedProcessEnvironmentService';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -73,49 +71,66 @@ import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
-import { IUserDataAutoSyncEnablementService, IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration as registerUserDataSyncConfiguration } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration as registerUserDataSyncConfiguration } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { UserDataAutoSyncChannel, UserDataSyncAccountServiceChannel, UserDataSyncMachinesServiceChannel, UserDataSyncStoreManagementServiceChannel, UserDataSyncUtilServiceClient } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
+import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSyncEnablementService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
-import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
-import { ExtensionHostStarter } from 'vs/platform/extensions/node/extensionHostStarter';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { TunnelService } from 'vs/platform/remote/node/tunnelService';
+import { ISharedTunnelsService } from 'vs/platform/remote/common/tunnel';
+import { SharedTunnelsService } from 'vs/platform/remote/node/tunnelService';
 import { ipcSharedProcessTunnelChannelName, ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
 import { SharedProcessTunnelService } from 'vs/platform/remote/node/sharedProcessTunnelService';
-import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerConfiguration, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
+import { AssignmentService } from 'vs/platform/assignment/common/assignmentService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { isLinux } from 'vs/base/common/platform';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { DiskFileSystemProviderClient, LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
 
 class SharedProcessMain extends Disposable {
 
 	private server = this._register(new MessagePortServer());
 
+	private sharedProcessWorkerService: ISharedProcessWorkerService | undefined = undefined;
+
 	constructor(private configuration: ISharedProcessConfiguration) {
 		super();
-
-		// Enable gracefulFs
-		gracefulify(fs);
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 
-		// Dispose on exit
+		// Shared process lifecycle
 		const onExit = () => this.dispose();
 		process.once('exit', onExit);
 		ipcRenderer.once('vscode:electron-main->shared-process=exit', onExit);
+
+		// Shared process worker lifecycle
+		//
+		// We dispose the listener when the shared process is
+		// disposed to avoid disposing workers when the entire
+		// application is shutting down anyways.
+		//
+		const eventName = 'vscode:electron-main->shared-process=disposeWorker';
+		const onDisposeWorker = (event: unknown, configuration: ISharedProcessWorkerConfiguration) => this.onDisposeWorker(configuration);
+		ipcRenderer.on(eventName, onDisposeWorker);
+		this._register(toDisposable(() => ipcRenderer.removeListener(eventName, onDisposeWorker)));
+	}
+
+	private onDisposeWorker(configuration: ISharedProcessWorkerConfiguration): void {
+		this.sharedProcessWorkerService?.disposeWorker(configuration);
 	}
 
 	async open(): Promise<void> {
@@ -146,7 +161,7 @@ class SharedProcessMain extends Disposable {
 			instantiationService.createInstance(StorageDataCleaner, this.configuration.backupWorkspacesPath),
 			instantiationService.createInstance(LogsDataCleaner),
 			instantiationService.createInstance(LocalizationsUpdater),
-			instantiationService.createInstance(DeprecatedExtensionsCleaner)
+			instantiationService.createInstance(ExtensionsCleaner)
 		));
 	}
 
@@ -162,11 +177,8 @@ class SharedProcessMain extends Disposable {
 		const mainProcessService = new MessagePortMainProcessService(this.server, mainRouter);
 		services.set(IMainProcessService, mainProcessService);
 
-		// Worker
-		services.set(ISharedProcessWorkerService, new SyncDescriptor(SharedProcessWorkerService));
-
 		// Environment
-		const environmentService = new NativeEnvironmentService(this.configuration.args, productService);
+		const environmentService = new SharedProcessEnvironmentService(this.configuration.args, productService);
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Logger
@@ -183,12 +195,28 @@ class SharedProcessMain extends Disposable {
 		const logService = this._register(new FollowerLogService(logLevelClient, multiplexLogger));
 		services.set(ILogService, logService);
 
+		// Worker
+		this.sharedProcessWorkerService = new SharedProcessWorkerService(logService, productService, environmentService);
+		services.set(ISharedProcessWorkerService, this.sharedProcessWorkerService);
+
 		// Files
 		const fileService = this._register(new FileService(logService));
 		services.set(IFileService, fileService);
 
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+
+		const userDataFileSystemProvider = this._register(new FileUserDataProvider(
+			Schemas.file,
+			// Specifically for user data, use the disk file system provider
+			// from the main process to enable atomic read/write operations.
+			// Since user data can change very frequently across multiple
+			// processes, we want a single process handling these operations.
+			this._register(new DiskFileSystemProviderClient(mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux })),
+			Schemas.userData,
+			logService
+		));
+		fileService.registerProvider(Schemas.userData, userDataFileSystemProvider);
 
 		// Configuration
 		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
@@ -204,6 +232,9 @@ class SharedProcessMain extends Disposable {
 			configurationService.initialize(),
 			storageService.initialize()
 		]);
+
+		// URI Identity
+		services.set(IUriIdentityService, new UriIdentityService(fileService));
 
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));
@@ -223,6 +254,9 @@ class SharedProcessMain extends Disposable {
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		services.set(IExtensionRecommendationNotificationService, new ExtensionRecommendationNotificationServiceChannelClient(this.server.getChannel('extensionRecommendationNotification', activeWindowRouter)));
 
+		// Assignment Service (Experiment service w/out scorecards)
+		const assignmentService = new AssignmentService(this.configuration.machineId, configurationService, productService);
+
 		// Telemetry
 		let telemetryService: ITelemetryService;
 		const appenders: ITelemetryAppender[] = [];
@@ -233,7 +267,16 @@ class SharedProcessMain extends Disposable {
 
 			// Application Insights
 			if (productService.aiConfig && productService.aiConfig.asimovKey) {
-				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey);
+				const testCollector = await assignmentService.getTreatment<boolean>('telemetryMigration') ?? false;
+				const insiders = productService.quality !== 'stable';
+				// Insiders send to both collector and vortex if assigned.
+				// Stable only send to one
+				if (insiders && testCollector) {
+					const collectorAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey, testCollector, true);
+					this._register(toDisposable(() => collectorAppender.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
+					appenders.push(collectorAppender);
+				}
+				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey, insiders ? false : testCollector, testCollector && insiders);
 				this._register(toDisposable(() => appInsightsAppender.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 				appenders.push(appInsightsAppender);
 			}
@@ -283,35 +326,29 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService));
 		services.set(IUserDataSyncMachinesService, new SyncDescriptor(UserDataSyncMachinesService));
 		services.set(IUserDataSyncBackupStoreService, new SyncDescriptor(UserDataSyncBackupStoreService));
-		services.set(IUserDataAutoSyncEnablementService, new SyncDescriptor(UserDataAutoSyncEnablementService));
-		services.set(IUserDataSyncResourceEnablementService, new SyncDescriptor(UserDataSyncResourceEnablementService));
+		services.set(IUserDataSyncEnablementService, new SyncDescriptor(UserDataSyncEnablementService));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
 
-		// Terminal
-		services.set(
-			ILocalPtyService,
-			this._register(
-				new PtyHostService({
-					graceTime: LocalReconnectConstants.GraceTime,
-					shortGraceTime: LocalReconnectConstants.ShortGraceTime,
-					scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
-				},
-					configurationService,
-					environmentService,
-					logService,
-					telemetryService
-				)
-			)
+		const ptyHostService = new PtyHostService({
+			graceTime: LocalReconnectConstants.GraceTime,
+			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
+			scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
+		},
+			configurationService,
+			environmentService,
+			logService,
+			telemetryService
 		);
+		await ptyHostService.initialize();
 
-		// Extension Host
-		services.set(IExtensionHostStarter, this._register(new ExtensionHostStarter(logService)));
+		// Terminal
+		services.set(ILocalPtyService, this._register(ptyHostService));
 
 		// Signing
 		services.set(ISignService, new SyncDescriptor(SignService));
 
 		// Tunnel
-		services.set(ITunnelService, new SyncDescriptor(TunnelService));
+		services.set(ISharedTunnelsService, new SyncDescriptor(SharedTunnelsService));
 		services.set(ISharedProcessTunnelService, new SyncDescriptor(SharedProcessTunnelService));
 
 		return new InstantiationService(services);
@@ -364,10 +401,6 @@ class SharedProcessMain extends Disposable {
 		const localPtyService = accessor.get(ILocalPtyService);
 		const localPtyChannel = ProxyChannel.fromService(localPtyService);
 		this.server.registerChannel(TerminalIpcChannels.LocalPty, localPtyChannel);
-
-		// Extension Host
-		const extensionHostStarterChannel = ProxyChannel.fromService(accessor.get(IExtensionHostStarter));
-		this.server.registerChannel(ipcExtensionHostStarterChannelName, extensionHostStarterChannel);
 
 		// Tunnel
 		const sharedProcessTunnelChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelService));

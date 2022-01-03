@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command } from 'vs/editor/common/modes';
+import { Command } from 'vs/editor/common/languages';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
@@ -646,9 +646,7 @@ export interface ITreeDataTransferItem {
 	asString(): Thenable<string>;
 }
 
-export interface ITreeDataTransfer {
-	items: Map<string, ITreeDataTransferItem>;
-}
+export type ITreeDataTransfer = Map<string, ITreeDataTransferItem>;
 
 export interface ITreeView extends IDisposable {
 
@@ -683,6 +681,8 @@ export interface ITreeView extends IDisposable {
 	readonly onDidChangeDescription: Event<string | undefined>;
 
 	readonly onDidChangeWelcomeState: Event<void>;
+
+	readonly container: any | undefined;
 
 	refresh(treeItems?: ITreeItem[]): Promise<void>;
 
@@ -838,9 +838,10 @@ export interface ITreeViewDataProvider {
 	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
 }
 
-export const TREE_ITEM_DATA_TRANSFER_TYPE = 'text/treeitems';
 export interface ITreeViewDragAndDropController {
-	onDrop(elements: ITreeDataTransfer, target: ITreeItem): Promise<void>;
+	readonly supportedMimeTypes: string[];
+	onWillDrop(sourceTreeItemHandles: string[], operationUuid: string): Promise<ITreeDataTransfer | undefined>;
+	onDrop(elements: ITreeDataTransfer, target: ITreeItem, operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 }
 
 export interface IEditableData {

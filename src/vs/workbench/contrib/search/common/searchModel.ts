@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
@@ -31,7 +31,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { compareFileNames, compareFileExtensions, comparePaths } from 'vs/base/common/comparers';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class Match {
 
@@ -280,7 +280,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
 		const matches = this._model
-			.findMatches(this._query.pattern, this._model.getFullModelRange(), !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults);
+			.findMatches(this._query.pattern, this._model.getFullModelRange(), !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults ?? Number.MAX_SAFE_INTEGER);
 
 		this.updateMatches(matches, true);
 	}
@@ -300,7 +300,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		oldMatches.forEach(match => this._matches.delete(match.id()));
 
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
-		const matches = this._model.findMatches(this._query.pattern, range, !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults);
+		const matches = this._model.findMatches(this._query.pattern, range, !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults ?? Number.MAX_SAFE_INTEGER);
 		this.updateMatches(matches, modelChange);
 	}
 
@@ -675,12 +675,13 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 				return compareFileExtensions(elementA.name(), elementB.name());
 			case SearchSortOrder.FileNames:
 				return compareFileNames(elementA.name(), elementB.name());
-			case SearchSortOrder.Modified:
+			case SearchSortOrder.Modified: {
 				const fileStatA = elementA.fileStat;
 				const fileStatB = elementB.fileStat;
 				if (fileStatA && fileStatB) {
 					return fileStatB.mtime - fileStatA.mtime;
 				}
+			}
 			// Fall through otherwise
 			default:
 				return comparePaths(elementA.resource.fsPath, elementB.resource.fsPath) || compareFileNames(elementA.name(), elementB.name());
@@ -1047,7 +1048,7 @@ export class SearchModel extends Disposable {
 		return this._searchResult;
 	}
 
-	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	async search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		this.cancelSearch(true);
 
 		this._searchQuery = query;
@@ -1091,14 +1092,16 @@ export class SearchModel extends Disposable {
 			value => this.onSearchCompleted(value, Date.now() - start),
 			e => this.onSearchError(e, Date.now() - start));
 
-		return currentRequest.finally(() => {
+		try {
+			return await currentRequest;
+		} finally {
 			/* __GDPR__
 				"searchResultsFinished" : {
 					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 				}
 			*/
 			this.telemetryService.publicLog('searchResultsFinished', { duration: Date.now() - start });
-		});
+		}
 	}
 
 	private onSearchCompleted(completed: ISearchComplete | null, duration: number): ISearchComplete | null {

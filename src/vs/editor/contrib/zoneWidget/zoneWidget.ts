@@ -146,6 +146,12 @@ class Arrow {
 	}
 
 	show(where: IPosition): void {
+
+		if (where.column === 1) {
+			// the arrow isn't pretty at column 1 and we need to push it out a little
+			where = { lineNumber: where.lineNumber, column: 2 };
+		}
+
 		this._decorations = this._editor.deltaDecorations(
 			this._decorations,
 			[{ range: Range.fromPositions(where), options: { description: 'zone-widget-arrow', className: this._ruleName, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } }]
@@ -485,7 +491,6 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this._resizeSash = this._disposables.add(new Sash(this.domNode, this, { orientation: Orientation.HORIZONTAL }));
 
 		if (!this.options.isResizeable) {
-			this._resizeSash.hide();
 			this._resizeSash.state = SashState.Disabled;
 		}
 

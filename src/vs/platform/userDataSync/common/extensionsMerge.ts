@@ -6,6 +6,7 @@
 import { IStringDictionary } from 'vs/base/common/collections';
 import { deepClone, equals } from 'vs/base/common/objects';
 import * as semver from 'vs/base/common/semver/semver';
+import { isUndefined } from 'vs/base/common/types';
 import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ISyncExtension, ISyncExtensionWithVersion } from 'vs/platform/userDataSync/common/userDataSync';
 
@@ -89,10 +90,12 @@ export function merge(localExtensions: ISyncExtensionWithVersion[], remoteExtens
 			const localExtension = localExtensionsMap.get(key);
 			if (localExtension) {
 				const remoteExtension = remoteExtensionsMap.get(key)!;
+				const mergedExtension = updatedInRemote ? remoteExtension : localExtension;
 				return {
-					...(updatedInRemote ? remoteExtension : localExtension),
+					...mergedExtension,
 					version: remoteExtension.version && semver.gt(remoteExtension.version, localExtension.version) ? localExtension.version : localExtension.version,
-					state: mergeExtensionState(localExtension, remoteExtension, lastSyncExtensionsMap?.get(key))
+					state: mergeExtensionState(localExtension, remoteExtension, lastSyncExtensionsMap?.get(key)),
+					preRelease: isUndefined(mergedExtension.preRelease) /* from older client*/ ? localExtension.preRelease : mergedExtension.preRelease
 				};
 
 			}
@@ -210,6 +213,7 @@ function compare(from: Map<string, ISyncExtension> | null, to: Map<string, ISync
 		const toExtension = to.get(key);
 		if (!toExtension
 			|| fromExtension.disabled !== toExtension.disabled
+			|| fromExtension.preRelease !== toExtension.preRelease
 			|| !isSameExtensionState(fromExtension.state, toExtension.state)
 			|| (checkVersionProperty && fromExtension.version !== toExtension.version)
 			|| (checkInstalledProperty && fromExtension.installed !== toExtension.installed)
@@ -307,6 +311,7 @@ function massageOutgoingExtension<T extends ISyncExtension>(extension: T, key: s
 			id: extension.identifier.id,
 			uuid: key.startsWith('uuid:') ? key.substring('uuid:'.length) : undefined
 		},
+		preRelease: !!extension.preRelease /* set it always so that to differentiate with older clients */
 	};
 	if (extension.version) {
 		massagedExtension.version = extension.version;

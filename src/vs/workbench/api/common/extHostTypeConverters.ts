@@ -19,8 +19,8 @@ import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { IContentDecorationRenderOptions, IDecorationOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import * as languageSelector from 'vs/editor/common/modes/languageSelector';
+import * as modes from 'vs/editor/common/languages';
+import * as languageSelector from 'vs/editor/common/languages/languageSelector';
 import { EditorResolution, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
@@ -1728,6 +1728,8 @@ export namespace TestItem {
 
 	export function toPlain(item: ITestItem): Omit<vscode.TestItem, 'children' | 'invalidate' | 'discoverChildren'> {
 		return {
+			parent: undefined,
+			error: undefined,
 			id: TestId.fromString(item.extId).localId,
 			label: item.label,
 			uri: URI.revive(item.uri),

@@ -5,7 +5,7 @@
 
 import {
 	Connection, TextDocuments, InitializeParams, InitializeResult, RequestType,
-	DocumentRangeFormattingRequest, Disposable, TextDocumentPositionParams, ServerCapabilities,
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities,
 	ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
 	DocumentColorRequest, ColorPresentationRequest, TextDocumentSyncKind, NotificationType, RequestType0, DocumentFormattingRequest, FormattingOptions, TextEdit
 } from 'vscode-languageserver';
@@ -24,14 +24,33 @@ import { getFoldingRanges } from './modes/htmlFolding';
 import { fetchHTMLDataProviders } from './customData';
 import { getSelectionRanges } from './modes/selectionRanges';
 import { SemanticTokenProvider, newSemanticTokenProvider } from './modes/semanticTokens';
-import { RequestService, getRequestService } from './requests';
+import { FileSystemProvider, getFileSystemProvider } from './requests';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('html/customDataChanged');
 }
 
-namespace TagCloseRequest {
-	export const type: RequestType<TextDocumentPositionParams, string | null, any> = new RequestType('html/tag');
+namespace CustomDataContent {
+	export const type: RequestType<string, string, any> = new RequestType('html/customDataContent');
+}
+
+interface AutoInsertParams {
+	/**
+	 * The auto insert kind
+	 */
+	kind: 'autoQuote' | 'autoClose';
+	/**
+	 * The text document.
+	 */
+	textDocument: TextDocumentIdentifier;
+	/**
+	 * The position inside the text document.
+	 */
+	position: Position;
+}
+
+namespace AutoInsertRequest {
+	export const type: RequestType<AutoInsertParams, string, any> = new RequestType('html/autoInsert');
 }
 
 // experimental: semantic tokens
@@ -47,14 +66,19 @@ namespace SemanticTokenLegendRequest {
 }
 
 export interface RuntimeEnvironment {
-	file?: RequestService;
-	http?: RequestService
+	fileFs?: FileSystemProvider;
 	configureHttpRequests?(proxy: string, strictSSL: boolean): void;
 	readonly timer: {
 		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable;
 		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
 	}
 }
+
+
+export interface CustomDataRequestService {
+	getContent(uri: string): Promise<string>;
+}
+
 
 export function startServer(connection: Connection, runtime: RuntimeEnvironment) {
 
@@ -74,10 +98,11 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	let workspaceFoldersSupport = false;
 	let foldingRangeLimit = Number.MAX_VALUE;
 
-	const notReady = () => Promise.reject('Not Ready');
-	let requestService: RequestService = { getContent: notReady, stat: notReady, readDirectory: notReady };
-
-
+	const customDataRequestService: CustomDataRequestService = {
+		getContent(uri: string) {
+			return connection.sendRequest(CustomDataContent.type, uri);
+		}
+	};
 
 	let globalSettings: Settings = {};
 	let documentSettings: { [key: string]: Thenable<Settings> } = {};
@@ -113,17 +138,19 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			}
 		}
 
-		requestService = getRequestService(initializationOptions?.handledSchemas || ['file'], connection, runtime);
+		const handledSchemas = initializationOptions?.handledSchemas as string[] ?? ['file'];
+
+		const fileSystemProvider = getFileSystemProvider(handledSchemas, connection, runtime);
 
 		const workspace = {
 			get settings() { return globalSettings; },
 			get folders() { return workspaceFolders; }
 		};
 
-		languageModes = getLanguageModes(initializationOptions?.embeddedLanguages || { css: true, javascript: true }, workspace, params.capabilities, requestService);
+		languageModes = getLanguageModes(initializationOptions?.embeddedLanguages || { css: true, javascript: true }, workspace, params.capabilities, fileSystemProvider);
 
 		const dataPaths: string[] = initializationOptions?.dataPaths || [];
-		fetchHTMLDataProviders(dataPaths, requestService).then(dataProviders => {
+		fetchHTMLDataProviders(dataPaths, customDataRequestService).then(dataProviders => {
 			languageModes.updateDataProviders(dataProviders);
 		});
 
@@ -471,20 +498,20 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}, [], `Error while computing color presentations for ${params.textDocument.uri}`, token);
 	});
 
-	connection.onRequest(TagCloseRequest.type, (params, token) => {
+	connection.onRequest(AutoInsertRequest.type, (params, token) => {
 		return runSafe(runtime, async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
 				const pos = params.position;
 				if (pos.character > 0) {
 					const mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
-					if (mode && mode.doAutoClose) {
-						return mode.doAutoClose(document, pos);
+					if (mode && mode.doAutoInsert) {
+						return mode.doAutoInsert(document, pos, params.kind);
 					}
 				}
 			}
 			return null;
-		}, null, `Error while computing tag close actions for ${params.textDocument.uri}`, token);
+		}, null, `Error while computing auto insert actions for ${params.textDocument.uri}`, token);
 	});
 
 	connection.onFoldingRanges((params, token) => {
@@ -567,7 +594,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.onNotification(CustomDataChangedNotification.type, dataPaths => {
-		fetchHTMLDataProviders(dataPaths, requestService).then(dataProviders => {
+		fetchHTMLDataProviders(dataPaths, customDataRequestService).then(dataProviders => {
 			languageModes.updateDataProviders(dataProviders);
 		});
 	});

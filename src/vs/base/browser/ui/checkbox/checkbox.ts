@@ -47,7 +47,7 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 		super(context, action, options);
 		this.checkbox = this._register(new Checkbox({
 			actionClassName: this._action.class,
-			isChecked: this._action.checked,
+			isChecked: !!this._action.checked,
 			title: (<IActionViewItemOptions>this.options).keybinding ? `${this._action.label} (${(<IActionViewItemOptions>this.options).keybinding})` : this._action.label,
 			notFocusable: true
 		}));
@@ -70,7 +70,7 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 	}
 
 	override updateChecked(): void {
-		this.checkbox.checked = this._action.checked;
+		this.checkbox.checked = !!this._action.checked;
 	}
 
 	override focus(): void {
@@ -191,9 +191,9 @@ export class Checkbox extends Widget {
 
 	protected applyStyles(): void {
 		if (this.domNode) {
-			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : 'transparent';
+			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : '';
 			this.domNode.style.color = this._checked && this._opts.inputActiveOptionForeground ? this._opts.inputActiveOptionForeground.toString() : 'inherit';
-			this.domNode.style.backgroundColor = this._checked && this._opts.inputActiveOptionBackground ? this._opts.inputActiveOptionBackground.toString() : 'transparent';
+			this.domNode.style.backgroundColor = this._checked && this._opts.inputActiveOptionBackground ? this._opts.inputActiveOptionBackground.toString() : '';
 		}
 	}
 
@@ -205,8 +205,6 @@ export class Checkbox extends Widget {
 		this.domNode.setAttribute('aria-disabled', String(true));
 	}
 
-	// This function is used for cases like the Settings editor where the
-	// actual setting the checkbox represents is known later.
 	setTitle(newTitle: string): void {
 		this.domNode.title = newTitle;
 		this.domNode.setAttribute('aria-label', newTitle);

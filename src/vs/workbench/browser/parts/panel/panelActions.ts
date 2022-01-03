@@ -227,7 +227,7 @@ export class NextPanelViewAction extends SwitchPanelViewAction {
 }
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TogglePanelAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_J }), 'View: Toggle Panel', CATEGORIES.View.value);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TogglePanelAction, { primary: KeyMod.CtrlCmd | KeyCode.KeyJ }), 'View: Toggle Panel', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPanelAction), 'View: Focus into Panel', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousPanelViewAction), 'View: Previous Panel View', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NextPanelViewAction), 'View: Next Panel View', CATEGORIES.View.value);
@@ -297,6 +297,17 @@ MenuRegistry.appendMenuItems([
 				toggled: ActivePanelContext
 			},
 			order: 5
+		}
+	}, {
+		id: MenuId.LayoutControlMenu,
+		item: {
+			group: '0_workbench_layout',
+			command: {
+				id: TogglePanelAction.ID,
+				title: localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
+				toggled: ActivePanelContext
+			},
+			order: 4
 		}
 	}, {
 		id: MenuId.ViewTitleContext,

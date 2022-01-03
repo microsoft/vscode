@@ -29,6 +29,7 @@ const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 // 	ignore: ['**/out/**', '**/node_modules/**']
 // });
 const compilations = [
+	'authentication-proxy/tsconfig.json',
 	'configuration-editing/build/tsconfig.json',
 	'configuration-editing/tsconfig.json',
 	'css-language-features/client/tsconfig.json',
@@ -38,6 +39,7 @@ const compilations = [
 	'emmet/tsconfig.json',
 	'extension-editing/tsconfig.json',
 	'git/tsconfig.json',
+	'git-base/tsconfig.json',
 	'github-authentication/tsconfig.json',
 	'github/tsconfig.json',
 	'grunt/tsconfig.json',
@@ -209,6 +211,7 @@ exports.watchExtensionMedia = watchExtensionMedia;
 
 const compileExtensionMediaBuildTask = task.define('compile-extension-media-build', () => ext.buildExtensionMedia(false, '.build/extensions'));
 gulp.task(compileExtensionMediaBuildTask);
+exports.compileExtensionMediaBuildTask = compileExtensionMediaBuildTask;
 
 //#endregion
 

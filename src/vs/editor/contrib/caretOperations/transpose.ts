@@ -26,7 +26,7 @@ class TransposeLettersAction extends EditorAction {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: 0,
 				mac: {
-					primary: KeyMod.WinCtrl | KeyCode.KEY_T
+					primary: KeyMod.WinCtrl | KeyCode.KeyT
 				},
 				weight: KeybindingWeight.EditorContrib
 			}

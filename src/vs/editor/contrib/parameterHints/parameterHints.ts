@@ -9,7 +9,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import { TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
 import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import * as nls from 'vs/nls';
@@ -22,7 +22,7 @@ class ParameterHintsController extends Disposable implements IEditorContribution
 
 	public static readonly ID = 'editor.controller.parameterHints';
 
-	public static get(editor: ICodeEditor): ParameterHintsController {
+	public static get(editor: ICodeEditor): ParameterHintsController | null {
 		return editor.getContribution<ParameterHintsController>(ParameterHintsController.ID);
 	}
 
@@ -105,7 +105,7 @@ registerEditorCommand(new ParameterHintsCommand({
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.UpArrow,
 		secondary: [KeyMod.Alt | KeyCode.UpArrow],
-		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
+		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KeyP] }
 	}
 }));
 registerEditorCommand(new ParameterHintsCommand({
@@ -117,6 +117,6 @@ registerEditorCommand(new ParameterHintsCommand({
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.DownArrow,
 		secondary: [KeyMod.Alt | KeyCode.DownArrow],
-		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }
+		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KeyN] }
 	}
 }));

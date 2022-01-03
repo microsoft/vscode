@@ -7,7 +7,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ConfigurationChangedEvent, IComputedEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -144,24 +144,6 @@ export interface ICharChange extends IChange {
  */
 export interface ILineChange extends IChange {
 	readonly charChanges: ICharChange[] | undefined;
-}
-
-/**
- * @internal
- */
-export interface IConfiguration extends IDisposable {
-	onDidChangeFast(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
-	onDidChange(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
-
-	readonly options: IComputedEditorOptions;
-
-	setMaxLineNumber(maxLineNumber: number): void;
-	setViewLineCount(viewLineCount: number): void;
-	updateOptions(newOptions: Readonly<IEditorOptions>): void;
-	getRawOptions(): IEditorOptions;
-	observeReferenceElement(dimension?: IDimension): void;
-	updatePixelRatio(): void;
-	setIsDominatedByLongLines(isDominatedByLongLines: boolean): void;
 }
 
 // --- view
@@ -618,10 +600,22 @@ export interface IThemeDecorationRenderOptions {
 
 	overviewRulerColor?: string | ThemeColor;
 
+	/**
+	 * @deprecated
+	 */
 	before?: IContentDecorationRenderOptions;
+	/**
+	 * @deprecated
+	 */
 	after?: IContentDecorationRenderOptions;
 
+	/**
+	 * @deprecated
+	 */
 	beforeInjectedText?: IContentDecorationRenderOptions & { affectsLetterSpacing?: boolean };
+	/**
+	 * @deprecated
+	 */
 	afterInjectedText?: IContentDecorationRenderOptions & { affectsLetterSpacing?: boolean };
 }
 
@@ -667,7 +661,13 @@ export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions 
  * @internal
  */
 export interface IThemeDecorationInstanceRenderOptions {
+	/**
+	 * @deprecated
+	 */
 	before?: IContentDecorationRenderOptions;
+	/**
+	 * @deprecated
+	 */
 	after?: IContentDecorationRenderOptions;
 }
 

@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { HitTestContext, IViewZoneData, MouseTarget, MouseTargetFactory, PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ClientCoordinates, EditorMouseEvent, EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, createEditorPagePosition } from 'vs/editor/browser/editorDom';
+import { ClientCoordinates, EditorMouseEvent, EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, createEditorPagePosition, createCoordinatesRelativeToEditor } from 'vs/editor/browser/editorDom';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { Position } from 'vs/editor/common/core/position';
@@ -172,7 +172,8 @@ export class MouseHandler extends ViewEventHandler {
 			return null;
 		}
 
-		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), editorPos, pos, null);
+		const relativePos = createCoordinatesRelativeToEditor(this.viewHelper.viewDomNode, editorPos, pos);
+		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), editorPos, pos, relativePos, null);
 	}
 
 	protected _createMouseTarget(e: EditorMouseEvent, testEventTarget: boolean): IMouseTarget {
@@ -185,11 +186,11 @@ export class MouseHandler extends ViewEventHandler {
 				);
 			}
 		}
-		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), e.editorPos, e.pos, testEventTarget ? target : null);
+		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), e.editorPos, e.pos, e.relativePos, testEventTarget ? target : null);
 	}
 
 	private _getMouseColumn(e: EditorMouseEvent): number {
-		return this.mouseTargetFactory.getMouseColumn(e.editorPos, e.pos);
+		return this.mouseTargetFactory.getMouseColumn(e.relativePos);
 	}
 
 	protected _onContextMenu(e: EditorMouseEvent, testEventTarget: boolean): void {
@@ -476,7 +477,7 @@ class MouseDownOperation extends Disposable {
 		}
 
 		if (e.posy > editorContent.y + editorContent.height) {
-			const verticalOffset = viewLayout.getCurrentScrollTop() + (e.posy - editorContent.y);
+			const verticalOffset = viewLayout.getCurrentScrollTop() + e.relativePos.y;
 			const viewZoneData = HitTestContext.getZoneAtCoord(this._context, verticalOffset);
 			if (viewZoneData) {
 				const newPosition = this._helpPositionJumpOverViewZone(viewZoneData);
@@ -489,7 +490,7 @@ class MouseDownOperation extends Disposable {
 			return new MouseTarget(null, MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(belowLineNumber, model.getLineMaxColumn(belowLineNumber)));
 		}
 
-		const possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + (e.posy - editorContent.y));
+		const possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + e.relativePos.y);
 
 		if (e.posx < editorContent.x) {
 			return new MouseTarget(null, MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(possibleLineNumber, 1));

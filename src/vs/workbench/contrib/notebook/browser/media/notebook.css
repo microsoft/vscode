@@ -16,6 +16,7 @@
 	display: none;
 	margin-top: 2px;
 	margin-bottom: 2px;
+	contain: style;
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item {
@@ -53,7 +54,7 @@
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item:not(.disabled):hover {
-	background-color: var(--code-toolbarHoverBackground);
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .action-label {
@@ -870,7 +871,8 @@
 }
 
 .output-show-more {
-	padding: 8px 0;
+	padding: 8px 0 0 0;
+	font-style: italic;
 }
 
 .cell-contributed-items.cell-contributed-items-left {
@@ -881,19 +883,19 @@
 	flex-direction: row-reverse;
 }
 
-.monaco-workbench .notebookOverlay .output .error::-webkit-scrollbar,
+.monaco-workbench .notebookOverlay .output .error .traceback::-webkit-scrollbar,
 .monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar {
 	width: 10px;               /* width of the entire scrollbar */
 	height: 10px;
 }
 
-.monaco-workbench .notebookOverlay .output .error::-webkit-scrollbar-thumb,
+.monaco-workbench .notebookOverlay .output .error .traceback::-webkit-scrollbar-thumb,
 .monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar-thumb {
 	height: 10px;
 	width: 10px;
 }
 
-.monaco-workbench .notebookOverlay .output .error,
+.monaco-workbench .notebookOverlay .output .error .traceback,
 .monaco-workbench .notebookOverlay .output .output-plaintext {
 	overflow-x: auto;
 }

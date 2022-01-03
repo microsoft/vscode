@@ -17,6 +17,7 @@ import { triggerDownload, triggerUpload, WebFileSystemAccess } from 'vs/base/bro
 import Severity from 'vs/base/common/severity';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { extractFilesDropData } from 'vs/workbench/browser/dnd';
+import { Iterable } from 'vs/base/common/iterator';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -113,8 +114,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		let fileHandle: FileSystemHandle | undefined = undefined;
+		const startIn = Iterable.first(this.fileSystemProvider.directories);
+
 		try {
-			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...{ suggestedName: basename(defaultUri) } });
+			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...{ suggestedName: basename(defaultUri), startIn } });
 		} catch (error) {
 			return; // `showSaveFilePicker` will throw an error when the user cancels
 		}
@@ -148,8 +151,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		let fileHandle: FileSystemHandle | undefined = undefined;
+		const startIn = Iterable.first(this.fileSystemProvider.directories);
+
 		try {
-			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...options.defaultUri ? { suggestedName: basename(options.defaultUri) } : undefined });
+			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...options.defaultUri ? { suggestedName: basename(options.defaultUri) } : undefined, ...{ startIn } });
 		} catch (error) {
 			return; // `showSaveFilePicker` will throw an error when the user cancels
 		}
@@ -169,14 +174,16 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		let uri: URI | undefined;
+		const startIn = Iterable.first(this.fileSystemProvider.directories) ?? 'documents';
+
 		try {
 			if (options.canSelectFiles) {
-				const handle = await window.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters) });
+				const handle = await window.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters), ...{ startIn } });
 				if (handle.length === 1) {
 					uri = this.fileSystemProvider.registerFileHandle(handle[0]);
 				}
 			} else {
-				const handle = await window.showDirectoryPicker();
+				const handle = await window.showDirectoryPicker({ ...{ startIn } });
 				uri = this.fileSystemProvider.registerDirectoryHandle(handle);
 			}
 		} catch (error) {

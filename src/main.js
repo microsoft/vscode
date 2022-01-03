@@ -25,8 +25,6 @@ const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath
 const product = require('../product.json');
 const { app, protocol, crashReporter } = require('electron');
 
-// Disable render process reuse, we still have
-// non-context aware native modules in the renderer.
 app.allowRendererProcessReuse = false;
 
 // Enable portable support
@@ -175,7 +173,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'enable-proposed-api',
 
 		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
-		'log-level'
+		'log-level',
+
+		// Enables render process reuse. Default value is 'false'. See https://github.com/electron/electron/issues/18397
+		'enable-render-process-reuse'
 	];
 
 	// Read argv config
@@ -218,6 +219,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 				case 'log-level':
 					if (typeof argvValue === 'string') {
 						process.argv.push('--log', argvValue);
+					}
+					break;
+
+				case 'enable-render-process-reuse':
+					if (argvValue === true) {
+						app.allowRendererProcessReuse = true;
 					}
 					break;
 			}
@@ -515,8 +522,6 @@ function getCodeCachePath() {
  * @returns {Promise<string>}
  */
 function mkdirp(dir) {
-	const fs = require('fs');
-
 	return new Promise((resolve, reject) => {
 		fs.mkdir(dir, { recursive: true }, err => (err && err.code !== 'EEXIST') ? reject(err) : resolve(dir));
 	});

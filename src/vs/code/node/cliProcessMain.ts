@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import { gracefulify } from 'graceful-fs';
 import { hostname, release } from 'os';
 import { raceTimeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -24,7 +22,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -48,6 +46,8 @@ import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry
 import { supportsTelemetry, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 class CliMain extends Disposable {
 
@@ -55,9 +55,6 @@ class CliMain extends Disposable {
 		private argv: NativeParsedArgs
 	) {
 		super();
-
-		// Enable gracefulFs
-		gracefulify(fs);
 
 		this.registerListeners();
 	}
@@ -113,7 +110,7 @@ class CliMain extends Disposable {
 		// Log
 		const logLevel = getLogLevel(environmentService);
 		const loggers: ILogger[] = [];
-		loggers.push(new SpdLogLogger('cli', join(environmentService.logsPath, 'cli.log'), true, logLevel));
+		loggers.push(new SpdLogLogger('cli', join(environmentService.logsPath, 'cli.log'), true, false, logLevel));
 		if (logLevel === LogLevel.Trace) {
 			loggers.push(new ConsoleLogger(logLevel));
 		}
@@ -134,6 +131,9 @@ class CliMain extends Disposable {
 
 		// Init config
 		await configurationService.initialize();
+
+		// URI Identity
+		services.set(IUriIdentityService, new UriIdentityService(fileService));
 
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));
@@ -217,7 +217,8 @@ class CliMain extends Disposable {
 
 		// Install Extension
 		else if (this.argv['install-extension'] || this.argv['install-builtin-extension']) {
-			return extensionManagementCLIService.installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.argv['install-builtin-extension'] || [], !!this.argv['do-not-sync'], !!this.argv['force']);
+			const installOptions: InstallOptions = { isMachineScoped: !!this.argv['do-not-sync'], installPreReleaseVersion: !!this.argv['pre-release'] };
+			return extensionManagementCLIService.installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.argv['install-builtin-extension'] || [], installOptions, !!this.argv['force']);
 		}
 
 		// Uninstall Extension

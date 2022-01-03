@@ -6,23 +6,12 @@
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorServiceImpl, GlobalStyleSheet } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { GlobalStyleSheet } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 const themeServiceMock = new TestThemeService();
-
-class TestCodeEditorServiceImpl extends CodeEditorServiceImpl {
-	getActiveCodeEditor(): ICodeEditor | null {
-		return null;
-	}
-
-	openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
-		return Promise.resolve(null);
-	}
-}
 
 class TestGlobalStyleSheet extends GlobalStyleSheet {
 
@@ -58,12 +47,12 @@ suite('Decoration Render Options', () => {
 		borderColor: 'yellow'
 	};
 	test('register and resolve decoration type', () => {
-		let s = new TestCodeEditorServiceImpl(null, themeServiceMock);
+		let s = new TestCodeEditorService(null, themeServiceMock);
 		s.registerDecorationType('test', 'example', options);
 		assert.notStrictEqual(s.resolveDecorationOptions('example', false), undefined);
 	});
 	test('remove decoration type', () => {
-		let s = new TestCodeEditorServiceImpl(null, themeServiceMock);
+		let s = new TestCodeEditorService(null, themeServiceMock);
 		s.registerDecorationType('test', 'example', options);
 		assert.notStrictEqual(s.resolveDecorationOptions('example', false), undefined);
 		s.removeDecorationType('example');
@@ -76,7 +65,7 @@ suite('Decoration Render Options', () => {
 
 	test('css properties', () => {
 		const styleSheet = new TestGlobalStyleSheet();
-		const s = new TestCodeEditorServiceImpl(styleSheet, themeServiceMock);
+		const s = new TestCodeEditorService(styleSheet, themeServiceMock);
 		s.registerDecorationType('test', 'example', options);
 		const sheet = readStyleSheet(styleSheet);
 		assert(sheet.indexOf(`{background:url('https://github.com/microsoft/vscode/blob/main/resources/linux/code.png') center center no-repeat;background-size:contain;}`) >= 0);
@@ -93,7 +82,7 @@ suite('Decoration Render Options', () => {
 		const themeService = new TestThemeService(new TestColorTheme({
 			editorBackground: '#FF0000'
 		}));
-		const s = new TestCodeEditorServiceImpl(styleSheet, themeService);
+		const s = new TestCodeEditorService(styleSheet, themeService);
 		s.registerDecorationType('test', 'example', options);
 		assert.strictEqual(readStyleSheet(styleSheet), '.monaco-editor .ced-example-0 {background-color:#ff0000;border-color:transparent;box-sizing: border-box;}');
 
@@ -126,7 +115,7 @@ suite('Decoration Render Options', () => {
 			editorBackground: '#FF0000',
 			infoForeground: '#444444'
 		}));
-		const s = new TestCodeEditorServiceImpl(styleSheet, themeService);
+		const s = new TestCodeEditorService(styleSheet, themeService);
 		s.registerDecorationType('test', 'example', options);
 		const expected = [
 			'.vs-dark.monaco-editor .ced-example-4::after, .hc-black.monaco-editor .ced-example-4::after {color:#444444 !important;}',
@@ -142,7 +131,7 @@ suite('Decoration Render Options', () => {
 
 	test('css properties, gutterIconPaths', () => {
 		const styleSheet = new TestGlobalStyleSheet();
-		const s = new TestCodeEditorServiceImpl(styleSheet, themeServiceMock);
+		const s = new TestCodeEditorService(styleSheet, themeServiceMock);
 
 		// URI, only minimal encoding
 		s.registerDecorationType('test', 'example', { gutterIconPath: URI.parse('data:image/svg+xml;base64,PHN2ZyB4b+') });

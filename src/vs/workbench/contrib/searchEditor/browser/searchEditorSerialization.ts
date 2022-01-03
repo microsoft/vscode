@@ -38,7 +38,8 @@ const matchToSearchResultFormat = (match: Match, longestLineNumber: number): { l
 			const prefix = `  ${paddingStr}${lineNumber}: `;
 			const prefixOffset = prefix.length;
 
-			const line = (prefix + sourceLine).replace(/\r?\n?$/, '');
+			// split instead of replace to avoid creating a new string object
+			const line = prefix + sourceLine.split(/\r?\n?$/, 1)[0];
 
 			const rangeOnThisLine = ({ start, end }: { start?: number; end?: number; }) => new Range(1, (start ?? 1) + prefixOffset, 1, (end ?? sourceLine.length + 1) + prefixOffset);
 
@@ -62,7 +63,6 @@ type SearchResultSerialization = { text: string[], matchRanges: Range[] };
 function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x: URI) => string): SearchResultSerialization {
 	const sortedMatches = fileMatch.matches().sort(searchMatchComparer);
 	const longestLineNumber = sortedMatches[sortedMatches.length - 1].range().endLineNumber.toString().length;
-	const serializedMatches = flatten(sortedMatches.map(match => matchToSearchResultFormat(match, longestLineNumber)));
 
 	const uriString = labelFormatter(fileMatch.resource);
 	const text: string[] = [`${uriString}:`];
@@ -77,24 +77,26 @@ function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x:
 	let lastLine: number | undefined = undefined;
 
 	const seenLines = new Set<string>();
-	serializedMatches.forEach(match => {
-		if (!seenLines.has(match.line)) {
-			while (context.length && context[0].lineNumber < +match.lineNumber) {
-				const { line, lineNumber } = context.shift()!;
-				if (lastLine !== undefined && lineNumber !== lastLine + 1) {
-					text.push('');
+	sortedMatches.forEach(match => {
+		matchToSearchResultFormat(match, longestLineNumber).forEach(match => {
+			if (!seenLines.has(match.lineNumber)) {
+				while (context.length && context[0].lineNumber < +match.lineNumber) {
+					const { line, lineNumber } = context.shift()!;
+					if (lastLine !== undefined && lineNumber !== lastLine + 1) {
+						text.push('');
+					}
+					text.push(`  ${' '.repeat(longestLineNumber - `${lineNumber}`.length)}${lineNumber}  ${line}`);
+					lastLine = lineNumber;
 				}
-				text.push(`  ${' '.repeat(longestLineNumber - `${lineNumber}`.length)}${lineNumber}  ${line}`);
-				lastLine = lineNumber;
+
+				targetLineNumberToOffset[match.lineNumber] = text.length;
+				seenLines.add(match.lineNumber);
+				text.push(match.line);
+				lastLine = +match.lineNumber;
 			}
 
-			targetLineNumberToOffset[match.lineNumber] = text.length;
-			seenLines.add(match.line);
-			text.push(match.line);
-			lastLine = +match.lineNumber;
-		}
-
-		matchRanges.push(...match.ranges.map(translateRangeLines(targetLineNumberToOffset[match.lineNumber])));
+			matchRanges.push(...match.ranges.map(translateRangeLines(targetLineNumberToOffset[match.lineNumber])));
+		});
 	});
 
 	while (context.length) {

@@ -19,8 +19,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICodeEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -62,7 +62,7 @@ import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchM
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTerminators/unusualLineTerminators';
 
-const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
+const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
 
 type SearchEditorViewState = ICodeEditorViewState & { focused: 'input' | 'editor' };
@@ -538,7 +538,7 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 		});
 
 		const searchOperation = await startInput.ongoingSearchOperation;
-		this.onSearchComplete(searchOperation, config, startInput);
+		await this.onSearchComplete(searchOperation, config, startInput);
 	}
 
 	private async onSearchComplete(searchOperation: ISearchComplete, startConfig: SearchConfiguration, startInput: SearchEditorInput) {
@@ -557,7 +557,7 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 		}
 
 		const controller = ReferencesController.get(this.searchResultEditor);
-		controller.closeWidget(false);
+		controller?.closeWidget(false);
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
 		const results = serializeSearchResultForEditor(this.searchModel.searchResult, startConfig.filesToInclude, startConfig.filesToExclude, startConfig.contextLines, labelFormatter, sortOrder, searchOperation?.limitHit);
 		const { resultsModel } = await input.getModels();

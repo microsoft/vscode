@@ -13,7 +13,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { Location } from 'vs/editor/common/modes';
+import { Location } from 'vs/editor/common/languages';
 import { getOuterEditor, PeekContext } from 'vs/editor/contrib/peekView/peekView';
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -43,7 +43,7 @@ export abstract class ReferencesController implements IEditorContribution {
 
 	private readonly _referenceSearchVisible: IContextKey<boolean>;
 
-	static get(editor: ICodeEditor): ReferencesController {
+	static get(editor: ICodeEditor): ReferencesController | null {
 		return editor.getContribution<ReferencesController>(ReferencesController.ID);
 	}
 
@@ -270,7 +270,7 @@ export abstract class ReferencesController implements IEditorContribution {
 				this.closeWidget();
 				openedEditor.focus();
 
-				other.toggleWidget(
+				other?.toggleWidget(
 					range,
 					createCancelablePromise(_ => Promise.resolve(model)),
 					this._peekMode ?? false
@@ -302,7 +302,7 @@ function withController(accessor: ServicesAccessor, fn: (controller: ReferencesC
 	if (!outerEditor) {
 		return;
 	}
-	let controller = ReferencesController.get(outerEditor);
+	const controller = ReferencesController.get(outerEditor);
 	if (controller) {
 		fn(controller);
 	}
@@ -311,7 +311,7 @@ function withController(accessor: ServicesAccessor, fn: (controller: ReferencesC
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'togglePeekWidgetFocus',
 	weight: KeybindingWeight.EditorContrib,
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.F2),
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.F2),
 	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),
 	handler(accessor) {
 		withController(accessor, controller => {

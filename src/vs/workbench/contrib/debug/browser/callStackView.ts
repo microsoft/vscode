@@ -100,7 +100,7 @@ export function getSpecificSourceName(stackFrame: IStackFrame): string {
 	}
 
 	const from = Math.max(0, stackFrame.source.uri.path.lastIndexOf(posix.sep, stackFrame.source.uri.path.length - suffixLength - 1));
-	return (from > 0 ? '...' : '') + stackFrame.source.uri.path.substr(from);
+	return (from > 0 ? '...' : '') + stackFrame.source.uri.path.substring(from);
 }
 
 async function expandTo(session: IDebugSession, tree: WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>): Promise<void> {
@@ -190,7 +190,7 @@ export class CallStackView extends ViewPane {
 						toExpand.add(s.parentSession);
 					}
 				});
-				for (let session of toExpand) {
+				for (const session of toExpand) {
 					await expandTo(session, this.tree);
 					this.autoExpandedSessions.add(session);
 				}
@@ -513,7 +513,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		dom.append(session, $(ThemeIcon.asCSSSelector(icons.callstackViewSession)));
 		const name = dom.append(session, $('.name'));
 		const stateLabel = dom.append(session, $('span.state.label.monaco-count-badge.long'));
-		const label = new HighlightedLabel(name, false);
+		const label = new HighlightedLabel(name);
 		const actionBar = new ActionBar(session, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
@@ -600,7 +600,7 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 		const thread = dom.append(container, $('.thread'));
 		const name = dom.append(thread, $('.name'));
 		const stateLabel = dom.append(thread, $('span.state.label.monaco-count-badge.long'));
-		const label = new HighlightedLabel(name, false);
+		const label = new HighlightedLabel(name);
 		const actionBar = new ActionBar(thread);
 		const elementDisposable: IDisposable[] = [];
 
@@ -656,7 +656,7 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 		const fileName = dom.append(file, $('span.file-name'));
 		const wrapper = dom.append(file, $('span.line-number-wrapper'));
 		const lineNumber = dom.append(wrapper, $('span.line-number.monaco-count-badge'));
-		const label = new HighlightedLabel(labelDiv, false);
+		const label = new HighlightedLabel(labelDiv);
 		const actionBar = new ActionBar(stackFrame);
 
 		return { file, fileName, label, lineNumber, stackFrame, actionBar };

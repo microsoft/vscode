@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { OpenGettingStarted } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 const setupIcon = registerIcon('getting-started-setup', Codicon.zap, localize('getting-started-setup-icon', "Icon used for the setup category of welcome page"));
@@ -144,7 +144,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 	{
 		id: 'topLevelShowWalkthroughs',
 		title: localize('gettingStarted.topLevelShowWalkthroughs.title', "Open a Walkthrough..."),
-		description: localize('gettingStarted.topLevelShowWalkthroughs.description', ""),
+		description: localize('gettingStarted.topLevelShowWalkthroughs.description', "View a walkthrough on the editor or an extension"),
 		icon: Codicon.checklist,
 		when: 'allWalkthroughsHidden',
 		content: {
@@ -279,6 +279,15 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					title: localize('gettingStarted.commandPalette.title', "One shortcut to access everything"),
 					description: localize('gettingStarted.commandPalette.description.interpolated', "Commands are the keyboard way to accomplish any task in VS Code. **Practice** by looking up your frequent ones to save time.\n{0}\n__Try searching for 'view toggle'.__", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
 					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
+				},
+				{
+					id: 'menuBarWeb',
+					title: localize('gettingStarted.menuBar.title', "Just the right amount of UI"),
+					description: localize('gettingStarted.menuBar.description.interpolated', "The full menu bar is available in the dropdown menu to make room for your code. Toggle its apperance for faster access. \n{0}", Button(localize('toggleMenuBar', "Toggle Menu Bar"), 'command:workbench.action.toggleMenuBar')),
+					when: 'isWeb',
+					media: {
+						type: 'svg', altText: 'Comparing menu dropdown with the visible menu bar.', path: 'menuBar.svg'
+					},
 				},
 				{
 					id: 'extensionsWebWeb',
@@ -474,7 +483,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		description: '',
 		icon: setupIcon,
 		isFeatured: false,
-		when: `config.${OpenGettingStarted} && userHasOpenedNotebook`,
+		when: `config.${NotebookSetting.openGettingStarted} && userHasOpenedNotebook`,
 		content: {
 			type: 'steps',
 			steps: [

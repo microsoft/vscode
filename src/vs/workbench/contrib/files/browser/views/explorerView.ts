@@ -49,9 +49,9 @@ import { Color } from 'vs/base/common/color';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+import { IExplorerService, IExplorerView } from 'vs/workbench/contrib/files/browser/files';
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -136,7 +136,7 @@ export interface IExplorerViewContainerDelegate {
 	didOpenElement(event?: UIEvent): void;
 }
 
-export class ExplorerView extends ViewPane {
+export class ExplorerView extends ViewPane implements IExplorerView {
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
 	private tree!: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
@@ -641,13 +641,17 @@ export class ExplorerView extends ViewPane {
 		const previousInput = this.tree.getInput();
 		const promise = this.tree.setInput(input, viewState).then(async () => {
 			if (Array.isArray(input)) {
-				if (!viewState || previousInput instanceof ExplorerItem || !previousInput) {
-					// There is no view state for this workspace, expand all roots. Or we transitioned from a folder/empty workspace.
+				if (!viewState || previousInput instanceof ExplorerItem) {
+					// There is no view state for this workspace (we transitioned from a folder workspace?), expand all roots.
 					await Promise.all(input.map(async item => {
 						try {
 							await this.tree.expand(item);
 						} catch (e) { }
 					}));
+				}
+				// Reloaded or transitioned from an empty workspace, but only have a single folder in the workspace.
+				if (!previousInput && input.length === 1 && this.configurationService.getValue<IFilesConfiguration>().explorer.expandSingleFolderWorkspaces) {
+					await this.tree.expand(input[0]).catch(() => { });
 				}
 				if (Array.isArray(previousInput) && previousInput.length < input.length) {
 					// Roots added to the explorer -> expand them.

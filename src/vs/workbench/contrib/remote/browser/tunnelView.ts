@@ -295,7 +295,7 @@ class OriginColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 }
 
 class PrivacyColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
-	readonly label: string = nls.localize('tunnel.privacyColumn.label', "Privacy");
+	readonly label: string = nls.localize('tunnel.privacyColumn.label', "Visibility");
 	readonly tooltip: string = nls.localize('tunnel.privacyColumn.tooltip', "The availability of the forwarded port.");
 	readonly weight: number = 1;
 	readonly templateId: string = 'actionbar';
@@ -378,6 +378,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		templateData.icon.style.display = 'none';
 		templateData.label.setLabel('');
 		templateData.label.element.style.display = 'none';
+		templateData.container.style.height = '22px';
 		if (templateData.button) {
 			templateData.button.element.style.display = 'none';
 			templateData.button.dispose();
@@ -1488,7 +1489,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CopyAddressAction.INLINE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + tunnelViewCommandsWeightBonus,
 	when: ContextKeyExpr.and(TunnelViewFocusContextKey, isForwardedOrDetectedExpr, isNotMultiSelectionExpr),
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+	primary: KeyMod.CtrlCmd | KeyCode.KeyC,
 	handler: CopyAddressAction.inlineHandler()
 });
 CommandsRegistry.registerCommand(CopyAddressAction.COMMANDPALETTE_ID, CopyAddressAction.commandPaletteHandler());
@@ -1579,7 +1580,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '2_localaddress',
 	order: 2,
 	submenu: MenuId.TunnelPrivacy,
-	title: nls.localize('tunnelContext.privacyMenu', "Port Privacy"),
+	title: nls.localize('tunnelContext.privacyMenu', "Port Visibility"),
 	when: ContextKeyExpr.and(isForwardedExpr, TunnelPrivacyEnabledContextKey)
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({

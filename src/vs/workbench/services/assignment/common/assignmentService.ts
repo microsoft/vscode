@@ -1,0 +1,131 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import type { IKeyValueStorage, IExperimentationTelemetry } from 'tas-client-umd';
+import { MementoObject, Memento } from 'vs/workbench/common/memento';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ITelemetryData } from 'vs/base/common/actions';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IAssignmentService } from 'vs/platform/assignment/common/assignment';
+import { BaseAssignmentService } from 'vs/platform/assignment/common/assignmentService';
+
+export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentService>('WorkbenchAssignmentService');
+
+export interface IWorkbenchAssignmentService extends IAssignmentService {
+	getCurrentExperiments(): Promise<string[] | undefined>;
+}
+
+class MementoKeyValueStorage implements IKeyValueStorage {
+	private mementoObj: MementoObject;
+	constructor(private memento: Memento) {
+		this.mementoObj = memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+	}
+
+	async getValue<T>(key: string, defaultValue?: T | undefined): Promise<T | undefined> {
+		const value = await this.mementoObj[key];
+		return value || defaultValue;
+	}
+
+	setValue<T>(key: string, value: T): void {
+		this.mementoObj[key] = value;
+		this.memento.saveMemento();
+	}
+}
+
+class WorkbenchAssignmentServiceTelemetry implements IExperimentationTelemetry {
+	private _lastAssignmentContext: string | undefined;
+	constructor(
+		private telemetryService: ITelemetryService,
+		private productService: IProductService
+	) { }
+
+	get assignmentContext(): string[] | undefined {
+		return this._lastAssignmentContext?.split(';');
+	}
+
+	// __GDPR__COMMON__ "VSCode.ABExp.Features" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// __GDPR__COMMON__ "abexp.assignmentcontext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	setSharedProperty(name: string, value: string): void {
+		if (name === this.productService.tasConfig?.assignmentContextTelemetryPropertyName) {
+			this._lastAssignmentContext = value;
+		}
+
+		this.telemetryService.setExperimentProperty(name, value);
+	}
+
+	postEvent(eventName: string, props: Map<string, string>): void {
+		const data: ITelemetryData = {};
+		for (const [key, value] of props.entries()) {
+			data[key] = value;
+		}
+
+		/* __GDPR__
+			"query-expfeature" : {
+				"ABExp.queriedFeature": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this.telemetryService.publicLog(eventName, data);
+	}
+}
+
+export class WorkbenchAssignmentService extends BaseAssignmentService {
+	constructor(
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IStorageService storageService: IStorageService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IProductService productService: IProductService
+	) {
+
+		super(() => {
+			return telemetryService.getTelemetryInfo().then(telemetryInfo => {
+				return telemetryInfo.machineId;
+			});
+		}, configurationService, productService,
+			new WorkbenchAssignmentServiceTelemetry(telemetryService, productService),
+			new MementoKeyValueStorage(new Memento('experiment.service.memento', storageService)));
+	}
+
+	protected override get experimentsEnabled(): boolean {
+		return this.configurationService.getValue('workbench.enableExperiments') === true;
+	}
+
+	override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+		const result = await super.getTreatment<T>(name);
+		type TASClientReadTreatmentData = {
+			treatmentName: string;
+			treatmentValue: string;
+		};
+
+		type TASClientReadTreatmentClassification = {
+			treatmentValue: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', };
+			treatmentName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', };
+		};
+
+		this.telemetryService.publicLog2<TASClientReadTreatmentData, TASClientReadTreatmentClassification>('tasClientReadTreatmentComplete',
+			{ treatmentName: name, treatmentValue: JSON.stringify(result) });
+
+		return result;
+	}
+
+	async getCurrentExperiments(): Promise<string[] | undefined> {
+		if (!this.tasClient) {
+			return undefined;
+		}
+
+		if (!this.experimentsEnabled) {
+			return undefined;
+		}
+
+		await this.tasClient;
+
+		return (this.telemetry as WorkbenchAssignmentServiceTelemetry)?.assignmentContext;
+	}
+}
+
+registerSingleton(IWorkbenchAssignmentService, WorkbenchAssignmentService, false);

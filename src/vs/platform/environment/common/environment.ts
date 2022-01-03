@@ -53,6 +53,7 @@ export interface IEnvironmentService {
 	untitledWorkspacesHome: URI;
 	globalStorageHome: URI;
 	workspaceStorageHome: URI;
+	cacheHome: URI;
 
 	// --- settings sync
 	userDataSyncHome: URI;
@@ -67,9 +68,6 @@ export interface IEnvironmentService {
 	extensionDevelopmentLocationURI?: URI[];
 	extensionDevelopmentKind?: ExtensionKind[];
 	extensionTestsLocationURI?: URI;
-
-	// --- workspace trust
-	disableWorkspaceTrust: boolean;
 
 	// --- logging
 	logsPath: string;

@@ -11,7 +11,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IDecorationOptions, ScrollType } from 'vs/editor/common/editorCommon';
 import { ISingleEditOperation, ITextModel, ITextModelUpdateOptions, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
 import { IEditorPane } from 'vs/workbench/common/editor';
@@ -349,7 +349,7 @@ export class MainThreadTextEditor {
 	}
 
 	private _setIndentConfiguration(newConfiguration: ITextEditorConfigurationUpdate): void {
-		const creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language, this._model.uri, this._model.isForSimpleWidget);
+		const creationOpts = this._modelService.getCreationOptions(this._model.getLanguageId(), this._model.uri, this._model.isForSimpleWidget);
 
 		if (newConfiguration.tabSize === 'auto' || newConfiguration.insertSpaces === 'auto') {
 			// one of the options was set to 'auto' => detect indentation
@@ -527,7 +527,7 @@ export class MainThreadTextEditor {
 		this._codeEditor.focus();
 
 		// make modifications
-		snippetController.insert(template, {
+		snippetController?.insert(template, {
 			overwriteBefore: 0, overwriteAfter: 0,
 			undoStopBefore: opts.undoStopBefore, undoStopAfter: opts.undoStopAfter,
 			clipboardText

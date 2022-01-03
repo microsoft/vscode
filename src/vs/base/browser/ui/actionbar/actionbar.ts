@@ -69,6 +69,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	// View Items
 	viewItems: IActionViewItem[];
+	private previouslyFocusedItem?: number;
 	protected focusedItem?: number;
 	private focusTracker: DOM.IFocusTracker;
 
@@ -200,6 +201,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			if (DOM.getActiveElement() === this.domNode || !DOM.isAncestor(DOM.getActiveElement(), this.domNode)) {
 				this._onDidBlur.fire();
 				this.focusedItem = undefined;
+				this.previouslyFocusedItem = undefined;
 				this.triggerKeyDown = false;
 			}
 		}));
@@ -412,27 +414,27 @@ export class ActionBar extends Disposable implements IActionRunner {
 			const firstEnabled = this.viewItems.findIndex(item => item.isEnabled());
 			// Focus the first enabled item
 			this.focusedItem = firstEnabled === -1 ? undefined : firstEnabled;
-			this.updateFocus();
+			this.updateFocus(undefined, undefined, true);
 		} else {
 			if (index !== undefined) {
 				this.focusedItem = index;
 			}
 
-			this.updateFocus();
+			this.updateFocus(undefined, undefined, true);
 		}
 	}
 
 	private focusFirst(): boolean {
-		this.focusedItem = this.length() > 1 ? 1 : 0;
-		return this.focusPrevious();
+		this.focusedItem = this.length() - 1;
+		return this.focusNext(true);
 	}
 
 	private focusLast(): boolean {
-		this.focusedItem = this.length() < 2 ? 0 : this.length() - 2;
-		return this.focusNext();
+		this.focusedItem = 0;
+		return this.focusPrevious(true);
 	}
 
-	protected focusNext(): boolean {
+	protected focusNext(forceLoop?: boolean): boolean {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = this.viewItems.length - 1;
 		} else if (this.viewItems.length <= 1) {
@@ -443,7 +445,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		let item: IActionViewItem;
 		do {
 
-			if (this.options.preventLoopNavigation && this.focusedItem + 1 >= this.viewItems.length) {
+			if (!forceLoop && this.options.preventLoopNavigation && this.focusedItem + 1 >= this.viewItems.length) {
 				this.focusedItem = startIndex;
 				return false;
 			}
@@ -456,7 +458,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		return true;
 	}
 
-	protected focusPrevious(): boolean {
+	protected focusPrevious(forceLoop?: boolean): boolean {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = 0;
 		} else if (this.viewItems.length <= 1) {
@@ -469,7 +471,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		do {
 			this.focusedItem = this.focusedItem - 1;
 			if (this.focusedItem < 0) {
-				if (this.options.preventLoopNavigation) {
+				if (!forceLoop && this.options.preventLoopNavigation) {
 					this.focusedItem = startIndex;
 					return false;
 				}
@@ -484,35 +486,33 @@ export class ActionBar extends Disposable implements IActionRunner {
 		return true;
 	}
 
-	protected updateFocus(fromRight?: boolean, preventScroll?: boolean): void {
+	protected updateFocus(fromRight?: boolean, preventScroll?: boolean, forceFocus: boolean = false): void {
 		if (typeof this.focusedItem === 'undefined') {
 			this.actionsList.focus({ preventScroll });
 		}
 
-		for (let i = 0; i < this.viewItems.length; i++) {
-			const item = this.viewItems[i];
-			const actionViewItem = item;
+		if (this.previouslyFocusedItem !== undefined && this.previouslyFocusedItem !== this.focusedItem) {
+			this.viewItems[this.previouslyFocusedItem]?.blur();
+		}
 
-			if (i === this.focusedItem) {
-				let focusItem = true;
+		const actionViewItem = this.focusedItem !== undefined && this.viewItems[this.focusedItem];
+		if (actionViewItem) {
+			let focusItem = true;
 
-				if (!types.isFunction(actionViewItem.focus)) {
-					focusItem = false;
-				}
+			if (!types.isFunction(actionViewItem.focus)) {
+				focusItem = false;
+			}
 
-				if (this.options.focusOnlyEnabledItems && types.isFunction(item.isEnabled) && !item.isEnabled()) {
-					focusItem = false;
-				}
+			if (this.options.focusOnlyEnabledItems && types.isFunction(actionViewItem.isEnabled) && !actionViewItem.isEnabled()) {
+				focusItem = false;
+			}
 
-				if (focusItem) {
-					actionViewItem.focus(fromRight);
-				} else {
-					this.actionsList.focus({ preventScroll });
-				}
-			} else {
-				if (types.isFunction(actionViewItem.blur)) {
-					actionViewItem.blur();
-				}
+			if (!focusItem) {
+				this.actionsList.focus({ preventScroll });
+				this.previouslyFocusedItem = undefined;
+			} else if (forceFocus || this.previouslyFocusedItem !== this.focusedItem) {
+				actionViewItem.focus(fromRight);
+				this.previouslyFocusedItem = this.focusedItem;
 			}
 		}
 	}

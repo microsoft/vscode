@@ -17,6 +17,13 @@ import 'vs/workbench/workbench.common.main';
 //#endregion
 
 
+//#region --- workbench (desktop main)
+
+import 'vs/workbench/electron-sandbox/desktop.main';
+
+//#endregion
+
+
 //#region --- workbench parts
 
 import 'vs/workbench/electron-sandbox/parts/dialogs/dialog.contribution';
@@ -29,7 +36,7 @@ import 'vs/workbench/electron-sandbox/parts/dialogs/dialog.contribution';
 import 'vs/workbench/services/textfile/electron-sandbox/nativeTextFileService';
 import 'vs/workbench/services/dialogs/electron-sandbox/fileDialogService';
 import 'vs/workbench/services/workspaces/electron-sandbox/workspacesService';
-import 'vs/workbench/services/textMate/electron-sandbox/textMateService';
+import 'vs/workbench/services/textMate/browser/nativeTextMateService';
 import 'vs/workbench/services/menubar/electron-sandbox/menubarService';
 import 'vs/workbench/services/issue/electron-sandbox/issueService';
 import 'vs/workbench/services/update/electron-sandbox/updateService';
@@ -65,20 +72,20 @@ import 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentServi
 import 'vs/workbench/services/integrity/electron-sandbox/integrityService';
 import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupService';
 import 'vs/platform/remote/electron-sandbox/sharedProcessTunnelService';
-import 'vs/workbench/services/remote/electron-sandbox/tunnelServiceImpl';
+import 'vs/workbench/services/remote/electron-sandbox/tunnelService';
 import 'vs/platform/diagnostics/electron-sandbox/diagnosticsService';
 import 'vs/platform/checksum/electron-sandbox/checksumService';
 import 'vs/platform/telemetry/electron-sandbox/customEndpointTelemetryService';
 import 'vs/workbench/services/files/electron-sandbox/elevatedFileService';
-import 'vs/workbench/services/configuration/electron-sandbox/userConfigurationFileService';
+import 'vs/workbench/services/search/electron-sandbox/searchService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
-import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
+import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncEnablementService } from 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
 
 registerSingleton(IUserDataInitializationService, UserDataInitializationService);
-registerSingleton(IUserDataAutoSyncEnablementService, UserDataAutoSyncEnablementService);
+registerSingleton(IUserDataSyncEnablementService, UserDataSyncEnablementService);
 
 //#endregion
 
@@ -143,5 +150,8 @@ import 'vs/workbench/contrib/externalTerminal/electron-sandbox/externalTerminal.
 
 // Webview
 import 'vs/workbench/contrib/webview/electron-sandbox/webview.contribution';
+
+// Splash
+import 'vs/workbench/contrib/splash/electron-sandbox/splash.contribution';
 
 //#endregion

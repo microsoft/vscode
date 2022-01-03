@@ -162,21 +162,6 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-chrome-debug (deprecated)"
-  },
-  {
-    "kind": 2,
-    "language": "github-issues",
-    "value": "repo:microsoft/vscode-chrome-debug is:issue closed:>$since"
-  },
-  {
-    "kind": 2,
-    "language": "github-issues",
-    "value": "repo:microsoft/vscode-chrome-debug is:issue created:>$since"
-  },
-  {
-    "kind": 1,
-    "language": "markdown",
     "value": "# vscode-chrome-debug-core"
   },
   {
@@ -297,21 +282,6 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-jshint"
-  },
-  {
-    "kind": 2,
-    "language": "github-issues",
-    "value": "repo:microsoft/vscode-jshint is:issue closed:>$since"
-  },
-  {
-    "kind": 2,
-    "language": "github-issues",
-    "value": "repo:microsoft/vscode-jshint is:issue created:>$since"
-  },
-  {
-    "kind": 1,
-    "language": "markdown",
     "value": "# vscode-json-languageservice"
   },
   {
@@ -333,6 +303,11 @@
     "kind": 2,
     "language": "github-issues",
     "value": "repo:microsoft/vscode-languageserver-node is:issue closed:>$since"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": ""
   },
   {
     "kind": 2,
@@ -522,21 +497,6 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# language-server-protocol-inspector"
-  },
-  {
-    "kind": 2,
-    "language": "github-issues",
-    "value": "repo:microsoft/language-server-protocol-inspector is:issue closed:>$since"
-  },
-  {
-    "kind": 2,
-    "language": "github-issues",
-    "value": "repo:microsoft/language-server-protocol-inspector is:issue created:>$since"
-  },
-  {
-    "kind": 1,
-    "language": "markdown",
     "value": "# monaco-languages"
   },
   {
@@ -638,5 +598,70 @@
     "kind": 2,
     "language": "github-issues",
     "value": "repo:microsoft/node-jsonc-parser is:issue created:>$since"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# vscode-jupyter"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-jupyter is:issue closed:>$since"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-jupyter is:issue created:>$since"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# vscode-python"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-python is:issue closed:>$since"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-python is:issue created:>$since"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# vscode-livepreview"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-livepreview is:issue closed:>$since"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-livepreview is:issue created:>$since"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": ""
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# vscode-test"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-test is:issue closed:>$since"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-test is:issue created:>$since"
   }
 ]

@@ -151,7 +151,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 	get displayCategory(): string {
 		if (!this._displayCategory) {
-			this.initLabel();
+			this.initLabels();
 		}
 
 		return this._displayCategory!;
@@ -159,13 +159,13 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 	get displayLabel(): string {
 		if (!this._displayLabel) {
-			this.initLabel();
+			this.initLabels();
 		}
 
 		return this._displayLabel!;
 	}
 
-	private initLabel(): void {
+	private initLabels(): void {
 		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent!.id);
 		this._displayLabel = displayKeyFormat.label;
 		this._displayCategory = displayKeyFormat.category;
@@ -241,8 +241,9 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.valueType = SettingValueType.Number;
 		} else if (this.setting.type === 'boolean') {
 			this.valueType = SettingValueType.Boolean;
-		} else if (this.setting.type === 'array' && (this.setting.arrayItemType === 'string' || this.setting.arrayItemType === 'enum')) {
-			this.valueType = SettingValueType.StringOrEnumArray;
+		} else if (this.setting.type === 'array' && this.setting.arrayItemType &&
+			['string', 'enum', 'number', 'integer'].includes(this.setting.arrayItemType)) {
+			this.valueType = SettingValueType.Array;
 		} else if (isArray(this.setting.type) && this.setting.type.includes(SettingValueType.Null) && this.setting.type.length === 2) {
 			if (this.setting.type.includes(SettingValueType.Integer)) {
 				this.valueType = SettingValueType.NullableInteger;
@@ -506,8 +507,8 @@ export function settingKeyToDisplayFormat(key: string, groupId = ''): { category
 	const lastDotIdx = key.lastIndexOf('.');
 	let category = '';
 	if (lastDotIdx >= 0) {
-		category = key.substr(0, lastDotIdx);
-		key = key.substr(lastDotIdx + 1);
+		category = key.substring(0, lastDotIdx);
+		key = key.substring(lastDotIdx + 1);
 	}
 
 	groupId = groupId.replace(/\//g, '.');
@@ -520,7 +521,7 @@ export function settingKeyToDisplayFormat(key: string, groupId = ''): { category
 
 function wordifyKey(key: string): string {
 	key = key
-		.replace(/\.([a-z0-9])/g, (_, p1) => ` › ${p1.toUpperCase()}`) // Replace dot with spaced '>'
+		.replace(/\.([a-z0-9])/g, (_, p1) => ` \u203A ${p1.toUpperCase()}`) // Replace dot with spaced '>'
 		.replace(/([a-z0-9])([A-Z])/g, '$1 $2') // Camel case to spacing, fooBar => foo Bar
 		.replace(/^[a-z]/g, match => match.toUpperCase()) // Upper casing all first letters, foo => Foo
 		.replace(/\b\w+\b/g, match => { // Upper casing known acronyms
@@ -536,9 +537,29 @@ function wordifyKey(key: string): string {
 	return key;
 }
 
+/**
+ * Removes redundant sections of the category label.
+ * A redundant section is a section already reflected in the groupId.
+ *
+ * @param category The category of the specific setting.
+ * @param groupId The author + extension ID.
+ * @returns The new category label to use.
+ */
 function trimCategoryForGroup(category: string, groupId: string): string {
 	const doTrim = (forward: boolean) => {
-		const parts = groupId.split('.');
+		// Remove the Insiders portion if the category doesn't use it.
+		if (!/insiders$/i.test(category)) {
+			groupId = groupId.replace(/-?insiders$/i, '');
+		}
+		const parts = groupId.split('.')
+			.map(part => {
+				// Remove hyphens, but only if that results in a match with the category.
+				if (part.replace(/-/g, '').toLowerCase() === category.toLowerCase()) {
+					return part.replace(/-/g, '');
+				} else {
+					return part;
+				}
+			});
 		while (parts.length) {
 			const reg = new RegExp(`^${parts.join('\\.')}(\\.|$)`, 'i');
 			if (reg.test(category)) {
@@ -574,7 +595,7 @@ export function isExcludeSetting(setting: ISetting): boolean {
 }
 
 function isObjectRenderableSchema({ type }: IJSONSchema): boolean {
-	return type === 'string' || type === 'boolean';
+	return type === 'string' || type === 'boolean' || type === 'integer' || type === 'number';
 }
 
 function isObjectSetting({
@@ -596,14 +617,18 @@ function isObjectSetting({
 		return false;
 	}
 
-	// object additional properties allow it to have any shape
-	if (objectAdditionalProperties === true || objectAdditionalProperties === undefined) {
+	// objectAdditionalProperties allow the setting to have any shape,
+	// but if there's a pattern property that handles everything, then every
+	// property will match that patternProperty, so we don't need to look at
+	// the value of objectAdditionalProperties in that case.
+	if ((objectAdditionalProperties === true || objectAdditionalProperties === undefined)
+		&& !Object.keys(objectPatternProperties ?? {}).includes('.*')) {
 		return false;
 	}
 
 	const schemas = [...Object.values(objectProperties ?? {}), ...Object.values(objectPatternProperties ?? {})];
 
-	if (typeof objectAdditionalProperties === 'object') {
+	if (objectAdditionalProperties && typeof objectAdditionalProperties === 'object') {
 		schemas.push(objectAdditionalProperties);
 	}
 

@@ -15,7 +15,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -268,10 +268,6 @@ export class WalkThroughPart extends EditorPane {
 	}
 
 	override setInput(input: WalkThroughInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		if (this.input instanceof WalkThroughInput) {
-			this.saveTextEditorViewState(this.input);
-		}
-
 		const store = new DisposableStore();
 		this.contentDisposables.push(store);
 
@@ -319,7 +315,7 @@ export class WalkThroughPart extends EditorPane {
 					const id = `snippet-${model.uri.fragment}`;
 					const div = innerContent.querySelector(`#${id.replace(/[\\.]/g, '\\$&')}`) as HTMLElement;
 
-					const options = this.getEditorOptions(model.getModeId());
+					const options = this.getEditorOptions(model.getLanguageId());
 					const telemetryData = {
 						target: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 						snippet: i
@@ -365,7 +361,7 @@ export class WalkThroughPart extends EditorPane {
 
 					this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(() => {
 						if (snippet.textEditorModel) {
-							editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getModeId()));
+							editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getLanguageId()));
 						}
 					}));
 
@@ -538,16 +534,16 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent a { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent a[href] { color: ${link}; }`);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent a:hover,
-			.monaco-workbench .part.editor > .content .walkThroughContent a:active { color: ${activeLink}; }`);
+			.monaco-workbench .part.editor > .content .walkThroughContent a[href]:active { color: ${activeLink}; }`);
 	}
 	const focusColor = theme.getColor(focusBorder);
 	if (focusColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent a:focus { outline-color: ${focusColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent a[href]:focus { outline-color: ${focusColor}; }`);
 	}
 	const shortcut = theme.getColor(textPreformatForeground);
 	if (shortcut) {

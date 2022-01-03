@@ -9,9 +9,10 @@ import * as minimist from 'minimist';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ModelService } from 'vs/editor/common/services/modelService';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -36,14 +37,10 @@ import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/sea
 import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ISearchService } from 'vs/workbench/services/search/common/search';
-import { LocalSearchService } from 'vs/workbench/services/search/electron-browser/searchService';
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-
-
 
 // declare var __dirname: string;
 
@@ -83,12 +80,13 @@ suite.skip('TextSearch performance (integration)', () => {
 				[IUndoRedoService, undoRedoService],
 				[
 					IModelService,
-					new ModelServiceImpl(
+					new ModelService(
 						configurationService,
 						textResourcePropertiesService,
 						new TestThemeService(),
 						logService,
 						undoRedoService,
+						new LanguageService(),
 						new TestLanguageConfigurationService()
 					),
 				],
@@ -103,7 +101,6 @@ suite.skip('TextSearch performance (integration)', () => {
 					IUntitledTextEditorService,
 					new SyncDescriptor(UntitledTextEditorService),
 				],
-				[ISearchService, new SyncDescriptor(LocalSearchService)],
 				[ILogService, logService]
 			)
 		);

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { basename } from 'vs/base/common/path';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
@@ -23,6 +23,7 @@ import { IPatternInfo } from 'vs/workbench/services/search/common/search';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { nullExtensionDescription as extensionDescriptor } from 'vs/workbench/services/extensions/common/extensions';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
 	const result = new ExtHostWorkspace(
@@ -36,19 +37,6 @@ function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData,
 }
 
 suite('ExtHostWorkspace', function () {
-
-	const extensionDescriptor: IExtensionDescription = {
-		identifier: new ExtensionIdentifier('nullExtensionDescription'),
-		name: 'ext',
-		publisher: 'vscode',
-		enableProposedApi: false,
-		engines: undefined!,
-		extensionLocation: undefined!,
-		isBuiltin: false,
-		isUserBuiltin: false,
-		isUnderDevelopment: false,
-		version: undefined!
-	};
 
 	function assertAsRelativePath(workspace: ExtHostWorkspace, input: string, expected: string, includeWorkspace?: boolean) {
 		const actual = workspace.getRelativePath(input, includeWorkspace);

@@ -20,9 +20,9 @@ import { createDecorator, IInstantiationService } from 'vs/platform/instantiatio
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { URI as uri } from 'vs/base/common/uri';
-import { CompletionProviderRegistry, CompletionList, CompletionContext, CompletionItemKind } from 'vs/editor/common/modes';
+import { CompletionProviderRegistry, CompletionList, CompletionContext, CompletionItemKind } from 'vs/editor/common/languages';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModel } from 'vs/editor/common/model';
 import { provideSuggestionItems, CompletionOptions } from 'vs/editor/contrib/suggest/suggest';
@@ -37,7 +37,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
@@ -49,7 +49,7 @@ const DECORATION_KEY = 'breakpointwidgetdecoration';
 
 function isCurlyBracketOpen(input: IActiveCodeEditor): boolean {
 	const model = input.getModel();
-	const prevBracket = model.findPrevBracket(input.getPosition());
+	const prevBracket = model.bracketPairs.findPrevBracket(input.getPosition());
 	if (prevBracket && prevBracket.isOpen) {
 		return true;
 	}
@@ -169,9 +169,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	private setInputMode(): void {
 		if (this.editor.hasModel()) {
-			// Use plaintext language mode for log messages, otherwise respect underlying editor mode #125619
-			const languageIdentifier = this.context === Context.LOG_MESSAGE ? PLAINTEXT_LANGUAGE_IDENTIFIER : this.editor.getModel().getLanguageIdentifier();
-			this.input.getModel().setMode(languageIdentifier);
+			// Use plaintext language for log messages, otherwise respect underlying editor language #125619
+			const languageId = this.context === Context.LOG_MESSAGE ? PLAINTEXT_LANGUAGE_ID : this.editor.getModel().getLanguageId();
+			this.input.getModel().setMode(languageId);
 		}
 	}
 
@@ -232,7 +232,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
 		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:${this.editor.getId()}:breakpointinput`), true);
 		if (this.editor.hasModel()) {
-			model.setMode(this.editor.getModel().getLanguageIdentifier());
+			model.setMode(this.editor.getModel().getLanguageId());
 		}
 		this.input.setModel(model);
 		this.setInputMode();
@@ -290,6 +290,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 		const options = getSimpleEditorOptions();
 		options.fontSize = editorConfig.fontSize;
+		options.fontFamily = editorConfig.fontFamily;
+		options.lineHeight = editorConfig.lineHeight;
+		options.fontLigatures = editorConfig.fontLigatures;
 		return options;
 	}
 

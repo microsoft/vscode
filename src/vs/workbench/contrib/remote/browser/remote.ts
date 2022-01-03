@@ -15,7 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { AutomaticPortForwarding, ForwardedPortsView, PortRestore, VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -498,7 +498,7 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 	}
 
 	private _handleRemoteInfoExtensionPoint(extension: IExtensionPointUser<HelpInformation>, helpInformation: HelpInformation[]) {
-		if (!extension.description.enableProposedApi) {
+		if (!isProposedApiEnabled(extension.description, 'contribRemoteHelp')) {
 			return;
 		}
 
@@ -603,7 +603,7 @@ class VisibleProgress {
 	private _lastReport: string | null;
 	private _currentProgressPromiseResolve: (() => void) | null;
 	private _currentProgress: IProgress<IProgressStep> | null;
-	private _currentTimer: ReconnectionTimer2 | null;
+	private _currentTimer: ReconnectionTimer | null;
 
 	public get lastReport(): string | null {
 		return this._lastReport;
@@ -655,7 +655,7 @@ class VisibleProgress {
 
 	public startTimer(completionTime: number): void {
 		this.stopTimer();
-		this._currentTimer = new ReconnectionTimer2(this, completionTime);
+		this._currentTimer = new ReconnectionTimer(this, completionTime);
 	}
 
 	public stopTimer(): void {
@@ -666,7 +666,7 @@ class VisibleProgress {
 	}
 }
 
-class ReconnectionTimer2 implements IDisposable {
+class ReconnectionTimer implements IDisposable {
 	private readonly _parent: VisibleProgress;
 	private readonly _completionTime: number;
 	private readonly _token: any;

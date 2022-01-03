@@ -47,7 +47,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.highlightModifiedTabs': {
 				'type': 'boolean',
-				'markdownDescription': localize('highlightModifiedTabs', "Controls whether a top border is drawn on modified (dirty) editor tabs or not. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+				'markdownDescription': localize('highlightModifiedTabs', "Controls whether a top border is drawn on tabs for editors that have unsaved changes. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
 				'default': false
 			},
 			'workbench.editor.decorations.badges': {
@@ -154,22 +154,22 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.enablePreview': {
 				'type': 'boolean',
-				'description': localize('enablePreview', "Controls whether opened editors show as preview. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing) and show up with an italic font style."),
+				'description': localize('enablePreview', "Controls whether opened editors show as preview editors. Preview editors do not stay open, are reused until explicitly set to be kept open (e.g. via double click or editing), and show file names in italics."),
 				'default': true
 			},
 			'workbench.editor.enablePreviewFromQuickOpen': {
 				'type': 'boolean',
-				'markdownDescription': localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
+				'markdownDescription': localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview editors. Preview editors do not stay open, and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
 				'default': false
 			},
 			'workbench.editor.enablePreviewFromCodeNavigation': {
 				'type': 'boolean',
-				'markdownDescription': localize('enablePreviewFromCodeNavigation', "Controls whether editors remain in preview when a code navigation is started from them. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
+				'markdownDescription': localize('enablePreviewFromCodeNavigation', "Controls whether editors remain in preview when a code navigation is started from them. Preview editors do not stay open, and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
 				'default': false
 			},
 			'workbench.editor.closeOnFileDelete': {
 				'type': 'boolean',
-				'description': localize('closeOnFileDelete', "Controls whether editors showing a file that was opened during the session should close automatically when getting deleted or renamed by some other process. Disabling this will keep the editor open  on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
+				'description': localize('closeOnFileDelete', "Controls whether editors showing a file that was opened during the session should close automatically when getting deleted or renamed by some other process. Disabling this will keep the editor open  on such an event. Note that deleting from within the application will always close the editor and that editors with unsaved changes will never close to preserve your data."),
 				'default': false
 			},
 			'workbench.editor.openPositioning': {
@@ -214,7 +214,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['vertical', 'horizontal'],
 				'default': 'horizontal',
-				'markdownDescription': localize('splitInGroupLayout', "Controls the layout for when an editor is split in an editor group to be either vertical or horizontal.")
+				'markdownDescription': localize('splitInGroupLayout', "Controls the layout for when an editor is split in an editor group to be either vertical or horizontal."),
+				'enumDescriptions': [
+					localize('workbench.editor.splitInGroupLayoutVertical', "Editors are positioned from top to bottom."),
+					localize('workbench.editor.splitInGroupLayoutHorizontal', "Editors are positioned from left to right.")
+				],
 			},
 			'workbench.editor.centeredLayoutAutoResize': {
 				'type': 'boolean',
@@ -224,7 +228,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.limit.enabled': {
 				'type': 'boolean',
 				'default': false,
-				'description': localize('limitEditorsEnablement', "Controls if the number of opened editors should be limited or not. When enabled, less recently used editors that are not dirty will close to make space for newly opening editors.")
+				'description': localize('limitEditorsEnablement', "Controls if the number of opened editors should be limited or not. When enabled, less recently used editors will close to make space for newly opening editors.")
 			},
 			'workbench.editor.limit.value': {
 				'type': 'number',
@@ -352,10 +356,29 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				// On Mac, the delay is 1500.
 				'default': isMacintosh ? 1500 : 500
 			},
+			'workbench.experimental.layoutControl.enabled': {
+				'type': 'boolean',
+				'tags': ['experimental'],
+				'default': false,
+				'description': localize('layoutControlEnabled', "Controls whether the layout control button in the custom title bar is enabled."),
+			},
 			'workbench.experimental.sidePanel.enabled': {
 				'type': 'boolean',
 				'default': false,
 				'description': localize('auxiliaryBarEnabled', "Controls whether the side panel opposite the side bar is enabled."),
+				'included': product.quality !== 'stable'
+			},
+			'workbench.experimental.panel.alignment': {
+				'type': 'string',
+				'enum': ['left', 'center', 'right', 'justify'],
+				'enumDescriptions': [
+					localize('panel.alignment.left', "The panel spans from the far left of the window to the right side of the editor area."),
+					localize('panel.alignment.center', "The panel spans beneath the editor area."),
+					localize('panel.alignment.right', "The panel spans from the left side of the editor area to the far right of the window."),
+					localize('panel.alignment.justify', "The panel spans the full width of the window."),
+				],
+				'default': 'center',
+				'description': localize('panelAlignment', "Controls the alignment of the panel (terminal, debug console, output, problems) and whether or not it spans beneath the side bar and side panel. Note that this setting only takes effect when the panel is positioned at the bottom of the screen."),
 				'included': product.quality !== 'stable'
 			},
 		}
@@ -377,7 +400,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		localize('rootPath', "`${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace)."),
 		localize('appName', "`${appName}`: e.g. VS Code."),
 		localize('remoteName', "`${remoteName}`: e.g. SSH"),
-		localize('dirty', "`${dirty}`: a dirty indicator if the active editor is dirty."),
+		localize('dirty', "`${dirty}`: an indicator for when the active editor has unsaved changes."),
 		localize('separator', "`${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
@@ -405,7 +428,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'window.titleSeparator': {
 				'type': 'string',
-				'default': isMacintosh ? ' — ' : ' - ',
+				'default': isMacintosh ? ' \u2014 ' : ' - ',
 				'markdownDescription': localize("window.titleSeparator", "Separator used by `window.title`.")
 			},
 			'window.menuBarVisibility': {

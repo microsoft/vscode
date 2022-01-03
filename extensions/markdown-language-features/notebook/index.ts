@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const MarkdownIt: typeof import('markdown-it') = require('markdown-it');
 import * as DOMPurify from 'dompurify';
+import MarkdownIt from 'markdown-it';
 import type * as MarkdownItToken from 'markdown-it/lib/token';
 import type { ActivationFunction } from 'vscode-notebook-renderer';
 
@@ -13,9 +13,18 @@ const sanitizerOptions: DOMPurify.Config = {
 };
 
 export const activate: ActivationFunction<void> = (ctx) => {
-	let markdownIt = new MarkdownIt({
-		html: true
+	const markdownIt: MarkdownIt = new MarkdownIt({
+		html: true,
+		linkify: true,
+		highlight: (str: string, lang?: string) => {
+			if (lang) {
+				return `<code class="vscode-code-block" data-vscode-code-block-lang="${markdownIt.utils.escapeHtml(lang)}">${markdownIt.utils.escapeHtml(str)}</code>`;
+			}
+			return `<code>${markdownIt.utils.escapeHtml(str)}</code>`;
+		}
 	});
+	markdownIt.linkify.set({ fuzzyLink: false });
+
 	addNamedHeaderRendering(markdownIt);
 
 	const style = document.createElement('style');
@@ -53,20 +62,32 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			border-bottom: 2px solid;
 		}
 
+		h2, h3, h4, h5, h6 {
+			font-weight: normal;
+		}
+
 		h1 {
-			font-size: 2.25em;
+			font-size: 2.3em;
 		}
 
 		h2 {
-			font-size: 1.9em;
+			font-size: 2em;
 		}
 
 		h3 {
-			font-size: 1.6em;
+			font-size: 1.7em;
 		}
 
-		p {
-			font-size: 1.1em;
+		h3 {
+			font-size: 1.5em;
+		}
+
+		h4 {
+			font-size: 1.3em;
+		}
+
+		h5 {
+			font-size: 1.2em;
 		}
 
 		h1,
@@ -134,13 +155,14 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			border-left-style: solid;
 		}
 
-		code,
-		.code {
+		code {
 			font-size: 1em;
-			line-height: 1.357em;
 		}
 
-		.code {
+		pre code {
+			font-family: var(--vscode-editor-font-family);
+
+			line-height: 1.357em;
 			white-space: pre-wrap;
 		}
 	`;
@@ -184,9 +206,9 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				previewNode.classList.remove('emptyMarkdownCell');
 
 				const unsanitizedRenderedMarkdown = markdownIt.render(text);
-				previewNode.innerHTML = ctx.workspace.isTrusted
+				previewNode.innerHTML = (ctx.workspace.isTrusted
 					? unsanitizedRenderedMarkdown
-					: DOMPurify.sanitize(unsanitizedRenderedMarkdown, sanitizerOptions);
+					: DOMPurify.sanitize(unsanitizedRenderedMarkdown, sanitizerOptions)) as string;
 			}
 		},
 		extendMarkdownIt: (f: (md: typeof markdownIt) => void) => {
@@ -233,6 +255,7 @@ function slugFromHeading(heading: string): string {
 		heading.trim()
 			.toLowerCase()
 			.replace(/\s+/g, '-') // Replace whitespace with -
+			// allow-any-unicode-next-line
 			.replace(/[\]\[\!\'\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~\`。，、；：？！…—·ˉ¨‘’“”々～‖∶＂＇｀｜〃〔〕〈〉《》「」『』．〖〗【】（）［］｛｝]/g, '') // Remove known punctuators
 			.replace(/^\-+/, '') // Remove leading -
 			.replace(/\-+$/, '') // Remove trailing -

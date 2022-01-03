@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { ModelService } from 'vs/editor/common/services/modelService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
@@ -25,22 +25,25 @@ import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from 'vs/workbench/test/common/workbenchTestServices';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
-	let modelService: ModelServiceImpl;
+	let disposables: DisposableStore;
+
+	let modelService: ModelService;
 	let codeEditorService: TestCodeEditorService;
 	let textFileService: ITextFileService;
 	let deltas: IDocumentsAndEditorsDelta[] = [];
 
 	function myCreateTestCodeEditor(model: ITextModel | undefined): ITestCodeEditor {
-		return createTestCodeEditor({
-			model: model,
+		return createTestCodeEditor(model, {
 			hasTextFocus: false,
 			serviceCollection: new ServiceCollection(
 				[ICodeEditorService, codeEditorService]
@@ -49,21 +52,25 @@ suite('MainThreadDocumentsAndEditors', () => {
 	}
 
 	setup(() => {
+		disposables = new DisposableStore();
+
 		deltas.length = 0;
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
-		modelService = new ModelServiceImpl(
+		const themeService = new TestThemeService();
+		modelService = new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
-			new TestThemeService(),
+			themeService,
 			new NullLogService(),
 			undoRedoService,
+			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService()
 		);
-		codeEditorService = new TestCodeEditorService();
+		codeEditorService = new TestCodeEditorService(null, themeService);
 		textFileService = new class extends mock<ITextFileService>() {
 			override isDirty() { return false; }
 			override files = <any>{
@@ -112,6 +119,9 @@ suite('MainThreadDocumentsAndEditors', () => {
 		);
 	});
 
+	teardown(() => {
+		disposables.dispose();
+	});
 
 	test('Model#add', () => {
 		deltas.length = 0;

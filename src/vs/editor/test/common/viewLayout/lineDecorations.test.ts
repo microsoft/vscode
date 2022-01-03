@@ -12,7 +12,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 
 	test('Bug 9827:Overlapping inline decorations can cause wrong inline class to be applied', () => {
 
-		let result = LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
+		const result = LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
 			new LineDecoration(1, 11, 'c1', InlineDecorationType.Regular),
 			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]);
@@ -26,7 +26,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 
 	test('issue #3462: no whitespace shown at the end of a decorated line', () => {
 
-		let result = LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
+		const result = LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
 			new LineDecoration(15, 21, 'mtkw', InlineDecorationType.Regular),
 			new LineDecoration(20, 21, 'inline-folded', InlineDecorationType.Regular),
 		]);
@@ -39,7 +39,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 
 	test('issue #3661: Link decoration bleeds to next line when wrapping', () => {
 
-		let result = LineDecoration.filter([
+		const result = LineDecoration.filter([
 			new InlineDecoration(new Range(2, 12, 3, 30), 'detected-link', InlineDecorationType.Regular)
 		], 3, 12, 500);
 
@@ -49,7 +49,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	});
 
 	test('issue #37401: Allow both before and after decorations on empty line', () => {
-		let result = LineDecoration.filter([
+		const result = LineDecoration.filter([
 			new InlineDecoration(new Range(4, 1, 4, 2), 'before', InlineDecorationType.Before),
 			new InlineDecoration(new Range(4, 0, 4, 1), 'after', InlineDecorationType.After),
 		], 4, 1, 500);

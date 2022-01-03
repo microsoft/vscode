@@ -14,7 +14,7 @@ import { Schemas } from 'vs/base/common/network';
 import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
@@ -99,7 +99,7 @@ export class Source {
 				path = modelUri.path;
 				if (modelUri.query) {
 					const keyvalues = modelUri.query.split('&');
-					for (let keyvalue of keyvalues) {
+					for (const keyvalue of keyvalues) {
 						const pair = keyvalue.split('=');
 						if (pair.length === 2) {
 							switch (pair[0]) {

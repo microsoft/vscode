@@ -15,7 +15,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditableData } from 'vs/workbench/common/views';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IBulkEditService, ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { IExplorerView, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
@@ -102,6 +102,10 @@ export class ExplorerService implements IExplorerService {
 
 		this.disposables.add(this.fileService.onDidFilesChange(e => {
 			this.fileChangeEvents.push(e);
+			// Don't mess with the file tree while in the process of editing. #112293
+			if (this.editable) {
+				return;
+			}
 			if (!this.onFileChangesScheduler.isScheduled()) {
 				this.onFileChangesScheduler.schedule();
 			}
@@ -200,6 +204,10 @@ export class ExplorerService implements IExplorerService {
 		}
 		const isEditing = this.isEditable(stat);
 		await this.view.setEditable(stat, isEditing);
+
+		if (!this.editable && this.fileChangeEvents.length && !this.onFileChangesScheduler.isScheduled()) {
+			this.onFileChangesScheduler.schedule();
+		}
 	}
 
 	async setToCopy(items: ExplorerItem[], cut: boolean): Promise<void> {

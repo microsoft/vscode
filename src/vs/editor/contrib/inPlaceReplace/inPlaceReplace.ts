@@ -14,8 +14,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
 import * as nls from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -26,7 +26,7 @@ class InPlaceReplaceController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.inPlaceReplaceController';
 
-	static get(editor: ICodeEditor): InPlaceReplaceController {
+	static get(editor: ICodeEditor): InPlaceReplaceController | null {
 		return editor.getContribution<InPlaceReplaceController>(InPlaceReplaceController.ID);
 	}
 
@@ -140,7 +140,7 @@ class InPlaceReplaceUp extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Comma,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -165,7 +165,7 @@ class InPlaceReplaceDown extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});

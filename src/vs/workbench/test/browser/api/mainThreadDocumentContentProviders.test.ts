@@ -6,12 +6,12 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { MainThreadDocumentContentProviders } from 'vs/workbench/api/browser/mainThreadDocumentContentProviders';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { mock } from 'vs/base/test/common/mock';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
-import { TextEdit } from 'vs/editor/common/modes';
+import { TextEdit } from 'vs/editor/common/languages';
 
 suite('MainThreadDocumentContentProviders', function () {
 
@@ -45,6 +45,7 @@ suite('MainThreadDocumentContentProviders', function () {
 					reject(err);
 				}
 				if (model.getValue() === '1\n2\n3') {
+					model.dispose();
 					resolve();
 				}
 			});

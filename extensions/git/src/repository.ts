@@ -13,12 +13,12 @@ import { debounce, memoize, throttle } from './decorators';
 import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, logTimestamp, onceEvent } from './util';
 import { IFileWatcher, watch } from './watch';
 import { Log, LogLevel } from './log';
-import { IRemoteSourceProviderRegistry } from './remoteProvider';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
+import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -516,8 +516,8 @@ class FileEventLogger {
 		}
 
 		this.eventDisposable = combinedDisposable([
-			this.onWorkspaceWorkingTreeFileChange(uri => this.outputChannel.appendLine(`[debug] [wt] Change: ${uri.fsPath}`)),
-			this.onDotGitFileChange(uri => this.outputChannel.appendLine(`[debug] [.git] Change: ${uri.fsPath}`))
+			this.onWorkspaceWorkingTreeFileChange(uri => this.outputChannel.appendLine(`${logTimestamp()} [debug] [wt] Change: ${uri.fsPath}`)),
+			this.onDotGitFileChange(uri => this.outputChannel.appendLine(`${logTimestamp()} [debug] [.git] Change: ${uri.fsPath}`))
 		]);
 	}
 
@@ -567,7 +567,7 @@ class DotGitWatcher implements IFileWatcher {
 			upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
 		} catch (err) {
 			if (Log.logLevel <= LogLevel.Error) {
-				this.outputChannel.appendLine(`Warning: Failed to watch ref '${upstreamPath}', is most likely packed.`);
+				this.outputChannel.appendLine(`${logTimestamp()} Warning: Failed to watch ref '${upstreamPath}', is most likely packed.`);
 			}
 		}
 	}
@@ -664,7 +664,7 @@ class ResourceCommandResolver {
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
 			case Status.IGNORED:
-			case Status.INTENT_TO_ADD:
+			case Status.INTENT_TO_ADD: {
 				const uriString = resource.resourceUri.toString();
 				const [indexStatus] = this.repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 
@@ -673,7 +673,7 @@ class ResourceCommandResolver {
 				}
 
 				return resource.resourceUri;
-
+			}
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return resource.resourceUri;
@@ -850,8 +850,8 @@ export class Repository implements Disposable {
 
 	constructor(
 		private readonly repository: BaseRepository,
-		remoteSourceProviderRegistry: IRemoteSourceProviderRegistry,
 		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
+		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		globalState: Memento,
 		outputChannel: OutputChannel
 	) {
@@ -870,7 +870,7 @@ export class Repository implements Disposable {
 			this.disposables.push(dotGitFileWatcher);
 		} catch (err) {
 			if (Log.logLevel <= LogLevel.Error) {
-				outputChannel.appendLine(`Failed to watch '${this.dotGit}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
+				outputChannel.appendLine(`${logTimestamp()} Failed to watch '${this.dotGit}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
 			}
 
 			onDotGitFileChange = filterEvent(onWorkspaceRepositoryFileChange, uri => /\/\.git($|\/)/.test(uri.path));
@@ -959,7 +959,7 @@ export class Repository implements Disposable {
 			}
 		}, null, this.disposables);
 
-		const statusBar = new StatusBarCommands(this, remoteSourceProviderRegistry);
+		const statusBar = new StatusBarCommands(this, remoteSourcePublisherRegistry);
 		this.disposables.push(statusBar);
 		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
 		this._sourceControl.statusBarCommands = statusBar.commands;
@@ -1873,7 +1873,6 @@ export class Repository implements Disposable {
 		this._submodules = submodules!;
 		this.rebaseCommit = rebaseCommit;
 
-
 		const untrackedChanges = scopedConfig.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
 		const index: Resource[] = [];
 		const workingTree: Resource[] = [];
@@ -1927,8 +1926,9 @@ export class Repository implements Disposable {
 		if (HEAD !== undefined) {
 			const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 			const showActionButton = config.get<string>('showUnpublishedCommitsButton', 'whenEmpty');
+			const postCommitCommand = config.get<string>('postCommitCommand');
 
-			if (showActionButton === 'always' || (showActionButton === 'whenEmpty' && workingTree.length === 0 && index.length === 0 && untracked.length === 0 && merge.length === 0)) {
+			if (showActionButton === 'always' || (showActionButton === 'whenEmpty' && workingTree.length === 0 && index.length === 0 && untracked.length === 0 && merge.length === 0 && postCommitCommand !== 'sync' && postCommitCommand !== 'push')) {
 				if (HEAD.name && HEAD.commit) {
 					if (HEAD.upstream) {
 						if (HEAD.ahead) {
@@ -1936,7 +1936,7 @@ export class Repository implements Disposable {
 
 							actionButton = {
 								command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
-								title: localize('scm button sync title', ' Sync Changes $(sync){0}{1}', HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
+								title: localize('scm button sync title', '$(sync) Sync Changes {0}{1}', HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
 								tooltip: this.syncTooltip,
 								arguments: [this._sourceControl],
 							};
@@ -1944,8 +1944,8 @@ export class Repository implements Disposable {
 					} else {
 						actionButton = {
 							command: 'git.publish',
-							title: localize('scm button publish title', "$(cloud-upload) Publish Changes"),
-							tooltip: localize('scm button publish tooltip', "Publish Changes"),
+							title: localize('scm button publish title', "$(cloud-upload) Publish Branch"),
+							tooltip: localize('scm button publish tooltip', "Publish Branch"),
 							arguments: [this._sourceControl],
 						};
 					}
@@ -1962,9 +1962,6 @@ export class Repository implements Disposable {
 
 		// set count badge
 		this.setCountBadge();
-
-		// Update context key with changed resources
-		commands.executeCommand('setContext', 'git.changedResources', [...merge, ...index, ...workingTree, ...untracked].map(r => r.resourceUri.fsPath.toString()));
 
 		this._onDidChangeStatus.fire();
 

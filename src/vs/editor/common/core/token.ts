@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IState } from 'vs/editor/common/modes';
+import { IState } from 'vs/editor/common/languages';
 
 export class Token {
 	_tokenBrand: void = undefined;
@@ -13,7 +13,7 @@ export class Token {
 	public readonly language: string;
 
 	constructor(offset: number, type: string, language: string) {
-		this.offset = offset | 0;// @perf
+		this.offset = offset;
 		this.type = type;
 		this.language = language;
 	}
@@ -35,8 +35,8 @@ export class TokenizationResult {
 	}
 }
 
-export class TokenizationResult2 {
-	_tokenizationResult2Brand: void = undefined;
+export class EncodedTokenizationResult {
+	_encodedTokenizationResultBrand: void = undefined;
 
 	/**
 	 * The tokens in binary format. Each token occupies two array indices. For token i:

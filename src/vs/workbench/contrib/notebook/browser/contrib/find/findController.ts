@@ -117,8 +117,11 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		const { cell, match } = this._findModel.getCurrentMatch();
 		this._progressBar.infinite().show();
 
+		const replacePattern = this.replacePattern;
+		const replaceString = replacePattern.buildReplaceString(match.matches, this._state.preserveCase);
+
 		const viewModel = this._notebookEditor._getViewModel();
-		viewModel.replaceOne(cell, match.range, this.replaceValue).then(() => {
+		viewModel.replaceOne(cell, match.range, replaceString).then(() => {
 			this._progressBar.stop();
 		});
 	}
@@ -130,8 +133,20 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 
 		this._progressBar.infinite().show();
 
+		const replacePattern = this.replacePattern;
+
+		const cellFindMatches = this._findModel.findMatches;
+		const replaceStrings: string[] = [];
+		cellFindMatches.forEach(cellFindMatch => {
+			const findMatches = cellFindMatch.matches;
+			findMatches.forEach(findMatch => {
+				const matches = findMatch.matches;
+				replaceStrings.push(replacePattern.buildReplaceString(matches, this._state.preserveCase));
+			});
+		});
+
 		const viewModel = this._notebookEditor._getViewModel();
-		viewModel.replaceAll(this._findModel.findMatches, this.replaceValue).then(() => {
+		viewModel.replaceAll(this._findModel.findMatches, replaceStrings).then(() => {
 			this._progressBar.stop();
 		});
 	}
@@ -256,7 +271,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			if (this._state.matchesCount >= MATCHES_LIMIT) {
 				matchesCount += '+';
 			}
-			let matchesPosition: string = this._findModel.currentMatch < 0 ? '?' : String((this._findModel.currentMatch + 1));
+			const matchesPosition: string = this._findModel.currentMatch < 0 ? '?' : String((this._findModel.currentMatch + 1));
 			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
 		} else {
 			label = NLS_NO_RESULTS;
@@ -322,7 +337,7 @@ registerAction2(class extends Action2 {
 			title: { value: localize('notebookActions.findInNotebook', "Find in Notebook"), original: 'Find in Notebook' },
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, EditorContextKeys.focus.toNegated()),
-				primary: KeyCode.KEY_F | KeyMod.CtrlCmd,
+				primary: KeyCode.KeyF | KeyMod.CtrlCmd,
 				weight: KeybindingWeight.WorkbenchContrib
 			}
 		});

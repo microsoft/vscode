@@ -8,9 +8,16 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ExtensionEditorTab, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { join } from 'vs/base/common/path';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+
+export interface IExtensionEditorOptions extends IEditorOptions {
+	showPreReleaseVersion?: boolean;
+	tab?: ExtensionEditorTab;
+	sideByside?: boolean;
+}
 
 export class ExtensionsInput extends EditorInput {
 
@@ -31,16 +38,8 @@ export class ExtensionsInput extends EditorInput {
 		});
 	}
 
-	constructor(
-		private _extension: IExtension,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
-	) {
+	constructor(private _extension: IExtension) {
 		super();
-		this._register(extensionsWorkbenchService.onChange(extension => {
-			if (extension && areSameExtensions(this._extension.identifier, extension.identifier)) {
-				this._extension = extension;
-			}
-		}));
 	}
 
 	get extension(): IExtension { return this._extension; }

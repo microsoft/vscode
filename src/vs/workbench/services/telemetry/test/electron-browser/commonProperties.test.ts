@@ -64,14 +64,13 @@ suite('Telemetry - common properties', function () {
 		assert.ok('common.lastSessionDate' in props, 'lastSessionDate'); // conditional, see below, 'lastSessionDate'ow
 		assert.ok('common.isNewSession' in props, 'isNewSession');
 		// machine id et al
-		assert.ok('common.instanceId' in props, 'instanceId');
 		assert.ok('common.machineId' in props, 'machineId');
 		fs.unlinkSync(installSource);
 		const props_1 = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), hostname(), commit, version, 'someMachineId', undefined, installSource);
 		assert.ok(!('common.source' in props_1));
 	});
 
-	test('lastSessionDate when aviablale', async function () {
+	test('lastSessionDate when available', async function () {
 
 		testStorageService.store('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.GLOBAL, StorageTarget.MACHINE);
 

@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { bufferToStream, newWriteableBufferStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { basename } from 'vs/base/common/resources';
@@ -92,6 +92,7 @@ suite('StoredFileWorkingCopy', function () {
 
 	const factory = new TestStoredFileWorkingCopyModelFactory();
 
+	let disposables: DisposableStore;
 	let resource = URI.file('test/resource');
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
@@ -102,7 +103,8 @@ suite('StoredFileWorkingCopy', function () {
 	}
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		workingCopy = createWorkingCopy();
@@ -110,6 +112,7 @@ suite('StoredFileWorkingCopy', function () {
 
 	teardown(() => {
 		workingCopy.dispose();
+		disposables.dispose();
 	});
 
 	test('registers with working copy service', async () => {
@@ -599,6 +602,22 @@ suite('StoredFileWorkingCopy', function () {
 		}
 
 		assert.ok(error);
+	});
+
+	test('save - returns false when save fails', async function () {
+		await workingCopy.resolve();
+
+		try {
+			accessor.fileService.writeShouldThrowError = new FileOperationError('write error', FileOperationResult.FILE_PERMISSION_DENIED);
+
+			const res = await workingCopy.save({ force: true });
+			assert.strictEqual(res, false);
+		} finally {
+			accessor.fileService.writeShouldThrowError = undefined;
+		}
+
+		const res = await workingCopy.save({ force: true });
+		assert.strictEqual(res, true);
 	});
 
 	test('save participant', async () => {

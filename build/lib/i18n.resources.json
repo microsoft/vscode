@@ -335,7 +335,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/mode",
+			"name": "vs/workbench/services/language",
 			"project": "vscode-workbench"
 		},
 		{

@@ -27,15 +27,14 @@ const MAX_SHELL_RESOLVE_TIME = 10000;
 let unixShellEnvPromise: Promise<typeof process.env> | undefined = undefined;
 
 /**
- * We need to get the environment from a user's shell.
- * This should only be done when Code itself is not launched
- * from within a shell.
+ * Resolves the shell environment by spawning a shell. This call will cache
+ * the shell spawning so that subsequent invocations use that cached result.
  *
  * Will throw an error if:
  * - we hit a timeout of `MAX_SHELL_RESOLVE_TIME`
  * - any other error from spawning a shell to figure out the environment
  */
-export async function resolveShellEnv(logService: ILogService, args: NativeParsedArgs, env: IProcessEnvironment): Promise<typeof process.env> {
+export async function getResolvedShellEnv(logService: ILogService, args: NativeParsedArgs, env: IProcessEnvironment): Promise<typeof process.env> {
 
 	// Skip if --force-disable-user-env
 	if (args['force-disable-user-env']) {
@@ -127,14 +126,20 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 		// handle popular non-POSIX shells
 		const name = basename(systemShellUnix);
 		let command: string, shellArgs: Array<string>;
+		const extraArgs = (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '';
 		if (/^pwsh(-preview)?$/.test(name)) {
 			// Older versions of PowerShell removes double quotes sometimes so we use "double single quotes" which is how
 			// you escape single quotes inside of a single quoted string.
-			command = `& '${process.execPath}' -p '''${mark}'' + JSON.stringify(process.env) + ''${mark}'''`;
+			command = `& '${process.execPath}' ${extraArgs} -p '''${mark}'' + JSON.stringify(process.env) + ''${mark}'''`;
 			shellArgs = ['-Login', '-Command'];
 		} else {
-			command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
-			shellArgs = ['-ilc'];
+			command = `'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
+
+			if (name === 'tcsh') {
+				shellArgs = ['-ic'];
+			} else {
+				shellArgs = ['-ilc'];
+			}
 		}
 
 		logService.trace('getUnixShellEnvironment#spawn', JSON.stringify(shellArgs), command);

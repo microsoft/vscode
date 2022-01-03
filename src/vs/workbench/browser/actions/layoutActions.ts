@@ -59,11 +59,15 @@ export class ToggleActivityBarVisibilityAction extends Action2 {
 			category: CATEGORIES.View,
 			f1: true,
 			toggled: ContextKeyExpr.equals('config.workbench.activityBar.visible', true),
-			menu: {
+			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '2_workbench_layout',
 				order: 4
-			}
+			}, {
+					id: MenuId.LayoutControlMenu,
+					group: '0_workbench_layout',
+					order: 3
+				}]
 		});
 	}
 
@@ -95,11 +99,15 @@ registerAction2(class extends Action2 {
 			category: CATEGORIES.View,
 			f1: true,
 			toggled: IsCenteredLayoutContext,
-			menu: {
+			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
 				order: 3
-			}
+			}, {
+					id: MenuId.LayoutControlMenu,
+					group: '1_toggle_view',
+					order: 3
+				}]
 		});
 	}
 
@@ -201,11 +209,31 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	order: 2
 });
 
+MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
+	group: '3_workbench_layout_move',
+	command: {
+		id: ToggleSidebarPositionAction.ID,
+		title: localize({ key: 'miMoveSidebarRightNoMnemonic', comment: ['&& denotes a mnemonic'] }, "Move Side Bar Right")
+	},
+	when: ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'),
+	order: 2
+});
+
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '3_workbench_layout_move',
 	command: {
 		id: ToggleSidebarPositionAction.ID,
 		title: localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left")
+	},
+	when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
+	group: '3_workbench_layout_move',
+	command: {
+		id: ToggleSidebarPositionAction.ID,
+		title: localize({ key: 'miMoveSidebarLeftNoMnemonic', comment: ['&& denotes a mnemonic'] }, "Move Side Bar Left")
 	},
 	when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
 	order: 2
@@ -226,11 +254,11 @@ registerAction2(class extends Action2 {
 			category: CATEGORIES.View,
 			f1: true,
 			toggled: EditorAreaVisibleContext,
-			menu: {
+			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '2_workbench_layout',
 				order: 5
-			}
+			}]
 		});
 	}
 
@@ -260,7 +288,7 @@ class ToggleSidebarVisibilityAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_B
+				primary: KeyMod.CtrlCmd | KeyCode.KeyB
 			}
 		});
 	}
@@ -274,40 +302,53 @@ class ToggleSidebarVisibilityAction extends Action2 {
 
 registerAction2(ToggleSidebarVisibilityAction);
 
-MenuRegistry.appendMenuItems([{
-	id: MenuId.ViewContainerTitleContext,
-	item: {
-		group: '3_workbench_layout_move',
-		command: {
-			id: ToggleSidebarVisibilityAction.ID,
-			title: localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
-		},
-		when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-		order: 2
+MenuRegistry.appendMenuItems([
+	{
+		id: MenuId.ViewContainerTitleContext,
+		item: {
+			group: '3_workbench_layout_move',
+			command: {
+				id: ToggleSidebarVisibilityAction.ID,
+				title: localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+			},
+			when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
+			order: 2
+		}
+	}, {
+		id: MenuId.ViewTitleContext,
+		item: {
+			group: '3_workbench_layout_move',
+			command: {
+				id: ToggleSidebarVisibilityAction.ID,
+				title: localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+			},
+			when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
+			order: 2
+		}
+	}, {
+		id: MenuId.MenubarAppearanceMenu,
+		item: {
+			group: '2_workbench_layout',
+			command: {
+				id: ToggleSidebarVisibilityAction.ID,
+				title: localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "Show &&Side Bar"),
+				toggled: SideBarVisibleContext
+			},
+			order: 1
+		}
+	}, {
+		id: MenuId.LayoutControlMenu,
+		item: {
+			group: '0_workbench_layout',
+			command: {
+				id: ToggleSidebarVisibilityAction.ID,
+				title: localize('miShowSidebarNoMnnemonic', "Show Side Bar"),
+				toggled: SideBarVisibleContext
+			},
+			order: 0
+		}
 	}
-}, {
-	id: MenuId.ViewTitleContext,
-	item: {
-		group: '3_workbench_layout_move',
-		command: {
-			id: ToggleSidebarVisibilityAction.ID,
-			title: localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
-		},
-		when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-		order: 2
-	}
-}, {
-	id: MenuId.MenubarAppearanceMenu,
-	item: {
-		group: '2_workbench_layout',
-		command: {
-			id: ToggleSidebarVisibilityAction.ID,
-			title: localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "Show &&Side Bar"),
-			toggled: SideBarVisibleContext
-		},
-		order: 1
-	}
-}]);
+]);
 
 // --- Toggle Statusbar Visibility
 
@@ -328,11 +369,15 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 			category: CATEGORIES.View,
 			f1: true,
 			toggled: ContextKeyExpr.equals('config.workbench.statusBar.visible', true),
-			menu: {
+			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '2_workbench_layout',
 				order: 3
-			}
+			}, {
+					id: MenuId.LayoutControlMenu,
+					group: '0_workbench_layout',
+					order: 1
+				}]
 		});
 	}
 
@@ -365,8 +410,8 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: undefined,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, }
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyW, },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyW, }
 			}
 		});
 	}
@@ -397,7 +442,7 @@ registerAction2(class extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_Z)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyZ)
 			},
 			toggled: InEditorZenModeContext,
 			menu: {

@@ -5,13 +5,23 @@
 
 import * as assert from 'assert';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('Notebook Folding', () => {
-	const instantiationService = setupInstantiationService();
-	instantiationService.spy(IUndoRedoService, 'pushElement');
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+
+	suiteSetup(() => {
+		disposables = new DisposableStore();
+		instantiationService = setupInstantiationService(disposables);
+		instantiationService.spy(IUndoRedoService, 'pushElement');
+	});
+
+	suiteTeardown(() => disposables.dispose());
 
 	test('Folding based on markdown cells', async function () {
 		await withTestNotebook(

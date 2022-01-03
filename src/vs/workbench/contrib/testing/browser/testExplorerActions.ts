@@ -7,7 +7,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
@@ -360,7 +361,7 @@ export class RunAllAction extends RunOrDebugAllTestsAction {
 				icon: icons.testingRunAllIcon,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_A),
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyA),
 				},
 			},
 			TestRunProfileBitset.Run,
@@ -379,7 +380,7 @@ export class DebugAllAction extends RunOrDebugAllTestsAction {
 				icon: icons.testingDebugIcon,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_A),
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyA),
 				},
 			},
 			TestRunProfileBitset.Debug,
@@ -397,7 +398,7 @@ export class CancelTestRunAction extends Action2 {
 			icon: icons.testingCancelIcon,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_X),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyX),
 			},
 			menu: {
 				id: MenuId.ViewTitle,
@@ -561,7 +562,7 @@ export class ShowMostRecentOutputAction extends Action2 {
 			icon: Codicon.terminal,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_O),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyO),
 			},
 			precondition: TestingContextKeys.hasAnyResults.isEqualTo(true),
 			menu: [{
@@ -733,31 +734,48 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		const profileService = accessor.get(ITestProfileService);
 
 		let bestNodes: InternalTestItem[] = [];
-		let bestRange: IRange | undefined;
+		let bestRange: Range | undefined;
+
+		let bestNodesBefore: InternalTestItem[] = [];
+		let bestRangeBefore: Range | undefined;
 
 		// testsInFile will descend in the test tree. We assume that as we go
 		// deeper, ranges get more specific. We'll want to run all tests whose
 		// range is equal to the most specific range we find (see #133519)
+		//
+		// If we don't find any test whose range contains the position, we pick
+		// the closest one before the position. Again, if we find several tests
+		// whose range is equal to the closest one, we run them all.
 		await showDiscoveringWhile(accessor.get(IProgressService), (async () => {
 			for await (const test of testsInFile(testService.collection, model.uri)) {
-				if (!test.item.range || !Range.containsPosition(test.item.range, position) || !(profileService.capabilitiesForTest(test) & this.group)) {
+				if (!test.item.range || !(profileService.capabilitiesForTest(test) & this.group)) {
 					continue;
 				}
 
-				if (bestRange && Range.equalsRange(test.item.range, bestRange)) {
-					bestNodes.push(test);
-				} else {
-					bestRange = test.item.range;
-					bestNodes = [test];
+				const irange = Range.lift(test.item.range);
+				if (irange.containsPosition(position)) {
+					if (bestRange && Range.equalsRange(test.item.range, bestRange)) {
+						bestNodes.push(test);
+					} else {
+						bestRange = irange;
+						bestNodes = [test];
+					}
+				} else if (Position.isBefore(irange.getStartPosition(), position)) {
+					if (!bestRangeBefore || bestRangeBefore.getStartPosition().isBefore(irange.getStartPosition())) {
+						bestRangeBefore = irange;
+						bestNodesBefore = [test];
+					} else if (irange.equalsRange(bestRangeBefore)) {
+						bestNodesBefore.push(test);
+					}
 				}
 			}
 		})());
 
-
-		if (bestNodes.length) {
+		const testsToRun = bestNodes.length ? bestNodes : bestNodesBefore;
+		if (testsToRun.length) {
 			await testService.runTests({
 				group: this.group,
-				tests: bestNodes,
+				tests: bestNodes.length ? bestNodes : bestNodesBefore,
 			});
 		}
 	}
@@ -773,7 +791,7 @@ export class RunAtCursor extends ExecuteTestAtCursor {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_C),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyC),
 			},
 		}, TestRunProfileBitset.Run);
 	}
@@ -789,7 +807,7 @@ export class DebugAtCursor extends ExecuteTestAtCursor {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_C),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyC),
 			},
 		}, TestRunProfileBitset.Debug);
 	}
@@ -818,15 +836,28 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 		}
 
 		const testService = accessor.get(ITestService);
-
 		const demandedUri = model.uri.toString();
-		for (const test of testService.collection.all) {
-			if (test.item.uri?.toString() === demandedUri) {
-				return testService.runTests({
-					tests: [test],
-					group: this.group,
-				});
+
+		// Iterate through the entire collection and run any tests that are in the
+		// uri. See #138007.
+		const queue = [testService.collection.rootIds];
+		const discovered: InternalTestItem[] = [];
+		while (queue.length) {
+			for (const id of queue.pop()!) {
+				const node = testService.collection.getNodeById(id)!;
+				if (node.item.uri?.toString() === demandedUri) {
+					discovered.push(node);
+				} else {
+					queue.push(node.children);
+				}
 			}
+		}
+
+		if (discovered.length) {
+			return testService.runTests({
+				tests: discovered,
+				group: this.group,
+			});
 		}
 
 		return undefined;
@@ -844,7 +875,7 @@ export class RunCurrentFile extends ExecuteTestsInCurrentFile {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_F),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyF),
 			},
 		}, TestRunProfileBitset.Run);
 	}
@@ -861,7 +892,7 @@ export class DebugCurrentFile extends ExecuteTestsInCurrentFile {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_F),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyF),
 			},
 		}, TestRunProfileBitset.Debug);
 	}
@@ -969,7 +1000,7 @@ export class ReRunFailedTests extends RunOrDebugFailedTests {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_E),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyE),
 			},
 		});
 	}
@@ -991,7 +1022,7 @@ export class DebugFailedTests extends RunOrDebugFailedTests {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_E),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyE),
 			},
 		});
 	}
@@ -1013,7 +1044,7 @@ export class ReRunLastRun extends RunOrDebugLastRun {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_L),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyL),
 			},
 		});
 	}
@@ -1035,7 +1066,7 @@ export class DebugLastRun extends RunOrDebugLastRun {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_L),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyL),
 			},
 		});
 	}
@@ -1074,7 +1105,7 @@ export class OpenOutputPeek extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_M),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyM),
 			},
 			menu: {
 				id: MenuId.CommandPalette,
@@ -1097,7 +1128,7 @@ export class ToggleInlineTestOutput extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_I),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyI),
 			},
 			menu: {
 				id: MenuId.CommandPalette,

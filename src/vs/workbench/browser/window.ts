@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpenerWithSuccess, windowOpenNoOpener } from 'vs/base/browser/dom';
+import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
@@ -17,7 +17,6 @@ import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -32,7 +31,6 @@ export class BrowserWindow extends Disposable {
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILogService private readonly logService: ILogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
@@ -49,9 +47,10 @@ export class BrowserWindow extends Disposable {
 		// Layout
 		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
 		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
-			this.onWindowResize();
+			this.layoutService.layout();
+
+			// Sometimes the keyboard appearing scrolls the whole workbench out of view, as a workaround scroll back into view #121206
 			if (isIOS) {
-				// Sometimes the keyboard appearing scrolls the whole workbench out of view, as a workaround scroll back into view #121206
 				window.scrollTo(0, 0);
 			}
 		}));
@@ -74,11 +73,6 @@ export class BrowserWindow extends Disposable {
 		this._register(addDisposableThrottledListener(viewport, EventType.RESIZE, () => {
 			setFullscreen(!!detectFullscreen());
 		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
-	}
-
-	private onWindowResize(): void {
-		this.logService.trace(`web.main#${isIOS && window.visualViewport ? 'visualViewport' : 'window'}Resize`);
-		this.layoutService.layout();
 	}
 
 	private onWillShutdown(): void {
@@ -141,16 +135,20 @@ export class BrowserWindow extends Disposable {
 		// will trigger the `beforeunload`.
 		this.openerService.setDefaultExternalOpener({
 			openExternal: async (href: string) => {
-				if (this.environmentService.options?.externalURLOpener) {
-					if (await this.environmentService.options?.externalURLOpener.openExternal(href)) {
-						return true;
+				let isAllowedOpener = false;
+				if (this.environmentService.options?.openerAllowedExternalUrlPrefixes) {
+					for (const trustedPopupPrefix of this.environmentService.options.openerAllowedExternalUrlPrefixes) {
+						if (href.startsWith(trustedPopupPrefix)) {
+							isAllowedOpener = true;
+							break;
+						}
 					}
 				}
 
 				// HTTP(s): open in new window and deal with potential popup blockers
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
 					if (isSafari) {
-						const opened = windowOpenNoOpenerWithSuccess(href);
+						const opened = windowOpenWithSuccess(href, !isAllowedOpener);
 						if (!opened) {
 							const showResult = await this.dialogService.show(
 								Severity.Warning,
@@ -167,7 +165,9 @@ export class BrowserWindow extends Disposable {
 							);
 
 							if (showResult.choice === 0) {
-								windowOpenNoOpener(href);
+								isAllowedOpener
+									? windowOpenPopup(href)
+									: windowOpenNoOpener(href);
 							}
 
 							if (showResult.choice === 1) {
@@ -175,7 +175,9 @@ export class BrowserWindow extends Disposable {
 							}
 						}
 					} else {
-						windowOpenNoOpener(href);
+						isAllowedOpener
+							? windowOpenPopup(href)
+							: windowOpenNoOpener(href);
 					}
 				}
 

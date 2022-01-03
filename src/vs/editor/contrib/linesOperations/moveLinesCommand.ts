@@ -10,9 +10,9 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompleteEnterAction, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
-import { IIndentConverter, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
+import { CompleteEnterAction, IndentAction } from 'vs/editor/common/languages/languageConfiguration';
+import { IIndentConverter, LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
 import * as indentUtils from 'vs/editor/contrib/indentation/indentUtils';
 
 export class MoveLinesCommand implements ICommand {
@@ -60,8 +60,8 @@ export class MoveLinesCommand implements ICommand {
 			getLineTokens: (lineNumber: number) => {
 				return model.getLineTokens(lineNumber);
 			},
-			getLanguageIdentifier: () => {
-				return model.getLanguageIdentifier();
+			getLanguageId: () => {
+				return model.getLanguageId();
 			},
 			getLanguageIdAtPosition: (lineNumber: number, column: number) => {
 				return model.getLanguageIdAtPosition(lineNumber, column);

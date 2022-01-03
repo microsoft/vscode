@@ -6,15 +6,15 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITextModel, ISingleEditOperation } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
 import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto, IdentifiableInlineCompletions, IdentifiableInlineCompletion, ITypeHierarchyItemDto } from '../common/extHost.protocol';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageConfigurationService, LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -28,40 +28,41 @@ import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticToken
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
 
 	private readonly _proxy: ExtHostLanguageFeaturesShape;
-	private readonly _modeService: IModeService;
+	private readonly _languageService: ILanguageService;
 	private readonly _registrations = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageFeatures);
-		this._modeService = modeService;
+		this._languageService = languageService;
 
-		if (this._modeService) {
+		if (this._languageService) {
 			const updateAllWordDefinitions = () => {
-				const langWordPairs = LanguageConfigurationRegistry.getWordDefinitions();
 				let wordDefinitionDtos: ILanguageWordDefinitionDto[] = [];
-				for (const [languageId, wordDefinition] of langWordPairs) {
-					const language = this._modeService.getLanguageIdentifier(languageId);
-					if (!language) {
-						continue;
-					}
+				for (const languageId of languageService.getRegisteredLanguageIds()) {
+					const wordDefinition = languageConfigurationService.getLanguageConfiguration(languageId).getWordDefinition();
 					wordDefinitionDtos.push({
-						languageId: language.language,
+						languageId: languageId,
 						regexSource: wordDefinition.source,
 						regexFlags: wordDefinition.flags
 					});
 				}
 				this._proxy.$setWordDefinitions(wordDefinitionDtos);
 			};
-			LanguageConfigurationRegistry.onDidChange((e) => {
-				const wordDefinition = LanguageConfigurationRegistry.getWordDefinition(e.languageIdentifier.id);
-				this._proxy.$setWordDefinitions([{
-					languageId: e.languageIdentifier.language,
-					regexSource: wordDefinition.source,
-					regexFlags: wordDefinition.flags
-				}]);
+			languageConfigurationService.onDidChange((e) => {
+				if (!e.languageId) {
+					updateAllWordDefinitions();
+				} else {
+					const wordDefinition = languageConfigurationService.getLanguageConfiguration(e.languageId).getWordDefinition();
+					this._proxy.$setWordDefinitions([{
+						languageId: e.languageId,
+						regexSource: wordDefinition.source,
+						regexFlags: wordDefinition.flags
+					}]);
+				}
 			});
 			updateAllWordDefinitions();
 		}
@@ -388,27 +389,26 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- navigate type
 
-	$registerNavigateTypeSupport(handle: number): void {
+	$registerNavigateTypeSupport(handle: number, supportsResolve: boolean): void {
 		let lastResultId: number | undefined;
-		this._registrations.set(handle, search.WorkspaceSymbolProviderRegistry.register(<search.IWorkspaceSymbolProvider>{
-			provideWorkspaceSymbols: (search: string, token: CancellationToken): Promise<search.IWorkspaceSymbol[]> => {
-				return this._proxy.$provideWorkspaceSymbols(handle, search, token).then(result => {
-					if (lastResultId !== undefined) {
-						this._proxy.$releaseWorkspaceSymbols(handle, lastResultId);
-					}
-					lastResultId = result._id;
-					return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(result.symbols);
-				});
-			},
-			resolveWorkspaceSymbol: (item: search.IWorkspaceSymbol, token: CancellationToken): Promise<search.IWorkspaceSymbol | undefined> => {
-				return this._proxy.$resolveWorkspaceSymbol(handle, item, token).then(i => {
-					if (i) {
-						return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(i);
-					}
-					return undefined;
-				});
+
+		const provider: search.IWorkspaceSymbolProvider = {
+			provideWorkspaceSymbols: async (search: string, token: CancellationToken): Promise<search.IWorkspaceSymbol[]> => {
+				const result = await this._proxy.$provideWorkspaceSymbols(handle, search, token);
+				if (lastResultId !== undefined) {
+					this._proxy.$releaseWorkspaceSymbols(handle, lastResultId);
+				}
+				lastResultId = result._id;
+				return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(result.symbols);
 			}
-		}));
+		};
+		if (supportsResolve) {
+			provider.resolveWorkspaceSymbol = async (item: search.IWorkspaceSymbol, token: CancellationToken): Promise<search.IWorkspaceSymbol | undefined> => {
+				const resolvedItem = await this._proxy.$resolveWorkspaceSymbol(handle, item, token);
+				return resolvedItem && MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(resolvedItem);
+			};
+		}
+		this._registrations.set(handle, search.WorkspaceSymbolProviderRegistry.register(provider));
 	}
 
 	// --- rename
@@ -683,7 +683,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 			prepareCallHierarchy: async (document, position, token) => {
 				const items = await this._proxy.$prepareCallHierarchy(handle, document.uri, position, token);
-				if (!items) {
+				if (!items || items.length === 0) {
 					return undefined;
 				}
 				return {
@@ -775,9 +775,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			};
 		}
 
-		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
-		if (languageIdentifier) {
-			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageIdentifier, configuration, 100));
+		if (this._languageService.isRegisteredLanguageId(languageId)) {
+			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageId, configuration, 100));
 		}
 	}
 

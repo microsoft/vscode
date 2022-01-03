@@ -12,14 +12,12 @@ import { setProperty } from 'vs/base/common/jsonEdit';
 import { Constants } from 'vs/base/common/uint';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { InlineValueContext, InlineValuesProviderRegistry, StandardTokenType } from 'vs/editor/common/modes';
+import { InlineValueContext, InlineValuesProviderRegistry, StandardTokenType } from 'vs/editor/common/languages';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { distinct, flatten } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -33,7 +31,7 @@ import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { memoize } from 'vs/base/common/decorators';
 import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
-import { ITextModel } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { basename } from 'vs/base/common/path';
@@ -41,16 +39,14 @@ import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Event } from 'vs/base/common/event';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 
 const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
-const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
 const MAX_TOKENIZATION_LINE_LEN = 500; // If line is too long, then inline values for the line are skipped
@@ -72,10 +68,10 @@ class InlineSegment {
 	}
 }
 
-function createInlineValueDecoration(lineNumber: number, contentText: string, column = Constants.MAX_SAFE_SMALL_INTEGER): IDecorationOptions {
+function createInlineValueDecoration(lineNumber: number, contentText: string, column = Constants.MAX_SAFE_SMALL_INTEGER): IModelDeltaDecoration {
 	// If decoratorText is too long, trim and add ellipses. This could happen for minified files with everything on a single line
 	if (contentText.length > MAX_INLINE_DECORATOR_LENGTH) {
-		contentText = contentText.substr(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
+		contentText = contentText.substring(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
 	}
 
 	return {
@@ -85,20 +81,25 @@ function createInlineValueDecoration(lineNumber: number, contentText: string, co
 			startColumn: column,
 			endColumn: column
 		},
-		renderOptions: {
+		options: {
+			description: 'debug-inline-value-decoration',
 			after: {
-				contentText,
-				backgroundColor: themeColorFromId(debugInlineBackground),
-				margin: '10px',
-				color: themeColorFromId(debugInlineForeground)
-			}
+				content: replaceWsWithNoBreakWs(contentText),
+				inlineClassName: 'debug-inline-value',
+				inlineClassNameAffectsLetterSpacing: true,
+			},
+			showIfCollapsed: true
 		}
 	};
 }
 
-function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, range: Range, model: ITextModel, wordToLineNumbersMap: Map<string, number[]>): IDecorationOptions[] {
+function replaceWsWithNoBreakWs(str: string): string {
+	return str.replace(/[ \t]/g, strings.noBreakWhitespace);
+}
+
+function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, range: Range, model: ITextModel, wordToLineNumbersMap: Map<string, number[]>): IModelDeltaDecoration[] {
 	const nameValueMap = new Map<string, string>();
-	for (let expr of expressions) {
+	for (const expr of expressions) {
 		nameValueMap.set(expr.name, expr.value);
 		// Limit the size of map. Too large can have a perf impact
 		if (nameValueMap.size >= MAX_NUM_INLINE_VALUES) {
@@ -112,7 +113,7 @@ function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExp
 	nameValueMap.forEach((_value, name) => {
 		const lineNumbers = wordToLineNumbersMap.get(name);
 		if (lineNumbers) {
-			for (let lineNumber of lineNumbers) {
+			for (const lineNumber of lineNumbers) {
 				if (range.containsPosition(new Position(lineNumber, 0))) {
 					if (!lineToNamesMap.has(lineNumber)) {
 						lineToNamesMap.set(lineNumber, []);
@@ -126,7 +127,7 @@ function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExp
 		}
 	});
 
-	const decorations: IDecorationOptions[] = [];
+	const decorations: IModelDeltaDecoration[] = [];
 	// Compute decorators for each line
 	lineToNamesMap.forEach((names, line) => {
 		const contentText = names.sort((first, second) => {
@@ -196,13 +197,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private configurationWidget: FloatingClickWidget | undefined;
 	private altListener: IDisposable | undefined;
 	private altPressed = false;
+	private oldDecorations: string[] = [];
 
 	constructor(
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHostService private readonly hostService: IHostService,
@@ -213,7 +214,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose = [];
 		this.registerListeners();
 		this.updateConfigurationWidgetVisibility();
-		this.codeEditorService.registerDecorationType('debug-inline-value-decoration', INLINE_VALUE_DECORATION_KEY, {});
 		this.exceptionWidgetVisible = CONTEXT_EXCEPTION_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.toggleExceptionWidget();
 	}
@@ -295,7 +295,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					if (debugHoverWasVisible && this.hoverRange) {
 						// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
 						const hoverController = this.editor.getContribution<ModesHoverController>(ModesHoverController.ID);
-						hoverController.showContentHover(this.hoverRange, HoverStartMode.Immediate, false);
+						hoverController?.showContentHover(this.hoverRange, HoverStartMode.Immediate, false);
 					}
 
 					const onKeyUp = new DomEmitter(document, 'keyup');
@@ -324,9 +324,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private enableEditorHover(): void {
 		if (this.editor.hasModel()) {
 			const model = this.editor.getModel();
-			let overrides = {
+			const overrides = {
 				resource: model.uri,
-				overrideIdentifier: model.getLanguageIdentifier().language
+				overrideIdentifier: model.getLanguageId()
 			};
 			const defaultConfiguration = this.configurationService.getValue<IEditorHoverOptions>('editor.hover', overrides);
 			this.editor.updateOptions({
@@ -575,7 +575,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	@memoize
 	private get removeInlineValuesScheduler(): RunOnceScheduler {
 		return new RunOnceScheduler(
-			() => this.editor.removeDecorations(INLINE_VALUE_DECORATION_KEY),
+			() => {
+				this.oldDecorations = this.editor.deltaDecorations(this.oldDecorations, []);
+			},
 			100
 		);
 	}
@@ -605,14 +607,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.removeInlineValuesScheduler.cancel();
 
-		let allDecorations: IDecorationOptions[];
+		let allDecorations: IModelDeltaDecoration[];
 
 		if (InlineValuesProviderRegistry.has(model)) {
 
 			const findVariable = async (_key: string, caseSensitiveLookup: boolean): Promise<string | undefined> => {
 				const scopes = await stackFrame.getMostSpecificScopes(stackFrame.range);
 				const key = caseSensitiveLookup ? _key : _key.toLowerCase();
-				for (let scope of scopes) {
+				for (const scope of scopes) {
 					const variables = await scope.getChildren();
 					const found = variables.find(v => caseSensitiveLookup ? (v.name === key) : (v.name.toLowerCase() === key));
 					if (found) {
@@ -636,14 +638,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 			const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlineValues(model, range, ctx, token)).then(async (result) => {
 				if (result) {
-					for (let iv of result) {
+					for (const iv of result) {
 
 						let text: string | undefined = undefined;
 						switch (iv.type) {
 							case 'text':
 								text = iv.text;
 								break;
-							case 'variable':
+							case 'variable': {
 								let va = iv.variableName;
 								if (!va) {
 									const lineContent = model.getLineContent(iv.range.startLineNumber);
@@ -654,7 +656,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 									text = strings.format(var_value_format, va, value);
 								}
 								break;
-							case 'expression':
+							}
+							case 'expression': {
 								let expr = iv.expression;
 								if (!expr) {
 									const lineContent = model.getLineContent(iv.range.startLineNumber);
@@ -668,6 +671,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 									}
 								}
 								break;
+							}
 						}
 
 						if (text) {
@@ -717,10 +721,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 			allDecorations = distinct(decorationsPerScope.reduce((previous, current) => previous.concat(current), []),
 				// Deduplicate decorations since same variable can appear in multiple scopes, leading to duplicated decorations #129770
-				decoration => `${decoration.range.startLineNumber}:${decoration.renderOptions?.after?.contentText}`);
+				decoration => `${decoration.range.startLineNumber}:${decoration?.options.after?.content}`);
 		}
 
-		this.editor.setDecorations('debug-inline-value-decoration', INLINE_VALUE_DECORATION_KEY, allDecorations);
+		this.oldDecorations = this.editor.deltaDecorations(this.oldDecorations, allDecorations);
 	}
 
 	dispose(): void {
@@ -731,5 +735,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.configurationWidget.dispose();
 		}
 		this.toDispose = dispose(this.toDispose);
+
+		this.oldDecorations = this.editor.deltaDecorations(this.oldDecorations, []);
 	}
 }

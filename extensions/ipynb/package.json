@@ -8,7 +8,10 @@
 	"engines": {
 		"vscode": "^1.57.0"
 	},
-  "enableProposedApi": true,
+	"enabledApiProposals": [
+		"notebookEditor",
+		"notebookEditorEdit"
+	],
 	"activationEvents": [
 		"onNotebook:jupyter-notebook"
 	],
@@ -29,23 +32,23 @@
 			{
 				"id": "jupyter",
 				"aliases": [
-					"Jupyter"
+					"Jupyter (JSON)"
 				],
 				"extensions": [
 					".ipynb"
 				]
 			}
 		],
-    "grammars": [
-      {
-        "language": "jupyter",
-        "scopeName": "source.jupyter",
-        "path": "./syntaxes/jupyter.tmLanguage.json",
-        "embeddedLanguages": {
-          "source.json": "json"
-        }
-      }
-    ],
+		"grammars": [
+			{
+				"language": "jupyter",
+				"scopeName": "source.jupyter",
+				"path": "./syntaxes/jupyter.tmLanguage.json",
+				"embeddedLanguages": {
+					"source.json": "json"
+				}
+			}
+		],
 		"notebooks": [
 			{
 				"type": "jupyter-notebook",
@@ -59,10 +62,10 @@
 			}
 		]
 	},
-  "scripts": {
-    "compile": "npx gulp compile-extension:ipynb",
-    "watch": "npx gulp watch-extension:ipynb"
-  },
+	"scripts": {
+		"compile": "npx gulp compile-extension:ipynb",
+		"watch": "npx gulp watch-extension:ipynb"
+	},
 	"dependencies": {
 		"@enonic/fnv-plus": "^1.3.0",
 		"detect-indent": "^6.0.0",
@@ -72,8 +75,8 @@
 		"@jupyterlab/coreutils": "^3.1.0",
 		"@types/uuid": "^8.3.1"
 	},
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
-  }
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/microsoft/vscode.git"
+	}
 }

@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import 'vs/css!./media/output';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -74,9 +74,9 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 		id: 'workbench.action.output.toggleOutput',
 		mnemonicTitle: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output"),
 		keybindings: {
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_U,
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyU,
 			linux: {
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_H)  // On Ubuntu Ctrl+Shift+U is taken by some global OS command
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyH)  // On Ubuntu Ctrl+Shift+U is taken by some global OS command
 			}
 		},
 		order: 1,

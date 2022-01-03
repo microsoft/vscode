@@ -9,7 +9,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
@@ -211,6 +211,11 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		options.padding = undefined;
 		options.readOnly = true;
 		options.domReadOnly = true;
+		options.unicodeHighlight = {
+			nonBasicASCII: false,
+			invisibleCharacters: false,
+			ambiguousCharacters: false,
+		};
 
 		const outputConfig = this.configurationService.getValue<any>('[Log]');
 		if (outputConfig) {
@@ -271,7 +276,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 
 class SwitchOutputActionViewItem extends SelectActionViewItem {
 
-	private static readonly SEPARATOR = '─────────';
+	private static readonly SEPARATOR = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 
 	private outputChannels: IOutputChannelDescriptor[] = [];
 	private logChannels: IOutputChannelDescriptor[] = [];

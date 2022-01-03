@@ -17,7 +17,7 @@ import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness 
 import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { IntervalNode, IntervalTree } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { WorkspaceTextEdit } from 'vs/editor/common/modes';
+import { WorkspaceTextEdit } from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -35,6 +35,8 @@ import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceCellRanges 
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean; };
+	collapsedInputCells: { [key: number]: boolean; };
+	collapsedOutputCells: { [key: number]: boolean; };
 	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null; };
 	hiddenFoldingRanges?: ICellRange[];
 	cellTotalHeights?: { [key: number]: number; };
@@ -410,7 +412,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	// selection change from list view's `setFocus` and `setSelection` should always use `source: view` to prevent events breaking the list view focus/selection change transaction
 	updateSelectionsState(state: ISelectionState, source: 'view' | 'model' = 'model') {
-		if (this._focused) {
+		if (this._focused || source === 'model') {
 			if (state.kind === SelectionStateType.Handle) {
 				const primaryIndex = state.primary !== null ? this.getCellIndexByHandle(state.primary) : null;
 				const primarySelection = primaryIndex !== null ? this.validateRange({ start: primaryIndex, end: primaryIndex + 1 }) : null;
@@ -750,7 +752,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			result.push(...ret);
 		});
 
-		for (let _handle in deletesByHandle) {
+		for (const _handle in deletesByHandle) {
 			const handle = parseInt(_handle);
 			const ids = deletesByHandle[handle];
 			const cell = this.getCellByHandle(handle);
@@ -775,9 +777,20 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	getEditorViewState(): INotebookEditorViewState {
 		const editingCells: { [key: number]: boolean; } = {};
+		const collapsedInputCells: { [key: number]: boolean; } = {};
+		const collapsedOutputCells: { [key: number]: boolean; } = {};
+
 		this._viewCells.forEach((cell, i) => {
 			if (cell.getEditState() === CellEditState.Editing) {
 				editingCells[i] = true;
+			}
+
+			if (cell.isInputCollapsed) {
+				collapsedInputCells[i] = true;
+			}
+
+			if (cell instanceof CodeCellViewModel && cell.isOutputCollapsed) {
+				collapsedOutputCells[i] = true;
 			}
 		});
 		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState; } = {};
@@ -790,6 +803,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return {
 			editingCells,
 			editorViewStates,
+			collapsedInputCells,
+			collapsedOutputCells
 		};
 	}
 
@@ -805,6 +820,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			cell.updateEditState(isEditing ? CellEditState.Editing : CellEditState.Preview, 'viewState');
 			const cellHeight = viewState.cellTotalHeights ? viewState.cellTotalHeights[index] : undefined;
 			cell.restoreEditorViewState(editorViewState, cellHeight);
+			if (viewState.collapsedInputCells && viewState.collapsedInputCells[index]) {
+				cell.isInputCollapsed = true;
+			}
+			if (viewState.collapsedOutputCells && viewState.collapsedOutputCells[index] && cell instanceof CodeCellViewModel) {
+				cell.isOutputCollapsed = true;
+			}
 		});
 	}
 
@@ -907,7 +928,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		});
 	}
 
-	async replaceAll(matches: CellFindMatch[], text: string): Promise<void> {
+	async replaceAll(matches: CellFindMatch[], texts: string[]): Promise<void> {
 		if (!matches.length) {
 			return;
 		}
@@ -916,9 +937,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._lastNotebookEditResource.push(matches[0].cell.uri);
 
 		matches.forEach(match => {
-			match.matches.forEach(singleMatch => {
+			match.matches.forEach((singleMatch, index) => {
 				textEdits.push({
-					edit: { range: singleMatch.range, text: text },
+					edit: { range: singleMatch.range, text: texts[index] },
 					resource: match.cell.uri
 				});
 			});

@@ -31,7 +31,7 @@ registerAction2(class extends Action2 {
 			category,
 			f1: true,
 			keybinding: {
-				primary: KeyMod.Alt + KeyMod.CtrlCmd + KeyMod.WinCtrl + KeyCode.KEY_N,
+				primary: KeyMod.Alt + KeyMod.CtrlCmd + KeyMod.WinCtrl + KeyCode.KeyN,
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: {
@@ -159,8 +159,8 @@ class NewFileTemplatesManager extends Disposable {
 
 		disposables.add(qp.onDidAccept(async e => {
 			const selected = qp.selectedItems[0] as (IQuickPickItem & NewFileItem);
-			if (selected) { await this.commandService.executeCommand(selected.commandID); }
 			qp.hide();
+			if (selected) { await this.commandService.executeCommand(selected.commandID); }
 		}));
 
 		disposables.add(qp.onDidHide(() => {

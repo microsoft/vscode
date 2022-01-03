@@ -9,7 +9,7 @@ import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { isEqualOrParent } from 'vs/base/common/extpath';
+import { isEqualOrParent, randomPath } from 'vs/base/common/extpath';
 import { once } from 'vs/base/common/functional';
 import { stripComments } from 'vs/base/common/json';
 import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -17,8 +17,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isAbsolute, join, posix } from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { joinPath } from 'vs/base/common/resources';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { assertType, withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { getMachineId } from 'vs/base/node/id';
@@ -32,7 +31,6 @@ import { localize } from 'vs/nls';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { UserConfigurationFileService, UserConfigurationFileServiceId } from 'vs/platform/configuration/common/userConfigurationFileService';
 import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { DialogMainService, IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
@@ -41,12 +39,17 @@ import { EncryptionMainService, IEncryptionMainService } from 'vs/platform/encry
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
+import { getResolvedShellEnv } from 'vs/platform/environment/node/shellEnv';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
+import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
+import { WorkerMainProcessExtensionHostStarter } from 'vs/platform/extensions/electron-main/workerMainProcessExtensionHostStarter';
 import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
+import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
 import { IFileService } from 'vs/platform/files/common/files';
+import { DiskFileSystemProviderChannel } from 'vs/platform/files/electron-main/diskFileSystemProviderServer';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -64,7 +67,7 @@ import { SharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedPro
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
-import { IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { GlobalStorageMainService, IGlobalStorageMainService, IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, machineIdKey, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -280,7 +283,7 @@ export class CodeApplication extends Disposable {
 			}
 
 			// Resolve shell env
-			return this.resolveShellEnvironment(args, env);
+			return this.resolveShellEnvironment(args, env, false);
 		});
 
 		ipcMain.handle('vscode:writeNlsFile', (event, path: unknown, data: unknown) => {
@@ -512,8 +515,12 @@ export class CodeApplication extends Disposable {
 		// Extension URL Trust
 		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService));
 
+		// Extension Host Starter
+		services.set(IExtensionHostStarter, new SyncDescriptor(WorkerMainProcessExtensionHostStarter));
+
 		// Storage
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
+		services.set(IGlobalStorageMainService, new SyncDescriptor(GlobalStorageMainService));
 
 		// External terminal
 		if (isWindows) {
@@ -559,8 +566,12 @@ export class CodeApplication extends Disposable {
 		const launchChannel = ProxyChannel.fromService(accessor.get(ILaunchMainService), { disableMarshalling: true });
 		this.mainProcessNodeIpcServer.registerChannel('launch', launchChannel);
 
-		// Configuration
-		mainProcessElectronServer.registerChannel(UserConfigurationFileServiceId, ProxyChannel.fromService(new UserConfigurationFileService(this.environmentMainService, this.fileService, this.logService)));
+		// Local Files
+		const diskFileSystemProvider = this.fileService.getProvider(Schemas.file);
+		assertType(diskFileSystemProvider instanceof DiskFileSystemProvider);
+		const fileSystemProviderChannel = new DiskFileSystemProviderChannel(diskFileSystemProvider, this.logService);
+		mainProcessElectronServer.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel);
+		sharedProcessClient.then(client => client.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel));
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
@@ -630,6 +641,10 @@ export class CodeApplication extends Disposable {
 		// Extension Host Debug Broadcasting
 		const electronExtensionHostDebugBroadcastChannel = new ElectronExtensionHostDebugBroadcastChannel(accessor.get(IWindowsMainService));
 		mainProcessElectronServer.registerChannel('extensionhostdebugservice', electronExtensionHostDebugBroadcastChannel);
+
+		// Extension Host Starter
+		const extensionHostStarterChannel = ProxyChannel.fromService(accessor.get(IExtensionHostStarter));
+		mainProcessElectronServer.registerChannel(ipcExtensionHostStarterChannelName, extensionHostStarterChannel);
 	}
 
 	private openFirstWindow(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): ICodeWindow[] {
@@ -980,7 +995,7 @@ export class CodeApplication extends Disposable {
 		// Since this operation can take a long time, we want to warm it up while
 		// the window is opening.
 		// We also show an error to the user in case this fails.
-		this.resolveShellEnvironment(this.environmentMainService.args, process.env);
+		this.resolveShellEnvironment(this.environmentMainService.args, process.env, true);
 
 		// If enable-crash-reporter argv is undefined then this is a fresh start,
 		// based on telemetry.enableCrashreporter settings, generate a UUID which
@@ -1012,18 +1027,23 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
-	private async resolveShellEnvironment(args: NativeParsedArgs, env: IProcessEnvironment): Promise<typeof process.env> {
+	private async resolveShellEnvironment(args: NativeParsedArgs, env: IProcessEnvironment, notifyOnError: boolean): Promise<typeof process.env> {
 		try {
-			return await resolveShellEnv(this.logService, args, env);
+			return await getResolvedShellEnv(this.logService, args, env);
 		} catch (error) {
-			this.windowsMainService?.sendToFocused('vscode:showResolveShellEnvError', toErrorMessage(error));
+			const errorMessage = toErrorMessage(error);
+			if (notifyOnError) {
+				this.windowsMainService?.sendToFocused('vscode:showResolveShellEnvError', errorMessage);
+			} else {
+				this.logService.error(errorMessage);
+			}
 		}
 
 		return {};
 	}
 
 	private stopTracingEventually(accessor: ServicesAccessor, windows: ICodeWindow[]): void {
-		this.logService.info(`Tracing: waiting for windows to get ready...`);
+		this.logService.info('Tracing: waiting for windows to get ready...');
 
 		const dialogMainService = accessor.get(IDialogMainService);
 
@@ -1035,7 +1055,7 @@ export class CodeApplication extends Disposable {
 
 			recordingStopped = true; // only once
 
-			const path = await contentTracing.stopRecording(joinPath(this.environmentMainService.userHome, `${this.productService.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`).fsPath);
+			const path = await contentTracing.stopRecording(`${randomPath(this.environmentMainService.userHome.fsPath, this.productService.applicationName)}.trace.txt`);
 
 			if (!timeout) {
 				dialogMainService.showMessageBox({

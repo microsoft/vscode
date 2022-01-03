@@ -11,28 +11,29 @@ import { mock } from 'vs/base/test/common/mock';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
-import * as modes from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import * as modes from 'vs/editor/common/languages';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { EditorWorkerHost, EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { EditorWorkerHost, EditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('suggest, word distance', function () {
 
 	class BracketMode extends MockMode {
 
-		private static readonly _id = new modes.LanguageIdentifier('bracketMode', 3);
+		private static readonly _id = 'bracketMode';
 
 		constructor() {
 			super(BracketMode._id);
-			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+			this._register(LanguageConfigurationRegistry.register(this.languageId, {
 				brackets: [
 					['{', '}'],
 					['[', ']'],
@@ -48,8 +49,8 @@ suite('suggest, word distance', function () {
 
 		disposables.clear();
 		let mode = new BracketMode();
-		let model = createTextModel('function abc(aa, ab){\na\n}', undefined, mode.getLanguageIdentifier(), URI.parse('test:///some.path'));
-		let editor = createTestCodeEditor({ model: model });
+		let model = createTextModel('function abc(aa, ab){\na\n}', mode.languageId, undefined, URI.parse('test:///some.path'));
+		let editor = createTestCodeEditor(model);
 		editor.updateOptions({ suggest: { localityBonus: true } });
 		editor.setPosition({ lineNumber: 2, column: 2 });
 
@@ -60,12 +61,12 @@ suite('suggest, word distance', function () {
 			}
 		};
 
-		let service = new class extends EditorWorkerServiceImpl {
+		let service = new class extends EditorWorkerService {
 
 			private _worker = new EditorSimpleWorker(new class extends mock<EditorWorkerHost>() { }, null);
 
 			constructor() {
-				super(modelService, new class extends mock<ITextResourceConfigurationService>() { }, new NullLogService());
+				super(modelService, new class extends mock<ITextResourceConfigurationService>() { }, new NullLogService(), new TestLanguageConfigurationService());
 				this._worker.acceptNewModel({
 					url: model.uri.toString(),
 					lines: model.getLinesContent(),

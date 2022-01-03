@@ -101,6 +101,7 @@ export class MenuId {
 	static readonly ExplorerContext = new MenuId('ExplorerContext');
 	static readonly ExtensionContext = new MenuId('ExtensionContext');
 	static readonly GlobalActivity = new MenuId('GlobalActivity');
+	static readonly LayoutControlMenu = new MenuId('LayoutControlMenu');
 	static readonly MenubarMainMenu = new MenuId('MenubarMainMenu');
 	static readonly MenubarAppearanceMenu = new MenuId('MenubarAppearanceMenu');
 	static readonly MenubarDebugMenu = new MenuId('MenubarDebugMenu');
@@ -162,6 +163,7 @@ export class MenuId {
 	static readonly NotebookCellBetween = new MenuId('NotebookCellBetween');
 	static readonly NotebookCellListTop = new MenuId('NotebookCellTop');
 	static readonly NotebookCellExecute = new MenuId('NotebookCellExecute');
+	static readonly NotebookCellExecutePrimary = new MenuId('NotebookCellExecutePrimary');
 	static readonly NotebookDiffCellInputTitle = new MenuId('NotebookDiffCellInputTitle');
 	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
 	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
@@ -401,7 +403,7 @@ export class MenuItemAction implements IAction {
 	readonly tooltip: string;
 	readonly class: string | undefined;
 	readonly enabled: boolean;
-	readonly checked: boolean;
+	readonly checked?: boolean;
 
 	constructor(
 		item: ICommandAction,
@@ -416,7 +418,7 @@ export class MenuItemAction implements IAction {
 			: (typeof item.title === 'string' ? item.title : item.title.value);
 		this.tooltip = (typeof item.tooltip === 'string' ? item.tooltip : item.tooltip?.value) ?? '';
 		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
-		this.checked = false;
+		this.checked = undefined;
 
 		if (item.toggled) {
 			const toggled = ((item.toggled as { condition: ContextKeyExpression }).condition ? item.toggled : { condition: item.toggled }) as {

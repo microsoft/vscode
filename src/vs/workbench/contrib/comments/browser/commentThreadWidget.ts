@@ -18,9 +18,9 @@ import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/brows
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import * as modes from 'vs/editor/common/languages';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/peekView';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
@@ -135,7 +135,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _error!: HTMLElement;
 	private _contextKeyService: IContextKeyService;
 	private _threadIsEmpty: IContextKey<boolean>;
-	private _commentThreadContextValue: IContextKey<string>;
+	private _commentThreadContextValue: IContextKey<string | undefined>;
 	private _commentFormActions!: CommentFormActions;
 	private _scopedInstatiationService: IInstantiationService;
 	private _focusedComment: number | undefined = undefined;
@@ -161,7 +161,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		private _commentThread: modes.CommentThread,
 		private _pendingComment: string | null,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModeService private modeService: IModeService,
+		@ILanguageService private languageService: ILanguageService,
 		@IModelService private modelService: IModelService,
 		@IThemeService private themeService: IThemeService,
 		@ICommentService private commentService: ICommentService,
@@ -177,7 +177,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._threadIsEmpty = CommentContextKeys.commentThreadIsEmpty.bindTo(this._contextKeyService);
 		this._threadIsEmpty.set(!_commentThread.comments || !_commentThread.comments.length);
-		this._commentThreadContextValue = this._contextKeyService.createKey('commentThread', _commentThread.contextValue);
+		this._commentThreadContextValue = this._contextKeyService.createKey<string | undefined>('commentThread', undefined);
+		this._commentThreadContextValue.set(_commentThread.contextValue);
 
 		const commentControllerKey = this._contextKeyService.createKey<string | undefined>('commentController', undefined);
 		const controller = this.commentService.getCommentController(this._owner);
@@ -204,7 +205,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}));
 		this._applyTheme(this.themeService.getColorTheme());
 
-		this._markdownRenderer = this._globalToDispose.add(new MarkdownRenderer({ editor }, this.modeService, this.openerService));
+		this._markdownRenderer = this._globalToDispose.add(new MarkdownRenderer({ editor }, this.languageService, this.openerService));
 		this._parentEditor = editor;
 	}
 
@@ -561,7 +562,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			resource = resource.with({ authority: commentController.id });
 		}
 
-		const model = this.modelService.createModel(this._pendingComment || '', this.modeService.createByFilepathOrFirstLine(resource), resource, false);
+		const model = this.modelService.createModel(this._pendingComment || '', this.languageService.createByFilepathOrFirstLine(resource), resource, false);
 		this._disposables.add(model);
 		commentEditor.setModel(model);
 		this._disposables.add(commentEditor);
@@ -769,6 +770,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		if (!this._commentReplyComponent?.form.classList.contains('expand')) {
 			this._commentReplyComponent?.form.classList.add('expand');
 			this._commentReplyComponent?.editor.focus();
+			this._commentReplyComponent?.editor.layout();
 		}
 	}
 
@@ -979,7 +981,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		if (this._isExpanded) {
 			this._isExpanded = false;
 			// Focus the container so that the comment editor will be blurred before it is hidden
-			this.editor.focus();
+			if (this.editor.hasWidgetFocus()) {
+				this.editor.focus();
+			}
 		}
 		super.hide();
 	}

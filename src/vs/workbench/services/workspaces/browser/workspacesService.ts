@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkspacesService, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IEnterWorkspaceResult, IRecentlyOpened, restoreRecentlyOpened, IRecent, isRecentFile, isRecentFolder, toStoreData, IStoredWorkspaceFolder, getStoredWorkspaceFolder, WORKSPACE_EXTENSION, IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IEnterWorkspaceResult, IRecentlyOpened, restoreRecentlyOpened, IRecent, isRecentFile, isRecentFolder, toStoreData, IStoredWorkspaceFolder, getStoredWorkspaceFolder, WORKSPACE_EXTENSION, IStoredWorkspace, IFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -17,7 +17,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { isWindows } from 'vs/base/common/platform';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class BrowserWorkspacesService extends Disposable implements IWorkspacesService {
 
@@ -55,12 +55,13 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 
 	private addWorkspaceToRecentlyOpened(): void {
 		const workspace = this.workspaceService.getWorkspace();
+		const remoteAuthority = this.environmentService.remoteAuthority;
 		switch (this.workspaceService.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
-				this.addRecentlyOpened([{ folderUri: workspace.folders[0].uri }]);
+				this.addRecentlyOpened([{ folderUri: workspace.folders[0].uri, remoteAuthority }]);
 				break;
 			case WorkbenchState.WORKSPACE:
-				this.addRecentlyOpened([{ workspace: { id: workspace.id, configPath: workspace.configuration! } }]);
+				this.addRecentlyOpened([{ workspace: { id: workspace.id, configPath: workspace.configuration! }, remoteAuthority }]);
 				break;
 		}
 	}
@@ -167,7 +168,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 
 	//#region Dirty Workspaces
 
-	async getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>> {
+	async getDirtyWorkspaces(): Promise<Array<IWorkspaceBackupInfo | IFolderBackupInfo>> {
 		return []; // Currently not supported in web
 	}
 

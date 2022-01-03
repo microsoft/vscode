@@ -136,12 +136,12 @@ export interface IFileService {
 	/**
 	 * Read the contents of the provided resource unbuffered.
 	 */
-	readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent>;
+	readFile(resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent>;
 
 	/**
 	 * Read the contents of the provided resource buffered as stream.
 	 */
-	readFileStream(resource: URI, options?: IReadFileStreamOptions): Promise<IFileStreamContent>;
+	readFileStream(resource: URI, options?: IReadFileStreamOptions, token?: CancellationToken): Promise<IFileStreamContent>;
 
 	/**
 	 * Updates the content replacing its previous value.
@@ -208,11 +208,17 @@ export interface IFileService {
 	canDelete(resource: URI, options?: Partial<FileDeleteOptions>): Promise<Error | true>;
 
 	/**
+	 * An event that signals an error when watching for file changes.
+	 */
+	readonly onDidWatchError: Event<Error>;
+
+	/**
 	 * Allows to start a watcher that reports file/folder change events on the provided resource.
 	 *
-	 * Note: watching a folder does not report events recursively for child folders yet.
+	 * Note: watching a folder does not report events recursively unless the provided options
+	 * explicitly opt-in to recursive watching.
 	 */
-	watch(resource: URI): IDisposable;
+	watch(resource: URI, options?: IWatchOptions): IDisposable;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -237,6 +243,26 @@ export interface FileUnlockOptions {
 	 * attempt to write to unless `unlock: true` is provided.
 	 */
 	readonly unlock: boolean;
+}
+
+export interface FileAtomicReadOptions {
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `readFile` method is not running in parallel with
+	 * any `write` operations in the same process.
+	 *
+	 * Typically you should not need to use this flag but if
+	 * for example you are quickly reading a file right after
+	 * a file event occurred and the file changes a lot, there
+	 * is a chance that a read returns an empty or partial file
+	 * because a pending write has not finished yet.
+	 *
+	 * Note: this does not prevent the file from being written
+	 * to from a different process. If you need such atomic
+	 * operations, you better use a real database as storage.
+	 */
+	readonly atomic: true;
 }
 
 export interface FileReadStreamOptions {
@@ -427,7 +453,13 @@ export const enum FileSystemProviderCapabilities {
 	/**
 	 * Provider support to unlock files for writing.
 	 */
-	FileWriteUnlock = 1 << 13
+	FileWriteUnlock = 1 << 13,
+
+	/**
+	 * Provider support to read files atomically. This implies the
+	 * provider provides the `FileReadWrite` capability too.
+	 */
+	FileAtomicRead = 1 << 14
 }
 
 export interface IFileSystemProvider {
@@ -435,9 +467,8 @@ export interface IFileSystemProvider {
 	readonly capabilities: FileSystemProviderCapabilities;
 	readonly onDidChangeCapabilities: Event<void>;
 
-	readonly onDidErrorOccur?: Event<string>;
-
 	readonly onDidChangeFile: Event<readonly IFileChange[]>;
+	readonly onDidWatchError?: Event<string>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
 
 	stat(resource: URI): Promise<IStat>;
@@ -493,6 +524,18 @@ export interface IFileSystemProviderWithFileReadStreamCapability extends IFileSy
 
 export function hasFileReadStreamCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileReadStreamCapability {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileReadStream);
+}
+
+export interface IFileSystemProviderWithFileAtomicReadCapability extends IFileSystemProvider {
+	readFile(resource: URI, opts?: FileAtomicReadOptions): Promise<Uint8Array>;
+}
+
+export function hasFileAtomicReadCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicReadCapability {
+	if (!hasReadWriteCapability(provider)) {
+		return false; // we require the `FileReadWrite` capability too
+	}
+
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicRead);
 }
 
 export enum FileSystemProviderErrorCode {

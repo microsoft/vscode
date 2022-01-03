@@ -35,13 +35,6 @@ import 'vs/workbench/workbench.sandbox.main';
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-//#region --- workbench (desktop main)
-
-import 'vs/workbench/electron-browser/desktop.main';
-
-//#endregion
-
-
 //#region --- workbench services
 
 
@@ -57,7 +50,6 @@ import 'vs/workbench/electron-browser/desktop.main';
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-import 'vs/workbench/services/search/electron-browser/searchService';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
 
 

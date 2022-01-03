@@ -15,7 +15,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
@@ -409,7 +409,7 @@ modes.CompletionProviderRegistry.register('*', _provider);
 export function showSimpleSuggestions(editor: ICodeEditor, suggestions: modes.CompletionItem[]) {
 	setTimeout(() => {
 		_provider.onlyOnceSuggestions.push(...suggestions);
-		editor.getContribution<SuggestController>('editor.contrib.suggestController').triggerSuggest(new Set<modes.CompletionItemProvider>().add(_provider));
+		editor.getContribution<SuggestController>('editor.contrib.suggestController')?.triggerSuggest(new Set<modes.CompletionItemProvider>().add(_provider));
 	}, 0);
 }
 

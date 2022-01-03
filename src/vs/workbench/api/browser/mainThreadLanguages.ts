@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { IModelService } from 'vs/editor/common/services/model';
 import { MainThreadLanguagesShape, MainContext, IExtHostContext, ExtHostContext, ExtHostLanguagesShape } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { StandardTokenType } from 'vs/editor/common/modes';
+import { StandardTokenType } from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -21,36 +21,42 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 	private readonly _disposables = new DisposableStore();
 	private readonly _proxy: ExtHostLanguagesShape;
 
+	private readonly _status = new Map<number, IDisposable>();
+
 	constructor(
 		_extHostContext: IExtHostContext,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private _resolverService: ITextModelService,
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
 	) {
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostLanguages);
 
-		this._proxy.$acceptLanguageIds(_modeService.getRegisteredModes());
-		this._disposables.add(_modeService.onLanguagesMaybeChanged(e => {
-			this._proxy.$acceptLanguageIds(_modeService.getRegisteredModes());
+		this._proxy.$acceptLanguageIds(_languageService.getRegisteredLanguageIds());
+		this._disposables.add(_languageService.onDidChange(_ => {
+			this._proxy.$acceptLanguageIds(_languageService.getRegisteredLanguageIds());
 		}));
 	}
 
 	dispose(): void {
 		this._disposables.dispose();
+
+		for (const status of this._status.values()) {
+			status.dispose();
+		}
+		this._status.clear();
 	}
 
 	async $changeLanguage(resource: UriComponents, languageId: string): Promise<void> {
 
-		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
-		if (!languageIdentifier || languageIdentifier.language !== languageId) {
+		if (!this._languageService.isRegisteredLanguageId(languageId)) {
 			return Promise.reject(new Error(`Unknown language id: ${languageId}`));
 		}
 
 		const uri = URI.revive(resource);
 		const ref = await this._resolverService.createModelReference(uri);
 		try {
-			this._modelService.setMode(ref.object.textEditorModel, this._modeService.create(languageId));
+			this._modelService.setMode(ref.object.textEditorModel, this._languageService.createById(languageId));
 		} finally {
 			ref.dispose();
 		}
@@ -72,8 +78,6 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 	}
 
 	// --- language status
-
-	private readonly _status = new Map<number, IDisposable>();
 
 	$setLanguageStatus(handle: number, status: ILanguageStatus): void {
 		this._status.get(handle)?.dispose();

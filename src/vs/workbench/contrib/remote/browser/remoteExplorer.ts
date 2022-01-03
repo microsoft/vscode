@@ -200,7 +200,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		remoteAgentService.getEnvironment().then(environment => {
 			if (environment?.os !== OperatingSystem.Linux) {
 				Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-					.registerDefaultConfigurations([{ 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT }]);
+					.registerDefaultConfigurations([{ overrides: { 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT } }]);
 				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService, externalOpenerService,
 					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, hostService, logService, () => false));
 			} else {
@@ -264,12 +264,13 @@ class OnAutoForwardedAction extends Disposable {
 					break;
 				}
 				case OnPortForward.Silent: break;
-				default:
+				default: {
 					const elapsed = new Date().getTime() - this.lastNotifyTime.getTime();
 					this.logService.trace(`ForwardedPorts: (OnAutoForwardedAction) time elapsed since last notification ${elapsed} ms`);
 					if (elapsed > OnAutoForwardedAction.NOTIFY_COOL_DOWN) {
 						await this.showNotification(tunnel);
 					}
+				}
 			}
 		}
 	}

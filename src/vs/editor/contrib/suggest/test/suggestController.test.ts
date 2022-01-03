@@ -12,13 +12,13 @@ import { mock } from 'vs/base/test/common/mock';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CompletionItemInsertTextRule, CompletionItemKind, CompletionProviderRegistry } from 'vs/editor/common/modes';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { CompletionItemInsertTextRule, CompletionItemKind, CompletionProviderRegistry } from 'vs/editor/common/languages';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -70,11 +70,8 @@ suite('SuggestController', function () {
 			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
 		);
 
-		model = createTextModel('', undefined, undefined, URI.from({ scheme: 'test-ctrl', path: '/path.tst' }));
-		editor = createTestCodeEditor({
-			model,
-			serviceCollection,
-		});
+		model = disposables.add(createTextModel('', undefined, undefined, URI.from({ scheme: 'test-ctrl', path: '/path.tst' })));
+		editor = disposables.add(createTestCodeEditor(model, { serviceCollection }));
 
 		editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 		controller = editor.registerAndInstantiateContribution(SuggestController.ID, SuggestController);

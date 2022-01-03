@@ -25,6 +25,10 @@ import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/d
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { firstOrDefault } from 'vs/base/common/arrays';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
+import { PersistentConnection } from 'vs/platform/remote/common/remoteAgentConnection';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -98,7 +102,8 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		super();
 
@@ -108,7 +113,14 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 		// the user to a valid workspace.
 		// (see https://github.com/microsoft/vscode/issues/133872)
 		if (this.environmentService.remoteAuthority) {
-			this.validateRemoteWorkspace();
+			remoteAgentService.getEnvironment().then(remoteEnv => {
+				if (remoteEnv) {
+					// we use the presence of `remoteEnv` to figure out
+					// if we got a healthy remote connection
+					// (see https://github.com/microsoft/vscode/issues/135331)
+					this.validateRemoteWorkspace();
+				}
+			});
 		}
 	}
 
@@ -152,6 +164,43 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteInvalidWorksp
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
 workbenchContributionsRegistry.registerWorkbenchContribution(TunnelFactoryContribution, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(ShowCandidateContribution, LifecyclePhase.Ready);
+
+const enableDiagnostics = true;
+
+if (enableDiagnostics) {
+	class TriggerReconnectAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.triggerReconnect',
+				title: { value: localize('triggerReconnect', "Connection: Trigger Reconnect"), original: 'Connection: Trigger Reconnect' },
+				category: CATEGORIES.Developer,
+				f1: true,
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			PersistentConnection.debugTriggerReconnection();
+		}
+	}
+
+	class PauseSocketWriting extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.pauseSocketWriting',
+				title: { value: localize('pauseSocketWriting', "Connection: Pause socket writing"), original: 'Connection: Pause socket writing' },
+				category: CATEGORIES.Developer,
+				f1: true,
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			PersistentConnection.debugPauseSocketWriting();
+		}
+	}
+
+	registerAction2(TriggerReconnectAction);
+	registerAction2(PauseSocketWriting);
+}
 
 const extensionKindSchema: IJSONSchema = {
 	type: 'string',
@@ -210,7 +259,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'remote.portsAttributes': {
 				type: 'object',
 				patternProperties: {
-					'(^\\d+(\\-\\d+)?$)|(.+)': {
+					'(^\\d+(-\\d+)?$)|(.+)': {
 						type: 'object',
 						description: localize('remote.portsAttributes.port', "A port, range of ports (ex. \"40000-55000\"), host and port (ex. \"db:1234\"), or regular expression (ex. \".+\\\\/server.js\").  For a port number or range, the attributes will apply to that port number or range of port numbers. Attributes which use a regular expression will apply to ports whose associated process command line matches the expression."),
 						properties: {

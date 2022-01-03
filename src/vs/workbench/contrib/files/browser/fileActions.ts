@@ -23,8 +23,8 @@ import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITL
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';
@@ -45,7 +45,7 @@ import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/commo
 import { Codicon } from 'vs/base/common/codicons';
 import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { trim, rtrim } from 'vs/base/common/strings';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { BrowserFileUpload, FileDownload } from 'vs/workbench/contrib/files/browser/fileImportExport';
@@ -753,13 +753,13 @@ export class CompareWithClipboardAction extends Action {
 class ClipboardContentProvider implements ITextModelContentProvider {
 	constructor(
 		@IClipboardService private readonly clipboardService: IClipboardService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService
 	) { }
 
 	async provideTextContent(resource: URI): Promise<ITextModel> {
 		const text = await this.clipboardService.readText();
-		const model = this.modelService.createModel(text, this.modeService.createByFilepathOrFirstLine(resource), resource);
+		const model = this.modelService.createModel(text, this.languageService.createByFilepathOrFirstLine(resource), resource);
 
 		return model;
 	}
@@ -931,13 +931,21 @@ export const cutFileHandler = async (accessor: ServicesAccessor) => {
 
 const downloadFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
+	const notificationService = accessor.get(INotificationService);
 	const instantiationService = accessor.get(IInstantiationService);
 
 	const context = explorerService.getContext(true);
 	const explorerItems = context.length ? context : explorerService.roots;
 
 	const downloadHandler = instantiationService.createInstance(FileDownload);
-	return downloadHandler.download(explorerItems);
+
+	try {
+		await downloadHandler.download(explorerItems);
+	} catch (error) {
+		notificationService.error(error);
+
+		throw error;
+	}
 };
 
 CommandsRegistry.registerCommand({
@@ -947,15 +955,22 @@ CommandsRegistry.registerCommand({
 
 const uploadFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
+	const notificationService = accessor.get(INotificationService);
 	const instantiationService = accessor.get(IInstantiationService);
 
 	const context = explorerService.getContext(true);
 	const element = context.length ? context[0] : explorerService.roots[0];
 
-	const files = await triggerUpload();
-	if (files) {
-		const browserUpload = instantiationService.createInstance(BrowserFileUpload);
-		return browserUpload.upload(element, files);
+	try {
+		const files = await triggerUpload();
+		if (files) {
+			const browserUpload = instantiationService.createInstance(BrowserFileUpload);
+			await browserUpload.upload(element, files);
+		}
+	} catch (error) {
+		notificationService.error(error);
+
+		throw error;
 	}
 };
 

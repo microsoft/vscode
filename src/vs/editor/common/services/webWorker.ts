@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { EditorWorkerClient } from 'vs/editor/common/services/editorWorkerServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { EditorWorkerClient } from 'vs/editor/common/services/editorWorkerService';
+import { IModelService } from 'vs/editor/common/services/model';
 import * as types from 'vs/base/common/types';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 /**
  * Create a new web worker that has model syncing capabilities built in.
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
-export function createWebWorker<T>(modelService: IModelService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
-	return new MonacoWebWorkerImpl<T>(modelService, opts);
+export function createWebWorker<T>(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
+	return new MonacoWebWorkerImpl<T>(modelService, languageConfigurationService, opts);
 }
 
 /**
@@ -67,8 +68,8 @@ class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWork
 	private _foreignModuleCreateData: any | null;
 	private _foreignProxy: Promise<T> | null;
 
-	constructor(modelService: IModelService, opts: IWebWorkerOptions) {
-		super(modelService, opts.keepIdleModels || false, opts.label);
+	constructor(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions) {
+		super(modelService, opts.keepIdleModels || false, opts.label, languageConfigurationService);
 		this._foreignModuleId = opts.moduleId;
 		this._foreignModuleCreateData = opts.createData || null;
 		this._foreignModuleHost = opts.host || null;
@@ -106,7 +107,7 @@ class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWork
 						};
 					};
 
-					let foreignProxy = {} as T;
+					const foreignProxy = {} as T;
 					for (const foreignMethod of foreignMethods) {
 						(<any>foreignProxy)[foreignMethod] = createProxyMethod(foreignMethod, proxyMethodRequest);
 					}

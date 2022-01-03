@@ -299,6 +299,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		}
 		if (this._terminalInstances.length === 0) {
 			this._terminalInstances.push(instance);
+			this._activeInstanceIndex = 0;
 		} else {
 			this._terminalInstances.splice(parentIndex + 1, 0, instance);
 		}
@@ -414,7 +415,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		this._terminalInstances.splice(index, 0, instance);
 		if (this._splitPaneContainer) {
 			this._splitPaneContainer.remove(instance);
-			this._splitPaneContainer.split(instance, sourceIndex < index ? index - 1 : index);
+			this._splitPaneContainer.split(instance, index);
 		}
 		this._onInstancesChanged.fire();
 	}

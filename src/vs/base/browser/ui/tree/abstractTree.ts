@@ -12,9 +12,9 @@ import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { DefaultKeyboardNavigationDelegate, IListOptions, IListStyles, isInputElement, isMonacoEditor, List, MouseController } from 'vs/base/browser/ui/list/listWidget';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { treeFilterClearIcon, treeFilterOnTypeOffIcon, treeFilterOnTypeOnIcon, treeItemExpandedIcon } from 'vs/base/browser/ui/tree/treeIcons';
 import { distinct, equals, firstOrDefault, range } from 'vs/base/common/arrays';
 import { disposableTimeout } from 'vs/base/common/async';
+import { Codicon } from 'vs/base/common/codicons';
 import { SetMap } from 'vs/base/common/collections';
 import { Emitter, Event, EventBufferer, Relay } from 'vs/base/common/event';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
@@ -400,7 +400,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	}
 
 	private renderTwistie(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>) {
-		templateData.twistie.classList.remove(...treeItemExpandedIcon.classNamesArray);
+		templateData.twistie.classList.remove(...Codicon.treeItemExpanded.classNamesArray);
 
 		let twistieRendered = false;
 
@@ -410,7 +410,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 
 		if (node.collapsible && (!this.hideTwistiesOfChildlessElements || node.visibleChildrenCount > 0)) {
 			if (!twistieRendered) {
-				templateData.twistie.classList.add(...treeItemExpandedIcon.classNamesArray);
+				templateData.twistie.classList.add(...Codicon.treeItemExpanded.classNamesArray);
 			}
 
 			templateData.twistie.classList.add('collapsible');
@@ -663,7 +663,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.updateFilterOnTypeTitleAndIcon();
 		this.disposables.add(addDisposableListener(this.filterOnTypeDomNode, 'input', () => this.onDidChangeFilterOnType()));
 
-		this.clearDomNode = append(controls, $<HTMLInputElement>('button.clear' + treeFilterClearIcon.cssSelector));
+		this.clearDomNode = append(controls, $<HTMLInputElement>('button.clear' + Codicon.treeFilterClear.cssSelector));
 		this.clearDomNode.tabIndex = -1;
 		this.clearDomNode.title = localize('clear', "Clear");
 
@@ -876,12 +876,12 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 	private updateFilterOnTypeTitleAndIcon(): void {
 		if (this.filterOnType) {
-			this.filterOnTypeDomNode.classList.remove(...treeFilterOnTypeOffIcon.classNamesArray);
-			this.filterOnTypeDomNode.classList.add(...treeFilterOnTypeOnIcon.classNamesArray);
+			this.filterOnTypeDomNode.classList.remove(...Codicon.treeFilterOnTypeOff.classNamesArray);
+			this.filterOnTypeDomNode.classList.add(...Codicon.treeFilterOnTypeOn.classNamesArray);
 			this.filterOnTypeDomNode.title = localize('disable filter on type', "Disable Filter on Type");
 		} else {
-			this.filterOnTypeDomNode.classList.remove(...treeFilterOnTypeOnIcon.classNamesArray);
-			this.filterOnTypeDomNode.classList.add(...treeFilterOnTypeOffIcon.classNamesArray);
+			this.filterOnTypeDomNode.classList.remove(...Codicon.treeFilterOnTypeOn.classNamesArray);
+			this.filterOnTypeDomNode.classList.add(...Codicon.treeFilterOnTypeOff.classNamesArray);
 			this.filterOnTypeDomNode.title = localize('enable filter on type', "Enable Filter on Type");
 		}
 	}
@@ -1293,6 +1293,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get onDidFocus(): Event<void> { return this.view.onDidFocus; }
 	get onDidBlur(): Event<void> { return this.view.onDidBlur; }
 
+	get onDidChangeModel(): Event<void> { return Event.signal(this.model.onDidSplice); }
 	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T, TFilterData>> { return this.model.onDidChangeCollapseState; }
 	get onDidChangeRenderNodeCount(): Event<ITreeNode<T, TFilterData>> { return this.model.onDidChangeRenderNodeCount; }
 

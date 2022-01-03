@@ -35,7 +35,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { flatten, distinct } from 'vs/base/common/arrays';
 import { getVisibleAndSorted } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { AdapterManager } from 'vs/workbench/contrib/debug/browser/debugAdapterManager';
 import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -264,8 +264,8 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	getAllConfigurations(): { launch: ILaunch; name: string; presentation?: IConfigPresentation }[] {
 		const all: { launch: ILaunch, name: string, presentation?: IConfigPresentation }[] = [];
-		for (let l of this.launches) {
-			for (let name of l.getConfigurationNames()) {
+		for (const l of this.launches) {
+			for (const name of l.getConfigurationNames()) {
 				const config = l.getConfiguration(name) || l.getCompound(name);
 				if (config) {
 					all.push({ launch: l, name, presentation: config.presentation });
@@ -274,6 +274,16 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 
 		return getVisibleAndSorted(all);
+	}
+
+	removeRecentDynamicConfigurations(name: string, type: string) {
+		const remaining = this.getRecentDynamicConfigurations().filter(c => c.name !== name || c.type !== type);
+		this.storageService.store(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(remaining), StorageScope.WORKSPACE, StorageTarget.USER);
+		if (this.selectedConfiguration.name === name && this.selectedType === type) {
+			this.selectConfiguration(undefined, undefined);
+		} else {
+			this._onDidSelectConfigurationName.fire();
+		}
 	}
 
 	getRecentDynamicConfigurations(): { name: string, type: string }[] {
@@ -376,7 +386,11 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 
 		const names = launch ? launch.getConfigurationNames() : [];
-		this.getSelectedConfig = () => Promise.resolve(this.selectedName ? launch?.getConfiguration(this.selectedName) : undefined);
+		this.getSelectedConfig = () => {
+			const selected = this.selectedName ? launch?.getConfiguration(this.selectedName) : undefined;
+			return Promise.resolve(selected || config);
+		};
+
 		let type = config?.type;
 		if (name && names.indexOf(name) >= 0) {
 			this.setSelectedLaunchName(name);
@@ -570,13 +584,16 @@ class Launch extends AbstractLaunch implements ILaunch {
 		} catch {
 			// launch.json not found: create one by collecting launch configs from debugConfigProviders
 			content = await this.getInitialConfigurationContent(this.workspace.uri, type, token);
-			if (content) {
-				created = true; // pin only if config file is created #8727
-				try {
-					await this.textFileService.write(resource, content);
-				} catch (error) {
-					throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error.message));
-				}
+			if (!content) {
+				// Cancelled
+				return { editor: null, created: false };
+			}
+
+			created = true; // pin only if config file is created #8727
+			try {
+				await this.textFileService.write(resource, content);
+			} catch (error) {
+				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error.message));
 			}
 		}
 
@@ -643,10 +660,10 @@ class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 	}
 
 	async openConfigFile(preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null, created: boolean }> {
-		let launchExistInFile = !!this.getConfig();
+		const launchExistInFile = !!this.getConfig();
 		if (!launchExistInFile) {
 			// Launch property in workspace config not found: create one by collecting launch configs from debugConfigProviders
-			let content = await this.getInitialConfigurationContent(undefined, type, token);
+			const content = await this.getInitialConfigurationContent(undefined, type, token);
 			if (content) {
 				await this.configurationService.updateValue('launch', json.parse(content), ConfigurationTarget.WORKSPACE);
 			} else {

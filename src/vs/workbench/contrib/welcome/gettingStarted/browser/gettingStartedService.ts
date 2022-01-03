@@ -11,7 +11,7 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
@@ -19,7 +19,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { DefaultIconPath, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { walkthroughs } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
@@ -135,7 +135,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	private gettingStartedContributions = new Map<string, IWalkthrough>();
 	private steps = new Map<string, IWalkthroughStep>();
 
-	private tasExperimentService?: ITASExperimentService;
+	private tasExperimentService?: IWorkbenchAssignmentService;
 	private sessionInstalledExtensions = new Set<string>();
 
 	private categoryVisibilityContextKeys = new Set<string>();
@@ -153,13 +153,13 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IContextKeyService private readonly contextService: IContextKeyService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IHostService private readonly hostService: IHostService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ITASExperimentService tasExperimentService: ITASExperimentService,
+		@IWorkbenchAssignmentService tasExperimentService: IWorkbenchAssignmentService,
 	) {
 		super();
 
@@ -260,9 +260,9 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 			e.affectedKeys.forEach(key => { this.progressByEvent('onSettingChanged:' + key); });
 		}));
 
-		if (this.userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
-		this._register(this.userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
-			if (this.userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
+		if (this.userDataSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
+		this._register(this.userDataSyncEnablementService.onDidChangeEnablement(() => {
+			if (this.userDataSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
 		}));
 	}
 

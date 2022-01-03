@@ -13,7 +13,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeActionTriggerType, CodeActionProvider } from 'vs/editor/common/modes';
+import { CodeActionTriggerType, CodeActionProvider } from 'vs/editor/common/languages';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
@@ -46,7 +46,7 @@ export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 			return;
 		}
 
-		if (this.configurationService.getValue('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
+		if (this.configurationService.getValue('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageId(), resource: model.resource })) {
 			this.doTrimTrailingWhitespace(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
@@ -62,7 +62,7 @@ export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 			prevSelection = editor.getSelections();
 			if (isAutoSaved) {
 				cursors = prevSelection.map(s => s.getPosition());
-				const snippetsRange = SnippetController2.get(editor).getSessionEnclosingRange();
+				const snippetsRange = SnippetController2.get(editor)?.getSessionEnclosingRange();
 				if (snippetsRange) {
 					for (let lineNumber = snippetsRange.startLineNumber; lineNumber <= snippetsRange.endLineNumber; lineNumber++) {
 						cursors.push(new Position(lineNumber, model.getLineMaxColumn(lineNumber)));
@@ -112,7 +112,7 @@ export class FinalNewLineParticipant implements ITextFileSaveParticipant {
 			return;
 		}
 
-		if (this.configurationService.getValue('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
+		if (this.configurationService.getValue('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageId(), resource: model.resource })) {
 			this.doInsertFinalNewLine(model.textEditorModel);
 		}
 	}
@@ -150,7 +150,7 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 			return;
 		}
 
-		if (this.configurationService.getValue('files.trimFinalNewlines', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
+		if (this.configurationService.getValue('files.trimFinalNewlines', { overrideIdentifier: model.textEditorModel.getLanguageId(), resource: model.resource })) {
 			this.doTrimFinalNewLines(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
@@ -228,7 +228,7 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 		}
 
 		const textEditorModel = model.textEditorModel;
-		const overrides = { overrideIdentifier: textEditorModel.getLanguageIdentifier().language, resource: textEditorModel.uri };
+		const overrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: textEditorModel.uri };
 
 		const nestedProgress = new Progress<{ displayName?: string, extensionId?: ExtensionIdentifier }>(provider => {
 			progress.report({
@@ -285,7 +285,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 
 		const textEditorModel = model.textEditorModel;
 
-		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageIdentifier().language, resource: model.resource };
+		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: model.resource };
 		const setting = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>('editor.codeActionsOnSave', settingsOverrides);
 		if (!setting) {
 			return undefined;

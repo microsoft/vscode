@@ -19,6 +19,7 @@ import * as extpath from 'vs/base/common/extpath';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { fuzzyContains } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
@@ -567,15 +568,8 @@ export class TestingExplorerViewModel extends Disposable {
 			this.revealById(evt.item.item.extId, false, false);
 		}));
 
-		this._register(testResults.onResultsChanged(evt => {
+		this._register(testResults.onResultsChanged(() => {
 			this.tree.resort(null);
-
-			if (followRunningTests && 'completed' in evt) {
-				const selected = this.tree.getSelection()[0];
-				if (selected) {
-					this.tree.reveal(selected, 0.5);
-				}
-			}
 		}));
 
 		this._register(this.testProfileService.onDidChange(() => {
@@ -639,11 +633,18 @@ export class TestingExplorerViewModel extends Disposable {
 			// Otherwise, we've arrived!
 
 			// If the node or any of its children are excluded, flip on the 'show
-			// excluded tests' checkbox automatically.
+			// excluded tests' checkbox automatically. If we didn't expand, then set
+			// target focus target to the first collapsed element.
+
+			let focusTarget = element;
 			for (let n: TestItemTreeElement | null = element; n instanceof TestItemTreeElement; n = n.parent) {
 				if (n.test && this.testService.excluded.contains(n.test)) {
 					this.filterState.toggleFilteringFor(TestFilterTerm.Hidden, true);
 					break;
+				}
+
+				if (!expand && (this.tree.hasElement(n) && this.tree.isCollapsed(n))) {
+					focusTarget = n;
 				}
 			}
 
@@ -653,14 +654,13 @@ export class TestingExplorerViewModel extends Disposable {
 				this.tree.domFocus();
 			}
 
-			this.revealTimeout.value = disposableTimeout(() => {
-				// Don't scroll to the item if it's already visible
-				if (this.tree.getRelativeTop(element) === null) {
-					this.tree.reveal(element, 0.5);
-				}
+			if (this.tree.getRelativeTop(focusTarget) === null) {
+				this.tree.reveal(focusTarget, 0.5);
+			}
 
-				this.tree.setFocus([element]);
-				this.tree.setSelection([element]);
+			this.revealTimeout.value = disposableTimeout(() => {
+				this.tree.setFocus([focusTarget]);
+				this.tree.setSelection([focusTarget]);
 			}, 1);
 
 			return;
@@ -907,7 +907,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 			const data = e.label.toLowerCase();
 
 			for (const { include, text } of this.state.globList) {
-				if (data.includes(text)) {
+				if (fuzzyContains(data, text)) {
 					included = include ? FilterResult.Include : FilterResult.Exclude;
 				}
 			}

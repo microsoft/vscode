@@ -46,7 +46,7 @@ import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSetti
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
-import { getDefaultIgnoredSettings, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
 import { Codicon } from 'vs/base/common/codicons';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
@@ -302,6 +302,46 @@ function createObjectValueSuggester(element: SettingsTreeSettingElement): IObjec
 	};
 }
 
+function isNonNullableNumericType(type: unknown): type is 'number' | 'integer' {
+	return type === 'number' || type === 'integer';
+}
+
+function parseNumericObjectValues(dataElement: SettingsTreeSettingElement, v: Record<string, unknown>): Record<string, unknown> {
+	const newRecord: Record<string, unknown> = {};
+	for (const key in v) {
+		// Set to true/false once we're sure of the answer
+		let keyMatchesNumericProperty: boolean | undefined;
+		const patternProperties = dataElement.setting.objectPatternProperties;
+		const properties = dataElement.setting.objectProperties;
+		const additionalProperties = dataElement.setting.objectAdditionalProperties;
+
+		// Match the current record key against the properties of the object
+		if (properties) {
+			for (const propKey in properties) {
+				if (propKey === key) {
+					keyMatchesNumericProperty = isNonNullableNumericType(properties[propKey].type);
+					break;
+				}
+			}
+		}
+		if (keyMatchesNumericProperty === undefined && patternProperties) {
+			for (const patternKey in patternProperties) {
+				if (key.match(patternKey)) {
+					keyMatchesNumericProperty = isNonNullableNumericType(patternProperties[patternKey].type);
+					break;
+				}
+			}
+		}
+		if (keyMatchesNumericProperty === undefined && additionalProperties && typeof additionalProperties !== 'boolean') {
+			if (isNonNullableNumericType(additionalProperties.type)) {
+				keyMatchesNumericProperty = true;
+			}
+		}
+		newRecord[key] = keyMatchesNumericProperty ? Number(v[key]) : v[key];
+	}
+	return newRecord;
+}
+
 function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
 	if (!element.value || !isArray(element.value)) {
 		return [];
@@ -359,7 +399,13 @@ export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], tar
 	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, configurationService).isConfigured);
 }
 
-export async function resolveExtensionsSettings(extensionService: IExtensionService, groups: ISettingsGroup[]): Promise<ITOCEntry<ISetting>> {
+function compareNullableIntegers(a?: number, b?: number) {
+	const firstElem = a ?? Number.MAX_SAFE_INTEGER;
+	const secondElem = b ?? Number.MAX_SAFE_INTEGER;
+	return firstElem - secondElem;
+}
+
+export async function createTocTreeForExtensionSettings(extensionService: IExtensionService, groups: ISettingsGroup[]): Promise<ITOCEntry<ISetting>> {
 	const extGroupTree = new Map<string, ITOCEntry<ISetting>>();
 	const addEntryToTree = (extensionId: string, extensionName: string, childEntry: ITOCEntry<ISetting>) => {
 		if (!extGroupTree.has(extensionId)) {
@@ -380,8 +426,11 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 		const extension = await extensionService.getExtension(extensionId);
 		const extensionName = extension!.displayName ?? extension!.name;
 
-		const childEntry = {
-			id: group.id,
+		// Each group represents a single category of settings.
+		// If the extension author forgets to specify an id for the group,
+		// fall back to the title given to the group.
+		const childEntry: ITOCEntry<ISetting> = {
+			id: group.id || group.title,
 			label: group.title,
 			order: group.order,
 			settings: flatSettings
@@ -389,32 +438,52 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 		addEntryToTree(extensionId, extensionName, childEntry);
 	};
 
-	const processPromises = groups
-		.sort((a, b) => a.title.localeCompare(b.title))
-		.map(g => processGroupEntry(g));
-
+	const processPromises = groups.map(g => processGroupEntry(g));
 	return Promise.all(processPromises).then(() => {
 		const extGroups: ITOCEntry<ISetting>[] = [];
-		for (const value of extGroupTree.values()) {
-			if (value.children!.length === 1) {
-				// push a flattened setting
+		for (const extensionRootEntry of extGroupTree.values()) {
+			for (const child of extensionRootEntry.children!) {
+				// Sort the individual settings of the child.
+				child.settings?.sort((a, b) => {
+					return compareNullableIntegers(a.order, b.order);
+				});
+			}
+
+			if (extensionRootEntry.children!.length === 1) {
+				// There is a single category for this extension.
+				// Push a flattened setting.
 				extGroups.push({
-					id: value.id,
-					label: value.children![0].label,
-					settings: value.children![0].settings
+					id: extensionRootEntry.id,
+					label: extensionRootEntry.children![0].label,
+					settings: extensionRootEntry.children![0].settings
 				});
 			} else {
-				value.children!.sort((a, b) => {
-					if (a.order !== undefined && b.order !== undefined) {
-						return a.order - b.order;
-					} else {
-						// leave things as-is
-						return 0;
-					}
+				// Sort the categories.
+				extensionRootEntry.children!.sort((a, b) => {
+					return compareNullableIntegers(a.order, b.order);
 				});
-				extGroups.push(value);
+
+				// If there is a category that matches the setting name,
+				// add the settings in manually as "ungrouped" settings.
+				// https://github.com/microsoft/vscode/issues/137259
+				const ungroupedChild = extensionRootEntry.children!.find(child => child.label === extensionRootEntry.label);
+				if (ungroupedChild && !ungroupedChild.children) {
+					const groupedChildren = extensionRootEntry.children!.filter(child => child !== ungroupedChild);
+					extGroups.push({
+						id: extensionRootEntry.id,
+						label: extensionRootEntry.label,
+						settings: ungroupedChild.settings,
+						children: groupedChildren
+					});
+				} else {
+					// Push all the groups as-is.
+					extGroups.push(extensionRootEntry);
+				}
 			}
 		}
+
+		// Sort the outermost settings.
+		extGroups.sort((a, b) => a.label.localeCompare(b.label));
 
 		return {
 			id: 'extensions',
@@ -707,6 +776,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const syncIgnoredElement = DOM.append(container, $('span.setting-item-ignored'));
 		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
 		syncIgnoredLabel.text = `($(sync-ignored) ${localize('extensionSyncIgnoredLabel', 'Sync: Ignored')})`;
+		syncIgnoredLabel.title = localize('syncIgnoredTitle', "Settings sync does not sync this setting");
 
 		return syncIgnoredElement;
 	}
@@ -905,7 +975,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 					if (content.startsWith('#')) {
 						const e: ISettingLinkClickEvent = {
 							source: element,
-							targetKey: content.substr(1)
+							targetKey: content.substring(1)
 						};
 						this._onDidClickSettingLink.fire(e);
 					} else {
@@ -1094,26 +1164,13 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		common.toDispose.add(
 			listWidget.onDidChangeList(e => {
 				const newList = this.computeNewList(template, e);
-				this.onDidChangeList(template, newList);
-				if (newList !== null && template.onChange) {
+				if (template.onChange) {
 					template.onChange(newList);
 				}
 			})
 		);
 
 		return template;
-	}
-
-	private onDidChangeList(template: ISettingListItemTemplate, newList: string[] | undefined | null): void {
-		if (!template.context || newList === null) {
-			return;
-		}
-
-		this._onDidChangeSetting.fire({
-			key: template.context.setting.key,
-			value: newList,
-			type: template.context.valueType
-		});
 	}
 
 	private computeNewList(template: ISettingListItemTemplate, e: ISettingListChangeEvent<IListDataItem>): string[] | undefined {
@@ -1172,7 +1229,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		super.renderSettingElement(element, index, templateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string[] | undefined) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string[] | number[] | undefined) => void): void {
 		const value = getListDisplayValue(dataElement);
 		const keySuggester = dataElement.setting.enum ? createArraySuggester(dataElement) : undefined;
 		template.listWidget.setValue(value, {
@@ -1185,9 +1242,16 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 			template.listWidget.cancelEdit();
 		}));
 
-		template.onChange = (v) => {
-			onChange(v);
-			renderArrayValidations(dataElement, template, v, false);
+		template.onChange = (v: string[] | undefined) => {
+			if (v && !renderArrayValidations(dataElement, template, v, false)) {
+				const itemType = dataElement.setting.arrayItemType;
+				const arrToSave = isNonNullableNumericType(itemType) ? v.map(a => +a) : v;
+				onChange(arrToSave);
+			} else {
+				// Save the setting unparsed and containing the errors.
+				// renderArrayValidations will render relevant error messages.
+				onChange(v);
+			}
 		};
 
 		renderArrayValidations(dataElement, template, value.map(v => v.value.data.toString()), true);
@@ -1328,8 +1392,14 @@ export class SettingObjectRenderer extends AbstractSettingObjectRenderer impleme
 		}));
 
 		template.onChange = (v: Record<string, unknown> | undefined) => {
-			onChange(v);
-			renderArrayValidations(dataElement, template, v, false);
+			if (v && !renderArrayValidations(dataElement, template, v, false)) {
+				const parsedRecord = parseNumericObjectValues(dataElement, v);
+				onChange(parsedRecord);
+			} else {
+				// Save the setting unparsed and containing the errors.
+				// renderArrayValidations will render relevant error messages.
+				onChange(v);
+			}
 		};
 		renderArrayValidations(dataElement, template, dataElement.value, true);
 	}
@@ -1621,6 +1691,8 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 			createdDefault = true;
 		}
 
+		// Use String constructor in case of null or undefined values
+		const stringifiedDefaultValue = escapeInvisibleChars(String(dataElement.defaultValue));
 		const displayOptions = settingEnum
 			.map(String)
 			.map(escapeInvisibleChars)
@@ -1637,7 +1709,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 						},
 						disposables: disposables
 					},
-					decoratorRight: (data === dataElement.defaultValue || createdDefault && index === 0 ? localize('settings.Default', "default") : '')
+					decoratorRight: (((data === stringifiedDefaultValue) || (createdDefault && index === 0)) ? localize('settings.Default', "default") : '')
 				};
 			});
 
@@ -1830,8 +1902,9 @@ export class SettingUntrustedRenderer extends AbstractSettingRenderer implements
 		linkElement.textContent = manageWorkspaceTrustLabel;
 		linkElement.setAttribute('tabindex', '0');
 		linkElement.href = '#';
-		template.toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.CLICK, () => {
+		template.toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.CLICK, (e: MouseEvent) => {
 			this._commandService.executeCommand('workbench.trust.manage');
+			e.stopPropagation();
 		}));
 		template.toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
@@ -1874,7 +1947,7 @@ export class SettingTreeRenderers {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IUserDataAutoSyncEnablementService private readonly _userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+		@IUserDataSyncEnablementService private readonly _userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		this.settingActions = [
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, async context => {
@@ -1922,7 +1995,7 @@ export class SettingTreeRenderers {
 	}
 
 	private getActionsForSetting(setting: ISetting): IAction[] {
-		const enableSync = this._userDataAutoSyncEnablementService.isEnabled();
+		const enableSync = this._userDataSyncEnablementService.isEnabled();
 		return enableSync && !setting.disallowSyncIgnore ?
 			[
 				new Separator(),
@@ -1991,12 +2064,15 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 	return false;
 }
 
+/**
+ * Validate and render any error message for arrays. Returns true if the value is invalid.
+ */
 function renderArrayValidations(
 	dataElement: SettingsTreeSettingElement,
 	template: ISettingListItemTemplate | ISettingObjectItemTemplate,
 	value: string[] | Record<string, unknown> | undefined,
 	calledOnStartup: boolean
-) {
+): boolean {
 	template.containerElement.classList.add('invalid-input');
 	if (dataElement.setting.validator) {
 		const errMsg = dataElement.setting.validator(value);
@@ -2006,12 +2082,13 @@ function renderArrayValidations(
 			const validationError = localize('validationError', "Validation Error.");
 			template.containerElement.setAttribute('aria-label', [dataElement.setting.key, validationError, errMsg].join(' '));
 			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
-			return;
+			return true;
 		} else {
 			template.containerElement.setAttribute('aria-label', dataElement.setting.key);
 			template.containerElement.classList.remove('invalid-input');
 		}
 	}
+	return false;
 }
 
 function cleanRenderedMarkdown(element: Node): void {
@@ -2028,11 +2105,11 @@ function cleanRenderedMarkdown(element: Node): void {
 }
 
 function fixSettingLinks(text: string, linkify = true): string {
-	return text.replace(/`#([^#]*)#`/g, (match, settingKey) => {
+	return text.replace(/`#([^#]*)#`|'#([^#]*)#'/g, (match, settingKey) => {
 		const targetDisplayFormat = settingKeyToDisplayFormat(settingKey);
 		const targetName = `${targetDisplayFormat.category}: ${targetDisplayFormat.label}`;
 		return linkify ?
-			`[${targetName}](#${settingKey})` :
+			`[${targetName}](#${settingKey} "${settingKey}")` :
 			`"${targetName}"`;
 	});
 }
@@ -2145,7 +2222,7 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 				return SETTINGS_ENUM_TEMPLATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.StringOrEnumArray) {
+			if (element.valueType === SettingValueType.Array) {
 				return SETTINGS_ARRAY_TEMPLATE_ID;
 			}
 

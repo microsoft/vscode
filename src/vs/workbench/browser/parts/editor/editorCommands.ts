@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, GroupIdentifier, TextCompareEditorActiveContext, SideBySideEditorActiveContext, isEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
+import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, GroupIdentifier, TextCompareEditorActiveContext, SideBySideEditorActiveContext, isEditorInputWithOptionsAndGroup, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorGroupColumn, columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
@@ -27,12 +27,13 @@ import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/acti
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { EditorResolution, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorResolution, IEditorOptions, IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -494,15 +495,31 @@ function registerOpenEditorAPICommands(): void {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const openerService = accessor.get(IOpenerService);
+		const pathService = accessor.get(IPathService);
 
 		const resource = URI.revive(resourceArg);
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 
-		// use editor options or editor view column as a hint to use the editor service for opening
-		if (optionsArg || typeof columnArg === 'number') {
+		// use editor options or editor view column or resource scheme
+		// as a hint to use the editor service for opening directly
+		if (optionsArg || typeof columnArg === 'number' || resource.scheme === Schemas.untitled) {
 			const [options, column] = mixinContext(context, optionsArg, columnArg);
 
-			await editorService.openEditor({ resource, options, label }, columnToEditorGroup(editorGroupService, column));
+			let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
+			if (resource.scheme === Schemas.untitled && resource.path.length > 1) {
+				// special case for untitled: we are getting a resource with meaningful
+				// path from an extension to use for the untitled editor. as such, we
+				// have to assume it as an associated resource to use when saving. we
+				// do so by setting the `forceUntitled: true` and changing the scheme
+				// to a file based one. the untitled editor service takes care to
+				// associate the path properly then.
+				input = { resource: resource.with({ scheme: pathService.defaultUriScheme }), forceUntitled: true, options, label };
+			} else {
+				// use any other resource as is
+				input = { resource, options, label };
+			}
+
+			await editorService.openEditor(input, columnToEditorGroup(editorGroupService, column));
 		}
 
 		// do not allow to execute commands from here
@@ -532,7 +549,6 @@ function registerOpenEditorAPICommands(): void {
 			]
 		}
 	});
-
 
 	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, originalResource: UriComponents, modifiedResource: UriComponents, label?: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
@@ -608,16 +624,16 @@ function registerOpenEditorAtIndexCommands(): void {
 
 	function toKeyCode(index: number): KeyCode {
 		switch (index) {
-			case 0: return KeyCode.KEY_0;
-			case 1: return KeyCode.KEY_1;
-			case 2: return KeyCode.KEY_2;
-			case 3: return KeyCode.KEY_3;
-			case 4: return KeyCode.KEY_4;
-			case 5: return KeyCode.KEY_5;
-			case 6: return KeyCode.KEY_6;
-			case 7: return KeyCode.KEY_7;
-			case 8: return KeyCode.KEY_8;
-			case 9: return KeyCode.KEY_9;
+			case 0: return KeyCode.Digit0;
+			case 1: return KeyCode.Digit1;
+			case 2: return KeyCode.Digit2;
+			case 3: return KeyCode.Digit3;
+			case 4: return KeyCode.Digit4;
+			case 5: return KeyCode.Digit5;
+			case 6: return KeyCode.Digit6;
+			case 7: return KeyCode.Digit7;
+			case 8: return KeyCode.Digit8;
+			case 9: return KeyCode.Digit9;
 		}
 
 		throw new Error('invalid index');
@@ -681,13 +697,13 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 
 	function toKeyCode(index: number): KeyCode {
 		switch (index) {
-			case 1: return KeyCode.KEY_2;
-			case 2: return KeyCode.KEY_3;
-			case 3: return KeyCode.KEY_4;
-			case 4: return KeyCode.KEY_5;
-			case 5: return KeyCode.KEY_6;
-			case 6: return KeyCode.KEY_7;
-			case 7: return KeyCode.KEY_8;
+			case 1: return KeyCode.Digit2;
+			case 2: return KeyCode.Digit3;
+			case 3: return KeyCode.Digit4;
+			case 4: return KeyCode.Digit5;
+			case 5: return KeyCode.Digit6;
+			case 6: return KeyCode.Digit7;
+			case 7: return KeyCode.Digit8;
 		}
 
 		throw new Error('Invalid index');
@@ -724,7 +740,6 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 
 	// Focus
 	newGroup.focus();
-
 }
 
 function registerSplitEditorCommands() {
@@ -796,8 +811,8 @@ function registerCloseEditorCommands() {
 		id: CLOSE_EDITOR_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
-		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
+		primary: KeyMod.CtrlCmd | KeyCode.KeyW,
+		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 		handler: (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			return closeEditorHandler(accessor, false, resourceOrContext, context);
 		}
@@ -811,7 +826,7 @@ function registerCloseEditorCommands() {
 		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
-		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_W),
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyW),
 		handler: (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			return Promise.all(getEditorsContext(accessor, resourceOrContext, context).groups.map(async group => {
 				if (group) {
@@ -825,8 +840,8 @@ function registerCloseEditorCommands() {
 		id: CLOSE_EDITOR_GROUP_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: ContextKeyExpr.and(ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext),
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
-		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
+		primary: KeyMod.CtrlCmd | KeyCode.KeyW,
+		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 		handler: (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 			const commandsContext = getCommandsContext(resourceOrContext, context);
@@ -848,7 +863,7 @@ function registerCloseEditorCommands() {
 		id: CLOSE_SAVED_EDITORS_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
-		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_U),
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyU),
 		handler: (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			return Promise.all(getEditorsContext(accessor, resourceOrContext, context).groups.map(async group => {
 				if (group) {
@@ -863,7 +878,7 @@ function registerCloseEditorCommands() {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
 		primary: undefined,
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_T },
+		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyT },
 		handler: (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const { editors, groups } = getEditorsContext(accessor, resourceOrContext, context);
 			return Promise.all(groups.map(async group => {
@@ -1017,7 +1032,7 @@ function registerSplitEditorInGroupCommands(): void {
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: ActiveEditorCanSplitInGroupContext,
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH)
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backslash)
 				}
 			});
 		}
@@ -1063,7 +1078,7 @@ function registerSplitEditorInGroupCommands(): void {
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: SideBySideEditorActiveContext,
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH)
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backslash)
 				}
 			});
 		}
@@ -1202,7 +1217,7 @@ function registerOtherEditorCommands(): void {
 		id: KEEP_EDITOR_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
-		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter),
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.Enter),
 		handler: async (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
@@ -1282,7 +1297,7 @@ function registerOtherEditorCommands(): void {
 		id: PIN_EDITOR_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: ActiveEditorStickyContext.toNegated(),
-		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.Shift | KeyCode.Enter),
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.Enter),
 		handler: async (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
@@ -1297,7 +1312,7 @@ function registerOtherEditorCommands(): void {
 		id: UNPIN_EDITOR_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: ActiveEditorStickyContext,
-		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.Shift | KeyCode.Enter),
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.Enter),
 		handler: async (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 

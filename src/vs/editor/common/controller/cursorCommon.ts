@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
+import { ICommand } from 'vs/editor/common/editorCommon';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { ITextModel, PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { AutoClosingPairs, IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { AutoClosingPairs } from 'vs/editor/common/languages/languageConfiguration';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
+import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
 export { CursorColumns } from './cursorColumns';
 
 export interface IColumnSelectData {
@@ -81,7 +84,7 @@ export class CursorConfiguration {
 	public readonly surroundingPairs: CharacterMap;
 	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean, bracket: (ch: string) => boolean };
 
-	private readonly _languageIdentifier: LanguageIdentifier;
+	private readonly _languageId: string;
 	private _electricChars: { [key: string]: boolean; } | null;
 
 	public static shouldRecreate(e: ConfigurationChangedEvent): boolean {
@@ -103,11 +106,12 @@ export class CursorConfiguration {
 	}
 
 	constructor(
-		languageIdentifier: LanguageIdentifier,
+		languageId: string,
 		modelOptions: TextModelResolvedOptions,
-		configuration: IConfiguration
+		configuration: IEditorConfiguration,
+		private readonly languageConfigurationService: ILanguageConfigurationService
 	) {
-		this._languageIdentifier = languageIdentifier;
+		this._languageId = languageId;
 
 		const options = configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
@@ -136,13 +140,13 @@ export class CursorConfiguration {
 		this._electricChars = null;
 
 		this.shouldAutoCloseBefore = {
-			quote: CursorConfiguration._getShouldAutoClose(languageIdentifier, this.autoClosingQuotes),
-			bracket: CursorConfiguration._getShouldAutoClose(languageIdentifier, this.autoClosingBrackets)
+			quote: this._getShouldAutoClose(languageId, this.autoClosingQuotes),
+			bracket: this._getShouldAutoClose(languageId, this.autoClosingBrackets)
 		};
 
-		this.autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
+		this.autoClosingPairs = this.languageConfigurationService.getLanguageConfiguration(languageId).getAutoClosingPairs();
 
-		let surroundingPairs = CursorConfiguration._getSurroundingPairs(languageIdentifier);
+		const surroundingPairs = this.languageConfigurationService.getLanguageConfiguration(languageId).getSurroundingPairs();
 		if (surroundingPairs) {
 			for (const pair of surroundingPairs) {
 				this.surroundingPairs[pair.open] = pair.close;
@@ -153,7 +157,7 @@ export class CursorConfiguration {
 	public get electricChars() {
 		if (!this._electricChars) {
 			this._electricChars = {};
-			let electricChars = CursorConfiguration._getElectricCharacters(this._languageIdentifier);
+			const electricChars = this.languageConfigurationService.getLanguageConfiguration(this._languageId).electricCharacter?.getElectricCharacters();
 			if (electricChars) {
 				for (const char of electricChars) {
 					this._electricChars[char] = true;
@@ -163,25 +167,28 @@ export class CursorConfiguration {
 		return this._electricChars;
 	}
 
+	/**
+	 * Should return opening bracket type to match indentation with
+	 */
+	public onElectricCharacter(character: string, context: LineTokens, column: number): IElectricAction | null {
+		const scopedLineTokens = createScopedLineTokens(context, column - 1);
+		const electricCharacterSupport = this.languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId).electricCharacter;
+		if (!electricCharacterSupport) {
+			return null;
+		}
+		return electricCharacterSupport.onElectricCharacter(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
+	}
+
 	public normalizeIndentation(str: string): string {
 		return TextModel.normalizeIndentation(str, this.indentSize, this.insertSpaces);
 	}
 
-	private static _getElectricCharacters(languageIdentifier: LanguageIdentifier): string[] | null {
-		try {
-			return LanguageConfigurationRegistry.getElectricCharacters(languageIdentifier.id);
-		} catch (e) {
-			onUnexpectedError(e);
-			return null;
-		}
-	}
-
-	private static _getShouldAutoClose(languageIdentifier: LanguageIdentifier, autoCloseConfig: EditorAutoClosingStrategy): (ch: string) => boolean {
+	private _getShouldAutoClose(languageId: string, autoCloseConfig: EditorAutoClosingStrategy): (ch: string) => boolean {
 		switch (autoCloseConfig) {
 			case 'beforeWhitespace':
 				return autoCloseBeforeWhitespace;
 			case 'languageDefined':
-				return CursorConfiguration._getLanguageDefinedShouldAutoClose(languageIdentifier);
+				return this._getLanguageDefinedShouldAutoClose(languageId);
 			case 'always':
 				return autoCloseAlways;
 			case 'never':
@@ -189,23 +196,37 @@ export class CursorConfiguration {
 		}
 	}
 
-	private static _getLanguageDefinedShouldAutoClose(languageIdentifier: LanguageIdentifier): (ch: string) => boolean {
-		try {
-			const autoCloseBeforeSet = LanguageConfigurationRegistry.getAutoCloseBeforeSet(languageIdentifier.id);
-			return c => autoCloseBeforeSet.indexOf(c) !== -1;
-		} catch (e) {
-			onUnexpectedError(e);
-			return autoCloseNever;
-		}
+	private _getLanguageDefinedShouldAutoClose(languageId: string): (ch: string) => boolean {
+		const autoCloseBeforeSet = this.languageConfigurationService.getLanguageConfiguration(languageId).getAutoCloseBeforeSet();
+		return c => autoCloseBeforeSet.indexOf(c) !== -1;
 	}
 
-	private static _getSurroundingPairs(languageIdentifier: LanguageIdentifier): IAutoClosingPair[] | null {
-		try {
-			return LanguageConfigurationRegistry.getSurroundingPairs(languageIdentifier.id);
-		} catch (e) {
-			onUnexpectedError(e);
-			return null;
+	/**
+	 * Returns a visible column from a column.
+	 * @see {@link CursorColumns}
+	 */
+	public visibleColumnFromColumn(model: ICursorSimpleModel, position: Position): number {
+		return CursorColumns.visibleColumnFromColumn(model.getLineContent(position.lineNumber), position.column, this.tabSize);
+	}
+
+	/**
+	 * Returns a visible column from a column.
+	 * @see {@link CursorColumns}
+	 */
+	public columnFromVisibleColumn(model: ICursorSimpleModel, lineNumber: number, visibleColumn: number): number {
+		const result = CursorColumns.columnFromVisibleColumn(model.getLineContent(lineNumber), visibleColumn, this.tabSize);
+
+		const minColumn = model.getLineMinColumn(lineNumber);
+		if (result < minColumn) {
+			return minColumn;
 		}
+
+		const maxColumn = model.getLineMaxColumn(lineNumber);
+		if (result > maxColumn) {
+			return maxColumn;
+		}
+
+		return result;
 	}
 }
 
@@ -226,6 +247,86 @@ export interface ICursorSimpleModel {
 	 * @internal
 	 */
 	getLineIndentColumn(lineNumber: number): number;
+}
+
+export class CursorContext {
+	_cursorContextBrand: void = undefined;
+
+	public readonly model: ITextModel;
+	public readonly viewModel: ICursorSimpleModel;
+	public readonly coordinatesConverter: ICoordinatesConverter;
+	public readonly cursorConfig: CursorConfiguration;
+
+	constructor(model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
+		this.model = model;
+		this.viewModel = viewModel;
+		this.coordinatesConverter = coordinatesConverter;
+		this.cursorConfig = cursorConfig;
+	}
+}
+
+export type PartialCursorState = CursorState | PartialModelCursorState | PartialViewCursorState;
+
+export class CursorState {
+	_cursorStateBrand: void = undefined;
+
+	public static fromModelState(modelState: SingleCursorState): PartialModelCursorState {
+		return new PartialModelCursorState(modelState);
+	}
+
+	public static fromViewState(viewState: SingleCursorState): PartialViewCursorState {
+		return new PartialViewCursorState(viewState);
+	}
+
+	public static fromModelSelection(modelSelection: ISelection): PartialModelCursorState {
+		const selection = Selection.liftSelection(modelSelection);
+		const modelState = new SingleCursorState(
+			Range.fromPositions(selection.getSelectionStart()),
+			0,
+			selection.getPosition(), 0
+		);
+		return CursorState.fromModelState(modelState);
+	}
+
+	public static fromModelSelections(modelSelections: readonly ISelection[]): PartialModelCursorState[] {
+		const states: PartialModelCursorState[] = [];
+		for (let i = 0, len = modelSelections.length; i < len; i++) {
+			states[i] = this.fromModelSelection(modelSelections[i]);
+		}
+		return states;
+	}
+
+	readonly modelState: SingleCursorState;
+	readonly viewState: SingleCursorState;
+
+	constructor(modelState: SingleCursorState, viewState: SingleCursorState) {
+		this.modelState = modelState;
+		this.viewState = viewState;
+	}
+
+	public equals(other: CursorState): boolean {
+		return (this.viewState.equals(other.viewState) && this.modelState.equals(other.modelState));
+	}
+}
+
+export class PartialModelCursorState {
+	readonly modelState: SingleCursorState;
+	readonly viewState: null;
+
+	constructor(modelState: SingleCursorState) {
+		this.modelState = modelState;
+		this.viewState = null;
+	}
+}
+
+export class PartialViewCursorState {
+	readonly modelState: null;
+	readonly viewState: SingleCursorState;
+
+	constructor(viewState: SingleCursorState) {
+		this.modelState = null;
+		this.viewState = viewState;
+	}
 }
 
 /**
@@ -288,113 +389,11 @@ export class SingleCursorState {
 	}
 
 	private static _computeSelection(selectionStart: Range, position: Position): Selection {
-		let startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number;
-		if (selectionStart.isEmpty()) {
-			startLineNumber = selectionStart.startLineNumber;
-			startColumn = selectionStart.startColumn;
-			endLineNumber = position.lineNumber;
-			endColumn = position.column;
+		if (selectionStart.isEmpty() || !position.isBeforeOrEqual(selectionStart.getStartPosition())) {
+			return Selection.fromPositions(selectionStart.getStartPosition(), position);
 		} else {
-			if (position.isBeforeOrEqual(selectionStart.getStartPosition())) {
-				startLineNumber = selectionStart.endLineNumber;
-				startColumn = selectionStart.endColumn;
-				endLineNumber = position.lineNumber;
-				endColumn = position.column;
-			} else {
-				startLineNumber = selectionStart.startLineNumber;
-				startColumn = selectionStart.startColumn;
-				endLineNumber = position.lineNumber;
-				endColumn = position.column;
-			}
+			return Selection.fromPositions(selectionStart.getEndPosition(), position);
 		}
-		return new Selection(
-			startLineNumber,
-			startColumn,
-			endLineNumber,
-			endColumn
-		);
-	}
-}
-
-export class CursorContext {
-	_cursorContextBrand: void = undefined;
-
-	public readonly model: ITextModel;
-	public readonly viewModel: ICursorSimpleModel;
-	public readonly coordinatesConverter: ICoordinatesConverter;
-	public readonly cursorConfig: CursorConfiguration;
-
-	constructor(model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
-		this.model = model;
-		this.viewModel = viewModel;
-		this.coordinatesConverter = coordinatesConverter;
-		this.cursorConfig = cursorConfig;
-	}
-}
-
-export class PartialModelCursorState {
-	readonly modelState: SingleCursorState;
-	readonly viewState: null;
-
-	constructor(modelState: SingleCursorState) {
-		this.modelState = modelState;
-		this.viewState = null;
-	}
-}
-
-export class PartialViewCursorState {
-	readonly modelState: null;
-	readonly viewState: SingleCursorState;
-
-	constructor(viewState: SingleCursorState) {
-		this.modelState = null;
-		this.viewState = viewState;
-	}
-}
-
-export type PartialCursorState = CursorState | PartialModelCursorState | PartialViewCursorState;
-
-export class CursorState {
-	_cursorStateBrand: void = undefined;
-
-	public static fromModelState(modelState: SingleCursorState): PartialModelCursorState {
-		return new PartialModelCursorState(modelState);
-	}
-
-	public static fromViewState(viewState: SingleCursorState): PartialViewCursorState {
-		return new PartialViewCursorState(viewState);
-	}
-
-	public static fromModelSelection(modelSelection: ISelection): PartialModelCursorState {
-		const selectionStartLineNumber = modelSelection.selectionStartLineNumber;
-		const selectionStartColumn = modelSelection.selectionStartColumn;
-		const positionLineNumber = modelSelection.positionLineNumber;
-		const positionColumn = modelSelection.positionColumn;
-		const modelState = new SingleCursorState(
-			new Range(selectionStartLineNumber, selectionStartColumn, selectionStartLineNumber, selectionStartColumn), 0,
-			new Position(positionLineNumber, positionColumn), 0
-		);
-		return CursorState.fromModelState(modelState);
-	}
-
-	public static fromModelSelections(modelSelections: readonly ISelection[]): PartialModelCursorState[] {
-		let states: PartialModelCursorState[] = [];
-		for (let i = 0, len = modelSelections.length; i < len; i++) {
-			states[i] = this.fromModelSelection(modelSelections[i]);
-		}
-		return states;
-	}
-
-	readonly modelState: SingleCursorState;
-	readonly viewState: SingleCursorState;
-
-	constructor(modelState: SingleCursorState, viewState: SingleCursorState) {
-		this.modelState = modelState;
-		this.viewState = viewState;
-	}
-
-	public equals(other: CursorState): boolean {
-		return (this.viewState.equals(other.viewState) && this.modelState.equals(other.modelState));
 	}
 }
 

@@ -16,10 +16,18 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMapping';
 
 /**
- * Set when the find widget in a webview is visible.
+ * Set when the find widget in a webview in a webview is visible.
  */
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('webviewFindWidgetVisible', false);
+
+/**
+ * Set when the find widget in a webview is focused.
+ */
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('webviewFindWidgetFocused', false);
+
+/**
+ * Set when the find widget in a webview is enabled in a webview
+ */
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED = new RawContextKey<boolean>('webviewFindWidgetEnabled', false);
 
 export const IWebviewService = createDecorator<IWebviewService>('webviewService');
@@ -30,17 +38,17 @@ export interface IWebviewService {
 	/**
 	 * The currently focused webview.
 	 */
-	readonly activeWebview: Webview | undefined;
+	readonly activeWebview: IWebview | undefined;
 
 	/**
 	 * All webviews.
 	 */
-	readonly webviews: Iterable<Webview>;
+	readonly webviews: Iterable<IWebview>;
 
 	/**
 	 * Fired when the currently focused webview changes.
 	 */
-	readonly onDidChangeActiveWebview: Event<Webview | undefined>;
+	readonly onDidChangeActiveWebview: Event<IWebview | undefined>;
 
 	/**
 	 * Create a basic webview dom element.
@@ -50,7 +58,7 @@ export interface IWebviewService {
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
-	): WebviewElement;
+	): IWebviewElement;
 
 	/**
 	 * Create a lazily created webview element that is overlaid on top of another element.
@@ -63,7 +71,7 @@ export interface IWebviewService {
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
-	): WebviewOverlay;
+	): IOverlayWebview;
 }
 
 export const enum WebviewContentPurpose {
@@ -72,27 +80,58 @@ export const enum WebviewContentPurpose {
 	WebviewView = 'webviewView',
 }
 
-export type WebviewStyles = { [key: string]: string | number; };
+export type WebviewStyles = { readonly [key: string]: string | number; };
 
 export interface WebviewOptions {
-	// The purpose of the webview; this is (currently) only used for filtering in js-debug
+	/**
+	 * The purpose of the webview; this is (currently) only used for filtering in js-debug
+	 */
 	readonly purpose?: WebviewContentPurpose;
 	readonly customClasses?: string;
 	readonly enableFindWidget?: boolean;
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
-	transformCssVariables?(styles: Readonly<WebviewStyles>): Readonly<WebviewStyles>;
+	transformCssVariables?(styles: WebviewStyles): WebviewStyles;
 }
 
+/**
+ *
+ */
 export interface WebviewContentOptions {
+	/**
+	 * Should the webview allow `acquireVsCodeApi` to be called multiple times? Defaults to false.
+	 */
 	readonly allowMultipleAPIAcquire?: boolean;
+
+	/**
+	 * Should scripts be enabled in the webview? Defaults to false.
+	 */
 	readonly allowScripts?: boolean;
+
+	/**
+	 * Should forms be enabled in the webview? Defaults to the value of {@link allowScripts}.
+	 */
 	readonly allowForms?: boolean;
-	readonly localResourceRoots?: ReadonlyArray<URI>;
-	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
+
+	/**
+	 * Set of root paths from which the webview can load local resources.
+	 */
+	readonly localResourceRoots?: readonly URI[];
+
+	/**
+	 * Set of localhost port mappings to apply inside the webview.
+	 */
+	readonly portMapping?: readonly IWebviewPortMapping[];
+
+	/**
+	 * Are command uris enabled in the webview? Defaults to false.
+	 */
 	readonly enableCommandUris?: boolean;
 }
 
+/**
+ * Check if two {@link WebviewContentOptions} are equal.
+ */
 export function areWebviewContentOptionsEqual(a: WebviewContentOptions, b: WebviewContentOptions): boolean {
 	return (
 		a.allowMultipleAPIAcquire === b.allowMultipleAPIAcquire
@@ -110,8 +149,8 @@ export interface WebviewExtensionDescription {
 }
 
 export interface IDataLinkClickEvent {
-	dataURL: string;
-	downloadName?: string;
+	readonly dataURL: string;
+	readonly downloadName?: string;
 }
 
 export interface WebviewMessageReceivedEvent {
@@ -119,7 +158,7 @@ export interface WebviewMessageReceivedEvent {
 	readonly transfer?: readonly ArrayBuffer[];
 }
 
-export interface Webview extends IDisposable {
+export interface IWebview extends IDisposable {
 
 	readonly id: string;
 
@@ -137,7 +176,7 @@ export interface Webview extends IDisposable {
 	readonly onDidDispose: Event<void>;
 
 	readonly onDidClickLink: Event<string>;
-	readonly onDidScroll: Event<{ scrollYPercentage: number }>;
+	readonly onDidScroll: Event<{ readonly scrollYPercentage: number }>;
 	readonly onDidWheel: Event<IMouseWheelEvent>;
 	readonly onDidUpdateState: Event<string | undefined>;
 	readonly onDidReload: Event<void>;
@@ -169,12 +208,12 @@ export interface Webview extends IDisposable {
 /**
  * Basic webview rendered directly in the dom
  */
-export interface WebviewElement extends Webview {
+export interface IWebviewElement extends IWebview {
 	/**
 	 * Append the webview to a HTML element.
 	 *
 	 * Note that the webview content will be destroyed if any part of the parent hierarchy
-	 * changes. You can avoid this by using a {@link WebviewOverlay} instead.
+	 * changes. You can avoid this by using a {@link IOverlayWebview} instead.
 	 *
 	 * @param parent Element to append the webview to.
 	 */
@@ -182,15 +221,15 @@ export interface WebviewElement extends Webview {
 }
 
 /**
- * Lazily created {@link Webview} that is absolutely positioned over another element.
+ * Lazily created {@link IWebview} that is absolutely positioned over another element.
  *
  * Absolute positioning lets us avoid having the webview be re-parented, which would destroy the
  * webview's content.
  *
  * Note that the underlying webview owned by a `WebviewOverlay` can be dynamically created
- * and destroyed depending on who has {@link WebviewOverlay.claim claimed} or {@link WebviewOverlay.release released} it.
+ * and destroyed depending on who has {@link IOverlayWebview.claim claimed} or {@link IOverlayWebview.release released} it.
  */
-export interface WebviewOverlay extends Webview {
+export interface IOverlayWebview extends IWebview {
 	/**
 	 * The HTML element that holds the webview.
 	 */
@@ -204,7 +243,7 @@ export interface WebviewOverlay extends Webview {
 	 * This will create the underlying webview element.
 	 *
 	 * @param claimant Identifier for the object claiming the webview.
-	 *   This must match the `claimant` passed to {@link WebviewOverlay.release}.
+	 *   This must match the `claimant` passed to {@link IOverlayWebview.release}.
 	 */
 	claim(claimant: any, scopedContextKeyService: IContextKeyService | undefined): void;
 
@@ -215,7 +254,7 @@ export interface WebviewOverlay extends Webview {
 	 * cause the underlying webview element to be destoryed.
 	 *
 	 * @param claimant Identifier for the object releasing its claim on the webview.
-	 *   This must match the `claimant` passed to {@link WebviewOverlay.claim}.
+	 *   This must match the `claimant` passed to {@link IOverlayWebview.claim}.
 	 */
 	release(claimant: any): void;
 

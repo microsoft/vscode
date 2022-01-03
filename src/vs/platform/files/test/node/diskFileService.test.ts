@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
+import { timeout } from 'vs/base/common/async';
 import { bufferToReadable, bufferToStream, streamToBuffer, streamToBufferReadableStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -15,7 +16,7 @@ import { isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Promises, rimrafSync } from 'vs/base/node/pfs';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { etag, FileChangeType, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, IFileChange, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { etag, FileAtomicReadOptions, FileChangeType, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileChange, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -67,6 +68,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 				FileSystemProviderCapabilities.FileReadStream |
 				FileSystemProviderCapabilities.Trash |
 				FileSystemProviderCapabilities.FileWriteUnlock |
+				FileSystemProviderCapabilities.FileAtomicRead |
 				FileSystemProviderCapabilities.FileFolderCopy;
 
 			if (isLinux) {
@@ -115,8 +117,8 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		return bytesRead;
 	}
 
-	override async readFile(resource: URI): Promise<Uint8Array> {
-		const res = await super.readFile(resource);
+	override async readFile(resource: URI, options?: FileAtomicReadOptions): Promise<Uint8Array> {
+		const res = await super.readFile(resource, options);
 
 		this.totalBytesRead += res.byteLength;
 
@@ -1198,8 +1200,14 @@ flakySuite('Disk File Service', function () {
 		return testReadFile(URI.file(join(testDir, 'lorem.txt')));
 	});
 
-	test('readFile - atomic', async () => {
+	test('readFile - atomic (emulated on service level)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+
+		return testReadFile(URI.file(join(testDir, 'lorem.txt')), { atomic: true });
+	});
+
+	test('readFile - atomic (natively supported)', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite & FileSystemProviderCapabilities.FileAtomicRead);
 
 		return testReadFile(URI.file(join(testDir, 'lorem.txt')), { atomic: true });
 	});
@@ -1778,7 +1786,7 @@ flakySuite('Disk File Service', function () {
 		assert.ok(error!);
 	}
 
-	test('writeFile (large file) - multiple parallel writes queue up and atomic read support', async () => {
+	test('writeFile (large file) - multiple parallel writes queue up and atomic read support (via file service)', async () => {
 		const resource = URI.file(join(testDir, 'lorem.txt'));
 
 		const content = readFileSync(resource.fsPath);
@@ -1795,6 +1803,162 @@ flakySuite('Disk File Service', function () {
 		}));
 
 		await Promise.all([writePromises, readPromises]);
+	});
+
+	test('provider - write barrier prevents dirty writes', async () => {
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		const newContent = content.toString() + content.toString();
+
+		const provider = service.getProvider(resource.scheme);
+		assert.ok(provider);
+		assert.ok(hasOpenReadWriteCloseCapability(provider));
+
+		const writePromises = Promise.all(['0', '00', '000', '0000', '00000'].map(async offset => {
+			const content = offset + newContent;
+			const contentBuffer = VSBuffer.fromString(content).buffer;
+
+			const fd = await provider.open(resource, { create: true, unlock: false });
+			try {
+				await provider.write(fd, 0, VSBuffer.fromString(content).buffer, 0, contentBuffer.byteLength);
+
+				// Here since `close` is not called, all other writes are
+				// waiting on the barrier to release, so doing a readFile
+				// should give us a consistent view of the file contents
+				assert.strictEqual((await Promises.readFile(resource.fsPath)).toString(), content);
+			} finally {
+				await provider.close(fd);
+			}
+		}));
+
+		await Promise.all([writePromises]);
+	});
+
+	test('provider - write barrier is partitioned per resource', async () => {
+		const resource1 = URI.file(join(testDir, 'lorem.txt'));
+		const resource2 = URI.file(join(testDir, 'test.txt'));
+
+		const provider = service.getProvider(resource1.scheme);
+		assert.ok(provider);
+		assert.ok(hasOpenReadWriteCloseCapability(provider));
+
+		const fd1 = await provider.open(resource1, { create: true, unlock: false });
+		const fd2 = await provider.open(resource2, { create: true, unlock: false });
+
+		const newContent = 'Hello World';
+
+		try {
+			await provider.write(fd1, 0, VSBuffer.fromString(newContent).buffer, 0, VSBuffer.fromString(newContent).buffer.byteLength);
+			assert.strictEqual((await Promises.readFile(resource1.fsPath)).toString(), newContent);
+
+			await provider.write(fd2, 0, VSBuffer.fromString(newContent).buffer, 0, VSBuffer.fromString(newContent).buffer.byteLength);
+			assert.strictEqual((await Promises.readFile(resource2.fsPath)).toString(), newContent);
+		} finally {
+			await Promise.allSettled([
+				await provider.close(fd1),
+				await provider.close(fd2)
+			]);
+		}
+	});
+
+	test('provider - write barrier not becoming stale', async () => {
+		const newFolder = join(testDir, 'new-folder');
+		const newResource = URI.file(join(newFolder, 'lorem.txt'));
+
+		const provider = service.getProvider(newResource.scheme);
+		assert.ok(provider);
+		assert.ok(hasOpenReadWriteCloseCapability(provider));
+
+		let error: Error | undefined = undefined;
+		try {
+			await provider.open(newResource, { create: true, unlock: false });
+		} catch (e) {
+			error = e;
+		}
+
+		assert.ok(error); // expected because `new-folder` does not exist
+
+		await Promises.mkdir(newFolder);
+
+		const content = readFileSync(URI.file(join(testDir, 'lorem.txt')).fsPath);
+		const newContent = content.toString() + content.toString();
+		const newContentBuffer = VSBuffer.fromString(newContent).buffer;
+
+		const fd = await provider.open(newResource, { create: true, unlock: false });
+		try {
+			await provider.write(fd, 0, newContentBuffer, 0, newContentBuffer.byteLength);
+
+			assert.strictEqual((await Promises.readFile(newResource.fsPath)).toString(), newContent);
+		} finally {
+			await provider.close(fd);
+		}
+	});
+
+	test('provider - atomic reads (write pending when read starts)', async () => {
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		const newContent = content.toString() + content.toString();
+		const newContentBuffer = VSBuffer.fromString(newContent).buffer;
+
+		const provider = service.getProvider(resource.scheme);
+		assert.ok(provider);
+		assert.ok(hasOpenReadWriteCloseCapability(provider));
+		assert.ok(hasFileAtomicReadCapability(provider));
+
+		let atomicReadPromise: Promise<Uint8Array> | undefined = undefined;
+		const fd = await provider.open(resource, { create: true, unlock: false });
+		try {
+
+			// Start reading while write is pending
+			atomicReadPromise = provider.readFile(resource, { atomic: true });
+
+			// Simulate a slow write, giving the read
+			// a chance to succeed if it were not atomic
+			await timeout(20);
+
+			await provider.write(fd, 0, newContentBuffer, 0, newContentBuffer.byteLength);
+		} finally {
+			await provider.close(fd);
+		}
+
+		assert.ok(atomicReadPromise);
+
+		const atomicReadResult = await atomicReadPromise;
+		assert.strictEqual(atomicReadResult.byteLength, newContentBuffer.byteLength);
+	});
+
+	test('provider - atomic reads (read pending when write starts)', async () => {
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		const newContent = content.toString() + content.toString();
+		const newContentBuffer = VSBuffer.fromString(newContent).buffer;
+
+		const provider = service.getProvider(resource.scheme);
+		assert.ok(provider);
+		assert.ok(hasOpenReadWriteCloseCapability(provider));
+		assert.ok(hasFileAtomicReadCapability(provider));
+
+		let atomicReadPromise = provider.readFile(resource, { atomic: true });
+
+		const fdPromise = provider.open(resource, { create: true, unlock: false }).then(async fd => {
+			try {
+				return await provider.write(fd, 0, newContentBuffer, 0, newContentBuffer.byteLength);
+			} finally {
+				await provider.close(fd);
+			}
+		});
+
+		let atomicReadResult = await atomicReadPromise;
+		assert.strictEqual(atomicReadResult.byteLength, content.byteLength);
+
+		await fdPromise;
+
+		atomicReadPromise = provider.readFile(resource, { atomic: true });
+		atomicReadResult = await atomicReadPromise;
+		assert.strictEqual(atomicReadResult.byteLength, newContentBuffer.byteLength);
 	});
 
 	test('writeFile (readable) - default', async () => {

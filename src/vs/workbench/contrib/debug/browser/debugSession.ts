@@ -33,7 +33,7 @@ import { localize } from 'vs/nls';
 import { canceled } from 'vs/base/common/errors';
 import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
@@ -916,13 +916,19 @@ export class DebugSession implements IDebugSession {
 			this.passFocusScheduler.cancel();
 			this.stoppedDetails.push(event.body);
 			await this.fetchThreads(event.body);
+			// If the focus for the current session is on a non-existent thread, clear the focus.
+			const focusedThread = this.debugService.getViewModel().focusedThread;
+			const focusedThreadDoesNotExist = focusedThread !== undefined && focusedThread.session === this && !this.threads.has(focusedThread.threadId);
+			if (focusedThreadDoesNotExist) {
+				this.debugService.focusStackFrame(undefined, undefined);
+			}
 			const thread = typeof event.body.threadId === 'number' ? this.getThread(event.body.threadId) : undefined;
 			if (thread) {
 				// Call fetch call stack twice, the first only return the top stack frame.
 				// Second retrieves the rest of the call stack. For performance reasons #25605
 				const promises = this.model.fetchCallStack(<Thread>thread);
 				const focus = async () => {
-					if (!event.body.preserveFocusHint && thread.getCallStack().length) {
+					if (focusedThreadDoesNotExist || (!event.body.preserveFocusHint && thread.getCallStack().length)) {
 						const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 						if (!focusedStackFrame || focusedStackFrame.thread.session === this) {
 							// Only take focus if nothing is focused, or if the focus is already on the current session

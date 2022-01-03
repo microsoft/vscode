@@ -13,8 +13,8 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { CodeActionTriggerType } from 'vs/editor/common/modes';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { CodeActionTriggerType } from 'vs/editor/common/languages';
+import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
 import { CodeActionSet, getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
@@ -173,7 +173,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 				commandId: NextMarkerAction.ID,
 				run: () => {
 					this._hover.hide();
-					MarkerController.get(this._editor).showAtMarker(markerHover.marker);
+					MarkerController.get(this._editor)?.showAtMarker(markerHover.marker);
 					this._editor.focus();
 				}
 			});
@@ -225,7 +225,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						// Hide the hover pre-emptively, otherwise the editor can close the code actions
 						// context menu as well when using keyboard navigation
 						this._hover.hide();
-						controller.showCodeActions(markerCodeActionTrigger, actions, {
+						controller?.showCodeActions(markerCodeActionTrigger, actions, {
 							x: elementPosition.left + 6,
 							y: elementPosition.top + elementPosition.height + 6
 						});

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
-import { ColorId, TokenMetadata } from 'vs/editor/common/modes';
+import { IViewLineTokens } from 'vs/editor/common/model/tokens/lineTokens';
+import { ColorId, TokenMetadata } from 'vs/editor/common/languages';
 
 /**
  * A token on a line.
@@ -95,6 +95,11 @@ export class ViewLineTokens implements IViewLineTokens {
 	public findTokenIndexAtOffset(offset: number): number {
 		throw new Error('Not implemented');
 	}
+
+	public getLineContent(): string {
+		throw new Error('Not implemented');
+	}
+
 }
 
 export class ViewLineTokenFactory {

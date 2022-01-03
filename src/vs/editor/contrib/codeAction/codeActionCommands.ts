@@ -16,7 +16,7 @@ import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkE
 import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CodeActionTriggerType } from 'vs/editor/common/modes';
+import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/codeActionUi';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
@@ -69,7 +69,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 	public static readonly ID = 'editor.contrib.quickFixController';
 
-	public static get(editor: ICodeEditor): QuickFixController {
+	public static get(editor: ICodeEditor): QuickFixController | null {
 		return editor.getContribution<QuickFixController>(QuickFixController.ID);
 	}
 
@@ -122,7 +122,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 			return;
 		}
 
-		MessageController.get(this._editor).closeMessage();
+		MessageController.get(this._editor)?.closeMessage();
 		const triggerPosition = this._editor.getPosition();
 		this._trigger({ type: CodeActionTriggerType.Invoke, filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
 	}
@@ -218,7 +218,7 @@ export class QuickFixAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_DOT,
+				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -275,9 +275,9 @@ export class RefactorAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
 				mac: {
-					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R
+					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR
 				},
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -372,7 +372,7 @@ export class OrganizeImportsAction extends EditorAction {
 				contextKeyForSupportedActions(CodeActionKind.SourceOrganizeImports)),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_O,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyO,
 				weight: KeybindingWeight.EditorContrib
 			},
 		});
@@ -421,9 +421,9 @@ export class AutoFixAction extends EditorAction {
 				contextKeyForSupportedActions(CodeActionKind.QuickFix)),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.US_DOT,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Period,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_DOT
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Period
 				},
 				weight: KeybindingWeight.EditorContrib
 			}

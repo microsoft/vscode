@@ -92,25 +92,25 @@ declare namespace monaco {
 	export class Uri implements UriComponents {
 		static isUri(thing: any): thing is Uri;
 		/**
-		 * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * scheme is the 'http' part of 'http://www.example.com/some/path?query#fragment'.
 		 * The part before the first colon.
 		 */
 		readonly scheme: string;
 		/**
-		 * authority is the 'www.msft.com' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * authority is the 'www.example.com' part of 'http://www.example.com/some/path?query#fragment'.
 		 * The part between the first double slashes and the next slash.
 		 */
 		readonly authority: string;
 		/**
-		 * path is the '/some/path' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * path is the '/some/path' part of 'http://www.example.com/some/path?query#fragment'.
 		 */
 		readonly path: string;
 		/**
-		 * query is the 'query' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * query is the 'query' part of 'http://www.example.com/some/path?query#fragment'.
 		 */
 		readonly query: string;
 		/**
-		 * fragment is the 'fragment' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * fragment is the 'fragment' part of 'http://www.example.com/some/path?query#fragment'.
 		 */
 		readonly fragment: string;
 		/**
@@ -146,7 +146,7 @@ declare namespace monaco {
 			fragment?: string | null;
 		}): Uri;
 		/**
-		 * Creates a new Uri from a string, e.g. `http://www.msft.com/some/path`,
+		 * Creates a new Uri from a string, e.g. `http://www.example.com/some/path`,
 		 * `file:///usr/home`, or `scheme:with/path`.
 		 *
 		 * @param value A string which represents an Uri (see `Uri#toString`).
@@ -215,7 +215,6 @@ declare namespace monaco {
 		query: string;
 		fragment: string;
 	}
-
 	/**
 	 * Virtual Key Codes, the value does not hold any inherent meaning.
 	 * Inspired somewhat from https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
@@ -247,42 +246,42 @@ declare namespace monaco {
 		DownArrow = 18,
 		Insert = 19,
 		Delete = 20,
-		KEY_0 = 21,
-		KEY_1 = 22,
-		KEY_2 = 23,
-		KEY_3 = 24,
-		KEY_4 = 25,
-		KEY_5 = 26,
-		KEY_6 = 27,
-		KEY_7 = 28,
-		KEY_8 = 29,
-		KEY_9 = 30,
-		KEY_A = 31,
-		KEY_B = 32,
-		KEY_C = 33,
-		KEY_D = 34,
-		KEY_E = 35,
-		KEY_F = 36,
-		KEY_G = 37,
-		KEY_H = 38,
-		KEY_I = 39,
-		KEY_J = 40,
-		KEY_K = 41,
-		KEY_L = 42,
-		KEY_M = 43,
-		KEY_N = 44,
-		KEY_O = 45,
-		KEY_P = 46,
-		KEY_Q = 47,
-		KEY_R = 48,
-		KEY_S = 49,
-		KEY_T = 50,
-		KEY_U = 51,
-		KEY_V = 52,
-		KEY_W = 53,
-		KEY_X = 54,
-		KEY_Y = 55,
-		KEY_Z = 56,
+		Digit0 = 21,
+		Digit1 = 22,
+		Digit2 = 23,
+		Digit3 = 24,
+		Digit4 = 25,
+		Digit5 = 26,
+		Digit6 = 27,
+		Digit7 = 28,
+		Digit8 = 29,
+		Digit9 = 30,
+		KeyA = 31,
+		KeyB = 32,
+		KeyC = 33,
+		KeyD = 34,
+		KeyE = 35,
+		KeyF = 36,
+		KeyG = 37,
+		KeyH = 38,
+		KeyI = 39,
+		KeyJ = 40,
+		KeyK = 41,
+		KeyL = 42,
+		KeyM = 43,
+		KeyN = 44,
+		KeyO = 45,
+		KeyP = 46,
+		KeyQ = 47,
+		KeyR = 48,
+		KeyS = 49,
+		KeyT = 50,
+		KeyU = 51,
+		KeyV = 52,
+		KeyW = 53,
+		KeyX = 54,
+		KeyY = 55,
+		KeyZ = 56,
 		Meta = 57,
 		ContextMenu = 58,
 		F1 = 59,
@@ -310,57 +309,57 @@ declare namespace monaco {
 		 * Used for miscellaneous characters; it can vary by keyboard.
 		 * For the US standard keyboard, the ';:' key
 		 */
-		US_SEMICOLON = 80,
+		Semicolon = 80,
 		/**
 		 * For any country/region, the '+' key
 		 * For the US standard keyboard, the '=+' key
 		 */
-		US_EQUAL = 81,
+		Equal = 81,
 		/**
 		 * For any country/region, the ',' key
 		 * For the US standard keyboard, the ',<' key
 		 */
-		US_COMMA = 82,
+		Comma = 82,
 		/**
 		 * For any country/region, the '-' key
 		 * For the US standard keyboard, the '-_' key
 		 */
-		US_MINUS = 83,
+		Minus = 83,
 		/**
 		 * For any country/region, the '.' key
 		 * For the US standard keyboard, the '.>' key
 		 */
-		US_DOT = 84,
+		Period = 84,
 		/**
 		 * Used for miscellaneous characters; it can vary by keyboard.
 		 * For the US standard keyboard, the '/?' key
 		 */
-		US_SLASH = 85,
+		Slash = 85,
 		/**
 		 * Used for miscellaneous characters; it can vary by keyboard.
 		 * For the US standard keyboard, the '`~' key
 		 */
-		US_BACKTICK = 86,
+		Backquote = 86,
 		/**
 		 * Used for miscellaneous characters; it can vary by keyboard.
 		 * For the US standard keyboard, the '[{' key
 		 */
-		US_OPEN_SQUARE_BRACKET = 87,
+		BracketLeft = 87,
 		/**
 		 * Used for miscellaneous characters; it can vary by keyboard.
 		 * For the US standard keyboard, the '\|' key
 		 */
-		US_BACKSLASH = 88,
+		Backslash = 88,
 		/**
 		 * Used for miscellaneous characters; it can vary by keyboard.
 		 * For the US standard keyboard, the ']}' key
 		 */
-		US_CLOSE_SQUARE_BRACKET = 89,
+		BracketRight = 89,
 		/**
 		 * Used for miscellaneous characters; it can vary by keyboard.
 		 * For the US standard keyboard, the ''"' key
 		 */
-		US_QUOTE = 90,
+		Quote = 90,
 		/**
 		 * Used for miscellaneous characters; it can vary by keyboard.
 		 */
@@ -368,34 +367,48 @@ declare namespace monaco {
 		/**
 		 * Either the angle bracket key or the backslash key on the RT 102-key keyboard.
 		 */
-		OEM_102 = 92,
-		NUMPAD_0 = 93,
-		NUMPAD_1 = 94,
-		NUMPAD_2 = 95,
-		NUMPAD_3 = 96,
-		NUMPAD_4 = 97,
-		NUMPAD_5 = 98,
-		NUMPAD_6 = 99,
-		NUMPAD_7 = 100,
-		NUMPAD_8 = 101,
-		NUMPAD_9 = 102,
-		NUMPAD_MULTIPLY = 103,
-		NUMPAD_ADD = 104,
+		IntlBackslash = 92,
+		Numpad0 = 93,
+		Numpad1 = 94,
+		Numpad2 = 95,
+		Numpad3 = 96,
+		Numpad4 = 97,
+		Numpad5 = 98,
+		Numpad6 = 99,
+		Numpad7 = 100,
+		Numpad8 = 101,
+		Numpad9 = 102,
+		NumpadMultiply = 103,
+		NumpadAdd = 104,
 		NUMPAD_SEPARATOR = 105,
-		NUMPAD_SUBTRACT = 106,
-		NUMPAD_DECIMAL = 107,
-		NUMPAD_DIVIDE = 108,
+		NumpadSubtract = 106,
+		NumpadDecimal = 107,
+		NumpadDivide = 108,
 		/**
 		 * Cover all key codes when IME is processing input.
 		 */
 		KEY_IN_COMPOSITION = 109,
 		ABNT_C1 = 110,
 		ABNT_C2 = 111,
+		AudioVolumeMute = 112,
+		AudioVolumeUp = 113,
+		AudioVolumeDown = 114,
+		BrowserSearch = 115,
+		BrowserHome = 116,
+		BrowserBack = 117,
+		BrowserForward = 118,
+		MediaTrackNext = 119,
+		MediaTrackPrevious = 120,
+		MediaStop = 121,
+		MediaPlayPause = 122,
+		LaunchMediaPlayer = 123,
+		LaunchMail = 124,
+		LaunchApp2 = 125,
 		/**
 		 * Placed last to cover the length of the enum.
 		 * Please do not depend on this value!
 		 */
-		MAX_VALUE = 112
+		MAX_VALUE = 126
 	}
 	export class KeyMod {
 		static readonly CtrlCmd: number;
@@ -790,6 +803,10 @@ declare namespace monaco {
 		 */
 		getPosition(): Position;
 		/**
+		 * Get the position at the start of the selection.
+		*/
+		getSelectionStart(): Position;
+		/**
 		 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
 		 */
 		setStartPosition(startLineNumber: number, startColumn: number): Selection;
@@ -797,6 +814,10 @@ declare namespace monaco {
 		 * Create a `Selection` from one or two positions
 		 */
 		static fromPositions(start: IPosition, end?: IPosition): Selection;
+		/**
+		 * Creates a `Selection` from a range, given a direction.
+		 */
+		static fromRange(range: Range, direction: SelectionDirection): Selection;
 		/**
 		 * Create a `Selection` from an `ISelection`.
 		 */
@@ -1786,7 +1807,7 @@ declare namespace monaco.editor {
 		 */
 		getLineLastNonWhitespaceColumn(lineNumber: number): number;
 		/**
-		 * Create a valid position,
+		 * Create a valid position.
 		 */
 		validatePosition(position: IPosition): Position;
 		/**
@@ -1821,7 +1842,7 @@ declare namespace monaco.editor {
 		 */
 		getPositionAt(offset: number): Position;
 		/**
-		 * Get a range covering the entire model
+		 * Get a range covering the entire model.
 		 */
 		getFullModelRange(): Range;
 		/**
@@ -1877,7 +1898,7 @@ declare namespace monaco.editor {
 		/**
 		 * Get the language associated with this model.
 		 */
-		getModeId(): string;
+		getLanguageId(): string;
 		/**
 		 * Get the word under or besides `position`.
 		 * @param position The position to look for a word.
@@ -2015,35 +2036,34 @@ declare namespace monaco.editor {
 		 * An event emitted when decorations of the model have changed.
 		 * @event
 		 */
-		onDidChangeDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
+		readonly onDidChangeDecorations: IEvent<IModelDecorationsChangedEvent>;
 		/**
 		 * An event emitted when the model options have changed.
 		 * @event
 		 */
-		onDidChangeOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
+		readonly onDidChangeOptions: IEvent<IModelOptionsChangedEvent>;
 		/**
 		 * An event emitted when the language associated with the model has changed.
 		 * @event
 		 */
-		onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+		readonly onDidChangeLanguage: IEvent<IModelLanguageChangedEvent>;
 		/**
 		 * An event emitted when the language configuration associated with the model has changed.
 		 * @event
 		 */
-		onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+		readonly onDidChangeLanguageConfiguration: IEvent<IModelLanguageConfigurationChangedEvent>;
 		/**
 		 * An event emitted when the model has been attached to the first editor or detached from the last editor.
 		 * @event
 		 */
-		onDidChangeAttached(listener: () => void): IDisposable;
+		readonly onDidChangeAttached: IEvent<void>;
 		/**
 		 * An event emitted right before disposing the model.
 		 * @event
 		 */
-		onWillDispose(listener: () => void): IDisposable;
+		readonly onWillDispose: IEvent<void>;
 		/**
-		 * Destroy this model. This will unbind the model from the mode
-		 * and make all necessary clean-up to release this object to the GC.
+		 * Destroy this model.
 		 */
 		dispose(): void;
 		/**
@@ -2474,7 +2494,7 @@ declare namespace monaco.editor {
 	};
 
 	/**
-	 * An event describing that the current mode associated with a model has changed.
+	 * An event describing that the current language associated with a model has changed.
 	 */
 	export interface IModelLanguageChangedEvent {
 		/**
@@ -2937,12 +2957,10 @@ declare namespace monaco.editor {
 		wrappingStrategy?: 'simple' | 'advanced';
 		/**
 		 * Configure word wrapping characters. A break will be introduced before these characters.
-		 * Defaults to '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'.
 		 */
 		wordWrapBreakBeforeCharacters?: string;
 		/**
 		 * Configure word wrapping characters. A break will be introduced after these characters.
-		 * Defaults to ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣'.
 		 */
 		wordWrapBreakAfterCharacters?: string;
 		/**
@@ -3214,7 +3232,7 @@ declare namespace monaco.editor {
 		renderWhitespace?: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 		/**
 		 * Enable rendering of control characters.
-		 * Defaults to false.
+		 * Defaults to true.
 		 */
 		renderControlCharacters?: boolean;
 		/**
@@ -3281,6 +3299,8 @@ declare namespace monaco.editor {
 		 * Controls the behavior of editor guides.
 		*/
 		guides?: IGuidesOptions;
+		unicodeHighlight?: IUnicodeHighlightOptions;
+		bracketPairColorization?: IBracketPairColorizationOptions;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -3355,10 +3375,20 @@ declare namespace monaco.editor {
 		get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
 	}
 
-	export interface IEditorOption<K1 extends EditorOption, V> {
-		readonly id: K1;
+	export interface IEditorOption<K extends EditorOption, V> {
+		readonly id: K;
 		readonly name: string;
 		defaultValue: V;
+		/**
+		 * Might modify `value`.
+		*/
+		applyUpdate(value: V, update: V): ApplyUpdateResult<V>;
+	}
+
+	export class ApplyUpdateResult<T> {
+		readonly newValue: T;
+		readonly didChange: boolean;
+		constructor(newValue: T, didChange: boolean);
 	}
 
 	/**
@@ -3498,6 +3528,11 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		sticky?: boolean;
+		/**
+		 * Should the hover be shown above the line if possible?
+		 * Defaults to false.
+		 */
+		above?: boolean;
 	}
 
 	/**
@@ -3837,6 +3872,24 @@ declare namespace monaco.editor {
 		readonly verticalScrollbarSize: number;
 		readonly verticalSliderSize: number;
 		readonly scrollByPage: boolean;
+	}
+
+	export type InUntrustedWorkspace = 'inUntrustedWorkspace';
+
+	/**
+	 * Configuration options for unicode highlighting.
+	 */
+	export interface IUnicodeHighlightOptions {
+		nonBasicASCII?: boolean | InUntrustedWorkspace;
+		invisibleCharacters?: boolean;
+		ambiguousCharacters?: boolean;
+		includeComments?: boolean | InUntrustedWorkspace;
+		includeStrings?: boolean | InUntrustedWorkspace;
+		/**
+		 * A map of allowed characters (true: allowed).
+		*/
+		allowedCharacters?: Record<string, true>;
+		allowedLocales?: Record<string | '_os' | '_vscode', true>;
 	}
 
 	export interface IInlineSuggestOptions {
@@ -4193,25 +4246,26 @@ declare namespace monaco.editor {
 		suggestSelection = 109,
 		tabCompletion = 110,
 		tabIndex = 111,
-		unusualLineTerminators = 112,
-		useShadowDOM = 113,
-		useTabStops = 114,
-		wordSeparators = 115,
-		wordWrap = 116,
-		wordWrapBreakAfterCharacters = 117,
-		wordWrapBreakBeforeCharacters = 118,
-		wordWrapColumn = 119,
-		wordWrapOverride1 = 120,
-		wordWrapOverride2 = 121,
-		wrappingIndent = 122,
-		wrappingStrategy = 123,
-		showDeprecated = 124,
-		inlayHints = 125,
-		editorClassName = 126,
-		pixelRatio = 127,
-		tabFocusMode = 128,
-		layoutInfo = 129,
-		wrappingInfo = 130
+		unicodeHighlighting = 112,
+		unusualLineTerminators = 113,
+		useShadowDOM = 114,
+		useTabStops = 115,
+		wordSeparators = 116,
+		wordWrap = 117,
+		wordWrapBreakAfterCharacters = 118,
+		wordWrapBreakBeforeCharacters = 119,
+		wordWrapColumn = 120,
+		wordWrapOverride1 = 121,
+		wordWrapOverride2 = 122,
+		wrappingIndent = 123,
+		wrappingStrategy = 124,
+		showDeprecated = 125,
+		inlayHints = 126,
+		editorClassName = 127,
+		pixelRatio = 128,
+		tabFocusMode = 129,
+		layoutInfo = 130,
+		wrappingInfo = 131
 	}
 
 	export const EditorOptions: {
@@ -4329,6 +4383,7 @@ declare namespace monaco.editor {
 		suggestSelection: IEditorOption<EditorOption.suggestSelection, 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>;
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
+		unicodeHighlight: IEditorOption<EditorOption.unicodeHighlighting, Required<Readonly<IUnicodeHighlightOptions>>>;
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
@@ -4667,7 +4722,7 @@ declare namespace monaco.editor {
 	 */
 	export interface IPasteEvent {
 		readonly range: Range;
-		readonly mode: string | null;
+		readonly languageId: string | null;
 	}
 
 	export interface IEditorConstructionOptions extends IEditorOptions {
@@ -4715,135 +4770,140 @@ declare namespace monaco.editor {
 		 * An event emitted when the content of the current model has changed.
 		 * @event
 		 */
-		onDidChangeModelContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+		readonly onDidChangeModelContent: IEvent<IModelContentChangedEvent>;
 		/**
 		 * An event emitted when the language of the current model has changed.
 		 * @event
 		 */
-		onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+		readonly onDidChangeModelLanguage: IEvent<IModelLanguageChangedEvent>;
 		/**
 		 * An event emitted when the language configuration of the current model has changed.
 		 * @event
 		 */
-		onDidChangeModelLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+		readonly onDidChangeModelLanguageConfiguration: IEvent<IModelLanguageConfigurationChangedEvent>;
 		/**
 		 * An event emitted when the options of the current model has changed.
 		 * @event
 		 */
-		onDidChangeModelOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
+		readonly onDidChangeModelOptions: IEvent<IModelOptionsChangedEvent>;
 		/**
 		 * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
 		 * @event
 		 */
-		onDidChangeConfiguration(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
+		readonly onDidChangeConfiguration: IEvent<ConfigurationChangedEvent>;
 		/**
 		 * An event emitted when the cursor position has changed.
 		 * @event
 		 */
-		onDidChangeCursorPosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable;
+		readonly onDidChangeCursorPosition: IEvent<ICursorPositionChangedEvent>;
 		/**
 		 * An event emitted when the cursor selection has changed.
 		 * @event
 		 */
-		onDidChangeCursorSelection(listener: (e: ICursorSelectionChangedEvent) => void): IDisposable;
+		readonly onDidChangeCursorSelection: IEvent<ICursorSelectionChangedEvent>;
 		/**
 		 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
 		 * @event
 		 */
-		onDidChangeModel(listener: (e: IModelChangedEvent) => void): IDisposable;
+		readonly onDidChangeModel: IEvent<IModelChangedEvent>;
 		/**
 		 * An event emitted when the decorations of the current model have changed.
 		 * @event
 		 */
-		onDidChangeModelDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
+		readonly onDidChangeModelDecorations: IEvent<IModelDecorationsChangedEvent>;
 		/**
 		 * An event emitted when the text inside this editor gained focus (i.e. cursor starts blinking).
 		 * @event
 		 */
-		onDidFocusEditorText(listener: () => void): IDisposable;
+		readonly onDidFocusEditorText: IEvent<void>;
 		/**
 		 * An event emitted when the text inside this editor lost focus (i.e. cursor stops blinking).
 		 * @event
 		 */
-		onDidBlurEditorText(listener: () => void): IDisposable;
+		readonly onDidBlurEditorText: IEvent<void>;
 		/**
 		 * An event emitted when the text inside this editor or an editor widget gained focus.
 		 * @event
 		 */
-		onDidFocusEditorWidget(listener: () => void): IDisposable;
+		readonly onDidFocusEditorWidget: IEvent<void>;
 		/**
 		 * An event emitted when the text inside this editor or an editor widget lost focus.
 		 * @event
 		 */
-		onDidBlurEditorWidget(listener: () => void): IDisposable;
+		readonly onDidBlurEditorWidget: IEvent<void>;
 		/**
 		 * An event emitted after composition has started.
 		 */
-		onDidCompositionStart(listener: () => void): IDisposable;
+		readonly onDidCompositionStart: IEvent<void>;
 		/**
 		 * An event emitted after composition has ended.
 		 */
-		onDidCompositionEnd(listener: () => void): IDisposable;
+		readonly onDidCompositionEnd: IEvent<void>;
 		/**
 		 * An event emitted when editing failed because the editor is read-only.
 		 * @event
 		 */
-		onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
+		readonly onDidAttemptReadOnlyEdit: IEvent<void>;
 		/**
 		 * An event emitted when users paste text in the editor.
 		 * @event
 		 */
-		onDidPaste(listener: (e: IPasteEvent) => void): IDisposable;
+		readonly onDidPaste: IEvent<IPasteEvent>;
 		/**
 		 * An event emitted on a "mouseup".
 		 * @event
 		 */
-		onMouseUp(listener: (e: IEditorMouseEvent) => void): IDisposable;
+		readonly onMouseUp: IEvent<IEditorMouseEvent>;
 		/**
 		 * An event emitted on a "mousedown".
 		 * @event
 		 */
-		onMouseDown(listener: (e: IEditorMouseEvent) => void): IDisposable;
+		readonly onMouseDown: IEvent<IEditorMouseEvent>;
 		/**
 		 * An event emitted on a "contextmenu".
 		 * @event
 		 */
-		onContextMenu(listener: (e: IEditorMouseEvent) => void): IDisposable;
+		readonly onContextMenu: IEvent<IEditorMouseEvent>;
 		/**
 		 * An event emitted on a "mousemove".
 		 * @event
 		 */
-		onMouseMove(listener: (e: IEditorMouseEvent) => void): IDisposable;
+		readonly onMouseMove: IEvent<IEditorMouseEvent>;
 		/**
 		 * An event emitted on a "mouseleave".
 		 * @event
 		 */
-		onMouseLeave(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
+		readonly onMouseLeave: IEvent<IPartialEditorMouseEvent>;
 		/**
 		 * An event emitted on a "keyup".
 		 * @event
 		 */
-		onKeyUp(listener: (e: IKeyboardEvent) => void): IDisposable;
+		readonly onKeyUp: IEvent<IKeyboardEvent>;
 		/**
 		 * An event emitted on a "keydown".
 		 * @event
 		 */
-		onKeyDown(listener: (e: IKeyboardEvent) => void): IDisposable;
+		readonly onKeyDown: IEvent<IKeyboardEvent>;
 		/**
 		 * An event emitted when the layout of the editor has changed.
 		 * @event
 		 */
-		onDidLayoutChange(listener: (e: EditorLayoutInfo) => void): IDisposable;
+		readonly onDidLayoutChange: IEvent<EditorLayoutInfo>;
 		/**
 		 * An event emitted when the content width or content height in the editor has changed.
 		 * @event
 		 */
-		onDidContentSizeChange(listener: (e: IContentSizeChangedEvent) => void): IDisposable;
+		readonly onDidContentSizeChange: IEvent<IContentSizeChangedEvent>;
 		/**
 		 * An event emitted when the scroll in the editor has changed.
 		 * @event
 		 */
-		onDidScrollChange(listener: (e: IScrollEvent) => void): IDisposable;
+		readonly onDidScrollChange: IEvent<IScrollEvent>;
+		/**
+		 * An event emitted when hidden areas change in the editor (e.g. due to folding).
+		 * @event
+		 */
+		readonly onDidChangeHiddenAreas: IEvent<void>;
 		/**
 		 * Saves current view state of the editor in a serializable object.
 		 */
@@ -4861,7 +4921,7 @@ declare namespace monaco.editor {
 		 * @id Unique identifier of the contribution.
 		 * @return The contribution or null if contribution not found.
 		 */
-		getContribution<T extends IEditorContribution>(id: string): T;
+		getContribution<T extends IEditorContribution>(id: string): T | null;
 		/**
 		 * Type the getModel() of IEditor.
 		 */
@@ -5070,6 +5130,7 @@ declare namespace monaco.editor {
 		 * Apply the same font settings as the editor to `target`.
 		 */
 		applyFontInfo(target: HTMLElement): void;
+		setBanner(bannerDomNode: HTMLElement | null, height: number): void;
 	}
 
 	/**
@@ -5084,14 +5145,14 @@ declare namespace monaco.editor {
 	 */
 	export interface IDiffEditor extends IEditor {
 		/**
-		 * @see {@link ICodeEditor.getDomNode}
+		 * @see {@link ICodeEditor.getContainerDomNode}
 		 */
-		getDomNode(): HTMLElement;
+		getContainerDomNode(): HTMLElement;
 		/**
 		 * An event emitted when the diff information computed by this diff editor has been updated.
 		 * @event
 		 */
-		onDidUpdateDiff(listener: () => void): IDisposable;
+		readonly onDidUpdateDiff: IEvent<void>;
 		/**
 		 * Saves current view state of the editor in a serializable object.
 		 */
@@ -5188,7 +5249,7 @@ declare namespace monaco.languages {
 	export function getEncodedLanguageId(languageId: string): number;
 
 	/**
-	 * An event emitted when a language is first time needed (e.g. a model has it set).
+	 * An event emitted when a language is needed for the first time (e.g. a model has it set).
 	 * @event
 	 */
 	export function onLanguage(languageId: string, callback: () => void): IDisposable;
@@ -5234,11 +5295,11 @@ declare namespace monaco.languages {
 		 *     3322 2222 2222 1111 1111 1100 0000 0000
 		 *     1098 7654 3210 9876 5432 1098 7654 3210
 		 * - -------------------------------------------
-		 *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
+		 *     bbbb bbbb bfff ffff ffFF FFTT LLLL LLLL
 		 * - -------------------------------------------
 		 *  - L = EncodedLanguageId (8 bits): Use `getEncodedLanguageId` to get the encoded ID of a language.
-		 *  - T = StandardTokenType (3 bits): Other = 0, Comment = 1, String = 2, RegEx = 4.
-		 *  - F = FontStyle (3 bits): None = 0, Italic = 1, Bold = 2, Underline = 4.
+		 *  - T = StandardTokenType (2 bits): Other = 0, Comment = 1, String = 2, RegEx = 3.
+		 *  - F = FontStyle (4 bits): None = 0, Italic = 1, Bold = 2, Underline = 4, Strikethrough = 8.
 		 *  - f = foreground ColorId (9 bits)
 		 *  - b = background ColorId (9 bits)
 		 *  - The color value for each colorId is defined in IStandaloneThemeData.customTokenColors:
@@ -5251,6 +5312,13 @@ declare namespace monaco.languages {
 		 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
 		 */
 		endState: IState;
+	}
+
+	/**
+	 * A factory for token providers.
+	 */
+	export interface TokensProviderFactory {
+		create(): ProviderResult<TokensProvider | EncodedTokensProvider | IMonarchLanguage>;
 	}
 
 	/**
@@ -5292,12 +5360,25 @@ declare namespace monaco.languages {
 	export function setColorMap(colorMap: string[] | null): void;
 
 	/**
-	 * Set the tokens provider for a language (manual implementation).
+	 * Register a tokens provider factory for a language. This tokenizer will be exclusive with a tokenizer
+	 * set using `setTokensProvider` or one created using `setMonarchTokensProvider`, but will work together
+	 * with a tokens provider set using `registerDocumentSemanticTokensProvider` or `registerDocumentRangeSemanticTokensProvider`.
+	 */
+	export function registerTokensProviderFactory(languageId: string, factory: TokensProviderFactory): IDisposable;
+
+	/**
+	 * Set the tokens provider for a language (manual implementation). This tokenizer will be exclusive
+	 * with a tokenizer created using `setMonarchTokensProvider`, or with `registerTokensProviderFactory`,
+	 * but will work together with a tokens provider set using `registerDocumentSemanticTokensProvider`
+	 * or `registerDocumentRangeSemanticTokensProvider`.
 	 */
 	export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable;
 
 	/**
-	 * Set the tokens provider for a language (monarch implementation).
+	 * Set the tokens provider for a language (monarch implementation). This tokenizer will be exclusive
+	 * with a tokenizer set using `setTokensProvider`, or with `registerTokensProviderFactory`, but will
+	 * work together with a tokens provider set using `registerDocumentSemanticTokensProvider` or
+	 * `registerDocumentRangeSemanticTokensProvider`.
 	 */
 	export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | Thenable<IMonarchLanguage>): IDisposable;
 
@@ -5407,12 +5488,20 @@ declare namespace monaco.languages {
 	export function registerSelectionRangeProvider(languageId: string, provider: SelectionRangeProvider): IDisposable;
 
 	/**
-	 * Register a document semantic tokens provider
+	 * Register a document semantic tokens provider. A semantic tokens provider will complement and enhance a
+	 * simple top-down tokenizer. Simple top-down tokenizers can be set either via `setMonarchTokensProvider`
+	 * or `setTokensProvider`.
+	 *
+	 * For the best user experience, register both a semantic tokens provider and a top-down tokenizer.
 	 */
 	export function registerDocumentSemanticTokensProvider(languageId: string, provider: DocumentSemanticTokensProvider): IDisposable;
 
 	/**
-	 * Register a document range semantic tokens provider
+	 * Register a document range semantic tokens provider. A semantic tokens provider will complement and enhance a
+	 * simple top-down tokenizer. Simple top-down tokenizers can be set either via `setMonarchTokensProvider`
+	 * or `setTokensProvider`.
+	 *
+	 * For the best user experience, register both a semantic tokens provider and a top-down tokenizer.
 	 */
 	export function registerDocumentRangeSemanticTokensProvider(languageId: string, provider: DocumentRangeSemanticTokensProvider): IDisposable;
 
@@ -5795,6 +5884,11 @@ declare namespace monaco.languages {
 		InsertAsSnippet = 4
 	}
 
+	export interface CompletionItemRanges {
+		insert: IRange;
+		replace: IRange;
+	}
+
 	/**
 	 * A completion item represents a text snippet that is
 	 * proposed to complete text that is being typed.
@@ -5846,11 +5940,10 @@ declare namespace monaco.languages {
 		/**
 		 * A string or snippet that should be inserted in a document when selecting
 		 * this completion.
-		 * is used.
 		 */
 		insertText: string;
 		/**
-		 * Addition rules (as bitmask) that should be applied when inserting
+		 * Additional rules (as bitmask) that should be applied when inserting
 		 * this completion.
 		 */
 		insertTextRules?: CompletionItemInsertTextRule;
@@ -5863,10 +5956,7 @@ declare namespace monaco.languages {
 		 * *Note:* The range must be a {@link Range.isSingleLine single line} and it must
 		 * {@link Range.contains contain} the position at which completion has been {@link CompletionItemProvider.provideCompletionItems requested}.
 		 */
-		range: IRange | {
-			insert: IRange;
-			replace: IRange;
-		};
+		range: IRange | CompletionItemRanges;
 		/**
 		 * An optional set of characters that when pressed while this completion is active will accept it first and
 		 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
@@ -5970,6 +6060,8 @@ declare namespace monaco.languages {
 	export interface SelectedSuggestionInfo {
 		range: IRange;
 		text: string;
+		isSnippetText: boolean;
+		completionKind: CompletionItemKind;
 	}
 
 	export interface InlineCompletion {

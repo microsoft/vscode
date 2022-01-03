@@ -20,7 +20,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { prepareQuery } from 'vs/base/common/fuzzyScorer';
-import { SymbolKind } from 'vs/editor/common/modes';
+import { SymbolKind } from 'vs/editor/common/languages';
 import { fuzzyScore, createMatches } from 'vs/base/common/filters';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -264,7 +264,7 @@ registerAction2(class GotoSymbolAction extends Action2 {
 			keybinding: {
 				when: undefined,
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO
 			},
 			menu: {
 				id: MenuId.MenubarGoMenu,

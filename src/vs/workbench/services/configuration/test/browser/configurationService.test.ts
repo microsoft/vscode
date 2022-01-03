@@ -8,7 +8,7 @@ import * as sinon from 'sinon';
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, keyFromOverrideIdentifiers } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditingService';
@@ -31,21 +31,19 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
 import { SignService } from 'vs/platform/sign/browser/signService';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { ConfigurationCache as BrowserConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
+import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { hash } from 'vs/base/common/hash';
-import { IUserConfigurationFileService, UserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
 
 function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceIdentifier {
 	return {
@@ -54,8 +52,11 @@ function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceIdentifie
 	};
 }
 
-class ConfigurationCache extends BrowserConfigurationCache {
-	override needsCaching() { return false; }
+export class ConfigurationCache implements IConfigurationCache {
+	needsCaching(resource: URI): boolean { return false; }
+	async read(): Promise<string> { return ''; }
+	async write(): Promise<void> { }
+	async remove(): Promise<void> { }
 }
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
@@ -137,7 +138,7 @@ suite('WorkspaceContextService - Workspace', () => {
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		const environmentService = TestEnvironmentService;
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
@@ -195,7 +196,7 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		const environmentService = TestEnvironmentService;
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
@@ -438,7 +439,7 @@ suite('WorkspaceService - Initialization', () => {
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
@@ -670,8 +671,10 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		});
 
 		configurationRegistry.registerDefaultConfigurations([{
-			'[jsonc]': {
-				'configurationService.folder.languageSetting': 'languageValue'
+			overrides: {
+				'[jsonc]': {
+					'configurationService.folder.languageSetting': 'languageValue'
+				}
 			}
 		}]);
 	});
@@ -685,7 +688,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		const folder = joinPath(ROOT, 'a');
 		await fileService.createFolder(folder);
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
@@ -700,7 +703,6 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
 		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-		instantiationService.stub(IUserConfigurationFileService, new UserConfigurationFileService(environmentService, fileService, logService));
 		workspaceService.acquireInstantiationService(instantiationService);
 	});
 
@@ -1012,9 +1014,38 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'value'));
 	});
 
-	test('update resource language configuration', () => {
-		return testObject.updateValue('configurationService.folder.languageSetting', 'value', { resource: workspaceService.getWorkspace().folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER)
-			.then(() => assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting'), 'value'));
+	test('update language configuration using configuration overrides', async () => {
+		await testObject.updateValue('configurationService.folder.languageSetting', 'abcLangValue', { overrideIdentifier: 'abclang' });
+		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { overrideIdentifier: 'abclang' }), 'abcLangValue');
+	});
+
+	test('update language configuration using configuration update overrides', async () => {
+		await testObject.updateValue('configurationService.folder.languageSetting', 'abcLangValue', { overrideIdentifiers: ['abclang'] });
+		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { overrideIdentifier: 'abclang' }), 'abcLangValue');
+	});
+
+	test('update language configuration for multiple languages', async () => {
+		await testObject.updateValue('configurationService.folder.languageSetting', 'multiLangValue', { overrideIdentifiers: ['deflang', 'xyzlang'] }, ConfigurationTarget.USER);
+		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { overrideIdentifier: 'deflang' }), 'multiLangValue');
+		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { overrideIdentifier: 'xyzlang' }), 'multiLangValue');
+		assert.deepStrictEqual(testObject.getValue(keyFromOverrideIdentifiers(['deflang', 'xyzlang'])), { 'configurationService.folder.languageSetting': 'multiLangValue' });
+	});
+
+	test('update resource language configuration', async () => {
+		await testObject.updateValue('configurationService.folder.languageSetting', 'value', { resource: workspaceService.getWorkspace().folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
+		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting'), 'value');
+	});
+
+	test('update resource language configuration for a language using configuration overrides', async () => {
+		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { resource: workspaceService.getWorkspace().folders[0].uri, overrideIdentifier: 'jsonc' }), 'languageValue');
+		await testObject.updateValue('configurationService.folder.languageSetting', 'languageValueUpdated', { resource: workspaceService.getWorkspace().folders[0].uri, overrideIdentifier: 'jsonc' }, ConfigurationTarget.WORKSPACE_FOLDER);
+		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { resource: workspaceService.getWorkspace().folders[0].uri, overrideIdentifier: 'jsonc' }), 'languageValueUpdated');
+	});
+
+	test('update resource language configuration for a language using configuration update overrides', async () => {
+		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { resource: workspaceService.getWorkspace().folders[0].uri, overrideIdentifier: 'jsonc' }), 'languageValue');
+		await testObject.updateValue('configurationService.folder.languageSetting', 'languageValueUpdated', { resource: workspaceService.getWorkspace().folders[0].uri, overrideIdentifiers: ['jsonc'] }, ConfigurationTarget.WORKSPACE_FOLDER);
+		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { resource: workspaceService.getWorkspace().folders[0].uri, overrideIdentifier: 'jsonc' }), 'languageValueUpdated');
 	});
 
 	test('update application setting into workspace configuration in a workspace is not supported', () => {
@@ -1056,12 +1087,6 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		testObject.onDidChangeConfiguration(target);
 		return testObject.updateValue('configurationService.folder.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
 			.then(() => assert.ok(target.called));
-	});
-
-	test('resource language configuration', async () => {
-		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { resource: workspaceService.getWorkspace().folders[0].uri, overrideIdentifier: 'jsonc' }), 'languageValue');
-		await testObject.updateValue('configurationService.folder.languageSetting', 'languageValueUpdated', { resource: workspaceService.getWorkspace().folders[0].uri, overrideIdentifier: 'jsonc' }, ConfigurationTarget.WORKSPACE_FOLDER);
-		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { resource: workspaceService.getWorkspace().folders[0].uri, overrideIdentifier: 'jsonc' }), 'languageValueUpdated');
 	});
 
 	test('remove setting from all targets', async () => {
@@ -1106,7 +1131,9 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 	test('change event when there are global tasks', async () => {
 		await fileService.writeFile(joinPath(environmentService.userRoamingDataHome, 'tasks.json'), VSBuffer.fromString('{ "version": "1.0.0", "tasks": [{ "taskName": "myTask" }'));
-		return new Promise<void>((c) => testObject.onDidChangeConfiguration(() => c()));
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await testObject.reloadLocalUserConfiguration();
+		await promise;
 	});
 
 	test('creating workspace settings', async () => {
@@ -1332,7 +1359,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
@@ -1349,7 +1376,6 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
 		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-		instantiationService.stub(IUserConfigurationFileService, new UserConfigurationFileService(environmentService, fileService, logService));
 		workspaceService.acquireInstantiationService(instantiationService);
 
 		workspaceContextService = workspaceService;
@@ -1993,7 +2019,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		machineSettingsResource = joinPath(ROOT, 'machine-settings.json');
 		remoteSettingsResource = machineSettingsResource.with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
-		instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		const remoteEnvironmentPromise = new Promise<Partial<IRemoteAgentEnvironment>>(c => resolveRemoteEnvironment = () => c({ settingsPath: remoteSettingsResource }));
 		const remoteAgentService = instantiationService.stub(IRemoteAgentService, <Partial<IRemoteAgentService>>{ getEnvironment: () => remoteEnvironmentPromise });
@@ -2004,7 +2030,6 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		instantiationService.stub(IConfigurationService, testObject);
 		instantiationService.stub(IEnvironmentService, environmentService);
 		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IUserConfigurationFileService, new UserConfigurationFileService(environmentService, fileService, logService));
 	});
 
 	async function initialize(): Promise<void> {
@@ -2165,44 +2190,6 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		});
 		assert.strictEqual(testObject.getValue('configurationService.remote.newMachineOverridableSetting'), 'isSet');
 	});
-
-});
-
-suite('ConfigurationService - Configuration Defaults', () => {
-
-	const disposableStore: DisposableStore = new DisposableStore();
-
-	suiteSetup(() => {
-		Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-			'id': '_test',
-			'type': 'object',
-			'properties': {
-				'configurationService.defaultOverridesSetting': {
-					'type': 'string',
-					'default': 'isSet',
-				},
-			}
-		});
-	});
-
-	teardown(() => disposableStore.clear());
-
-	test('when default value is not overriden', () => {
-		const testObject = createConfigurationService({});
-		assert.deepStrictEqual(testObject.getValue('configurationService.defaultOverridesSetting'), 'isSet');
-	});
-
-	test('when default value is overriden', () => {
-		const testObject = createConfigurationService({ 'configurationService.defaultOverridesSetting': 'overriddenValue' });
-		assert.deepStrictEqual(testObject.getValue('configurationService.defaultOverridesSetting'), 'overriddenValue');
-	});
-
-	function createConfigurationService(configurationDefaults: Record<string, any>): IConfigurationService {
-		const remoteAgentService = (<TestInstantiationService>workbenchInstantiationService()).createInstance(RemoteAgentService, null);
-		const environmentService = new BrowserWorkbenchEnvironmentService({ logsPath: joinPath(ROOT, 'logs'), workspaceId: '', configurationDefaults }, TestProductService);
-		const fileService = new FileService(new NullLogService());
-		return disposableStore.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
-	}
 
 });
 

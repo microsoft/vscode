@@ -6,8 +6,8 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { RenderOutputType, ICellOutputViewModel, IRenderOutput } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
@@ -29,14 +29,14 @@ abstract class CodeRendererContrib extends Disposable implements IOutputTransfor
 		public notebookEditor: INotebookDelegateForOutput,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 	}
 
 	abstract render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement): IRenderOutput;
 
-	protected _render(output: ICellOutputViewModel, container: HTMLElement, value: string, modeId: string): IRenderOutput {
+	protected _render(output: ICellOutputViewModel, container: HTMLElement, value: string, languageId: string): IRenderOutput {
 		const disposable = new DisposableStore();
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, getOutputSimpleEditorOptions(), { isSimpleWidget: true, contributions: this.notebookEditor.creationOptions.cellEditorContributions });
 
@@ -60,7 +60,7 @@ abstract class CodeRendererContrib extends Disposable implements IOutputTransfor
 			container.style.height = `${editorHeight + 8}px`;
 		}));
 
-		const mode = this.modeService.create(modeId);
+		const mode = this.languageService.createById(languageId);
 		const textModel = this.modelService.createModel(value, mode, undefined, false);
 		editor.setModel(textModel);
 
@@ -81,7 +81,7 @@ abstract class CodeRendererContrib extends Disposable implements IOutputTransfor
 
 export class NotebookCodeRendererContribution extends Disposable {
 
-	constructor(@IModeService _modeService: IModeService) {
+	constructor(@ILanguageService _languageService: ILanguageService) {
 		super();
 
 		const registeredMimeTypes = new Map();
@@ -104,12 +104,14 @@ export class NotebookCodeRendererContribution extends Disposable {
 			registeredMimeTypes.set(mimeType, true);
 		};
 
-		_modeService.getRegisteredModes().forEach(id => {
+		_languageService.getRegisteredLanguageIds().forEach(id => {
 			registerCodeRendererContrib(`text/x-${id}`, id);
 		});
 
-		this._register(_modeService.onDidEncounterLanguage((languageIdentifier) => {
-			registerCodeRendererContrib(`text/x-${languageIdentifier.language}`, languageIdentifier.language);
+		this._register(_languageService.onDidChange(() => {
+			_languageService.getRegisteredLanguageIds().forEach(id => {
+				registerCodeRendererContrib(`text/x-${id}`, id);
+			});
 		}));
 
 		registerCodeRendererContrib('application/json', 'json');

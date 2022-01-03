@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from 'path';
+import { basename, extname } from 'path';
 import * as vscode from 'vscode';
 import { CommandManager } from './commands/commandManager';
 import { DiagnosticKind } from './languageFeatures/diagnostics';
@@ -94,11 +94,16 @@ export default class LanguageProvider extends Disposable {
 		this.updateSuggestionDiagnostics(config.get(suggestionSetting, true));
 	}
 
-	public handles(resource: vscode.Uri, doc: vscode.TextDocument): boolean {
-		if (this.description.modeIds.indexOf(doc.languageId) >= 0) {
-			return true;
-		}
+	public handlesUri(resource: vscode.Uri): boolean {
+		const ext = extname(resource.path).slice(1).toLowerCase();
+		return this.description.standardFileExtensions.includes(ext) || this.handlesConfigFile(resource);
+	}
 
+	public handlesDocument(doc: vscode.TextDocument): boolean {
+		return this.description.modeIds.includes(doc.languageId) || this.handlesConfigFile(doc.uri);
+	}
+
+	private handlesConfigFile(resource: vscode.Uri) {
 		const base = basename(resource.fsPath);
 		return !!base && (!!this.description.configFilePattern && this.description.configFilePattern.test(base));
 	}
@@ -136,7 +141,7 @@ export default class LanguageProvider extends Disposable {
 		const reportUnnecessary = config.get<boolean>('showUnused', true);
 		const reportDeprecated = config.get<boolean>('showDeprecated', true);
 		this.client.diagnosticsManager.updateDiagnostics(file, this._diagnosticLanguage, diagnosticsKind, diagnostics.filter(diag => {
-			// Don't both reporting diagnostics we know will not be rendered
+			// Don't bother reporting diagnostics we know will not be rendered
 			if (!reportUnnecessary) {
 				if (diag.reportUnnecessary && diag.severity === vscode.DiagnosticSeverity.Hint) {
 					return false;

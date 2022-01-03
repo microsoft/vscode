@@ -11,7 +11,7 @@ import { Handler } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -46,7 +46,7 @@ suite('SnippetController2', function () {
 			[ILabelService, new class extends mock<ILabelService>() { }],
 			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
 		);
-		editor = createTestCodeEditor({ model, serviceCollection });
+		editor = createTestCodeEditor(model, { serviceCollection });
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
 		assert.strictEqual(model.getEOL(), '\n');
 	});
@@ -462,5 +462,33 @@ suite('SnippetController2', function () {
 		model.updateOptions({ insertSpaces: true, tabSize: 4 });
 		ctrl.insert('\tHello World\n\tNew Line\n${1:\tmore}');
 		assert.strictEqual(model.getValue(), '    Hello World\n    New Line\n    more');
+	});
+
+	test.skip('Snippet transformation does not work after inserting variable using intellisense, #112362', function () {
+
+		{
+			// HAPPY - no nested snippet
+			const ctrl = new SnippetController2(editor, logService, contextKeys);
+			model.setValue('');
+			model.updateOptions({ insertSpaces: true, tabSize: 4 });
+			ctrl.insert('$1\n\n${1/([A-Za-z0-9]+): ([A-Za-z]+).*/$1: \'$2\',/gm}');
+
+			assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(3, 1, 3, 1));
+			editor.trigger('test', 'type', { text: 'foo: number;' });
+			ctrl.next();
+			assert.strictEqual(model.getValue(), `foo: number;\n\nfoo: 'number',`);
+		}
+
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		model.updateOptions({ insertSpaces: true, tabSize: 4 });
+		ctrl.insert('$1\n\n${1/([A-Za-z0-9]+): ([A-Za-z]+).*/$1: \'$2\',/gm}');
+
+		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(3, 1, 3, 1));
+		editor.trigger('test', 'type', { text: 'foo: ' });
+		ctrl.insert('number;');
+		ctrl.next();
+		assert.strictEqual(model.getValue(), `foo: number;\n\nfoo: 'number',`);
+		// editor.trigger('test', 'type', { text: ';' });
 	});
 });

@@ -40,9 +40,9 @@
  */
 
 .xterm {
-	font-feature-settings: "liga" 0;
 	position: relative;
 	user-select: none;
+	-ms-user-select: none;
 	-webkit-user-select: none;
 }
 
@@ -137,7 +137,8 @@
 	cursor: default;
 }
 
-.xterm.xterm-cursor-pointer {
+.xterm.xterm-cursor-pointer,
+.xterm .xterm-cursor-pointer {
 	cursor: pointer;
 }
 

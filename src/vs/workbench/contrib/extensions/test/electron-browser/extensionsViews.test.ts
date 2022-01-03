@@ -35,7 +35,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { SinonStub } from 'sinon';
 import { IExperimentService, ExperimentState, ExperimentActionType, ExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentService';
 import { ExtensionType, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -46,6 +46,7 @@ import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/comm
 import { Schemas } from 'vs/base/common/network';
 import { platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 suite('ExtensionsListView Tests', () => {
 
@@ -81,6 +82,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
+		instantiationService.stub(IProductService, {});
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -96,7 +98,8 @@ suite('ExtensionsListView Tests', () => {
 			onDidUninstallExtension: didUninstallEvent.event,
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
-			async getExtensionsReport() { return []; },
+			async getExtensionsControlManifest() { return { malicious: [] }; },
+			async getTargetPlatform() { return getTargetPlatform(platform, arch); }
 		});
 		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
@@ -160,8 +163,9 @@ suite('ExtensionsListView Tests', () => {
 
 	setup(async () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localEnabledTheme, localEnabledLanguage, localRandom, localDisabledTheme, localDisabledLanguage, builtInTheme, builtInBasic]);
-		instantiationService.stubPromise(IExtensionManagementService, 'getExtensionsReport', []);
+		instantiationService.stubPromise(IExtensionManagementService, 'getExtensgetExtensionsControlManifestionsReport', {});
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', []);
 		instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', []);
 
 		instantiationService.stub(IViewDescriptorService, {

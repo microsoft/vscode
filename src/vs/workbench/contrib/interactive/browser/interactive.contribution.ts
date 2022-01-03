@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -52,6 +52,10 @@ import { peekViewBorder /*, peekViewEditorBackground, peekViewResultsBackground 
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/model';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -218,8 +222,35 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 	}
 }
 
+class InteractiveInputContentProvider implements ITextModelContentProvider {
+
+	private readonly _registration: IDisposable;
+
+	constructor(
+		@ITextModelService textModelService: ITextModelService,
+		@IModelService private readonly _modelService: IModelService,
+	) {
+		this._registration = textModelService.registerTextModelContentProvider(Schemas.vscodeInteractiveInput, this);
+	}
+
+	dispose(): void {
+		this._registration.dispose();
+	}
+
+	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing) {
+			return existing;
+		}
+		let result: ITextModel | null = this._modelService.createModel('', null, resource, false);
+		return result;
+	}
+}
+
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveInputContentProvider, LifecyclePhase.Starting);
 
 export class InteractiveEditorSerializer implements IEditorSerializer {
 	canSerialize(): boolean {
@@ -403,7 +434,7 @@ registerAction2(class extends Action2 {
 			const notebookDocument = editorControl.notebookEditor.textModel;
 			const textModel = editorControl.codeEditor.getModel();
 			const activeKernel = editorControl.notebookEditor.activeKernel;
-			const language = activeKernel?.supportedLanguages[0] ?? 'plaintext';
+			const language = activeKernel?.supportedLanguages[0] ?? PLAINTEXT_LANGUAGE_ID;
 
 			if (notebookDocument && textModel) {
 				const index = notebookDocument.length;
@@ -428,7 +459,11 @@ registerAction2(class extends Action2 {
 								language,
 								source: value,
 								outputs: [],
-								metadata: {}
+								metadata: {},
+								collapseState: {
+									inputCollapsed: false,
+									outputCollapsed: false
+								}
 							}]
 						}
 					)
@@ -546,6 +581,65 @@ registerAction2(class extends Action2 {
 	}
 });
 
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'interactive.scrollToTop',
+			title: localize('interactiveScrollToTop', 'Scroll to Top'),
+			keybinding: {
+				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+				primary: KeyMod.CtrlCmd | KeyCode.Home,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			category: 'Interactive',
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+
+		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+			if (editorControl.notebookEditor.getLength() === 0) {
+				return;
+			}
+
+			editorControl.notebookEditor.revealCellRangeInView({ start: 0, end: 1 });
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'interactive.scrollToBottom',
+			title: localize('interactiveScrollToBottom', 'Scroll to Bottom'),
+			keybinding: {
+				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+				primary: KeyMod.CtrlCmd | KeyCode.End,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			category: 'Interactive',
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+
+		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+			if (editorControl.notebookEditor.getLength() === 0) {
+				return;
+			}
+
+			const len = editorControl.notebookEditor.getLength();
+			editorControl.notebookEditor.revealCellRangeInView({ start: len - 1, end: len });
+		}
+	}
+});
 
 registerThemingParticipant((theme) => {
 	registerColor('interactive.activeCodeBorder', {
