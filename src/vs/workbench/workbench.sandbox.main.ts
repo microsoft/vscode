@@ -75,6 +75,7 @@ import 'vs/platform/remote/electron-sandbox/sharedProcessTunnelService';
 import 'vs/workbench/services/remote/electron-sandbox/tunnelService';
 import 'vs/platform/diagnostics/electron-sandbox/diagnosticsService';
 import 'vs/platform/checksum/electron-sandbox/checksumService';
+import 'vs/platform/profiling/electron-sandbox/profilingService';
 import 'vs/platform/telemetry/electron-sandbox/customEndpointTelemetryService';
 import 'vs/workbench/services/files/electron-sandbox/elevatedFileService';
 import 'vs/workbench/services/search/electron-sandbox/searchService';
