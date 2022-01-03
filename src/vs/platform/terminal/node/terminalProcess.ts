@@ -182,6 +182,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (isLinux || isMacintosh) {
 			this.capabilities.push(ProcessCapability.CwdDetection);
 		}
+		if (shellLaunchConfig.executable?.endsWith('zsh')) {
+			this.capabilities.push(ProcessCapability.ShellIntegration);
+		}
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {

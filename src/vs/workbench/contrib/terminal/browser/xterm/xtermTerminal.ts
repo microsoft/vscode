@@ -12,7 +12,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ProcessCapability, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ICommandTracker, ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
 import { IXtermTerminal, ShellIntegrationInfo, ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -87,6 +87,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		cols: number,
 		rows: number,
 		location: TerminalLocation,
+		private readonly _capabilities: ProcessCapability[],
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -156,7 +157,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			}
 		});
 		this.raw.onIntegratedShellChange((e: { type: string, value: string }) => this._handleIntegratedShellChange(e));
-		this._commandTrackerAddon = new CommandTrackerAddon();
+		this._commandTrackerAddon = new CommandTrackerAddon(this._capabilities);
 		this.raw.loadAddon(this._commandTrackerAddon);
 	}
 

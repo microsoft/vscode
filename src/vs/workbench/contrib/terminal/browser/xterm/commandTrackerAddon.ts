@@ -5,7 +5,8 @@
 
 import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
 import { ICommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ShellIntegrationInfo, ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ProcessCapability } from 'vs/platform/terminal/common/terminal';
 /**
  * The minimum size of the prompt in which to assume the line is a command.
  */
@@ -26,11 +27,20 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 	private _isDisposable: boolean = false;
 	private _terminal: Terminal | undefined;
 
+	constructor(private readonly _capabilities: ProcessCapability[]) {
+
+	}
+
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
 		terminal.onIntegratedShellChange(e => {
-			if (this._terminal && this._terminal.buffer.active.cursorX >= MINIMUM_PROMPT_LENGTH) {
-				if (e.type === ShellIntegrationInteraction.CommandFinished) {
+			if (!this._terminal) {
+				return;
+			}
+			if (this._terminal.buffer.active.cursorX >= MINIMUM_PROMPT_LENGTH) {
+				if (!this._capabilities.includes(ProcessCapability.ShellIntegration)) {
+					terminal.onKey(e => this._onKey(e.key));
+				} else if (e.type === ShellIntegrationInteraction.CommandFinished) {
 					this._terminal?.registerMarker(0);
 					this.clearMarker();
 				}
@@ -39,6 +49,21 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 	}
 
 	dispose(): void {
+	}
+
+	private _onKey(key: string): void {
+		if (key === '\x0d') {
+			this._onEnter();
+		}
+	}
+
+	private _onEnter(): void {
+		if (!this._terminal) {
+			return;
+		}
+		if (this._terminal.buffer.active.cursorX >= MINIMUM_PROMPT_LENGTH) {
+			this._terminal.registerMarker(0);
+		}
 	}
 
 	clearMarker(): void {

@@ -48,7 +48,7 @@ suite('Workbench - TerminalCommandTracker', function () {
 			data += `${i}\n`;
 		}
 		await writeP(xterm, data);
-		commandTracker = new CommandTrackerAddon();
+		commandTracker = new CommandTrackerAddon([]);
 		xterm.loadAddon(commandTracker);
 	});
 

@@ -548,7 +548,8 @@ export interface IProcessReadyEvent {
 }
 
 export const enum ProcessCapability {
-	CwdDetection = 'cwdDetection'
+	CwdDetection = 'cwdDetection',
+	ShellIntegration = 'shellIntegration'
 }
 
 /**
