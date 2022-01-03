@@ -12,7 +12,7 @@ import { clearLanguageAssociations, getMimeTypes, registerLanguageAssociation } 
 import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec, LanguageId } from 'vs/editor/common/languages';
 import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageExtensionPoint, ILanguageNameIdPair } from 'vs/editor/common/services/language';
+import { ILanguageExtensionPoint, ILanguageNameIdPair, ILanguageIcon } from 'vs/editor/common/services/language';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -27,6 +27,7 @@ export interface IResolvedLanguage {
 	extensions: string[];
 	filenames: string[];
 	configurationFiles: URI[];
+	icons: ILanguageIcon[];
 }
 
 export class LanguageIdCodec implements ILanguageIdCodec {
@@ -162,7 +163,8 @@ export class LanguagesRegistry extends Disposable {
 				aliases: [],
 				extensions: [],
 				filenames: [],
-				configurationFiles: []
+				configurationFiles: [],
+				icons: []
 			};
 			this._languages[langId] = resolvedLanguage;
 		}
@@ -260,6 +262,10 @@ export class LanguagesRegistry extends Disposable {
 		if (lang.configuration) {
 			resolvedLanguage.configurationFiles.push(lang.configuration);
 		}
+
+		if (lang.icon) {
+			resolvedLanguage.icons.push(lang.icon);
+		}
 	}
 
 	public isRegisteredLanguageId(languageId: string | null | undefined): boolean {
@@ -314,6 +320,14 @@ export class LanguagesRegistry extends Disposable {
 			return [];
 		}
 		return this._languages[languageId].filenames;
+	}
+
+	public getIcon(languageId: string): ILanguageIcon | null {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
+			return null;
+		}
+		const language = this._languages[languageId];
+		return (language.icons[0] || null);
 	}
 
 	public getConfigurationFiles(languageId: string): ReadonlyArray<URI> {

@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
-import { ILanguageNameIdPair, ILanguageSelection, ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageNameIdPair, ILanguageSelection, ILanguageService, ILanguageIcon } from 'vs/editor/common/services/language';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { ILanguageIdCodec, TokenizationRegistry } from 'vs/editor/common/languages';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
@@ -59,6 +59,10 @@ export class LanguageService extends Disposable implements ILanguageService {
 
 	public getMimeType(languageId: string): string | null {
 		return this._registry.getMimeType(languageId);
+	}
+
+	public getIcon(languageId: string): ILanguageIcon | null {
+		return this._registry.getIcon(languageId);
 	}
 
 	public getExtensions(languageId: string): ReadonlyArray<string> {
