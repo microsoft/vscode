@@ -1683,7 +1683,11 @@ export class TestPathService implements IPathService {
 	hasValidBasename(resource: URI, basename?: string): Promise<boolean>;
 	hasValidBasename(resource: URI, os: OperatingSystem, basename?: string): boolean;
 	hasValidBasename(resource: URI, arg2?: string | OperatingSystem, name?: string): boolean | Promise<boolean> {
-		return isValidBasename(basename(resource));
+		if (typeof arg2 === 'string' || typeof arg2 === 'undefined') {
+			return isValidBasename(arg2 ?? basename(resource));
+		}
+
+		return isValidBasename(name ?? basename(resource));
 	}
 
 	get path() { return Promise.resolve(isWindows ? win32 : posix); }

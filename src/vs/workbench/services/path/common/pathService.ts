@@ -116,7 +116,7 @@ export abstract class AbstractPathService implements IPathService {
 
 		// async version
 		if (typeof arg2 === 'string' || typeof arg2 === 'undefined') {
-			return this.resolveOS.then(os => this.doHasValidBasename(resource, os, basename));
+			return this.resolveOS.then(os => this.doHasValidBasename(resource, os, arg2));
 		}
 
 		// sync version
