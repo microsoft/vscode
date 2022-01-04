@@ -7,7 +7,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RemoteAuthorities } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IRemoteAuthorityResolverService, IRemoteConnectionData, ResolvedAuthority, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, IRemoteConnectionData, ResolvedAuthority, ResolvedOptions, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
 
@@ -67,10 +67,10 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		 * Add VSCODE_PROXY_URI to the environment.
 		 * @author coder
 		 */
-		const options = {}
+		let options: ResolvedOptions | undefined
 		if (this.proxyEndpointUrlTemplate) {
 			const proxyUrl = new URL(this.proxyEndpointUrlTemplate, window.location.href);
-			options.extensionHostEnv = { VSCODE_PROXY_URI: decodeURIComponent(proxyUrl.toString()) }
+			options = { extensionHostEnv: { VSCODE_PROXY_URI: decodeURIComponent(proxyUrl.toString()) }}
 		}
 		if (authority.indexOf(':') >= 0) {
 			const pieces = authority.split(':');
