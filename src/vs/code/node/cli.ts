@@ -23,6 +23,7 @@ import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
 import product from 'vs/platform/product/common/product';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { randomPath } from 'vs/base/common/extpath';
+import { Utils } from 'vs/platform/profiling/common/profiling';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
@@ -285,17 +286,17 @@ export async function main(argv: string[]): Promise<any> {
 									return;
 								}
 								let suffix = '';
-								let profile = await session.stop();
+								let result = await session.stop();
 								if (!process.env['VSCODE_DEV']) {
 									// when running from a not-development-build we remove
 									// absolute filenames because we don't want to reveal anything
 									// about users. We also append the `.txt` suffix to make it
 									// easier to attach these files to GH issues
-									profile = profiler.rewriteAbsolutePaths(profile, 'piiRemoved');
+									result.profile = Utils.rewriteAbsolutePaths(result.profile, 'piiRemoved');
 									suffix = '.txt';
 								}
 
-								await profiler.writeProfile(profile, `${filenamePrefix}.${name}.cpuprofile${suffix}`);
+								writeFileSync(`${filenamePrefix}.${name}.cpuprofile${suffix}`, JSON.stringify(result.profile, undefined, 4));
 							}
 						};
 					}
