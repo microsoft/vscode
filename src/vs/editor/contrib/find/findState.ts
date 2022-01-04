@@ -25,6 +25,7 @@ export interface FindReplaceStateChangedEvent {
 	matchesCount: boolean;
 	currentMatch: boolean;
 	loop: boolean;
+	isSearching: boolean;
 }
 
 export const enum FindOptionOverride {
@@ -48,6 +49,7 @@ export interface INewFindReplaceState {
 	preserveCaseOverride?: FindOptionOverride;
 	searchScope?: Range[] | null;
 	loop?: boolean;
+	isSearching?: boolean;
 }
 
 function effectiveOptionValue(override: FindOptionOverride, value: boolean): boolean {
@@ -78,6 +80,7 @@ export class FindReplaceState extends Disposable {
 	private _matchesCount: number;
 	private _currentMatch: Range | null;
 	private _loop: boolean;
+	private _isSearching: boolean;
 	private readonly _onFindReplaceStateChange = this._register(new Emitter<FindReplaceStateChangedEvent>());
 
 	public get searchString(): string { return this._searchString; }
@@ -98,6 +101,7 @@ export class FindReplaceState extends Disposable {
 	public get matchesPosition(): number { return this._matchesPosition; }
 	public get matchesCount(): number { return this._matchesCount; }
 	public get currentMatch(): Range | null { return this._currentMatch; }
+	public get isSearching(): boolean { return this._isSearching; }
 	public readonly onFindReplaceStateChange: Event<FindReplaceStateChangedEvent> = this._onFindReplaceStateChange.event;
 
 	constructor() {
@@ -119,6 +123,7 @@ export class FindReplaceState extends Disposable {
 		this._matchesCount = 0;
 		this._currentMatch = null;
 		this._loop = true;
+		this._isSearching = false;
 	}
 
 	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range | undefined): void {
@@ -137,7 +142,8 @@ export class FindReplaceState extends Disposable {
 			matchesPosition: false,
 			matchesCount: false,
 			currentMatch: false,
-			loop: false
+			loop: false,
+			isSearching: false
 		};
 		let somethingChanged = false;
 
@@ -188,7 +194,8 @@ export class FindReplaceState extends Disposable {
 			matchesPosition: false,
 			matchesCount: false,
 			currentMatch: false,
-			loop: false
+			loop: false,
+			isSearching: false
 		};
 		let somethingChanged = false;
 
@@ -255,6 +262,15 @@ export class FindReplaceState extends Disposable {
 				somethingChanged = true;
 			}
 		}
+
+		if (typeof newState.isSearching !== 'undefined') {
+			if (this._isSearching !== newState.isSearching) {
+				this._isSearching = newState.isSearching;
+				changeEvent.isSearching = true;
+				somethingChanged = true;
+			}
+		}
+
 		// Overrides get set when they explicitly come in and get reset anytime something else changes
 		this._isRegexOverride = (typeof newState.isRegexOverride !== 'undefined' ? newState.isRegexOverride : FindOptionOverride.NotSet);
 		this._wholeWordOverride = (typeof newState.wholeWordOverride !== 'undefined' ? newState.wholeWordOverride : FindOptionOverride.NotSet);

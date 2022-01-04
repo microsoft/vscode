@@ -289,19 +289,23 @@ export class FindModel extends Disposable {
 	}
 
 	private async _compute(token: CancellationToken): Promise<CellFindMatchWithIndex[] | null> {
+		this._state.change({ isSearching: true }, false);
+		let ret: CellFindMatchWithIndex[] | null = null;
 		const val = this._state.searchString;
 		const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
 
 		const options: INotebookSearchOptions = { regex: this._state.isRegex, wholeWord: this._state.wholeWord, caseSensitive: this._state.matchCase, wordSeparators: wordSeparators };
 		if (!val) {
-			return null;
+			ret = null;
+		} else if (!this._notebookEditor.hasModel()) {
+			ret = null;
+		} else {
+			ret = await this._notebookEditor.find(val, options, token);
 		}
 
-		if (!this._notebookEditor.hasModel()) {
-			return null;
-		}
+		this._state.change({ isSearching: false }, false);
+		return ret;
 
-		return this._notebookEditor.find(val, options, token);
 	}
 
 	private _updateCurrentMatch(findMatches: CellFindMatchWithIndex[], currentMatchesPosition: number) {

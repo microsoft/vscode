@@ -63,8 +63,16 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			this.updateTheme(themeService.getColorTheme());
 		}));
 
-		this._register(this._state.onFindReplaceStateChange(() => {
+		this._register(this._state.onFindReplaceStateChange((e) => {
 			this.onInputChanged();
+
+			if (e.isSearching) {
+				if (this._state.isSearching) {
+					this._progressBar.infinite().show();
+				} else {
+					this._progressBar.stop();
+				}
+			}
 		}));
 
 		this._register(DOM.addDisposableListener(this.getDomNode(), DOM.EventType.FOCUS, e => {
@@ -221,6 +229,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		this._state.change({ isRevealed: false }, false);
 		this._findModel.clear();
 		this._notebookEditor.findStop();
+		this._progressBar.stop();
 
 		if (this._hideTimeout === null) {
 			if (this._showTimeout !== null) {
