@@ -714,6 +714,30 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	};
 
+	const unHighlightCurrentMatch = (index: number) => {
+		const oldMatch = _findingMatches[index];
+		if (oldMatch) {
+			const sel = window.getSelection();
+			if (sel) {
+				try {
+					sel.removeAllRanges();
+					const r = document.createRange();
+					r.setStart(oldMatch.range.startContainer, oldMatch.range.startOffset);
+					r.setEnd(oldMatch.range.endContainer, oldMatch.range.endOffset);
+					sel.addRange(r);
+					document.designMode = 'On';
+					document.execCommand('removeFormat', false, undefined);
+					window.document.execCommand('hiliteColor', false, matchColor);
+					document.designMode = 'Off';
+
+					sel.removeAllRanges();
+				} catch (e) {
+					console.log(e);
+				}
+			}
+		}
+	};
+
 	const clearFindMatches = () => {
 		_findingMatches.forEach(match => {
 			const sel = window.getSelection();
@@ -908,6 +932,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 			case 'findHighlight': {
 				highlightCurrentMatch(event.data.index);
+				break;
+			}
+			case 'findUnHighlight': {
+				unHighlightCurrentMatch(event.data.index);
 				break;
 			}
 			case 'findStop': {

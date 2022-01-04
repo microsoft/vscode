@@ -29,6 +29,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from 'vs/editor/contrib/find/findWidget';
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { FindMatch } from 'vs/editor/common/model';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
@@ -122,16 +123,24 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			this._findModel.find(false);
 		}
 
-		const { cell, match } = this._findModel.getCurrentMatch();
-		this._progressBar.infinite().show();
+		const currentMatch = this._findModel.getCurrentMatch();
+		const cell = currentMatch.cell;
+		if (currentMatch.isModelMatch) {
+			const match = currentMatch.match as FindMatch;
 
-		const replacePattern = this.replacePattern;
-		const replaceString = replacePattern.buildReplaceString(match.matches, this._state.preserveCase);
+			this._progressBar.infinite().show();
 
-		const viewModel = this._notebookEditor._getViewModel();
-		viewModel.replaceOne(cell, match.range, replaceString).then(() => {
-			this._progressBar.stop();
-		});
+			const replacePattern = this.replacePattern;
+			const replaceString = replacePattern.buildReplaceString(match.matches, this._state.preserveCase);
+
+			const viewModel = this._notebookEditor._getViewModel();
+			viewModel.replaceOne(cell, match.range, replaceString).then(() => {
+				this._progressBar.stop();
+			});
+		} else {
+			// this should not work
+			console.error('Replace does not work for output match');
+		}
 	}
 
 	protected replaceAll() {
@@ -147,9 +156,12 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		let replaceStrings: string[] = [];
 		cellFindMatches.forEach(cellFindMatch => {
 			const findMatches = cellFindMatch.matches;
-			findMatches.forEach(findMatch => {
-				const matches = findMatch.matches;
-				replaceStrings.push(replacePattern.buildReplaceString(matches, this._state.preserveCase));
+			findMatches.forEach((findMatch, index) => {
+				if (index < cellFindMatch.modelMatchCount) {
+					const match = findMatch as FindMatch;
+					const matches = match.matches;
+					replaceStrings.push(replacePattern.buildReplaceString(matches, this._state.preserveCase));
+				}
 			});
 		});
 

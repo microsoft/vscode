@@ -1316,6 +1316,13 @@ var requirejs = (function() {
 		return ret;
 	}
 
+	async findUnHighlight(index: number): Promise<void> {
+		this._sendMessageToWebview({
+			type: 'findUnHighlight',
+			index
+		});
+	}
+
 
 	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
 		this._sendMessageToWebview({

@@ -636,6 +636,7 @@ export interface INotebookEditor {
 	getNextVisibleCellIndex(index: number): number | undefined;
 	find(query: string, options: INotebookSearchOptions, token: CancellationToken): Promise<CellFindMatchWithIndex[]>;
 	highlightFind(cell: ICellViewModel, matchIndex: number): Promise<number>;
+	unHighlightFind(matchIndex: number): Promise<void>;
 	findStop(): void;
 }
 

@@ -375,6 +375,11 @@ export interface IFindHighlightMessage {
 	readonly index: number;
 }
 
+export interface IFindUnHighlightMessage {
+	readonly type: 'findUnHighlight';
+	readonly index: number;
+}
+
 export interface IFindStopMessage {
 	readonly type: 'findStop';
 }
@@ -453,6 +458,7 @@ export type ToWebviewMessage = IClearMessage |
 	ITokenizedStylesChangedMessage |
 	IFindMessage |
 	IFindHighlightMessage |
+	IFindUnHighlightMessage |
 	IFindStopMessage;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;

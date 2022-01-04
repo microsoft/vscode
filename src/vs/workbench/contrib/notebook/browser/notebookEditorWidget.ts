@@ -2314,6 +2314,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._webview?.findHighlight(matchIndex);
 	}
 
+	async unHighlightFind(matchIndex: number): Promise<void> {
+		if (!this._webview) {
+			return;
+		}
+
+		return this._webview?.findUnHighlight(matchIndex);
+	}
+
 	findStop() {
 		if (this._webview) {
 			this._webview.findStop();
