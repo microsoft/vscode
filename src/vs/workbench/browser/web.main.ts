@@ -179,7 +179,11 @@ class BrowserMain extends Disposable {
 
 		// Remote
 		const connectionToken = environmentService.options.connectionToken || getCookieValue('vscode-tkn');
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(connectionToken, this.configuration.resourceUriProvider);
+		/**
+		 * Add proxy URL template to the resolver.
+		 * @author coder
+		 */
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(connectionToken, this.configuration.resourceUriProvider, this.configuration.productConfiguration?.proxyEndpointUrlTemplate);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing

@@ -20,7 +20,11 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 	private readonly _connectionToken: string | undefined;
 	private readonly _connectionTokens: Map<string, string>;
 
-	constructor(connectionToken: string | undefined, resourceUriProvider: ((uri: URI) => URI) | undefined) {
+	/**
+	 * Add proxy endpoint template.
+	 * @author coder
+	 */
+	constructor(connectionToken: string | undefined, resourceUriProvider: ((uri: URI) => URI) | undefined, private readonly proxyEndpointUrlTemplate?: string) {
 		super();
 		this._cache = new Map<string, ResolverResult>();
 		this._connectionToken = connectionToken;
@@ -59,12 +63,21 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 
 	private _doResolveAuthority(authority: string): ResolverResult {
 		const connectionToken = this._connectionTokens.get(authority) || this._connectionToken;
+		/**
+		 * Add VSCODE_PROXY_URI to the environment.
+		 * @author coder
+		 */
+		const options = {}
+		if (this.proxyEndpointUrlTemplate) {
+			const proxyUrl = new URL(this.proxyEndpointUrlTemplate, window.location.href);
+			options.extensionHostEnv = { VSCODE_PROXY_URI: decodeURIComponent(proxyUrl.toString()) }
+		}
 		if (authority.indexOf(':') >= 0) {
 			const pieces = authority.split(':');
-			return { authority: { authority, host: pieces[0], port: parseInt(pieces[1], 10), connectionToken } };
+			return { authority: { authority, host: pieces[0], port: parseInt(pieces[1], 10), connectionToken }, options };
 		}
 		const port = (/^https:/.test(window.location.href) ? 443 : 80);
-		return { authority: { authority, host: authority, port: port, connectionToken } };
+		return { authority: { authority, host: authority, port: port, connectionToken }, options };
 	}
 
 	_clearResolvedAuthority(authority: string): void {

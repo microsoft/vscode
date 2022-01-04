@@ -320,10 +320,11 @@ export class WebClientServer {
 					// Endpoints
 					base,
 					logoutEndpointUrl: base + '/logout',
+					proxyEndpointUrlTemplate: base + '/proxy/{{port}}',
 					webEndpointUrl: vscodeBase + '/static',
 					webEndpointUrlTemplate: vscodeBase + '/static',
 					webviewContentExternalBaseUrlTemplate: vscodeBase + '/webview/{{uuid}}/',
-					updateUrl: base + '/update/check'
+					updateUrl: base + '/update/check',
 				},
 				folderUri: (workspacePath && isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 				workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,

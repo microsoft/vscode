@@ -388,7 +388,11 @@ export function createTerminalEnvironment(
 
 		// Sanitize the environment, removing any undesirable VS Code and Electron environment
 		// variables
-		sanitizeProcessEnvironment(env, 'VSCODE_IPC_HOOK_CLI');
+		/**
+		 * Do not remove the proxy URI.
+		 * @author coder
+		 */
+		sanitizeProcessEnvironment(env, 'VSCODE_IPC_HOOK_CLI', 'VSCODE_PROXY_URI');
 
 		// Merge config (settings) and ShellLaunchConfig environments
 		mergeEnvironments(env, allowedEnvFromConfig);
