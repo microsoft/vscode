@@ -7,7 +7,7 @@ import { EventType } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { TerminalLinkProviderType } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
+import { ITerminalLinkItem, TerminalLinkProviderType } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILink } from 'xterm';
 
@@ -17,7 +17,7 @@ export class TerminalLinkQuickpick {
 		@IClipboardService private readonly _clipboardService: IClipboardService
 	) { }
 
-	async show(type: TerminalLinkProviderType, links: ILink[]): Promise<void> {
+	async show(type: TerminalLinkProviderType, links: ITerminalLinkItem[]): Promise<void> {
 		const picks = await this._generatePicks(links);
 		const options: IPickOptions<ITerminalLinkQuickPickItem> = {
 			placeHolder: type === TerminalLinkProviderType.Validated ? localize('terminal.integrated.openValidatedOrProtocolLink', "Select the link to open") : localize('terminal.integrated.copyWordLink', "Select the link to copy"),
@@ -29,7 +29,7 @@ export class TerminalLinkQuickpick {
 		if (!pick) {
 			return;
 		}
-		if (type === TerminalLinkProviderType.Word) {
+		if (pick.link.isWord) {
 			this._clipboardService.writeText(pick.label);
 		} else {
 			const event = new TerminalLinkQuickpickEvent(EventType.CLICK);
@@ -56,7 +56,7 @@ export class TerminalLinkQuickpick {
 }
 
 export interface ITerminalLinkQuickPickItem extends IQuickPickItem {
-	link: ILink
+	link: ITerminalLinkItem
 }
 
 

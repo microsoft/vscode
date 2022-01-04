@@ -1896,22 +1896,8 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.ShowWordLinkQuickpick,
-				title: { value: localize('workbench.action.terminal.showWordLinkQuickpick', "Show Word Link Quick Pick"), original: 'Show Word Link Quickpick' },
-				f1: true,
-				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.showLinkQuickpick(TerminalLinkProviderType.Word));
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
 				id: TerminalCommandId.ShowProtocolLinkQuickpick,
-				title: { value: localize('workbench.action.terminal.showProtocolLinkQuickpick', "Show Protocol Link Quick Pick"), original: 'Show Protocol Link Quickpick' },
+				title: { value: localize('workbench.action.terminal.showProtocolLinkQuickpick', "Show Web Links"), original: 'Show Web Links' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -1925,7 +1911,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.ShowValidatedLinkQuickpick,
-				title: { value: localize('workbench.action.terminal.showValidatedLinkQuickpick', "Show Validated Link Quick Pick"), original: 'Show Validated Link Quickpick' },
+				title: { value: localize('workbench.action.terminal.showValidatedLinkQuickpick', "Show File Links"), original: 'Show File Links' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),

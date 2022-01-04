@@ -97,12 +97,26 @@ export class TerminalLinkManager extends DisposableStore {
 		this._registerStandardLinkProviders();
 	}
 
-	async getLinks(type: TerminalLinkProviderType, y: number): Promise<ILink[] | undefined> {
+	async getLinks(type: TerminalLinkProviderType, y: number): Promise<ITerminalLinkItem[] | undefined> {
 		let provider: ILinkProvider | undefined = undefined;
-		if (type === TerminalLinkProviderType.Word) {
-			provider = this._standardLinkProviders.find(p => p instanceof TerminalWordLinkProvider);
-		} else if (type === TerminalLinkProviderType.Validated) {
+		let result: ITerminalLinkItem[] = [];
+		if (type === TerminalLinkProviderType.Validated) {
 			provider = this._standardLinkProviders.find(p => p instanceof TerminalValidatedLocalLinkProvider);
+			const validatedLinks = await new Promise<ILink[] | undefined>(r => provider?.provideLinks(y, r));
+			if (validatedLinks) {
+				result?.push(...validatedLinks);
+			}
+			provider = this._standardLinkProviders.find(p => p instanceof TerminalWordLinkProvider);
+			const wordLinks = await new Promise<ILink[] | undefined>(r => provider?.provideLinks(y, r));
+			if (wordLinks) {
+				for (const link of wordLinks) {
+					const wordLink = link as ITerminalLinkItem;
+					wordLink.isWord = true;
+					result.push(wordLink);
+				}
+			}
+			// put file links before word links
+			return result.sort((a, b) => (a.isWord ? 1 : 0) - (b.isWord ? 1 : 0));
 		} else {
 			provider = this._standardLinkProviders.find(p => p instanceof TerminalProtocolLinkProvider);
 		}
@@ -440,7 +454,10 @@ export interface LineColumnInfo {
 }
 
 export enum TerminalLinkProviderType {
-	Word = 'word',
 	Validated = 'validated',
 	Protocol = 'protocol'
+}
+
+export interface ITerminalLinkItem extends ILink {
+	isWord?: boolean;
 }
