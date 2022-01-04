@@ -25,6 +25,7 @@ import { LanguageFeatureRequestDelays } from 'vs/editor/common/languages/languag
 import { IModelDeltaDecoration, InjectedTextOptions, ITextModel, IWordAtPosition, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
@@ -199,16 +200,40 @@ export class InlayHintsController implements IEditorContribution {
 			}
 		}
 
-		// link click listener
-		this._sessionDisposables.add(this._editor.onMouseUp(e => {
-			if (e.target.type !== MouseTargetType.CONTENT_TEXT || typeof e.target.detail !== 'object') {
+		// link gesture
+		let undoHover = () => { };
+		const gesture = this._sessionDisposables.add(new ClickLinkGesture(this._editor));
+		this._sessionDisposables.add(gesture.onMouseMoveOrRelevantKeyDown(e => {
+			const [mouseEvent] = e;
+			if (mouseEvent.target.type !== MouseTargetType.CONTENT_TEXT || typeof mouseEvent.target.detail !== 'object' || !mouseEvent.hasTriggerModifier) {
+				undoHover();
 				return;
 			}
-			const options = e.target.detail.injectedText?.options;
+			const options = mouseEvent.target.detail?.injectedText?.options;
+			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLink) {
+				if (mouseEvent.target.element instanceof HTMLElement) {
+					// todo@jrieken not proper, won't work with wrapped lines. use decoration instead
+					mouseEvent.target.element.style.cursor = 'pointer';
+					mouseEvent.target.element.style.color = `var(${colors.asCssVariableName(colors.editorActiveLinkForeground)})`;
+					undoHover = () => {
+						(<HTMLElement>mouseEvent.target.element).style.cursor = '';
+						(<HTMLElement>mouseEvent.target.element).style.color = '';
+						undoHover = () => { };
+					};
+				}
+			}
+		}));
+		this._sessionDisposables.add(gesture.onCancel(undoHover));
+		this._sessionDisposables.add(gesture.onExecute(e => {
+			if (e.target.type !== MouseTargetType.CONTENT_TEXT || typeof e.target.detail !== 'object' || !e.hasTriggerModifier) {
+				return;
+			}
+			const options = e.target.detail?.injectedText?.options;
 			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLink) {
 				this._openerService.open(options.attachedData.href, { allowCommands: true });
 			}
 		}));
+
 	}
 
 	private _getHintsRanges(): Range[] {
