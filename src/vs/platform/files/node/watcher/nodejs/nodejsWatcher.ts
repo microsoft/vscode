@@ -225,13 +225,15 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 							// fs.watch() does not really help us figuring out
 							// if the root folder got deleted. As such we have
 							// to check if our watched path still exists and
-							// handle that accordingly.
+							// handle that accordingly. The only hint we get
+							// is that the event file name will be the same
+							// as the folder we are watching...
 							//
 							// We do not re-attach the watcher after timeout
 							// though as we do for file watches because for
 							// file watching specifically we want to handle
 							// the atomic-write cases.
-							if (!await Promises.exists(path)) {
+							if (changedFileName === basename(path) && !await Promises.exists(path)) {
 								this.onFileChange({ path: this.request.path, type: FileChangeType.DELETED });
 							}
 

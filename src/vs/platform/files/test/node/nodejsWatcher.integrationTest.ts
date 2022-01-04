@@ -11,7 +11,6 @@ import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/tes
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IDiskFileChange } from 'vs/platform/files/common/watcher';
 import { NodeJSFileWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
-import { timeout } from 'vs/base/common/async';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 
 // this suite has shown flaky runs in Azure pipelines where
@@ -71,7 +70,7 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 		return Promises.rm(testDir).catch(error => console.error(error));
 	});
 
-	async function awaitEvent(onDidChangeFile: Event<IDiskFileChange[]>, path: string, type: FileChangeType, failOnEventReason?: string): Promise<void> {
+	async function awaitEvent(onDidChangeFile: Event<IDiskFileChange[]>, path: string, type: FileChangeType): Promise<void> {
 		if (loggingEnabled) {
 			console.log(`Awaiting change type '${toMsg(type)}' on file '${path}'`);
 		}
@@ -82,11 +81,7 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 				for (const event of events) {
 					if (event.path === path && event.type === type) {
 						disposable.dispose();
-						if (failOnEventReason) {
-							reject(new Error(`Unexpected file event: ${failOnEventReason}`));
-						} else {
-							setImmediate(() => resolve()); // copied from parcel watcher tests, seems to drop unrelated events on macOS
-						}
+						setImmediate(() => resolve()); // copied from parcel watcher tests, seems to drop unrelated events on macOS
 						break;
 					}
 				}
@@ -194,21 +189,6 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 		changeFuture = awaitEvent(event, anotherNewFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(anotherNewFilePath, 'Hello Another World');
 		await changeFuture;
-
-		// Read file does not emit event
-		changeFuture = awaitEvent(event, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-read-file');
-		await Promises.readFile(anotherNewFilePath);
-		await Promise.race([timeout(100), changeFuture]);
-
-		// Stat file does not emit event
-		changeFuture = awaitEvent(event, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
-		await Promises.stat(anotherNewFilePath);
-		await Promise.race([timeout(100), changeFuture]);
-
-		// Stat folder does not emit event
-		changeFuture = awaitEvent(event, copiedFolderpath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
-		await Promises.stat(copiedFolderpath);
-		await Promise.race([timeout(100), changeFuture]);
 
 		// Delete file
 		changeFuture = awaitEvent(event, copiedFilepath, FileChangeType.DELETED);
