@@ -22,7 +22,7 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 		this._register(_notebookEditor.onDidChangeVisibleRanges(() => this._update()));
 
 		this._register(_notebookExecutionStateService.onDidChangeCellExecution(e => {
-			if (e.notebook !== this._notebookEditor.textModel?.uri) {
+			if (e.notebook.toString() !== this._notebookEditor.textModel?.uri.toString()) {
 				return;
 			}
 
