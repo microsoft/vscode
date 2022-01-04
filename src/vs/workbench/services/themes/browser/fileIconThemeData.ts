@@ -344,8 +344,9 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 						selectors.push(`.${escapeCSS(directoryName.toLowerCase())}-name-dir-icon`);
 						fileName = fileIconDirectoryRegexMatch[2];
 					}
-					fileName = fileName.toLowerCase();
+					fileName = fileName.toLowerCase(); // extra segment to increase file-name score
 					selectors.push(`.${escapeCSS(fileName)}-name-file-icon`);
+					selectors.push('.name-file-icon');
 					let segments = fileName.split('.');
 					if (segments.length) {
 						for (let i = 1; i < segments.length; i++) {
