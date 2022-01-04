@@ -383,9 +383,9 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 				const textFileModel = textFileService.files.get(resource);
 				if (textFileModel) {
 
-					// mode
-					if (typeof editor.mode !== 'string') {
-						editor.mode = textFileModel.getMode();
+					// language
+					if (typeof editor.languageId !== 'string') {
+						editor.languageId = textFileModel.getLanguageId();
 					}
 
 					// encoding

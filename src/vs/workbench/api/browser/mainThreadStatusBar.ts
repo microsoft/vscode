@@ -8,7 +8,7 @@ import { MainThreadStatusBarShape, MainContext, IExtHostContext } from '../commo
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { dispose } from 'vs/base/common/lifecycle';
-import { Command } from 'vs/editor/common/modes';
+import { Command } from 'vs/editor/common/languages';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 import { IMarkdownString } from 'vs/base/common/htmlContent';

@@ -107,14 +107,33 @@ suite('vscode API - commands', () => {
 		return Promise.all([a, b, c, d, e]);
 	});
 
-	test('api-command: vscode.open', function () {
+	test('api-command: vscode.open', async function () {
 		let uri = Uri.parse(workspace.workspaceFolders![0].uri.toString() + '/far.js');
-		let a = commands.executeCommand('vscode.open', uri).then(() => assert.ok(true), () => assert.ok(false));
-		let b = commands.executeCommand('vscode.open', uri, ViewColumn.Two).then(() => assert.ok(true), () => assert.ok(false));
-		let c = commands.executeCommand('vscode.open').then(() => assert.ok(false), () => assert.ok(true));
-		let d = commands.executeCommand('vscode.open', uri, true).then(() => assert.ok(false), () => assert.ok(true));
 
-		return Promise.all([a, b, c, d]);
+		await commands.executeCommand('vscode.open', uri);
+		assert.strictEqual(window.activeTextEditor?.viewColumn, ViewColumn.One);
+
+		await commands.executeCommand('vscode.open', uri, ViewColumn.Two);
+		assert.strictEqual(window.activeTextEditor?.viewColumn, ViewColumn.Two);
+
+		await commands.executeCommand('vscode.open', uri, ViewColumn.One);
+		assert.strictEqual(window.activeTextEditor?.viewColumn, ViewColumn.One);
+
+		let e1: Error | undefined = undefined;
+		try {
+			await commands.executeCommand('vscode.open');
+		} catch (error) {
+			e1 = error;
+		}
+		assert.ok(e1);
+
+		let e2: Error | undefined = undefined;
+		try {
+			await commands.executeCommand('vscode.open', uri, true);
+		} catch (error) {
+			e2 = error;
+		}
+		assert.ok(e2);
 	});
 
 	test('api-command: vscode.open with untitled supports associated resource (#138925)', async function () {

@@ -403,7 +403,9 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 	}
 
 	if (options.useIgnoreFiles) {
-		args.push('--no-ignore-parent');
+		if (!options.useParentIgnoreFiles) {
+			args.push('--no-ignore-parent');
+		}
 	} else {
 		// Don't use .gitignore or .ignore
 		args.push('--no-ignore');
@@ -438,7 +440,7 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 
 	if (query.isRegExp) {
 		query.pattern = unicodeEscapesToPCRE2(query.pattern);
-		args.push('--auto-hybrid-regex');
+		args.push('--engine', 'auto');
 	}
 
 	let searchPatternAfterDoubleDashes: Maybe<string>;

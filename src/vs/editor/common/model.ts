@@ -7,15 +7,16 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelInjectedTextChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { FormattingOptions, StandardTokenType } from 'vs/editor/common/modes';
+import { FormattingOptions, StandardTokenType } from 'vs/editor/common/languages';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { MultilineTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
+import { ContiguousMultilineTokens } from 'vs/editor/common/model/tokens/contiguousMultilineTokens';
+import { SparseMultilineTokens } from 'vs/editor/common/model/tokens/sparseMultilineTokens';
 import { TextChange } from 'vs/editor/common/model/textChange';
 import { equals } from 'vs/base/common/objects';
 import { IBracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
@@ -875,17 +876,17 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	setTokens(tokens: MultilineTokens[]): void;
+	setTokens(tokens: ContiguousMultilineTokens[]): void;
 
 	/**
 	 * @internal
 	 */
-	setSemanticTokens(tokens: MultilineTokens2[] | null, isComplete: boolean): void;
+	setSemanticTokens(tokens: SparseMultilineTokens[] | null, isComplete: boolean): void;
 
 	/**
 	 * @internal
 	 */
-	setPartialSemanticTokens(range: Range, tokens: MultilineTokens2[] | null): void;
+	setPartialSemanticTokens(range: Range, tokens: SparseMultilineTokens[] | null): void;
 
 	/**
 	 * @internal

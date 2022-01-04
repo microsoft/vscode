@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -35,7 +35,7 @@ class CellStatusBarLanguagePickerProvider implements INotebookCellStatusBarItemP
 
 		const languageId = cell.cellKind === CellKind.Markup ?
 			'markdown' :
-			(this._languageService.getLanguageIdForLanguageName(cell.language) || cell.language);
+			(this._languageService.getLanguageIdByLanguageName(cell.language) || cell.language);
 		const text = this._languageService.getLanguageName(languageId) || languageId;
 		const item = <INotebookCellStatusBarItem>{
 			text,

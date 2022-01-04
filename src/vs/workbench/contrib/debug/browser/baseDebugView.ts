@@ -78,7 +78,7 @@ export function renderExpressionValue(expressionOrValue: IExpressionContainer | 
 	}
 
 	if (options.maxValueLength && value && value.length > options.maxValueLength) {
-		value = value.substr(0, options.maxValueLength) + '...';
+		value = value.substring(0, options.maxValueLength) + '...';
 	}
 	if (!value) {
 		value = '';

@@ -23,8 +23,8 @@ import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITL
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';
@@ -931,13 +931,21 @@ export const cutFileHandler = async (accessor: ServicesAccessor) => {
 
 const downloadFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
+	const notificationService = accessor.get(INotificationService);
 	const instantiationService = accessor.get(IInstantiationService);
 
 	const context = explorerService.getContext(true);
 	const explorerItems = context.length ? context : explorerService.roots;
 
 	const downloadHandler = instantiationService.createInstance(FileDownload);
-	return downloadHandler.download(explorerItems);
+
+	try {
+		await downloadHandler.download(explorerItems);
+	} catch (error) {
+		notificationService.error(error);
+
+		throw error;
+	}
 };
 
 CommandsRegistry.registerCommand({
@@ -947,15 +955,22 @@ CommandsRegistry.registerCommand({
 
 const uploadFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
+	const notificationService = accessor.get(INotificationService);
 	const instantiationService = accessor.get(IInstantiationService);
 
 	const context = explorerService.getContext(true);
 	const element = context.length ? context[0] : explorerService.roots[0];
 
-	const files = await triggerUpload();
-	if (files) {
-		const browserUpload = instantiationService.createInstance(BrowserFileUpload);
-		return browserUpload.upload(element, files);
+	try {
+		const files = await triggerUpload();
+		if (files) {
+			const browserUpload = instantiationService.createInstance(BrowserFileUpload);
+			await browserUpload.upload(element, files);
+		}
+	} catch (error) {
+		notificationService.error(error);
+
+		throw error;
 	}
 };
 

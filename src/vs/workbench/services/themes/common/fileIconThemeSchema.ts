@@ -223,6 +223,10 @@ const schema: IJSONSchema = {
 		hidesExplorerArrows: {
 			type: 'boolean',
 			description: nls.localize('schema.hidesExplorerArrows', 'Configures whether the file explorer\'s arrows should be hidden when this theme is active.')
+		},
+		showLanguageModeIcons: {
+			type: 'boolean',
+			description: nls.localize('schema.showLanguageModeIcons', 'Configures whether the default language icons should be used if the theme does not define an icon for a language.')
 		}
 	}
 };

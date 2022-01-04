@@ -257,7 +257,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 // Debug toolbar
 
-let debugViewTitleItems: IDisposable[] = [];
+const debugViewTitleItems: IDisposable[] = [];
 const registerDebugToolBarItem = (id: string, title: string, order: number, icon?: { light?: URI, dark?: URI } | ThemeIcon, when?: ContextKeyExpression, precondition?: ContextKeyExpression, alt?: ICommandAction) => {
 	MenuRegistry.appendMenuItem(MenuId.DebugToolBar, {
 		group: 'navigation',

@@ -641,7 +641,7 @@ export class RawDebugSession implements IDisposable {
 
 		const args: string[] = [];
 
-		for (let arg of vscodeArgs.args) {
+		for (const arg of vscodeArgs.args) {
 			const a2 = (arg.prefix || '') + (arg.path || '');
 			const match = /^--(.+)=(.+)$/.exec(a2);
 			if (match && match.length === 3) {

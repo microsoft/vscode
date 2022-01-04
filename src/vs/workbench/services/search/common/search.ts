@@ -69,6 +69,7 @@ export interface IFolderQuery<U extends UriComponents = URI> {
 	fileEncoding?: string;
 	disregardIgnoreFiles?: boolean;
 	disregardGlobalIgnoreFiles?: boolean;
+	disregardParentIgnoreFiles?: boolean;
 	ignoreSymlinks?: boolean;
 }
 
@@ -364,6 +365,7 @@ export interface ISearchConfigurationProperties {
 	 */
 	useIgnoreFiles: boolean;
 	useGlobalIgnoreFiles: boolean;
+	useParentIgnoreFiles: boolean;
 	followSymlinks: boolean;
 	smartCase: boolean;
 	globalFindClipboard: boolean;

@@ -242,7 +242,7 @@ suite('vscode API - webview', () => {
 	});
 
 
-	test('webviews should only be able to load resources from workspace by default', async () => {
+	test.skip('webviews should only be able to load resources from workspace by default', async () => { // TODO@mjbvz https://github.com/microsoft/vscode/issues/139960
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', {
 			viewColumn: vscode.ViewColumn.One
 		}, {

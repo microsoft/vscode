@@ -652,12 +652,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	protected createNonRecursiveWatcher(
 		path: string,
+		excludes: string[],
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): IDisposable & { setVerboseLogging: (verboseLogging: boolean) => void } {
 		return new NodeJSFileWatcher(
 			path,
+			excludes,
 			changes => onChange(changes),
 			msg => onLogMessage(msg),
 			verboseLogging

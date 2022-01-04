@@ -9,10 +9,10 @@ import * as minimist from 'minimist';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ModelService } from 'vs/editor/common/services/modelService';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -80,7 +80,7 @@ suite.skip('TextSearch performance (integration)', () => {
 				[IUndoRedoService, undoRedoService],
 				[
 					IModelService,
-					new ModelServiceImpl(
+					new ModelService(
 						configurationService,
 						textResourcePropertiesService,
 						new TestThemeService(),

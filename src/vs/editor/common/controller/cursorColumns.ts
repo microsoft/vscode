@@ -5,105 +5,66 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
-import { Constants } from 'vs/base/common/uint';
-import { CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
-import { Position } from 'vs/editor/common/core/position';
 
 /**
- * Common operations that work and make sense both on the model and on the view model.
+ * A column in a position is the gap between two adjacent characters. The methods here
+ * work with a concept called "visible column". A visible column is a very rough approximation
+ * of the horizontal screen position of a column. For example, using a tab size of 4:
+ * ```txt
+ * |<TAB>|<TAB>|T|ext
+ * |     |     | \---- column = 4, visible column = 9
+ * |     |     \------ column = 3, visible column = 8
+ * |     \------------ column = 2, visible column = 4
+ * \------------------ column = 1, visible column = 0
+ * ```
+ *
+ * **NOTE**: Visual columns do not work well for RTL text or variable-width fonts or characters.
+ *
+ * **NOTE**: These methods work and make sense both on the model and on the view model.
  */
 export class CursorColumns {
+
+	private static _nextVisibleColumn(codePoint: number, visibleColumn: number, tabSize: number): number {
+		if (codePoint === CharCode.Tab) {
+			return CursorColumns.nextRenderTabStop(visibleColumn, tabSize);
+		}
+		if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
+			return visibleColumn + 2;
+		}
+		return visibleColumn + 1;
+	}
+
+	/**
+	 * Returns a visible column from a column.
+	 * @see {@link CursorColumns}
+	 */
 	public static visibleColumnFromColumn(lineContent: string, column: number, tabSize: number): number {
-		const lineContentLength = lineContent.length;
-		const endOffset = column - 1 < lineContentLength ? column - 1 : lineContentLength;
+		const textLen = Math.min(column - 1, lineContent.length);
+		const text = lineContent.substring(0, textLen);
+		const iterator = new strings.GraphemeIterator(text);
 
 		let result = 0;
-		let i = 0;
-		while (i < endOffset) {
-			const codePoint = strings.getNextCodePoint(lineContent, endOffset, i);
-			i += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+		while (!iterator.eol()) {
+			const codePoint = strings.getNextCodePoint(text, textLen, iterator.offset);
+			iterator.nextGraphemeLength();
 
-			if (codePoint === CharCode.Tab) {
-				result = CursorColumns.nextRenderTabStop(result, tabSize);
-			} else {
-				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
-				while (i < endOffset) {
-					const nextCodePoint = strings.getNextCodePoint(lineContent, endOffset, i);
-					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
-					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
-						break;
-					}
-					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-					graphemeBreakType = nextGraphemeBreakType;
-				}
-				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
-					result = result + 2;
-				} else {
-					result = result + 1;
-				}
-			}
+			result = this._nextVisibleColumn(codePoint, result, tabSize);
 		}
+
 		return result;
 	}
 
 	/**
-	 * Returns an array that maps one based columns to one based visible columns. The entry at position 0 is -1.
-	*/
-	public static visibleColumnsByColumns(lineContent: string, tabSize: number): number[] {
-		const endOffset = lineContent.length;
-
-		let result = new Array<number>();
-		result.push(-1);
-		let pos = 0;
-		let i = 0;
-		while (i < endOffset) {
-			const codePoint = strings.getNextCodePoint(lineContent, endOffset, i);
-			i += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-
-			result.push(pos);
-			if (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN) {
-				result.push(pos);
-			}
-
-			if (codePoint === CharCode.Tab) {
-				pos = CursorColumns.nextRenderTabStop(pos, tabSize);
-			} else {
-				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
-				while (i < endOffset) {
-					const nextCodePoint = strings.getNextCodePoint(lineContent, endOffset, i);
-					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
-					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
-						break;
-					}
-					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-
-					result.push(pos);
-					if (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN) {
-						result.push(pos);
-					}
-
-					graphemeBreakType = nextGraphemeBreakType;
-				}
-				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
-					pos = pos + 2;
-				} else {
-					pos = pos + 1;
-				}
-			}
-		}
-		result.push(pos);
-		return result;
-	}
-
+	 * Returns the value to display as "Col" in the status bar.
+	 * @see {@link CursorColumns}
+	 */
 	public static toStatusbarColumn(lineContent: string, column: number, tabSize: number): number {
-		const lineContentLength = lineContent.length;
-		const endOffset = column - 1 < lineContentLength ? column - 1 : lineContentLength;
+		const text = lineContent.substring(0, Math.min(column - 1, lineContent.length));
+		const iterator = new strings.CodePointIterator(text);
 
 		let result = 0;
-		let i = 0;
-		while (i < endOffset) {
-			const codePoint = strings.getNextCodePoint(lineContent, endOffset, i);
-			i += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+		while (!iterator.eol()) {
+			const codePoint = iterator.nextCodePoint();
 
 			if (codePoint === CharCode.Tab) {
 				result = CursorColumns.nextRenderTabStop(result, tabSize);
@@ -115,45 +76,26 @@ export class CursorColumns {
 		return result + 1;
 	}
 
-	public static visibleColumnFromColumn2(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): number {
-		return this.visibleColumnFromColumn(model.getLineContent(position.lineNumber), position.column, config.tabSize);
-	}
-
+	/**
+	 * Returns a column from a visible column.
+	 * @see {@link CursorColumns}
+	 */
 	public static columnFromVisibleColumn(lineContent: string, visibleColumn: number, tabSize: number): number {
 		if (visibleColumn <= 0) {
 			return 1;
 		}
 
-		const lineLength = lineContent.length;
+		const lineContentLength = lineContent.length;
+		const iterator = new strings.GraphemeIterator(lineContent);
 
 		let beforeVisibleColumn = 0;
 		let beforeColumn = 1;
-		let i = 0;
-		while (i < lineLength) {
-			const codePoint = strings.getNextCodePoint(lineContent, lineLength, i);
-			i += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+		while (!iterator.eol()) {
+			const codePoint = strings.getNextCodePoint(lineContent, lineContentLength, iterator.offset);
+			iterator.nextGraphemeLength();
 
-			let afterVisibleColumn: number;
-			if (codePoint === CharCode.Tab) {
-				afterVisibleColumn = CursorColumns.nextRenderTabStop(beforeVisibleColumn, tabSize);
-			} else {
-				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
-				while (i < lineLength) {
-					const nextCodePoint = strings.getNextCodePoint(lineContent, lineLength, i);
-					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
-					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
-						break;
-					}
-					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-					graphemeBreakType = nextGraphemeBreakType;
-				}
-				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
-					afterVisibleColumn = beforeVisibleColumn + 2;
-				} else {
-					afterVisibleColumn = beforeVisibleColumn + 1;
-				}
-			}
-			const afterColumn = i + 1;
+			const afterVisibleColumn = this._nextVisibleColumn(codePoint, beforeVisibleColumn, tabSize);
+			const afterColumn = iterator.offset + 1;
 
 			if (afterVisibleColumn >= visibleColumn) {
 				const beforeDelta = visibleColumn - beforeVisibleColumn;
@@ -170,27 +112,12 @@ export class CursorColumns {
 		}
 
 		// walked the entire string
-		return lineLength + 1;
-	}
-
-	public static columnFromVisibleColumn2(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, visibleColumn: number): number {
-		let result = this.columnFromVisibleColumn(model.getLineContent(lineNumber), visibleColumn, config.tabSize);
-
-		let minColumn = model.getLineMinColumn(lineNumber);
-		if (result < minColumn) {
-			return minColumn;
-		}
-
-		let maxColumn = model.getLineMaxColumn(lineNumber);
-		if (result > maxColumn) {
-			return maxColumn;
-		}
-
-		return result;
+		return lineContentLength + 1;
 	}
 
 	/**
 	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
+	 * @see {@link CursorColumns}
 	 */
 	public static nextRenderTabStop(visibleColumn: number, tabSize: number): number {
 		return visibleColumn + tabSize - visibleColumn % tabSize;
@@ -198,6 +125,7 @@ export class CursorColumns {
 
 	/**
 	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
+	 * @see {@link CursorColumns}
 	 */
 	public static nextIndentTabStop(visibleColumn: number, indentSize: number): number {
 		return visibleColumn + indentSize - visibleColumn % indentSize;
@@ -205,6 +133,7 @@ export class CursorColumns {
 
 	/**
 	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
+	 * @see {@link CursorColumns}
 	 */
 	public static prevRenderTabStop(column: number, tabSize: number): number {
 		return Math.max(0, column - 1 - (column - 1) % tabSize);
@@ -212,6 +141,7 @@ export class CursorColumns {
 
 	/**
 	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
+	 * @see {@link CursorColumns}
 	 */
 	public static prevIndentTabStop(column: number, indentSize: number): number {
 		return Math.max(0, column - 1 - (column - 1) % indentSize);

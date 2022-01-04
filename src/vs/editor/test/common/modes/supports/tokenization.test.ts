@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { FontStyle } from 'vs/editor/common/modes';
-import { ColorMap, ExternalThemeTrieElement, ParsedTokenThemeRule, ThemeTrieElementRule, TokenTheme, parseTokenTheme, strcmp } from 'vs/editor/common/modes/supports/tokenization';
+import { FontStyle } from 'vs/editor/common/languages';
+import { ColorMap, ExternalThemeTrieElement, ParsedTokenThemeRule, ThemeTrieElementRule, TokenTheme, parseTokenTheme, strcmp } from 'vs/editor/common/languages/supports/tokenization';
 
 suite('Token theme matching', () => {
 

@@ -134,7 +134,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	readonly onDidLayout = this._onDidLayout.event;
 
 	//#endregion
-
+	readonly hasContainer = true;
 	readonly container: HTMLElement = document.createElement('div');
 
 	private _dimension!: IDimension;

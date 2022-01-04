@@ -38,8 +38,11 @@ flakySuite('Extpath', () => {
 
 		// linux, unix, etc. -> assume case sensitive file system
 		else {
-			const real = realcaseSync(testDir);
+			let real = realcaseSync(testDir);
 			assert.strictEqual(real, testDir);
+
+			real = realcaseSync(testDir.toUpperCase());
+			assert.strictEqual(real, testDir.toUpperCase());
 		}
 	});
 

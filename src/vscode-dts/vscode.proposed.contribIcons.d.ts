@@ -4,3 +4,5 @@
  *--------------------------------------------------------------------------------------------*/
 
 // empty placeholder declaration for the `icons`-contribution point
+
+// https://github.com/microsoft/vscode/issues/119101 @aeschli

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { WorkspaceFileEditOptions } from 'vs/editor/common/modes';
+import { WorkspaceFileEditOptions } from 'vs/editor/common/languages';
 import { IFileService, FileSystemProviderCapabilities, IFileContent } from 'vs/platform/files/common/files';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

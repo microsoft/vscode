@@ -15,10 +15,10 @@ import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
+import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import * as nls from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -760,7 +760,7 @@ var requirejs = (function() {
 
 						for (const { id, value, lang } of data.codeBlocks) {
 							// The language id may be a language aliases (e.g.js instead of javascript)
-							const languageId = this.languageService.getLanguageIdForLanguageName(lang);
+							const languageId = this.languageService.getLanguageIdByLanguageName(lang);
 							if (!languageId) {
 								continue;
 							}

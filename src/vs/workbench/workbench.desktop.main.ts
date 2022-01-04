@@ -94,12 +94,6 @@ import 'vs/workbench/services/extensions/electron-browser/extensionService';
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-
-// Extensions Management
-import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution';
-
-
-
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
 // NOTE: Please do NOT register services here. Use `registerSingleton()`

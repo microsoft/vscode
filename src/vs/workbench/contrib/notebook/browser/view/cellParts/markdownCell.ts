@@ -21,9 +21,9 @@ import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/com
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { tokenizeToStringSync } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
@@ -62,7 +62,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this.cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, this.viewCell.language));
 		this.cellEditorOptions.setLineNumbers(this.viewCell.lineNumbers);
-		this.editorOptions = this.cellEditorOptions.getValue(this.viewCell.internalMetadata);
+		this.editorOptions = this.cellEditorOptions.getValue(this.viewCell.internalMetadata, this.viewCell.uri);
 
 		this._register(toDisposable(() => renderedEditors.delete(this.viewCell)));
 		this.registerListeners();
@@ -172,7 +172,7 @@ export class StatefulMarkdownCell extends Disposable {
 		}));
 
 		this._register(this.cellEditorOptions.onDidChange(() => {
-			this.updateEditorOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata));
+			this.updateEditorOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
 		}));
 	}
 
@@ -298,7 +298,7 @@ export class StatefulMarkdownCell extends Disposable {
 			const width = this.notebookEditor.notebookOptions.computeMarkdownCellEditorWidth(this.notebookEditor.getLayoutInfo().width);
 			const lineNum = this.viewCell.lineCount;
 			const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
-			const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata);
+			const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata, this.viewCell.uri);
 			editorHeight = Math.max(lineNum, 1) * lineHeight + editorPadding.top + editorPadding.bottom;
 
 			this.templateData.editorContainer.innerText = '';
