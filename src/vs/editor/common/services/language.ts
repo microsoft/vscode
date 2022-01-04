@@ -19,6 +19,10 @@ export interface ILanguageExtensionPoint {
 	aliases?: string[];
 	mimetypes?: string[];
 	configuration?: URI;
+	/**
+	 * @internal
+	 */
+	icon?: ILanguageIcon;
 }
 
 export interface ILanguageSelection {
@@ -29,6 +33,11 @@ export interface ILanguageSelection {
 export interface ILanguageNameIdPair {
 	readonly languageName: string;
 	readonly languageId: string;
+}
+
+export interface ILanguageIcon {
+	readonly light: URI;
+	readonly dark: URI;
 }
 
 export interface ILanguageService {
@@ -75,6 +84,11 @@ export interface ILanguageService {
 	 * Get the mimetype for a language.
 	 */
 	getMimeType(languageId: string): string | null;
+
+	/**
+	 * Get the default icon for the language.
+	 */
+	getIcon(languageId: string): ILanguageIcon | null;
 
 	/**
 	 * Get all file extensions for a language.

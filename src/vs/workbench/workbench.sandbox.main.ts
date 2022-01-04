@@ -20,6 +20,7 @@ import 'vs/workbench/workbench.common.main';
 //#region --- workbench (desktop main)
 
 import 'vs/workbench/electron-sandbox/desktop.main';
+import 'vs/workbench/electron-sandbox/desktop.contribution';
 
 //#endregion
 
@@ -71,10 +72,11 @@ import 'vs/workbench/services/timer/electron-sandbox/timerService';
 import 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import 'vs/workbench/services/integrity/electron-sandbox/integrityService';
 import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupService';
+import 'vs/workbench/services/checksum/electron-sandbox/checksumService';
 import 'vs/platform/remote/electron-sandbox/sharedProcessTunnelService';
 import 'vs/workbench/services/remote/electron-sandbox/tunnelService';
 import 'vs/platform/diagnostics/electron-sandbox/diagnosticsService';
-import 'vs/platform/checksum/electron-sandbox/checksumService';
+import 'vs/platform/profiling/electron-sandbox/profilingService';
 import 'vs/platform/telemetry/electron-sandbox/customEndpointTelemetryService';
 import 'vs/workbench/services/files/electron-sandbox/elevatedFileService';
 import 'vs/workbench/services/search/electron-sandbox/searchService';
@@ -97,9 +99,6 @@ import 'vs/workbench/contrib/logs/electron-sandbox/logs.contribution';
 
 // Localizations
 import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
-
-// Desktop
-import 'vs/workbench/electron-sandbox/desktop.contribution';
 
 // Explorer
 import 'vs/workbench/contrib/files/electron-sandbox/files.contribution';

@@ -58,6 +58,46 @@ export function realcaseSync(path: string): string | null {
 	return null;
 }
 
+export async function realcase(path: string): Promise<string | null> {
+	if (isLinux) {
+		// This method is unsupported on OS that have case sensitive
+		// file system where the same path can exist in different forms
+		// (see also https://github.com/microsoft/vscode/issues/139709)
+		return path;
+	}
+
+	const dir = dirname(path);
+	if (path === dir) {	// end recursion
+		return path;
+	}
+
+	const name = (basename(path) /* can be '' for windows drive letters */ || path).toLowerCase();
+	try {
+		const entries = await Promises.readdir(dir);
+		const found = entries.filter(e => e.toLowerCase() === name);	// use a case insensitive search
+		if (found.length === 1) {
+			// on a case sensitive filesystem we cannot determine here, whether the file exists or not, hence we need the 'file exists' precondition
+			const prefix = await realcase(dir);   // recurse
+			if (prefix) {
+				return join(prefix, found[0]);
+			}
+		} else if (found.length > 1) {
+			// must be a case sensitive $filesystem
+			const ix = found.indexOf(name);
+			if (ix >= 0) {	// case sensitive
+				const prefix = await realcase(dir);   // recurse
+				if (prefix) {
+					return join(prefix, found[ix]);
+				}
+			}
+		}
+	} catch (error) {
+		// silently ignore error
+	}
+
+	return null;
+}
+
 export async function realpath(path: string): Promise<string> {
 	try {
 		// DO NOT USE `fs.promises.realpath` here as it internally
@@ -91,6 +131,7 @@ export function realpathSync(path: string): string {
 		// fs.realpath() is resolving symlinks and that can fail in certain cases. The workaround is
 		// to not resolve links but to simply see if the path is read accessible or not.
 		const normalizedPath = normalizePath(path);
+
 		fs.accessSync(normalizedPath, fs.constants.R_OK); // throws in case of an error
 
 		return normalizedPath;

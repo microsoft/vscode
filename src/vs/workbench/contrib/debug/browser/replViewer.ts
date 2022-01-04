@@ -313,8 +313,8 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 		// Calculate a rough overestimation for the height
 		// For every 70 characters increase the number of lines needed beyond the first
 		if (hasValue(element) && !(element instanceof Variable)) {
-			let value = element.value;
-			let valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 70));
+			const value = element.value;
+			const valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 70));
 
 			return valueRows * rowHeight;
 		}

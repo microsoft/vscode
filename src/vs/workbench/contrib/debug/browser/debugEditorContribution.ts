@@ -71,7 +71,7 @@ class InlineSegment {
 function createInlineValueDecoration(lineNumber: number, contentText: string, column = Constants.MAX_SAFE_SMALL_INTEGER): IModelDeltaDecoration {
 	// If decoratorText is too long, trim and add ellipses. This could happen for minified files with everything on a single line
 	if (contentText.length > MAX_INLINE_DECORATOR_LENGTH) {
-		contentText = contentText.substr(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
+		contentText = contentText.substring(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
 	}
 
 	return {
@@ -99,7 +99,7 @@ function replaceWsWithNoBreakWs(str: string): string {
 
 function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, range: Range, model: ITextModel, wordToLineNumbersMap: Map<string, number[]>): IModelDeltaDecoration[] {
 	const nameValueMap = new Map<string, string>();
-	for (let expr of expressions) {
+	for (const expr of expressions) {
 		nameValueMap.set(expr.name, expr.value);
 		// Limit the size of map. Too large can have a perf impact
 		if (nameValueMap.size >= MAX_NUM_INLINE_VALUES) {
@@ -113,7 +113,7 @@ function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExp
 	nameValueMap.forEach((_value, name) => {
 		const lineNumbers = wordToLineNumbersMap.get(name);
 		if (lineNumbers) {
-			for (let lineNumber of lineNumbers) {
+			for (const lineNumber of lineNumbers) {
 				if (range.containsPosition(new Position(lineNumber, 0))) {
 					if (!lineToNamesMap.has(lineNumber)) {
 						lineToNamesMap.set(lineNumber, []);
@@ -324,7 +324,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private enableEditorHover(): void {
 		if (this.editor.hasModel()) {
 			const model = this.editor.getModel();
-			let overrides = {
+			const overrides = {
 				resource: model.uri,
 				overrideIdentifier: model.getLanguageId()
 			};
@@ -614,7 +614,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			const findVariable = async (_key: string, caseSensitiveLookup: boolean): Promise<string | undefined> => {
 				const scopes = await stackFrame.getMostSpecificScopes(stackFrame.range);
 				const key = caseSensitiveLookup ? _key : _key.toLowerCase();
-				for (let scope of scopes) {
+				for (const scope of scopes) {
 					const variables = await scope.getChildren();
 					const found = variables.find(v => caseSensitiveLookup ? (v.name === key) : (v.name.toLowerCase() === key));
 					if (found) {
@@ -638,7 +638,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 			const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlineValues(model, range, ctx, token)).then(async (result) => {
 				if (result) {
-					for (let iv of result) {
+					for (const iv of result) {
 
 						let text: string | undefined = undefined;
 						switch (iv.type) {

@@ -3,48 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Profile, ProfileNode } from 'v8-inspect-profiler';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { realpathSync } from 'vs/base/node/extpath';
 import { IExtensionHostProfile, IExtensionService, ProfileSegmentId, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { IV8InspectProfilingService, IV8Profile, IV8ProfileNode } from 'vs/platform/profiling/common/profiling';
+import { once } from 'vs/base/common/functional';
 
 export class ExtensionHostProfiler {
 
-	constructor(private readonly _port: number, @IExtensionService private readonly _extensionService: IExtensionService) {
+	constructor(
+		private readonly _port: number,
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IV8InspectProfilingService private readonly _profilingService: IV8InspectProfilingService,
+	) {
 	}
 
 	public async start(): Promise<ProfileSession> {
-		const profiler = await import('v8-inspect-profiler');
-		const session = await profiler.startProfiling({ port: this._port, checkForPaused: true });
+
+		const id = await this._profilingService.startProfiling({ port: this._port });
+
 		return {
-			stop: async () => {
-				const profile = await session.stop();
+			stop: once(async () => {
+				const profile = await this._profilingService.stopProfiling(id);
 				const extensions = await this._extensionService.getExtensions();
-				return this.distill((profile as any).profile, extensions);
-			}
+				return this._distill(profile, extensions);
+			})
 		};
 	}
 
-	private distill(profile: Profile, extensions: IExtensionDescription[]): IExtensionHostProfile {
+	private _distill(profile: IV8Profile, extensions: IExtensionDescription[]): IExtensionHostProfile {
 		let searchTree = TernarySearchTree.forUris<IExtensionDescription>();
 		for (let extension of extensions) {
 			if (extension.extensionLocation.scheme === Schemas.file) {
-				searchTree.set(URI.file(realpathSync(extension.extensionLocation.fsPath)), extension);
+				searchTree.set(URI.file(extension.extensionLocation.fsPath), extension);
 			}
 		}
 
 		let nodes = profile.nodes;
-		let idsToNodes = new Map<number, ProfileNode>();
+		let idsToNodes = new Map<number, IV8ProfileNode>();
 		let idsToSegmentId = new Map<number, ProfileSegmentId | null>();
 		for (let node of nodes) {
 			idsToNodes.set(node.id, node);
 		}
 
-		function visit(node: ProfileNode, segmentId: ProfileSegmentId | null) {
+		function visit(node: IV8ProfileNode, segmentId: ProfileSegmentId | null) {
 			if (!segmentId) {
 				switch (node.callFrame.functionName) {
 					case '(root)':

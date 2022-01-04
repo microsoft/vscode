@@ -189,6 +189,7 @@ export class TextSearchManager {
 			includes,
 			useIgnoreFiles: !fq.disregardIgnoreFiles,
 			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
+			useParentIgnoreFiles: !fq.disregardParentIgnoreFiles,
 			followSymlinks: !fq.ignoreSymlinks,
 			encoding: fq.fileEncoding && this.fileUtils.toCanonicalName(fq.fileEncoding),
 			maxFileSize: this.query.maxFileSize,

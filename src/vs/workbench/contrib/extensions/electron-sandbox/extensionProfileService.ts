@@ -18,7 +18,7 @@ import { randomPort } from 'vs/base/common/ports';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
+import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-sandbox/extensionHostProfiler';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export class ExtensionHostProfileService extends Disposable implements IExtensionHostProfileService {

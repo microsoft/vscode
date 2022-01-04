@@ -12,9 +12,10 @@ import { LanguageService } from 'vs/editor/common/services/languageService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FILES_ASSOCIATIONS_CONFIG, IFilesConfiguration } from 'vs/platform/files/common/files';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export interface IRawLanguageExtensionPoint {
 	id: string;
@@ -25,6 +26,7 @@ export interface IRawLanguageExtensionPoint {
 	aliases: string[];
 	mimetypes: string[];
 	configuration: string;
+	icon: { light: string; dark: string };
 }
 
 export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<IRawLanguageExtensionPoint[]>({
@@ -84,6 +86,20 @@ export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = 
 					description: localize('vscode.extension.contributes.languages.configuration', 'A relative path to a file containing configuration options for the language.'),
 					type: 'string',
 					default: './language-configuration.json'
+				},
+				icon: {
+					type: 'object',
+					description: localize('vscode.extension.contributes.languages.icon', 'A icon to use as file icon, if no icon theme provides one for the language.'),
+					properties: {
+						light: {
+							description: localize('vscode.extension.contributes.languages.icon.light', 'Icon path when a light theme is used'),
+							type: 'string'
+						},
+						dark: {
+							description: localize('vscode.extension.contributes.languages.icon.dark', 'Icon path when a dark theme is used'),
+							type: 'string'
+						}
+					}
 				}
 			}
 		}
@@ -116,7 +132,7 @@ export class WorkbenchLanguageService extends LanguageService {
 
 				for (let j = 0, lenJ = extension.value.length; j < lenJ; j++) {
 					let ext = extension.value[j];
-					if (isValidLanguageExtensionPoint(ext, extension.collector)) {
+					if (isValidLanguageExtensionPoint(ext, extension.description, extension.collector)) {
 						let configuration: URI | undefined = undefined;
 						if (ext.configuration) {
 							configuration = joinPath(extension.description.extensionLocation, ext.configuration);
@@ -129,7 +145,11 @@ export class WorkbenchLanguageService extends LanguageService {
 							firstLine: ext.firstLine,
 							aliases: ext.aliases,
 							mimetypes: ext.mimetypes,
-							configuration: configuration
+							configuration: configuration,
+							icon: ext.icon && {
+								light: joinPath(extension.description.extensionLocation, ext.icon.light),
+								dark: joinPath(extension.description.extensionLocation, ext.icon.dark)
+							}
 						});
 					}
 				}
@@ -184,7 +204,7 @@ function isUndefinedOrStringArray(value: string[]): boolean {
 	return value.every(item => typeof item === 'string');
 }
 
-function isValidLanguageExtensionPoint(value: IRawLanguageExtensionPoint, collector: ExtensionMessageCollector): boolean {
+function isValidLanguageExtensionPoint(value: IRawLanguageExtensionPoint, extension: IExtensionDescription, collector: ExtensionMessageCollector): boolean {
 	if (!value) {
 		collector.error(localize('invalid.empty', "Empty value for `contributes.{0}`", languagesExtPoint.name));
 		return false;
@@ -216,6 +236,17 @@ function isValidLanguageExtensionPoint(value: IRawLanguageExtensionPoint, collec
 	if (!isUndefinedOrStringArray(value.mimetypes)) {
 		collector.error(localize('opt.mimetypes', "property `{0}` can be omitted and must be of type `string[]`", 'mimetypes'));
 		return false;
+	}
+	if (typeof value.icon !== 'undefined') {
+		const proposal = 'languageIcon';
+		if (!isProposedApiEnabled(extension, proposal)) {
+			collector.error(`Extension '${extension.identifier.value}' CANNOT use API proposal: ${proposal}.\nIts package.json#enabledApiProposals-property declares: ${extension.enabledApiProposals?.join(', ') ?? '[]'} but NOT ${proposal}.\n The missing proposal MUST be added and you must start in extension development mode or use the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
+			return false;
+		}
+		if (typeof value.icon !== 'object' || typeof value.icon.light !== 'string' || typeof value.icon.dark !== 'string') {
+			collector.error(localize('opt.icon', "property `{0}` can be omitted and must be of type `object` with properties `{1}` and `{2}` of type `string`", 'icon', 'light', 'dark'));
+			return false;
+		}
 	}
 	return true;
 }

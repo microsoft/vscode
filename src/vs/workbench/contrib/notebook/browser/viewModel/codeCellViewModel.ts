@@ -163,7 +163,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		const notebookLayoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
 		const bottomToolbarDimensions = this.viewContext.notebookOptions.computeBottomToolbarDimensions();
 		const outputShowMoreContainerHeight = state.outputShowMoreContainerHeight ? state.outputShowMoreContainerHeight : this._layoutInfo.outputShowMoreContainerHeight;
-		let outputTotalHeight = Math.max(this._outputMinHeight, this.isOutputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalSum());
+		const outputTotalHeight = Math.max(this._outputMinHeight, this.isOutputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalSum());
 
 		const originalLayout = this.layoutInfo;
 		if (!this.isInputCollapsed) {

@@ -16,6 +16,8 @@ import { Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, CellUri, NotebookCellsChangeType, NullablePartialNotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -41,7 +43,7 @@ class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 					return;
 				}
 
-				for (let change of e.rawEvent.changes) {
+				for (const change of e.rawEvent.changes) {
 					const [start, deleteCount] = change;
 					if (deleteCount > 0) {
 						const deleted = model.cells.slice(start, start + deleteCount);
@@ -133,7 +135,8 @@ class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IDebugService private readonly _debugService: IDebugService,
-		@INotebookService private readonly _notebookService: INotebookService
+		@INotebookService private readonly _notebookService: INotebookService,
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super();
 
@@ -178,7 +181,10 @@ class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 				isPaused
 			};
 			if (isPaused) {
-				internalMetadata.didPause = true;
+				this._notebookExecutionStateService.updateNotebookCellExecution(parsed.notebook, parsed.handle, [{
+					editType: CellExecutionUpdateType.ExecutionState,
+					didPause: true
+				}]);
 			}
 
 			if (notebookModel?.checkCellExistence(parsed.handle)) {

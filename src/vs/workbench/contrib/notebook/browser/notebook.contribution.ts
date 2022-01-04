@@ -274,7 +274,7 @@ class CellContentProvider implements ITextModelContentProvider {
 						return { textBuffer: cell.textBuffer as ITextBuffer, disposable: Disposable.None };
 					},
 					getFirstLineText: (limit: number) => {
-						return cell.textBuffer.getLineContent(1).substr(0, limit);
+						return cell.textBuffer.getLineContent(1).substring(0, limit);
 					}
 				};
 				const languageId = this._languageService.getLanguageIdByLanguageName(cell.language);
@@ -530,7 +530,7 @@ class NotebookEditorManager implements IWorkbenchContribution {
 
 	private _openMissingDirtyNotebookEditors(models: IResolvedNotebookEditorModel[]): void {
 		const result: IResourceEditorInput[] = [];
-		for (let model of models) {
+		for (const model of models) {
 			if (model.isDirty() && !this._editorService.isOpened({ resource: model.resource, typeId: NotebookEditorInput.ID, editorId: model.viewType }) && model.resource.scheme !== Schemas.vscodeInteractive) {
 				result.push({
 					resource: model.resource,
@@ -644,7 +644,7 @@ for (const editorOption of editorOptionsRegistry) {
 		if (isConfigurationPropertySchema(schema)) {
 			schemas[`editor.${editorOption.name}`] = schema;
 		} else {
-			for (let key in schema) {
+			for (const key in schema) {
 				if (Object.hasOwnProperty.call(schema, key)) {
 					schemas[key] = schema[key];
 				}

@@ -44,11 +44,11 @@ export class NotebookStatusBarController extends Disposable {
 			return;
 		}
 
-		for (let newCell of e.added) {
+		for (const newCell of e.added) {
 			this._visibleCells.set(newCell.handle, this._itemFactory(vm, newCell));
 		}
 
-		for (let oldCell of e.removed) {
+		for (const oldCell of e.removed) {
 			this._visibleCells.get(oldCell.handle)?.dispose();
 			this._visibleCells.delete(oldCell.handle);
 		}

@@ -167,7 +167,7 @@ export class CellEditorStatusBar extends CellPart {
 		const updateItems = (renderedItems: CellStatusBarItem[], newItems: INotebookCellStatusBarItem[], container: HTMLElement) => {
 			if (renderedItems.length > newItems.length) {
 				const deleted = renderedItems.splice(newItems.length, renderedItems.length - newItems.length);
-				for (let deletedItem of deleted) {
+				for (const deletedItem of deleted) {
 					container.removeChild(deletedItem.container);
 					deletedItem.dispose();
 				}

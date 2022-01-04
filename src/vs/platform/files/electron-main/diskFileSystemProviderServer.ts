@@ -12,7 +12,7 @@ import { FileDeleteOptions, IFileChange, IWatchOptions, createFileSystemProvider
 import { NodeJSFileWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { basename, normalize } from 'vs/base/common/path';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogMessage, toFileChanges } from 'vs/platform/files/common/watcher';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { AbstractDiskFileSystemProviderChannel, ISessionFileWatcher } from 'vs/platform/files/node/diskFileSystemProviderServer';
@@ -88,8 +88,10 @@ class SessionFileWatcher extends Disposable implements ISessionFileWatcher {
 		disposable.add(toDisposable(() => this.watcherRequests.delete(req)));
 
 		const watcher = disposable.add(new NodeJSFileWatcher(
-			normalize(resource.fsPath),
-			opts.excludes,
+			{
+				path: normalize(resource.fsPath),
+				excludes: opts.excludes
+			},
 			changes => this.sessionEmitter.fire(toFileChanges(changes)),
 			msg => this.onWatcherLogMessage(msg),
 			this.logService.getLevel() === LogLevel.Trace
@@ -113,7 +115,9 @@ class SessionFileWatcher extends Disposable implements ISessionFileWatcher {
 	override dispose(): void {
 		super.dispose();
 
-		this.watcherRequests.forEach(disposable => dispose(disposable));
+		for (const [, disposable] of this.watcherRequests) {
+			disposable.dispose();
+		}
 		this.watcherRequests.clear();
 	}
 }

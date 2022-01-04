@@ -1550,7 +1550,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			const scrollBottom = scrollTop + Math.max(this._dimension?.height ?? 0, 1080);
 
 			let offset = 0;
-			let requests: [ICellViewModel, number][] = [];
+			const requests: [ICellViewModel, number][] = [];
 
 			for (let i = 0; i < viewModel.length; i++) {
 				const cell = viewModel.cellAt(i)!;
@@ -2068,7 +2068,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	get activeKernel() {
-		return this.textModel && this.notebookExecutionService.getSelectedOrSuggestedKernel(this.textModel);
+		return this.textModel && this.notebookKernelService.getSelectedOrSuggestedKernel(this.textModel);
 	}
 
 	async cancelNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void> {

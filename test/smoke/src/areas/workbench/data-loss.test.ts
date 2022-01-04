@@ -95,7 +95,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			await app.workbench.editors.waitForTab('readme.md', !autoSave);
 
 			if (typeof restartDelay === 'number') {
-				// this is an OK use of a timeout in a smoke test
+				// this is an OK use of a timeout in a smoke test:
 				// we want to simulate a user having typed into
 				// the editor and pausing for a moment before
 				// terminating
@@ -105,10 +105,11 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			await app.restart();
 
 			await app.workbench.editors.waitForTab('readme.md', !autoSave);
-			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'readme.md'));
+			await app.workbench.editors.waitForTab('Untitled-1', true);
+
+			await app.workbench.editors.selectTab('readme.md');
 			await app.workbench.editor.waitForEditorContents('readme.md', contents => contents.indexOf(textToType) > -1);
 
-			await app.workbench.editors.waitForTab('Untitled-1', true);
 			await app.workbench.editors.selectTab('Untitled-1');
 			await app.workbench.editor.waitForEditorContents('Untitled-1', contents => contents.indexOf(textToTypeInUntitled) > -1);
 
@@ -230,10 +231,11 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			await insidersApp.start();
 
 			await insidersApp.workbench.editors.waitForTab('readme.md', true);
-			await insidersApp.workbench.quickaccess.openFile(join(insidersApp.workspacePathOrFolder, 'readme.md'));
+			await insidersApp.workbench.editors.waitForTab('Untitled-1', true);
+
+			await insidersApp.workbench.editors.selectTab('readme.md');
 			await insidersApp.workbench.editor.waitForEditorContents('readme.md', contents => contents.indexOf(textToType) > -1);
 
-			await insidersApp.workbench.editors.waitForTab('Untitled-1', true);
 			await insidersApp.workbench.editors.selectTab('Untitled-1');
 			await insidersApp.workbench.editor.waitForEditorContents('Untitled-1', contents => contents.indexOf(textToTypeInUntitled) > -1);
 

@@ -245,15 +245,15 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 											// If a debug completion item sets a selection we need to use snippets to make sure the selection is selected #90974
 											insertTextRules = CompletionItemInsertTextRule.InsertAsSnippet;
 											const selectionLength = typeof item.selectionLength === 'number' ? item.selectionLength : 0;
-											const placeholder = selectionLength > 0 ? '${1:' + insertText.substr(item.selectionStart, selectionLength) + '}$0' : '$0';
-											insertText = insertText.substr(0, item.selectionStart) + placeholder + insertText.substr(item.selectionStart + selectionLength);
+											const placeholder = selectionLength > 0 ? '${1:' + insertText.substring(item.selectionStart, item.selectionStart + selectionLength) + '}$0' : '$0';
+											insertText = insertText.substring(0, item.selectionStart) + placeholder + insertText.substring(item.selectionStart + selectionLength);
 										}
 
 										suggestions.push({
 											label: item.label,
 											insertText,
 											kind: CompletionItemKinds.fromString(item.type || 'property'),
-											filterText: (item.start && item.length) ? text.substr(item.start, item.length).concat(item.label) : undefined,
+											filterText: (item.start && item.length) ? text.substring(item.start, item.start + item.length).concat(item.label) : undefined,
 											range: computeRange(item.length || overwriteBefore),
 											sortText: item.sortText,
 											insertTextRules
@@ -528,7 +528,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			if (session) {
 				// Automatically expand repl group elements when specified
 				const autoExpandElements = async (elements: IReplElement[]) => {
-					for (let element of elements) {
+					for (const element of elements) {
 						if (element instanceof ReplGroup) {
 							if (element.autoExpand && !autoExpanded.has(element.getId())) {
 								autoExpanded.add(element.getId());

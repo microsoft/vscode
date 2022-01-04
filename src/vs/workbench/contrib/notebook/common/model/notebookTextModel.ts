@@ -145,7 +145,7 @@ type TransformedEdit = {
 
 export class NotebookEventEmitter extends PauseableEmitter<NotebookTextModelChangedEvent> {
 	isDirtyEvent() {
-		for (let e of this._eventQueue) {
+		for (const e of this._eventQueue) {
 			for (let i = 0; i < e.rawEvents.length; i++) {
 				if (!e.rawEvents[i].transient) {
 					return true;
@@ -236,9 +236,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._pauseableEmitter = new NotebookEventEmitter({
 			merge: (events: NotebookTextModelChangedEvent[]) => {
-				let first = events[0];
+				const first = events[0];
 
-				let rawEvents = first.rawEvents;
+				const rawEvents = first.rawEvents;
 				let versionId = first.versionId;
 				let endSelectionState = first.endSelectionState;
 				let synchronous = first.synchronous;
@@ -560,7 +560,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _mergeCellEdits(rawEdits: TransformedEdit[]): TransformedEdit[] {
-		let mergedEdits: TransformedEdit[] = [];
+		const mergedEdits: TransformedEdit[] = [];
 
 		rawEdits.forEach(edit => {
 			if (mergedEdits.length) {
@@ -687,7 +687,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private _overwriteAlternativeVersionId(newAlternativeVersionId: string): void {
 		this._alternativeVersionId = newAlternativeVersionId;
-		this._notebookSpecificAlternativeId = Number(newAlternativeVersionId.substr(0, newAlternativeVersionId.indexOf('_')));
+		this._notebookSpecificAlternativeId = Number(newAlternativeVersionId.substring(0, newAlternativeVersionId.indexOf('_')));
 	}
 
 	private _updateNotebookMetadata(metadata: NotebookDocumentMetadata, computeUndoRedo: boolean) {
@@ -789,7 +789,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private _isDocumentMetadataChanged(a: NotebookDocumentMetadata, b: NotebookDocumentMetadata) {
 		const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
-		for (let key of keys) {
+		for (const key of keys) {
 			if (key === 'custom') {
 				if (!this._customMetadataEqual(a[key], b[key])
 					&&
@@ -811,7 +811,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private _isCellMetadataChanged(a: NotebookCellMetadata, b: NotebookCellMetadata) {
 		const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
-		for (let key of keys) {
+		for (const key of keys) {
 			if (
 				(a[key as keyof NotebookCellMetadata] !== b[key as keyof NotebookCellMetadata])
 				&&

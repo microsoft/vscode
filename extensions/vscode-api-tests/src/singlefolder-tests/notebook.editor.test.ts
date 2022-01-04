@@ -102,7 +102,7 @@ suite('Notebook Editor', function () {
 		assert.strictEqual(vscode.window.visibleNotebookEditors.length, 2);
 	});
 
-	test('Notebook Editor Event - onDidChangeVisibleNotebookEditors on open/close', async function () {
+	test.skip('Notebook Editor Event - onDidChangeVisibleNotebookEditors on open/close', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139958
 		const openedEditor = utils.asPromise(vscode.window.onDidChangeVisibleNotebookEditors);
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		await vscode.window.showNotebookDocument(resource);
