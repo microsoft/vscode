@@ -614,8 +614,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					.then(() => {
 						resolve(0);
 					})
-					.catch((err: Error) => {
-						reject(err.toString());
+					.catch((err: unknown) => {
+						reject(err instanceof Error && err.stack ? err.stack : String(err));
 					});
 			}
 		});

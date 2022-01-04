@@ -25,7 +25,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { AuthenticationSession } from 'vs/editor/common/modes';
+import { AuthenticationSession } from 'vs/editor/common/languages';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';

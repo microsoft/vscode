@@ -41,7 +41,7 @@ class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 					return;
 				}
 
-				for (let change of e.rawEvent.changes) {
+				for (const change of e.rawEvent.changes) {
 					const [start, deleteCount] = change;
 					if (deleteCount > 0) {
 						const deleted = model.cells.slice(start, start + deleteCount);

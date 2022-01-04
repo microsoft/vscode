@@ -12,7 +12,7 @@ import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/link/goToDefinitionAtPosition';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
 import { ModesContentHoverWidget } from 'vs/editor/contrib/hover/modesContentHover';

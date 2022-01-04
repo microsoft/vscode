@@ -64,7 +64,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		// Ignore input changes for now
 		const instance = this._terminalService.activeInstance;
 		if (instance?.xterm) {
-			return instance.xterm.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true });
+			instance.xterm.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true });
 		}
 		return false;
 	}

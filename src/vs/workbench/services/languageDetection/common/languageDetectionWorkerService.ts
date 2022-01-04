@@ -13,13 +13,13 @@ export interface ILanguageDetectionService {
 
 	/**
 	 * @param languageId The languageId to check if language detection is currently enabled.
-	 * @returns whether or not language detection is on for this language mode.
+	 * @returns whether or not language detection is on for this language.
 	 */
-	isEnabledForMode(languageId: string): boolean;
+	isEnabledForLanguage(languageId: string): boolean;
 
 	/**
 	 * @param resource The resource to detect the language for.
-	 * @returns the language mode for the given resource or undefined if the model is not confident enough.
+	 * @returns the language id for the given resource or undefined if the model is not confident enough.
 	 */
 	detectLanguage(resource: URI): Promise<string | undefined>;
 }

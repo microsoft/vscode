@@ -5,10 +5,10 @@
 import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/bracketMatching';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 
 suite('bracket matching', () => {
@@ -26,11 +26,11 @@ suite('bracket matching', () => {
 	}
 
 	test('issue #183: jump to matching bracket position', () => {
-		let mode = new BracketMode();
-		let model = createTextModel('var x = (3 + (5-7)) + ((5+3)+5);', undefined, mode.languageId);
+		const mode = new BracketMode();
+		const model = createTextModel('var x = (3 + (5-7)) + ((5+3)+5);', mode.languageId);
 
-		withTestCodeEditor(null, { model: model }, (editor) => {
-			let bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
+		withTestCodeEditor(model, {}, (editor) => {
+			const bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
 
 			// start on closing bracket
 			editor.setPosition(new Position(1, 20));
@@ -58,11 +58,11 @@ suite('bracket matching', () => {
 	});
 
 	test('Jump to next bracket', () => {
-		let mode = new BracketMode();
-		let model = createTextModel('var x = (3 + (5-7)); y();', undefined, mode.languageId);
+		const mode = new BracketMode();
+		const model = createTextModel('var x = (3 + (5-7)); y();', mode.languageId);
 
-		withTestCodeEditor(null, { model: model }, (editor) => {
-			let bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
+		withTestCodeEditor(model, {}, (editor) => {
+			const bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
 
 			// start position between brackets
 			editor.setPosition(new Position(1, 16));
@@ -95,11 +95,11 @@ suite('bracket matching', () => {
 	});
 
 	test('Select to next bracket', () => {
-		let mode = new BracketMode();
-		let model = createTextModel('var x = (3 + (5-7)); y();', undefined, mode.languageId);
+		const mode = new BracketMode();
+		const model = createTextModel('var x = (3 + (5-7)); y();', mode.languageId);
 
-		withTestCodeEditor(null, { model: model }, (editor) => {
-			let bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
+		withTestCodeEditor(model, {}, (editor) => {
+			const bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
 
 
 			// start position in open brackets
@@ -148,9 +148,9 @@ suite('bracket matching', () => {
 			'};',
 		].join('\n');
 		const mode = new BracketMode();
-		const model = createTextModel(text, undefined, mode.languageId);
+		const model = createTextModel(text, mode.languageId);
 
-		withTestCodeEditor(null, { model: model }, (editor) => {
+		withTestCodeEditor(model, {}, (editor) => {
 			const bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
 
 			editor.setPosition(new Position(3, 5));
@@ -173,9 +173,9 @@ suite('bracket matching', () => {
 			'};',
 		].join('\n');
 		const mode = new BracketMode();
-		const model = createTextModel(text, undefined, mode.languageId);
+		const model = createTextModel(text, mode.languageId);
 
-		withTestCodeEditor(null, { model: model }, (editor) => {
+		withTestCodeEditor(model, {}, (editor) => {
 			const bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
 
 			editor.setPosition(new Position(3, 5));
@@ -190,11 +190,11 @@ suite('bracket matching', () => {
 	});
 
 	test('issue #45369: Select to Bracket with multicursor', () => {
-		let mode = new BracketMode();
-		let model = createTextModel('{  }   {   }   { }', undefined, mode.languageId);
+		const mode = new BracketMode();
+		const model = createTextModel('{  }   {   }   { }', mode.languageId);
 
-		withTestCodeEditor(null, { model: model }, (editor) => {
-			let bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
+		withTestCodeEditor(model, {}, (editor) => {
+			const bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
 
 			// cursors inside brackets become selections of the entire bracket contents
 			editor.setSelections([

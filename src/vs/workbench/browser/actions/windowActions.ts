@@ -16,8 +16,8 @@ import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, I
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService, IWorkspaceIdentifier, isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';

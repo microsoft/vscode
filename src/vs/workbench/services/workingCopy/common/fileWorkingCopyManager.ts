@@ -22,7 +22,6 @@ import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager, IStoredFil
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 import { INewOrExistingUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyWithAssociatedResourceOptions, IUntitledFileWorkingCopyManager, UntitledFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopyManager';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { isValidBasename } from 'vs/base/common/extpath';
 import { IBaseFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
 import { IFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -407,7 +406,10 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		await targetStoredFileWorkingCopy.model?.update(sourceContents, CancellationToken.None);
 
 		// Save target
-		await targetStoredFileWorkingCopy.save({ ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
+		const success = await targetStoredFileWorkingCopy.save({ ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
+		if (!success) {
+			return undefined;
+		}
 
 		// Revert the source
 		await sourceWorkingCopy?.revert();
@@ -476,13 +478,18 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 			return toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
 		}
 
+		const defaultFilePath = await this.fileDialogService.defaultFilePath();
+
 		// 3.) Pick the working copy name if valid joined with default path
-		if (workingCopy && isValidBasename(workingCopy.name)) {
-			return joinPath(await this.fileDialogService.defaultFilePath(), workingCopy.name);
+		if (workingCopy) {
+			const candidatePath = joinPath(defaultFilePath, workingCopy.name);
+			if (await this.pathService.hasValidBasename(candidatePath)) {
+				return candidatePath;
+			}
 		}
 
 		// 4.) Finally fallback to the name of the resource joined with default path
-		return joinPath(await this.fileDialogService.defaultFilePath(), basename(resource));
+		return joinPath(defaultFilePath, basename(resource));
 	}
 
 	//#endregion

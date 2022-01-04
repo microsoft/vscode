@@ -12,11 +12,11 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
-import * as modes from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import * as modes from 'vs/editor/common/languages';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { LinkedEditingContribution } from 'vs/editor/contrib/linkedEditing/linkedEditing';
 import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };
@@ -47,11 +47,9 @@ suite('linked editing', () => {
 	});
 
 	function createMockEditor(text: string | string[]): ITestCodeEditor {
-		const model = typeof text === 'string'
-			? createTextModel(text, undefined, languageId, mockFile)
-			: createTextModel(text.join('\n'), undefined, languageId, mockFile);
+		const model = createTextModel(typeof text === 'string' ? text : text.join('\n'), languageId, undefined, mockFile);
 
-		const editor = createTestCodeEditor({ model });
+		const editor = createTestCodeEditor(model);
 		disposables.add(model);
 		disposables.add(editor);
 

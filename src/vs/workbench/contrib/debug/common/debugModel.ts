@@ -266,13 +266,12 @@ export class Variable extends ExpressionContainer implements IExpression {
 		}
 
 		try {
-			let response: DebugProtocol.SetExpressionResponse | DebugProtocol.SetVariableResponse | undefined;
 			// Send out a setExpression for debug extensions that do not support set variables https://github.com/microsoft/vscode/issues/124679#issuecomment-869844437
 			if (this.session.capabilities.supportsSetExpression && !this.session.capabilities.supportsSetVariable && this.evaluateName) {
 				return this.setExpression(value, stackFrame);
 			}
 
-			response = await this.session.setVariable((<ExpressionContainer>this.parent).reference, this.name, value);
+			const response = await this.session.setVariable((<ExpressionContainer>this.parent).reference, this.name, value);
 			handleSetResponse(this, response);
 		} catch (err) {
 			this.errorMessage = err.message;
@@ -1081,7 +1080,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	rawUpdate(data: IRawModelUpdate): void {
-		let session = this.sessions.find(p => p.getId() === data.sessionId);
+		const session = this.sessions.find(p => p.getId() === data.sessionId);
 		if (session) {
 			session.rawUpdate(data);
 			this._onDidChangeCallStack.fire(undefined);

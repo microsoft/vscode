@@ -19,7 +19,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
 import { ColorHoverParticipant } from 'vs/editor/contrib/hover/colorHoverParticipant';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';

@@ -30,7 +30,7 @@ import { NotificationsTelemetry } from 'vs/workbench/browser/parts/notifications
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
-import { readFontInfo, restoreFontInfo, serializeFontInfo } from 'vs/editor/browser/config/configuration';
+import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -289,18 +289,18 @@ export class Workbench extends Layout {
 			try {
 				const storedFontInfo = JSON.parse(storedFontInfoRaw);
 				if (Array.isArray(storedFontInfo)) {
-					restoreFontInfo(storedFontInfo);
+					FontMeasurements.restoreFontInfo(storedFontInfo);
 				}
 			} catch (err) {
 				/* ignore */
 			}
 		}
 
-		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio()));
+		FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio()));
 	}
 
 	private storeFontInfo(storageService: IStorageService): void {
-		const serializedFontInfo = serializeFontInfo();
+		const serializedFontInfo = FontMeasurements.serializeFontInfo();
 		if (serializedFontInfo) {
 			storageService.store('editorFontInfo', JSON.stringify(serializedFontInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}

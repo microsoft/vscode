@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
-import { FoldingContext, FoldingRange, FoldingRangeProvider } from 'vs/editor/common/modes';
+import { FoldingContext, FoldingRange, FoldingRangeProvider } from 'vs/editor/common/languages';
 import { RangeProvider } from './folding';
 import { FoldingRegions, MAX_LINE_NUMBER } from './foldingRanges';
 

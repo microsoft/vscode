@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { StandardTokenType } from 'vs/editor/common/modes';
-import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
+import { StandardTokenType } from 'vs/editor/common/languages';
+import { CharacterPairSupport } from 'vs/editor/common/languages/supports/characterPair';
 import { TokenText, createFakeScopedLineTokens } from 'vs/editor/test/common/modesTestUtils';
-import { StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
+import { StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
 
 suite('CharacterPairSupport', () => {
 

@@ -99,7 +99,7 @@ export class Source {
 				path = modelUri.path;
 				if (modelUri.query) {
 					const keyvalues = modelUri.query.split('&');
-					for (let keyvalue of keyvalues) {
+					for (const keyvalue of keyvalues) {
 						const pair = keyvalue.split('=');
 						if (pair.length === 2) {
 							switch (pair[0]) {

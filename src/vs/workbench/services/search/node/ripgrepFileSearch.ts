@@ -58,7 +58,7 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 	if (folderQuery.disregardIgnoreFiles !== false) {
 		// Don't use .gitignore or .ignore
 		args.push('--no-ignore');
-	} else {
+	} else if (folderQuery.disregardParentIgnoreFiles !== false) {
 		args.push('--no-ignore-parent');
 	}
 

@@ -14,7 +14,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';

@@ -10,9 +10,11 @@ import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices
 import { CommandsRegistry, ICommandService, NullCommandService } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { matchesScheme, matchesSomeScheme } from 'vs/platform/opener/common/opener';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('OpenerService', function () {
-	const editorService = new TestCodeEditorService();
+	const themeService = new TestThemeService();
+	const editorService = new TestCodeEditorService(null, themeService);
 
 	let lastCommand: { id: string; args: any[] } | undefined;
 
