@@ -121,7 +121,7 @@
 	top: calc(50% - (var(--sash-hover-size) / 2));
 }
 
-.pointerEventsDisabled {
+.pointer-events-disabled {
 	pointer-events: none !important;
 }
 
