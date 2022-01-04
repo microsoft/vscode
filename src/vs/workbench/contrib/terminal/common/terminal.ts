@@ -328,6 +328,11 @@ export interface ICommandTracker {
 	selectToNextLine(): void;
 	clearMarker(): void;
 	getCommands(): { command: string, timestamp: string, cwd?: string, exitCode?: number }[];
+	/**
+	 * Fired when shell integration is enabled
+	 * and the command tracker receives an updated cwd
+	 */
+	onCwdChanged: Event<string>;
 }
 
 export interface INavigationMode {

@@ -597,7 +597,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		xterm.raw.onKey(e => this._onKey(e.key, e.domEvent));
 		xterm.raw.onSelectionChange(async () => this._onSelectionChange());
 		xterm.raw.buffer.onBufferChange(() => this._refreshAltBufferContextKey());
-
 		this._processManager.onProcessData(e => this._onProcessData(e));
 		xterm.raw.onData(async data => {
 			await this._processManager.write(data);
@@ -639,6 +638,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._pathService.userHome().then(userHome => {
 			this._userHome = userHome.fsPath;
 		});
+		if (this.capabilities.includes(ProcessCapability.ShellIntegration)) {
+			//TODO: turn off polling for this case
+			xterm.commandTracker.onCwdChanged(cwd => this._cwd = cwd);
+		}
 		return xterm;
 	}
 

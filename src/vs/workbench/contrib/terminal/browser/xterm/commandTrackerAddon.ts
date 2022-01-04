@@ -7,6 +7,8 @@ import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
 import { ICommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ShellIntegrationInfo, ShellIntegrationInteraction, TerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 /**
  * The minimum size of the prompt in which to assume the line is a command.
  */
@@ -21,7 +23,7 @@ export const enum ScrollPosition {
 	Middle
 }
 
-export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
+export class CommandTrackerAddon extends Disposable implements ICommandTracker, ITerminalAddon {
 	private _currentMarker: IMarker | Boundary = Boundary.Bottom;
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
@@ -33,6 +35,9 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 	private _exitCode: number | undefined;
 	private _cwd: string | undefined;
 	private _currentCommand = '';
+
+	private readonly _onCwdChanged = this._register(new Emitter<string>());
+	readonly onCwdChanged = this._onCwdChanged.event;
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
@@ -64,7 +69,7 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		switch (event.type) {
 			case ShellIntegrationInfo.CurrentDir:
 				this._cwd = event.value;
-				//TODO:fire an event to update cwd
+				this._onCwdChanged.fire(this._cwd);
 				break;
 			case ShellIntegrationInfo.RemoteHost:
 				break;
@@ -104,7 +109,7 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		return this._commands;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 	}
 
 	private _onKey(key: string): void {
