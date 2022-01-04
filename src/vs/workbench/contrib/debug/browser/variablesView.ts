@@ -24,7 +24,7 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -488,19 +488,40 @@ CommandsRegistry.registerCommand({
 			return;
 		}
 
+		const debugService = accessor.get(IDebugService);
 		const commandService = accessor.get(ICommandService);
 		const editorService = accessor.get(IEditorService);
 		const ext = await accessor.get(IExtensionService).getExtension(HEX_EDITOR_EXTENSION_ID);
 		if (!ext) {
 			await commandService.executeCommand('workbench.extensions.search', `@id:${HEX_EDITOR_EXTENSION_ID}`);
-		} else {
-			await editorService.openEditor({
-				resource: getUriForDebugMemory(arg.sessionId, arg.variable.memoryReference),
-				options: {
-					override: HEX_EDITOR_EDITOR_ID,
-				},
-			});
+			return;
 		}
+
+		const pane = await editorService.openEditor({
+			resource: getUriForDebugMemory(arg.sessionId, arg.variable.memoryReference),
+			options: {
+				revealIfOpened: true,
+				override: HEX_EDITOR_EDITOR_ID,
+			},
+		});
+
+		const editor = pane?.input;
+		if (!editor) {
+			return;
+		}
+
+		const disposable = new DisposableStore();
+		disposable.add(editor);
+		disposable.add(debugService.onDidEndSession(session => {
+			if (session.getId() === arg.sessionId) {
+				disposable.dispose();
+			}
+		}));
+		disposable.add(editorService.onDidCloseEditor(e => {
+			if (e.editor === editor) {
+				disposable.dispose();
+			}
+		}));
 	}
 });
 
