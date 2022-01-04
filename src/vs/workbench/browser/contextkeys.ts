@@ -226,8 +226,10 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		this._register(this.editorGroupService.onDidChangeActiveGroup(() => this.updateEditorGroupContextKeys()));
 		this._register(this.editorGroupService.onDidChangeGroupLocked(() => this.updateEditorGroupContextKeys()));
-		this._register(this.editorGroupService.onDidChangeEditorPartOptions(() => {
-			this.editorTabsVisibleContext.set(!!this.editorGroupService.partOptions.showTabs);
+		this._register(this.editorGroupService.onDidChangeEditorPartOptions((e) => {
+			if (e.newPartOptions.showTabs !== undefined) {
+				this.editorTabsVisibleContext.set(e.newPartOptions.showTabs);
+			}
 		}));
 
 		this._register(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(), true));
