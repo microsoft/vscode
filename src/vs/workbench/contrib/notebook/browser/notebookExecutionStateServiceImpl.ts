@@ -292,6 +292,11 @@ class CellExecution implements ICellExecutionEntry {
 		return this._notebookModel.uri;
 	}
 
+	private _didPause = false;
+	get didPause() {
+		return this._didPause;
+	}
+
 	constructor(
 		readonly cellHandle: number,
 		private readonly _notebookModel: NotebookTextModel,
@@ -305,7 +310,6 @@ class CellExecution implements ICellExecutionEntry {
 				runEndTime: null,
 				lastRunSuccess: null,
 				executionOrder: null,
-				didPause: false
 			}
 		};
 		this._applyExecutionEdits([startExecuteEdit]);
@@ -314,6 +318,10 @@ class CellExecution implements ICellExecutionEntry {
 	update(updates: ICellExecuteUpdate[]): void {
 		if (updates.some(u => u.editType === CellExecutionUpdateType.ExecutionState)) {
 			this._state = NotebookCellExecutionState.Executing;
+		}
+
+		if (!this._didPause && updates.some(u => u.editType === CellExecutionUpdateType.ExecutionState && u.didPause)) {
+			this._didPause = true;
 		}
 
 		const edits = updates.map(update => updateToEdit(update, this.cellHandle));
@@ -332,10 +340,9 @@ class CellExecution implements ICellExecutionEntry {
 			handle: this.cellHandle,
 			internalMetadata: {
 				lastRunSuccess: completionData.lastRunSuccess,
-				runStartTime: cellModel.internalMetadata.didPause ? null : cellModel.internalMetadata.runStartTime,
-				runEndTime: cellModel.internalMetadata.didPause ? null : completionData.runEndTime,
-				isPaused: false,
-				didPause: false
+				runStartTime: this._didPause ? null : cellModel.internalMetadata.runStartTime,
+				runEndTime: this._didPause ? null : completionData.runEndTime,
+				isPaused: false
 			}
 		};
 		this._applyExecutionEdits([edit]);
