@@ -20,7 +20,7 @@ import { IWatchRequest } from 'vs/platform/files/common/watcher';
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('Recursive Watcher (parcel)', () => {
+((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('Recursive File Watcher (parcel)', () => {
 
 	class TestParcelWatcher extends ParcelWatcher {
 
@@ -491,6 +491,7 @@ import { IWatchRequest } from 'vs/platform/files/common/watcher';
 		await warnFuture;
 
 		// Restore watched path
+		await timeout(1500); // node.js watcher used for monitoring folder restore is async
 		await Promises.mkdir(watchedPath);
 		await timeout(1500); // restart is delayed
 		await watcher.whenReady();

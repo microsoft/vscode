@@ -23,7 +23,7 @@ import { createFileSystemProviderError, FileAtomicReadOptions, FileDeleteOptions
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { NodeJSFileWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { ParcelWatcherClient } from 'vs/platform/files/node/watcher/parcel/parcelWatcherClient';
-import { AbstractRecursiveWatcherClient, IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/common/watcher';
+import { AbstractRecursiveWatcherClient, IDiskFileChange, ILogMessage, INonRecursiveWatcher, IWatchRequest } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -651,15 +651,13 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	}
 
 	protected createNonRecursiveWatcher(
-		path: string,
-		excludes: string[],
+		request: IWatchRequest,
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
-	): IDisposable & { setVerboseLogging: (verboseLogging: boolean) => void } {
+	): INonRecursiveWatcher {
 		return new NodeJSFileWatcher(
-			path,
-			excludes,
+			request,
 			changes => onChange(changes),
 			msg => onLogMessage(msg),
 			verboseLogging

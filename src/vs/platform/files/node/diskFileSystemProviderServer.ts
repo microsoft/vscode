@@ -234,10 +234,14 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 	override dispose(): void {
 		super.dispose();
 
-		this.watchRequests.forEach(disposable => dispose(disposable));
+		for (const [, disposable] of this.watchRequests) {
+			disposable.dispose();
+		}
 		this.watchRequests.clear();
 
-		this.sessionToWatcher.forEach(disposable => dispose(disposable));
+		for (const [, disposable] of this.sessionToWatcher) {
+			disposable.dispose();
+		}
 		this.sessionToWatcher.clear();
 	}
 }

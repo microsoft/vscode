@@ -170,7 +170,9 @@ export class WorkspaceWatcher extends Disposable {
 	}
 
 	private unwatchWorkspaces(): void {
-		this.watchedWorkspaces.forEach(disposable => dispose(disposable));
+		for (const [, disposable] of this.watchedWorkspaces) {
+			disposable.dispose();
+		}
 		this.watchedWorkspaces.clear();
 	}
 
