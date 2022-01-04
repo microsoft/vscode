@@ -290,7 +290,7 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 		await (Promise.all([single1.assertContentsEmpty(), single2.assertContentsEmpty(), batch1.assertContentsEmpty(), batch2.assertContentsEmpty()]));
 	});
 
-	test('rename not existing file', async () => {
+	test('rename not existing resource', async () => {
 		const parent = await service.resolve(userdataURIFromPaths([]));
 		const sourceFile = joinPath(parent.resource, 'sourceFile');
 		const targetFile = joinPath(parent.resource, 'targetFile');
