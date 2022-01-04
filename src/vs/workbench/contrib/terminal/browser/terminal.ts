@@ -17,7 +17,6 @@ import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/b
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { TerminalLinkProviderType } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -790,8 +789,10 @@ export interface ITerminalInstance {
 
 	/**
 	 * Triggers a quick pick that displays links from the viewport of the active terminal.
+	 * Selecting a file or web link will open it. Selecting a word link will copy it to the
+	 * clipboard.
 	 */
-	showLinkQuickpick(type: TerminalLinkProviderType): Promise<void>;
+	showLinkQuickpick(): Promise<void>;
 }
 
 export interface IXtermTerminal {
