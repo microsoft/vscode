@@ -527,7 +527,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 						break;
 					}
 				}
-			});
+			}, msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
 
 			// Make sure to stop watching when the watcher is disposed
 			watcher.token.onCancellationRequested(() => nodeWatcher.dispose());

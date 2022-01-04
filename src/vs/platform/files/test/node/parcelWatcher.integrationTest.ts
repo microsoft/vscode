@@ -491,6 +491,7 @@ import { IWatchRequest } from 'vs/platform/files/common/watcher';
 		await warnFuture;
 
 		// Restore watched path
+		await timeout(1500); // node.js watcher used for monitoring folder restore is async
 		await Promises.mkdir(watchedPath);
 		await timeout(1500); // restart is delayed
 		await watcher.whenReady();
