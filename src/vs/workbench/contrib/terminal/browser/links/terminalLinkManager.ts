@@ -16,7 +16,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import type { Terminal, IViewportRange, ILinkProvider, ILink } from 'xterm';
 import { Schemas } from 'vs/base/common/network';
 import { posix, win32 } from 'vs/base/common/path';
-import { ITerminalExternalLinkProvider, ITerminalInstance, TerminalLinkQuickpickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalExternalLinkProvider, ITerminalInstance, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { OperatingSystem, isMacintosh, OS } from 'vs/base/common/platform';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { TerminalProtocolLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalProtocolLinkProvider';
@@ -164,7 +164,7 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable {
-		// Clear and re-register the standard link providers so they are a lower priority that the new one
+		// Clear and re-register the standard links so they are a lower priority that the new one
 		this._clearLinkProviders();
 		const wrappedLinkProvider = this._instantiationService.createInstance(TerminalExternalLinkProviderAdapter, this._xterm, instance, linkProvider, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
 		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
@@ -179,7 +179,7 @@ export class TerminalLinkManager extends DisposableStore {
 			event?.preventDefault();
 
 			// Require correct modifier on click unless event is coming from linkQuickPick selection
-			if (event && !(event instanceof TerminalLinkQuickpickEvent) && !this._isLinkActivationModifierDown(event)) {
+			if (event && !(event instanceof TerminalLinkQuickPickEvent) && !this._isLinkActivationModifierDown(event)) {
 				return;
 			}
 

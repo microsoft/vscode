@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IDetectedLinks } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
-import { TerminalLinkQuickpickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILink } from 'xterm';
 
 export class TerminalLinkQuickpick {
@@ -70,7 +70,7 @@ export class TerminalLinkQuickpick {
 		if (linkType.label === 'Word') {
 			this._clipboardService.writeText(pick.label);
 		} else {
-			const event = new TerminalLinkQuickpickEvent(EventType.CLICK);
+			const event = new TerminalLinkQuickPickEvent(EventType.CLICK);
 			pick.link.activate(event, pick.label);
 		}
 		return;

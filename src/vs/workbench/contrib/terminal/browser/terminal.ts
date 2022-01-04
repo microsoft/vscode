@@ -197,7 +197,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	toggleDevTools(open?: boolean): Promise<void>;
 	handleNewRegisteredBackend(backend: ITerminalBackend): void;
 }
-export class TerminalLinkQuickpickEvent extends MouseEvent {
+export class TerminalLinkQuickPickEvent extends MouseEvent {
 
 }
 export interface ITerminalServiceNativeDelegate {
