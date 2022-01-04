@@ -18,18 +18,18 @@ export class TerminalLinkQuickpick {
 	) { }
 
 	async show(links: IDetectedLinks): Promise<void> {
-		const wordPicks = await this._generatePicks(links.wordLinks);
-		const filePicks = await this._generatePicks(links.fileLinks);
-		const webPicks = await this._generatePicks(links.webLinks);
+		const wordPicks = links.wordLinks ? await this._generatePicks(links.wordLinks) : undefined;
+		const filePicks = links.fileLinks ? await this._generatePicks(links.fileLinks) : undefined;
+		const webPicks = links.webLinks ? await this._generatePicks(links.webLinks) : undefined;
 
 		const picks: IQuickPickItem[] = [];
-		if (wordPicks && wordPicks.length) {
+		if (wordPicks) {
 			picks.push({ label: localize('terminal.integrated.wordLinks', "Word") });
 		}
-		if (filePicks && filePicks.length) {
+		if (filePicks) {
 			picks.push({ label: localize('terminal.integrated.fileLinks', "File") });
 		}
-		if (webPicks && webPicks.length) {
+		if (webPicks) {
 			picks.push({ label: localize('terminal.integrated.webLinks', "Web") });
 		}
 
@@ -64,7 +64,7 @@ export class TerminalLinkQuickpick {
 			linkPicks = filePicks;
 		}
 		const pick = await this._quickInputService.pick(linkPicks, options);
-		if (!pick || !pick) {
+		if (!pick) {
 			return;
 		}
 		if (linkType.label === 'Word') {
@@ -76,7 +76,7 @@ export class TerminalLinkQuickpick {
 		return;
 	}
 
-	private async _generatePicks(links: ILink[] | undefined): Promise<ITerminalLinkQuickPickItem[] | undefined> {
+	private async _generatePicks(links: ILink[]): Promise<ITerminalLinkQuickPickItem[] | undefined> {
 		if (!links) {
 			return;
 		}

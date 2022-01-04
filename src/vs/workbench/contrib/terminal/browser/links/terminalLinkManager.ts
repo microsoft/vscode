@@ -178,6 +178,7 @@ export class TerminalLinkManager extends DisposableStore {
 			// Prevent default electron link handling so Alt+Click mode works normally
 			event?.preventDefault();
 
+			console.log(event);
 			// Require correct modifier on click unless event is coming from linkQuickPick selection
 			if (event && !(event instanceof TerminalLinkQuickPickEvent) && !this._isLinkActivationModifierDown(event)) {
 				return;
