@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
-import { Application, Quality, StatusBarElement } from '../../../../automation';
-import { installCommonTestHandlers } from '../../utils';
+import { join } from 'path';
+import { Application, Quality, StatusBarElement, Logger } from '../../../../automation';
+import { installAllHandlers } from '../../utils';
 
-export function setup(opts: minimist.ParsedArgs) {
+export function setup(isWeb: boolean, logger: Logger) {
 	describe('Statusbar', () => {
 
 		// Shared before/after handling
-		installCommonTestHandlers(opts);
+		installAllHandlers(logger);
 
 		it('verifies presence of all default status bar elements', async function () {
 			const app = this.app as Application;
-
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.BRANCH_STATUS);
 			if (app.quality !== Quality.Dev) {
 				await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.FEEDBACK_ICON);
@@ -23,8 +22,8 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SYNC_STATUS);
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.PROBLEMS_STATUS);
 
-			await app.workbench.quickaccess.openFile('app.js');
-			if (!opts.web) {
+			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'app.js'));
+			if (!isWeb) {
 				// Encoding picker currently hidden in web (only UTF-8 supported)
 				await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ENCODING_STATUS);
 			}
@@ -36,16 +35,15 @@ export function setup(opts: minimist.ParsedArgs) {
 
 		it(`verifies that 'quick input' opens when clicking on status bar elements`, async function () {
 			const app = this.app as Application;
-
 			await app.workbench.statusbar.clickOn(StatusBarElement.BRANCH_STATUS);
 			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.closeQuickInput();
 
-			await app.workbench.quickaccess.openFile('app.js');
+			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'app.js'));
 			await app.workbench.statusbar.clickOn(StatusBarElement.INDENTATION_STATUS);
 			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.closeQuickInput();
-			if (!opts.web) {
+			if (!isWeb) {
 				// Encoding picker currently hidden in web (only UTF-8 supported)
 				await app.workbench.statusbar.clickOn(StatusBarElement.ENCODING_STATUS);
 				await app.workbench.quickinput.waitForQuickInputOpened();
@@ -61,15 +59,13 @@ export function setup(opts: minimist.ParsedArgs) {
 
 		it(`verifies that 'Problems View' appears when clicking on 'Problems' status element`, async function () {
 			const app = this.app as Application;
-
 			await app.workbench.statusbar.clickOn(StatusBarElement.PROBLEMS_STATUS);
 			await app.workbench.problems.waitForProblemsView();
 		});
 
 		it(`verifies if changing EOL is reflected in the status bar`, async function () {
 			const app = this.app as Application;
-
-			await app.workbench.quickaccess.openFile('app.js');
+			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'app.js'));
 			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
 
 			await app.workbench.quickinput.waitForQuickInputOpened();
@@ -80,7 +76,6 @@ export function setup(opts: minimist.ParsedArgs) {
 
 		it(`verifies that 'Tweet us feedback' pop-up appears when clicking on 'Feedback' icon`, async function () {
 			const app = this.app as Application;
-
 			if (app.quality === Quality.Dev) {
 				return this.skip();
 			}

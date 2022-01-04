@@ -17,6 +17,7 @@ import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/sn
 import { isPatternInWord } from 'vs/base/common/filters';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 
 export class SnippetCompletion implements CompletionItem {
 
@@ -68,16 +69,27 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 
 		const sw = new StopWatch(true);
 		const languageId = this._getLanguageIdAtPosition(model, position);
+		const languageConfig = this._languageConfigurationService.getLanguageConfiguration(languageId);
 		const snippets = new Set(await this._snippets.getSnippets(languageId));
 
 		const lineContentLow = model.getLineContent(position.lineNumber).toLowerCase();
+		const wordUntil = model.getWordUntilPosition(position).word.toLowerCase();
 
 		const suggestions: SnippetCompletion[] = [];
 		const columnOffset = position.column - 1;
 
 		const triggerCharacterLow = context.triggerCharacter?.toLowerCase() ?? '';
 
+
 		for (const snippet of snippets) {
+
+			const word = getWordAtText(1, languageConfig.getWordDefinition(), snippet.prefixLow, 0);
+
+			if (wordUntil && word && !isPatternInWord(wordUntil, 0, wordUntil.length, snippet.prefixLow, 0, snippet.prefixLow.length)) {
+				// when at a word the snippet prefix must match
+				continue;
+			}
+
 
 			for (let pos = Math.max(0, columnOffset - snippet.prefixLow.length); pos < lineContentLow.length; pos++) {
 
@@ -97,7 +109,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 
 				// First check if there is anything to the right of the cursor
 				if (columnOffset < lineContentLow.length) {
-					const autoClosingPairs = this._languageConfigurationService.getLanguageConfiguration(languageId).getAutoClosingPairs();
+					const autoClosingPairs = languageConfig.getAutoClosingPairs();
 					const standardAutoClosingPairConditionals = autoClosingPairs.autoClosingPairsCloseSingleChar.get(lineContentLow[columnOffset]);
 					// If the character to the right of the cursor is a closing character of an autoclosing pair
 					if (standardAutoClosingPairConditionals?.some(p =>

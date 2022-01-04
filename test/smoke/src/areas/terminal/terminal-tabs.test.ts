@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
 
-import { ParsedArgs } from 'minimist';
-import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
-
-export function setup(opts: ParsedArgs) {
+export function setup() {
 	describe('Terminal Tabs', () => {
 		// Acquire automation API
 		let terminal: Terminal;
@@ -17,36 +15,36 @@ export function setup(opts: ParsedArgs) {
 		});
 
 		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {
-			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.runCommand(TerminalCommandId.CreateNew);
+			await terminal.createTerminal();
 			await terminal.clickPlusButton();
 			await terminal.assertTerminalGroups([[{}], [{}]]);
 		});
 
 		it('should update color of the single tab', async () => {
-			await terminal.runCommand(TerminalCommandId.Show);
+			await terminal.createTerminal();
 			const color = 'Cyan';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeColor, color);
 			await terminal.assertSingleTab({ color });
 		});
 
 		it('should update color of the tab in the tabs list', async () => {
-			await terminal.runCommand(TerminalCommandId.Show);
+			await terminal.createTerminal();
 			await terminal.runCommand(TerminalCommandId.Split);
+			await terminal.waitForTerminalText(lines => lines.some(line => line.length > 0), undefined, 1);
 			const color = 'Cyan';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeColor, color);
 			await terminal.assertTerminalGroups([[{}, { color }]]);
 		});
 
 		it('should update icon of the single tab', async () => {
-			await terminal.runCommand(TerminalCommandId.Show);
+			await terminal.createTerminal();
 			const icon = 'symbol-method';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
 			await terminal.assertSingleTab({ icon });
 		});
 
 		it('should update icon of the tab in the tabs list', async () => {
-			await terminal.runCommand(TerminalCommandId.Show);
+			await terminal.createTerminal();
 			await terminal.runCommand(TerminalCommandId.Split);
 			const icon = 'symbol-method';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
@@ -54,14 +52,14 @@ export function setup(opts: ParsedArgs) {
 		});
 
 		it('should rename the single tab', async () => {
-			await terminal.runCommand(TerminalCommandId.Show);
+			await terminal.createTerminal();
 			const name = 'my terminal name';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
 			await terminal.assertSingleTab({ name });
 		});
 
 		it('should reset the tab name to the default value when no name is provided', async () => {
-			await terminal.runCommand(TerminalCommandId.Show);
+			await terminal.createTerminal();
 			const defaultName = await terminal.getSingleTabName();
 			const name = 'my terminal name';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
@@ -71,7 +69,7 @@ export function setup(opts: ParsedArgs) {
 		});
 
 		it('should rename the tab in the tabs list', async () => {
-			await terminal.runCommand(TerminalCommandId.Show);
+			await terminal.createTerminal();
 			await terminal.runCommand(TerminalCommandId.Split);
 			const name = 'my terminal name';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
@@ -79,7 +77,7 @@ export function setup(opts: ParsedArgs) {
 		});
 
 		it('should create a split terminal when single tab is alt clicked', async () => {
-			await terminal.runCommand(TerminalCommandId.Show);
+			await terminal.createTerminal();
 			const page = await terminal.getPage();
 			page.keyboard.down('Alt');
 			await terminal.clickSingleTab();
@@ -102,14 +100,14 @@ export function setup(opts: ParsedArgs) {
 
 		it('should join tabs when more than one non-split terminal', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.runCommand(TerminalCommandId.CreateNew);
+			await terminal.createTerminal();
 			await terminal.runCommand(TerminalCommandId.Join);
 			await terminal.assertTerminalGroups([[{}, {}]]);
 		});
 
 		it('should do nothing when unsplit tabs called with no splits', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.runCommand(TerminalCommandId.CreateNew);
+			await terminal.createTerminal();
 			await terminal.assertTerminalGroups([[{}], [{}]]);
 			await terminal.runCommand(TerminalCommandId.Unsplit);
 			await terminal.assertTerminalGroups([[{}], [{}]]);

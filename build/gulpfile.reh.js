@@ -223,6 +223,8 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 					return true; // web: ship all extensions for now
 				}
 
+				// Skip shipping UI extensions because the client side will have them anyways
+				// and they'd just increase the download without being used
 				const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, extensionPath)).toString());
 				return !isUIExtension(manifest);
 			}).map((extensionPath) => path.basename(path.dirname(extensionPath)))

@@ -18,14 +18,14 @@ import { INotificationHandle, INotificationService, IPromptChoice, Severity } fr
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IRequestResolveVariablesEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalEnvironment, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ICrossVersionSerializedTerminalState, IRequestResolveVariablesEvent, ISerializedTerminalState, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalEnvironment, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ICompleteTerminalConfiguration, RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
-import { ITerminalBackend, ITerminalBackendRegistry, ITerminalConfiguration, TerminalExtensions, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { ICompleteTerminalConfiguration, ITerminalBackend, ITerminalBackendRegistry, ITerminalConfiguration, TerminalExtensions, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -165,6 +165,22 @@ class RemoteTerminalBackend extends Disposable implements ITerminalBackend {
 				});
 				const result = await Promise.all(resolveCalls);
 				channel.acceptPtyHostResolvedVariables(e.requestId, result);
+			}));
+
+			// Listen for config changes
+			const initialConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
+			for (const match of Object.keys(initialConfig.autoReplies)) {
+				channel.installAutoReply(match, initialConfig.autoReplies[match]);
+			}
+			// TODO: Could simplify update to a single call
+			this._register(this._configurationService.onDidChangeConfiguration(async e => {
+				if (e.affectsConfiguration(TerminalSettingId.AutoReplies)) {
+					channel.uninstallAllAutoReplies();
+					const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
+					for (const match of Object.keys(config.autoReplies)) {
+						await channel.installAutoReply(match, config.autoReplies[match]);
+					}
+				}
 			}));
 		} else {
 			this._remoteTerminalChannel = null;
@@ -361,7 +377,22 @@ class RemoteTerminalBackend extends Disposable implements ITerminalBackend {
 		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 		if (serializedState) {
 			try {
-				await this._remoteTerminalChannel.reviveTerminalProcesses(serializedState, Intl.DateTimeFormat().resolvedOptions().locale);
+				// Deserialize the state
+				const parsedUnknown = JSON.parse(serializedState);
+				if (!('version' in parsedUnknown) || !('state' in parsedUnknown) || !Array.isArray(parsedUnknown.state)) {
+					this._logService.warn('Could not revive serialized processes, wrong format', parsedUnknown);
+					return;
+				}
+				const parsedCrossVersion = parsedUnknown as ICrossVersionSerializedTerminalState;
+				if (parsedCrossVersion.version !== 1) {
+					this._logService.warn(`Could not revive serialized processes, wrong version "${parsedCrossVersion.version}"`, parsedCrossVersion);
+					return;
+				}
+				const parsed = parsedCrossVersion.state as ISerializedTerminalState[];
+
+				// Note that remote terminals do not get their environment re-resolved unlike in local terminals
+
+				await this._remoteTerminalChannel.reviveTerminalProcesses(parsed, Intl.DateTimeFormat().resolvedOptions().locale);
 				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 				// If reviving processes, send the terminal layout info back to the pty host as it
 				// will not have been persisted on application exit

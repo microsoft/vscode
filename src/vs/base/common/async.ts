@@ -1043,7 +1043,7 @@ declare function cancelIdleCallback(handle: number): void;
 				if (disposed) {
 					return;
 				}
-				const end = Date.now() + 3; // yield often
+				const end = Date.now() + 15; // one frame at 64fps
 				runner(Object.freeze({
 					didTimeout: true,
 					timeRemaining() {

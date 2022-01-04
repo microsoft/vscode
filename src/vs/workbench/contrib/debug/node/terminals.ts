@@ -173,7 +173,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 			}
 			break;
 
-		case ShellType.bash:
+		case ShellType.bash: {
 
 			quote = (s: string) => {
 				s = s.replace(/(["'\\\$])/g, '\\$1');
@@ -203,6 +203,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 				command += `${quote(a)} `;
 			}
 			break;
+		}
 	}
 
 	return command;

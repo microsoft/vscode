@@ -13,6 +13,7 @@ import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
 import { PageFunction } from 'playwright-core/types/structs';
 import { Logger, measureAndLog } from './logger';
+import type { LaunchOptions } from './code';
 
 const width = 1200;
 const height = 800;
@@ -136,10 +137,7 @@ class PlaywrightDriver implements IDriver {
 	}
 
 	async doubleClick(windowId: number, selector: string) {
-		await this.click(windowId, selector, 0, 0);
-		await this.timeout(60);
-		await this.click(windowId, selector, 0, 0);
-		await this.timeout(100);
+		throw new Error('Unsupported');
 	}
 
 	async setValue(windowId: number, selector: string, text: string) {
@@ -198,29 +196,27 @@ class PlaywrightDriver implements IDriver {
 
 let port = 9000;
 
-export interface PlaywrightOptions {
-	readonly browser?: 'chromium' | 'webkit' | 'firefox';
-	readonly headless?: boolean;
-}
-
-export async function launch(codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, userDataDir: string, extensionsPath: string, workspacePath: string, verbose: boolean, options: PlaywrightOptions = {}, logger: Logger): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
+export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver, kill: () => Promise<void> }> {
 
 	// Launch server
-	const { serverProcess, endpoint } = await launchServer(userDataDir, codeServerPath, extensionsPath, verbose, logger);
+	const { serverProcess, endpoint } = await launchServer(options);
 
 	// Launch browser
-	const { browser, context, page } = await launchBrowser(options, endpoint, workspacePath, logger);
+	const { browser, context, page } = await launchBrowser(options, endpoint);
 
 	return {
 		serverProcess,
 		client: {
 			dispose: () => { /* there is no client to dispose for browser, teardown is triggered via exitApplication call */ }
 		},
-		driver: new PlaywrightDriver(serverProcess, browser, context, page, logger)
+		driver: new PlaywrightDriver(serverProcess, browser, context, page, options.logger),
+		kill: () => teardown(serverProcess, options.logger)
 	};
 }
 
-async function launchServer(userDataDir: string, codeServerPath: string | undefined, extensionsPath: string, verbose: boolean, logger: Logger) {
+async function launchServer(options: LaunchOptions) {
+	const { userDataDir, codePath, extensionsPath, logger } = options;
+	const codeServerPath = codePath ?? process.env.VSCODE_REMOTE_SERVER_PATH;
 	const agentFolder = userDataDir;
 	await measureAndLog(promisify(mkdir)(agentFolder), `mkdir(${agentFolder})`, logger);
 	const env = {
@@ -236,18 +232,14 @@ async function launchServer(userDataDir: string, codeServerPath: string | undefi
 		serverLocation = join(codeServerPath, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
 		args.push(`--logsPath=${logsPath}`);
 
-		if (verbose) {
-			logger.log(`Starting built server from '${serverLocation}'`);
-			logger.log(`Storing log files into '${logsPath}'`);
-		}
+		logger.log(`Starting built server from '${serverLocation}'`);
+		logger.log(`Storing log files into '${logsPath}'`);
 	} else {
 		serverLocation = join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 		args.push('--logsPath', logsPath);
 
-		if (verbose) {
-			logger.log(`Starting server out of sources from '${serverLocation}'`);
-			logger.log(`Storing log files into '${logsPath}'`);
-		}
+		logger.log(`Starting server out of sources from '${serverLocation}'`);
+		logger.log(`Storing log files into '${logsPath}'`);
 	}
 
 	const serverProcess = spawn(
@@ -256,17 +248,11 @@ async function launchServer(userDataDir: string, codeServerPath: string | undefi
 		{ env }
 	);
 
-	if (verbose) {
-		logger.log(`*** Started server for browser smoke tests (pid: ${serverProcess.pid})`);
-		serverProcess.once('exit', (code, signal) => logger.log(`Server for browser smoke tests terminated (pid: ${serverProcess.pid}, code: ${code}, signal: ${signal})`));
+	logger.log(`Started server for browser smoke tests (pid: ${serverProcess.pid})`);
+	serverProcess.once('exit', (code, signal) => logger.log(`Server for browser smoke tests terminated (pid: ${serverProcess.pid}, code: ${code}, signal: ${signal})`));
 
-		serverProcess.stderr?.on('data', error => logger.log(`Server stderr: ${error}`));
-		serverProcess.stdout?.on('data', data => logger.log(`Server stdout: ${data}`));
-	}
-
-	process.on('exit', () => teardown(serverProcess, logger));
-	process.on('SIGINT', () => teardown(serverProcess, logger));
-	process.on('SIGTERM', () => teardown(serverProcess, logger));
+	serverProcess.stderr?.on('data', error => logger.log(`Server stderr: ${error}`));
+	serverProcess.stdout?.on('data', data => logger.log(`Server stdout: ${data}`));
 
 	return {
 		serverProcess,
@@ -274,7 +260,8 @@ async function launchServer(userDataDir: string, codeServerPath: string | undefi
 	};
 }
 
-async function launchBrowser(options: PlaywrightOptions, endpoint: string, workspacePath: string, logger: Logger) {
+async function launchBrowser(options: LaunchOptions, endpoint: string) {
+	const { logger, workspacePath } = options;
 	const browser = await measureAndLog(playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false }), 'playwright#launch', logger);
 	const context = await measureAndLog(browser.newContext(), 'browser.newContext', logger);
 
@@ -295,7 +282,7 @@ async function launchBrowser(options: PlaywrightOptions, endpoint: string, works
 		}
 	});
 
-	const payloadParam = `[["enableProposedApi",""],["skipWelcome","true"]]`;
+	const payloadParam = `[["enableProposedApi",""],["webviewExternalEndpointCommit","69df0500a8963fc469161c038a14a39384d5a303"],["skipWelcome","true"]]`;
 	await measureAndLog(page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
 
 	return { browser, context, page };

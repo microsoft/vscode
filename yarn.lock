@@ -510,10 +510,10 @@
   resolved "https://registry.yarnpkg.com/@opentelemetry/api/-/api-1.0.3.tgz#13a12ae9e05c2a782f7b5e84c3cbfda4225eaf80"
   integrity sha512-puWxACExDe9nxbBB3lOymQFrLYml2dVOrd7USiVRnSbgXE+KwBu+HxFvxrzfqsiSda9IWsXJG1ef7C1O2/GmKQ==
 
-"@parcel/watcher@2.0.4":
-  version "2.0.4"
-  resolved "https://registry.yarnpkg.com/@parcel/watcher/-/watcher-2.0.4.tgz#f300fef4cc38008ff4b8c29d92588eced3ce014b"
-  integrity sha512-cTDi+FUDBIUOBKEtj+nhiJ71AZVlkAsQFuGQTun5tV9mwQBQgZvhCzG+URPQc8myeN32yRVZEfVAPCs1RW+Jvg==
+"@parcel/watcher@2.0.5":
+  version "2.0.5"
+  resolved "https://registry.yarnpkg.com/@parcel/watcher/-/watcher-2.0.5.tgz#f913a54e1601b0aac972803829b0eece48de215b"
+  integrity sha512-x0hUbjv891omnkcHD7ZOhiyyUqUUR6MNjq89JhEI3BxppeKWAm6NPQsqqRrAkCJBogdT/o/My21sXtTI9rJIsw==
   dependencies:
     node-addon-api "^3.2.1"
     node-gyp-build "^4.3.0"
@@ -6899,10 +6899,10 @@ native-is-elevated@0.4.3:
   resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.4.3.tgz#f1071c4a821acc71d43f36ff8051d3816d832e1c"
   integrity sha512-bHS3sCoh+raqFGIxmL/plER3eBQ+IEBy4RH/4uahhToZneTvqNKQrL0PgOTtnpL55XjBd3dy0pNtZMkCk0J48g==
 
-native-keymap@3.0.2:
-  version "3.0.2"
-  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-3.0.2.tgz#eb299a9f1a252be552ee2345ba8a39ff4b2c304a"
-  integrity sha512-1qH2saFkYzwT+c2a1xaawrfgkiT1OJ6H8xZWx9zmhhOkuJto/HaNLSINxCYhSjc7zO0zOydMkoCXehGh3TAWcg==
+native-keymap@3.0.3:
+  version "3.0.3"
+  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-3.0.3.tgz#7f846f2136ea31785ac06cd917c84abac1c88bfb"
+  integrity sha512-XBKD3jpRI4GsrVIe5TB1PAk2ZLEJY/HcH4N9ZssnzP3+HD5V+ABqXs37VLQtiUF/EsmQ1xEeWquPyWFFpeeIpg==
 
 native-watchdog@1.3.0:
   version "1.3.0"
@@ -10443,10 +10443,10 @@ vscode-telemetry-extractor@^1.9.5:
     ts-morph "^12.2.0"
     vscode-ripgrep "^1.12.1"
 
-vscode-textmate@5.5.0:
-  version "5.5.0"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.5.0.tgz#d83776562c07d1e3181c2c7f1b3d5f20afcab483"
-  integrity sha512-jToQkPGMNKn0eyKyitYeINJF0NoD240aYyKPIWJv5W2jfPt++jIRg0OSergubtGhbw6SoefkvBYEpX7TsfoSUQ==
+vscode-textmate@6.0.0:
+  version "6.0.0"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-6.0.0.tgz#a3777197235036814ac9a92451492f2748589210"
+  integrity sha512-gu73tuZfJgu+mvCSy4UZwd2JXykjK9zAZsfmDeut5dx/1a7FeTk0XwJsSuqQn+cuMCGVbIBfl+s53X4T19DnzQ==
 
 vscode-windows-ca-certs@^0.3.0:
   version "0.3.0"
@@ -10857,15 +10857,15 @@ xterm-addon-webgl@0.12.0-beta.16:
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0-beta.16.tgz#63a0f1f5be9e66286e035448e2011e3065769ad5"
   integrity sha512-g6v3RegOhSsD9Zt8ArWBMNT30QyPUlIWEIvP/xLHAluUZ1S5sDjFyZDB0nJAyn9MwQozJpwb0ylYO1nznN/TzA==
 
-xterm-headless@4.16.0-beta.2:
-  version "4.16.0-beta.2"
-  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-4.16.0-beta.2.tgz#62e66a655a30c814e3a311f3542d42c87446cecd"
-  integrity sha512-g92HDaIZcu1TQFlrjq2CHtt7A2qAwSD6s8RwncU/7u1kaq2e7rc9O3OKfu5v3QzgaRSKuugtquMr0OTKjkmLUg==
+xterm-headless@4.16.0-beta.5:
+  version "4.16.0-beta.5"
+  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-4.16.0-beta.5.tgz#f805a2227b985939df0faa96e69fd245a7fa66e4"
+  integrity sha512-obbXZEwp02YY0EdHC3DM2V6j9O2O4M0yhcghcf6f5en0hattB5l/QZjhnJf+ogJ0SdCIh+VQRzqZ9BbKvGnGhw==
 
-xterm@4.16.0-beta.2:
-  version "4.16.0-beta.2"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.16.0-beta.2.tgz#251beef21a232143f272da74c7005bc4d832ca79"
-  integrity sha512-PD0agueJ7qvbn1/QhZriAQXf+ykaoPKgQN9qiIGf88VMxHs8T47MYHW/+qPsrXagTmbrENtncughTIzOzv8Q5Q==
+xterm@4.16.0-beta.5:
+  version "4.16.0-beta.5"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.16.0-beta.5.tgz#53ce503d76f718c90336766e6940fb1de81414a8"
+  integrity sha512-Nvodj6nbm4vf8f6nTaUw5Ll1PuPsjFuvVwkLg1VIis1bgrMVtgi5NyVQvDj0Mv804lzuys2FfKYeO/JJYy+RVA==
 
 y18n@^3.2.1:
   version "3.2.2"

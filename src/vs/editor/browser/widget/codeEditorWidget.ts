@@ -56,6 +56,7 @@ import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBrea
 import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 let EDITOR_ID = 0;
 
@@ -256,7 +257,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
 
@@ -1525,7 +1527,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			model,
 			DOMLineBreaksComputerFactory.create(),
 			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
-			(callback) => dom.scheduleAtNextAnimationFrame(callback)
+			(callback) => dom.scheduleAtNextAnimationFrame(callback),
+			this.languageConfigurationService
 		);
 
 		listenersToRemove.push(model.onDidChangeDecorations((e) => this._onDidChangeModelDecorations.fire(e)));

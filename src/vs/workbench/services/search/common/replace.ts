@@ -234,7 +234,7 @@ export class ReplacePattern {
 					case CharCode.SingleQuote:
 						this._hasParameters = true;
 						break;
-					default:
+					default: {
 						// check if it is a valid string parameter $n (0 <= n <= 99). $0 is already handled by now.
 						if (!this.between(nextChCode, CharCode.Digit1, CharCode.Digit9)) {
 							break;
@@ -260,6 +260,7 @@ export class ReplacePattern {
 							break;
 						}
 						break;
+					}
 				}
 
 				if (replaceWithCharacter) {

@@ -16,9 +16,13 @@ import { QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
-import { normalize } from 'vs/base/common/path';
+import { normalize, isAbsolute } from 'vs/base/common/path';
 import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { isWindows } from 'vs/base/common/platform';
+import { IFileService } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const MAX_LENGTH = 2000;
 
@@ -34,7 +38,9 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ISearchService private readonly _searchService: ISearchService,
-		@IEditorService private readonly _editorService: IEditorService
+		@IEditorService private readonly _editorService: IEditorService,
+		@IFileService private readonly _fileService: IFileService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}
@@ -129,8 +135,8 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	}
 
 	private async _activate(link: string) {
-		// Normalize the link and remove any leading ./ or ../ since quick access doesn't understand
-		// that format
+		// Remove file:/// and any leading ./ or ../ since quick access doesn't understand that format
+		link = link.replace(/^file:\/\/\/?/, '');
 		link = normalize(link).replace(/^(\.+[\\/])+/, '');
 
 		// Remove `:in` from the end which is how Ruby outputs stack traces
@@ -146,21 +152,14 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		});
 
 		const sanitizedLink = link.replace(/:\d+(:\d+)?$/, '');
-		const results = await this._searchService.fileSearch(
-			this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
-				// Remove optional :row:col from the link as openEditor supports it
-				filePattern: sanitizedLink,
-				maxResults: 2
-			})
-		);
-
-		// If there was exactly one match, open it
-		if (results.results.length === 1) {
+		let exactMatch = await this._getExactMatch(sanitizedLink, link);
+		if (exactMatch) {
+			// If there was exactly one match, open it
 			const match = link.match(/:(\d+)?(:(\d+))?$/);
 			const startLineNumber = match?.[1];
 			const startColumn = match?.[3];
 			await this._editorService.openEditor({
-				resource: results.results[0].resource,
+				resource: exactMatch,
 				options: {
 					pinned: true,
 					revealIfOpened: true,
@@ -172,9 +171,33 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			});
 			return;
 		}
-
 		// Fallback to searching quick access
-		this._quickInputService.quickAccess.show(link);
+		return this._quickInputService.quickAccess.show(link);
+	}
+
+	private async _getExactMatch(sanitizedLink: string, link: string): Promise<URI | undefined> {
+		let exactResource: URI | undefined;
+		if (isAbsolute(sanitizedLink)) {
+			const scheme = this._environmentService.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
+			const resource = URI.from({ scheme, path: sanitizedLink });
+			const fileStat = await this._fileService.resolve(resource);
+			if (fileStat.isFile) {
+				exactResource = resource;
+			}
+		}
+		if (!exactResource) {
+			const results = await this._searchService.fileSearch(
+				this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
+					// Remove optional :row:col from the link as openEditor supports it
+					filePattern: sanitizedLink,
+					maxResults: 2
+				})
+			);
+			if (results.results.length === 1) {
+				exactResource = results.results[0].resource;
+			}
+		}
+		return exactResource;
 	}
 }
 

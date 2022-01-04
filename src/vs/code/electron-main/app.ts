@@ -9,7 +9,7 @@ import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { isEqualOrParent } from 'vs/base/common/extpath';
+import { isEqualOrParent, randomPath } from 'vs/base/common/extpath';
 import { once } from 'vs/base/common/functional';
 import { stripComments } from 'vs/base/common/json';
 import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -17,7 +17,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isAbsolute, join, posix } from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { joinPath } from 'vs/base/common/resources';
 import { assertType, withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -32,7 +31,6 @@ import { localize } from 'vs/nls';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { UserConfigurationFileService, UserConfigurationFileServiceId } from 'vs/platform/configuration/common/userConfigurationFileService';
 import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { DialogMainService, IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
@@ -48,8 +46,9 @@ import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/pl
 import { WorkerMainProcessExtensionHostStarter } from 'vs/platform/extensions/electron-main/workerMainProcessExtensionHostStarter';
 import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
+import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
 import { IFileService } from 'vs/platform/files/common/files';
-import { DiskFileSystemProviderChannel } from 'vs/platform/files/electron-main/diskFileSystemProviderIpc';
+import { DiskFileSystemProviderChannel } from 'vs/platform/files/electron-main/diskFileSystemProviderServer';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -570,12 +569,8 @@ export class CodeApplication extends Disposable {
 		const diskFileSystemProvider = this.fileService.getProvider(Schemas.file);
 		assertType(diskFileSystemProvider instanceof DiskFileSystemProvider);
 		const fileSystemProviderChannel = new DiskFileSystemProviderChannel(diskFileSystemProvider, this.logService);
-		mainProcessElectronServer.registerChannel('localFilesystem', fileSystemProviderChannel);
-
-		// User Configuration File
-		const userConfigurationFileService = new UserConfigurationFileService(this.environmentMainService, this.fileService, this.logService);
-		mainProcessElectronServer.registerChannel(UserConfigurationFileServiceId, ProxyChannel.fromService(userConfigurationFileService));
-		sharedProcessClient.then(client => client.registerChannel(UserConfigurationFileServiceId, ProxyChannel.fromService(userConfigurationFileService)));
+		mainProcessElectronServer.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel);
+		sharedProcessClient.then(client => client.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel));
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
@@ -1047,7 +1042,7 @@ export class CodeApplication extends Disposable {
 	}
 
 	private stopTracingEventually(accessor: ServicesAccessor, windows: ICodeWindow[]): void {
-		this.logService.info(`Tracing: waiting for windows to get ready...`);
+		this.logService.info('Tracing: waiting for windows to get ready...');
 
 		const dialogMainService = accessor.get(IDialogMainService);
 
@@ -1059,7 +1054,7 @@ export class CodeApplication extends Disposable {
 
 			recordingStopped = true; // only once
 
-			const path = await contentTracing.stopRecording(joinPath(this.environmentMainService.userHome, `${this.productService.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`).fsPath);
+			const path = await contentTracing.stopRecording(`${randomPath(this.environmentMainService.userHome.fsPath, this.productService.applicationName)}.trace.txt`);
 
 			if (!timeout) {
 				dialogMainService.showMessageBox({

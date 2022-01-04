@@ -112,6 +112,8 @@ export interface ITextFileService extends IDisposable {
 	/**
 	 * Returns a stream of strings that uses the appropriate encoding. This method should
 	 * be used whenever a `VSBufferReadableStream` is being loaded from the file system.
+	 *
+	 * Will throw an error if `acceptTextOnly: true` for resources that seem to be binary.
 	 */
 	getDecodedStream(resource: URI, value: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<ReadableStream<string>>;
 }
@@ -128,9 +130,6 @@ export interface IReadTextFileEncodingOptions {
 	 * The optional guessEncoding parameter allows to guess encoding from content of the file.
 	 */
 	readonly autoGuessEncoding?: boolean;
-}
-
-export interface IReadTextFileOptions extends IReadTextFileEncodingOptions, IReadFileStreamOptions {
 
 	/**
 	 * The optional acceptTextOnly parameter allows to fail this request early if the file
@@ -138,6 +137,8 @@ export interface IReadTextFileOptions extends IReadTextFileEncodingOptions, IRea
 	 */
 	readonly acceptTextOnly?: boolean;
 }
+
+export interface IReadTextFileOptions extends IReadTextFileEncodingOptions, IReadFileStreamOptions { }
 
 export interface IWriteTextFileOptions extends IWriteFileOptions {
 

@@ -20,6 +20,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { IFileService } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
+import { join } from 'vs/base/common/path';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 function isSilentKeyCode(keyCode: KeyCode) {
 	return keyCode < KeyCode.Digit0;
@@ -37,7 +41,9 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		private windowServer: IPCServer,
 		private options: IDriverOptions,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@IFileService private readonly fileService: IFileService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
 	) { }
 
 	async registerWindowDriver(windowId: number): Promise<IDriverOptions> {
@@ -74,7 +80,14 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	}
 
 	async stopTracing(windowId: number, name: string, persist: boolean): Promise<void> {
-		// ignore - tracing is not implemented yet
+		if (!persist) {
+			return;
+		}
+
+		const raw = await this.capturePage(windowId);
+		const buffer = Buffer.from(raw, 'base64');
+
+		await this.fileService.writeFile(URI.file(join(this.environmentMainService.logsPath, `${name}.png`)), VSBuffer.wrap(buffer));
 	}
 
 	async reloadWindow(windowId: number): Promise<void> {

@@ -28,7 +28,7 @@ import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsServ
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { SharedProcessEnvironmentService } from 'vs/platform/sharedProcess/node/sharedProcessEnvironmentService';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -91,10 +91,12 @@ import { ipcSharedProcessTunnelChannelName, ISharedProcessTunnelService } from '
 import { SharedProcessTunnelService } from 'vs/platform/remote/node/sharedProcessTunnelService';
 import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerConfiguration, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
-import { IUserConfigurationFileService, UserConfigurationFileServiceId } from 'vs/platform/configuration/common/userConfigurationFileService';
 import { AssignmentService } from 'vs/platform/assignment/common/assignmentService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { isLinux } from 'vs/base/common/platform';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { DiskFileSystemProviderClient, LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
 
 class SharedProcessMain extends Disposable {
 
@@ -176,7 +178,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IMainProcessService, mainProcessService);
 
 		// Environment
-		const environmentService = new NativeEnvironmentService(this.configuration.args, productService);
+		const environmentService = new SharedProcessEnvironmentService(this.configuration.args, productService);
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Logger
@@ -204,6 +206,18 @@ class SharedProcessMain extends Disposable {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+		const userDataFileSystemProvider = this._register(new FileUserDataProvider(
+			Schemas.file,
+			// Specifically for user data, use the disk file system provider
+			// from the main process to enable atomic read/write operations.
+			// Since user data can change very frequently across multiple
+			// processes, we want a single process handling these operations.
+			this._register(new DiskFileSystemProviderClient(mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux })),
+			Schemas.userData,
+			logService
+		));
+		fileService.registerProvider(Schemas.userData, userDataFileSystemProvider);
+
 		// Configuration
 		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
 		services.set(IConfigurationService, configurationService);
@@ -218,9 +232,6 @@ class SharedProcessMain extends Disposable {
 			configurationService.initialize(),
 			storageService.initialize()
 		]);
-
-		// User Configuration File
-		services.set(IUserConfigurationFileService, ProxyChannel.toService<IUserConfigurationFileService>(mainProcessService.getChannel(UserConfigurationFileServiceId)));
 
 		// URI Identity
 		services.set(IUriIdentityService, new UriIdentityService(fileService));

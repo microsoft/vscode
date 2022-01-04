@@ -17,6 +17,8 @@ import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 import * as os from 'os';
 import ts = require('typescript');
+import * as File from 'vinyl';
+import * as task from './task';
 
 const watch = require('./watch');
 
@@ -212,26 +214,23 @@ class MonacoGenerator {
 	}
 }
 
-function apiProposalNamesGenerator() {
-	const stream = es.through();
+function generateApiProposalNames() {
+	const pattern = /vscode\.proposed\.([a-zA-Z]+)\.d\.ts$/;
+	const proposalNames = new Set<string>();
 
-	const pattern = /vscode\.proposed\.([a-zA-Z]+)\.d\.ts/;
-	const dtsFolder = path.join(REPO_SRC_FOLDER, 'vscode-dts');
+	const input = es.through();
+	const output = input
+		.pipe(util.filter((f: File) => pattern.test(f.path)))
+		.pipe(es.through((f: File) => {
+			const name = path.basename(f.path);
+			const match = pattern.exec(name);
 
-	const generateFile = () => {
-
-		try {
-
-			const t1 = Date.now();
-			const proposalNames: [name: string, url: string][] = [];
-			for (let file of fs.readdirSync(dtsFolder).sort()) {
-				const match = pattern.exec(file);
-				if (match) {
-					proposalNames.push([match[1], `https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/${file}`]);
-				}
+			if (match) {
+				proposalNames.add(match[1]);
 			}
-
-			const source = [
+		}, function () {
+			const names = [...proposalNames.values()].sort();
+			const contents = [
 				'/*---------------------------------------------------------------------------------------------',
 				' *  Copyright (c) Microsoft Corporation. All rights reserved.',
 				' *  Licensed under the MIT License. See License.txt in the project root for license information.',
@@ -240,46 +239,37 @@ function apiProposalNamesGenerator() {
 				'// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
 				'',
 				'export const allApiProposals = Object.freeze({',
-				`${proposalNames.map(t => `\t${t[0]}: '${t[1]}'`).join(`,${os.EOL}`)}`,
+				`${names.map(name => `\t${name}: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${name}.d.ts'`).join(`,${os.EOL}`)}`,
 				'});',
 				'export type ApiProposalName = keyof typeof allApiProposals;',
 				'',
 			].join(os.EOL);
 
-			const outFile = path.join(dtsFolder, '../vs/workbench/services/extensions/common/extensionsApiProposals.ts');
+			this.emit('data', new File({
+				path: 'vs/workbench/services/extensions/common/extensionsApiProposals.ts',
+				contents: Buffer.from(contents)
+			}));
+			this.emit('end');
+		}));
 
-			if (fs.readFileSync(outFile).toString() !== source) {
-				fs.writeFileSync(outFile, source);
-				console.log(`Generated 'extensionsApiProposals.ts' in ${Date.now() - t1}ms`);
-			}
-
-		} catch (err) {
-			stream.emit('error', err);
-		}
-	};
-
-	let handle: NodeJS.Timeout;
-	stream.on('data', () => {
-		clearTimeout(handle);
-		handle = setTimeout(generateFile, 250);
-	});
-
-	return stream;
+	return es.duplex(input, output);
 }
 
-export function compileApiProposalNames(): () => NodeJS.ReadWriteStream {
-	return function () {
-		const srcPipe = gulp.src('src/vscode-dts/**', { base: 'src' });
-		const proposals = apiProposalNamesGenerator();
-		return srcPipe.pipe(proposals);
-	};
-}
+const apiProposalNamesReporter = createReporter('api-proposal-names');
 
-export function watchApiProposalNames(): () => NodeJS.ReadWriteStream {
-	return function () {
-		const watchSrc = watch('src/vscode-dts/**', { base: 'src', readDelay: 200 });
-		const proposals = apiProposalNamesGenerator();
-		proposals.write(undefined); // send something to trigger initial generate
-		return watchSrc.pipe(proposals);
-	};
-}
+export const compileApiProposalNamesTask = task.define('compile-api-proposal-names', () => {
+	return gulp.src('src/vscode-dts/**')
+		.pipe(generateApiProposalNames())
+		.pipe(gulp.dest('src'))
+		.pipe(apiProposalNamesReporter.end(true));
+});
+
+export const watchApiProposalNamesTask = task.define('watch-api-proposal-names', () => {
+	const task = () => gulp.src('src/vscode-dts/**')
+		.pipe(generateApiProposalNames())
+		.pipe(apiProposalNamesReporter.end(true));
+
+	return watch('src/vscode-dts/**', { readDelay: 200 })
+		.pipe(util.debounce(task))
+		.pipe(gulp.dest('src'));
+});

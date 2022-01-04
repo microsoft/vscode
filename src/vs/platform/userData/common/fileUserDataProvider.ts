@@ -2,22 +2,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileWriteOptions, FileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithOpenReadWriteCloseCapability, FileOpenOptions, hasReadWriteCapability, hasOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, hasFileReadStreamCapability } from 'vs/platform/files/common/files';
+import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileWriteOptions, FileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ReadableStreamEvents } from 'vs/base/common/stream';
+import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TernarySearchTree } from 'vs/base/common/map';
+import { VSBuffer } from 'vs/base/common/buffer';
 
+/**
+ * This is a wrapper on top of the local filesystem provider which will
+ * 	- Convert the user data resources to file system scheme and vice-versa
+ *  - Enforces atomic reads for user data
+ */
 export class FileUserDataProvider extends Disposable implements
 	IFileSystemProviderWithFileReadWriteCapability,
-	IFileSystemProviderWithOpenReadWriteCloseCapability,
-	IFileSystemProviderWithFileReadStreamCapability {
+	IFileSystemProviderWithFileReadStreamCapability,
+	IFileSystemProviderWithFileAtomicReadCapability {
 
-	get capabilities() { return this.fileSystemProvider.capabilities; }
+	get capabilities() { return this.fileSystemProvider.capabilities & ~FileSystemProviderCapabilities.FileOpenReadWriteClose; }
 	readonly onDidChangeCapabilities: Event<void> = this.fileSystemProvider.onDidChangeCapabilities;
 
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
@@ -27,7 +32,7 @@ export class FileUserDataProvider extends Disposable implements
 
 	constructor(
 		private readonly fileSystemScheme: string,
-		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability,
+		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability & (IFileSystemProviderWithFileReadStreamCapability | IFileSystemProviderWithFileAtomicReadCapability),
 		private readonly userDataScheme: string,
 		private readonly logService: ILogService,
 	) {
@@ -57,17 +62,21 @@ export class FileUserDataProvider extends Disposable implements
 	}
 
 	readFile(resource: URI): Promise<Uint8Array> {
-		if (hasReadWriteCapability(this.fileSystemProvider)) {
-			return this.fileSystemProvider.readFile(this.toFileSystemResource(resource));
-		}
-		throw new Error('not supported');
+		return this.fileSystemProvider.readFile(this.toFileSystemResource(resource), { atomic: true });
 	}
 
 	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
-		if (hasFileReadStreamCapability(this.fileSystemProvider)) {
-			return this.fileSystemProvider.readFileStream(this.toFileSystemResource(resource), opts, token);
-		}
-		throw new Error('not supported');
+		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
+		(async () => {
+			try {
+				const contents = await this.readFile(resource);
+				stream.end(contents);
+			} catch (error) {
+				stream.error(error);
+				stream.end();
+			}
+		})();
+		return stream;
 	}
 
 	readdir(resource: URI): Promise<[string, FileType][]> {
@@ -75,38 +84,7 @@ export class FileUserDataProvider extends Disposable implements
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		if (hasReadWriteCapability(this.fileSystemProvider)) {
-			return this.fileSystemProvider.writeFile(this.toFileSystemResource(resource), content, opts);
-		}
-		throw new Error('not supported');
-	}
-
-	open(resource: URI, opts: FileOpenOptions): Promise<number> {
-		if (hasOpenReadWriteCloseCapability(this.fileSystemProvider)) {
-			return this.fileSystemProvider.open(this.toFileSystemResource(resource), opts);
-		}
-		throw new Error('not supported');
-	}
-
-	close(fd: number): Promise<void> {
-		if (hasOpenReadWriteCloseCapability(this.fileSystemProvider)) {
-			return this.fileSystemProvider.close(fd);
-		}
-		throw new Error('not supported');
-	}
-
-	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		if (hasOpenReadWriteCloseCapability(this.fileSystemProvider)) {
-			return this.fileSystemProvider.read(fd, pos, data, offset, length);
-		}
-		throw new Error('not supported');
-	}
-
-	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		if (hasOpenReadWriteCloseCapability(this.fileSystemProvider)) {
-			return this.fileSystemProvider.write(fd, pos, data, offset, length);
-		}
-		throw new Error('not supported');
+		return this.fileSystemProvider.writeFile(this.toFileSystemResource(resource), content, opts);
 	}
 
 	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {

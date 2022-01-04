@@ -109,6 +109,16 @@ export interface NotebookCellInternalMetadata {
 	didPause?: boolean;
 }
 
+export interface NotebookCellCollapseState {
+	inputCollapsed?: boolean;
+	outputCollapsed?: boolean;
+}
+
+export interface NotebookCellDefaultCollapseConfig {
+	codeCell?: NotebookCellCollapseState;
+	markupCell?: NotebookCellCollapseState;
+}
+
 export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
 export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
 
@@ -386,6 +396,7 @@ export interface ICellDto2 {
 	outputs: IOutputDto[];
 	metadata?: NotebookCellMetadata;
 	internalMetadata?: NotebookCellInternalMetadata;
+	collapseState?: NotebookCellCollapseState;
 }
 
 export interface ICellReplaceEdit {

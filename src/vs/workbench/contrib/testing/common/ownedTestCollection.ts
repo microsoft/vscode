@@ -164,7 +164,7 @@ export class SingleUseTestCollection extends Disposable {
 				}
 				break;
 
-			case ExtHostTestItemEventOp.SetProp:
+			case ExtHostTestItemEventOp.SetProp: {
 				const { key, value, previous } = evt;
 				const extId = internal.fullId.toString();
 				switch (key) {
@@ -185,6 +185,7 @@ export class SingleUseTestCollection extends Disposable {
 						break;
 				}
 				break;
+			}
 			default:
 				assertNever(evt);
 		}

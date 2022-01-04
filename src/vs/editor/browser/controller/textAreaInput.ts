@@ -261,25 +261,21 @@ export class TextAreaInput extends Disposable {
 
 			if (
 				this._OS === OperatingSystem.Macintosh
+				&& lastKeyDown
+				&& lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION)
 				&& this._textAreaState.selectionStart === this._textAreaState.selectionEnd
 				&& this._textAreaState.selectionStart > 0
 				&& this._textAreaState.value.substr(this._textAreaState.selectionStart - 1, 1) === e.data
+				&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
 			) {
-				const isArrowKey = (
-					lastKeyDown && lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION)
-					&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
-				);
-				if (isArrowKey || this._browser.isFirefox) {
-					// Handling long press case on Chromium/Safari macOS + arrow key => pretend the character was selected
-					// or long press case on Firefox on macOS
-					if (_debugComposition) {
-						console.log(`[compositionstart] Handling long press case on macOS + arrow key or Firefox`, e);
-					}
-					// Pretend the previous character was composed (in order to get it removed by subsequent compositionupdate events)
-					currentComposition.handleCompositionUpdate('x');
-					this._onCompositionStart.fire({ revealDeltaColumns: -1 });
-					return;
+				// Handling long press case on Chromium/Safari macOS + arrow key => pretend the character was selected
+				if (_debugComposition) {
+					console.log(`[compositionstart] Handling long press case on macOS + arrow key or Firefox`, e);
 				}
+				// Pretend the previous character was composed (in order to get it removed by subsequent compositionupdate events)
+				currentComposition.handleCompositionUpdate('x');
+				this._onCompositionStart.fire({ revealDeltaColumns: -1 });
+				return;
 			}
 
 			if (this._browser.isAndroid) {

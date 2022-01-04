@@ -13,7 +13,7 @@ import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/noteb
 import { INotebookEditor, INotebookEditorCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Emitter } from 'vs/base/common/event';
 import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { GroupIdentifier, GroupChangeKind } from 'vs/workbench/common/editor';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
 
 export class NotebookEditorWidgetService implements INotebookEditorService {
 
@@ -40,9 +40,9 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		const onNewGroup = (group: IEditorGroup) => {
 			const { id } = group;
 			const listeners: IDisposable[] = [];
-			listeners.push(group.onDidGroupChange(e => {
+			listeners.push(group.onDidCloseEditor(e => {
 				const widgets = this._borrowableEditors.get(group.id);
-				if (!widgets || e.kind !== GroupChangeKind.EDITOR_CLOSE) {
+				if (!widgets) {
 					return;
 				}
 

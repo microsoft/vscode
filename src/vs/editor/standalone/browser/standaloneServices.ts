@@ -184,7 +184,7 @@ export module StaticServices {
 
 	export const storageService = define(IStorageService, () => new InMemoryStorageService());
 
-	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), resourceConfigurationService.get(o), logService.get(o)));
+	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), resourceConfigurationService.get(o), logService.get(o), languageConfigurationService.get(o)));
 }
 
 export class DynamicStandaloneServices extends Disposable {

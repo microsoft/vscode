@@ -108,10 +108,10 @@ vscode-oniguruma@1.6.1:
   resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.6.1.tgz#2bf4dfcfe3dd2e56eb549a3068c8ee39e6c30ce5"
   integrity sha512-vc4WhSIaVpgJ0jJIejjYxPvURJavX6QG41vu0mGhqywMkQqulezEqEQ3cO3gc8GvcOpX6ycmKGqRoROEMBNXTQ==
 
-vscode-textmate@5.5.0:
-  version "5.5.0"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.5.0.tgz#d83776562c07d1e3181c2c7f1b3d5f20afcab483"
-  integrity sha512-jToQkPGMNKn0eyKyitYeINJF0NoD240aYyKPIWJv5W2jfPt++jIRg0OSergubtGhbw6SoefkvBYEpX7TsfoSUQ==
+vscode-textmate@6.0.0:
+  version "6.0.0"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-6.0.0.tgz#a3777197235036814ac9a92451492f2748589210"
+  integrity sha512-gu73tuZfJgu+mvCSy4UZwd2JXykjK9zAZsfmDeut5dx/1a7FeTk0XwJsSuqQn+cuMCGVbIBfl+s53X4T19DnzQ==
 
 xterm-addon-search@0.9.0-beta.6:
   version "0.9.0-beta.6"
@@ -128,7 +128,7 @@ xterm-addon-webgl@0.12.0-beta.16:
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0-beta.16.tgz#63a0f1f5be9e66286e035448e2011e3065769ad5"
   integrity sha512-g6v3RegOhSsD9Zt8ArWBMNT30QyPUlIWEIvP/xLHAluUZ1S5sDjFyZDB0nJAyn9MwQozJpwb0ylYO1nznN/TzA==
 
-xterm@4.16.0-beta.2:
-  version "4.16.0-beta.2"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.16.0-beta.2.tgz#251beef21a232143f272da74c7005bc4d832ca79"
-  integrity sha512-PD0agueJ7qvbn1/QhZriAQXf+ykaoPKgQN9qiIGf88VMxHs8T47MYHW/+qPsrXagTmbrENtncughTIzOzv8Q5Q==
+xterm@4.16.0-beta.5:
+  version "4.16.0-beta.5"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.16.0-beta.5.tgz#53ce503d76f718c90336766e6940fb1de81414a8"
+  integrity sha512-Nvodj6nbm4vf8f6nTaUw5Ll1PuPsjFuvVwkLg1VIis1bgrMVtgi5NyVQvDj0Mv804lzuys2FfKYeO/JJYy+RVA==

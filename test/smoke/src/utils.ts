@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
 import { Suite, Context } from 'mocha';
-import { Application, ApplicationOptions } from '../../automation';
+import { Application, ApplicationOptions, Logger } from '../../automation';
 
 export function describeRepeat(n: number, description: string, callback: (this: Suite) => void): void {
 	for (let i = 0; i < n; i++) {
@@ -19,33 +18,96 @@ export function itRepeat(n: number, description: string, callback: (this: Contex
 	}
 }
 
-export function installCommonTestHandlers(args: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
-	installCommonBeforeHandlers(args, optionsTransform);
-	installCommonAfterHandlers(args);
+/**
+ * Defines a test-case that will run but will be skips it if it throws an exception. This is useful
+ * to get some runs in CI when trying to stabilize a flaky test, without failing the build. Note
+ * that this only works if something inside the test throws, so a test's overall timeout won't work
+ * but throwing due to a polling timeout will.
+ * @param title The test-case title.
+ * @param callback The test-case callback.
+ */
+export function itSkipOnFail(title: string, callback: (this: Context) => any): void {
+	it(title, function () {
+		return Promise.resolve().then(() => {
+			return callback.apply(this, arguments);
+		}).catch(e => {
+			console.warn(`Test "${title}" failed but was marked as skip on fail:`, e);
+			this.skip();
+		});
+	});
 }
 
-export function installCommonBeforeHandlers(args: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
+export function installAllHandlers(logger: Logger, optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions) {
+	installDiagnosticsHandler(logger);
+	installAppBeforeHandler(optionsTransform);
+	installAppAfterHandler();
+}
+
+export function installDiagnosticsHandler(logger: Logger, appFn?: () => Application | undefined) {
+
+	// Before each suite
 	before(async function () {
-		this.app = await startApp(args, this.defaultOptions, optionsTransform);
+		const suiteTitle = this.currentTest?.parent?.title;
+		logger.log('');
+		logger.log(`>>> Suite start: '${suiteTitle ?? 'unknown'}' <<<`);
+		logger.log('');
 	});
 
-	installCommonBeforeEachHandler();
-}
-
-export function installCommonBeforeEachHandler() {
+	// Before each test
 	beforeEach(async function () {
 		const testTitle = this.currentTest?.title;
-		this.defaultOptions.logger.log('');
-		this.defaultOptions.logger.log(`>>> Test start: ${testTitle} <<<`);
-		this.defaultOptions.logger.log('');
+		logger.log('');
+		logger.log(`>>> Test start: '${testTitle ?? 'unknown'}' <<<`);
+		logger.log('');
 
-		await this.app?.startTracing(testTitle);
+		const app: Application = appFn?.() ?? this.app;
+		await app?.startTracing(testTitle ?? 'unknown');
+	});
+
+	// After each test
+	afterEach(async function () {
+		const currentTest = this.currentTest;
+		if (!currentTest) {
+			return;
+		}
+
+		const failed = currentTest.state === 'failed';
+		const testTitle = currentTest.title;
+		logger.log('');
+		if (failed) {
+			logger.log(`>>> !!! FAILURE !!! Test end: '${testTitle}' !!! FAILURE !!! <<<`);
+		} else {
+			logger.log(`>>> Test end: '${testTitle}' <<<`);
+		}
+		logger.log('');
+
+		const app: Application = appFn?.() ?? this.app;
+		await app?.stopTracing(testTitle.replace(/[^a-z0-9\-]/ig, '_'), failed);
 	});
 }
 
-export async function startApp(args: minimist.ParsedArgs, options: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>): Promise<Application> {
+function installAppBeforeHandler(optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions) {
+	before(async function () {
+		this.app = await startApp(this.defaultOptions, optionsTransform);
+	});
+}
+
+export function installAppAfterHandler(appFn?: () => Application | undefined, joinFn?: () => Promise<unknown>) {
+	after(async function () {
+		const app: Application = appFn?.() ?? this.app;
+		if (app) {
+			await app.stop();
+		}
+
+		if (joinFn) {
+			await joinFn();
+		}
+	});
+}
+
+export async function startApp(options: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions): Promise<Application> {
 	if (optionsTransform) {
-		options = await optionsTransform({ ...options });
+		options = optionsTransform({ ...options });
 	}
 
 	const app = new Application({
@@ -66,33 +128,6 @@ export function getRandomUserDataDir(options: ApplicationOptions): string {
 	const userDataPathSuffix = [...Array(8)].map(() => Math.random().toString(36)[3]).join('');
 
 	return options.userDataDir.concat(`-${userDataPathSuffix}`);
-}
-
-export function installCommonAfterHandlers(opts: minimist.ParsedArgs, appFn?: () => Application | undefined, joinFn?: () => Promise<unknown>) {
-	after(async function () {
-		const app: Application = appFn?.() ?? this.app;
-
-		if (this.currentTest?.state === 'failed' && opts.screenshots) {
-			const name = this.currentTest!.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
-			try {
-				await app.captureScreenshot(name);
-			} catch (error) {
-				// ignore
-			}
-		}
-
-		if (app) {
-			await app.stop();
-		}
-
-		if (joinFn) {
-			await joinFn();
-		}
-	});
-
-	afterEach(async function () {
-		await this.app?.stopTracing(this.currentTest?.title, this.currentTest?.state === 'failed');
-	});
 }
 
 export function timeout(i: number) {

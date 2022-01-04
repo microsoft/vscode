@@ -149,9 +149,9 @@ const textmateColorSchema: IJSONSchema = {
 				},
 				fontStyle: {
 					type: 'string',
-					description: nls.localize('schema.token.fontStyle', 'Font style of the rule: \'italic\', \'bold\' or \'underline\' or a combination. The empty string unsets inherited settings.'),
+					description: nls.localize('schema.token.fontStyle', 'Font style of the rule: \'italic\', \'bold\' or \'underline\', \'strikethrough\' or a combination. The empty string unsets inherited settings.'),
 					pattern: '^(\\s*\\b(italic|bold|underline))*\\s*$',
-					patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be \'italic\', \'bold\' or \'underline\' or a combination or the empty string.'),
+					patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be \'italic\', \'bold\' or \'underline\', \'strikethrough\' or a combination or the empty string.'),
 					defaultSnippets: [{ label: nls.localize('schema.token.fontStyle.none', 'None (clear inherited style)'), bodyText: '""' }, { body: 'italic' }, { body: 'bold' }, { body: 'underline' }, { body: 'italic bold' }, { body: 'italic underline' }, { body: 'bold underline' }, { body: 'italic bold underline' }]
 				}
 			},
@@ -243,4 +243,3 @@ export function registerColorThemeSchemas() {
 	schemaRegistry.registerSchema(colorThemeSchemaId, colorThemeSchema);
 	schemaRegistry.registerSchema(textmateColorsSchemaId, textmateColorSchema);
 }
-

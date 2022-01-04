@@ -3,25 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
 import { join } from 'path';
-import { Application } from '../../../../automation';
-import { installCommonAfterHandlers, installCommonBeforeEachHandler, startApp } from '../../utils';
+import { Application, Logger } from '../../../../automation';
+import { installAllHandlers } from '../../utils';
 
-export function setup(args: minimist.ParsedArgs) {
+export function setup(logger: Logger) {
 	describe('Launch', () => {
 
-		let app: Application | undefined;
+		// Shared before/after handling
+		installAllHandlers(logger, opts => ({ ...opts, userDataDir: join(opts.userDataDir, 'ø') }));
 
-		installCommonBeforeEachHandler();
-		installCommonAfterHandlers(args, () => app);
-
-		it(`verifies that application launches when user data directory has non-ascii characters`, async function () {
-			const massagedOptions = { ...this.defaultOptions, userDataDir: join(this.defaultOptions.userDataDir, 'ø') };
-			app = await startApp(args, massagedOptions);
-
-			await app.stop();
-			app = undefined;
+		it('verifies that application launches when user data directory has non-ascii characters', async function () {
+			const app = this.app as Application;
+			await app.workbench.explorer.openExplorerView();
 		});
 	});
 }

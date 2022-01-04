@@ -46,7 +46,7 @@ export class CellExecutionPart extends CellPart {
 		}
 	}
 
-	updateLayoutNow(element: ICellViewModel): void {
+	updateInternalLayoutNow(element: ICellViewModel): void {
 		if (element.isInputCollapsed) {
 			DOM.hide(this._executionOrderLabel);
 		} else {

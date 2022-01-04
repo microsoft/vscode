@@ -503,6 +503,17 @@ const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work with the DOM renderer"),
 			type: 'boolean',
 			default: true
+		},
+		[TerminalSettingId.AutoReplies]: {
+			description: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses. Note that the message includes escape sequences so the reply might not happen with styled text. Each reply can only happen once every second."),
+			type: 'object',
+			additionalProperties: {
+				type: 'string',
+				description: localize('terminal.integrated.autoReplies.reply', "The reply to send to the process.")
+			},
+			default: {
+				'Terminate batch job (Y/N)': 'Y\r'
+			}
 		}
 	}
 };

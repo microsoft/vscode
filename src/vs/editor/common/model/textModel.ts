@@ -2535,6 +2535,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly after: ModelDecorationInjectedTextOptions | null;
 	readonly before: ModelDecorationInjectedTextOptions | null;
 	readonly hideInCommentTokens: boolean | null;
+	readonly hideInStringTokens: boolean | null;
 
 
 	private constructor(options: model.IModelDecorationOptions) {
@@ -2560,6 +2561,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.after = options.after ? ModelDecorationInjectedTextOptions.from(options.after) : null;
 		this.before = options.before ? ModelDecorationInjectedTextOptions.from(options.before) : null;
 		this.hideInCommentTokens = options.hideInCommentTokens ?? false;
+		this.hideInStringTokens = options.hideInStringTokens ?? false;
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({ description: 'empty' });

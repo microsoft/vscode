@@ -13,13 +13,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { ICommandTracker, ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { Color } from 'vs/base/common/color';
 import { isSafari } from 'vs/base/browser/browser';
 import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -28,6 +22,12 @@ import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { localize } from 'vs/nls';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { Color } from 'vs/base/common/color';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -45,7 +45,6 @@ let WebglAddon: typeof WebglAddonType;
 export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	/** The raw xterm.js instance */
 	readonly raw: RawXtermTerminal;
-	target?: TerminalLocation;
 
 	private _core: IXtermCore;
 	private static _suggestedRendererType: 'canvas' | 'dom' | undefined = undefined;
@@ -63,6 +62,12 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	get commandTracker(): ICommandTracker { return this._commandTrackerAddon; }
 
+	private _target: TerminalLocation | undefined;
+	set target(location: TerminalLocation | undefined) {
+		this._target = location;
+	}
+	get target(): TerminalLocation | undefined { return this._target; }
+
 	/**
 	 * @param xtermCtor The xterm.js constructor, this is passed in so it can be fetched lazily
 	 * outside of this class such that {@link raw} is not nullable.
@@ -72,6 +77,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		private readonly _configHelper: TerminalConfigHelper,
 		cols: number,
 		rows: number,
+		location: TerminalLocation,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -80,7 +86,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
-
+		this.target = location;
 		const font = this._configHelper.getFont(undefined, true);
 		const config = this._configHelper.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
@@ -125,6 +131,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 				this._updateUnicodeVersion();
 			}
 		}));
+
 		this.add(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this.add(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
@@ -133,7 +140,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		}));
 
 		// Load addons
-
 		this._updateUnicodeVersion();
 
 		this._commandTrackerAddon = new CommandTrackerAddon();
@@ -148,7 +154,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	attachToElement(container: HTMLElement) {
 		// Update the theme when attaching as the terminal location could have changed
 		this._updateTheme();
-
 		if (!this._container) {
 			this.raw.open(container);
 		}
@@ -323,6 +328,12 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 				this._disposeOfWebglRenderer();
 				this.raw.options.rendererType = 'dom';
 			});
+			// Uncomment to add the texture atlas to the DOM
+			// setTimeout(() => {
+			// 	if (this._webglAddon?.textureAtlas) {
+			// 		document.body.appendChild(this._webglAddon?.textureAtlas);
+			// 	}
+			// }, 5000);
 		} catch (e) {
 			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
 			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.GLOBAL, false);
