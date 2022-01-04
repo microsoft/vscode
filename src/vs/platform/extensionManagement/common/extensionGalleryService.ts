@@ -171,6 +171,7 @@ const DefaultQueryState: IQueryState = {
 
 type GalleryServiceQueryClassification = {
 	readonly filterTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	readonly flags: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	readonly sortBy: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	readonly sortOrder: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	readonly duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', 'isMeasurement': true };
@@ -183,6 +184,7 @@ type GalleryServiceQueryClassification = {
 };
 
 type QueryTelemetryData = {
+	readonly flags: number;
 	readonly filterTypes: string[];
 	readonly sortBy: string;
 	readonly sortOrder: string;
@@ -261,6 +263,7 @@ class Query {
 	get telemetryData(): QueryTelemetryData {
 		return {
 			filterTypes: this.state.criteria.map(criterium => String(criterium.filterType)),
+			flags: this.state.flags,
 			sortBy: String(this.sortBy),
 			sortOrder: String(this.sortOrder)
 		};
