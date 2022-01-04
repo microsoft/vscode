@@ -608,7 +608,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 	}
 
 	protected normalizeRequests(requests: IWatchRequest[]): IWatchRequest[] {
-		const requestTrie = TernarySearchTree.forPaths<IWatchRequest>();
+		const requestTrie = TernarySearchTree.forPaths<IWatchRequest>(!isLinux);
 
 		// Sort requests by path length to have shortest first
 		// to have a way to prevent children to be watched if
