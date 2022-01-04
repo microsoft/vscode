@@ -39,6 +39,7 @@ import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 
 //#region --- workbench parts
+
 import 'vs/workbench/browser/parts/editor/editor.contribution';
 import 'vs/workbench/browser/parts/editor/editorPart';
 import 'vs/workbench/browser/parts/paneCompositePart';
@@ -63,6 +64,7 @@ import 'vs/workbench/services/preferences/browser/preferencesService';
 import 'vs/workbench/services/configuration/common/jsonEditingService';
 import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import 'vs/workbench/services/editor/browser/editorService';
+import 'vs/workbench/services/editor/browser/editorResolverService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/services/keybinding/browser/keybindingService';
@@ -144,9 +146,6 @@ registerSingleton(IOpenerService, OpenerService, true);
 
 
 //#region --- workbench contributions
-
-// Editor Override
-import 'vs/workbench/services/editor/browser/editorResolverService';
 
 // Telemetry
 import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';

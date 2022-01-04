@@ -20,6 +20,7 @@ import 'vs/workbench/workbench.common.main';
 //#region --- workbench (desktop main)
 
 import 'vs/workbench/electron-sandbox/desktop.main';
+import 'vs/workbench/electron-sandbox/desktop.contribution';
 
 //#endregion
 
@@ -98,9 +99,6 @@ import 'vs/workbench/contrib/logs/electron-sandbox/logs.contribution';
 
 // Localizations
 import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
-
-// Desktop
-import 'vs/workbench/electron-sandbox/desktop.contribution';
 
 // Explorer
 import 'vs/workbench/contrib/files/electron-sandbox/files.contribution';
