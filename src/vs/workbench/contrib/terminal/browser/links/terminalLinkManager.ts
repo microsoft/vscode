@@ -164,7 +164,7 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable {
-		// Clear and re-register the standard links so they are a lower priority that the new one
+		// Clear and re-register the standard link providers so they are a lower priority that the new one
 		this._clearLinkProviders();
 		const wrappedLinkProvider = this._instantiationService.createInstance(TerminalExternalLinkProviderAdapter, this._xterm, instance, linkProvider, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
 		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
@@ -178,7 +178,6 @@ export class TerminalLinkManager extends DisposableStore {
 			// Prevent default electron link handling so Alt+Click mode works normally
 			event?.preventDefault();
 
-			console.log(event);
 			// Require correct modifier on click unless event is coming from linkQuickPick selection
 			if (event && !(event instanceof TerminalLinkQuickPickEvent) && !this._isLinkActivationModifierDown(event)) {
 				return;
