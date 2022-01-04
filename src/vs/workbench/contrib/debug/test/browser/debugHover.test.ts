@@ -15,7 +15,6 @@ suite('Debug - Hover', () => {
 	test('find expression in stack frame', async () => {
 		const model = createMockDebugModel();
 		const session = createMockSession(model);
-		let stackFrame: StackFrame;
 
 		const thread = new class extends Thread {
 			public override getCallStack(): StackFrame[] {
@@ -29,28 +28,25 @@ suite('Debug - Hover', () => {
 			sourceReference: 10,
 		}, 'aDebugSessionId', mockUriIdentityService);
 
-		let scope: Scope;
-		stackFrame = new class extends StackFrame {
+		const stackFrame = new class extends StackFrame {
 			override getScopes(): Promise<IScope[]> {
 				return Promise.resolve([scope]);
 			}
 		}(thread, 1, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1, true);
 
 
-		let variableA: Variable;
-		let variableB: Variable;
-		scope = new class extends Scope {
+		const scope = new class extends Scope {
 			override getChildren(): Promise<IExpression[]> {
 				return Promise.resolve([variableA]);
 			}
 		}(stackFrame, 1, 'local', 1, false, 10, 10);
 
-		variableA = new class extends Variable {
+		const variableA = new class extends Variable {
 			override getChildren(): Promise<IExpression[]> {
 				return Promise.resolve([variableB]);
 			}
 		}(session, 1, scope, 2, 'A', 'A', undefined!, 0, 0, {}, 'string');
-		variableB = new Variable(session, 1, scope, 2, 'B', 'A.B', undefined!, 0, 0, {}, 'string');
+		const variableB = new Variable(session, 1, scope, 2, 'B', 'A.B', undefined!, 0, 0, {}, 'string');
 
 		assert.strictEqual(await findExpressionInStackFrame(stackFrame, []), undefined);
 		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['A']), variableA);

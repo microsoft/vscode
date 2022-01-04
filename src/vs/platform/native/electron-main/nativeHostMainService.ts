@@ -323,7 +323,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			await Promises.unlink(source);
 		} catch (error) {
 			switch (error.code) {
-				case 'EACCES':
+				case 'EACCES': {
 					const { response } = await this.showMessageBox(windowId, {
 						title: this.productService.nameLong,
 						type: 'info',
@@ -346,6 +346,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 						}
 					}
 					break;
+				}
 				case 'ENOENT':
 					break; // ignore file not found
 				default:

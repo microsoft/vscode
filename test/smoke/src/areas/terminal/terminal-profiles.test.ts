@@ -24,7 +24,7 @@ export function setup() {
 
 		it.skip('should set the default profile to a contributed one', async () => {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, CONTRIBUTED_PROFILE_NAME);
-			await terminal.runCommand(TerminalCommandId.CreateNew);
+			await terminal.createTerminal();
 			await terminal.assertSingleTab({ name: CONTRIBUTED_PROFILE_NAME });
 		});
 
@@ -37,7 +37,7 @@ export function setup() {
 
 		it('should set the default profile', async () => {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, process.platform === 'win32' ? 'PowerShell' : undefined);
-			await terminal.runCommand(TerminalCommandId.CreateNew);
+			await terminal.createTerminal();
 			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
 		});
 

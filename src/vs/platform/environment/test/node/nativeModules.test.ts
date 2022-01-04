@@ -5,12 +5,13 @@
 
 import * as assert from 'assert';
 import { isLinux, isWindows } from 'vs/base/common/platform';
+import { flakySuite } from 'vs/base/test/common/testUtils';
 
 function testErrorMessage(module: string): string {
 	return `Unable to load "${module}" dependency. It was probably not compiled for the right operating system architecture or had missing build tools.`;
 }
 
-suite('Native Modules (all platforms)', () => {
+flakySuite('Native Modules (all platforms)', () => {
 
 	test('native-is-elevated', async () => {
 		const isElevated = await import('native-is-elevated');

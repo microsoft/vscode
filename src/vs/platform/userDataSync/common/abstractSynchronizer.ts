@@ -753,7 +753,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		try {
 			if (oldContent) {
 				// file exists already
-				await this.writeFileContent(newContent, oldContent, force);
+				await this.fileService.writeFile(this.file, VSBuffer.fromString(newContent), force ? undefined : oldContent);
 			} else {
 				// file does not exist
 				await this.fileService.createFile(this.file, VSBuffer.fromString(newContent), { overwrite: force });
@@ -766,10 +766,6 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 				throw e;
 			}
 		}
-	}
-
-	protected async writeFileContent(newContent: string, oldContent: IFileContent, force: boolean): Promise<void> {
-		await this.fileService.writeFile(this.file, VSBuffer.fromString(newContent), force ? undefined : oldContent);
 	}
 
 	private onFileChanges(e: FileChangesEvent): void {

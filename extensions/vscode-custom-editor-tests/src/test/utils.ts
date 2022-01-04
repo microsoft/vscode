@@ -6,8 +6,17 @@
 import * as vscode from 'vscode';
 
 export function randomFilePath(args: { root: vscode.Uri, ext: string }): vscode.Uri {
-	const fileName = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
-	return (vscode.Uri as any).joinPath(args.root, fileName + args.ext);
+	const fileName = rndName();
+	return vscode.Uri.joinPath(args.root, fileName + args.ext);
+}
+
+export function rndName() {
+	let name = '';
+	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	for (let i = 0; i < 10; i++) {
+		name += possible.charAt(Math.floor(Math.random() * possible.length));
+	}
+	return name;
 }
 
 export function closeAllEditors(): Thenable<any> {

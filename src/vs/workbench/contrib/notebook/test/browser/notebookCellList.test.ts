@@ -8,6 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
@@ -20,8 +21,8 @@ suite('NotebookCellList', () => {
 	suiteSetup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
-		notebookDefaultOptions = new NotebookOptions(instantiationService.get(IConfigurationService));
-		topInsertToolbarHeight = notebookDefaultOptions.computeTopInserToolbarHeight();
+		notebookDefaultOptions = new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService));
+		topInsertToolbarHeight = notebookDefaultOptions.computeTopInsertToolbarHeight();
 
 	});
 
@@ -234,14 +235,14 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.scrollTop, 55);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 265);
 
-				// cellList.updateElementHeight2(viewModel.cellAt(0)!, 50);
-				// assert.deepStrictEqual(cellList.scrollTop, 5);
-				// assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
+				cellList.updateElementHeight2(viewModel.cellAt(0)!, 50);
+				assert.deepStrictEqual(cellList.scrollTop, 5);
+				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
 
 				// focus won't be visible after cell 0 grow to 250, so let's try to keep the focused cell visible
-				// cellList.updateElementHeight2(viewModel.cellAt(0)!, 250);
-				// assert.deepStrictEqual(cellList.scrollTop, 250 + 100 - cellList.renderHeight);
-				// assert.deepStrictEqual(cellList.getViewScrollBottom(), 250 + 100 - cellList.renderHeight + 210);
+				cellList.updateElementHeight2(viewModel.cellAt(0)!, 250);
+				assert.deepStrictEqual(cellList.scrollTop, 250 + 100 - cellList.renderHeight);
+				assert.deepStrictEqual(cellList.getViewScrollBottom(), 250 + 100 - cellList.renderHeight + 210);
 			});
 	});
 

@@ -8,7 +8,7 @@ import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, IExtension, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -20,10 +20,11 @@ import { Schemas } from 'vs/base/common/network';
 import { basename, extname } from 'vs/base/common/resources';
 import { match } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
-import { Mimes, guessMimeTypes } from 'vs/base/common/mime';
+import { Mimes } from 'vs/base/common/mime';
+import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { distinct } from 'vs/base/common/arrays';
@@ -241,7 +242,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		const mimeTypes = guessMimeTypes(uri);
+		const mimeTypes = getMimeTypes(uri);
 		if (mimeTypes.length !== 1 || mimeTypes[0] !== Mimes.unknown) {
 			return;
 		}
@@ -334,7 +335,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 				run: () => {
 					this.addToPromptedFileExtensions(fileExtension);
 					this.telemetryService.publicLog2<{ userReaction: string, fileExtension: string }, FileExtensionSuggestionClassification>('fileExtensionSuggestion:popup', { userReaction: 'ok', fileExtension });
-					this.paneCompositeService.openPaneComposite('workbench.view.extensions', ViewContainerLocation.Sidebar, true)
+					this.paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true)
 						.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 						.then(viewlet => {
 							viewlet.search(`ext:${fileExtension}`);
@@ -397,4 +398,3 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		this.storageService.store(recommendationsStorageKey, JSON.stringify(storedRecommendations), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
-

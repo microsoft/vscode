@@ -14,6 +14,10 @@ let textDecoder: TextDecoder | null;
 
 export class VSBuffer {
 
+	/**
+	 * When running in a nodejs context, the backing store for the returned `VSBuffer` instance
+	 * might use a nodejs Buffer allocated from node's Buffer pool, which is not transferrable.
+	 */
 	static alloc(byteLength: number): VSBuffer {
 		if (hasBuffer) {
 			return new VSBuffer(Buffer.allocUnsafe(byteLength));
@@ -22,6 +26,11 @@ export class VSBuffer {
 		}
 	}
 
+	/**
+	 * When running in a nodejs context, if `actual` is not a nodejs Buffer, the backing store for
+	 * the returned `VSBuffer` instance might use a nodejs Buffer allocated from node's Buffer pool,
+	 * which is not transferrable.
+	 */
 	static wrap(actual: Uint8Array): VSBuffer {
 		if (hasBuffer && !(Buffer.isBuffer(actual))) {
 			// https://nodejs.org/dist/latest-v10.x/docs/api/buffer.html#buffer_class_method_buffer_from_arraybuffer_byteoffset_length
@@ -31,6 +40,10 @@ export class VSBuffer {
 		return new VSBuffer(actual);
 	}
 
+	/**
+	 * When running in a nodejs context, the backing store for the returned `VSBuffer` instance
+	 * might use a nodejs Buffer allocated from node's Buffer pool, which is not transferrable.
+	 */
 	static fromString(source: string, options?: { dontUseNodeBuffer?: boolean; }): VSBuffer {
 		const dontUseNodeBuffer = options?.dontUseNodeBuffer || false;
 		if (!dontUseNodeBuffer && hasBuffer) {
@@ -43,6 +56,10 @@ export class VSBuffer {
 		}
 	}
 
+	/**
+	 * When running in a nodejs context, the backing store for the returned `VSBuffer` instance
+	 * might use a nodejs Buffer allocated from node's Buffer pool, which is not transferrable.
+	 */
 	static fromByteArray(source: number[]): VSBuffer {
 		const result = VSBuffer.alloc(source.length);
 		for (let i = 0, len = source.length; i < len; i++) {
@@ -51,6 +68,10 @@ export class VSBuffer {
 		return result;
 	}
 
+	/**
+	 * When running in a nodejs context, the backing store for the returned `VSBuffer` instance
+	 * might use a nodejs Buffer allocated from node's Buffer pool, which is not transferrable.
+	 */
 	static concat(buffers: VSBuffer[], totalLength?: number): VSBuffer {
 		if (typeof totalLength === 'undefined') {
 			totalLength = 0;
@@ -78,6 +99,10 @@ export class VSBuffer {
 		this.byteLength = this.buffer.byteLength;
 	}
 
+	/**
+	 * When running in a nodejs context, the backing store for the returned `VSBuffer` instance
+	 * might use a nodejs Buffer allocated from node's Buffer pool, which is not transferrable.
+	 */
 	clone(): VSBuffer {
 		const result = VSBuffer.alloc(this.byteLength);
 		result.set(this);

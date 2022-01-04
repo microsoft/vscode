@@ -14,7 +14,7 @@ import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/con
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo, ICellOutput, INotebookCellStatusBarItem, NotebookCellInternalMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo, ICellOutput, INotebookCellStatusBarItem, NotebookCellInternalMetadata, NotebookDocumentMetadata, NotebookCellCollapseState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -330,6 +330,7 @@ export interface INotebookEditorOptions extends ITextEditorOptions {
 	readonly cellSelections?: ICellRange[];
 	readonly isReadOnly?: boolean;
 	readonly viewState?: INotebookEditorViewState;
+	readonly defaultCellCollapseState?: NotebookCellCollapseState;
 }
 
 export type INotebookEditorContributionCtor = IConstructorSignature1<INotebookEditor, INotebookEditorContribution>;
@@ -425,7 +426,6 @@ export interface INotebookEditor {
 	getFocus(): ICellRange;
 	setFocus(focus: ICellRange): void;
 	getId(): string;
-	hasEditorFocus(): boolean;
 
 	cursorNavigationMode: boolean;
 
@@ -627,6 +627,9 @@ export interface INotebookEditor {
 	getCellByHandle(handle: number): ICellViewModel | undefined;
 	getCellIndex(cell: ICellViewModel): number | undefined;
 	getNextVisibleCellIndex(index: number): number | undefined;
+
+	showProgress(): void;
+	hideProgress(): void;
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {
@@ -722,7 +725,6 @@ export enum CursorAtBoundary {
 export interface CellViewModelStateChangeEvent {
 	readonly metadataChanged?: boolean;
 	readonly internalMetadataChanged?: boolean;
-	readonly runStateChanged?: boolean;
 	readonly selectionChanged?: boolean;
 	readonly focusModeChanged?: boolean;
 	readonly editStateChanged?: boolean;
@@ -787,7 +789,7 @@ export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INote
 export function expandCellRangesWithHiddenCells(editor: INotebookEditor, ranges: ICellRange[]) {
 	// assuming ranges are sorted and no overlap
 	const indexes = cellRangesToIndexes(ranges);
-	let modelRanges: ICellRange[] = [];
+	const modelRanges: ICellRange[] = [];
 	indexes.forEach(index => {
 		const viewCell = editor.cellAt(index);
 

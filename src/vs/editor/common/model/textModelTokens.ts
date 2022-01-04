@@ -5,17 +5,19 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { ILanguageIdCodec, IState, ITokenizationSupport, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/modes';
-import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
+import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
+import { ILanguageIdCodec, IState, ITokenizationSupport, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
+import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullMode';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { MultilineTokensBuilder, countEOL } from 'vs/editor/common/model/tokensStore';
+import { countEOL } from 'vs/editor/common/model/pieceTreeTextBuffer/eolCounter';
+import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/model/tokens/contiguousMultilineTokensBuilder';
 import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
+import { setTimeout0 } from 'vs/base/common/platform';
 
 const enum Constants {
 	CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048
@@ -265,44 +267,68 @@ export class TextModelTokenization extends Disposable {
 		runWhenIdle((deadline) => {
 			this._isScheduled = false;
 
-			if (this._isDisposed) {
-				// disposed in the meantime
-				return;
-			}
-
-			this._revalidateTokensNow(deadline);
+			this._backgroundTokenizeWithDeadline(deadline);
 		});
 	}
 
-	private _revalidateTokensNow(deadline: IdleDeadline): void {
-		const textModelLastLineNumber = this._textModel.getLineCount();
+	/**
+	 * Tokenize until the deadline occurs, but try to yield every 1-2ms.
+	 */
+	private _backgroundTokenizeWithDeadline(deadline: IdleDeadline): void {
+		// Read the time remaining from the `deadline` immediately because it is unclear
+		// if the `deadline` object will be valid after execution leaves this function.
+		const endTime = Date.now() + deadline.timeRemaining();
 
-		const MAX_ALLOWED_TIME = 1;
-		const builder = new MultilineTokensBuilder();
+		const execute = () => {
+			if (this._isDisposed || !this._textModel.isAttachedToEditor() || !this._hasLinesToTokenize()) {
+				// disposed in the meantime or detached or finished
+				return;
+			}
+
+			this._backgroundTokenizeForAtLeast1ms();
+
+			if (Date.now() < endTime) {
+				// There is still time before reaching the deadline, so yield to the browser and then
+				// continue execution
+				setTimeout0(execute);
+			} else {
+				// The deadline has been reached, so schedule a new idle callback if necessary
+				this._beginBackgroundTokenization();
+			}
+		};
+		execute();
+	}
+
+	/**
+	 * Tokenize for at least 1ms.
+	 */
+	private _backgroundTokenizeForAtLeast1ms(): void {
+		const lineCount = this._textModel.getLineCount();
+		const builder = new ContiguousMultilineTokensBuilder();
 		const sw = StopWatch.create(false);
-		let tokenizedLineNumber = -1;
 
 		do {
-			if (sw.elapsed() > MAX_ALLOWED_TIME) {
-				// Stop if MAX_ALLOWED_TIME is reached
+			if (sw.elapsed() > 1) {
+				// the comparison is intentionally > 1 and not >= 1 to ensure that
+				// a full millisecond has elapsed, given how microseconds are rounded
+				// to milliseconds
 				break;
 			}
 
-			tokenizedLineNumber = this._tokenizeOneInvalidLine(builder);
+			const tokenizedLineNumber = this._tokenizeOneInvalidLine(builder);
 
-			if (tokenizedLineNumber >= textModelLastLineNumber) {
+			if (tokenizedLineNumber >= lineCount) {
 				break;
 			}
-		} while (this._hasLinesToTokenize() && deadline.timeRemaining() > 0);
+		} while (this._hasLinesToTokenize());
 
-		this._beginBackgroundTokenization();
-		this._textModel.setTokens(builder.tokens, !this._hasLinesToTokenize());
+		this._textModel.setTokens(builder.finalize(), !this._hasLinesToTokenize());
 	}
 
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
-		const builder = new MultilineTokensBuilder();
+		const builder = new ContiguousMultilineTokensBuilder();
 		this._tokenizeViewport(builder, startLineNumber, endLineNumber);
-		this._textModel.setTokens(builder.tokens, !this._hasLinesToTokenize());
+		this._textModel.setTokens(builder.finalize(), !this._hasLinesToTokenize());
 	}
 
 	public reset(): void {
@@ -311,9 +337,9 @@ export class TextModelTokenization extends Disposable {
 	}
 
 	public forceTokenization(lineNumber: number): void {
-		const builder = new MultilineTokensBuilder();
+		const builder = new ContiguousMultilineTokensBuilder();
 		this._updateTokensUntilLine(builder, lineNumber);
-		this._textModel.setTokens(builder.tokens, !this._hasLinesToTokenize());
+		this._textModel.setTokens(builder.finalize(), !this._hasLinesToTokenize());
 	}
 
 	public getTokenTypeIfInsertingCharacter(position: Position, character: string): StandardTokenType {
@@ -375,7 +401,7 @@ export class TextModelTokenization extends Disposable {
 		return (this._tokenizationStateStore.invalidLineStartIndex < this._textModel.getLineCount());
 	}
 
-	private _tokenizeOneInvalidLine(builder: MultilineTokensBuilder): number {
+	private _tokenizeOneInvalidLine(builder: ContiguousMultilineTokensBuilder): number {
 		if (!this._hasLinesToTokenize()) {
 			return this._textModel.getLineCount() + 1;
 		}
@@ -384,7 +410,7 @@ export class TextModelTokenization extends Disposable {
 		return lineNumber;
 	}
 
-	private _updateTokensUntilLine(builder: MultilineTokensBuilder, lineNumber: number): void {
+	private _updateTokensUntilLine(builder: ContiguousMultilineTokensBuilder, lineNumber: number): void {
 		if (!this._tokenizationSupport) {
 			return;
 		}
@@ -404,7 +430,7 @@ export class TextModelTokenization extends Disposable {
 		}
 	}
 
-	private _tokenizeViewport(builder: MultilineTokensBuilder, startLineNumber: number, endLineNumber: number): void {
+	private _tokenizeViewport(builder: ContiguousMultilineTokensBuilder, startLineNumber: number, endLineNumber: number): void {
 		if (!this._tokenizationSupport) {
 			// nothing to do
 			return;
@@ -481,19 +507,19 @@ function initializeTokenization(textModel: TextModel): [ITokenizationSupport | n
 	return [tokenizationSupport, initialState];
 }
 
-function safeTokenize(languageIdCodec: ILanguageIdCodec, languageId: string, tokenizationSupport: ITokenizationSupport | null, text: string, hasEOL: boolean, state: IState): TokenizationResult2 {
-	let r: TokenizationResult2 | null = null;
+function safeTokenize(languageIdCodec: ILanguageIdCodec, languageId: string, tokenizationSupport: ITokenizationSupport | null, text: string, hasEOL: boolean, state: IState): EncodedTokenizationResult {
+	let r: EncodedTokenizationResult | null = null;
 
 	if (tokenizationSupport) {
 		try {
-			r = tokenizationSupport.tokenize2(text, hasEOL, state.clone(), 0);
+			r = tokenizationSupport.tokenizeEncoded(text, hasEOL, state.clone());
 		} catch (e) {
 			onUnexpectedError(e);
 		}
 	}
 
 	if (!r) {
-		r = nullTokenize2(languageIdCodec.encodeLanguageId(languageId), text, state, 0);
+		r = nullTokenizeEncoded(languageIdCodec.encodeLanguageId(languageId), state);
 	}
 
 	LineTokens.convertToEndOffset(r.tokens, text.length);

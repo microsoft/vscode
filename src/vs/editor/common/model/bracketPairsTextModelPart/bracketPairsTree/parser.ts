@@ -131,7 +131,7 @@ class Parser {
 			case TokenKind.Text:
 				return token.astNode as TextAstNode;
 
-			case TokenKind.OpeningBracket:
+			case TokenKind.OpeningBracket: {
 				const set = openedBracketIds.merge(token.bracketIds);
 				const child = this.parseList(set);
 
@@ -154,7 +154,7 @@ class Parser {
 						null
 					);
 				}
-
+			}
 			default:
 				throw new Error('unexpected');
 		}

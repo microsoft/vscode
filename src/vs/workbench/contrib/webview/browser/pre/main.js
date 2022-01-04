@@ -666,6 +666,15 @@ function toContentHtml(data) {
 
 	applyStyles(newDocument, newDocument.body);
 
+	// Strip out unsupported http-equiv tags
+	for (const metaElement of Array.from(newDocument.querySelectorAll('meta'))) {
+		const httpEquiv = metaElement.getAttribute('http-equiv');
+		if (httpEquiv && !/^(content-security-policy|default-style|content-type)$/i.test(httpEquiv)) {
+			console.warn(`Removing unsupported meta http-equiv: ${httpEquiv}`);
+			metaElement.remove();
+		}
+	}
+
 	// Check for CSP
 	const csp = newDocument.querySelector('meta[http-equiv="Content-Security-Policy"]');
 	if (!csp) {

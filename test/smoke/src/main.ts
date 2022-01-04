@@ -21,7 +21,6 @@ import { setup as setupPreferencesTests } from './areas/preferences/preferences.
 import { setup as setupSearchTests } from './areas/search/search.test';
 import { setup as setupNotebookTests } from './areas/notebook/notebook.test';
 import { setup as setupLanguagesTests } from './areas/languages/languages.test';
-import { setup as setupEditorTests } from './areas/editor/editor.test';
 import { setup as setupStatusbarTests } from './areas/statusbar/statusbar.test';
 import { setup as setupExtensionTests } from './areas/extensions/extensions.test';
 import { setup as setupMultirootTests } from './areas/multiroot/multiroot.test';
@@ -312,6 +311,7 @@ async function setup(): Promise<void> {
 	logger.log('Smoketest setup done!\n');
 }
 
+// Before main suite (before all tests)
 before(async function () {
 	this.timeout(2 * 60 * 1000); // allow two minutes for setup
 
@@ -334,19 +334,9 @@ before(async function () {
 	await setup();
 });
 
+// After main suite (after all tests)
 after(async function () {
 	try {
-		// TODO@tyriar TODO@meganrogge lately deleting the test root
-		// folder results in timeouts of 60s or EPERM issues which
-		// seems to indicate that a process (terminal?) holds onto a
-		// folder within.
-		//
-		// Workarounds pushed for mitigation
-		// - do not end up with mocha timeout errors after 60s by limiting
-		//   this operation to at maximum 30s
-		// - do not end up with a failing `after` call when deletion failed
-		//
-		// Refs: https://github.com/microsoft/vscode/issues/137725
 		let deleted = false;
 		await measureAndLog(Promise.race([
 			new Promise<void>((resolve, reject) => rimraf(testDataPath, { maxBusyTries: 10 }, error => {
@@ -374,7 +364,6 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupSearchTests(logger);
 	setupNotebookTests(logger);
 	setupLanguagesTests(logger);
-	setupEditorTests(logger);
 	if (opts.web) { setupTerminalTests(logger); } // TODO@daniel TODO@meggan: Enable terminal tests for non-web when the desktop driver is moved to playwright
 	setupStatusbarTests(!!opts.web, logger);
 	if (quality !== Quality.Dev) { setupExtensionTests(logger); }

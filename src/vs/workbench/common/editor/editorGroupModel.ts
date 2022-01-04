@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, EditorCloseContext, IMatchEditorOptions, GroupChangeKind } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, EditorCloseContext, IMatchEditorOptions, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -70,12 +70,12 @@ export interface IMatchOptions {
 	readonly strictEquals?: boolean;
 }
 
-export interface IGroupChangeEvent {
+export interface IGroupModelChangeEvent {
 
 	/**
-	 * The kind of change that occured in the group.
+	 * The kind of change that occured in the group model.
 	 */
-	readonly kind: GroupChangeKind;
+	readonly kind: GroupModelChangeKind;
 
 	/**
 	 * Only applies when editors change providing
@@ -84,13 +84,13 @@ export interface IGroupChangeEvent {
 	readonly editor?: EditorInput;
 }
 
-export interface IGroupEditorChangeEvent extends IGroupChangeEvent {
+export interface IGroupEditorChangeEvent extends IGroupModelChangeEvent {
 	readonly editor: EditorInput;
 }
 
 export interface IGroupEditorOpenEvent extends IGroupEditorChangeEvent {
 
-	readonly kind: GroupChangeKind.EDITOR_OPEN;
+	readonly kind: GroupModelChangeKind.EDITOR_OPEN;
 
 	/**
 	 * Identifies the index of the editor in the group.
@@ -98,15 +98,15 @@ export interface IGroupEditorOpenEvent extends IGroupEditorChangeEvent {
 	readonly editorIndex: number;
 }
 
-export function isGroupEditorOpenEvent(e: IGroupChangeEvent): e is IGroupEditorOpenEvent {
+export function isGroupEditorOpenEvent(e: IGroupModelChangeEvent): e is IGroupEditorOpenEvent {
 	const candidate = e as IGroupEditorOpenEvent;
 
-	return candidate.kind === GroupChangeKind.EDITOR_OPEN && candidate.editorIndex !== undefined;
+	return candidate.kind === GroupModelChangeKind.EDITOR_OPEN && candidate.editorIndex !== undefined;
 }
 
 export interface IGroupEditorMoveEvent extends IGroupEditorChangeEvent {
 
-	readonly kind: GroupChangeKind.EDITOR_MOVE;
+	readonly kind: GroupModelChangeKind.EDITOR_MOVE;
 
 	/**
 	 * Identifies the index of the editor in the group.
@@ -121,15 +121,15 @@ export interface IGroupEditorMoveEvent extends IGroupEditorChangeEvent {
 	readonly oldEditorIndex: number;
 }
 
-export function isGroupEditorMoveEvent(e: IGroupChangeEvent): e is IGroupEditorMoveEvent {
+export function isGroupEditorMoveEvent(e: IGroupModelChangeEvent): e is IGroupEditorMoveEvent {
 	const candidate = e as IGroupEditorMoveEvent;
 
-	return candidate.kind === GroupChangeKind.EDITOR_MOVE && candidate.editorIndex !== undefined && candidate.oldEditorIndex !== undefined;
+	return candidate.kind === GroupModelChangeKind.EDITOR_MOVE && candidate.editorIndex !== undefined && candidate.oldEditorIndex !== undefined;
 }
 
 export interface IGroupEditorCloseEvent extends IGroupEditorChangeEvent {
 
-	readonly kind: GroupChangeKind.EDITOR_CLOSE;
+	readonly kind: GroupModelChangeKind.EDITOR_CLOSE;
 
 	/**
 	 * Identifies the index of the editor in the group.
@@ -151,10 +151,10 @@ export interface IGroupEditorCloseEvent extends IGroupEditorChangeEvent {
 	readonly sticky: boolean;
 }
 
-export function isGroupEditorCloseEvent(e: IGroupChangeEvent): e is IGroupEditorCloseEvent {
+export function isGroupEditorCloseEvent(e: IGroupModelChangeEvent): e is IGroupEditorCloseEvent {
 	const candidate = e as IGroupEditorCloseEvent;
 
-	return candidate.kind === GroupChangeKind.EDITOR_CLOSE && candidate.editorIndex !== undefined && candidate.context !== undefined && candidate.sticky !== undefined;
+	return candidate.kind === GroupModelChangeKind.EDITOR_CLOSE && candidate.editorIndex !== undefined && candidate.context !== undefined && candidate.sticky !== undefined;
 }
 
 interface IEditorCloseResult {
@@ -170,7 +170,7 @@ export class EditorGroupModel extends Disposable {
 
 	//#region events
 
-	private readonly _onDidModelChange = this._register(new Emitter<IGroupChangeEvent>());
+	private readonly _onDidModelChange = this._register(new Emitter<IGroupModelChangeEvent>());
 	readonly onDidModelChange = this._onDidModelChange.event;
 
 	//#endregion
@@ -351,7 +351,7 @@ export class EditorGroupModel extends Disposable {
 
 			// Event
 			const event: IGroupEditorOpenEvent = {
-				kind: GroupChangeKind.EDITOR_OPEN,
+				kind: GroupModelChangeKind.EDITOR_OPEN,
 				editor: newEditor,
 				editorIndex: targetIndex
 			};
@@ -407,7 +407,7 @@ export class EditorGroupModel extends Disposable {
 		listeners.add(Event.once(editor.onWillDispose)(() => {
 			if (this.indexOf(editor) >= 0) {
 				this._onDidModelChange.fire({
-					kind: GroupChangeKind.EDITOR_WILL_DISPOSE,
+					kind: GroupModelChangeKind.EDITOR_WILL_DISPOSE,
 					editor
 				});
 			}
@@ -416,7 +416,7 @@ export class EditorGroupModel extends Disposable {
 		// Re-Emit dirty state changes
 		listeners.add(editor.onDidChangeDirty(() => {
 			this._onDidModelChange.fire({
-				kind: GroupChangeKind.EDITOR_DIRTY,
+				kind: GroupModelChangeKind.EDITOR_DIRTY,
 				editor
 			});
 		}));
@@ -424,7 +424,7 @@ export class EditorGroupModel extends Disposable {
 		// Re-Emit label changes
 		listeners.add(editor.onDidChangeLabel(() => {
 			this._onDidModelChange.fire({
-				kind: GroupChangeKind.EDITOR_LABEL,
+				kind: GroupModelChangeKind.EDITOR_LABEL,
 				editor
 			});
 		}));
@@ -432,14 +432,14 @@ export class EditorGroupModel extends Disposable {
 		// Re-Emit capability changes
 		listeners.add(editor.onDidChangeCapabilities(() => {
 			this._onDidModelChange.fire({
-				kind: GroupChangeKind.EDITOR_CAPABILITIES,
+				kind: GroupModelChangeKind.EDITOR_CAPABILITIES,
 				editor
 			});
 		}));
 
 		// Clean up dispose listeners once the editor gets closed
 		listeners.add(this.onDidModelChange(event => {
-			if (event.kind === GroupChangeKind.EDITOR_CLOSE && event.editor?.matches(editor)) {
+			if (event.kind === GroupModelChangeKind.EDITOR_CLOSE && event.editor?.matches(editor)) {
 				dispose(listeners);
 			}
 		}));
@@ -455,7 +455,7 @@ export class EditorGroupModel extends Disposable {
 
 		if (closeResult) {
 			const event: IGroupEditorCloseEvent = {
-				kind: GroupChangeKind.EDITOR_CLOSE,
+				kind: GroupModelChangeKind.EDITOR_CLOSE,
 				...closeResult
 			};
 			this._onDidModelChange.fire(event);
@@ -467,7 +467,7 @@ export class EditorGroupModel extends Disposable {
 
 		if (closeResult) {
 			const event: IGroupEditorCloseEvent = {
-				kind: GroupChangeKind.EDITOR_CLOSE,
+				kind: GroupModelChangeKind.EDITOR_CLOSE,
 				...closeResult
 			};
 			this._onDidModelChange.fire(event);
@@ -556,7 +556,7 @@ export class EditorGroupModel extends Disposable {
 
 		// Event
 		const event: IGroupEditorMoveEvent = {
-			kind: GroupChangeKind.EDITOR_MOVE,
+			kind: GroupModelChangeKind.EDITOR_MOVE,
 			editor,
 			oldEditorIndex: index,
 			editorIndex: toIndex,
@@ -566,7 +566,27 @@ export class EditorGroupModel extends Disposable {
 		return editor;
 	}
 
-	setActive(candidate: EditorInput): EditorInput | undefined {
+	setActive(candidate: EditorInput | undefined): EditorInput | undefined {
+		let result: EditorInput | undefined = undefined;
+
+		if (!candidate) {
+			this.setGroupActive();
+		} else {
+			result = this.setEditorActive(candidate);
+		}
+
+		return result;
+	}
+
+	private setGroupActive(): void {
+		// We do not really keep the `active` state in our model because
+		// it has no special meaning to us here. But for consistency
+		// we emit a `onDidModelChange` event so that components can
+		// react.
+		this._onDidModelChange.fire({ kind: GroupModelChangeKind.GROUP_ACTIVE });
+	}
+
+	private setEditorActive(candidate: EditorInput): EditorInput | undefined {
 		const res = this.findEditor(candidate);
 		if (!res) {
 			return; // not found
@@ -593,7 +613,7 @@ export class EditorGroupModel extends Disposable {
 
 		// Event
 		this._onDidModelChange.fire({
-			kind: GroupChangeKind.EDITOR_ACTIVE,
+			kind: GroupModelChangeKind.EDITOR_ACTIVE,
 			editor
 		});
 	}
@@ -603,7 +623,7 @@ export class EditorGroupModel extends Disposable {
 		// it has no special meaning to us here. But for consistency
 		// we emit a `onDidModelChange` event so that components can
 		// react.
-		this._onDidModelChange.fire({ kind: GroupChangeKind.GROUP_INDEX });
+		this._onDidModelChange.fire({ kind: GroupModelChangeKind.GROUP_INDEX });
 	}
 
 	pin(candidate: EditorInput): EditorInput | undefined {
@@ -629,7 +649,7 @@ export class EditorGroupModel extends Disposable {
 
 		// Event
 		this._onDidModelChange.fire({
-			kind: GroupChangeKind.EDITOR_PIN,
+			kind: GroupModelChangeKind.EDITOR_PIN,
 			editor
 		});
 	}
@@ -658,7 +678,7 @@ export class EditorGroupModel extends Disposable {
 
 		// Event
 		this._onDidModelChange.fire({
-			kind: GroupChangeKind.EDITOR_PIN,
+			kind: GroupModelChangeKind.EDITOR_PIN,
 			editor
 		});
 
@@ -708,7 +728,7 @@ export class EditorGroupModel extends Disposable {
 
 		// Event
 		this._onDidModelChange.fire({
-			kind: GroupChangeKind.EDITOR_STICKY,
+			kind: GroupModelChangeKind.EDITOR_STICKY,
 			editor
 		});
 	}
@@ -739,7 +759,7 @@ export class EditorGroupModel extends Disposable {
 
 		// Event
 		this._onDidModelChange.fire({
-			kind: GroupChangeKind.EDITOR_STICKY,
+			kind: GroupModelChangeKind.EDITOR_STICKY,
 			editor
 		});
 	}
@@ -892,7 +912,7 @@ export class EditorGroupModel extends Disposable {
 		if (this.isLocked !== locked) {
 			this.locked = locked;
 
-			this._onDidModelChange.fire({ kind: GroupChangeKind.GROUP_LOCKED });
+			this._onDidModelChange.fire({ kind: GroupModelChangeKind.GROUP_LOCKED });
 		}
 	}
 

@@ -53,10 +53,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	// Always on addons
 	private _commandTrackerAddon: CommandTrackerAddon;
 
-	// Lazily loaded addons
-	private _searchAddon?: SearchAddonType;
-
 	// Optional addons
+	private _searchAddon?: SearchAddonType;
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
 
@@ -144,11 +142,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 		this._commandTrackerAddon = new CommandTrackerAddon();
 		this.raw.loadAddon(this._commandTrackerAddon);
-
-		this._getSearchAddonConstructor().then(addonCtor => {
-			this._searchAddon = new addonCtor();
-			this.raw.loadAddon(this._searchAddon);
-		});
 	}
 
 	attachToElement(container: HTMLElement) {
@@ -209,18 +202,22 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		}
 	}
 
-	findNext(term: string, searchOptions: ISearchOptions): boolean {
-		if (!this._searchAddon) {
-			return false;
-		}
-		return this._searchAddon.findNext(term, searchOptions);
+	async findNext(term: string, searchOptions: ISearchOptions): Promise<boolean> {
+		return (await this._getSearchAddon()).findNext(term, searchOptions);
 	}
 
-	findPrevious(term: string, searchOptions: ISearchOptions): boolean {
-		if (!this._searchAddon) {
-			return false;
+	async findPrevious(term: string, searchOptions: ISearchOptions): Promise<boolean> {
+		return (await this._getSearchAddon()).findPrevious(term, searchOptions);
+	}
+
+	private async _getSearchAddon(): Promise<SearchAddonType> {
+		if (this._searchAddon) {
+			return this._searchAddon;
 		}
-		return this._searchAddon.findPrevious(term, searchOptions);
+		const AddonCtor = await this._getSearchAddonConstructor();
+		this._searchAddon = new AddonCtor();
+		this.raw.loadAddon(this._searchAddon);
+		return this._searchAddon;
 	}
 
 	getFont(): ITerminalFont {
@@ -328,6 +325,12 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 				this._disposeOfWebglRenderer();
 				this.raw.options.rendererType = 'dom';
 			});
+			// Uncomment to add the texture atlas to the DOM
+			// setTimeout(() => {
+			// 	if (this._webglAddon?.textureAtlas) {
+			// 		document.body.appendChild(this._webglAddon?.textureAtlas);
+			// 	}
+			// }, 5000);
 		} catch (e) {
 			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
 			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.GLOBAL, false);

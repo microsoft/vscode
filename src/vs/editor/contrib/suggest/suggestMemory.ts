@@ -9,7 +9,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItemKind, CompletionItemKinds } from 'vs/editor/common/modes';
+import { CompletionItemKind, CompletionItemKinds } from 'vs/editor/common/languages';
 import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

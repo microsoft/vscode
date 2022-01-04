@@ -22,7 +22,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorAction, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { isLocationLink, Location, LocationLink } from 'vs/editor/common/modes';
+import { isLocationLink, Location, LocationLink } from 'vs/editor/common/languages';
 import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
 import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/referencesModel';
 import { ISymbolNavigationService } from 'vs/editor/contrib/gotoSymbol/symbolNavigation';

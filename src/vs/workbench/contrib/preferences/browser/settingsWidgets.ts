@@ -294,7 +294,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		DOM.append(container, this.renderAddButton());
 		this.renderList();
 
-		this._register(DOM.addDisposableListener(this.listElement, DOM.EventType.CLICK, e => this.onListClick(e)));
+		this._register(DOM.addDisposableListener(this.listElement, DOM.EventType.POINTER_DOWN, e => this.onListClick(e)));
 		this._register(DOM.addDisposableListener(this.listElement, DOM.EventType.DBLCLICK, e => this.onListDoubleClick(e)));
 
 		this._register(DOM.addStandardDisposableListener(this.listElement, 'keydown', (e: StandardKeyboardEvent) => {
@@ -447,7 +447,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		return rowElement;
 	}
 
-	private onListClick(e: MouseEvent): void {
+	private onListClick(e: PointerEvent): void {
 		const targetIdx = this.getClickedItemIndex(e);
 		if (targetIdx < 0) {
 			return;

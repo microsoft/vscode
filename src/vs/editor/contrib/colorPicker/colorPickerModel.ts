@@ -5,7 +5,7 @@
 
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IColorPresentation } from 'vs/editor/common/modes';
+import { IColorPresentation } from 'vs/editor/common/languages';
 
 export class ColorPickerModel {
 

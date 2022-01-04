@@ -137,10 +137,7 @@ class PlaywrightDriver implements IDriver {
 	}
 
 	async doubleClick(windowId: number, selector: string) {
-		await this.click(windowId, selector, 0, 0);
-		await this.timeout(60);
-		await this.click(windowId, selector, 0, 0);
-		await this.timeout(100);
+		throw new Error('Unsupported');
 	}
 
 	async setValue(windowId: number, selector: string, text: string) {
@@ -252,10 +249,6 @@ async function launchServer(options: LaunchOptions) {
 	);
 
 	logger.log(`Started server for browser smoke tests (pid: ${serverProcess.pid})`);
-	serverProcess.once('exit', (code, signal) => logger.log(`Server for browser smoke tests terminated (pid: ${serverProcess.pid}, code: ${code}, signal: ${signal})`));
-
-	serverProcess.stderr?.on('data', error => logger.log(`Server stderr: ${error}`));
-	serverProcess.stdout?.on('data', data => logger.log(`Server stdout: ${data}`));
 
 	return {
 		serverProcess,
@@ -265,7 +258,10 @@ async function launchServer(options: LaunchOptions) {
 
 async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	const { logger, workspacePath } = options;
+
 	const browser = await measureAndLog(playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false }), 'playwright#launch', logger);
+	browser.on('disconnected', () => logger.log(`Playwright: browser disconnected`));
+
 	const context = await measureAndLog(browser.newContext(), 'browser.newContext', logger);
 
 	try {
@@ -278,14 +274,15 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	await measureAndLog(page.setViewportSize({ width, height }), 'page.setViewportSize', logger);
 
 	page.on('pageerror', async (error) => logger.log(`Playwright ERROR: page error: ${error}`));
-	page.on('crash', page => logger.log('Playwright ERROR: page crash'));
+	page.on('crash', () => logger.log('Playwright ERROR: page crash'));
+	page.on('close', () => logger.log('Playwright: page close'));
 	page.on('response', async (response) => {
 		if (response.status() >= 400) {
 			logger.log(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
 		}
 	});
 
-	const payloadParam = `[["enableProposedApi",""],["skipWelcome","true"]]`;
+	const payloadParam = `[["enableProposedApi",""],["webviewExternalEndpointCommit","69df0500a8963fc469161c038a14a39384d5a303"],["skipWelcome","true"]]`;
 	await measureAndLog(page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
 
 	return { browser, context, page };

@@ -317,6 +317,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				});
 			}
 		} catch (err) {
+			this._logService.error(`An error occurred when deactivating the extension '${extensionId.value}':`);
 			this._logService.error(err);
 		}
 
@@ -324,6 +325,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		try {
 			dispose(extension.subscriptions);
 		} catch (err) {
+			this._logService.error(`An error occurred when deactivating the subscriptions for extension '${extensionId.value}':`);
 			this._logService.error(err);
 		}
 
@@ -612,8 +614,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					.then(() => {
 						resolve(0);
 					})
-					.catch((err: Error) => {
-						reject(err.toString());
+					.catch((err: unknown) => {
+						reject(err instanceof Error && err.stack ? err.stack : String(err));
 					});
 			}
 		});

@@ -30,7 +30,7 @@ import { NotificationsTelemetry } from 'vs/workbench/browser/parts/notifications
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
-import { readFontInfo, restoreFontInfo, serializeFontInfo } from 'vs/editor/browser/config/configuration';
+import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -39,6 +39,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export interface IWorkbenchOptions {
 
@@ -142,6 +143,7 @@ export class Workbench extends Layout {
 				const storageService = accessor.get(IStorageService);
 				const configurationService = accessor.get(IConfigurationService);
 				const hostService = accessor.get(IHostService);
+				const dialogService = accessor.get(IDialogService);
 
 				// Layout
 				this.initLayout(accessor);
@@ -154,7 +156,7 @@ export class Workbench extends Layout {
 				this._register(instantiationService.createInstance(WorkbenchContextKeysHandler));
 
 				// Register Listeners
-				this.registerListeners(lifecycleService, storageService, configurationService, hostService);
+				this.registerListeners(lifecycleService, storageService, configurationService, hostService, dialogService);
 
 				// Render Workbench
 				this.renderWorkbench(instantiationService, accessor.get(INotificationService) as NotificationService, storageService, configurationService);
@@ -219,7 +221,7 @@ export class Workbench extends Layout {
 		return instantiationService;
 	}
 
-	private registerListeners(lifecycleService: ILifecycleService, storageService: IStorageService, configurationService: IConfigurationService, hostService: IHostService): void {
+	private registerListeners(lifecycleService: ILifecycleService, storageService: IStorageService, configurationService: IConfigurationService, hostService: IHostService, dialogService: IDialogService): void {
 
 		// Configuration changes
 		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
@@ -252,6 +254,10 @@ export class Workbench extends Layout {
 				storageService.flush();
 			}
 		}));
+
+		// Dialogs showing/hiding
+		this._register(dialogService.onWillShowDialog(() => this.container.classList.add('modal-dialog-visible')));
+		this._register(dialogService.onDidShowDialog(() => this.container.classList.remove('modal-dialog-visible')));
 	}
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;
@@ -283,18 +289,18 @@ export class Workbench extends Layout {
 			try {
 				const storedFontInfo = JSON.parse(storedFontInfoRaw);
 				if (Array.isArray(storedFontInfo)) {
-					restoreFontInfo(storedFontInfo);
+					FontMeasurements.restoreFontInfo(storedFontInfo);
 				}
 			} catch (err) {
 				/* ignore */
 			}
 		}
 
-		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio()));
+		FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio()));
 	}
 
 	private storeFontInfo(storageService: IStorageService): void {
-		const serializedFontInfo = serializeFontInfo();
+		const serializedFontInfo = FontMeasurements.serializeFontInfo();
 		if (serializedFontInfo) {
 			storageService.store('editorFontInfo', JSON.stringify(serializedFontInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}

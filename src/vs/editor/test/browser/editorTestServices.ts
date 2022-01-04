@@ -6,23 +6,19 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
-import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions } from 'vs/editor/common/model';
 import { CommandsRegistry, ICommandEvent, ICommandService } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class TestCodeEditorService extends AbstractCodeEditorService {
+	getActiveCodeEditor(): ICodeEditor | null {
+		return null;
+	}
 	public lastInput?: IResourceEditorInput;
-	public getActiveCodeEditor(): ICodeEditor | null { return null; }
-	public openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+	openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 		this.lastInput = input;
 		return Promise.resolve(null);
 	}
-	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void { }
-	public removeDecorationType(key: string): void { }
-	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions { return { description: 'test' }; }
-	public resolveDecorationCSSRules(decorationTypeKey: string): CSSRuleList | null { return null; }
 }
 
 export class TestCommandService implements ICommandService {

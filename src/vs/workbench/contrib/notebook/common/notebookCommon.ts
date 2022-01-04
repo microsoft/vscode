@@ -16,7 +16,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Command } from 'vs/editor/common/modes';
+import { Command } from 'vs/editor/common/languages';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
@@ -101,12 +101,20 @@ export interface NotebookCellMetadata {
 export interface NotebookCellInternalMetadata {
 	executionOrder?: number;
 	lastRunSuccess?: boolean;
-	runState?: NotebookCellExecutionState;
 	runStartTime?: number;
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
 	isPaused?: boolean;
-	didPause?: boolean;
+}
+
+export interface NotebookCellCollapseState {
+	inputCollapsed?: boolean;
+	outputCollapsed?: boolean;
+}
+
+export interface NotebookCellDefaultCollapseConfig {
+	codeCell?: NotebookCellCollapseState;
+	markupCell?: NotebookCellCollapseState;
 }
 
 export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
@@ -190,7 +198,6 @@ export interface ICellOutput {
 }
 
 export interface CellInternalMetadataChangedEvent {
-	readonly runStateChanged?: boolean;
 	readonly lastRunSuccessChanged?: boolean;
 }
 
@@ -386,6 +393,7 @@ export interface ICellDto2 {
 	outputs: IOutputDto[];
 	metadata?: NotebookCellMetadata;
 	internalMetadata?: NotebookCellInternalMetadata;
+	collapseState?: NotebookCellCollapseState;
 }
 
 export interface ICellReplaceEdit {
@@ -515,7 +523,7 @@ export namespace CellUri {
 		return {
 			handle,
 			notebook: cell.with({
-				scheme: cell.fragment.substr(match[0].length) || Schemas.file,
+				scheme: cell.fragment.substring(match[0].length) || Schemas.file,
 				fragment: null
 			})
 		};
@@ -569,7 +577,7 @@ export namespace CellUri {
 		return {
 			handle,
 			notebook: metadata.with({
-				scheme: metadata.fragment.substr(match[0].length) || Schemas.file,
+				scheme: metadata.fragment.substring(match[0].length) || Schemas.file,
 				fragment: null
 			})
 		};
@@ -851,8 +859,8 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 	}
 
 	if (filter.filenamePattern) {
-		let filenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.include : (filter.filenamePattern as string | glob.IRelativePattern);
-		let excludeFilenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.exclude : undefined;
+		const filenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.include : (filter.filenamePattern as string | glob.IRelativePattern);
+		const excludeFilenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.exclude : undefined;
 
 		if (glob.match(filenamePattern, basename(resource.fsPath).toLowerCase())) {
 			if (excludeFilenamePattern) {
@@ -958,7 +966,7 @@ export class NotebookWorkingCopyTypeIdentifier {
 
 	static parse(candidate: string): string | undefined {
 		if (candidate.startsWith(NotebookWorkingCopyTypeIdentifier._prefix)) {
-			return candidate.substr(NotebookWorkingCopyTypeIdentifier._prefix.length);
+			return candidate.substring(NotebookWorkingCopyTypeIdentifier._prefix.length);
 		}
 		return undefined;
 	}

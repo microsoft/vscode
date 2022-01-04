@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -53,6 +53,10 @@ export class TerminalEditorInput extends EditorInput {
 
 	override get editorId(): string | undefined {
 		return TerminalEditor.ID;
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
 	}
 
 	setTerminalInstance(instance: ITerminalInstance): void {

@@ -221,7 +221,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this.os = remoteEnv.os;
 
 				// this is a copy of what the merged environment collection is on the remote side
-				await this._setupEnvVariableInfo(backend, variableResolver, shellLaunchConfig);
+				await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
 				const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.disablePersistence;
 				if (shellLaunchConfig.attachPersistentProcess) {
@@ -348,7 +348,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	// Fetch any extension environment additions and apply them
-	private async _setupEnvVariableInfo(backend: ITerminalBackend, variableResolver: terminalEnvironment.VariableResolver | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<IProcessEnvironment> {
+	private async _resolveEnvironment(backend: ITerminalBackend, variableResolver: terminalEnvironment.VariableResolver | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<IProcessEnvironment> {
 		const platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 		const envFromConfigValue = this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		this._configHelper.showRecommendations(shellLaunchConfig);
@@ -405,7 +405,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._logService
 		);
 
-		const env = await this._setupEnvVariableInfo(backend, variableResolver, shellLaunchConfig);
+		const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;

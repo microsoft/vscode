@@ -17,7 +17,7 @@ import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notif
 import { ICreateTerminalOptions, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
@@ -44,6 +44,7 @@ import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalSt
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -56,6 +57,7 @@ export class TerminalViewPane extends ViewPane {
 	private _tabButtons: DropdownWithPrimaryActionViewItem | undefined;
 	private readonly _dropdownMenu: IMenu;
 	private readonly _singleTabMenu: IMenu;
+	private _viewShowing: IContextKey<boolean>;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -101,6 +103,7 @@ export class TerminalViewPane extends ViewPane {
 		this._dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalNewDropdownContext, this._contextKeyService));
 		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalInlineTabContext, this._contextKeyService));
 		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles)));
+		this._viewShowing = TerminalContextKeys.viewShowing.bindTo(this._contextKeyService);
 	}
 
 	override renderBody(container: HTMLElement): void {
@@ -131,6 +134,7 @@ export class TerminalViewPane extends ViewPane {
 		}));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
+			this._viewShowing.set(visible);
 			if (visible) {
 				const hadTerminals = !!this._terminalGroupService.groups.length;
 				if (this._terminalService.isProcessSupportRegistered) {

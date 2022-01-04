@@ -14,7 +14,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CodeActionProviderRegistry, CodeActionTriggerType } from 'vs/editor/common/modes';
+import { CodeActionProviderRegistry, CodeActionTriggerType } from 'vs/editor/common/languages';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';

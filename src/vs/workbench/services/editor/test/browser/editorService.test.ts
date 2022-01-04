@@ -7,8 +7,8 @@ import * as assert from 'assert';
 import { EditorActivation, EditorResolution, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorCloseContext, EditorsOrder, IEditorCloseEvent, EditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestEditorWithOptions, TestTextFileEditor } from 'vs/workbench/test/browser/workbenchTestServices';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorCloseContext, EditorsOrder, IEditorCloseEvent, EditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestEditorWithOptions, TestTextFileEditor, TestSingletonFileEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
@@ -27,6 +27,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { UnknownErrorEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 suite('EditorService', () => {
 
@@ -36,7 +37,7 @@ suite('EditorService', () => {
 	const disposables = new DisposableStore();
 
 	setup(() => {
-		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)], TEST_EDITOR_INPUT_ID));
+		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(TestSingletonFileEditorInput)], TEST_EDITOR_INPUT_ID));
 		disposables.add(registerTestResourceEditor());
 		disposables.add(registerTestSideBySideEditor());
 	});
@@ -90,7 +91,7 @@ suite('EditorService', () => {
 		assert.strictEqual(service.visibleEditorPanes.length, 1);
 		assert.strictEqual(service.visibleEditorPanes[0], editor);
 		assert.ok(!service.activeTextEditorControl);
-		assert.ok(!service.activeTextEditorMode);
+		assert.ok(!service.activeTextEditorLanguageId);
 		assert.strictEqual(service.visibleTextEditorControls.length, 0);
 		assert.strictEqual(service.isOpened(input), true);
 		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), true);
@@ -224,6 +225,22 @@ suite('EditorService', () => {
 
 		editor2 = await editorP2;
 		assert.strictEqual(editor2?.input, input);
+	});
+
+	test('openEditor() - singleton typed editors reveal instead of split', async () => {
+		const [part, service] = await createEditorService();
+
+		let input1 = new TestSingletonFileEditorInput(URI.parse('my://resource-basics1'), TEST_EDITOR_INPUT_ID);
+		let input2 = new TestSingletonFileEditorInput(URI.parse('my://resource-basics2'), TEST_EDITOR_INPUT_ID);
+
+		const input1Group = (await service.openEditor(input1, { pinned: true }))?.group;
+		const input2Group = (await service.openEditor(input2, { pinned: true }, SIDE_GROUP))?.group;
+
+		assert.strictEqual(part.activeGroup, input2Group);
+
+		await service.openEditor(input1, { pinned: true });
+
+		assert.strictEqual(part.activeGroup, input1Group);
 	});
 
 	test('openEditor() - locked groups', async () => {
@@ -1996,7 +2013,7 @@ suite('EditorService', () => {
 
 		assert.strictEqual(service.activeEditorPane, editor);
 		assert.strictEqual(service.activeTextEditorControl, editor?.getControl());
-		assert.strictEqual(service.activeTextEditorMode, 'plaintext');
+		assert.strictEqual(service.activeTextEditorLanguageId, PLAINTEXT_LANGUAGE_ID);
 	});
 
 	test('openEditor returns NULL when opening fails or is inactive', async function () {
@@ -2380,28 +2397,28 @@ suite('EditorService', () => {
 
 		// Try using find editors for opened editors
 		{
-			const found1 = service.findEditors(input.resource, part.activeGroup);
+			const found1 = service.findEditors(input.resource, undefined, part.activeGroup);
 			assert.strictEqual(found1.length, 1);
 			assert.strictEqual(found1[0], input);
 
-			const found2 = service.findEditors(input, part.activeGroup);
+			const found2 = service.findEditors(input, undefined, part.activeGroup);
 			assert.strictEqual(found2, input);
 		}
 		{
-			const found1 = service.findEditors(otherInput.resource, part.activeGroup);
+			const found1 = service.findEditors(otherInput.resource, undefined, part.activeGroup);
 			assert.strictEqual(found1.length, 1);
 			assert.strictEqual(found1[0], otherInput);
 
-			const found2 = service.findEditors(otherInput, part.activeGroup);
+			const found2 = service.findEditors(otherInput, undefined, part.activeGroup);
 			assert.strictEqual(found2, otherInput);
 		}
 
 		// Make sure we don't find non-opened editors
 		{
-			const found1 = service.findEditors(URI.parse('my://no-such-resource'), part.activeGroup);
+			const found1 = service.findEditors(URI.parse('my://no-such-resource'), undefined, part.activeGroup);
 			assert.strictEqual(found1.length, 0);
 
-			const found2 = service.findEditors({ resource: URI.parse('my://no-such-resource'), typeId: '', editorId: TEST_EDITOR_INPUT_ID }, part.activeGroup);
+			const found2 = service.findEditors({ resource: URI.parse('my://no-such-resource'), typeId: '', editorId: TEST_EDITOR_INPUT_ID }, undefined, part.activeGroup);
 			assert.strictEqual(found2, undefined);
 		}
 
@@ -2409,20 +2426,20 @@ suite('EditorService', () => {
 		{
 			const newEditor = await service.openEditor(new TestFileEditorInput(URI.parse('my://other-group-resource'), TEST_EDITOR_INPUT_ID), { pinned: true, preserveFocus: true }, SIDE_GROUP);
 
-			const found1 = service.findEditors(input.resource, newEditor!.group!.id);
+			const found1 = service.findEditors(input.resource, undefined, newEditor!.group!.id);
 			assert.strictEqual(found1.length, 0);
 
-			const found2 = service.findEditors(input, newEditor!.group!.id);
+			const found2 = service.findEditors(input, undefined, newEditor!.group!.id);
 			assert.strictEqual(found2, undefined);
 		}
 
 		// Check we don't find editors after closing them
 		await part.activeGroup.closeAllEditors();
 		{
-			const found1 = service.findEditors(input.resource, part.activeGroup);
+			const found1 = service.findEditors(input.resource, undefined, part.activeGroup);
 			assert.strictEqual(found1.length, 0);
 
-			const found2 = service.findEditors(input, part.activeGroup);
+			const found2 = service.findEditors(input, undefined, part.activeGroup);
 			assert.strictEqual(found2, undefined);
 		}
 	});
@@ -2486,6 +2503,23 @@ suite('EditorService', () => {
 			const found2 = service.findEditors(input);
 			assert.strictEqual(found2.length, 0);
 		}
+	});
+
+	test('findEditors (support side by side via options)', async () => {
+		const [, service] = await createEditorService();
+
+		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
+		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
+
+		const sideBySideInput = new SideBySideEditorInput(undefined, undefined, input, otherInput, service);
+
+		await service.openEditor(sideBySideInput, { pinned: true });
+
+		let foundEditors = service.findEditors(URI.parse('my://resource2-openEditors'));
+		assert.strictEqual(foundEditors.length, 0);
+
+		foundEditors = service.findEditors(URI.parse('my://resource2-openEditors'), { supportSideBySide: SideBySideEditor.PRIMARY });
+		assert.strictEqual(foundEditors.length, 1);
 	});
 
 	test('side by side editor is not matching all other editors (https://github.com/microsoft/vscode/issues/132859)', async () => {
