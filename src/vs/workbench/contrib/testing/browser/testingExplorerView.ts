@@ -568,6 +568,10 @@ export class TestingExplorerViewModel extends Disposable {
 			this.revealById(evt.item.item.extId, false, false);
 		}));
 
+		this._register(testResults.onResultsChanged(() => {
+			this.tree.resort(null);
+		}));
+
 		this._register(this.testProfileService.onDidChange(() => {
 			this.tree.rerender();
 		}));

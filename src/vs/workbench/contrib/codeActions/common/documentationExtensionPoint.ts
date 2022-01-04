@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchLanguageService';
+import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
 
 export enum DocumentationExtensionPointFields {
 	when = 'when',

@@ -71,6 +71,11 @@ export interface INotebookKernelService {
 	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult;
 
 	/**
+	 * Returns the selected or only available kernel.
+	 */
+	getSelectedOrSuggestedKernel(notebook: INotebookTextModelLike): INotebookKernel | undefined;
+
+	/**
 	 * Bind a notebook document to a kernel. A notebook is only bound to one kernel
 	 * but a kernel can be bound to many notebooks (depending on its configuration)
 	 */

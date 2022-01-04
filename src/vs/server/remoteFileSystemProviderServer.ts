@@ -122,7 +122,9 @@ class SessionFileWatcher extends Disposable implements ISessionFileWatcher {
 	override dispose(): void {
 		super.dispose();
 
-		this.watcherRequests.forEach(disposable => dispose(disposable));
+		for (const [, disposable] of this.watcherRequests) {
+			disposable.dispose();
+		}
 		this.watcherRequests.clear();
 	}
 }

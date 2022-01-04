@@ -13,10 +13,10 @@ import { ITerminalProcessManager, ITerminalConfiguration, TERMINAL_CONFIG_SECTIO
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import type { Terminal, IViewportRange, ILinkProvider } from 'xterm';
+import type { Terminal, IViewportRange, ILinkProvider, ILink } from 'xterm';
 import { Schemas } from 'vs/base/common/network';
 import { posix, win32 } from 'vs/base/common/path';
-import { ITerminalExternalLinkProvider, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalExternalLinkProvider, ITerminalInstance, TerminalLinkQuickpickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { OperatingSystem, isMacintosh, OS } from 'vs/base/common/platform';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { TerminalProtocolLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalProtocolLinkProvider';
@@ -97,6 +97,20 @@ export class TerminalLinkManager extends DisposableStore {
 		this._registerStandardLinkProviders();
 	}
 
+	async getLinks(type: TerminalLinkProviderType, y: number): Promise<ILink[] | undefined> {
+		let provider: ILinkProvider | undefined = undefined;
+		if (type === TerminalLinkProviderType.Word) {
+			provider = this._standardLinkProviders.find(p => p instanceof TerminalWordLinkProvider);
+		} else if (type === TerminalLinkProviderType.Validated) {
+			provider = this._standardLinkProviders.find(p => p instanceof TerminalValidatedLocalLinkProvider);
+		} else {
+			provider = this._standardLinkProviders.find(p => p instanceof TerminalProtocolLinkProvider);
+		}
+		if (provider === undefined) {
+			throw new Error(`no link provider of type ${type}`);
+		}
+		return (await new Promise<ILink[] | undefined>(r => provider?.provideLinks(y, r)))!;
+	}
 	private _tooltipCallback(link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) {
 		if (!this._widgetManager) {
 			return;
@@ -171,8 +185,8 @@ export class TerminalLinkManager extends DisposableStore {
 			// Prevent default electron link handling so Alt+Click mode works normally
 			event?.preventDefault();
 
-			// Require correct modifier on click
-			if (event && !this._isLinkActivationModifierDown(event)) {
+			// Require correct modifier on click unless event is coming from linkQuickPick selection
+			if (event && !(event instanceof TerminalLinkQuickpickEvent) && !this._isLinkActivationModifierDown(event)) {
 				return;
 			}
 
@@ -423,4 +437,10 @@ export class TerminalLinkManager extends DisposableStore {
 export interface LineColumnInfo {
 	lineNumber: number;
 	columnNumber: number;
+}
+
+export enum TerminalLinkProviderType {
+	Word = 'word',
+	Validated = 'validated',
+	Protocol = 'protocol'
 }

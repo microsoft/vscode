@@ -4,24 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
-import { Schemas } from 'vs/base/common/network';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ICrossVersionSerializedTerminalState, IRequestResolveVariablesEvent, ISerializedTerminalState, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalEnvironment, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalEnvironment, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { BaseTerminalBackend } from 'vs/workbench/contrib/terminal/browser/baseTerminalBackend';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
@@ -39,34 +36,28 @@ export class RemoteTerminalBackendContribution implements IWorkbenchContribution
 	) {
 		const remoteAuthority = remoteAgentService.getConnection()?.remoteAuthority;
 		if (remoteAuthority) {
-			const backend = instantiationService.createInstance(RemoteTerminalBackend, remoteAuthority);
-			Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
-			terminalService.handleNewRegisteredBackend(backend);
+			const connection = remoteAgentService.getConnection();
+			if (connection) {
+				const channel = instantiationService.createInstance(RemoteTerminalChannelClient, connection.remoteAuthority, connection.getChannel(REMOTE_TERMINAL_CHANNEL_NAME));
+				const backend = instantiationService.createInstance(RemoteTerminalBackend, remoteAuthority, channel);
+				Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
+				terminalService.handleNewRegisteredBackend(backend);
+			}
 		}
 	}
 }
 
-class RemoteTerminalBackend extends Disposable implements ITerminalBackend {
+class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBackend {
 	private readonly _ptys: Map<number, RemotePty> = new Map();
-	private readonly _remoteTerminalChannel: RemoteTerminalChannelClient | null;
-	private _isPtyHostUnresponsive: boolean = false;
 
-	private readonly _onPtyHostUnresponsive = this._register(new Emitter<void>());
-	readonly onPtyHostUnresponsive = this._onPtyHostUnresponsive.event;
-	private readonly _onPtyHostResponsive = this._register(new Emitter<void>());
-	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
-	private readonly _onPtyHostRestart = this._register(new Emitter<void>());
-	readonly onPtyHostRestart = this._onPtyHostRestart.event;
-	private readonly _onPtyHostRequestResolveVariables = this._register(new Emitter<IRequestResolveVariablesEvent>());
-	readonly onPtyHostRequestResolveVariables = this._onPtyHostRequestResolveVariables.event;
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 
 	constructor(
 		readonly remoteAuthority: string | undefined,
+		private readonly _remoteTerminalChannel: RemoteTerminalChannelClient,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@ILogService private readonly _logService: ILogService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService logService: ILogService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
@@ -76,115 +67,54 @@ class RemoteTerminalBackend extends Disposable implements ITerminalBackend {
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
-		super();
+		super(_remoteTerminalChannel, logService, notificationService, _historyService, configurationResolverService, workspaceContextService);
 
-		const connection = this._remoteAgentService.getConnection();
-		if (connection) {
-			const channel = this._instantiationService.createInstance(RemoteTerminalChannelClient, connection.remoteAuthority, connection.getChannel(REMOTE_TERMINAL_CHANNEL_NAME));
-			this._remoteTerminalChannel = channel;
+		this._remoteTerminalChannel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
+		this._remoteTerminalChannel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
+		this._remoteTerminalChannel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
+		this._remoteTerminalChannel.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
+		this._remoteTerminalChannel.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
+		this._remoteTerminalChannel.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
+		this._remoteTerminalChannel.onProcessExit(e => {
+			const pty = this._ptys.get(e.id);
+			if (pty) {
+				pty.handleExit(e.event);
+				this._ptys.delete(e.id);
+			}
+		});
 
-			channel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
-			channel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
-			channel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
-			channel.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
-			channel.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
-			channel.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
-			channel.onProcessExit(e => {
-				const pty = this._ptys.get(e.id);
-				if (pty) {
-					pty.handleExit(e.event);
-					this._ptys.delete(e.id);
-				}
-			});
+		const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
+		this._remoteTerminalChannel.onExecuteCommand(async e => {
+			const reqId = e.reqId;
+			const commandId = e.commandId;
+			if (!allowedCommands.includes(commandId)) {
+				this._remoteTerminalChannel.sendCommandResult(reqId, true, 'Invalid remote cli command: ' + commandId);
+				return;
+			}
+			const commandArgs = e.commandArgs.map(arg => revive(arg));
+			try {
+				const result = await this._commandService.executeCommand(e.commandId, ...commandArgs);
+				this._remoteTerminalChannel.sendCommandResult(reqId, false, result);
+			} catch (err) {
+				this._remoteTerminalChannel.sendCommandResult(reqId, true, err);
+			}
+		});
 
-			const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
-			channel.onExecuteCommand(async e => {
-				const reqId = e.reqId;
-				const commandId = e.commandId;
-				if (!allowedCommands.includes(commandId)) {
-					channel!.sendCommandResult(reqId, true, 'Invalid remote cli command: ' + commandId);
-					return;
-				}
-				const commandArgs = e.commandArgs.map(arg => revive(arg));
-				try {
-					const result = await this._commandService.executeCommand(e.commandId, ...commandArgs);
-					channel!.sendCommandResult(reqId, false, result);
-				} catch (err) {
-					channel!.sendCommandResult(reqId, true, err);
-				}
-			});
-
-			// Attach pty host listeners
-			if (channel.onPtyHostExit) {
-				this._register(channel.onPtyHostExit(() => {
-					this._logService.error(`The terminal's pty host process exited, the connection to all terminal processes was lost`);
-				}));
-			}
-			let unresponsiveNotification: INotificationHandle | undefined;
-			if (channel.onPtyHostStart) {
-				this._register(channel.onPtyHostStart(() => {
-					this._logService.info(`ptyHost restarted`);
-					this._onPtyHostRestart.fire();
-					unresponsiveNotification?.close();
-					unresponsiveNotification = undefined;
-					this._isPtyHostUnresponsive = false;
-				}));
-			}
-			if (channel.onPtyHostUnresponsive) {
-				this._register(channel.onPtyHostUnresponsive(() => {
-					const choices: IPromptChoice[] = [{
-						label: localize('restartPtyHost', "Restart pty host"),
-						run: () => channel.restartPtyHost!()
-					}];
-					unresponsiveNotification = notificationService.prompt(Severity.Error, localize('nonResponsivePtyHost', "The connection to the terminal's pty host process is unresponsive, the terminals may stop working."), choices);
-					this._isPtyHostUnresponsive = true;
-					this._onPtyHostUnresponsive.fire();
-				}));
-			}
-			if (channel.onPtyHostResponsive) {
-				this._register(channel.onPtyHostResponsive(() => {
-					if (!this._isPtyHostUnresponsive) {
-						return;
-					}
-					this._logService.info('The pty host became responsive again');
-					unresponsiveNotification?.close();
-					unresponsiveNotification = undefined;
-					this._isPtyHostUnresponsive = false;
-					this._onPtyHostResponsive.fire();
-				}));
-			}
-			this._register(channel.onPtyHostRequestResolveVariables(async e => {
-				// Only answer requests for this workspace
-				if (e.workspaceId !== workspaceContextService.getWorkspace().id) {
-					return;
-				}
-				const activeWorkspaceRootUri = _historyService.getLastActiveWorkspaceRoot(Schemas.vscodeRemote);
-				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-				const resolveCalls: Promise<string>[] = e.originalText.map(t => {
-					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
-				});
-				const result = await Promise.all(resolveCalls);
-				channel.acceptPtyHostResolvedVariables(e.requestId, result);
-			}));
-
-			// Listen for config changes
-			const initialConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-			for (const match of Object.keys(initialConfig.autoReplies)) {
-				channel.installAutoReply(match, initialConfig.autoReplies[match]);
-			}
-			// TODO: Could simplify update to a single call
-			this._register(this._configurationService.onDidChangeConfiguration(async e => {
-				if (e.affectsConfiguration(TerminalSettingId.AutoReplies)) {
-					channel.uninstallAllAutoReplies();
-					const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-					for (const match of Object.keys(config.autoReplies)) {
-						await channel.installAutoReply(match, config.autoReplies[match]);
-					}
-				}
-			}));
-		} else {
-			this._remoteTerminalChannel = null;
+		// Listen for config changes
+		const initialConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
+		for (const match of Object.keys(initialConfig.autoReplies)) {
+			this._remoteTerminalChannel.installAutoReply(match, initialConfig.autoReplies[match]);
 		}
+		// TODO: Could simplify update to a single call
+		this._register(this._configurationService.onDidChangeConfiguration(async e => {
+			if (e.affectsConfiguration(TerminalSettingId.AutoReplies)) {
+				this._remoteTerminalChannel.uninstallAllAutoReplies();
+				const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
+				for (const match of Object.keys(config.autoReplies)) {
+					await this._remoteTerminalChannel.installAutoReply(match, config.autoReplies[match]);
+				}
+			}
+		}));
 	}
 
 	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
@@ -375,21 +305,9 @@ class RemoteTerminalBackend extends Disposable implements ITerminalBackend {
 
 		// Revive processes if needed
 		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
-		if (serializedState) {
+		const parsed = this._deserializeTerminalState(serializedState);
+		if (parsed) {
 			try {
-				// Deserialize the state
-				const parsedUnknown = JSON.parse(serializedState);
-				if (!('version' in parsedUnknown) || !('state' in parsedUnknown) || !Array.isArray(parsedUnknown.state)) {
-					this._logService.warn('Could not revive serialized processes, wrong format', parsedUnknown);
-					return;
-				}
-				const parsedCrossVersion = parsedUnknown as ICrossVersionSerializedTerminalState;
-				if (parsedCrossVersion.version !== 1) {
-					this._logService.warn(`Could not revive serialized processes, wrong version "${parsedCrossVersion.version}"`, parsedCrossVersion);
-					return;
-				}
-				const parsed = parsedCrossVersion.state as ISerializedTerminalState[];
-
 				// Note that remote terminals do not get their environment re-resolved unlike in local terminals
 
 				await this._remoteTerminalChannel.reviveTerminalProcesses(parsed, Intl.DateTimeFormat().resolvedOptions().locale);

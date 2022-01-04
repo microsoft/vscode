@@ -82,7 +82,7 @@ export class FoldingModel implements IDisposable {
 
 	getRegionAtLine(lineNumber: number): FoldingRegion | null {
 		if (this._regions) {
-			let index = this._regions.findRange(lineNumber);
+			const index = this._regions.findRange(lineNumber);
 			if (index >= 0) {
 				return this._regions.toRegion(index);
 			}
@@ -91,14 +91,14 @@ export class FoldingModel implements IDisposable {
 	}
 
 	getRegionsInside(region: FoldingRegion | null, filter?: RegionFilter | RegionFilterWithLevel): FoldingRegion[] {
-		let result: FoldingRegion[] = [];
-		let index = region ? region.regionIndex + 1 : 0;
-		let endLineNumber = region ? region.endLineNumber : Number.MAX_VALUE;
+		const result: FoldingRegion[] = [];
+		const index = region ? region.regionIndex + 1 : 0;
+		const endLineNumber = region ? region.endLineNumber : Number.MAX_VALUE;
 
 		if (filter && filter.length === 2) {
 			const levelStack: FoldingRegion[] = [];
 			for (let i = index, len = this._regions.length; i < len; i++) {
-				let current = this._regions.toRegion(i);
+				const current = this._regions.toRegion(i);
 				if (this._regions.getStartLineNumber(i) < endLineNumber) {
 					while (levelStack.length > 0 && !current.containedBy(levelStack[levelStack.length - 1])) {
 						levelStack.pop();
@@ -113,7 +113,7 @@ export class FoldingModel implements IDisposable {
 			}
 		} else {
 			for (let i = index, len = this._regions.length; i < len; i++) {
-				let current = this._regions.toRegion(i);
+				const current = this._regions.toRegion(i);
 				if (this._regions.getStartLineNumber(i) < endLineNumber) {
 					if (!filter || (filter as RegionFilter)(current)) {
 						result.push(current);
@@ -127,12 +127,12 @@ export class FoldingModel implements IDisposable {
 	}
 
 	getAllRegionsAtLine(lineNumber: number, filter?: (r: FoldingRegion, level: number) => boolean): FoldingRegion[] {
-		let result: FoldingRegion[] = [];
+		const result: FoldingRegion[] = [];
 		if (this._regions) {
 			let index = this._regions.findRange(lineNumber);
 			let level = 1;
 			while (index >= 0) {
-				let current = this._regions.toRegion(index);
+				const current = this._regions.toRegion(index);
 				if (!filter || filter(current, level)) {
 					result.push(current);
 				}

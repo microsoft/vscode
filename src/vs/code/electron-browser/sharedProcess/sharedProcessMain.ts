@@ -97,6 +97,8 @@ import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentitySe
 import { isLinux } from 'vs/base/common/platform';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 import { DiskFileSystemProviderClient, LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
+import { InspectProfilingService as V8InspectProfilingService } from 'vs/platform/profiling/node/profilingService';
+import { IV8InspectProfilingService } from 'vs/platform/profiling/common/profiling';
 
 class SharedProcessMain extends Disposable {
 
@@ -214,6 +216,7 @@ class SharedProcessMain extends Disposable {
 			// processes, we want a single process handling these operations.
 			this._register(new DiskFileSystemProviderClient(mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux })),
 			Schemas.userData,
+			fileService,
 			logService
 		));
 		fileService.registerProvider(Schemas.userData, userDataFileSystemProvider);
@@ -241,6 +244,9 @@ class SharedProcessMain extends Disposable {
 
 		// Checksum
 		services.set(IChecksumService, new SyncDescriptor(ChecksumService));
+
+		// V8 Inspect profiler
+		services.set(IV8InspectProfilingService, new SyncDescriptor(V8InspectProfilingService));
 
 		// Native Host
 		const nativeHostService = ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: this.configuration.windowId });
@@ -375,6 +381,10 @@ class SharedProcessMain extends Disposable {
 		// Checksum
 		const checksumChannel = ProxyChannel.fromService(accessor.get(IChecksumService));
 		this.server.registerChannel('checksum', checksumChannel);
+
+		// Profiling
+		const profilingChannel = ProxyChannel.fromService(accessor.get(IV8InspectProfilingService));
+		this.server.registerChannel('v8InspectProfiling', profilingChannel);
 
 		// Settings Sync
 		const userDataSyncMachineChannel = new UserDataSyncMachinesServiceChannel(accessor.get(IUserDataSyncMachinesService));

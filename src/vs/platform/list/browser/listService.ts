@@ -800,6 +800,10 @@ function createKeyboardNavigationEventFilter(container: HTMLElement, keybindingS
 	let inChord = false;
 
 	return event => {
+		if (event.toKeybinding().isModifierKey()) {
+			return false;
+		}
+
 		if (inChord) {
 			inChord = false;
 			return false;

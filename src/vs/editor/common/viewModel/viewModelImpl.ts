@@ -17,15 +17,16 @@ import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ICommand, IConfiguration, ICursorState, INewScrollPosition, IViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { ICommand, ICursorState, INewScrollPosition, IViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { EndOfLinePreference, ICursorStateComputer, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TextModelResolvedOptions, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide } from 'vs/editor/common/model/guidesTextModelPart';
 import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { ColorId, TokenizationRegistry } from 'vs/editor/common/languages';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
@@ -43,7 +44,7 @@ const USE_IDENTITY_LINES_COLLECTION = true;
 export class ViewModel extends Disposable implements IViewModel {
 
 	private readonly _editorId: number;
-	private readonly _configuration: IConfiguration;
+	private readonly _configuration: IEditorConfiguration;
 	public readonly model: ITextModel;
 	private readonly _eventDispatcher: ViewModelEventDispatcher;
 	public readonly onEvent: Event<OutgoingViewModelEvent>;
@@ -62,7 +63,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	constructor(
 		editorId: number,
-		configuration: IConfiguration,
+		configuration: IEditorConfiguration,
 		model: ITextModel,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
@@ -215,7 +216,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		// We might need to restore the current centered view range, so save it (if available)
 		let previousViewportStartModelPosition: Position | null = null;
 		if (this._viewportStartLine !== -1) {
-			let previousViewportStartViewPosition = new Position(this._viewportStartLine, this.getLineMinColumn(this._viewportStartLine));
+			const previousViewportStartViewPosition = new Position(this._viewportStartLine, this.getLineMinColumn(this._viewportStartLine));
 			previousViewportStartModelPosition = this.coordinatesConverter.convertViewPositionToModelPosition(previousViewportStartViewPosition);
 		}
 		let restorePreviousViewportStart = false;
@@ -374,7 +375,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 			// Update the configuration and reset the centered view line
 			this._viewportStartLine = -1;
-			this._configuration.setMaxLineNumber(this.model.getLineCount());
+			this._configuration.setModelLineCount(this.model.getLineCount());
 			this._updateConfigurationViewLineCountNow();
 
 			// Recover viewport
@@ -398,7 +399,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 
 		this._register(this.model.onDidChangeTokens((e) => {
-			let viewRanges: { fromLineNumber: number; toLineNumber: number; }[] = [];
+			const viewRanges: { fromLineNumber: number; toLineNumber: number; }[] = [];
 			for (let j = 0, lenJ = e.ranges.length; j < lenJ; j++) {
 				const modelRange = e.ranges[j];
 				const viewStartLineNumber = this.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.fromLineNumber, 1)).lineNumber;
@@ -504,11 +505,12 @@ export class ViewModel extends Disposable implements IViewModel {
 			return [visibleRange];
 		}
 
-		let result: Range[] = [], resultLen = 0;
+		const result: Range[] = [];
+		let resultLen = 0;
 		let startLineNumber = visibleRange.startLineNumber;
 		let startColumn = visibleRange.startColumn;
-		let endLineNumber = visibleRange.endLineNumber;
-		let endColumn = visibleRange.endColumn;
+		const endLineNumber = visibleRange.endLineNumber;
+		const endColumn = visibleRange.endColumn;
 		for (let i = 0, len = hiddenAreas.length; i < len; i++) {
 			const hiddenStartLineNumber = hiddenAreas[i].startLineNumber;
 			const hiddenEndLineNumber = hiddenAreas[i].endLineNumber;
@@ -616,7 +618,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	 */
 	public setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void {
 		this._viewportStartLine = startLineNumber;
-		let position = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(startLineNumber, this.getLineMinColumn(startLineNumber)));
+		const position = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(startLineNumber, this.getLineMinColumn(startLineNumber)));
 		this._viewportStartLineTrackedRange = this.model._setTrackedRange(this._viewportStartLineTrackedRange, new Range(position.lineNumber, position.column, position.lineNumber, position.column), TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 		const viewportStartLineTop = this.viewLayout.getVerticalOffsetForLineNumber(startLineNumber);
 		const scrollTop = this.viewLayout.getCurrentScrollTop();
@@ -676,11 +678,11 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
-		let mightContainRTL = this.model.mightContainRTL();
-		let mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
-		let tabSize = this.getTabSize();
-		let lineData = this._lines.getViewLineData(lineNumber);
-		let allInlineDecorations = this._decorations.getDecorationsViewportData(visibleRange).inlineDecorations;
+		const mightContainRTL = this.model.mightContainRTL();
+		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
+		const tabSize = this.getTabSize();
+		const lineData = this._lines.getViewLineData(lineNumber);
+		const allInlineDecorations = this._decorations.getDecorationsViewportData(visibleRange).inlineDecorations;
 		let inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
 
 		if (lineData.inlineDecorations) {
@@ -711,7 +713,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData {
-		let result = this._lines.getViewLinesData(startLineNumber, endLineNumber, needed);
+		const result = this._lines.getViewLinesData(startLineNumber, endLineNumber, needed);
 		return new MinimapLinesRenderingData(
 			this.getTabSize(),
 			result
@@ -833,7 +835,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		if (hasEmptyRange && emptySelectionClipboard) {
 			// mixed empty selections and non-empty selections
-			let result: string[] = [];
+			const result: string[] = [];
 			let prevModelLineNumber = 0;
 			for (const modelRange of modelRanges) {
 				const modelLineNumber = modelRange.startLineNumber;
@@ -849,7 +851,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			return result.length === 1 ? result[0] : result;
 		}
 
-		let result: string[] = [];
+		const result: string[] = [];
 		for (const modelRange of modelRanges) {
 			if (!modelRange.isEmpty()) {
 				result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
@@ -860,7 +862,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string, mode: string } | null {
 		const languageId = this.model.getLanguageId();
-		if (languageId === PLAINTEXT_MODE_ID) {
+		if (languageId === PLAINTEXT_LANGUAGE_ID) {
 			return null;
 		}
 
@@ -944,8 +946,8 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	private _getColorMap(): string[] {
-		let colorMap = TokenizationRegistry.getColorMap();
-		let result: string[] = ['#000000'];
+		const colorMap = TokenizationRegistry.getColorMap();
+		const result: string[] = ['#000000'];
 		if (colorMap) {
 			for (let i = 1, len = colorMap.length; i < len; i++) {
 				result[i] = Color.Format.CSS.formatHex(colorMap[i]);

@@ -4,20 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+import { isLinux, isWindows, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/path';
 import { validateFileName } from 'vs/workbench/contrib/files/browser/fileActions';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { toResource } from 'vs/base/test/common/utils';
-import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestFileService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
 
-const fileService = new TestFileService();
-function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number): ExplorerItem {
-	return new ExplorerItem(toResource.call(this, path), fileService, undefined, isFolder, false, false, name, mtime);
-}
 
 suite('Files - View Model', function () {
+
+	const fileService = new TestFileService();
+	function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number): ExplorerItem {
+		return new ExplorerItem(toResource.call(this, path), fileService, undefined, isFolder, false, false, name, mtime);
+	}
+
+	const pathService = new TestPathService();
 
 	test('Properties', function () {
 		const d = new Date().getTime();
@@ -183,23 +186,23 @@ suite('Files - View Model', function () {
 		const sChild = createStat.call(this, '/path/to/stat/alles.klar', 'alles.klar', true, true, 8096, d);
 		s.addChild(sChild);
 
-		assert(validateFileName(s, null!) !== null);
-		assert(validateFileName(s, '') !== null);
-		assert(validateFileName(s, '  ') !== null);
-		assert(validateFileName(s, 'Read Me') === null, 'name containing space');
+		assert(validateFileName(pathService, s, null!, OS) !== null);
+		assert(validateFileName(pathService, s, '', OS) !== null);
+		assert(validateFileName(pathService, s, '  ', OS) !== null);
+		assert(validateFileName(pathService, s, 'Read Me', OS) === null, 'name containing space');
 
 		if (isWindows) {
-			assert(validateFileName(s, 'foo:bar') !== null);
-			assert(validateFileName(s, 'foo*bar') !== null);
-			assert(validateFileName(s, 'foo?bar') !== null);
-			assert(validateFileName(s, 'foo<bar') !== null);
-			assert(validateFileName(s, 'foo>bar') !== null);
-			assert(validateFileName(s, 'foo|bar') !== null);
+			assert(validateFileName(pathService, s, 'foo:bar', OS) !== null);
+			assert(validateFileName(pathService, s, 'foo*bar', OS) !== null);
+			assert(validateFileName(pathService, s, 'foo?bar', OS) !== null);
+			assert(validateFileName(pathService, s, 'foo<bar', OS) !== null);
+			assert(validateFileName(pathService, s, 'foo>bar', OS) !== null);
+			assert(validateFileName(pathService, s, 'foo|bar', OS) !== null);
 		}
-		assert(validateFileName(s, 'alles.klar') === null);
-		assert(validateFileName(s, '.foo') === null);
-		assert(validateFileName(s, 'foo.bar') === null);
-		assert(validateFileName(s, 'foo') === null);
+		assert(validateFileName(pathService, s, 'alles.klar', OS) === null);
+		assert(validateFileName(pathService, s, '.foo', OS) === null);
+		assert(validateFileName(pathService, s, 'foo.bar', OS) === null);
+		assert(validateFileName(pathService, s, 'foo', OS) === null);
 	});
 
 	test('Validate File Name (For Rename)', function () {
@@ -208,25 +211,25 @@ suite('Files - View Model', function () {
 		const sChild = createStat.call(this, '/path/to/stat/alles.klar', 'alles.klar', true, true, 8096, d);
 		s.addChild(sChild);
 
-		assert(validateFileName(s, 'alles.klar') === null);
+		assert(validateFileName(pathService, s, 'alles.klar', OS) === null);
 
-		assert(validateFileName(s, 'Alles.klar') === null);
-		assert(validateFileName(s, 'Alles.Klar') === null);
+		assert(validateFileName(pathService, s, 'Alles.klar', OS) === null);
+		assert(validateFileName(pathService, s, 'Alles.Klar', OS) === null);
 
-		assert(validateFileName(s, '.foo') === null);
-		assert(validateFileName(s, 'foo.bar') === null);
-		assert(validateFileName(s, 'foo') === null);
+		assert(validateFileName(pathService, s, '.foo', OS) === null);
+		assert(validateFileName(pathService, s, 'foo.bar', OS) === null);
+		assert(validateFileName(pathService, s, 'foo', OS) === null);
 	});
 
 	test('Validate Multi-Path File Names', function () {
 		const d = new Date().getTime();
 		const wsFolder = createStat.call(this, '/', 'workspaceFolder', true, false, 8096, d);
 
-		assert(validateFileName(wsFolder, 'foo/bar') === null);
-		assert(validateFileName(wsFolder, 'foo\\bar') === null);
-		assert(validateFileName(wsFolder, 'all/slashes/are/same') === null);
-		assert(validateFileName(wsFolder, 'theres/one/different\\slash') === null);
-		assert(validateFileName(wsFolder, '/slashAtBeginning') !== null);
+		assert(validateFileName(pathService, wsFolder, 'foo/bar', OS) === null);
+		assert(validateFileName(pathService, wsFolder, 'foo\\bar', OS) === null);
+		assert(validateFileName(pathService, wsFolder, 'all/slashes/are/same', OS) === null);
+		assert(validateFileName(pathService, wsFolder, 'theres/one/different\\slash', OS) === null);
+		assert(validateFileName(pathService, wsFolder, '/slashAtBeginning', OS) !== null);
 
 		// attempting to add a child to a deeply nested file
 		const s1 = createStat.call(this, '/path', 'path', true, false, 8096, d);
@@ -237,11 +240,11 @@ suite('Files - View Model', function () {
 		s2.addChild(s3);
 		const fileDeeplyNested = createStat.call(this, '/path/to/stat/fileNested', 'fileNested', false, false, 8096, d);
 		s3.addChild(fileDeeplyNested);
-		assert(validateFileName(wsFolder, '/path/to/stat/fileNested/aChild') !== null);
+		assert(validateFileName(pathService, wsFolder, '/path/to/stat/fileNested/aChild', OS) !== null);
 
 		// detect if path already exists
-		assert(validateFileName(wsFolder, '/path/to/stat/fileNested') !== null);
-		assert(validateFileName(wsFolder, '/path/to/stat/') !== null);
+		assert(validateFileName(pathService, wsFolder, '/path/to/stat/fileNested', OS) !== null);
+		assert(validateFileName(pathService, wsFolder, '/path/to/stat/', OS) !== null);
 	});
 
 	test('Merge Local with Disk', function () {

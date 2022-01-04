@@ -41,7 +41,7 @@ class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 					return;
 				}
 
-				for (let change of e.rawEvent.changes) {
+				for (const change of e.rawEvent.changes) {
 					const [start, deleteCount] = change;
 					if (deleteCount > 0) {
 						const deleted = model.cells.slice(start, start + deleteCount);
@@ -181,11 +181,13 @@ class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 				internalMetadata.didPause = true;
 			}
 
-			notebookModel?.applyEdits([{
-				editType: CellEditType.PartialInternalMetadata,
-				handle: parsed.handle,
-				internalMetadata,
-			}], true, undefined, () => undefined, undefined);
+			if (notebookModel?.checkCellExistence(parsed.handle)) {
+				notebookModel?.applyEdits([{
+					editType: CellEditType.PartialInternalMetadata,
+					handle: parsed.handle,
+					internalMetadata,
+				}], true, undefined, () => undefined, undefined);
+			}
 		}
 	}
 }

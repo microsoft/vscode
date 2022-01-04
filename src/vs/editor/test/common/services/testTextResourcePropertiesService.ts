@@ -5,7 +5,7 @@
 
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
