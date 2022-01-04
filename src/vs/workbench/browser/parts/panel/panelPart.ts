@@ -591,11 +591,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			.map(v => v.id);
 	}
 
-	getAllPaneCompositeIds(): string[] {
-		return this.compositeBar.getVisibleComposites()
-			.map(v => v.id);
-	}
-
 	getActivePaneComposite(): IPaneComposite | undefined {
 		return <IPaneComposite>this.getActiveComposite();
 	}

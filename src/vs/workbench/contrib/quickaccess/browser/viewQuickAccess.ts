@@ -114,7 +114,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		};
 
 		const addPaneComposites = (location: ViewContainerLocation, containerLabel: string) => {
-			const paneComposites = this.paneCompositeService.getOrderedPaneCompositeIds(location).map(id => { return { id }; });
+			const paneComposites = this.paneCompositeService.getPaneComposites(location);
 			for (const paneComposite of paneComposites) {
 				if (this.includeViewContainer(paneComposite)) {
 					const viewContainer = this.viewDescriptorService.getViewContainerById(paneComposite.id);
@@ -176,7 +176,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		return viewEntries;
 	}
 
-	private includeViewContainer(container: { id: string }): boolean {
+	private includeViewContainer(container: PaneCompositeDescriptor): boolean {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(container.id);
 		if (viewContainer?.hideIfEmpty) {
 			return this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.length > 0;

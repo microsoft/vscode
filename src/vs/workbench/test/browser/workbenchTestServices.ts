@@ -640,10 +640,6 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 		throw new Error('Method not implemented.');
 	}
 
-	getOrderedPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
-		throw new Error('Method not implemented.');
-	}
-
 	showActivity(id: string, viewContainerLocation: ViewContainerLocation, badge: IBadge, clazz?: string, priority?: number): IDisposable {
 		throw new Error('Method not implemented.');
 	}
@@ -700,7 +696,6 @@ export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelector
 	getPaneComposites() { return []; }
 	getPinnedPaneCompositeIds() { return []; }
 	getVisiblePaneCompositeIds() { return []; }
-	getAllPaneCompositeIds() { return []; }
 	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }
