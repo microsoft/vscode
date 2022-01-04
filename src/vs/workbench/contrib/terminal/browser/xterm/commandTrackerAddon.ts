@@ -46,7 +46,7 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 				return;
 			}
 			if (this._terminal.buffer.active.cursorX >= MINIMUM_PROMPT_LENGTH) {
-				if (!this._capabilities?.includes(ProcessCapability.ShellIntegration)) {
+				if (!this._shellIntegrationEnabled()) {
 					terminal.onKey(e => this._onKey(e.key));
 				} else if (e.type === ShellIntegrationInteraction.CommandFinished) {
 					this._terminal?.registerMarker(0);
@@ -56,14 +56,18 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 			this._handleIntegratedShellChange(e);
 		});
 		terminal.onData(data => {
-			if (this._dataIsCommand) {
+			if (this._shellIntegrationEnabled() && this._dataIsCommand) {
 				this._currentCommand += data;
 			}
 		});
 	}
 
+	private _shellIntegrationEnabled(): boolean {
+		return this._capabilities?.includes(ProcessCapability.ShellIntegration) || false;
+	}
+
 	private _handleIntegratedShellChange(event: { type: string, value: string }): void {
-		if (!this._capabilities?.includes(ProcessCapability.ShellIntegration)) {
+		if (!this._shellIntegrationEnabled()) {
 			return;
 		}
 		switch (event.type) {
