@@ -3,29 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { distinct } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { parseLinkedText } from 'vs/base/common/linkedText';
 import { LRUCache, ResourceMap } from 'vs/base/common/map';
 import { IRange } from 'vs/base/common/range';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { DynamicCssRules } from 'vs/editor/browser/editorDom';
+import { CssProperties, DynamicCssRules } from 'vs/editor/browser/editorDom';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, InjectedTextOptions, ITextModel, IWordAtPosition, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { InlayHint, InlayHintKind, InlayHintsProvider, InlayHintsProviderRegistry } from 'vs/editor/common/languages';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/languages/languageFeatureRegistry';
+import { IModelDeltaDecoration, InjectedTextOptions, ITextModel, IWordAtPosition, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { editorInlayHintBackground, editorInlayHintForeground, editorInlayHintParameterBackground, editorInlayHintParameterForeground, editorInlayHintTypeBackground, editorInlayHintTypeForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
-
+import * as colors from 'vs/platform/theme/common/colorRegistry';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 const MAX_DECORATORS = 1500;
 
@@ -110,7 +111,7 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _sessionDisposables = new DisposableStore();
 	private readonly _getInlayHintsDelays = new LanguageFeatureRequestDelays(InlayHintsProviderRegistry, 25, 500);
 	private readonly _cache = new InlayHintsCache();
-	private readonly _decorationsMetadata = new Map<string, { hint: InlayHint, classNameRef: IDisposable }>();
+	private readonly _decorationsMetadata = new Map<string, { hint: InlayHint, classNameRef: IDisposable, linkTarget?: string }>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
 	constructor(
@@ -167,7 +168,7 @@ export class InlayHintsController implements IEditorContribution {
 				return;
 			}
 			this._updateHintsDecorators(ranges, result);
-			this._cache.set(model, Array.from(this._decorationsMetadata.values()).map(obj => obj.hint));
+			this._cache.set(model, distinct(Array.from(this._decorationsMetadata.values(), obj => obj.hint)));
 
 		}, this._getInlayHintsDelays.get(model));
 
@@ -213,43 +214,17 @@ export class InlayHintsController implements IEditorContribution {
 		const { fontSize, fontFamily } = this._getLayoutInfo();
 		const model = this._editor.getModel()!;
 
-		const newDecorationsData: { decoration: IModelDeltaDecoration, classNameRef: IDisposable }[] = [];
+		const newDecorationsData: { hint: InlayHint, decoration: IModelDeltaDecoration, linkTarget?: string, classNameRef: IDisposable }[] = [];
 
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
 		for (const hint of hints) {
 
-			const { text, position, whitespaceBefore, whitespaceAfter } = hint;
-			const marginBefore = whitespaceBefore ? (fontSize / 3) | 0 : 0;
-			const marginAfter = whitespaceAfter ? (fontSize / 3) | 0 : 0;
+			const { position, whitespaceBefore, whitespaceAfter } = hint;
 
-			let backgroundColor: ThemeColor;
-			let color: ThemeColor;
-			if (hint.kind === InlayHintKind.Parameter) {
-				backgroundColor = themeColorFromId(editorInlayHintParameterBackground);
-				color = themeColorFromId(editorInlayHintParameterForeground);
-			} else if (hint.kind === InlayHintKind.Type) {
-				backgroundColor = themeColorFromId(editorInlayHintTypeBackground);
-				color = themeColorFromId(editorInlayHintTypeForeground);
-			} else {
-				backgroundColor = themeColorFromId(editorInlayHintBackground);
-				color = themeColorFromId(editorInlayHintForeground);
-			}
-
-			const classNameRef = this._ruleFactory.createClassNameRef({
-				fontSize: `${fontSize}px`,
-				margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
-				fontFamily: `var(${fontFamilyVar}), ${EDITOR_FONT_DEFAULTS.fontFamily}`,
-				padding: `1px ${Math.max(1, fontSize / 4) | 0}px`,
-				borderRadius: `${(fontSize / 4) | 0}px`,
-				verticalAlign: 'middle',
-				backgroundColor,
-				color
-			});
-
+			// position
 			let direction: 'before' | 'after' = 'before';
-
 			let range = Range.fromPositions(position);
 			let word = model.getWordAtPosition(position);
 			let usesWordRange = false;
@@ -264,22 +239,70 @@ export class InlayHintsController implements IEditorContribution {
 				}
 			}
 
-			newDecorationsData.push({
-				decoration: {
-					range,
-					options: {
-						[direction]: {
-							content: fixSpace(text),
-							inlineClassNameAffectsLetterSpacing: true,
-							inlineClassName: classNameRef.className,
-						} as InjectedTextOptions,
-						description: 'InlayHint',
-						showIfCollapsed: !usesWordRange,
-						stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
-					}
-				},
-				classNameRef
-			});
+			// text w/ links
+			const { nodes } = parseLinkedText(hint.text);
+			const marginBefore = whitespaceBefore ? (fontSize / 3) | 0 : 0;
+			const marginAfter = whitespaceAfter ? (fontSize / 3) | 0 : 0;
+
+			for (let i = 0; i < nodes.length; i++) {
+				const node = nodes[i];
+
+				const isFirst = i === 0;
+				const isLast = i === nodes.length - 1;
+				const isLink = typeof node === 'object';
+
+				const cssProperties: CssProperties = {
+					fontSize: `${fontSize}px`,
+					fontFamily: `var(${fontFamilyVar}), ${EDITOR_FONT_DEFAULTS.fontFamily}`,
+					verticalAlign: 'middle',
+				};
+
+				this._fillInColors(cssProperties, hint);
+
+				if (isLink) {
+					cssProperties.textDecoration = 'underline';
+				}
+
+				if (isFirst && isLast) {
+					// only element
+					cssProperties.margin = `0px ${marginAfter}px 0px ${marginBefore}px`;
+					cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px`;
+					cssProperties.borderRadius = `${(fontSize / 4) | 0}px`;
+				} else if (isFirst) {
+					// first element
+					cssProperties.margin = `0px 0 0 ${marginAfter}px`;
+					cssProperties.padding = `1px 0 0 ${Math.max(1, fontSize / 4) | 0}px`;
+					cssProperties.borderRadius = `${(fontSize / 4) | 0}px 0 0 ${(fontSize / 4) | 0}px`;
+				} else if (isLast) {
+					// last element
+					cssProperties.margin = `0px ${marginAfter}px 0 0`;
+					cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px 0 0`;
+					cssProperties.borderRadius = `0 ${(fontSize / 4) | 0}px ${(fontSize / 4) | 0}px 0`;
+				} else {
+					cssProperties.padding = `1px 0 1px 0`;
+				}
+
+				const classNameRef = this._ruleFactory.createClassNameRef(cssProperties);
+
+				newDecorationsData.push({
+					hint,
+					linkTarget: isLink ? node.href : undefined,
+					classNameRef,
+					decoration: {
+						range,
+						options: {
+							[direction]: {
+								content: fixSpace(isLink ? node.label : node),
+								inlineClassNameAffectsLetterSpacing: true,
+								inlineClassName: classNameRef.className,
+							} as InjectedTextOptions,
+							description: 'InlayHint',
+							showIfCollapsed: !usesWordRange,
+							stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+						}
+					},
+				});
+			}
 
 			if (newDecorationsData.length > MAX_DECORATORS) {
 				break;
@@ -301,7 +324,21 @@ export class InlayHintsController implements IEditorContribution {
 		}
 		const newDecorationIds = model.deltaDecorations(decorationIdsToReplace, newDecorationsData.map(d => d.decoration), this._decorationOwnerId);
 		for (let i = 0; i < newDecorationIds.length; i++) {
-			this._decorationsMetadata.set(newDecorationIds[i], { hint: hints[i], classNameRef: newDecorationsData[i].classNameRef });
+			const data = newDecorationsData[i];
+			this._decorationsMetadata.set(newDecorationIds[i], { hint: data.hint, classNameRef: data.classNameRef, linkTarget: data.linkTarget });
+		}
+	}
+
+	private _fillInColors(props: CssProperties, hint: InlayHint): void {
+		if (hint.kind === InlayHintKind.Parameter) {
+			props.backgroundColor = themeColorFromId(colors.editorInlayHintParameterBackground);
+			props.color = themeColorFromId(colors.editorInlayHintParameterForeground);
+		} else if (hint.kind === InlayHintKind.Type) {
+			props.backgroundColor = themeColorFromId(colors.editorInlayHintTypeBackground);
+			props.color = themeColorFromId(colors.editorInlayHintTypeForeground);
+		} else {
+			props.backgroundColor = themeColorFromId(colors.editorInlayHintBackground);
+			props.color = themeColorFromId(colors.editorInlayHintForeground);
 		}
 	}
 
@@ -357,4 +394,3 @@ CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, .
 		ref.dispose();
 	}
 });
-
