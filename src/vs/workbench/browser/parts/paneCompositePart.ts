@@ -73,6 +73,11 @@ export interface IPaneCompositeSelectorPart {
 	getVisiblePaneCompositeIds(): string[];
 
 	/**
+	 * Returns id of all view containers following the visual order including those not pinned or visible.
+	 */
+	getAllPaneCompositeIds(): string[];
+
+	/**
 	 * Show an activity in a viewlet.
 	 */
 	showActivity(id: string, badge: IBadge, clazz?: string, priority?: number): IDisposable;
@@ -124,6 +129,10 @@ export class PaneCompositeParts implements IPaneCompositePartService {
 
 	getVisiblePaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
 		return this.getSelectorPartByLocation(viewContainerLocation).getVisiblePaneCompositeIds();
+	}
+
+	getOrderedPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
+		return this.getSelectorPartByLocation(viewContainerLocation).getAllPaneCompositeIds();
 	}
 
 	getProgressIndicator(id: string, viewContainerLocation: ViewContainerLocation): IProgressIndicator | undefined {

@@ -750,6 +750,11 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			.map(v => v.id);
 	}
 
+	getAllPaneCompositeIds(): string[] {
+		return this.compositeBar.getVisibleComposites()
+			.map(v => v.id);
+	}
+
 	focus(): void {
 		this.compositeBar.focus();
 	}
