@@ -211,9 +211,10 @@ export async function provideSuggestionItems(
 	const durations: CompletionDurationEntry[] = [];
 	let needsClipboard = false;
 
-	const onCompletionList = (provider: modes.CompletionItemProvider, container: modes.CompletionList | null | undefined, sw: StopWatch) => {
+	const onCompletionList = (provider: modes.CompletionItemProvider, container: modes.CompletionList | null | undefined, sw: StopWatch): boolean => {
+		let didAddResult = false;
 		if (!container) {
-			return;
+			return didAddResult;
 		}
 		for (let suggestion of container.suggestions) {
 			if (!options.kindFilter.has(suggestion.kind)) {
@@ -233,6 +234,7 @@ export async function provideSuggestionItems(
 					needsClipboard = SnippetParser.guessNeedsClipboard(suggestion.insertText);
 				}
 				result.push(new CompletionItem(position, suggestion, container, provider));
+				didAddResult = true;
 			}
 		}
 		if (isDisposable(container)) {
@@ -241,6 +243,7 @@ export async function provideSuggestionItems(
 		durations.push({
 			providerName: provider._debugDisplayName ?? 'unkown_provider', elapsedProvider: container.duration ?? -1, elapsedOverall: sw.elapsed()
 		});
+		return didAddResult;
 	};
 
 	// ask for snippets in parallel to asking "real" providers. Only do something if configured to
@@ -263,8 +266,7 @@ export async function provideSuggestionItems(
 	for (let providerGroup of modes.CompletionProviderRegistry.orderedGroups(model)) {
 
 		// for each support in the group ask for suggestions
-		let lenBefore = result.length;
-
+		let didAddResult = false;
 		await Promise.all(providerGroup.map(async provider => {
 			if (options.providerFilter.size > 0 && !options.providerFilter.has(provider)) {
 				return;
@@ -272,13 +274,13 @@ export async function provideSuggestionItems(
 			try {
 				const sw = new StopWatch(true);
 				const list = await provider.provideCompletionItems(model, position, context, token);
-				onCompletionList(provider, list, sw);
+				didAddResult = onCompletionList(provider, list, sw) || didAddResult;
 			} catch (err) {
 				onUnexpectedExternalError(err);
 			}
 		}));
 
-		if (lenBefore !== result.length || token.isCancellationRequested) {
+		if (didAddResult || token.isCancellationRequested) {
 			break;
 		}
 	}
