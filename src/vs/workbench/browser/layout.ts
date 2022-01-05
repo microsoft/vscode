@@ -129,8 +129,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	readonly onDidLayout = this._onDidLayout.event;
 
 	//#endregion
+
+	//#region Properties
+
 	readonly hasContainer = true;
-	readonly container: HTMLElement = document.createElement('div');
+	readonly container = document.createElement('div');
 
 	private _dimension!: IDimension;
 	get dimension(): IDimension { return this._dimension; }
@@ -148,12 +151,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		};
 	}
 
+	//#endregion
+
 	private readonly parts = new Map<string, Part>();
 
-	private _initialized: boolean = false;
+	private initialized = false;
 	private workbenchGrid!: SerializableGrid<ISerializableView>;
-
-	private disposed: boolean | undefined;
 
 	private titleBarPartView!: ISerializableView;
 	private bannerPartView!: ISerializableView;
@@ -184,6 +187,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private windowState!: IWorkbenchLayoutWindowState;
 	private stateModel!: LayoutStateModel;
+
+	private disposed = false;
 
 	constructor(
 		protected readonly parent: HTMLElement
@@ -904,7 +909,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	isVisible(part: Parts): boolean {
-		if (this._initialized) {
+		if (this.initialized) {
 			switch (part) {
 				case Parts.TITLEBAR_PART:
 					return this.workbenchGrid.isViewVisible(this.titleBarPartView);
@@ -1233,7 +1238,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// Layout the grid widget
 			this.workbenchGrid.layout(this._dimension.width, this._dimension.height);
-			this._initialized = true;
+			this.initialized = true;
 
 			// Emit as event
 			this._onDidLayout.fire(this._dimension);
@@ -1691,7 +1696,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	updateMenubarVisibility(skipLayout: boolean): void {
-		// Layout
 		const shouldShowTitleBar = this.shouldShowTitleBar();
 		if (!skipLayout && this.workbenchGrid && shouldShowTitleBar !== this.isVisible(Parts.TITLEBAR_PART)) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
@@ -1722,7 +1726,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (!this.isVisible(Parts.PANEL_PART)) {
 			this.setPanelHidden(false);
 		}
-
 
 		const panelPart = this.getPart(Parts.PANEL_PART);
 		const oldPositionValue = positionToString(this.getPanelPosition());
