@@ -56,7 +56,7 @@ const cachedValidatedLinks = new Map<string, { uri: URI, link: string, isDirecto
 export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider {
 	private _cacheTilTimeout = 0;
 	protected _enableCaching = true;
-
+	static id: string = 'TerminalValidatedLocalLinkProvider';
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _processOperatingSystem: OperatingSystem,
