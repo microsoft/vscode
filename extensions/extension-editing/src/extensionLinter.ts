@@ -77,7 +77,7 @@ export class ExtensionLinter {
 
 	private queue(document: TextDocument) {
 		const p = document.uri.path;
-		if (document.languageId === 'json' && endsWith(p, '/package.json')) {
+		if (document.languageId === 'json' && p.endsWith('/package.json')) {
 			this.packageJsonQ.add(document);
 			this.startTimer();
 		}
@@ -86,7 +86,7 @@ export class ExtensionLinter {
 
 	private queueReadme(document: TextDocument) {
 		const p = document.uri.path;
-		if (document.languageId === 'markdown' && (endsWith(p.toLowerCase(), '/readme.md') || endsWith(p.toLowerCase(), '/changelog.md'))) {
+		if (document.languageId === 'markdown' && (p.toLowerCase().endsWith('/readme.md') || p.toLowerCase().endsWith('/changelog.md'))) {
 			this.readmeQ.add(document);
 			this.startTimer();
 		}
@@ -348,7 +348,7 @@ export class ExtensionLinter {
 			diagnostics.push(new Diagnostic(range, message, DiagnosticSeverity.Warning));
 		}
 
-		if (endsWith(uri.path.toLowerCase(), '.svg') && !isTrustedSVGSource(uri)) {
+		if (uri.path.toLowerCase().endsWith('.svg') && !isTrustedSVGSource(uri)) {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			diagnostics.push(new Diagnostic(range, svgsNotValid, DiagnosticSeverity.Warning));
 		}
@@ -362,17 +362,6 @@ export class ExtensionLinter {
 	public dispose() {
 		this.disposables.forEach(d => d.dispose());
 		this.disposables = [];
-	}
-}
-
-function endsWith(haystack: string, needle: string): boolean {
-	let diff = haystack.length - needle.length;
-	if (diff > 0) {
-		return haystack.indexOf(needle, diff) === diff;
-	} else if (diff === 0) {
-		return haystack === needle;
-	} else {
-		return false;
 	}
 }
 
