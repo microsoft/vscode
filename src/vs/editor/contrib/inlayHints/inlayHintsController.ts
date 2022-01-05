@@ -230,7 +230,7 @@ export class InlayHintsController implements IEditorContribution {
 			}
 			const options = e.target.detail?.injectedText?.options;
 			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLink) {
-				this._openerService.open(options.attachedData.href, { allowCommands: true });
+				this._openerService.open(options.attachedData.href, { allowCommands: true, openToSide: e.hasSideBySideModifier });
 			}
 		}));
 
