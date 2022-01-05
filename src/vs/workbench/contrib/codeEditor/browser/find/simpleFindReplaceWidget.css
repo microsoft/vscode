@@ -9,7 +9,7 @@
 	position: absolute;
 	top: -45px;
 	right: 18px;
-	width: 318px;
+	width: 341px;
 	max-width: calc(100% - 28px - 28px - 8px);
 	pointer-events: none;
 	transition: top 200ms linear;

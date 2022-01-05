@@ -828,6 +828,7 @@ export interface INotebookSearchOptions {
 	wholeWord?: boolean;
 	caseSensitive?: boolean;
 	wordSeparators?: string;
+	includeOutputs?: boolean;
 }
 
 export interface INotebookExclusiveDocumentFilter {

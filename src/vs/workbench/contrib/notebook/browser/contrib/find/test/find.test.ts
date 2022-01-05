@@ -56,7 +56,7 @@ suite('Notebook Find', () => {
 			],
 			async (editor, viewModel, accessor) => {
 				accessor.stub(IConfigurationService, configurationService);
-				const state = new FindReplaceState();
+				const state = new FindReplaceState<boolean>();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
 				state.change({ isRevealed: true }, true);
 				state.change({ searchString: '1' }, true);
@@ -94,7 +94,7 @@ suite('Notebook Find', () => {
 			async (editor, viewModel, accessor) => {
 				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
-				const state = new FindReplaceState();
+				const state = new FindReplaceState<boolean>();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
 				state.change({ isRevealed: true }, true);
 				state.change({ searchString: '1' }, true);
@@ -137,7 +137,7 @@ suite('Notebook Find', () => {
 			async (editor, viewModel, accessor) => {
 				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
-				const state = new FindReplaceState();
+				const state = new FindReplaceState<boolean>();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
 				state.change({ isRevealed: true }, true);
 				state.change({ searchString: '1' }, true);
@@ -173,7 +173,7 @@ suite('Notebook Find', () => {
 			async (editor, viewModel, accessor) => {
 				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
-				const state = new FindReplaceState();
+				const state = new FindReplaceState<boolean>();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
 				state.change({ isRevealed: true }, true);
 				state.change({ searchString: '1' }, true);
@@ -202,7 +202,7 @@ suite('Notebook Find', () => {
 			],
 			async (editor, viewModel, accessor) => {
 				accessor.stub(IConfigurationService, configurationService);
-				const state = new FindReplaceState();
+				const state = new FindReplaceState<boolean>();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
 				state.change({ isRevealed: true }, true);
 				state.change({ searchString: '1' }, true);

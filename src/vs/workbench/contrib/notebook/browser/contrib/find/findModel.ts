@@ -40,7 +40,7 @@ export class FindModel extends Disposable {
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		private readonly _state: FindReplaceState,
+		private readonly _state: FindReplaceState<boolean>,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
@@ -49,7 +49,7 @@ export class FindModel extends Disposable {
 		this._computePromise = null;
 
 		this._register(_state.onFindReplaceStateChange(e => {
-			if (e.searchString || e.isRegex || e.matchCase || e.searchScope || e.wholeWord || (e.isRevealed && this._state.isRevealed)) {
+			if (e.searchString || e.isRegex || e.matchCase || e.searchScope || e.wholeWord || (e.isRevealed && this._state.isRevealed) || e.filters) {
 				this.research();
 			}
 
@@ -308,7 +308,7 @@ export class FindModel extends Disposable {
 		const val = this._state.searchString;
 		const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
 
-		const options: INotebookSearchOptions = { regex: this._state.isRegex, wholeWord: this._state.wholeWord, caseSensitive: this._state.matchCase, wordSeparators: wordSeparators };
+		const options: INotebookSearchOptions = { regex: this._state.isRegex, wholeWord: this._state.wholeWord, caseSensitive: this._state.matchCase, wordSeparators: wordSeparators, includeOutputs: !!this._state.filters };
 		if (!val) {
 			ret = null;
 		} else if (!this._notebookEditor.hasModel()) {

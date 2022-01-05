@@ -2267,6 +2267,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		const findMatches = this._notebookViewModel.find(query, options).filter(match => match.matches.length > 0);
+		if (!options.includeOutputs) {
+			// clear output matches
+			await this._webview?.findStop();
+			return findMatches;
+		}
+
 		const matchMap: { [key: string]: CellFindMatchWithIndex } = {};
 		findMatches.forEach(match => {
 			matchMap[match.cell.id] = match;

@@ -26,6 +26,7 @@ export interface FindReplaceStateChangedEvent {
 	currentMatch: boolean;
 	loop: boolean;
 	isSearching: boolean;
+	filters: boolean;
 }
 
 export const enum FindOptionOverride {
@@ -34,7 +35,7 @@ export const enum FindOptionOverride {
 	False = 2
 }
 
-export interface INewFindReplaceState {
+export interface INewFindReplaceState<T = null> {
 	searchString?: string;
 	replaceString?: string;
 	isRevealed?: boolean;
@@ -50,6 +51,7 @@ export interface INewFindReplaceState {
 	searchScope?: Range[] | null;
 	loop?: boolean;
 	isSearching?: boolean;
+	filters?: T;
 }
 
 function effectiveOptionValue(override: FindOptionOverride, value: boolean): boolean {
@@ -62,7 +64,7 @@ function effectiveOptionValue(override: FindOptionOverride, value: boolean): boo
 	return value;
 }
 
-export class FindReplaceState extends Disposable {
+export class FindReplaceState<T = null> extends Disposable {
 	private _searchString: string;
 	private _replaceString: string;
 	private _isRevealed: boolean;
@@ -81,6 +83,7 @@ export class FindReplaceState extends Disposable {
 	private _currentMatch: Range | null;
 	private _loop: boolean;
 	private _isSearching: boolean;
+	private _filters: T | null;
 	private readonly _onFindReplaceStateChange = this._register(new Emitter<FindReplaceStateChangedEvent>());
 
 	public get searchString(): string { return this._searchString; }
@@ -102,6 +105,7 @@ export class FindReplaceState extends Disposable {
 	public get matchesCount(): number { return this._matchesCount; }
 	public get currentMatch(): Range | null { return this._currentMatch; }
 	public get isSearching(): boolean { return this._isSearching; }
+	public get filters(): T | null { return this._filters; }
 	public readonly onFindReplaceStateChange: Event<FindReplaceStateChangedEvent> = this._onFindReplaceStateChange.event;
 
 	constructor() {
@@ -124,6 +128,7 @@ export class FindReplaceState extends Disposable {
 		this._currentMatch = null;
 		this._loop = true;
 		this._isSearching = false;
+		this._filters = null;
 	}
 
 	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range | undefined): void {
@@ -143,7 +148,8 @@ export class FindReplaceState extends Disposable {
 			matchesCount: false,
 			currentMatch: false,
 			loop: false,
-			isSearching: false
+			isSearching: false,
+			filters: false
 		};
 		let somethingChanged = false;
 
@@ -178,7 +184,7 @@ export class FindReplaceState extends Disposable {
 		}
 	}
 
-	public change(newState: INewFindReplaceState, moveCursor: boolean, updateHistory: boolean = true): void {
+	public change(newState: INewFindReplaceState<T>, moveCursor: boolean, updateHistory: boolean = true): void {
 		let changeEvent: FindReplaceStateChangedEvent = {
 			moveCursor: moveCursor,
 			updateHistory: updateHistory,
@@ -195,7 +201,8 @@ export class FindReplaceState extends Disposable {
 			matchesCount: false,
 			currentMatch: false,
 			loop: false,
-			isSearching: false
+			isSearching: false,
+			filters: false
 		};
 		let somethingChanged = false;
 
@@ -267,6 +274,14 @@ export class FindReplaceState extends Disposable {
 			if (this._isSearching !== newState.isSearching) {
 				this._isSearching = newState.isSearching;
 				changeEvent.isSearching = true;
+				somethingChanged = true;
+			}
+		}
+
+		if (typeof newState.filters !== 'undefined') {
+			if (this._filters !== newState.filters) {
+				this._filters = newState.filters;
+				changeEvent.filters = true;
 				somethingChanged = true;
 			}
 		}
