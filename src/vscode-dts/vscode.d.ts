@@ -7412,7 +7412,7 @@ declare module 'vscode' {
 		 * is configurable by the user. Each entry can be be:
 		 * - the absolute path to exclude
 		 * - a relative path to exclude (for example `build/output`)
-		 * - a simple glob pattern (for example `**\build`, `output/**`)
+		 * - a simple glob pattern (for example `**​/build`, `output/**`)
 		 *
 		 * It is the file system provider's job to call {@linkcode FileSystemProvider.onDidChangeFile onDidChangeFile}
 		 * for every change given these rules. No event should be emitted for files that match any of the provided
@@ -10947,8 +10947,7 @@ declare module 'vscode' {
 		 * A glob pattern that filters the file events on their absolute path must be provided. Optionally,
 		 * flags to ignore certain kinds of events can be provided. To stop listening to events the watcher must be disposed.
 		 *
-		 * *Note* that only files within the current {@link workspace.workspaceFolders workspace folders} will be watched by
-		 * default. Add additional paths for watching via the {@linkcode workspace.fs.watch watch} method.
+		 * *Note* that only files within the current {@link workspace.workspaceFolders workspace folders} can be watched.
 		 * *Note* that when watching for file changes such as '**​/*.js', notifications will not be sent when a parent folder is
 		 * moved or deleted (this is a known limitation of the current implementation and may change in the future).
 		 *
