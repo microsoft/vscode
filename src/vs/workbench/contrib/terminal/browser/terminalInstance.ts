@@ -746,7 +746,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (result) {
 			this.sendText(type === 'cwd' ? `cd ${result.label}` : result.label, true);
 		}
-		return { wordLinks: wordResults, webLinks: webResults, fileLinks: fileResults };
 	}
 
 	detachFromElement(): void {
