@@ -39,6 +39,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	dispose(): void {
 		this._disposables.dispose();
 		dispose(this._fileProvider.values());
+		dispose(this._watches.values());
 		this._fileProvider.clear();
 	}
 

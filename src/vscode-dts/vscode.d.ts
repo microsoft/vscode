@@ -7418,8 +7418,6 @@ declare module 'vscode' {
 		 * for every change given these rules. No event should be emitted for files that match any of the provided
 		 * excludes.
 		 *
-		 * *Note:* 
-		 *
 		 * @param uri The uri of the file or folder to be watched.
 		 * @param options Configures the watch.
 		 * @returns A disposable that tells the provider to stop watching the `uri`.
