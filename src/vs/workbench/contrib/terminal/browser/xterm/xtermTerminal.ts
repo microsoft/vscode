@@ -172,7 +172,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.options.wordSeparator = config.wordSeparators;
 		this.raw.options.customGlyphs = config.customGlyphs;
 		if ((!isSafari && config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
-			this._enableWebglRenderer();
+			this.enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
 			this.raw.options.rendererType = this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType);
@@ -312,7 +312,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		return rendererType;
 	}
 
-	private async _enableWebglRenderer(): Promise<void> {
+	async enableWebglRenderer(): Promise<void> {
 		if (!this.raw.element || this._webglAddon) {
 			return;
 		}
@@ -320,6 +320,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this._webglAddon = new Addon();
 		try {
 			this.raw.loadAddon(this._webglAddon);
+			this._logService.trace('Webgl was loaded');
 			this._webglAddon.onContextLoss(() => {
 				this._logService.info(`Webgl lost context, disposing of webgl renderer`);
 				this._disposeOfWebglRenderer();

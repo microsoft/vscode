@@ -838,6 +838,11 @@ export interface IXtermTerminal {
 	 * viewport.
 	 */
 	clearBuffer(): void;
+
+	/*
+	 * Enables the webgl renderer
+	 */
+	enableWebglRenderer(): Promise<void>
 }
 
 export interface IRequestAddInstanceToGroupEvent {
