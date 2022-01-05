@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { CharacterPair, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
-import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
+import { CharacterPair, IndentAction } from 'vs/editor/common/languages/languageConfiguration';
+import { OnEnterSupport } from 'vs/editor/common/languages/supports/onEnter';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 

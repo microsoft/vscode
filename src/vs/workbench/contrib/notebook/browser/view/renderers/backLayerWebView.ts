@@ -6,7 +6,7 @@
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IAction } from 'vs/base/common/actions';
 import { coalesce } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { decodeBase64 } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
@@ -15,10 +15,10 @@ import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
+import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import * as nls from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -620,7 +620,7 @@ var requirejs = (function() {
 				case 'clicked-link':
 					{
 						let linkToOpen: URI | string | undefined;
-						if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto)) {
+						if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.command)) {
 							linkToOpen = data.href;
 						} else if (!/^[\w\-]+:/.test(data.href)) {
 							if (this.documentUri.scheme === Schemas.untitled) {
@@ -649,7 +649,7 @@ var requirejs = (function() {
 						}
 
 						if (linkToOpen) {
-							this.openerService.open(linkToOpen, { fromUserGesture: true });
+							this.openerService.open(linkToOpen, { fromUserGesture: true, allowCommands: true });
 						}
 						break;
 					}
@@ -760,17 +760,15 @@ var requirejs = (function() {
 
 						for (const { id, value, lang } of data.codeBlocks) {
 							// The language id may be a language aliases (e.g.js instead of javascript)
-							const languageId = this.languageService.getLanguageIdForLanguageName(lang);
+							const languageId = this.languageService.getLanguageIdByLanguageName(lang);
 							if (!languageId) {
 								continue;
 							}
 
-							this.languageService.triggerMode(languageId);
-							TokenizationRegistry.getPromise(languageId)?.then(tokenization => {
+							tokenizeToString(this.languageService, value, languageId).then((html) => {
 								if (this._disposed) {
 									return;
 								}
-								const html = tokenizeToString(value, this.languageService.languageIdCodec, tokenization);
 								this._sendMessageToWebview({
 									type: 'tokenizedCodeBlock',
 									html,
@@ -832,13 +830,7 @@ var requirejs = (function() {
 			return;
 		}
 
-		const decoded = atob(splitData);
-		const typedArray = new Uint8Array(decoded.length);
-		for (let i = 0; i < decoded.length; i++) {
-			typedArray[i] = decoded.charCodeAt(i);
-		}
-
-		const buff = VSBuffer.wrap(typedArray);
+		const buff = decodeBase64(splitData);
 		await this.fileService.writeFile(newFileUri, buff);
 		await this.openerService.open(newFileUri);
 	}

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, ITestInstantiationService, TestServiceAccessor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupModelChangeKind } from 'vs/workbench/common/editor';
+import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupModelChangeKind, SideBySideEditor } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -1217,6 +1217,27 @@ suite('EditorGroupsService', () => {
 		let foundEditors = group.findEditors(URI.file('foo/bar1'));
 		assert.strictEqual(foundEditors.length, 2);
 		foundEditors = group2.findEditors(URI.file('foo/bar4'));
+		assert.strictEqual(foundEditors.length, 1);
+	});
+
+	test('find editors (side by side support)', async () => {
+		const [part, instantiationService] = await createPart();
+
+		const accessor = instantiationService.createInstance(TestServiceAccessor);
+
+		const group = part.activeGroup;
+		assert.strictEqual(group.isEmpty, true);
+
+		const input1 = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.file('foo/bar1'), `${TEST_EDITOR_INPUT_ID}-1`);
+
+		const sideBySideEditor = new SideBySideEditorInput(undefined, undefined, input1, input2, accessor.editorService);
+		await group.openEditor(sideBySideEditor, { pinned: true });
+
+		let foundEditors = group.findEditors(URI.file('foo/bar1'));
+		assert.strictEqual(foundEditors.length, 0);
+
+		foundEditors = group.findEditors(URI.file('foo/bar1'), { supportSideBySide: SideBySideEditor.PRIMARY });
 		assert.strictEqual(foundEditors.length, 1);
 	});
 

@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, IActiveEditorChangeEvent } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -533,9 +533,10 @@ export interface IEditorGroup {
 	 * each editor that reports a `resource` that matches the
 	 * provided one.
 	 *
-	 * @param resource The resource of the editor to find
+	 * @param resource the resource of the editor to find
+	 * @param options whether to support side by side editors or not
 	 */
-	findEditors(resource: URI): readonly EditorInput[];
+	findEditors(resource: URI, options?: IFindEditorOptions): readonly EditorInput[];
 
 	/**
 	 * Returns the editor at a specific index of the group.

@@ -72,13 +72,15 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	}
 
 	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
-		this._logger.info(`Getting sessions for ${scopes?.join(',') || 'all scopes'}...`);
+		// For GitHub scope list, order doesn't matter so we immediately sort the scopes
+		const sortedScopes = scopes?.sort() || [];
+		this._logger.info(`Getting sessions for ${sortedScopes.length ? sortedScopes.join(',') : 'all scopes'}...`);
 		const sessions = await this._sessionsPromise;
-		const finalSessions = scopes
-			? sessions.filter(session => arrayEquals([...session.scopes].sort(), scopes.sort()))
+		const finalSessions = sortedScopes.length
+			? sessions.filter(session => arrayEquals([...session.scopes].sort(), sortedScopes))
 			: sessions;
 
-		this._logger.info(`Got ${finalSessions.length} sessions for ${scopes?.join(',') || 'all scopes'}...`);
+		this._logger.info(`Got ${finalSessions.length} sessions for ${sortedScopes?.join(',') ?? 'all scopes'}...`);
 		return finalSessions;
 	}
 
@@ -138,12 +140,20 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return [];
 		}
 
+		// TODO: eventually remove this Set because we should only have one session per set of scopes.
+		const scopesSeen = new Set<string>();
 		const sessionPromises = sessionData.map(async (session: SessionData) => {
+			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
+			const sortedScopes = session.scopes.sort();
+			const scopesStr = sortedScopes.join(' ');
+			if (scopesSeen.has(scopesStr)) {
+				return undefined;
+			}
 			let userInfo: { id: string, accountName: string } | undefined;
 			if (!session.account) {
 				try {
 					userInfo = await this._githubServer.getUserInfo(session.accessToken);
-					this._logger.info(`Verified session with the following scopes: ${session.scopes}`);
+					this._logger.info(`Verified session with the following scopes: ${scopesStr}`);
 				} catch (e) {
 					// Remove sessions that return unauthorized response
 					if (e.message === 'Unauthorized') {
@@ -154,7 +164,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 			setTimeout(() => this.afterTokenLoad(session.accessToken), 1000);
 
-			this._logger.trace(`Read the following session from the keychain with the following scopes: ${session.scopes}`);
+			this._logger.trace(`Read the following session from the keychain with the following scopes: ${scopesStr}`);
+			scopesSeen.add(scopesStr);
 			return {
 				id: session.id,
 				account: {
@@ -163,7 +174,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 						: userInfo?.accountName ?? '<unknown>',
 					id: session.account?.id ?? userInfo?.id ?? '<unknown>'
 				},
-				scopes: session.scopes,
+				scopes: sortedScopes,
 				accessToken: session.accessToken
 			};
 		});
@@ -190,22 +201,26 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 	public async createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
 		try {
+			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
+			const sortedScopes = scopes.sort();
+
 			/* __GDPR__
 				"login" : {
 					"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 				}
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('login', {
-				scopes: JSON.stringify(scopes),
+				scopes: JSON.stringify(sortedScopes),
 			});
 
-			const scopeString = scopes.join(' ');
+
+			const scopeString = sortedScopes.join(' ');
 			const token = await this._githubServer.login(scopeString);
 			this.afterTokenLoad(token);
-			const session = await this.tokenToSession(token, scopes);
+			const session = await this.tokenToSession(token, sortedScopes);
 
 			const sessions = await this._sessionsPromise;
-			const sessionIndex = sessions.findIndex(s => s.id === session.id || s.scopes.join(' ') === scopeString);
+			const sessionIndex = sessions.findIndex(s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes));
 			if (sessionIndex > -1) {
 				sessions.splice(sessionIndex, 1, session);
 			} else {

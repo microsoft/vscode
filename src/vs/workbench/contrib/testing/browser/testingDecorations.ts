@@ -21,7 +21,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { editorCodeLensForeground, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/view/editorColorRegistry';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -849,6 +849,8 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 	}
 }
 
+const lineBreakRe = /\r?\n\s*/;
+
 class TestMessageDecoration implements ITestDecoration {
 	public static readonly inlineClassName = 'test-message-inline-content';
 	public static readonly decorationId = `testmessage-${generateUuid()}`;
@@ -881,7 +883,7 @@ class TestMessageDecoration implements ITestDecoration {
 		options.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 		options.collapseOnReplaceEdit = true;
 
-		let inlineText = renderStringAsPlaintext(message);
+		let inlineText = renderStringAsPlaintext(message).replace(lineBreakRe, ' ');
 		if (inlineText.length > MAX_INLINE_MESSAGE_LENGTH) {
 			inlineText = inlineText.slice(0, MAX_INLINE_MESSAGE_LENGTH - 1) + '…';
 		}

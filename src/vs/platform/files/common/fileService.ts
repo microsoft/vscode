@@ -1000,7 +1000,7 @@ export class FileService extends Disposable implements IFileService {
 	private static readonly FILE_EVENTS_THROTTLING = {
 		maxChangesChunkSize: 500 as const,		// number of changes we process per interval
 		maxChangesBufferSize: 30000 as const,  	// total number of changes we are willing to buffer in memory
-		coolDownDelay: 200 as const,	  		// rest for 100ms before processing next events
+		coolDownDelay: 200 as const,	  		// rest for 200ms before processing next events
 		warningscounter: 0						// keep track how many warnings we showed to reduce log spam
 	};
 
@@ -1033,6 +1033,15 @@ export class FileService extends Disposable implements IFileService {
 		)
 	);
 
+	private readonly nonRecursiveWatchedResources = TernarySearchTree.forUris<number>(uri => {
+		const provider = this.getProvider(uri.scheme);
+		if (provider) {
+			return !this.isPathCaseSensitive(provider);
+		}
+
+		return false;
+	});
+
 	private onDidChangeFile(changes: readonly IFileChange[], caseSensitive: boolean): void {
 
 		// Event #1: access to raw events goes out instantly
@@ -1041,54 +1050,47 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		// Event #2: immediately send out events for
-		// explicitly watched resources by splitting
+		// non-recursive watched resources by splitting
 		// changes up into 2 buckets
-		let explicitlyWatchedFileChanges: IFileChange[] | undefined = undefined;
-		let implicitlyWatchedFileChanges: IFileChange[] | undefined = undefined;
+		let nonRecursiveFileChanges: IFileChange[] | undefined = undefined;
+		let recursiveFileChanges: IFileChange[] | undefined = undefined;
 		{
 			for (const change of changes) {
-				if (this.watchedResources.has(change.resource)) {
-					if (!explicitlyWatchedFileChanges) {
-						explicitlyWatchedFileChanges = [];
+				if (this.nonRecursiveWatchedResources.has(change.resource)) {
+					if (!nonRecursiveFileChanges) {
+						nonRecursiveFileChanges = [];
 					}
-					explicitlyWatchedFileChanges.push(change);
+					nonRecursiveFileChanges.push(change);
 				} else {
-					if (!implicitlyWatchedFileChanges) {
-						implicitlyWatchedFileChanges = [];
+					if (!recursiveFileChanges) {
+						recursiveFileChanges = [];
 					}
-					implicitlyWatchedFileChanges.push(change);
+					recursiveFileChanges.push(change);
 				}
 			}
 
-			if (explicitlyWatchedFileChanges) {
-				this._onDidFilesChange.fire(new FileChangesEvent(explicitlyWatchedFileChanges, !caseSensitive));
+			if (nonRecursiveFileChanges) {
+				this._onDidFilesChange.fire(new FileChangesEvent(nonRecursiveFileChanges, !caseSensitive));
 			}
 		}
 
-		// Event #3: implicitly watched resources get
-		// throttled due to performance reasons
-		if (implicitlyWatchedFileChanges) {
+		// Event #3: recursively watched resources get
+		// throttled due to performance reasons because
+		// there is a higher likelyhood of many events
+		// being emitted at once
+		if (recursiveFileChanges) {
 			const worker = caseSensitive ? this.caseSensitiveFileEventsWorker : this.caseInsensitiveFileEventsWorker;
-			const worked = worker.work(implicitlyWatchedFileChanges);
+			const worked = worker.work(recursiveFileChanges);
 
 			if (!worked && FileService.FILE_EVENTS_THROTTLING.warningscounter++ < 10) {
-				this.logService.warn(`[File watcher]: started ignoring events due to too many file change events at once (incoming: ${implicitlyWatchedFileChanges.length}, most recent change: ${implicitlyWatchedFileChanges[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+				this.logService.warn(`[File watcher]: started ignoring events due to too many file change events at once (incoming: ${recursiveFileChanges.length}, most recent change: ${recursiveFileChanges[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
 			}
 
 			if (worker.pending > 0) {
-				this.logService.trace(`[File watcher]: started throttling events due to large amount of file change events at once (pending: ${worker.pending}, most recent change: ${implicitlyWatchedFileChanges[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+				this.logService.trace(`[File watcher]: started throttling events due to large amount of file change events at once (pending: ${worker.pending}, most recent change: ${recursiveFileChanges[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
 			}
 		}
 	}
-
-	private readonly watchedResources = TernarySearchTree.forUris<number>(uri => {
-		const provider = this.getProvider(uri.scheme);
-		if (provider) {
-			return !this.isPathCaseSensitive(provider);
-		}
-
-		return false;
-	});
 
 	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
 		const disposables = new DisposableStore();
@@ -1101,35 +1103,35 @@ export class FileService extends Disposable implements IFileService {
 
 		// Watch and wire in disposable which is async but
 		// check if we got disposed meanwhile and forward
-		this.doWatch(resource, options).then(disposable => {
-			if (watchDisposed) {
-				dispose(disposable);
-			} else {
-				disposeWatch = () => dispose(disposable);
+		(async () => {
+			try {
+				const disposable = await this.doWatch(resource, options);
+				if (watchDisposed) {
+					dispose(disposable);
+				} else {
+					disposeWatch = () => dispose(disposable);
+				}
+			} catch (error) {
+				this.logService.error(error);
 			}
-		}, error => this.logService.error(error));
+		})();
 
-		// Remember as watched resource and unregister
-		// properly on disposal.
-		//
-		// Note: we only do this for non-recursive watchers
-		// until we have a better `createWatcher` based API
-		// (https://github.com/microsoft/vscode/issues/126809)
-		//
+		// Explicitly keep track of non-recursively watched
+		// resources which will bypass our spam protection
 		if (!options.recursive) {
 
 			// Increment counter for resource
-			this.watchedResources.set(resource, (this.watchedResources.get(resource) ?? 0) + 1);
+			this.nonRecursiveWatchedResources.set(resource, (this.nonRecursiveWatchedResources.get(resource) ?? 0) + 1);
 
 			// Decrement counter for resource on dispose
 			// and remove from map when last one is gone
 			disposables.add(toDisposable(() => {
-				const watchedResourceCounter = this.watchedResources.get(resource);
-				if (typeof watchedResourceCounter === 'number') {
-					if (watchedResourceCounter <= 1) {
-						this.watchedResources.delete(resource);
+				const nonRecursiveWatchedResourceCounter = this.nonRecursiveWatchedResources.get(resource);
+				if (typeof nonRecursiveWatchedResourceCounter === 'number') {
+					if (nonRecursiveWatchedResourceCounter <= 1) {
+						this.nonRecursiveWatchedResources.delete(resource);
 					} else {
-						this.watchedResources.set(resource, watchedResourceCounter - 1);
+						this.nonRecursiveWatchedResources.set(resource, nonRecursiveWatchedResourceCounter - 1);
 					}
 				}
 			}));
@@ -1145,7 +1147,10 @@ export class FileService extends Disposable implements IFileService {
 		// Only start watching if we are the first for the given key
 		let watcher = this.activeWatchers.get(key);
 		if (!watcher) {
-			watcher = { count: 0, disposable: provider.watch(resource, options) };
+			watcher = {
+				count: 0,
+				disposable: provider.watch(resource, options)
+			};
 
 			this.activeWatchers.set(key, watcher);
 		}

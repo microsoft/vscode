@@ -316,7 +316,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			text: item.busy ? `${item.label}\u00A0\u00A0$(sync~spin)` : item.label,
 			ariaLabel: item.accessibilityInfo?.label ?? item.label,
 			role: item.accessibilityInfo?.role,
-			tooltip: item.command?.tooltip || new MarkdownString(item.detail, true),
+			tooltip: item.command?.tooltip || new MarkdownString(item.detail, { isTrusted: true, supportThemeIcons: true }),
 			color,
 			backgroundColor,
 			command: item.command

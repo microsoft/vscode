@@ -694,6 +694,11 @@ class MockPathService implements IPathService {
 	userHome(options?: { preferLocal: boolean; }): Promise<uri> {
 		throw new Error('Method not implemented.');
 	}
+	hasValidBasename(resource: uri, basename?: string): Promise<boolean>;
+	hasValidBasename(resource: uri, os: platform.OperatingSystem, basename?: string): boolean;
+	hasValidBasename(resource: uri, arg2?: string | platform.OperatingSystem, name?: string): boolean | Promise<boolean> {
+		throw new Error('Method not implemented.');
+	}
 	resolvedUserHome: uri | undefined;
 }
 

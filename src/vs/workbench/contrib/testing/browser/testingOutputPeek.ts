@@ -621,6 +621,9 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 }
 
 class TestingOutputPeek extends PeekViewWidget {
+	private static lastHeightInLines?: number;
+	private static lastSplitWidth?: number;
+
 	private readonly visibilityChange = this._disposables.add(new Emitter<boolean>());
 	private readonly didReveal = this._disposables.add(new Emitter<TestDto>());
 	private dimension?: dom.Dimension;
@@ -671,6 +674,7 @@ class TestingOutputPeek extends PeekViewWidget {
 	}
 
 	protected override _fillBody(containerElement: HTMLElement): void {
+		const initialSpitWidth = TestingOutputPeek.lastSplitWidth;
 		this.splitView = new SplitView(containerElement, { orientation: Orientation.HORIZONTAL });
 
 		const messageContainer = dom.append(containerElement, dom.$('.test-output-peek-message-container'));
@@ -695,6 +699,7 @@ class TestingOutputPeek extends PeekViewWidget {
 			minimumSize: 200,
 			maximumSize: Number.MAX_VALUE,
 			layout: width => {
+				TestingOutputPeek.lastSplitWidth = width;
 				if (this.dimension) {
 					for (const provider of this.contentProviders) {
 						provider.layout({ height: this.dimension.height, width });
@@ -720,6 +725,10 @@ class TestingOutputPeek extends PeekViewWidget {
 		this._disposables.add(this.historyVisible.onDidChange(visible => {
 			this.splitView.setViewVisible(historyViewIndex, visible);
 		}));
+
+		if (initialSpitWidth) {
+			queueMicrotask(() => this.splitView.resizeView(0, initialSpitWidth));
+		}
 	}
 
 	/**
@@ -738,7 +747,7 @@ class TestingOutputPeek extends PeekViewWidget {
 			return this.showInPlace(dto);
 		}
 
-		this.show(dto.revealLocation.range, hintMessagePeekHeight(message));
+		this.show(dto.revealLocation.range, TestingOutputPeek.lastHeightInLines || hintMessagePeekHeight(message));
 		this.editor.revealPositionNearTop(dto.revealLocation.range.getStartPosition(), ScrollType.Smooth);
 		this.editor.focus();
 
@@ -755,6 +764,11 @@ class TestingOutputPeek extends PeekViewWidget {
 		this.didReveal.fire(dto);
 		this.visibilityChange.fire(true);
 		await Promise.all(this.contentProviders.map(p => p.update(dto, message)));
+	}
+
+	protected override _relayout(newHeightInLines: number): void {
+			super._relayout(newHeightInLines);
+			TestingOutputPeek.lastHeightInLines = newHeightInLines;
 	}
 
 	/** @override */
@@ -999,7 +1013,8 @@ const firstLine = (str: string) => {
 };
 
 const isMultiline = (str: string | undefined) => !!str && str.includes('\n');
-const hintPeekStrHeight = (str: string | undefined) => clamp(count(str || '', '\n') + 3, 8, 20);
+const hintPeekStrHeight = (str: string | undefined) =>
+	clamp(str ? Math.max(count(str, '\n'), Math.ceil(str.length / 80)) + 3 : 0, 14, 24);
 
 class SimpleDiffEditorModel extends EditorModel {
 	public readonly original = this._original.object.textEditorModel;

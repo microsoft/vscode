@@ -10,7 +10,7 @@ import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -25,11 +25,11 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, ITerminalProfileResolverService, TerminalCommandId, ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
+import { TerminalLinkManager, TerminalLinkProviderType } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import type { Terminal as XTermTerminal, ITerminalAddon } from 'xterm';
+import type { Terminal as XTermTerminal, ITerminalAddon, ILink } from 'xterm';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
@@ -66,6 +66,8 @@ import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalLinkQuickpick';
+import { isFirefox } from 'vs/base/browser/browser';
 
 const enum Constants {
 	/**
@@ -163,6 +165,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _dndObserver: IDisposable | undefined;
 
 	private readonly _resource: URI;
+
+	private _terminalLinkQuickpick: TerminalLinkQuickpick | undefined;
 
 	private _lastLayoutDimensions: dom.Dimension | undefined;
 
@@ -653,11 +657,38 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
+	async showLinkQuickpick(type: TerminalLinkProviderType): Promise<void> {
+		if (!this._terminalLinkQuickpick) {
+			this._terminalLinkQuickpick = this._instantiationService.createInstance(TerminalLinkQuickpick);
+		}
+		const links = await this._getLinks(type);
+		if (!links) {
+			return;
+		}
+		return await this._terminalLinkQuickpick.show(type, links);
+	}
+
+	private async _getLinks(type: TerminalLinkProviderType): Promise<ILink[] | undefined> {
+		if (!this.areLinksReady || !this._linkManager) {
+			throw new Error('terminal links are not ready, cannot generate link quick pick');
+		}
+		if (!this.xterm) {
+			throw new Error('no xterm');
+		}
+		const links = [];
+		for (let i = this.xterm.raw.buffer.active.length - 1; i >= this.xterm.raw.buffer.active.viewportY; i--) {
+			const linksForY = await this._linkManager.getLinks(type, i);
+			if (linksForY) {
+				links.push(...linksForY);
+			}
+		}
+		return links.length > 0 ? links : undefined;
+	}
+
 	detachFromElement(): void {
 		this._wrapperElement?.remove();
 		this._container = undefined;
 	}
-
 
 	attachToElement(container: HTMLElement): Promise<void> | void {
 		// The container did not change, do nothing
@@ -667,12 +698,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._attachBarrier.open();
 
-		this.xterm?.attachToElement(container);
-
 		// Attach has not occurred yet
 		if (!this._wrapperElement) {
 			return this._attachToElement(container);
 		}
+		this.xterm?.attachToElement(this._wrapperElement);
 
 		// The container changed, reattach
 		this._container = container;
@@ -917,6 +947,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 		this.xterm?.dispose();
+
+		// HACK: Workaround for Firefox bug https://bugzilla.mozilla.org/show_bug.cgi?id=559561,
+		// as 'blur' event in xterm.raw.textarea is not triggered on xterm.dispose()
+		// See https://github.com/microsoft/vscode/issues/138358
+		if (isFirefox) {
+			this._terminalFocusContextKey.reset();
+			this._terminalHasTextContextKey.reset();
+			this._onDidBlur.fire(this);
+		}
 
 		if (this._pressAnyKeyToCloseListener) {
 			this._pressAnyKeyToCloseListener.dispose();

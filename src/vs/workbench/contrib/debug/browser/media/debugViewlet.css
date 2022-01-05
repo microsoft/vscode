@@ -216,9 +216,21 @@
 	font-size: 11px;
 }
 
+.debug-pane .monaco-list-row .expression {
+	display: flex;
+}
+
+.debug-pane .monaco-list-row .expression .actionbar-spacer {
+	flex-grow: 1;
+}
+
+.debug-pane .monaco-list-row .expression .value {
+	overflow: hidden;
+	white-space: pre;
+	text-overflow: ellipsis;
+}
+
 .debug-pane .monaco-list-row .expression .value.changed {
-	padding: 2px;
-	margin: 4px;
 	border-radius: 4px;
 }
 
@@ -230,6 +242,7 @@
 .debug-pane .inputBoxContainer {
 	box-sizing: border-box;
 	flex-grow: 1;
+	display: none;
 }
 
 .debug-pane .debug-watch .monaco-inputbox {

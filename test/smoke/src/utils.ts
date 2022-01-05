@@ -88,7 +88,8 @@ export function installDiagnosticsHandler(logger: Logger, appFn?: () => Applicat
 
 function installAppBeforeHandler(optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions) {
 	before(async function () {
-		this.app = await startApp(this.defaultOptions, optionsTransform);
+		this.app = createApp(this.defaultOptions, optionsTransform);
+		await this.app.start();
 	});
 }
 
@@ -105,7 +106,7 @@ export function installAppAfterHandler(appFn?: () => Application | undefined, jo
 	});
 }
 
-export async function startApp(options: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions): Promise<Application> {
+export function createApp(options: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions): Application {
 	if (optionsTransform) {
 		options = optionsTransform({ ...options });
 	}
@@ -114,8 +115,6 @@ export async function startApp(options: ApplicationOptions, optionsTransform?: (
 		...options,
 		userDataDir: getRandomUserDataDir(options)
 	});
-
-	await app.start();
 
 	return app;
 }

@@ -5,7 +5,7 @@
 
 import { SimpleWorkerServer } from 'vs/base/common/worker/simpleWorker';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerService';
 
 let initialized = false;
 

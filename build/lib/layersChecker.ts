@@ -53,7 +53,9 @@ const CORE_TYPES = [
 	'trimEnd',
 	'trimLeft',
 	'trimRight',
-	'queueMicrotask'
+	'queueMicrotask',
+	'MessageChannel',
+	'MessagePort'
 ];
 
 // Types that are defined in a common layer but are known to be only
