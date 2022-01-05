@@ -5,74 +5,44 @@
 
 import { EventType } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IDetectedLinks } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILink } from 'xterm';
 
 export class TerminalLinkQuickpick {
 	constructor(
-		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IClipboardService private readonly _clipboardService: IClipboardService
+		@IQuickInputService private readonly _quickInputService: IQuickInputService
 	) { }
 
 	async show(links: IDetectedLinks): Promise<void> {
 		const wordPicks = links.wordLinks ? await this._generatePicks(links.wordLinks) : undefined;
 		const filePicks = links.fileLinks ? await this._generatePicks(links.fileLinks) : undefined;
 		const webPicks = links.webLinks ? await this._generatePicks(links.webLinks) : undefined;
-
-		const picks: IQuickPickItem[] = [];
-		if (wordPicks) {
-			picks.push({ label: localize('terminal.integrated.wordLinks', "Word") });
+		const options = {
+			placeHolder: localize('terminal.integrated.openWebLink', "Select the link to open"),
+			canPickMany: false
+		};
+		const picks: LinkQuickPickItem[] = [];
+		if (webPicks) {
+			picks.push({ type: 'separator', label: localize('terminal.integrated.webLinks', "Web") });
+			picks.push(...webPicks);
 		}
 		if (filePicks) {
-			picks.push({ label: localize('terminal.integrated.fileLinks', "File") });
+			picks.push({ type: 'separator', label: localize('terminal.integrated.fileLinks', "File") });
+			picks.push(...filePicks);
 		}
-		if (webPicks) {
-			picks.push({ label: localize('terminal.integrated.webLinks', "Web") });
-		}
-
-		const typeOptions: IPickOptions<IQuickPickItem> = {
-			placeHolder: localize('terminal.integrated.selectLinkType', "Select link type"),
-		};
-
-		const linkType = await this._quickInputService.pick(picks, typeOptions);
-		if (!linkType) {
-			return;
+		if (wordPicks) {
+			picks.push({ type: 'separator', label: localize('terminal.integrated.wordLinks', "Word") });
+			picks.push(...wordPicks);
 		}
 
-		let options: IPickOptions<ITerminalLinkQuickPickItem> = {};
-		let linkPicks: ITerminalLinkQuickPickItem[] = [];
-		if (linkType.label === 'Word' && wordPicks) {
-			options = {
-				placeHolder: localize('terminal.integrated.copyWordLink', "Select the link to copy"),
-				canPickMany: false
-			};
-			linkPicks = wordPicks;
-		} else if (linkType.label === 'Web' && webPicks) {
-			options = {
-				placeHolder: localize('terminal.integrated.openWebLink', "Select the link to open"),
-				canPickMany: false
-			};
-			linkPicks = webPicks;
-		} else if (filePicks) {
-			options = {
-				placeHolder: localize('terminal.integrated.openFileLink', "Select the link to open"),
-				canPickMany: false
-			};
-			linkPicks = filePicks;
-		}
-		const pick = await this._quickInputService.pick(linkPicks, options);
+		const pick = await this._quickInputService.pick(picks, options);
 		if (!pick) {
 			return;
 		}
-		if (linkType.label === 'Word') {
-			this._clipboardService.writeText(pick.label);
-		} else {
-			const event = new TerminalLinkQuickPickEvent(EventType.CLICK);
-			pick.link.activate(event, pick.label);
-		}
+		const event = new TerminalLinkQuickPickEvent(EventType.CLICK);
+		pick.link.activate(event, pick.label);
 		return;
 	}
 
@@ -97,5 +67,4 @@ export interface ITerminalLinkQuickPickItem extends IQuickPickItem {
 	link: ILink
 }
 
-
-
+type LinkQuickPickItem = ITerminalLinkQuickPickItem | IQuickPickSeparator;

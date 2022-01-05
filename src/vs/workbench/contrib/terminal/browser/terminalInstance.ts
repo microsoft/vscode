@@ -684,13 +684,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (links) {
 				const { wordLinks, webLinks, fileLinks } = links;
 				if (wordLinks && wordLinks.length) {
-					wordResults!.push(...wordLinks);
+					wordResults!.push(...wordLinks.reverse());
 				}
 				if (webLinks && webLinks.length) {
-					webResults!.push(...webLinks);
+					webResults!.push(...webLinks.reverse());
 				}
 				if (fileLinks && fileLinks.length) {
-					fileResults!.push(...fileLinks);
+					fileResults!.push(...fileLinks.reverse());
 				}
 			}
 		}
