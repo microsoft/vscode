@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { ContextKeyExpr, ContextKeyExpression, implies } from 'vs/platform/contextkey/common/contextkey';
 
 function createContext(ctx: any) {
 	return {
@@ -43,6 +43,19 @@ suite('ContextKeyExpr', () => {
 			ContextKeyExpr.not('d2')
 		)!;
 		assert(a.equals(b), 'expressions should be equal');
+	});
+
+	test('issue #134942: Equals in comparator expressions', () => {
+		function testEquals(expr: ContextKeyExpression | undefined, str: string): void {
+			const deserialized = ContextKeyExpr.deserialize(str);
+			assert.ok(expr);
+			assert.ok(deserialized);
+			assert.strictEqual(expr.equals(deserialized), true, str);
+		}
+		testEquals(ContextKeyExpr.greater('value', 0), 'value > 0');
+		testEquals(ContextKeyExpr.greaterEquals('value', 0), 'value >= 0');
+		testEquals(ContextKeyExpr.smaller('value', 0), 'value < 0');
+		testEquals(ContextKeyExpr.smallerEquals('value', 0), 'value <= 0');
 	});
 
 	test('normalize', () => {
@@ -185,6 +198,47 @@ suite('ContextKeyExpr', () => {
 			)
 		);
 		assert.strictEqual(actual!.equals(expected!), true);
+	});
+
+	test('issue #129625: Removes duplicated terms in OR expressions', () => {
+		const expr = ContextKeyExpr.or(
+			ContextKeyExpr.has('A'),
+			ContextKeyExpr.has('B'),
+			ContextKeyExpr.has('A')
+		)!;
+		assert.strictEqual(expr.serialize(), 'A || B');
+	});
+
+	test('issue #129625: Removes duplicated terms in AND expressions', () => {
+		const expr = ContextKeyExpr.and(
+			ContextKeyExpr.has('A'),
+			ContextKeyExpr.has('B'),
+			ContextKeyExpr.has('A')
+		)!;
+		assert.strictEqual(expr.serialize(), 'A && B');
+	});
+
+	test('issue #129625: Remove duplicated terms when negating', () => {
+		const expr = ContextKeyExpr.and(
+			ContextKeyExpr.has('A'),
+			ContextKeyExpr.or(
+				ContextKeyExpr.has('B1'),
+				ContextKeyExpr.has('B2'),
+			)
+		)!;
+		assert.strictEqual(expr.serialize(), 'A && B1 || A && B2');
+		assert.strictEqual(expr.negate()!.serialize(), '!A || !B1 && !B2');
+		assert.strictEqual(expr.negate()!.negate()!.serialize(), 'A && B1 || A && B2');
+		assert.strictEqual(expr.negate()!.negate()!.negate()!.serialize(), '!A || !B1 && !B2');
+	});
+
+	test('issue #129625: remove redundant terms in OR expressions', () => {
+		function strImplies(p0: string, q0: string): boolean {
+			const p = ContextKeyExpr.deserialize(p0)!;
+			const q = ContextKeyExpr.deserialize(q0)!;
+			return implies(p, q);
+		}
+		assert.strictEqual(strImplies('a', 'a && b'), true);
 	});
 
 	test('Greater, GreaterEquals, Smaller, SmallerEquals evaluate', () => {

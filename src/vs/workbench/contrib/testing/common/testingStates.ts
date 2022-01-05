@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export type TreeStateNode = { statusNode: true; state: TestResultState; priority: number };
 
@@ -43,7 +43,7 @@ export const maxPriority = (...states: TestResultState[]) => {
 			return states[0];
 		case 2:
 			return statePriority[states[0]] > statePriority[states[1]] ? states[0] : states[1];
-		default:
+		default: {
 			let max = states[0];
 			for (let i = 1; i < states.length; i++) {
 				if (statePriority[max] < statePriority[states[i]]) {
@@ -52,6 +52,7 @@ export const maxPriority = (...states: TestResultState[]) => {
 			}
 
 			return max;
+		}
 	}
 };
 

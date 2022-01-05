@@ -9,28 +9,30 @@ import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
-import { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
-import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickPickItems, TransferQuickInput, TransferQuickInputButton } from './extHost.protocol';
+import type { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
+import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickInput, TransferQuickInputButton, TransferQuickPickItemOrSeparator } from './extHost.protocol';
 import { URI } from 'vs/base/common/uri';
-import { ThemeIcon, QuickInputButtons } from 'vs/workbench/api/common/extHostTypes';
+import { ThemeIcon, QuickInputButtons, QuickPickItemKind } from 'vs/workbench/api/common/extHostTypes';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { coalesce } from 'vs/base/common/arrays';
 import Severity from 'vs/base/common/severity';
+import { ThemeIcon as ThemeIconUtils } from 'vs/platform/theme/common/themeService';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export type Item = string | QuickPickItem;
 
 export interface ExtHostQuickOpen {
-	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, enableProposedApi: boolean, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
-	showQuickPick(itemsOrItemsPromise: string[] | Promise<string[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Promise<string | undefined>;
-	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
-	showQuickPick(itemsOrItemsPromise: Item[] | Promise<Item[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Promise<Item | Item[] | undefined>;
+	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
+	showQuickPick(itemsOrItemsPromise: string[] | Promise<string[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<string | undefined>;
+	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
+	showQuickPick(itemsOrItemsPromise: Item[] | Promise<Item[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<Item | Item[] | undefined>;
 
 	showInput(options?: InputBoxOptions, token?: CancellationToken): Promise<string | undefined>;
 
 	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token?: CancellationToken): Promise<WorkspaceFolder | undefined>
 
-	createQuickPick<T extends QuickPickItem>(extensionId: ExtensionIdentifier, enableProposedApi: boolean): QuickPick<T>;
+	createQuickPick<T extends QuickPickItem>(extensionId: IExtensionDescription): QuickPick<T>;
 
 	createInputBox(extensionId: ExtensionIdentifier): InputBox;
 }
@@ -55,10 +57,10 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this._commands = commands;
 		}
 
-		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, enableProposedApi: boolean, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
-		showQuickPick(itemsOrItemsPromise: string[] | Promise<string[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Promise<string | undefined>;
-		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
-		showQuickPick(itemsOrItemsPromise: Item[] | Promise<Item[]>, enableProposedApi: boolean, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Promise<Item | Item[] | undefined> {
+		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
+		showQuickPick(itemsOrItemsPromise: string[] | Promise<string[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<string | undefined>;
+		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
+		showQuickPick(itemsOrItemsPromise: Item[] | Promise<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Promise<Item | Item[] | undefined> {
 
 			// clear state from last invocation
 			this._onDidSelectItem = undefined;
@@ -86,33 +88,23 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 				return itemsPromise.then(items => {
 
-					const pickItems: TransferQuickPickItems[] = [];
+					const pickItems: TransferQuickPickItemOrSeparator[] = [];
 					for (let handle = 0; handle < items.length; handle++) {
-
 						const item = items[handle];
-						let label: string;
-						let description: string | undefined;
-						let detail: string | undefined;
-						let picked: boolean | undefined;
-						let alwaysShow: boolean | undefined;
-
 						if (typeof item === 'string') {
-							label = item;
+							pickItems.push({ label: item, handle });
+						} else if (item.kind === QuickPickItemKind.Separator) {
+							pickItems.push({ type: 'separator', label: item.label });
 						} else {
-							label = item.label;
-							description = item.description;
-							detail = item.detail;
-							picked = item.picked;
-							alwaysShow = item.alwaysShow;
+							pickItems.push({
+								label: item.label,
+								description: item.description,
+								detail: item.detail,
+								picked: item.picked,
+								alwaysShow: item.alwaysShow,
+								handle
+							});
 						}
-						pickItems.push({
-							label,
-							description,
-							handle,
-							detail,
-							picked,
-							alwaysShow
-						});
 					}
 
 					// handle selection changes
@@ -191,8 +183,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		// ---- QuickInput
 
-		createQuickPick<T extends QuickPickItem>(extensionId: ExtensionIdentifier, enableProposedApi: boolean): QuickPick<T> {
-			const session: ExtHostQuickPick<T> = new ExtHostQuickPick(extensionId, enableProposedApi, () => this._sessions.delete(session._id));
+		createQuickPick<T extends QuickPickItem>(extension: IExtensionDescription): QuickPick<T> {
+			const session: ExtHostQuickPick<T> = new ExtHostQuickPick(extension, () => this._sessions.delete(session._id));
 			this._sessions.set(session._id, session);
 			return session;
 		}
@@ -235,6 +227,13 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			const session = this._sessions.get(sessionId);
 			if (session) {
 				session._fireDidTriggerButton(handle);
+			}
+		}
+
+		$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number): void {
+			const session = this._sessions.get(sessionId);
+			if (session instanceof ExtHostQuickPick) {
+				session._fireDidTriggerItemButton(itemHandle, buttonHandle);
 			}
 		}
 
@@ -369,11 +368,13 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 				this._handlesToButtons.set(handle, button);
 			});
 			this.update({
-				buttons: buttons.map<TransferQuickInputButton>((button, i) => ({
-					iconPath: getIconUris(button.iconPath),
-					tooltip: button.tooltip,
-					handle: button === QuickInputButtons.Back ? -1 : i,
-				}))
+				buttons: buttons.map<TransferQuickInputButton>((button, i) => {
+					return {
+						...getIconPathOrClass(button),
+						tooltip: button.tooltip,
+						handle: button === QuickInputButtons.Back ? -1 : i,
+					};
+				})
 			});
 		}
 
@@ -410,7 +411,15 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		_fireDidHide() {
 			if (this._expectingHide) {
-				this._expectingHide = false;
+				// if this._visible is true, it means that .show() was called between
+				// .hide() and .onDidHide. To ensure the correct number of onDidHide events
+				// are emitted, we set this._expectingHide to this value so that
+				// the next time .hide() is called, we can emit the event again.
+				// Example:
+				// .show() -> .hide() -> .show() -> .hide() should emit 2 onDidHide events.
+				// .show() -> .hide() -> .hide() should emit 1 onDidHide event.
+				// Fixes #135747
+				this._expectingHide = this._visible;
 				this._onDidHideEmitter.fire();
 			}
 		}
@@ -481,6 +490,22 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		return typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath;
 	}
 
+	function getIconPathOrClass(button: QuickInputButton) {
+		const iconPathOrIconClass = getIconUris(button.iconPath);
+		let iconPath: { dark: URI; light?: URI | undefined; } | undefined;
+		let iconClass: string | undefined;
+		if ('id' in iconPathOrIconClass) {
+			iconClass = ThemeIconUtils.asClassName(iconPathOrIconClass);
+		} else {
+			iconPath = iconPathOrIconClass;
+		}
+
+		return {
+			iconPath,
+			iconClass
+		};
+	}
+
 	class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implements QuickPick<T> {
 
 		private _items: T[] = [];
@@ -490,16 +515,20 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _matchOnDescription = true;
 		private _matchOnDetail = true;
 		private _sortByLabel = true;
+		private _keepScrollPosition = false;
 		private _activeItems: T[] = [];
 		private readonly _onDidChangeActiveEmitter = new Emitter<T[]>();
 		private _selectedItems: T[] = [];
 		private readonly _onDidChangeSelectionEmitter = new Emitter<T[]>();
+		private readonly _onDidTriggerItemButtonEmitter = new Emitter<QuickPickItemButtonEvent<T>>();
 
-		constructor(extensionId: ExtensionIdentifier, enableProposedApi: boolean, onDispose: () => void) {
-			super(extensionId, onDispose);
+		// TODO: revert this change once quickPickSeparators has been finalized.
+		constructor(private readonly extension: IExtensionDescription, onDispose: () => void) {
+			super(extension.identifier, onDispose);
 			this._disposables.push(
 				this._onDidChangeActiveEmitter,
 				this._onDidChangeSelectionEmitter,
+				this._onDidTriggerItemButtonEmitter
 			);
 			this.update({ type: 'quickPick' });
 		}
@@ -509,6 +538,10 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 
 		set items(items: T[]) {
+			if (items.some((item) => item.kind !== undefined)) {
+				checkProposedApiEnabled(this.extension, 'quickPickSeparators');
+			}
+
 			this._items = items.slice();
 			this._handlesToItems.clear();
 			this._itemsToHandles.clear();
@@ -516,15 +549,33 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 				this._handlesToItems.set(i, item);
 				this._itemsToHandles.set(item, i);
 			});
+
+			const pickItems: TransferQuickPickItemOrSeparator[] = [];
+			for (let handle = 0; handle < items.length; handle++) {
+				const item = items[handle];
+				if (item.kind === QuickPickItemKind.Separator) {
+					pickItems.push({ type: 'separator', label: item.label });
+				} else {
+					pickItems.push({
+						handle,
+						label: item.label,
+						description: item.description,
+						detail: item.detail,
+						picked: item.picked,
+						alwaysShow: item.alwaysShow,
+						buttons: item.buttons?.map<TransferQuickInputButton>((button, i) => {
+							return {
+								...getIconPathOrClass(button),
+								tooltip: button.tooltip,
+								handle: i
+							};
+						}),
+					});
+				}
+			}
+
 			this.update({
-				items: items.map((item, i) => ({
-					label: item.label,
-					description: item.description,
-					handle: i,
-					detail: item.detail,
-					picked: item.picked,
-					alwaysShow: item.alwaysShow
-				}))
+				items: pickItems,
 			});
 		}
 
@@ -564,6 +615,15 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this.update({ sortByLabel });
 		}
 
+		get keepScrollPosition() {
+			return this._keepScrollPosition;
+		}
+
+		set keepScrollPosition(keepScrollPosition: boolean) {
+			this._keepScrollPosition = keepScrollPosition;
+			this.update({ keepScrollPosition });
+		}
+
 		get activeItems() {
 			return this._activeItems;
 		}
@@ -596,6 +656,22 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			const items = coalesce(handles.map(handle => this._handlesToItems.get(handle)));
 			this._selectedItems = items;
 			this._onDidChangeSelectionEmitter.fire(items);
+		}
+
+		onDidTriggerItemButton = this._onDidTriggerItemButtonEmitter.event;
+
+		_fireDidTriggerItemButton(itemHandle: number, buttonHandle: number) {
+			const item = this._handlesToItems.get(itemHandle)!;
+			if (!item || !item.buttons || !item.buttons.length) {
+				return;
+			}
+			const button = item.buttons[buttonHandle];
+			if (button) {
+				this._onDidTriggerItemButtonEmitter.fire({
+					button,
+					item
+				});
+			}
 		}
 	}
 

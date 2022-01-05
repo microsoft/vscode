@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./renameInputField';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import 'vs/css!./renameInputField';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { inputBackground, inputBorder, inputForeground, widgetShadow, editorWidgetBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { editorWidgetBackground, inputBackground, inputBorder, inputForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
 export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false, localize('renameInputVisible', "Whether the rename input widget is visible"));
 

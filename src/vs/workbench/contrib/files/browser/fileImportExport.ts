@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { getFileNamesMessage, IConfirmation, IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { VIEW_ID } from 'vs/workbench/contrib/files/common/files';
@@ -20,7 +20,7 @@ import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { extractResources } from 'vs/workbench/browser/dnd';
+import { extractEditorsDropData } from 'vs/workbench/browser/dnd';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { isWeb } from 'vs/base/common/platform';
 import { triggerDownload, WebFileSystemAccess } from 'vs/base/browser/dom';
@@ -31,6 +31,7 @@ import { listenStream } from 'vs/base/common/stream';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { once } from 'vs/base/common/functional';
 import { coalesce } from 'vs/base/common/arrays';
+import { canceled } from 'vs/base/common/errors';
 
 //#region Browser File Upload (drag and drop, input element)
 
@@ -165,7 +166,7 @@ export class BrowserFileUpload {
 						return;
 					}
 
-					await this.explorerService.applyBulkEdit([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true })], {
+					await this.explorerService.applyBulkEdit([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true, folder: target.getChild(entry.name)?.isDirectory })], {
 						undoLabel: localize('overwrite', "Overwrite {0}", entry.name),
 						progressLabel: localize('overwriting', "Overwriting {0}", entry.name),
 					});
@@ -318,16 +319,16 @@ export class BrowserFileUpload {
 			let res = await reader.read();
 			while (!res.done) {
 				if (token.isCancellationRequested) {
-					return undefined;
+					break;
 				}
 
 				// Write buffer into stream but make sure to wait
-				// in case the highWaterMark is reached
+				// in case the `highWaterMark` is reached
 				const buffer = VSBuffer.wrap(res.value);
 				await writeableStream.write(buffer);
 
 				if (token.isCancellationRequested) {
-					return undefined;
+					break;
 				}
 
 				// Report progress
@@ -378,9 +379,9 @@ export class BrowserFileUpload {
 
 //#endregion
 
-//#region Native File Import (drag and drop)
+//#region External File Import (drag and drop)
 
-export class NativeFileImport {
+export class ExternalFileImport {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -390,7 +391,8 @@ export class NativeFileImport {
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 	}
 
@@ -417,9 +419,13 @@ export class NativeFileImport {
 
 	private async doImport(target: ExplorerItem, source: DragEvent, token: CancellationToken): Promise<void> {
 
+		// Activate all providers for the resources dropped
+		const candidateFiles = coalesce(extractEditorsDropData(source).map(editor => editor.resource));
+		await Promise.all(candidateFiles.map(resource => this.fileService.activateProvider(resource.scheme)));
+
 		// Check for dropped external files to be folders
-		const droppedResources = extractResources(source, true);
-		const resolvedFiles = await this.fileService.resolveAll(droppedResources.map(droppedResource => ({ resource: droppedResource.resource })));
+		const files = coalesce(candidateFiles.filter(resource => this.fileService.hasProvider(resource)));
+		const resolvedFiles = await this.fileService.resolveAll(files.map(file => ({ resource: file })));
 
 		if (token.isCancellationRequested) {
 			return;
@@ -462,13 +468,13 @@ export class NativeFileImport {
 
 			// Copy resources
 			if (choice === buttons.length - 2) {
-				return this.importResources(target, droppedResources.map(res => res.resource), token);
+				return this.importResources(target, files, token);
 			}
 		}
 
 		// Handle dropped files (only support FileStat as target)
 		else if (target instanceof ExplorerItem) {
-			return this.importResources(target, droppedResources.map(res => res.resource), token);
+			return this.importResources(target, files, token);
 		}
 	}
 
@@ -491,7 +497,15 @@ export class NativeFileImport {
 				});
 			}
 
+
+			let inaccessibleFileCount = 0;
 			const resourcesFiltered = coalesce((await Promises.settled(resources.map(async resource => {
+				const fileDoesNotExist = !(await this.fileService.exists(resource));
+				if (fileDoesNotExist) {
+					inaccessibleFileCount++;
+					return undefined;
+				}
+
 				if (targetNames.has(caseSensitive ? basename(resource) : basename(resource).toLowerCase())) {
 					const confirmationResult = await this.dialogService.confirm(getFileOverwriteConfirm(basename(resource)));
 					if (!confirmationResult.confirmed) {
@@ -501,6 +515,10 @@ export class NativeFileImport {
 
 				return resource;
 			}))));
+
+			if (inaccessibleFileCount > 0) {
+				this.notificationService.error(inaccessibleFileCount > 1 ? localize('filesInaccessible', "Some or all of the dropped files could not be accessed for import.") : localize('fileInaccessible', "The dropped file could not be accessed for import."));
+			}
 
 			// Copy resources through bulk edit API
 			const resourceFileEdits = resourcesFiltered.map(resource => {
@@ -640,7 +658,7 @@ export class FileDownload {
 		else if (stat.isFile) {
 			let bufferOrUri: Uint8Array | URI;
 			try {
-				bufferOrUri = (await this.fileService.readFile(stat.resource, { limits: { size: maxBlobDownloadSize } })).value.buffer;
+				bufferOrUri = (await this.fileService.readFile(stat.resource, { limits: { size: maxBlobDownloadSize } }, cts.token)).value.buffer;
 			} catch (error) {
 				bufferOrUri = FileAccess.asBrowserUri(stat.resource);
 			}
@@ -652,7 +670,7 @@ export class FileDownload {
 	}
 
 	private async downloadFileBufferedBrowser(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
-		const contents = await this.fileService.readFileStream(resource);
+		const contents = await this.fileService.readFileStream(resource, undefined, token);
 		if (token.isCancellationRequested) {
 			target.close();
 			return;
@@ -664,20 +682,15 @@ export class FileDownload {
 			const disposables = new DisposableStore();
 			disposables.add(toDisposable(() => target.close()));
 
-			let disposed = false;
-			disposables.add(toDisposable(() => disposed = true));
-
 			disposables.add(once(token.onCancellationRequested)(() => {
 				disposables.dispose();
-				reject();
+				reject(canceled());
 			}));
 
-			listenStream(sourceStream, {
+			disposables.add(listenStream(sourceStream, {
 				onData: data => {
-					if (!disposed) {
-						target.write(data.buffer);
-						this.reportProgress(contents.name, contents.size, data.byteLength, operation);
-					}
+					target.write(data.buffer);
+					this.reportProgress(contents.name, contents.size, data.byteLength, operation);
 				},
 				onError: error => {
 					disposables.dispose();
@@ -687,12 +700,12 @@ export class FileDownload {
 					disposables.dispose();
 					resolve();
 				}
-			});
+			}));
 		});
 	}
 
 	private async downloadFileUnbufferedBrowser(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
-		const contents = await this.fileService.readFile(resource);
+		const contents = await this.fileService.readFile(resource, undefined, token);
 		if (!token.isCancellationRequested) {
 			target.write(contents.value.buffer);
 			this.reportProgress(contents.name, contents.size, contents.value.byteLength, operation);

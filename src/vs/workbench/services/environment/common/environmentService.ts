@@ -36,12 +36,13 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	readonly extensionEnabledProposedApi?: string[];
 
 	readonly webviewExternalEndpoint: string;
-	readonly webviewResourceRoot: string;
-	readonly webviewCspSource: string;
 
 	readonly skipReleaseNotes: boolean;
+	readonly skipWelcome: boolean;
 
 	readonly debugRenderer: boolean;
+
+	readonly disableWorkspaceTrust: boolean;
 
 	/**
 	 * @deprecated this property will go away eventually as it

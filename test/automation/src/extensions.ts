@@ -5,6 +5,10 @@
 
 import { Viewlet } from './viewlet';
 import { Code } from './code';
+import path = require('path');
+import fs = require('fs');
+import { ncp } from 'ncp';
+import { promisify } from 'util';
 
 const SEARCH_BOX = 'div.extensions-viewlet[id="workbench.view.extensions"] .monaco-editor textarea';
 
@@ -28,6 +32,7 @@ export class Extensions extends Viewlet {
 		await this.code.waitAndClick(SEARCH_BOX);
 		await this.code.waitForActiveElement(SEARCH_BOX);
 		await this.code.waitForTypeInEditor(SEARCH_BOX, `@id:${id}`);
+		await this.code.waitForTextContent(`div.part.sidebar div.composite.title h2`, 'Extensions: Marketplace');
 		await this.code.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"]`);
 	}
 
@@ -48,5 +53,13 @@ export class Extensions extends Viewlet {
 			await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action[title="Disable this extension"]`);
 		}
 	}
+}
 
+export async function copyExtension(repoPath: string, extensionsPath: string, extId: string): Promise<void> {
+	const dest = path.join(extensionsPath, extId);
+	if (!fs.existsSync(dest)) {
+		const orig = path.join(repoPath, 'extensions', extId);
+
+		return promisify(ncp)(orig, dest);
+	}
 }

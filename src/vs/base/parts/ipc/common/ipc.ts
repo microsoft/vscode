@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter, Relay, EventMultiplexer } from 'vs/base/common/event';
-import { IDisposable, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import * as errors from 'vs/base/common/errors';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { getRandomElement } from 'vs/base/common/arrays';
-import { isFunction, isUndefinedOrNull } from 'vs/base/common/types';
+import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { memoize } from 'vs/base/common/decorators';
+import * as errors from 'vs/base/common/errors';
+import { Emitter, Event, EventMultiplexer, Relay } from 'vs/base/common/event';
+import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import * as strings from 'vs/base/common/strings';
-import { memoize } from 'vs/base/common/decorators';
+import { isFunction, isUndefinedOrNull } from 'vs/base/common/types';
 
 /**
  * An `IChannel` is an abstraction over a collection of commands.
@@ -565,14 +565,14 @@ export class ChannelClient implements IChannelClient, IDisposable {
 							c(response.data);
 							break;
 
-						case ResponseType.PromiseError:
+						case ResponseType.PromiseError: {
 							this.handlers.delete(id);
 							const error = new Error(response.data.message);
 							(<any>error).stack = response.data.stack;
 							error.name = response.data.name;
 							e(error);
 							break;
-
+						}
 						case ResponseType.PromiseErrorObj:
 							this.handlers.delete(id);
 							e(response.data);
@@ -1071,10 +1071,17 @@ export namespace ProxyChannel {
 
 		return new class implements IServerChannel {
 
-			listen<T>(_: unknown, event: string): Event<T> {
+			listen<T>(_: unknown, event: string, arg: any): Event<T> {
 				const eventImpl = mapEventNameToEvent.get(event);
 				if (eventImpl) {
 					return eventImpl as Event<T>;
+				}
+
+				if (propertyIsDynamicEvent(event)) {
+					const target = handler[event];
+					if (typeof target === 'function') {
+						return target.call(handler, arg);
+					}
 				}
 
 				throw new Error(`Event not found: ${event}`);
@@ -1126,6 +1133,13 @@ export namespace ProxyChannel {
 						return options.properties.get(propKey);
 					}
 
+					// Dynamic Event
+					if (propertyIsDynamicEvent(propKey)) {
+						return function (arg: any) {
+							return channel.listen(propKey, arg);
+						};
+					}
+
 					// Event
 					if (propertyIsEvent(propKey)) {
 						return channel.listen(propKey);
@@ -1161,6 +1175,11 @@ export namespace ProxyChannel {
 	function propertyIsEvent(name: string): boolean {
 		// Assume a property is an event if it has a form of "onSomething"
 		return name[0] === 'o' && name[1] === 'n' && strings.isUpperAsciiLetter(name.charCodeAt(2));
+	}
+
+	function propertyIsDynamicEvent(name: string): boolean {
+		// Assume a property is a dynamic event (a method that returns an event) if it has a form of "onDynamicSomething"
+		return /^onDynamic/.test(name) && strings.isUpperAsciiLetter(name.charCodeAt(9));
 	}
 }
 

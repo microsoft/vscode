@@ -7,9 +7,13 @@
 	min-width: 2px;
 	outline-style: solid;
 	outline-width: 1px;
+	background-color: var(--vscode-editor-snippetTabstopHighlightBackground, transparent);
+	outline-color: var(--vscode-editor-snippetTabstopHighlightBorder, transparent);
 }
 
 .monaco-editor .finish-snippet-placeholder {
 	outline-style: solid;
 	outline-width: 1px;
+	background-color: var(--vscode-editor-snippetFinalTabstopHighlightBackground, transparent);
+	outline-color: var(--vscode-editor-snippetFinalTabstopHighlightBorder, transparent);
 }

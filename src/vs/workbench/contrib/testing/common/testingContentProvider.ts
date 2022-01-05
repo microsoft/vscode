@@ -5,9 +5,11 @@
 
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/language';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
 import { parseTestUri, TestUriType, TEST_DATA_SCHEME } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 
@@ -18,6 +20,7 @@ import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResu
 export class TestingContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
 	constructor(
 		@ITextModelService textModelResolverService: ITextModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
 		@ITestResultService private readonly resultService: ITestResultService,
 	) {
@@ -45,22 +48,34 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 		}
 
 		let text: string | undefined;
+		let language: ILanguageSelection | null = null;
 		switch (parsed.type) {
-			case TestUriType.ResultActualOutput:
-				text = test.tasks[parsed.taskIndex].messages[parsed.messageIndex]?.actualOutput;
+			case TestUriType.ResultActualOutput: {
+				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex];
+				if (message?.type === TestMessageType.Error) { text = message.actual; }
 				break;
-			case TestUriType.ResultExpectedOutput:
-				text = test.tasks[parsed.taskIndex].messages[parsed.messageIndex]?.expectedOutput;
+			}
+			case TestUriType.ResultExpectedOutput: {
+				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex];
+				if (message?.type === TestMessageType.Error) { text = message.expected; }
 				break;
-			case TestUriType.ResultMessage:
-				text = test.tasks[parsed.taskIndex].messages[parsed.messageIndex]?.message.toString();
+			}
+			case TestUriType.ResultMessage: {
+				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex]?.message;
+				if (typeof message === 'string') {
+					text = message;
+				} else if (message) {
+					text = message.value;
+					language = this.languageService.createById('markdown');
+				}
 				break;
+			}
 		}
 
 		if (text === undefined) {
 			return null;
 		}
 
-		return this.modelService.createModel(text, null, resource, true);
+		return this.modelService.createModel(text, language, resource, false);
 	}
 }

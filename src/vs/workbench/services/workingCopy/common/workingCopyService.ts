@@ -97,6 +97,12 @@ export interface IWorkingCopyService {
 	has(identifier: IWorkingCopyIdentifier): boolean;
 	has(resource: URI): boolean;
 
+	/**
+	 * Returns a working copy with the given identifier or `undefined`
+	 * if no such working copy exists.
+	 */
+	get(identifier: IWorkingCopyIdentifier): IWorkingCopy | undefined;
+
 	//#endregion
 }
 
@@ -190,6 +196,10 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		}
 
 		return this.mapResourceToWorkingCopies.get(resourceOrIdentifier.resource)?.has(resourceOrIdentifier.typeId) ?? false;
+	}
+
+	get(identifier: IWorkingCopyIdentifier): IWorkingCopy | undefined {
+		return this.mapResourceToWorkingCopies.get(identifier.resource)?.get(identifier.typeId);
 	}
 
 	//#endregion

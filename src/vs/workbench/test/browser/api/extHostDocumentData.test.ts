@@ -104,6 +104,8 @@ suite('ExtHostDocumentData', () => {
 			}],
 			eol: undefined!,
 			versionId: undefined!,
+			isRedoing: false,
+			isUndoing: false,
 		});
 
 		// line didn't change
@@ -161,6 +163,8 @@ suite('ExtHostDocumentData', () => {
 			}],
 			eol: undefined!,
 			versionId: undefined!,
+			isRedoing: false,
+			isUndoing: false,
 		});
 
 		assertOffsetAt(0, 1, 1);
@@ -179,6 +183,8 @@ suite('ExtHostDocumentData', () => {
 			}],
 			eol: undefined!,
 			versionId: undefined!,
+			isRedoing: false,
+			isUndoing: false,
 		});
 
 		assertOffsetAt(0, 1, 1);
@@ -197,6 +203,8 @@ suite('ExtHostDocumentData', () => {
 			}],
 			eol: undefined!,
 			versionId: undefined!,
+			isRedoing: false,
+			isUndoing: false,
 		});
 
 		assertOffsetAt(0, 1, 1);
@@ -218,6 +226,8 @@ suite('ExtHostDocumentData', () => {
 			}],
 			eol: undefined!,
 			versionId: undefined!,
+			isRedoing: false,
+			isUndoing: false,
 		});
 
 		assertOffsetAt(0, 1, 1);
@@ -398,6 +408,8 @@ suite('ExtHostDocumentData updates line mapping', () => {
 			}],
 			eol: eol!,
 			versionId: undefined!,
+			isRedoing: false,
+			isUndoing: false,
 		};
 	}
 
@@ -423,7 +435,7 @@ suite('ExtHostDocumentData updates line mapping', () => {
 			'and this is line number two',
 			'it is followed by #3',
 			'and finished with the fourth.',
-		], { changes: [], eol: undefined!, versionId: 7 });
+		], { changes: [], eol: undefined!, versionId: 7, isRedoing: false, isUndoing: false });
 	});
 
 	test('after remove', () => {

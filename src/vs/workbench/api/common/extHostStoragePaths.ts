@@ -18,6 +18,7 @@ export interface IExtensionStoragePaths {
 	whenReady: Promise<any>;
 	workspaceValue(extension: IExtensionDescription): URI | undefined;
 	globalValue(extension: IExtensionDescription): URI;
+	onWillDeactivateAll(): void;
 }
 
 export class ExtensionStoragePaths implements IExtensionStoragePaths {
@@ -25,14 +26,14 @@ export class ExtensionStoragePaths implements IExtensionStoragePaths {
 	readonly _serviceBrand: undefined;
 
 	private readonly _workspace?: IStaticWorkspaceData;
-	private readonly _environment: IEnvironment;
+	protected readonly _environment: IEnvironment;
 
 	readonly whenReady: Promise<URI | undefined>;
 	private _value?: URI;
 
 	constructor(
 		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@ILogService private readonly _logService: ILogService,
+		@ILogService protected readonly _logService: ILogService,
 		@IExtHostConsumerFileSystem private readonly _extHostFileSystem: IExtHostConsumerFileSystem
 	) {
 		this._workspace = initData.workspace ?? undefined;
@@ -40,12 +41,16 @@ export class ExtensionStoragePaths implements IExtensionStoragePaths {
 		this.whenReady = this._getOrCreateWorkspaceStoragePath().then(value => this._value = value);
 	}
 
+	protected async _getWorkspaceStorageURI(storageName: string): Promise<URI> {
+		return URI.joinPath(this._environment.workspaceStorageHome, storageName);
+	}
+
 	private async _getOrCreateWorkspaceStoragePath(): Promise<URI | undefined> {
 		if (!this._workspace) {
 			return Promise.resolve(undefined);
 		}
 		const storageName = this._workspace.id;
-		const storageUri = URI.joinPath(this._environment.workspaceStorageHome, storageName);
+		const storageUri = await this._getWorkspaceStorageURI(storageName);
 
 		try {
 			await this._extHostFileSystem.value.stat(storageUri);
@@ -83,5 +88,8 @@ export class ExtensionStoragePaths implements IExtensionStoragePaths {
 
 	globalValue(extension: IExtensionDescription): URI {
 		return URI.joinPath(this._environment.globalStorageHome, extension.identifier.value.toLowerCase());
+	}
+
+	onWillDeactivateAll(): void {
 	}
 }

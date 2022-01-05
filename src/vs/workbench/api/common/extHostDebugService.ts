@@ -48,8 +48,8 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	onDidChangeBreakpoints: Event<vscode.BreakpointsChangeEvent>;
 	breakpoints: vscode.Breakpoint[];
 
-	addBreakpoints(breakpoints0: vscode.Breakpoint[]): Promise<void>;
-	removeBreakpoints(breakpoints0: vscode.Breakpoint[]): Promise<void>;
+	addBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
+	removeBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
 	startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration, options: vscode.DebugSessionOptions): Promise<boolean>;
 	stopDebugging(session?: vscode.DebugSession): Promise<void>;
 	registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider, trigger: vscode.DebugConfigurationProviderTriggerKind): vscode.Disposable;
@@ -289,9 +289,12 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration, options: vscode.DebugSessionOptions): Promise<boolean> {
 		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig, {
 			parentSessionID: options.parentSession ? options.parentSession.id : undefined,
+			lifecycleManagedByParent: options.lifecycleManagedByParent,
 			repl: options.consoleMode === DebugConsoleMode.MergeWithParent ? 'mergeWithParent' : 'separate',
 			noDebug: options.noDebug,
-			compact: options.compact
+			compact: options.compact,
+			debugUI: options.debugUI,
+			suppressSaveBeforeStart: options.suppressSaveBeforeStart
 		});
 	}
 
@@ -845,7 +848,8 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 				let ds = this._debugSessions.get(dto.id);
 				if (!ds) {
 					const folder = await this.getFolder(dto.folderUri);
-					ds = new ExtHostDebugSession(this._debugServiceProxy, dto.id, dto.type, dto.name, folder, dto.configuration);
+					const parent = dto.parent ? this._debugSessions.get(dto.parent) : undefined;
+					ds = new ExtHostDebugSession(this._debugServiceProxy, dto.id, dto.type, dto.name, folder, dto.configuration, parent);
 					this._debugSessions.set(ds.id, ds);
 					this._debugServiceProxy.$sessionCached(ds.id);
 				}
@@ -872,7 +876,8 @@ export class ExtHostDebugSession implements vscode.DebugSession {
 		private _type: string,
 		private _name: string,
 		private _workspaceFolder: vscode.WorkspaceFolder | undefined,
-		private _configuration: vscode.DebugConfiguration) {
+		private _configuration: vscode.DebugConfiguration,
+		private _parentSession: vscode.DebugSession | undefined) {
 	}
 
 	public get id(): string {
@@ -886,10 +891,13 @@ export class ExtHostDebugSession implements vscode.DebugSession {
 	public get name(): string {
 		return this._name;
 	}
-
 	public set name(name: string) {
 		this._name = name;
 		this._debugServiceProxy.$setDebugSessionName(this._id, name);
+	}
+
+	public get parentSession(): vscode.DebugSession | undefined {
+		return this._parentSession;
 	}
 
 	_acceptNameChanged(name: string) {
@@ -941,7 +949,13 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				}
 				const tabs = editorTabs.tabs.filter(tab => tab.isActive);
 				if (tabs.length > 0) {
-					return tabs[0].resource;
+					// Resolve a resource from the tab
+					const asSideBySideResource = tabs[0].resource as { primary?: URI, secondary?: URI } | undefined;
+					if (asSideBySideResource && (asSideBySideResource.primary || asSideBySideResource.secondary)) {
+						return asSideBySideResource.primary ?? asSideBySideResource.secondary;
+					} else {
+						return tabs[0].resource as URI | undefined;
+					}
 				}
 			}
 			return undefined;

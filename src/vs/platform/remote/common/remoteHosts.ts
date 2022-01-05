@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 export function getRemoteAuthority(uri: URI): string | undefined {
@@ -26,7 +26,7 @@ export function getRemoteName(authority: string | undefined): string | undefined
 	return authority.substr(0, pos);
 }
 
-function isVirtualResource(resource: URI) {
+export function isVirtualResource(resource: URI) {
 	return resource.scheme !== Schemas.file && resource.scheme !== Schemas.vscodeRemote;
 }
 
@@ -41,4 +41,8 @@ export function getVirtualWorkspaceLocation(workspace: IWorkspace): { scheme: st
 
 export function getVirtualWorkspaceScheme(workspace: IWorkspace): string | undefined {
 	return getVirtualWorkspaceLocation(workspace)?.scheme;
+}
+
+export function isVirtualWorkspace(workspace: IWorkspace): boolean {
+	return getVirtualWorkspaceLocation(workspace) !== undefined;
 }

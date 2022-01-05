@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
-import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOptions, IColorScheme, IPartsSplash } from 'vs/platform/windows/common/windows';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
+import { MessageBoxOptions, MessageBoxReturnValue, MouseInputEvent, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPartsSplash, IWindowOpenable } from 'vs/platform/windows/common/windows';
 
 export interface ICPUProperties {
 	model: string;
@@ -108,6 +108,8 @@ export interface ICommonNativeHostService {
 	getOSStatistics(): Promise<IOSStatistics>;
 	getOSVirtualMachineHint(): Promise<number>;
 
+	getOSColorScheme(): Promise<IColorScheme>;
+
 	// Process
 	killProcess(pid: number, code: string): Promise<void>;
 
@@ -128,6 +130,10 @@ export interface ICommonNativeHostService {
 	mergeAllWindowTabs(): Promise<void>;
 	toggleWindowTabsBar(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
+
+	// macOS Shell command
+	installShellCommand(): Promise<void>;
+	uninstallShellCommand(): Promise<void>;
 
 	// Lifecycle
 	notifyReady(): Promise<void>

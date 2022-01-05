@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
-import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions } from 'vs/workbench/common/views';
+import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, ITreeDataTransfer } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { asPromise } from 'vs/base/common/async';
 import { TreeItemCollapsibleState, ThemeIcon, MarkdownString as MarkdownStringType } from 'vs/workbench/api/common/extHostTypes';
@@ -21,7 +21,9 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Command } from 'vs/editor/common/modes';
+import { Command } from 'vs/editor/common/languages';
+import { TreeDataTransferConverter, TreeDataTransferDTO } from 'vs/workbench/api/common/shared/treeDataTransfer';
+import { ITreeViewsDragAndDropService, TreeViewsDragAndDropService } from 'vs/workbench/services/views/common/treeViewsDragAndDropService';
 
 type TreeItemHandle = string;
 
@@ -48,6 +50,7 @@ function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeIte
 export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 
 	private treeViews: Map<string, ExtHostTreeView<any>> = new Map<string, ExtHostTreeView<any>>();
+	private treeDragAndDropService: ITreeViewsDragAndDropService<vscode.TreeDataTransfer> = new TreeViewsDragAndDropService<vscode.TreeDataTransfer>();
 
 	constructor(
 		private _proxy: MainThreadTreeViewsShape,
@@ -84,8 +87,9 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if (!options || !options.treeDataProvider) {
 			throw new Error('Options with treeDataProvider is mandatory');
 		}
-		const canDragAndDrop = options.dragAndDropController !== undefined;
-		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, canDragAndDrop: canDragAndDrop });
+		const dragAndDropMimeTypes = options.dragAndDropController?.supportedMimeTypes;
+		const hasWillDrop = !!options.dragAndDropController?.onWillDrop;
+		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dragAndDropMimeTypes, hasWillDrop });
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
@@ -120,7 +124,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		};
 	}
 
-	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[]> {
+	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[] | undefined> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
 			return Promise.reject(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
@@ -128,12 +132,53 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		return treeView.getChildren(treeItemHandle);
 	}
 
-	$onDrop(treeViewId: string, treeItemHandles: string[], newParentItemHandle: string): Promise<void> {
-		const treeView = this.treeViews.get(treeViewId);
+	async $onDrop(destinationViewId: string, treeDataTransferDTO: TreeDataTransferDTO, newParentItemHandle: string,
+		operationUuid?: string, sourceViewId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
+		const treeView = this.treeViews.get(destinationViewId);
 		if (!treeView) {
-			return Promise.reject(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
+			return Promise.reject(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', destinationViewId)));
 		}
-		return treeView.onDrop(treeItemHandles, newParentItemHandle);
+
+		const treeDataTransfer = TreeDataTransferConverter.toITreeDataTransfer(treeDataTransferDTO);
+		if ((sourceViewId === destinationViewId) && sourceTreeItemHandles) {
+			await this.addAdditionalTransferItems(treeDataTransfer, treeView, sourceTreeItemHandles, operationUuid);
+		}
+		return treeView.onDrop(treeDataTransfer, newParentItemHandle);
+	}
+
+	private async addAdditionalTransferItems(treeDataTransfer: ITreeDataTransfer, treeView: ExtHostTreeView<any>,
+		sourceTreeItemHandles: string[], operationUuid?: string): Promise<ITreeDataTransfer | undefined> {
+		const existingTransferOperation = this.treeDragAndDropService.removeDragOperationTransfer(operationUuid);
+		let additionalTransferItems: vscode.TreeDataTransfer | undefined;
+		if (existingTransferOperation) {
+			additionalTransferItems = await existingTransferOperation;
+		} else if (operationUuid && treeView.onWillDrop) {
+			const willDropPromise = treeView.onWillDrop(sourceTreeItemHandles);
+			this.treeDragAndDropService.addDragOperationTransfer(operationUuid, willDropPromise);
+			additionalTransferItems = await willDropPromise;
+		}
+		if (additionalTransferItems) {
+			additionalTransferItems.forEach((value, key) => {
+				if (value) {
+					treeDataTransfer.set(key, value);
+				}
+			});
+		}
+		return treeDataTransfer;
+	}
+
+	async $onWillDrop(sourceViewId: string, sourceTreeItemHandles: string[], operationUuid: string): Promise<TreeDataTransferDTO | undefined> {
+		const treeView = this.treeViews.get(sourceViewId);
+		if (!treeView) {
+			return Promise.reject(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', sourceViewId)));
+		}
+
+		const treeDataTransfer = await this.addAdditionalTransferItems(new Map(), treeView, sourceTreeItemHandles, operationUuid);
+		if (!treeDataTransfer) {
+			return;
+		}
+
+		return TreeDataTransferConverter.toTreeDataTransferDTO(treeDataTransfer);
 	}
 
 	async $hasResolve(treeViewId: string): Promise<boolean> {
@@ -189,7 +234,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 }
 
 type Root = null | undefined | void;
-type TreeData<T> = { message: boolean, element: T | Root | false };
+type TreeData<T> = { message: boolean, element: T | T[] | Root | false };
 
 interface TreeNode extends IDisposable {
 	item: ITreeItem;
@@ -207,7 +252,7 @@ class ExtHostTreeView<T> extends Disposable {
 	private readonly dataProvider: vscode.TreeDataProvider<T>;
 	private readonly dndController: vscode.DragAndDropController<T> | undefined;
 
-	private roots: TreeNode[] | null = null;
+	private roots: TreeNode[] | undefined = undefined;
 	private elements: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
 	private nodes: Map<T, TreeNode> = new Map<T, TreeNode>();
 
@@ -253,7 +298,9 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 		this.dataProvider = options.treeDataProvider;
 		this.dndController = options.dragAndDropController;
-		if (this.dataProvider.onDidChangeTreeData) {
+		if (this.dataProvider.onDidChangeTreeData2) {
+			this._register(this.dataProvider.onDidChangeTreeData2(elementOrElements => this._onDidChangeData.fire({ message: false, element: elementOrElements })));
+		} else if (this.dataProvider.onDidChangeTreeData) {
 			this._register(this.dataProvider.onDidChangeTreeData(element => this._onDidChangeData.fire({ message: false, element })));
 		}
 
@@ -269,7 +316,11 @@ class ExtHostTreeView<T> extends Disposable {
 					refreshingPromise = new Promise(c => promiseCallback = c);
 					this.refreshPromise = this.refreshPromise.then(() => refreshingPromise!);
 				}
-				result.elements.push(current.element);
+				if (Array.isArray(current.element)) {
+					result.elements.push(...current.element);
+				} else {
+					result.elements.push(current.element);
+				}
 			}
 			if (current.message) {
 				result.message = true;
@@ -289,16 +340,20 @@ class ExtHostTreeView<T> extends Disposable {
 		}));
 	}
 
-	getChildren(parentHandle: TreeItemHandle | Root): Promise<ITreeItem[]> {
+	async getChildren(parentHandle: TreeItemHandle | Root): Promise<ITreeItem[] | undefined> {
 		const parentElement = parentHandle ? this.getExtensionElement(parentHandle) : undefined;
 		if (parentHandle && !parentElement) {
 			this.logService.error(`No tree item with id \'${parentHandle}\' found.`);
 			return Promise.resolve([]);
 		}
 
-		const childrenNodes = this.getChildrenNodes(parentHandle); // Get it from cache
-		return (childrenNodes ? Promise.resolve(childrenNodes) : this.fetchChildrenNodes(parentElement))
-			.then(nodes => nodes.map(n => n.item));
+		let childrenNodes: TreeNode[] | undefined = this.getChildrenNodes(parentHandle); // Get it from cache
+
+		if (!childrenNodes) {
+			childrenNodes = await this.fetchChildrenNodes(parentElement);
+		}
+
+		return childrenNodes ? childrenNodes.map(n => n.item) : undefined;
 	}
 
 	getExtensionElement(treeItemHandle: TreeItemHandle): T | undefined {
@@ -380,13 +435,31 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	onDrop(treeItemHandleOrNodes: TreeItemHandle[], targetHandleOrNode: TreeItemHandle): Promise<void> {
-		const elements = <T[]>treeItemHandleOrNodes.map(item => this.getExtensionElement(item)).filter(element => !isUndefinedOrNull(element));
-		const target = this.getExtensionElement(targetHandleOrNode);
-		if (elements && target) {
-			return asPromise(() => this.dndController?.onDrop(elements, target));
+	async onWillDrop(sourceTreeItemHandles: TreeItemHandle[]): Promise<vscode.TreeDataTransfer | undefined> {
+		const extensionTreeItems: T[] = [];
+		for (const sourceHandle of sourceTreeItemHandles) {
+			const extensionItem = this.getExtensionElement(sourceHandle);
+			if (extensionItem) {
+				extensionTreeItems.push(extensionItem);
+			}
 		}
-		return Promise.resolve(undefined);
+
+		if (!this.dndController?.onWillDrop || (extensionTreeItems.length === 0)) {
+			return;
+		}
+		return this.dndController.onWillDrop(extensionTreeItems);
+	}
+
+	get hasOnWillDrop(): boolean {
+		return !!this.dndController?.onWillDrop;
+	}
+
+	async onDrop(treeDataTransfer: vscode.TreeDataTransfer, targetHandleOrNode: TreeItemHandle): Promise<void> {
+		const target = this.getExtensionElement(targetHandleOrNode);
+		if (!target) {
+			return;
+		}
+		return asPromise(() => this.dndController?.onDrop(treeDataTransfer, target));
 	}
 
 	get hasResolve(): boolean {
@@ -454,7 +527,7 @@ class ExtHostTreeView<T> extends Disposable {
 				}));
 	}
 
-	private getChildrenNodes(parentNodeOrHandle: TreeNode | TreeItemHandle | Root): TreeNode[] | null {
+	private getChildrenNodes(parentNodeOrHandle: TreeNode | TreeItemHandle | Root): TreeNode[] | undefined {
 		if (parentNodeOrHandle) {
 			let parentNode: TreeNode | undefined;
 			if (typeof parentNodeOrHandle === 'string') {
@@ -463,12 +536,12 @@ class ExtHostTreeView<T> extends Disposable {
 			} else {
 				parentNode = parentNodeOrHandle;
 			}
-			return parentNode ? parentNode.children || null : null;
+			return parentNode ? parentNode.children || undefined : undefined;
 		}
 		return this.roots;
 	}
 
-	private async fetchChildrenNodes(parentElement?: T): Promise<TreeNode[]> {
+	private async fetchChildrenNodes(parentElement?: T): Promise<TreeNode[] | undefined> {
 		// clear children cache
 		this.clearChildren(parentElement);
 
@@ -478,7 +551,7 @@ class ExtHostTreeView<T> extends Disposable {
 			const parentNode = parentElement ? this.nodes.get(parentElement) : undefined;
 			const elements = await this.dataProvider.getChildren(parentElement);
 			if (cts.token.isCancellationRequested) {
-				return [];
+				return undefined;
 			}
 
 			const items = await Promise.all(coalesce(elements || []).map(async element => {
@@ -486,7 +559,7 @@ class ExtHostTreeView<T> extends Disposable {
 				return item && !cts.token.isCancellationRequested ? this.createAndRegisterTreeNode(element, item, parentNode) : null;
 			}));
 			if (cts.token.isCancellationRequested) {
-				return [];
+				return undefined;
 			}
 
 			return coalesce(items);
@@ -763,7 +836,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private clearAll(): void {
-		this.roots = null;
+		this.roots = undefined;
 		this.elements.clear();
 		this.nodes.forEach(node => node.dispose());
 		this.nodes.clear();

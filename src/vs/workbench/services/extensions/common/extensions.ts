@@ -12,18 +12,20 @@ import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription, 
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
+import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	identifier: new ExtensionIdentifier('nullExtensionDescription'),
 	name: 'Null Extension Description',
 	version: '0.0.0',
 	publisher: 'vscode',
-	enableProposedApi: false,
 	engines: { vscode: '' },
 	extensionLocation: URI.parse('void:location'),
 	isBuiltin: false,
 });
 
+export type WebWorkerExtHostConfigValue = boolean | 'auto';
 export const webWorkerExtHostConfig = 'extensions.webWorker';
 
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
@@ -35,10 +37,31 @@ export interface IMessage {
 	extensionPointId: string;
 }
 
+export const enum ExtensionRunningLocation {
+	None,
+	LocalProcess,
+	LocalWebWorker,
+	Remote
+}
+
+export function extensionRunningLocationToString(location: ExtensionRunningLocation) {
+	switch (location) {
+		case ExtensionRunningLocation.None:
+			return 'None';
+		case ExtensionRunningLocation.LocalProcess:
+			return 'LocalProcess';
+		case ExtensionRunningLocation.LocalWebWorker:
+			return 'LocalWebWorker';
+		case ExtensionRunningLocation.Remote:
+			return 'Remote';
+	}
+}
+
 export interface IExtensionsStatus {
 	messages: IMessage[];
 	activationTimes: ActivationTimes | undefined;
 	runtimeErrors: Error[];
+	runningLocation: ExtensionRunningLocation;
 }
 
 export class MissingExtensionDependency {
@@ -77,7 +100,7 @@ export interface IExtensionHostProfile {
 	/**
 	 * Get the information as a .cpuprofile.
 	 */
-	data: object;
+	data: IV8Profile;
 
 	/**
 	 * Get the aggregated time per segmentId
@@ -91,15 +114,37 @@ export const enum ExtensionHostKind {
 	Remote
 }
 
+export function extensionHostKindToString(kind: ExtensionHostKind): string {
+	switch (kind) {
+		case ExtensionHostKind.LocalProcess: return 'LocalProcess';
+		case ExtensionHostKind.LocalWebWorker: return 'LocalWebWorker';
+		case ExtensionHostKind.Remote: return 'Remote';
+	}
+}
+
 export interface IExtensionHost {
 	readonly kind: ExtensionHostKind;
 	readonly remoteAuthority: string | null;
+	readonly lazyStart: boolean;
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol> | null;
 	getInspectPort(): number | undefined;
 	enableInspectPort(): Promise<boolean>;
 	dispose(): void;
+}
+
+export function isProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): boolean {
+	if (!extension.enabledApiProposals) {
+		return false;
+	}
+	return extension.enabledApiProposals.includes(proposal);
+}
+
+export function checkProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): void {
+	if (!isProposedApiEnabled(extension, proposal)) {
+		throw new Error(`Extension '${extension.identifier.value}' CANNOT use API proposal: ${proposal}.\nIts package.json#enabledApiProposals-property declares: ${extension.enabledApiProposals?.join(', ') ?? '[]'} but NOT ${proposal}.\n The missing proposal MUST be added and you must start in extension development mode or use the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
+	}
 }
 
 
@@ -257,25 +302,35 @@ export interface IExtensionService {
 	 */
 	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 
+	/**
+	 * Please do not use!
+	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
+	 */
 	_activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
+	/**
+	 * Please do not use!
+	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
+	 */
 	_onWillActivateExtension(extensionId: ExtensionIdentifier): void;
+	/**
+	 * Please do not use!
+	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
+	 */
 	_onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
+	/**
+	 * Please do not use!
+	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
+	 */
 	_onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void;
+	/**
+	 * Please do not use!
+	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
+	 */
 	_onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void;
 }
 
 export interface ProfileSession {
 	stop(): Promise<IExtensionHostProfile>;
-}
-
-export function checkProposedApiEnabled(extension: IExtensionDescription): void {
-	if (!extension.enableProposedApi) {
-		throwProposedApiError(extension);
-	}
-}
-
-export function throwProposedApiError(extension: IExtensionDescription): never {
-	throw new Error(`[${extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
 }
 
 export function toExtension(extensionDescription: IExtensionDescription): IExtension {
@@ -288,12 +343,12 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 	};
 }
 
-export function toExtensionDescription(extension: IExtension): IExtensionDescription {
+export function toExtensionDescription(extension: IExtension, isUnderDevelopment?: boolean): IExtensionDescription {
 	return {
 		identifier: new ExtensionIdentifier(extension.identifier.id),
 		isBuiltin: extension.type === ExtensionType.System,
 		isUserBuiltin: extension.type === ExtensionType.User && extension.isBuiltin,
-		isUnderDevelopment: false,
+		isUnderDevelopment: !!isUnderDevelopment,
 		extensionLocation: extension.location,
 		...extension.manifest,
 		uuid: extension.identifier.uuid

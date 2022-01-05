@@ -5,7 +5,7 @@
 
 import { globals, INodeProcess, IProcessEnvironment } from 'vs/base/common/platform';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
-import { ProcessMemoryInfo, CrashReporter, IpcRenderer, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
+import { IpcRenderer, ProcessMemoryInfo, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
 /**
  * In sandboxed renderers we cannot expose all of the `process` global of node.js
@@ -94,16 +94,15 @@ export interface ISandboxNodeProcess extends INodeProcess {
 export interface IpcMessagePort {
 
 	/**
-	 * Establish a connection via `MessagePort` to a target. The main process
-	 * will need to transfer the port over to the `channelResponse` after listening
-	 * to `channelRequest` with a payload of `requestNonce` so that the
-	 * source can correlate the response.
+	 * Acquire a `MessagePort`. The main process will transfer the port over to
+	 * the `responseChannel` with a payload of `requestNonce` so that the source can
+	 * correlate the response.
 	 *
 	 * The source should install a `window.on('message')` listener, ensuring `e.data`
-	 * matches `requestNonce`, `e.source` matches `window` and then receiving the
-	 * `MessagePort` via `e.ports[0]`.
+	 * matches `nonce`, `e.source` matches `window` and then receiving the `MessagePort`
+	 * via `e.ports[0]`.
 	 */
-	connect(channelRequest: string, channelResponse: string, requestNonce: string): void;
+	acquire(responseChannel: string, nonce: string): void;
 }
 
 export interface ISandboxContext {
@@ -124,6 +123,5 @@ export interface ISandboxContext {
 export const ipcRenderer: IpcRenderer = globals.vscode.ipcRenderer;
 export const ipcMessagePort: IpcMessagePort = globals.vscode.ipcMessagePort;
 export const webFrame: WebFrame = globals.vscode.webFrame;
-export const crashReporter: CrashReporter = globals.vscode.crashReporter;
 export const process: ISandboxNodeProcess = globals.vscode.process;
 export const context: ISandboxContext = globals.vscode.context;

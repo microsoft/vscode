@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isReadableStream, newWriteableStream, Readable, consumeReadable, peekReadable, consumeStream, ReadableStream, toStream, toReadable, transform, peekStream, isReadableBufferedStream, listenStream, prefixedReadable, prefixedStream } from 'vs/base/common/stream';
 import { timeout } from 'vs/base/common/async';
+import { consumeReadable, consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, prefixedReadable, prefixedStream, Readable, ReadableStream, toReadable, toStream, transform } from 'vs/base/common/stream';
 
 suite('Stream', () => {
 
@@ -91,7 +91,7 @@ suite('Stream', () => {
 	});
 
 	test('WriteableStream - end with error works', async () => {
-		const reducer = (errors: Error[]) => errors.length > 0 ? errors[0] : null as unknown as Error;
+		const reducer = (errors: Error[]) => errors[0];
 		const stream = newWriteableStream<Error>(reducer);
 		stream.end(new Error('error'));
 
@@ -341,6 +341,40 @@ suite('Stream', () => {
 
 		stream.end('Final Bit');
 		assert.strictEqual(end, true);
+	});
+
+	test('listenStream - dispose', () => {
+		const stream = newWriteableStream<string>(strings => strings.join());
+
+		let error = false;
+		let end = false;
+		let data = '';
+
+		const disposable = listenStream(stream, {
+			onData: d => {
+				data = d;
+			},
+			onError: e => {
+				error = true;
+			},
+			onEnd: () => {
+				end = true;
+			}
+		});
+
+		disposable.dispose();
+
+		stream.write('Hello');
+		assert.strictEqual(data, '');
+
+		stream.write('World');
+		assert.strictEqual(data, '');
+
+		stream.error(new Error());
+		assert.strictEqual(error, false);
+
+		stream.end('Final Bit');
+		assert.strictEqual(end, false);
 	});
 
 	test('peekStream', async () => {

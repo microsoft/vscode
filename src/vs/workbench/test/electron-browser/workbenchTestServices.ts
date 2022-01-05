@@ -12,10 +12,10 @@ import { FileOperationError, IFileService } from 'vs/platform/files/common/files
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IDialogService, IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -23,21 +23,21 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { URI } from 'vs/base/common/uri';
 import { IReadTextFileOptions, ITextFileStreamContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IOpenedWindow, IPartsSplash } from 'vs/platform/windows/common/windows';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IOpenedWindow, IPartsSplash, IColorScheme } from 'vs/platform/windows/common/windows';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { LogLevel, ILogService } from 'vs/platform/log/common/log';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { ModelService } from 'vs/editor/common/services/modelService';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { NodeTestWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/test/electron-browser/workingCopyBackupService.test';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { homedir, release, tmpdir, hostname } from 'os';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -45,6 +45,8 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
 import product from 'vs/platform/product/common/product';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
+import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const args = parseArgs(process.argv, OPTIONS);
 
@@ -89,8 +91,9 @@ export class TestTextFileService extends NativeTextFileService {
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@ILogService logService: ILogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IModeService modeService: IModeService,
-		@IElevatedFileService elevatedFileService: IElevatedFileService
+		@ILanguageService languageService: ILanguageService,
+		@IElevatedFileService elevatedFileService: IElevatedFileService,
+		@IDecorationsService decorationsService: IDecorationsService
 	) {
 		super(
 			fileService,
@@ -108,9 +111,10 @@ export class TestTextFileService extends NativeTextFileService {
 			pathService,
 			workingCopyFileService,
 			uriIdentityService,
-			modeService,
+			languageService,
 			elevatedFileService,
-			logService
+			logService,
+			decorationsService
 		);
 	}
 
@@ -160,6 +164,8 @@ export class TestSharedProcessService implements ISharedProcessService {
 	getChannel(channelName: string): any { return undefined; }
 
 	registerChannel(channelName: string, channel: any): void { }
+
+	notifyRestored(): void { }
 }
 
 export class TestNativeHostService implements INativeHostService {
@@ -213,6 +219,7 @@ export class TestNativeHostService implements INativeHostService {
 	async getOSProperties(): Promise<IOSProperties> { return Object.create(null); }
 	async getOSStatistics(): Promise<IOSStatistics> { return Object.create(null); }
 	async getOSVirtualMachineHint(): Promise<number> { return 0; }
+	async getOSColorScheme(): Promise<IColorScheme> { return { dark: true, highContrast: false }; }
 	async killProcess(): Promise<void> { }
 	async setDocumentEdited(edited: boolean): Promise<void> { }
 	async openExternal(url: string): Promise<boolean> { return false; }
@@ -224,6 +231,8 @@ export class TestNativeHostService implements INativeHostService {
 	async moveWindowTabToNewWindow(): Promise<void> { }
 	async mergeAllWindowTabs(): Promise<void> { }
 	async toggleWindowTabsBar(): Promise<void> { }
+	async installShellCommand(): Promise<void> { }
+	async uninstallShellCommand(): Promise<void> { }
 	async notifyReady(): Promise<void> { }
 	async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; } | undefined): Promise<void> { }
 	async reload(): Promise<void> { }
@@ -251,11 +260,11 @@ export class TestNativeHostService implements INativeHostService {
 	async findCredentials(service: string): Promise<{ account: string; password: string; }[]> { return []; }
 }
 
-export function workbenchInstantiationService(): ITestInstantiationService {
+export function workbenchInstantiationService(disposables = new DisposableStore()): ITestInstantiationService {
 	const instantiationService = browserWorkbenchInstantiationService({
 		textFileService: insta => <ITextFileService>insta.createInstance(TestTextFileService),
 		pathService: insta => <IPathService>insta.createInstance(TestNativePathService)
-	});
+	}, disposables);
 
 	instantiationService.stub(INativeHostService, new TestNativeHostService());
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
@@ -272,7 +281,7 @@ export class TestServiceAccessor {
 		@ITextFileService public textFileService: TestTextFileService,
 		@IFilesConfigurationService public filesConfigurationService: TestFilesConfigurationService,
 		@IWorkspaceContextService public contextService: TestContextService,
-		@IModelService public modelService: ModelServiceImpl,
+		@IModelService public modelService: ModelService,
 		@IFileService public fileService: TestFileService,
 		@INativeHostService public nativeHostService: TestNativeHostService,
 		@IFileDialogService public fileDialogService: TestFileDialogService,

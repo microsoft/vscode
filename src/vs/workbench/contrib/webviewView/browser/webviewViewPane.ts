@@ -6,11 +6,11 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { setImmediate } from 'vs/base/common/platform';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -22,7 +22,7 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
-import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IOverlayWebview, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -35,7 +35,7 @@ const storageKeys = {
 
 export class WebviewViewPane extends ViewPane {
 
-	private readonly _webview = this._register(new MutableDisposable<WebviewOverlay>());
+	private readonly _webview = this._register(new MutableDisposable<IOverlayWebview>());
 	private readonly _webviewDisposables = this._register(new DisposableStore());
 	private _activated = false;
 
@@ -48,6 +48,7 @@ export class WebviewViewPane extends ViewPane {
 
 	private readonly memento: Memento;
 	private readonly viewState: MementoObject;
+	private readonly extensionId?: ExtensionIdentifier;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -68,6 +69,7 @@ export class WebviewViewPane extends ViewPane {
 		@IViewsService private readonly viewService: IViewsService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ViewTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		this.extensionId = options.fromExtensionId;
 		this.defaultTitle = this.title;
 
 		this.memento = new Memento(`webviewView.${this.id}`, storageService);
@@ -110,9 +112,9 @@ export class WebviewViewPane extends ViewPane {
 
 		if (!this._resizeObserver) {
 			this._resizeObserver = new ResizeObserver(() => {
-				setImmediate(() => {
+				setTimeout(() => {
 					this.layoutWebview();
-				});
+				}, 0);
 			});
 
 			this._register(toDisposable(() => {
@@ -152,60 +154,70 @@ export class WebviewViewPane extends ViewPane {
 	}
 
 	private activate() {
-		if (!this._activated) {
-			this._activated = true;
-
-			const webviewId = `webviewView-${this.id.replace(/[^a-z0-9]/gi, '-')}`.toLowerCase();
-			const webview = this.webviewService.createWebviewOverlay(webviewId, {}, {}, undefined);
-			webview.state = this.viewState[storageKeys.webviewState];
-			this._webview.value = webview;
-
-			if (this._container) {
-				this._webview.value?.layoutWebviewOverElement(this._container);
-			}
-
-			this._webviewDisposables.add(toDisposable(() => {
-				this._webview.value?.release(this);
-			}));
-
-			this._webviewDisposables.add(webview.onDidUpdateState(() => {
-				this.viewState[storageKeys.webviewState] = webview.state;
-			}));
-
-			this._webviewDisposables.add(new WebviewWindowDragMonitor(() => this._webview.value));
-
-			const source = this._webviewDisposables.add(new CancellationTokenSource());
-
-			this.withProgress(async () => {
-				await this.extensionService.activateByEvent(`onView:${this.id}`);
-
-				let self = this;
-				const webviewView: WebviewView = {
-					webview,
-					onDidChangeVisibility: this.onDidChangeBodyVisibility,
-					onDispose: this.onDispose,
-
-					get title(): string | undefined { return self.setTitle; },
-					set title(value: string | undefined) { self.updateTitle(value); },
-
-					get description(): string | undefined { return self.titleDescription; },
-					set description(value: string | undefined) { self.updateTitleDescription(value); },
-
-					dispose: () => {
-						// Only reset and clear the webview itself. Don't dispose of the view container
-						this._activated = false;
-						this._webview.clear();
-						this._webviewDisposables.clear();
-					},
-
-					show: (preserveFocus) => {
-						this.viewService.openView(this.id, !preserveFocus);
-					}
-				};
-
-				await this.webviewViewService.resolve(this.id, webviewView, source.token);
-			});
+		if (this._activated) {
+			return;
 		}
+
+		this._activated = true;
+
+		const webviewId = `webviewView-${this.id.replace(/[^a-z0-9]/gi, '-')}`.toLowerCase();
+		const webview = this.webviewService.createWebviewOverlay(
+			webviewId,
+			{ purpose: WebviewContentPurpose.WebviewView },
+			{},
+			this.extensionId ? { id: this.extensionId } : undefined
+		);
+		webview.state = this.viewState[storageKeys.webviewState];
+		this._webview.value = webview;
+
+		webview.state = this.viewState[storageKeys.webviewState];
+		this._webview.value = webview;
+
+		if (this._container) {
+			this._webview.value?.layoutWebviewOverElement(this._container);
+		}
+
+		this._webviewDisposables.add(toDisposable(() => {
+			this._webview.value?.release(this);
+		}));
+
+		this._webviewDisposables.add(webview.onDidUpdateState(() => {
+			this.viewState[storageKeys.webviewState] = webview.state;
+		}));
+
+		this._webviewDisposables.add(new WebviewWindowDragMonitor(() => this._webview.value));
+
+		const source = this._webviewDisposables.add(new CancellationTokenSource());
+
+		this.withProgress(async () => {
+			await this.extensionService.activateByEvent(`onView:${this.id}`);
+
+			let self = this;
+			const webviewView: WebviewView = {
+				webview,
+				onDidChangeVisibility: this.onDidChangeBodyVisibility,
+				onDispose: this.onDispose,
+
+				get title(): string | undefined { return self.setTitle; },
+				set title(value: string | undefined) { self.updateTitle(value); },
+
+				get description(): string | undefined { return self.titleDescription; },
+				set description(value: string | undefined) { self.updateTitleDescription(value); },
+
+				dispose: () => {
+					// Only reset and clear the webview itself. Don't dispose of the view container
+					this._activated = false;
+					this._webview.clear();
+					this._webviewDisposables.clear();
+				},
+
+				show: (preserveFocus) => {
+					this.viewService.openView(this.id, !preserveFocus);
+				}
+			};
+
+			await this.webviewViewService.resolve(this.id, webviewView, source.token);
+		});
 	}
 
 	protected override updateTitle(value: string | undefined) {
@@ -217,7 +229,7 @@ export class WebviewViewPane extends ViewPane {
 		return this.progressService.withProgress({ location: this.id, delay: 500 }, task);
 	}
 
-	override onRootScroll() {
+	override onDidScrollRoot() {
 		this.layoutWebview();
 	}
 
@@ -229,7 +241,7 @@ export class WebviewViewPane extends ViewPane {
 
 		webviewEntry.layoutWebviewOverElement(this._container);
 
-		if (!this._rootContainer) {
+		if (!this._rootContainer || !this._rootContainer.isConnected) {
 			this._rootContainer = this.findRootContainer(this._container);
 		}
 

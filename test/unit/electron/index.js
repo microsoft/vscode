@@ -7,9 +7,10 @@
 // come before any mocha imports.
 process.env.MOCHA_COLORS = '1';
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, crashReporter } = require('electron');
+const product = require('../../../product.json');
 const { tmpdir } = require('os');
-const { join } = require('path');
+const { existsSync, mkdirSync } = require('fs');
 const path = require('path');
 const mocha = require('mocha');
 const events = require('events');
@@ -17,7 +18,7 @@ const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const net = require('net');
 const createStatsCollector = require('mocha/lib/stats-collector');
-const FullJsonStreamReporter = require('../fullJsonStreamReporter');
+const { applyReporter, importMochaReporter } = require('../reporter');
 
 // Disable render process reuse, we still have
 // non-context aware native modules in the renderer.
@@ -34,6 +35,7 @@ const optimist = require('optimist')
 	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
 	.describe('wait-server', 'port to connect to and wait before running tests')
 	.describe('timeout', 'timeout for tests')
+	.describe('crash-reporter-directory', 'crash reporter directory').string('crash-reporter-directory')
 	.describe('tfs').string('tfs')
 	.describe('help', 'show the help').alias('help', 'h');
 
@@ -44,8 +46,39 @@ if (argv.help) {
 	process.exit(0);
 }
 
+let crashReporterDirectory = argv['crash-reporter-directory'];
+if (crashReporterDirectory) {
+	crashReporterDirectory = path.normalize(crashReporterDirectory);
+
+	if (!path.isAbsolute(crashReporterDirectory)) {
+		console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory must be absolute.`);
+		app.exit(1);
+	}
+
+	if (!existsSync(crashReporterDirectory)) {
+		try {
+			mkdirSync(crashReporterDirectory);
+		} catch (error) {
+			console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory does not seem to exist or cannot be created.`);
+			app.exit(1);
+		}
+	}
+
+	// Crashes are stored in the crashDumps directory by default, so we
+	// need to change that directory to the provided one
+	console.log(`Found --crash-reporter-directory argument. Setting crashDumps directory to be '${crashReporterDirectory}'`);
+	app.setPath('crashDumps', crashReporterDirectory);
+
+	crashReporter.start({
+		companyName: 'Microsoft',
+		productName: process.env['VSCODE_DEV'] ? `${product.nameShort} Dev` : product.nameShort,
+		uploadToServer: false,
+		compress: true
+	});
+}
+
 if (!argv.debug) {
-	app.setPath('userData', join(tmpdir(), `vscode-tests-${Date.now()}`));
+	app.setPath('userData', path.join(tmpdir(), `vscode-tests-${Date.now()}`));
 }
 
 function deserializeSuite(suite) {
@@ -76,23 +109,18 @@ function deserializeRunnable(runnable) {
 	};
 }
 
-function importMochaReporter(name) {
-	if (name === 'full-json-stream') {
-		return FullJsonStreamReporter;
-	}
-
-	const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', name);
-	return require(reporterPath);
-}
-
 function deserializeError(err) {
 	const inspect = err.inspect;
 	err.inspect = () => inspect;
+	// Unfortunately, mocha rewrites and formats err.actual/err.expected.
+	// This formatting is hard to reverse, so err.*JSON includes the unformatted value.
 	if (err.actual) {
 		err.actual = JSON.parse(err.actual).value;
+		err.actualJSON = err.actual;
 	}
 	if (err.expected) {
 		err.expected = JSON.parse(err.expected).value;
+		err.expectedJSON = err.expected;
 	}
 	return err;
 }
@@ -123,11 +151,6 @@ class IPCRunner extends events.EventEmitter {
 		});
 		ipcMain.on('pending', (e, test) => this.emit('pending', deserializeRunnable(test)));
 	}
-}
-
-function parseReporterOption(value) {
-	let r = /^([^=]+)=(.*)$/.exec(value);
-	return r ? { [r[1]]: r[2] } : {};
 }
 
 app.on('ready', () => {
@@ -168,10 +191,8 @@ app.on('ready', () => {
 			nodeIntegration: true,
 			contextIsolation: false,
 			enableWebSQL: false,
-			enableRemoteModule: false,
 			spellcheck: false,
-			nativeWindowOpen: true,
-			webviewTag: true
+			nativeWindowOpen: true
 		}
 	});
 
@@ -206,7 +227,7 @@ app.on('ready', () => {
 			timeout = setTimeout(() => {
 				console.error('timed out waiting for before starting tests debugger');
 				resolve();
-			}, 7000);
+			}, 15000);
 		}).finally(() => {
 			if (socket) {
 				socket.end();
@@ -251,23 +272,7 @@ app.on('ready', () => {
 			});
 		}
 
-		let Reporter;
-		try {
-			Reporter = importMochaReporter(argv.reporter);
-		} catch (err) {
-			try {
-				Reporter = require(argv.reporter);
-			} catch (err) {
-				Reporter = process.platform === 'win32' ? mocha.reporters.List : mocha.reporters.Spec;
-				console.warn(`could not load reporter: ${argv.reporter}, using ${Reporter.name}`);
-			}
-		}
-
-		let reporterOptions = argv['reporter-options'];
-		reporterOptions = typeof reporterOptions === 'string' ? [reporterOptions] : reporterOptions;
-		reporterOptions = reporterOptions.reduce((r, o) => Object.assign(r, parseReporterOption(o)), {});
-
-		new Reporter(runner, { reporterOptions });
+		applyReporter(runner, argv);
 	}
 
 	if (!argv.debug) {

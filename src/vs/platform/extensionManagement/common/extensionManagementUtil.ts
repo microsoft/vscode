@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { compareIgnoreCase } from 'vs/base/common/strings';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, ILocalExtension, IExtensionsControlManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -96,6 +96,7 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		"publisherId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"publisherName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"isPreReleaseVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"dependencies": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 		"${include}": [
 			"${GalleryExtensionTelemetryData2}"
@@ -110,6 +111,7 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 		publisherId: extension.publisherId,
 		publisherName: extension.publisher,
 		publisherDisplayName: extension.publisherDisplayName,
+		isPreReleaseVersion: extension.properties.isPreReleaseVersion,
 		dependencies: !!(extension.properties.dependencies && extension.properties.dependencies.length > 0),
 		...extension.telemetryData
 	};
@@ -117,14 +119,33 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 
 export const BetterMergeId = new ExtensionIdentifier('pprice.better-merge');
 
-export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<string> {
+export function getMaliciousExtensionsSet(manifest: IExtensionsControlManifest): Set<string> {
 	const result = new Set<string>();
 
-	for (const extension of report) {
-		if (extension.malicious) {
-			result.add(extension.id.id);
+	if (manifest.malicious) {
+		for (const extension of manifest.malicious) {
+			result.add(extension.id);
 		}
 	}
 
 	return result;
+}
+
+export function getExtensionDependencies(installedExtensions: ReadonlyArray<IExtension>, extension: IExtension): IExtension[] {
+	const dependencies: IExtension[] = [];
+	const extensions = extension.manifest.extensionDependencies?.slice(0) ?? [];
+
+	while (extensions.length) {
+		const id = extensions.shift();
+
+		if (id && dependencies.every(e => !areSameExtensions(e.identifier, { id }))) {
+			const ext = installedExtensions.filter(e => areSameExtensions(e.identifier, { id }));
+			if (ext.length === 1) {
+				dependencies.push(ext[0]);
+				extensions.push(...ext[0].manifest.extensionDependencies?.slice(0) ?? []);
+			}
+		}
+	}
+
+	return dependencies;
 }

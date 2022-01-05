@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, markAsSingleton } from 'vs/base/common/lifecycle';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
-import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
+import { ColorId, TokenizationRegistry } from 'vs/editor/common/languages';
 
-export class MinimapTokensColorTracker {
+export class MinimapTokensColorTracker extends Disposable {
 	private static _INSTANCE: MinimapTokensColorTracker | null = null;
 	public static getInstance(): MinimapTokensColorTracker {
 		if (!this._INSTANCE) {
-			this._INSTANCE = new MinimapTokensColorTracker();
+			this._INSTANCE = markAsSingleton(new MinimapTokensColorTracker());
 		}
 		return this._INSTANCE;
 	}
@@ -23,12 +24,13 @@ export class MinimapTokensColorTracker {
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private constructor() {
+		super();
 		this._updateColorMap();
-		TokenizationRegistry.onDidChange(e => {
+		this._register(TokenizationRegistry.onDidChange(e => {
 			if (e.changedColorMap) {
 				this._updateColorMap();
 			}
-		});
+		}));
 	}
 
 	private _updateColorMap(): void {
@@ -44,7 +46,7 @@ export class MinimapTokensColorTracker {
 			// Use a VM friendly data-type
 			this._colors[colorId] = new RGBA8(source.r, source.g, source.b, Math.round(source.a * 255));
 		}
-		let backgroundLuminosity = colorMap[ColorId.DefaultBackground].getRelativeLuminance();
+		const backgroundLuminosity = colorMap[ColorId.DefaultBackground].getRelativeLuminance();
 		this._backgroundIsLight = backgroundLuminosity >= 0.5;
 		this._onDidChange.fire(undefined);
 	}

@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { Contracts, TelemetryClient } from 'applicationinsights';
 import * as assert from 'assert';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { TelemetryClient, Contracts } from 'applicationinsights';
 
 class AppInsightsMock extends TelemetryClient {
 	public override config: any;
@@ -68,10 +68,10 @@ suite('AIAdapter', () => {
 		assert(reallyLongPropertyName.length > 150);
 
 		let reallyLongPropertyValue = 'abcdefghijklmnopqrstuvwxyz012345678901234567890123';
-		for (let i = 0; i < 21; i++) {
+		for (let i = 0; i < 400; i++) {
 			reallyLongPropertyValue += 'abcdefghijklmnopqrstuvwxyz012345678901234567890123';
 		}
-		assert(reallyLongPropertyValue.length > 1024);
+		assert(reallyLongPropertyValue.length > 8192);
 
 		let data = Object.create(null);
 		data[reallyLongPropertyName] = '1234';
@@ -82,7 +82,7 @@ suite('AIAdapter', () => {
 
 		for (let prop in appInsightsMock.events[0].properties!) {
 			assert(prop.length < 150);
-			assert(appInsightsMock.events[0].properties![prop].length < 1024);
+			assert(appInsightsMock.events[0].properties![prop].length < 8192);
 		}
 	});
 

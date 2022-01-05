@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Event } from 'vs/base/common/event';
-import { IUserDataSyncUtilService, IUserDataAutoSyncService, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
-import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { Event } from 'vs/base/common/event';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IUserDataAutoSyncService, IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncUtilService, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
+import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 export class UserDataAutoSyncChannel implements IServerChannel {
 

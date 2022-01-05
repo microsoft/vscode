@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
-import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer, ITreeSorter, IDataSource, TreeError } from 'vs/base/browser/ui/tree/tree';
-import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { Iterable } from 'vs/base/common/iterator';
 import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
+import { IDataSource, ITreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter, TreeError } from 'vs/base/browser/ui/tree/tree';
+import { Iterable } from 'vs/base/common/iterator';
 
 export interface IDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
 	readonly sorter?: ITreeSorter<T>;

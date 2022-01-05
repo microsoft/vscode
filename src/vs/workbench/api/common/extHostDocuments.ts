@@ -14,6 +14,7 @@ import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
 import { assertIsDefined } from 'vs/base/common/types';
 import { deepFreeze } from 'vs/base/common/objects';
+import { TextDocumentChangeReason } from 'vs/workbench/api/common/extHostTypes';
 
 export class ExtHostDocuments implements ExtHostDocumentsShape {
 
@@ -102,16 +103,16 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		return this._proxy.$tryCreateDocument(options).then(data => URI.revive(data));
 	}
 
-	public $acceptModelModeChanged(uriComponents: UriComponents, newModeId: string): void {
+	public $acceptModelLanguageChanged(uriComponents: UriComponents, newLanguageId: string): void {
 		const uri = URI.revive(uriComponents);
 		const data = this._documentsAndEditors.getDocument(uri);
 		if (!data) {
 			throw new Error('unknown document');
 		}
-		// Treat a mode change as a remove + add
+		// Treat a language change as a remove + add
 
 		this._onDidRemoveDocument.fire(data.document);
-		data._acceptLanguageId(newModeId);
+		data._acceptLanguageId(newLanguageId);
 		this._onDidAddDocument.fire(data.document);
 	}
 
@@ -134,7 +135,8 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		data._acceptIsDirty(isDirty);
 		this._onDidChangeDocument.fire({
 			document: data.document,
-			contentChanges: []
+			contentChanges: [],
+			reason: undefined
 		});
 	}
 
@@ -146,6 +148,14 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		}
 		data._acceptIsDirty(isDirty);
 		data.onEvents(events);
+
+		let reason: vscode.TextDocumentChangeReason | undefined = undefined;
+		if (events.isUndoing) {
+			reason = TextDocumentChangeReason.Undo;
+		} else if (events.isRedoing) {
+			reason = TextDocumentChangeReason.Redo;
+		}
+
 		this._onDidChangeDocument.fire(deepFreeze({
 			document: data.document,
 			contentChanges: events.changes.map((change) => {
@@ -155,11 +165,12 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 					rangeLength: change.rangeLength,
 					text: change.text
 				};
-			})
+			}),
+			reason
 		}));
 	}
 
-	public setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {
-		setWordDefinitionFor(modeId, wordDefinition);
+	public setWordDefinitionFor(languageId: string, wordDefinition: RegExp | undefined): void {
+		setWordDefinitionFor(languageId, wordDefinition);
 	}
 }

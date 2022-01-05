@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILinkDescriptor } from 'vs/platform/opener/browser/link';
-import { StorageScope } from 'vs/platform/storage/common/storage';
-
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export interface IBannerItem {
 	readonly id: string;
-	readonly icon: Codicon;
+	readonly icon: ThemeIcon | URI | undefined;
 	readonly message: string | MarkdownString;
-	readonly scope?: StorageScope; /* Used to remember that the banner has been closed. */
 	readonly actions?: ILinkDescriptor[];
+	readonly ariaLabel?: string;
+	readonly onClose?: () => void;
 }
 
 export const IBannerService = createDecorator<IBannerService>('bannerService');
@@ -23,6 +23,9 @@ export const IBannerService = createDecorator<IBannerService>('bannerService');
 export interface IBannerService {
 	readonly _serviceBrand: undefined;
 
+	focus(): void;
+	focusNextAction(): void;
+	focusPreviousAction(): void;
 	hide(id: string): void;
 	show(item: IBannerItem): void;
 }

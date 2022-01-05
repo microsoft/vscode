@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { OverviewRulerPosition, ConfigurationChangedEvent, EditorLayoutInfo, IComputedEditorOptions, EditorOption, FindComputedEditorOptionValueById, IEditorOptions, IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -17,7 +17,7 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguag
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
+import { IDiffComputationResult } from 'vs/editor/common/services/editorWorker';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 /**
@@ -325,7 +325,7 @@ export interface IPartialEditorMouseEvent {
  */
 export interface IPasteEvent {
 	readonly range: Range;
-	readonly mode: string | null;
+	readonly languageId: string | null;
 }
 
 /**
@@ -371,6 +371,22 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 	 * Defaults to an internal DOM node.
 	 */
 	overflowWidgetsDomNode?: HTMLElement;
+
+	/**
+	 * Aria label for original editor.
+	 */
+	originalAriaLabel?: string;
+
+	/**
+	 * Aria label for modified editor.
+	 */
+	modifiedAriaLabel?: string;
+
+	/**
+	 * Is the diff editor inside another editor
+	 * Defaults to false
+	 */
+	isInEmbeddedEditor?: boolean;
 }
 
 /**
@@ -386,171 +402,177 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * An event emitted when the content of the current model has changed.
 	 * @event
 	 */
-	onDidChangeModelContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+	readonly onDidChangeModelContent: Event<IModelContentChangedEvent>;
 	/**
 	 * An event emitted when the language of the current model has changed.
 	 * @event
 	 */
-	onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+	readonly onDidChangeModelLanguage: Event<IModelLanguageChangedEvent>;
 	/**
 	 * An event emitted when the language configuration of the current model has changed.
 	 * @event
 	 */
-	onDidChangeModelLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+	readonly onDidChangeModelLanguageConfiguration: Event<IModelLanguageConfigurationChangedEvent>;
 	/**
 	 * An event emitted when the options of the current model has changed.
 	 * @event
 	 */
-	onDidChangeModelOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
+	readonly onDidChangeModelOptions: Event<IModelOptionsChangedEvent>;
 	/**
 	 * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
 	 * @event
 	 */
-	onDidChangeConfiguration(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
+	readonly onDidChangeConfiguration: Event<ConfigurationChangedEvent>;
 	/**
 	 * An event emitted when the cursor position has changed.
 	 * @event
 	 */
-	onDidChangeCursorPosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable;
+	readonly onDidChangeCursorPosition: Event<ICursorPositionChangedEvent>;
 	/**
 	 * An event emitted when the cursor selection has changed.
 	 * @event
 	 */
-	onDidChangeCursorSelection(listener: (e: ICursorSelectionChangedEvent) => void): IDisposable;
+	readonly onDidChangeCursorSelection: Event<ICursorSelectionChangedEvent>;
 	/**
 	 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
 	 * @event
 	 */
-	onDidChangeModel(listener: (e: editorCommon.IModelChangedEvent) => void): IDisposable;
+	readonly onDidChangeModel: Event<editorCommon.IModelChangedEvent>;
 	/**
 	 * An event emitted when the decorations of the current model have changed.
 	 * @event
 	 */
-	onDidChangeModelDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
+	readonly onDidChangeModelDecorations: Event<IModelDecorationsChangedEvent>;
 	/**
 	 * An event emitted when the text inside this editor gained focus (i.e. cursor starts blinking).
 	 * @event
 	 */
-	onDidFocusEditorText(listener: () => void): IDisposable;
+	readonly onDidFocusEditorText: Event<void>;
 	/**
 	 * An event emitted when the text inside this editor lost focus (i.e. cursor stops blinking).
 	 * @event
 	 */
-	onDidBlurEditorText(listener: () => void): IDisposable;
+	readonly onDidBlurEditorText: Event<void>;
 	/**
 	 * An event emitted when the text inside this editor or an editor widget gained focus.
 	 * @event
 	 */
-	onDidFocusEditorWidget(listener: () => void): IDisposable;
+	readonly onDidFocusEditorWidget: Event<void>;
 	/**
 	 * An event emitted when the text inside this editor or an editor widget lost focus.
 	 * @event
 	 */
-	onDidBlurEditorWidget(listener: () => void): IDisposable;
+	readonly onDidBlurEditorWidget: Event<void>;
 	/**
 	 * An event emitted before interpreting typed characters (on the keyboard).
 	 * @event
 	 * @internal
 	 */
-	onWillType(listener: (text: string) => void): IDisposable;
+	readonly onWillType: Event<string>;
 	/**
 	 * An event emitted after interpreting typed characters (on the keyboard).
 	 * @event
 	 * @internal
 	 */
-	onDidType(listener: (text: string) => void): IDisposable;
+	readonly onDidType: Event<string>;
 	/**
 	 * An event emitted after composition has started.
 	 */
-	onDidCompositionStart(listener: () => void): IDisposable;
+	readonly onDidCompositionStart: Event<void>;
 	/**
 	 * An event emitted after composition has ended.
 	 */
-	onDidCompositionEnd(listener: () => void): IDisposable;
+	readonly onDidCompositionEnd: Event<void>;
 	/**
 	 * An event emitted when editing failed because the editor is read-only.
 	 * @event
 	 */
-	onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
+	readonly onDidAttemptReadOnlyEdit: Event<void>;
 	/**
 	 * An event emitted when users paste text in the editor.
 	 * @event
 	 */
-	onDidPaste(listener: (e: IPasteEvent) => void): IDisposable;
+	readonly onDidPaste: Event<IPasteEvent>;
 	/**
 	 * An event emitted on a "mouseup".
 	 * @event
 	 */
-	onMouseUp(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	readonly onMouseUp: Event<IEditorMouseEvent>;
 	/**
 	 * An event emitted on a "mousedown".
 	 * @event
 	 */
-	onMouseDown(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	readonly onMouseDown: Event<IEditorMouseEvent>;
 	/**
 	 * An event emitted on a "mousedrag".
 	 * @internal
 	 * @event
 	 */
-	onMouseDrag(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	readonly onMouseDrag: Event<IEditorMouseEvent>;
 	/**
 	 * An event emitted on a "mousedrop".
 	 * @internal
 	 * @event
 	 */
-	onMouseDrop(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
+	readonly onMouseDrop: Event<IPartialEditorMouseEvent>;
 	/**
 	 * An event emitted on a "mousedropcanceled".
 	 * @internal
 	 * @event
 	 */
-	onMouseDropCanceled(listener: () => void): IDisposable;
+	readonly onMouseDropCanceled: Event<void>;
 	/**
 	 * An event emitted on a "contextmenu".
 	 * @event
 	 */
-	onContextMenu(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	readonly onContextMenu: Event<IEditorMouseEvent>;
 	/**
 	 * An event emitted on a "mousemove".
 	 * @event
 	 */
-	onMouseMove(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	readonly onMouseMove: Event<IEditorMouseEvent>;
 	/**
 	 * An event emitted on a "mouseleave".
 	 * @event
 	 */
-	onMouseLeave(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
+	readonly onMouseLeave: Event<IPartialEditorMouseEvent>;
 	/**
 	 * An event emitted on a "mousewheel"
 	 * @event
 	 * @internal
 	 */
-	onMouseWheel(listener: (e: IMouseWheelEvent) => void): IDisposable;
+	readonly onMouseWheel: Event<IMouseWheelEvent>;
 	/**
 	 * An event emitted on a "keyup".
 	 * @event
 	 */
-	onKeyUp(listener: (e: IKeyboardEvent) => void): IDisposable;
+	readonly onKeyUp: Event<IKeyboardEvent>;
 	/**
 	 * An event emitted on a "keydown".
 	 * @event
 	 */
-	onKeyDown(listener: (e: IKeyboardEvent) => void): IDisposable;
+	readonly onKeyDown: Event<IKeyboardEvent>;
 	/**
 	 * An event emitted when the layout of the editor has changed.
 	 * @event
 	 */
-	onDidLayoutChange(listener: (e: EditorLayoutInfo) => void): IDisposable;
+	readonly onDidLayoutChange: Event<EditorLayoutInfo>;
 	/**
 	 * An event emitted when the content width or content height in the editor has changed.
 	 * @event
 	 */
-	onDidContentSizeChange(listener: (e: editorCommon.IContentSizeChangedEvent) => void): IDisposable;
+	readonly onDidContentSizeChange: Event<editorCommon.IContentSizeChangedEvent>;
 	/**
 	 * An event emitted when the scroll in the editor has changed.
 	 * @event
 	 */
-	onDidScrollChange(listener: (e: editorCommon.IScrollEvent) => void): IDisposable;
+	readonly onDidScrollChange: Event<editorCommon.IScrollEvent>;
+
+	/**
+	 * An event emitted when hidden areas change in the editor (e.g. due to folding).
+	 * @event
+	 */
+	readonly onDidChangeHiddenAreas: Event<void>;
 
 	/**
 	 * Saves current view state of the editor in a serializable object.
@@ -572,7 +594,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @id Unique identifier of the contribution.
 	 * @return The contribution or null if contribution not found.
 	 */
-	getContribution<T extends editorCommon.IEditorContribution>(id: string): T;
+	getContribution<T extends editorCommon.IEditorContribution>(id: string): T | null;
 
 	/**
 	 * Execute `fn` with the editor's services.
@@ -733,7 +755,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * @internal
 	 */
-	setDecorations(decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): void;
+	setDecorations(description: string, decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): void;
 
 	/**
 	 * @internal
@@ -876,6 +898,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	hasModel(): this is IActiveCodeEditor;
+
+	setBanner(bannerDomNode: HTMLElement | null, height: number): void;
 }
 
 /**
@@ -959,31 +983,21 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 */
 	readonly ignoreTrimWhitespace: boolean;
 	/**
-	 * Returns whether the diff editor is rendering side by side or not.
-	 * @internal
-	 */
-	readonly renderSideBySide: boolean;
-	/**
-	 * Returns whether the diff editor is rendering +/- indicators or not.
-	 * @internal
-	 */
-	readonly renderIndicators: boolean;
-	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
 	 * @internal
 	 */
 	readonly maxComputationTime: number;
 
 	/**
-	 * @see {@link ICodeEditor.getDomNode}
+	 * @see {@link ICodeEditor.getContainerDomNode}
 	 */
-	getDomNode(): HTMLElement;
+	getContainerDomNode(): HTMLElement;
 
 	/**
 	 * An event emitted when the diff information computed by this diff editor has been updated.
 	 * @event
 	 */
-	onDidUpdateDiff(listener: () => void): IDisposable;
+	readonly onDidUpdateDiff: Event<void>;
 
 	/**
 	 * Saves current view state of the editor in a serializable object.

@@ -11,13 +11,13 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { serializeWebviewOptions, ExtHostWebview, ExtHostWebviews, toExtensionData, shouldSerializeBuffersForPostMessage } from 'vs/workbench/api/common/extHostWebview';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { EditorGroupColumn } from 'vs/workbench/common/editor';
+import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import type * as vscode from 'vscode';
 import * as extHostProtocol from './extHost.protocol';
 import * as extHostTypes from './extHostTypes';
 
 
-type IconPath = URI | { light: URI, dark: URI };
+type IconPath = URI | { readonly light: URI, readonly dark: URI };
 
 class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 
@@ -281,7 +281,7 @@ export class ExtHostWebviewPanels implements extHostProtocol.ExtHostWebviewPanel
 		initData: {
 			title: string;
 			state: any;
-			webviewOptions: extHostProtocol.IWebviewOptions;
+			webviewOptions: extHostProtocol.IWebviewContentOptions;
 			panelOptions: extHostProtocol.IWebviewPanelOptions;
 		},
 		position: EditorGroupColumn

@@ -7,12 +7,12 @@ import * as assert from 'assert';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/browser/mainThreadLanguageFeatures';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
@@ -29,7 +29,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
 import { nullExtensionDescription, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { dispose, ImmortalReference } from 'vs/base/common/lifecycle';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { mock } from 'vs/base/test/common/mock';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -50,24 +50,8 @@ import 'vs/editor/contrib/smartSelect/smartSelect';
 import 'vs/editor/contrib/suggest/suggest';
 import 'vs/editor/contrib/rename/rename';
 import 'vs/editor/contrib/inlayHints/inlayHintsController';
-
-const defaultSelector = { scheme: 'far' };
-const model: ITextModel = createTextModel(
-	[
-		'This is the first line',
-		'This is the second line',
-		'This is the third line',
-	].join('\n'),
-	undefined,
-	undefined,
-	URI.parse('far://testing/file.b'));
-
-let rpcProtocol: TestRPCProtocol;
-let extHost: ExtHostLanguageFeatures;
-let mainThread: MainThreadLanguageFeatures;
-let commands: ExtHostCommands;
-let disposables: vscode.Disposable[] = [];
-let originalErrorHandler: (e: any) => any;
+import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -79,9 +63,26 @@ function isLocation(value: vscode.Location | vscode.LocationLink): value is vsco
 }
 
 suite('ExtHostLanguageFeatureCommands', function () {
+	const defaultSelector = { scheme: 'far' };
+	let model: ITextModel;
+
+	let rpcProtocol: TestRPCProtocol;
+	let extHost: ExtHostLanguageFeatures;
+	let mainThread: MainThreadLanguageFeatures;
+	let commands: ExtHostCommands;
+	let disposables: vscode.Disposable[] = [];
+	let originalErrorHandler: (e: any) => any;
 
 	suiteSetup(() => {
-
+		model = createTextModel(
+			[
+				'This is the first line',
+				'This is the second line',
+				'This is the third line',
+			].join('\n'),
+			undefined,
+			undefined,
+			URI.parse('far://testing/file.b'));
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
@@ -130,7 +131,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			addedDocuments: [{
 				isDirty: false,
 				versionId: model.getVersionId(),
-				modeId: model.getLanguageIdentifier().language,
+				languageId: model.getLanguageId(),
 				uri: model.uri,
 				lines: model.getValue().split(model.getEOL()),
 				EOL: model.getEOL(),
@@ -144,10 +145,10 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		rpcProtocol.set(MainContext.MainThreadCommands, insta.createInstance(MainThreadCommands, rpcProtocol));
 		ExtHostApiCommands.register(commands);
 
-		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService());
+		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { });
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, insta.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -200,12 +201,12 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', 'testing').then(value => {
 
+				assert.strictEqual(value.length, 2); // de-duped
 				for (let info of value) {
 					assert.strictEqual(info instanceof types.SymbolInformation, true);
 					assert.strictEqual(info.name, 'testing');
 					assert.strictEqual(info.kind, types.SymbolKind.Array);
 				}
-				assert.strictEqual(value.length, 3);
 			});
 		});
 	});
@@ -243,6 +244,36 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 
 	// --- rename
+	test('vscode.prepareRename', async function () {
+		disposables.push(extHost.registerRenameProvider(nullExtensionDescription, defaultSelector, new class implements vscode.RenameProvider {
+
+			prepareRename(document: vscode.TextDocument, position: vscode.Position) {
+				return {
+					range: new types.Range(0, 12, 0, 24),
+					placeholder: 'foooPlaceholder'
+				};
+			}
+
+			provideRenameEdits(document: vscode.TextDocument, position: vscode.Position, newName: string) {
+				const edit = new types.WorkspaceEdit();
+				edit.insert(document.uri, <types.Position>position, newName);
+				return edit;
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const data = await commands.executeCommand<{ range: vscode.Range, placeholder: string }>('vscode.prepareRename', model.uri, new types.Position(0, 12));
+
+		assert.ok(data);
+		assert.strictEqual(data.placeholder, 'foooPlaceholder');
+		assert.strictEqual(data.range.start.line, 0);
+		assert.strictEqual(data.range.start.character, 12);
+		assert.strictEqual(data.range.end.line, 0);
+		assert.strictEqual(data.range.end.character, 24);
+
+	});
+
 	test('vscode.executeDocumentRenameProvider', async function () {
 		disposables.push(extHost.registerRenameProvider(nullExtensionDescription, defaultSelector, new class implements vscode.RenameProvider {
 			provideRenameEdits(document: vscode.TextDocument, position: vscode.Position, newName: string) {
@@ -1292,7 +1323,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.ok(value[0].parent);
 	});
 
-	// --- call hierarcht
+	// --- call hierarchy
 
 	test('CallHierarchy, back and forth', async function () {
 
@@ -1333,6 +1364,62 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const outgoing = await commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', root[0]);
 		assert.strictEqual(outgoing.length, 1);
 		assert.strictEqual(outgoing[0].to.name, 'OUTGOING');
+	});
+
+	test('prepareCallHierarchy throws TypeError if clangd returns empty result #137415', async function () {
+
+		disposables.push(extHost.registerCallHierarchyProvider(nullExtensionDescription, defaultSelector, new class implements vscode.CallHierarchyProvider {
+			prepareCallHierarchy(document: vscode.TextDocument, position: vscode.Position,): vscode.ProviderResult<vscode.CallHierarchyItem[]> {
+				return [];
+			}
+			provideCallHierarchyIncomingCalls(item: vscode.CallHierarchyItem, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CallHierarchyIncomingCall[]> {
+				return [];
+			}
+			provideCallHierarchyOutgoingCalls(item: vscode.CallHierarchyItem, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CallHierarchyOutgoingCall[]> {
+				return [];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const root = await commands.executeCommand<vscode.CallHierarchyItem[]>('vscode.prepareCallHierarchy', model.uri, new types.Position(0, 0));
+
+		assert.ok(Array.isArray(root));
+		assert.strictEqual(root.length, 0);
+	});
+
+	// --- type hierarchy
+
+	test('TypeHierarchy, back and forth', async function () {
+
+
+		disposables.push(extHost.registerTypeHierarchyProvider(nullExtensionDescription, defaultSelector, new class implements vscode.TypeHierarchyProvider {
+			prepareTypeHierarchy(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.TypeHierarchyItem[]> {
+				return [new types.TypeHierarchyItem(types.SymbolKind.Constant, 'ROOT', 'ROOT', document.uri, new types.Range(0, 0, 0, 0), new types.Range(0, 0, 0, 0))];
+			}
+			provideTypeHierarchySupertypes(item: vscode.TypeHierarchyItem, token: vscode.CancellationToken): vscode.ProviderResult<vscode.TypeHierarchyItem[]> {
+				return [new types.TypeHierarchyItem(types.SymbolKind.Constant, 'SUPER', 'SUPER', item.uri, new types.Range(0, 0, 0, 0), new types.Range(0, 0, 0, 0))];
+			}
+			provideTypeHierarchySubtypes(item: vscode.TypeHierarchyItem, token: vscode.CancellationToken): vscode.ProviderResult<vscode.TypeHierarchyItem[]> {
+				return [new types.TypeHierarchyItem(types.SymbolKind.Constant, 'SUB', 'SUB', item.uri, new types.Range(0, 0, 0, 0), new types.Range(0, 0, 0, 0))];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const root = await commands.executeCommand<vscode.TypeHierarchyItem[]>('vscode.prepareTypeHierarchy', model.uri, new types.Position(0, 0));
+
+		assert.ok(Array.isArray(root));
+		assert.strictEqual(root.length, 1);
+		assert.strictEqual(root[0].name, 'ROOT');
+
+		const incoming = await commands.executeCommand<vscode.TypeHierarchyItem[]>('vscode.provideSupertypes', root[0]);
+		assert.strictEqual(incoming.length, 1);
+		assert.strictEqual(incoming[0].name, 'SUPER');
+
+		const outgoing = await commands.executeCommand<vscode.TypeHierarchyItem[]>('vscode.provideSubtypes', root[0]);
+		assert.strictEqual(outgoing.length, 1);
+		assert.strictEqual(outgoing[0].name, 'SUB');
 	});
 
 	test('selectionRangeProvider on inner array always returns outer array #91852', async function () {

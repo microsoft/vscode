@@ -9,10 +9,10 @@ import { Range } from 'vs/editor/common/core/range';
 import * as strings from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
 import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/controller/cursorAtomicMoveOperations';
-import { PositionNormalizationAffinity } from 'vs/editor/common/model';
+import { PositionAffinity } from 'vs/editor/common/model';
 
 export class CursorPosition {
-	_cursorPositionBrand: void;
+	_cursorPositionBrand: void = undefined;
 
 	public readonly lineNumber: number;
 	public readonly column: number;
@@ -38,13 +38,15 @@ export class MoveOperations {
 	}
 
 	private static leftPositionAtomicSoftTabs(model: ICursorSimpleModel, position: Position, tabSize: number): Position {
-		const minColumn = model.getLineMinColumn(position.lineNumber);
-		const lineContent = model.getLineContent(position.lineNumber);
-		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, position.column - 1, tabSize, Direction.Left);
-		if (newPosition === -1 || newPosition + 1 < minColumn) {
-			return this.leftPosition(model, position);
+		if (position.column <= model.getLineIndentColumn(position.lineNumber)) {
+			const minColumn = model.getLineMinColumn(position.lineNumber);
+			const lineContent = model.getLineContent(position.lineNumber);
+			const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, position.column - 1, tabSize, Direction.Left);
+			if (newPosition !== -1 && newPosition + 1 >= minColumn) {
+				return new Position(position.lineNumber, newPosition + 1);
+			}
 		}
-		return new Position(position.lineNumber, newPosition + 1);
+		return this.leftPosition(model, position);
 	}
 
 	private static left(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): CursorPosition {
@@ -73,7 +75,7 @@ export class MoveOperations {
 			const pos = cursor.position.delta(undefined, -(noOfColumns - 1));
 			// We clip the position before normalization, as normalization is not defined
 			// for possibly negative columns.
-			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionNormalizationAffinity.Left);
+			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionAffinity.Left);
 			const p = MoveOperations.left(config, model, normalizedPos);
 
 			lineNumber = p.lineNumber;
@@ -115,12 +117,14 @@ export class MoveOperations {
 	}
 
 	public static rightPositionAtomicSoftTabs(model: ICursorSimpleModel, lineNumber: number, column: number, tabSize: number, indentSize: number): Position {
-		const lineContent = model.getLineContent(lineNumber);
-		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, column - 1, tabSize, Direction.Right);
-		if (newPosition === -1) {
-			return this.rightPosition(model, lineNumber, column);
+		if (column < model.getLineIndentColumn(lineNumber)) {
+			const lineContent = model.getLineContent(lineNumber);
+			const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, column - 1, tabSize, Direction.Right);
+			if (newPosition !== -1) {
+				return new Position(lineNumber, newPosition + 1);
+			}
 		}
-		return new Position(lineNumber, newPosition + 1);
+		return this.rightPosition(model, lineNumber, column);
 	}
 
 	public static right(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): CursorPosition {
@@ -140,7 +144,7 @@ export class MoveOperations {
 			column = cursor.selection.endColumn;
 		} else {
 			const pos = cursor.position.delta(undefined, noOfColumns - 1);
-			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionNormalizationAffinity.Right);
+			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionAffinity.Right);
 			const r = MoveOperations.right(config, model, normalizedPos);
 			lineNumber = r.lineNumber;
 			column = r.column;
@@ -149,30 +153,43 @@ export class MoveOperations {
 		return cursor.move(inSelectionMode, lineNumber, column, 0);
 	}
 
-	public static down(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): CursorPosition {
+	public static vertical(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, newLineNumber: number, allowMoveOnEdgeLine: boolean): CursorPosition {
 		const currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize) + leftoverVisibleColumns;
 		const lineCount = model.getLineCount();
+		const wasOnFirstPosition = (lineNumber === 1 && column === 1);
 		const wasOnLastPosition = (lineNumber === lineCount && column === model.getLineMaxColumn(lineNumber));
+		const wasAtEdgePosition = (newLineNumber < lineNumber ? wasOnFirstPosition : wasOnLastPosition);
 
-		lineNumber = lineNumber + count;
-		if (lineNumber > lineCount) {
+		lineNumber = newLineNumber;
+		if (lineNumber < 1) {
+			lineNumber = 1;
+			if (allowMoveOnEdgeLine) {
+				column = model.getLineMinColumn(lineNumber);
+			} else {
+				column = Math.min(model.getLineMaxColumn(lineNumber), column);
+			}
+		} else if (lineNumber > lineCount) {
 			lineNumber = lineCount;
-			if (allowMoveOnLastLine) {
+			if (allowMoveOnEdgeLine) {
 				column = model.getLineMaxColumn(lineNumber);
 			} else {
 				column = Math.min(model.getLineMaxColumn(lineNumber), column);
 			}
 		} else {
-			column = CursorColumns.columnFromVisibleColumn2(config, model, lineNumber, currentVisibleColumn);
+			column = config.columnFromVisibleColumn(model, lineNumber, currentVisibleColumn);
 		}
 
-		if (wasOnLastPosition) {
+		if (wasAtEdgePosition) {
 			leftoverVisibleColumns = 0;
 		} else {
 			leftoverVisibleColumns = currentVisibleColumn - CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
 		}
 
 		return new CursorPosition(lineNumber, column, leftoverVisibleColumns);
+	}
+
+	public static down(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): CursorPosition {
+		return this.vertical(config, model, lineNumber, column, leftoverVisibleColumns, lineNumber + count, allowMoveOnLastLine);
 	}
 
 	public static moveDown(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, linesCount: number): SingleCursorState {
@@ -188,16 +205,16 @@ export class MoveOperations {
 			column = cursor.position.column;
 		}
 
-		let r = MoveOperations.down(config, model, lineNumber, column, cursor.leftoverVisibleColumns, linesCount, true);
+		const r = MoveOperations.down(config, model, lineNumber, column, cursor.leftoverVisibleColumns, linesCount, true);
 
 		return cursor.move(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns);
 	}
 
 	public static translateDown(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): SingleCursorState {
-		let selection = cursor.selection;
+		const selection = cursor.selection;
 
-		let selectionStart = MoveOperations.down(config, model, selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.selectionStartLeftoverVisibleColumns, 1, false);
-		let position = MoveOperations.down(config, model, selection.positionLineNumber, selection.positionColumn, cursor.leftoverVisibleColumns, 1, false);
+		const selectionStart = MoveOperations.down(config, model, selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.selectionStartLeftoverVisibleColumns, 1, false);
+		const position = MoveOperations.down(config, model, selection.positionLineNumber, selection.positionColumn, cursor.leftoverVisibleColumns, 1, false);
 
 		return new SingleCursorState(
 			new Range(selectionStart.lineNumber, selectionStart.column, selectionStart.lineNumber, selectionStart.column),
@@ -208,28 +225,7 @@ export class MoveOperations {
 	}
 
 	public static up(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): CursorPosition {
-		const currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize) + leftoverVisibleColumns;
-		const wasOnFirstPosition = (lineNumber === 1 && column === 1);
-
-		lineNumber = lineNumber - count;
-		if (lineNumber < 1) {
-			lineNumber = 1;
-			if (allowMoveOnFirstLine) {
-				column = model.getLineMinColumn(lineNumber);
-			} else {
-				column = Math.min(model.getLineMaxColumn(lineNumber), column);
-			}
-		} else {
-			column = CursorColumns.columnFromVisibleColumn2(config, model, lineNumber, currentVisibleColumn);
-		}
-
-		if (wasOnFirstPosition) {
-			leftoverVisibleColumns = 0;
-		} else {
-			leftoverVisibleColumns = currentVisibleColumn - CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
-		}
-
-		return new CursorPosition(lineNumber, column, leftoverVisibleColumns);
+		return this.vertical(config, model, lineNumber, column, leftoverVisibleColumns, lineNumber - count, allowMoveOnFirstLine);
 	}
 
 	public static moveUp(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, linesCount: number): SingleCursorState {
@@ -245,17 +241,17 @@ export class MoveOperations {
 			column = cursor.position.column;
 		}
 
-		let r = MoveOperations.up(config, model, lineNumber, column, cursor.leftoverVisibleColumns, linesCount, true);
+		const r = MoveOperations.up(config, model, lineNumber, column, cursor.leftoverVisibleColumns, linesCount, true);
 
 		return cursor.move(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns);
 	}
 
 	public static translateUp(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): SingleCursorState {
 
-		let selection = cursor.selection;
+		const selection = cursor.selection;
 
-		let selectionStart = MoveOperations.up(config, model, selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.selectionStartLeftoverVisibleColumns, 1, false);
-		let position = MoveOperations.up(config, model, selection.positionLineNumber, selection.positionColumn, cursor.leftoverVisibleColumns, 1, false);
+		const selectionStart = MoveOperations.up(config, model, selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.selectionStartLeftoverVisibleColumns, 1, false);
+		const position = MoveOperations.up(config, model, selection.positionLineNumber, selection.positionColumn, cursor.leftoverVisibleColumns, 1, false);
 
 		return new SingleCursorState(
 			new Range(selectionStart.lineNumber, selectionStart.column, selectionStart.lineNumber, selectionStart.column),
@@ -307,13 +303,13 @@ export class MoveOperations {
 	}
 
 	public static moveToBeginningOfLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
-		let lineNumber = cursor.position.lineNumber;
-		let minColumn = model.getLineMinColumn(lineNumber);
-		let firstNonBlankColumn = model.getLineFirstNonWhitespaceColumn(lineNumber) || minColumn;
+		const lineNumber = cursor.position.lineNumber;
+		const minColumn = model.getLineMinColumn(lineNumber);
+		const firstNonBlankColumn = model.getLineFirstNonWhitespaceColumn(lineNumber) || minColumn;
 
 		let column: number;
 
-		let relevantColumnNumber = cursor.position.column;
+		const relevantColumnNumber = cursor.position.column;
 		if (relevantColumnNumber === firstNonBlankColumn) {
 			column = minColumn;
 		} else {
@@ -324,8 +320,8 @@ export class MoveOperations {
 	}
 
 	public static moveToEndOfLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, sticky: boolean): SingleCursorState {
-		let lineNumber = cursor.position.lineNumber;
-		let maxColumn = model.getLineMaxColumn(lineNumber);
+		const lineNumber = cursor.position.lineNumber;
+		const maxColumn = model.getLineMaxColumn(lineNumber);
 		return cursor.move(inSelectionMode, lineNumber, maxColumn, sticky ? Constants.MAX_SAFE_SMALL_INTEGER - maxColumn : 0);
 	}
 
@@ -334,8 +330,8 @@ export class MoveOperations {
 	}
 
 	public static moveToEndOfBuffer(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
-		let lastLineNumber = model.getLineCount();
-		let lastColumn = model.getLineMaxColumn(lastLineNumber);
+		const lastLineNumber = model.getLineCount();
+		const lastColumn = model.getLineMaxColumn(lastLineNumber);
 
 		return cursor.move(inSelectionMode, lastLineNumber, lastColumn, 0);
 	}

@@ -20,7 +20,11 @@
 	display: none;
 }
 
-.monaco-hover .hover-contents {
+.monaco-hover a:hover {
+	cursor: pointer;
+}
+
+.monaco-hover .hover-contents:not(.html-hover-contents) {
 	padding: 4px 8px;
 }
 
@@ -116,16 +120,19 @@
 	vertical-align: middle;
 }
 
+.monaco-hover .hover-contents a.code-link:hover,
+.monaco-hover .hover-contents a.code-link {
+	color: inherit;
+}
+
 .monaco-hover .hover-contents a.code-link:before {
 	content: '(';
 }
+
 .monaco-hover .hover-contents a.code-link:after {
 	content: ')';
 }
 
-.monaco-hover .hover-contents a.code-link {
-	color: inherit;
-}
 .monaco-hover .hover-contents a.code-link > span {
 	text-decoration: underline;
 	/** Hack to force underline to show **/
@@ -134,7 +141,18 @@
 }
 
 /** Spans in markdown hovers need a margin-bottom to avoid looking cramped: https://github.com/microsoft/vscode/issues/101496 **/
-.monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents) span {
+.monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span {
 	margin-bottom: 4px;
 	display: inline-block;
+}
+
+.monaco-hover-content .action-container a {
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.monaco-hover-content .action-container.disabled {
+	pointer-events: none;
+	opacity: 0.4;
+	cursor: default;
 }

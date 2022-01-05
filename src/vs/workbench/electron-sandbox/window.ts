@@ -8,10 +8,10 @@ import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
 import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { Separator } from 'vs/base/common/actions';
+import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
-import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
@@ -27,7 +27,7 @@ import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, MenuRegist
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { LifecyclePhase, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
@@ -40,7 +40,7 @@ import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/
 import { coalesce } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, isArray } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
@@ -60,6 +60,9 @@ import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 export class NativeWindow extends Disposable {
 
@@ -109,7 +112,9 @@ export class NativeWindow extends Disposable {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super();
 
@@ -153,11 +158,7 @@ export class NativeWindow extends Disposable {
 			try {
 				await this.commandService.executeCommand(request.id, ...args);
 
-				type CommandExecutedClassifcation = {
-					id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-					from: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				};
-				this.telemetryService.publicLog2<{ id: String, from: String }, CommandExecutedClassifcation>('commandExecuted', { id: request.id, from: request.from });
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: request.id, from: request.from });
 			} catch (error) {
 				this.notificationService.error(error);
 			}
@@ -186,16 +187,19 @@ export class NativeWindow extends Disposable {
 		// Message support
 		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
 
-		// Fullscreen Events
-		ipcRenderer.on('vscode:enterFullScreen', async () => {
-			await this.lifecycleService.when(LifecyclePhase.Ready);
-			setFullscreen(true);
-		});
+		// Shell Environment Issue Notifications
+		ipcRenderer.on('vscode:showResolveShellEnvError', (event: unknown, message: string) => this.notificationService.prompt(
+			Severity.Error,
+			message,
+			[{
+				label: localize('learnMore', "Learn More"),
+				run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
+			}]
+		));
 
-		ipcRenderer.on('vscode:leaveFullScreen', async () => {
-			await this.lifecycleService.when(LifecyclePhase.Ready);
-			setFullscreen(false);
-		});
+		// Fullscreen Events
+		ipcRenderer.on('vscode:enterFullScreen', async () => setFullscreen(true));
+		ipcRenderer.on('vscode:leaveFullScreen', async () => setFullscreen(false));
 
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo, username?: string, password?: string, replyChannel: string }) => {
@@ -311,6 +315,60 @@ export class NativeWindow extends Disposable {
 		// Detect panel position to determine minimum width
 		this._register(this.layoutService.onDidChangePanelPosition(pos => this.onDidChangePanelPosition(positionFromString(pos))));
 		this.onDidChangePanelPosition(this.layoutService.getPanelPosition());
+
+		// Lifecycle
+		this._register(this.lifecycleService.onBeforeShutdownError(e => this.onBeforeShutdownError(e)));
+		this._register(this.lifecycleService.onWillShutdown((e) => this.onWillShutdown(e)));
+	}
+
+	private onBeforeShutdownError({ error, reason }: BeforeShutdownErrorEvent): void {
+		let message: string;
+		switch (reason) {
+			case ShutdownReason.CLOSE:
+				message = localize('shutdownErrorClose', "An unexpected error prevented the window to close.");
+				break;
+			case ShutdownReason.QUIT:
+				message = localize('shutdownErrorQuit', "An unexpected error prevented the application to quit.");
+				break;
+			case ShutdownReason.RELOAD:
+				message = localize('shutdownErrorReload', "An unexpected error prevented the window to reload.");
+				break;
+			case ShutdownReason.LOAD:
+				message = localize('shutdownErrorLoad', "An unexpected error prevented to change the workspace of the window.");
+				break;
+		}
+
+		this.dialogService.show(Severity.Error, message, undefined, {
+			detail: localize('shutdownErrorDetail', "Error: {0}", toErrorMessage(error))
+		});
+	}
+
+	private onWillShutdown({ reason }: WillShutdownEvent): void {
+		let title: string;
+		switch (reason) {
+			case ShutdownReason.CLOSE:
+				title = localize('shutdownTitleClose', "Closing the window is taking longer than expected...");
+				break;
+			case ShutdownReason.QUIT:
+				title = localize('shutdownTitleQuit', "Quitting the application is taking longer than expected...");
+				break;
+			case ShutdownReason.RELOAD:
+				title = localize('shutdownTitleReload', "Reloading the window is taking longer than expected...");
+				break;
+			case ShutdownReason.LOAD:
+				title = localize('shutdownTitleLoad', "Changing the workspace is taking longer than expected...");
+				break;
+		}
+
+		this.progressService.withProgress({
+			location: ProgressLocation.Dialog, 	// use a dialog to prevent the user from making any more interactions now
+			delay: 800,							// delay notification so that it only appears when operation takes a long time
+			cancellable: false,					// do not allow to cancel
+			sticky: true,						// do not allow to dismiss
+			title
+		}, () => {
+			return Event.toPromise(this.lifecycleService.onDidShutdown); // dismiss this dialog when we actually shutdown
+		});
 	}
 
 	private onWindowResize(e: UIEvent, retry: boolean): void {
@@ -367,7 +425,7 @@ export class NativeWindow extends Disposable {
 		// or setting is disabled. Also enabled when running with --wait from the command line.
 		const visibleEditorPanes = this.editorService.visibleEditorPanes;
 		if (visibleEditorPanes.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
-			const closeWhenEmpty = this.configurationService.getValue<boolean>('window.closeWhenEmpty');
+			const closeWhenEmpty = this.configurationService.getValue('window.closeWhenEmpty');
 			if (closeWhenEmpty || this.environmentService.args.wait) {
 				this.closeEmptyWindowScheduler.schedule();
 			}
@@ -445,8 +503,9 @@ export class NativeWindow extends Disposable {
 		// Handle open calls
 		this.setupOpenHandlers();
 
-		// Notify main side when window ready
+		// Notify some services about lifecycle phases
 		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.nativeHostService.notifyReady());
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.sharedProcessService.notifyRestored());
 
 		// Integrity warning
 		this.integrityService.isPure().then(({ isPure }) => this.titleService.updateProperties({ isPure }));
@@ -473,7 +532,7 @@ export class NativeWindow extends Disposable {
 				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
 				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
 			} else {
-				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"), [localize('ok', "OK")]);
+				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
 				this.nativeHostService.openDevTools();
 			}
 		}
@@ -525,6 +584,21 @@ export class NativeWindow extends Disposable {
 						}
 					}
 				}
+
+				if (!options?.openExternal) {
+					const canHandleResource = await this.fileService.canHandleResource(uri);
+					if (canHandleResource) {
+						return {
+							resolved: URI.from({
+								scheme: this.productService.urlProtocol,
+								path: 'workspace',
+								query: uri.toString()
+							}),
+							dispose() { }
+						};
+					}
+				}
+
 				return undefined;
 			}
 		});
@@ -554,8 +628,9 @@ export class NativeWindow extends Disposable {
 
 		const actions: Array<MenuItemAction | Separator> = [];
 
-		const disabled = this.configurationService.getValue<boolean>('keyboard.touchbar.enabled') === false;
-		const ignoredItems = this.configurationService.getValue<string[]>('keyboard.touchbar.ignored') || [];
+		const disabled = this.configurationService.getValue('keyboard.touchbar.enabled') === false;
+		const touchbarIgnored = this.configurationService.getValue('keyboard.touchbar.ignored');
+		const ignoredItems = isArray(touchbarIgnored) ? touchbarIgnored : [];
 
 		// Fill actions into groups respecting order
 		this.touchBarDisposables.add(createAndFillInActionBarActions(this.touchBarMenu, undefined, actions));
@@ -621,7 +696,7 @@ export class NativeWindow extends Disposable {
 	}
 
 	private async onOpenFiles(request: INativeOpenFileRequest): Promise<void> {
-		const inputs: IResourceEditorInputType[] = [];
+		const inputs: Array<IResourceEditorInput | IUntitledTextResourceEditorInput> = [];
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 
 		if (!diffMode && request.filesToOpenOrCreate) {
@@ -640,7 +715,7 @@ export class NativeWindow extends Disposable {
 			// In wait mode, listen to changes to the editors and wait until the files
 			// are closed that the user wants to wait for. When this happens we delete
 			// the wait marker file to signal to the outside that editing is done.
-			this.trackClosedWaitFiles(URI.revive(request.filesToWait.waitMarkerFileUri), coalesce(request.filesToWait.paths.map(p => URI.revive(p.fileUri))));
+			this.trackClosedWaitFiles(URI.revive(request.filesToWait.waitMarkerFileUri), coalesce(request.filesToWait.paths.map(path => URI.revive(path.fileUri))));
 		}
 	}
 
@@ -654,19 +729,21 @@ export class NativeWindow extends Disposable {
 	}
 
 	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean): Promise<unknown> {
-		await this.lifecycleService.when(LifecyclePhase.Ready);
+		const editors: IUntypedEditorInput[] = [];
 
 		// In diffMode we open 2 resources as diff
 		if (diffMode && resources.length === 2 && resources[0].resource && resources[1].resource) {
-			return this.editorService.openEditor({ leftResource: resources[0].resource, rightResource: resources[1].resource, options: { pinned: true } });
+			const diffEditor: IResourceDiffEditorInput = {
+				original: { resource: resources[0].resource },
+				modified: { resource: resources[1].resource },
+				options: { pinned: true }
+			};
+			editors.push(diffEditor);
+		} else {
+			editors.push(...resources);
 		}
 
-		// For one file, just put it into the current active editor
-		if (resources.length === 1) {
-			return this.editorService.openEditor(resources[0]);
-		}
-
-		// Otherwise open all
-		return this.editorService.openEditors(resources);
+		// Open as editors
+		return this.editorService.openEditors(editors, undefined, { validateTrust: true });
 	}
 }

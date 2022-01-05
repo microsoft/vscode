@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetFlatNode';
-import { getEmmetHelper, getFlatNode, getMappingForIncludedLanguages, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag, toLSTextDocument, isOffsetInsideOpenOrCloseTag } from './util';
+import { getEmmetHelper, getFlatNode, getHtmlFlatNode, getMappingForIncludedLanguages, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag, toLSTextDocument, isOffsetInsideOpenOrCloseTag } from './util';
 import { getRootNode as parseDocument } from './parseDocument';
 
 const localize = nls.loadMessageBundle();
@@ -49,14 +49,15 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 
 	const helper = getEmmetHelper();
 
-	const operationRanges = editor.selections.sort((a, b) => a.start.compareTo(b.start)).map(selection => {
+	const operationRanges = Array.from(editor.selections).sort((a, b) => a.start.compareTo(b.start)).map(selection => {
 		let rangeToReplace: vscode.Range = selection;
 		// wrap around the node if the selection falls inside its open or close tag
 		{
 			let { start, end } = rangeToReplace;
 
 			const startOffset = document.offsetAt(start);
-			const startNode = getFlatNode(rootNode, startOffset, true);
+			const documentText = document.getText();
+			const startNode = getHtmlFlatNode(documentText, rootNode, startOffset, true);
 			if (startNode && isOffsetInsideOpenOrCloseTag(startNode, startOffset)) {
 				start = document.positionAt(startNode.start);
 				const nodeEndPosition = document.positionAt(startNode.end);
@@ -64,7 +65,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 			}
 
 			const endOffset = document.offsetAt(end);
-			const endNode = getFlatNode(rootNode, endOffset, true);
+			const endNode = getHtmlFlatNode(documentText, rootNode, endOffset, true);
 			if (endNode && isOffsetInsideOpenOrCloseTag(endNode, endOffset)) {
 				const nodeStartPosition = document.positionAt(endNode.start);
 				start = nodeStartPosition.isBefore(start) ? nodeStartPosition : start;
@@ -706,13 +707,13 @@ export function getSyntaxFromArgs(args: { [x: string]: string }): string | undef
 	const language: string = args['language'];
 	const parentMode: string = args['parentMode'];
 	const excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ? vscode.workspace.getConfiguration('emmet')['excludeLanguages'] : [];
-	if (excludedLanguages.indexOf(language) > -1) {
+	if (excludedLanguages.includes(language)) {
 		return;
 	}
 
-	let syntax = getEmmetMode((mappedModes[language] ? mappedModes[language] : language), excludedLanguages);
+	let syntax = getEmmetMode(mappedModes[language] ?? language, mappedModes, excludedLanguages);
 	if (!syntax) {
-		syntax = getEmmetMode((mappedModes[parentMode] ? mappedModes[parentMode] : parentMode), excludedLanguages);
+		syntax = getEmmetMode(mappedModes[parentMode] ?? parentMode, mappedModes, excludedLanguages);
 	}
 
 	return syntax;

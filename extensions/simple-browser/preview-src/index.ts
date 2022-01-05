@@ -5,7 +5,6 @@
 
 import { onceDocumentLoaded } from './events';
 
-declare let acquireVsCodeApi: any;
 const vscode = acquireVsCodeApi();
 
 function getSettings() {
@@ -102,6 +101,8 @@ onceDocumentLoaded(() => {
 		} catch {
 			iframe.src = rawUrl;
 		}
+
+		vscode.setState({ url: rawUrl });
 	}
 });
 

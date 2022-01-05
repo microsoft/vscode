@@ -17,6 +17,7 @@ const unixLinks = [
 	'/foo',
 	'~/foo',
 	'./foo',
+	'./$foo',
 	'../foo',
 	'/foo/bar',
 	'/foo/bar+more',
@@ -30,6 +31,7 @@ const windowsLinks = [
 	'c:/foo',
 	'.\\foo',
 	'./foo',
+	'./$foo',
 	'..\\foo',
 	'~\\foo',
 	'~/foo',
@@ -42,6 +44,10 @@ const windowsLinks = [
 	'foo\\bar',
 	'foo\\bar+more',
 ];
+
+class TestTerminalValidatedLocalLinkProvider extends TerminalValidatedLocalLinkProvider {
+	override _enableCaching: boolean = false;
+}
 
 interface LinkFormatInfo {
 	urlFormat: string;
@@ -69,7 +75,8 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0} [{1},{2}]', line: '5', column: '3' },
 	{ urlFormat: '{0}[{1}, {2}]', line: '5', column: '3' },
 	{ urlFormat: '{0} [{1}, {2}]', line: '5', column: '3' },
-	{ urlFormat: '{0}",{1}', line: '5' }
+	{ urlFormat: '{0}",{1}', line: '5' },
+	{ urlFormat: '{0}\',{1}', line: '5' }
 ];
 
 suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
@@ -82,8 +89,17 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 
 	async function assertLink(text: string, os: OperatingSystem, expected: { text: string, range: [number, number][] }[]) {
 		const xterm = new Terminal();
-		const provider = instantiationService.createInstance(TerminalValidatedLocalLinkProvider, xterm, os, () => { }, () => { }, () => { }, (_: string, cb: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => { cb({ uri: URI.file('/'), isDirectory: false }); });
-
+		const provider = instantiationService.createInstance(
+			TestTerminalValidatedLocalLinkProvider,
+			xterm,
+			os,
+			() => { },
+			() => { },
+			() => { },
+			(linkCandidates: string, cb: (result: { uri: URI, link: string, isDirectory: boolean } | undefined) => void) => {
+				cb({ uri: URI.file('/'), link: linkCandidates[0], isDirectory: false });
+			}
+		);
 		// Write the text and wait for the parser to finish
 		await new Promise<void>(r => xterm.write(text, r));
 

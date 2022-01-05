@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator as createServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { isWindows } from 'vs/base/common/platform';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const ILogService = createServiceDecorator<ILogService>('logService');
-export const ILoggerService = createServiceDecorator<ILoggerService>('loggerService');
+export const ILogService = createDecorator<ILogService>('logService');
+export const ILoggerService = createDecorator<ILoggerService>('loggerService');
 
 function now(): string {
 	return new Date().toISOString();
@@ -48,6 +48,36 @@ export interface ILogger extends IDisposable {
 	flush(): void;
 }
 
+export function log(logger: ILogger, level: LogLevel, message: string): void {
+	switch (level) {
+		case LogLevel.Trace: logger.trace(message); break;
+		case LogLevel.Debug: logger.debug(message); break;
+		case LogLevel.Info: logger.info(message); break;
+		case LogLevel.Warning: logger.warn(message); break;
+		case LogLevel.Error: logger.error(message); break;
+		case LogLevel.Critical: logger.critical(message); break;
+		default: throw new Error('Invalid log level');
+	}
+}
+
+export function format(args: any): string {
+	let result = '';
+
+	for (let i = 0; i < args.length; i++) {
+		let a = args[i];
+
+		if (typeof a === 'object') {
+			try {
+				a = JSON.stringify(a);
+			} catch (e) { }
+		}
+
+		result += (i > 0 ? ' ' : '') + a;
+	}
+
+	return result;
+}
+
 export interface ILogService extends ILogger {
 	readonly _serviceBrand: undefined;
 }
@@ -79,9 +109,14 @@ export interface ILoggerService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Creates a logger
+	 * Creates a logger, or gets one if it already exists.
 	 */
 	createLogger(file: URI, options?: ILoggerOptions): ILogger;
+
+	/**
+	 * Gets an existing logger, if any.
+	 */
+	getLogger(file: URI): ILogger | undefined;
 }
 
 export abstract class AbstractLogger extends Disposable {
@@ -117,25 +152,25 @@ export abstract class AbstractMessageLogger extends AbstractLogger implements IL
 
 	trace(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Trace)) {
-			this.log(LogLevel.Trace, this.format([message, ...args]));
+			this.log(LogLevel.Trace, format([message, ...args]));
 		}
 	}
 
 	debug(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Debug)) {
-			this.log(LogLevel.Debug, this.format([message, ...args]));
+			this.log(LogLevel.Debug, format([message, ...args]));
 		}
 	}
 
 	info(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Info)) {
-			this.log(LogLevel.Info, this.format([message, ...args]));
+			this.log(LogLevel.Info, format([message, ...args]));
 		}
 	}
 
 	warn(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Warning)) {
-			this.log(LogLevel.Warning, this.format([message, ...args]));
+			this.log(LogLevel.Warning, format([message, ...args]));
 		}
 	}
 
@@ -145,38 +180,20 @@ export abstract class AbstractMessageLogger extends AbstractLogger implements IL
 			if (message instanceof Error) {
 				const array = Array.prototype.slice.call(arguments) as any[];
 				array[0] = message.stack;
-				this.log(LogLevel.Error, this.format(array));
+				this.log(LogLevel.Error, format(array));
 			} else {
-				this.log(LogLevel.Error, this.format([message, ...args]));
+				this.log(LogLevel.Error, format([message, ...args]));
 			}
 		}
 	}
 
 	critical(message: string | Error, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Critical)) {
-			this.log(LogLevel.Critical, this.format([message, ...args]));
+			this.log(LogLevel.Critical, format([message, ...args]));
 		}
 	}
 
 	flush(): void { }
-
-	private format(args: any): string {
-		let result = '';
-
-		for (let i = 0; i < args.length; i++) {
-			let a = args[i];
-
-			if (typeof a === 'object') {
-				try {
-					a = JSON.stringify(a);
-				} catch (e) { }
-			}
-
-			result += (i > 0 ? ' ' : '') + a;
-		}
-
-		return result;
-	}
 }
 
 
@@ -505,6 +522,10 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 		}));
 	}
 
+	getLogger(resource: URI) {
+		return this.loggers.get(resource.toString());
+	}
+
 	createLogger(resource: URI, options?: ILoggerOptions): ILogger {
 		let logger = this.loggers.get(resource.toString());
 		if (!logger) {
@@ -586,4 +607,3 @@ export function LogLevelToString(logLevel: LogLevel): string {
 		case LogLevel.Off: return 'off';
 	}
 }
-

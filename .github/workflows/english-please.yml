@@ -7,19 +7,17 @@ on:
 jobs:
   main:
     runs-on: ubuntu-latest
+    if: contains(github.event.issue.labels.*.name, '*english-please')
     steps:
       - name: Checkout Actions
-        if: contains(github.event.issue.labels.*.name, '*english-please')
         uses: actions/checkout@v2
         with:
           repository: "microsoft/vscode-github-triage-actions"
           ref: stable
           path: ./actions
       - name: Install Actions
-        if: contains(github.event.issue.labels.*.name, '*english-please')
         run: npm install --production --prefix ./actions
       - name: Run English Please
-        if: contains(github.event.issue.labels.*.name, '*english-please')
         uses: ./actions/english-please
         with:
           appInsightsKey: ${{secrets.TRIAGE_ACTIONS_APP_INSIGHTS}}

@@ -5,10 +5,10 @@
 
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { IModelService } from 'vs/editor/common/services/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { WorkspaceEditMetadata } from 'vs/editor/common/modes';
+import { WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
@@ -23,6 +23,7 @@ import { localize } from 'vs/nls';
 import { extUri } from 'vs/base/common/resources';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Codicon } from 'vs/base/common/codicons';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export class CheckedStates<T extends object> {
 
@@ -353,9 +354,6 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 
 	static emptyPreview = URI.from({ scheme: BulkEditPreviewProvider.Schema, fragment: 'empty' });
 
-	static asPreviewUri(uri: URI): URI {
-		return URI.from({ scheme: BulkEditPreviewProvider.Schema, path: uri.path, query: uri.toString() });
-	}
 
 	static fromPreviewUri(uri: URI): URI {
 		return URI.parse(uri.query);
@@ -364,10 +362,11 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 	private readonly _disposables = new DisposableStore();
 	private readonly _ready: Promise<any>;
 	private readonly _modelPreviewEdits = new Map<string, IIdentifiedSingleEditOperation[]>();
+	private readonly _instanceId = generateUuid();
 
 	constructor(
 		private readonly _operations: BulkFileOperations,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService
 	) {
@@ -377,6 +376,10 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 
 	dispose(): void {
 		this._disposables.dispose();
+	}
+
+	asPreviewUri(uri: URI): URI {
+		return URI.from({ scheme: BulkEditPreviewProvider.Schema, authority: this._instanceId, path: uri.path, query: uri.toString() });
 	}
 
 	private async _init() {
@@ -404,7 +407,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 	}
 
 	private async _getOrCreatePreviewModel(uri: URI) {
-		const previewUri = BulkEditPreviewProvider.asPreviewUri(uri);
+		const previewUri = this.asPreviewUri(uri);
 		let model = this._modelService.getModel(previewUri);
 		if (!model) {
 			try {
@@ -413,7 +416,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 				const sourceModel = ref.object.textEditorModel;
 				model = this._modelService.createModel(
 					createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()),
-					this._modeService.create(sourceModel.getLanguageIdentifier().language),
+					this._languageService.createById(sourceModel.getLanguageId()),
 					previewUri
 				);
 				ref.dispose();
@@ -422,14 +425,16 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 				// create NEW model
 				model = this._modelService.createModel(
 					'',
-					this._modeService.createByFilepathOrFirstLine(previewUri),
+					this._languageService.createByFilepathOrFirstLine(previewUri),
 					previewUri
 				);
 			}
 			// this is a little weird but otherwise editors and other cusomers
 			// will dispose my models before they should be disposed...
 			// And all of this is off the eventloop to prevent endless recursion
-			new Promise(async () => this._disposables.add(await this._textModelResolverService.createModelReference(model!.uri)));
+			queueMicrotask(async () => {
+				this._disposables.add(await this._textModelResolverService.createModelReference(model!.uri));
+			});
 		}
 		return model;
 	}

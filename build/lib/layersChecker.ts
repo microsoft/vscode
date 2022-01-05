@@ -49,8 +49,11 @@ const CORE_TYPES = [
 	'encode',
 	'decode',
 	'self',
+	'trimStart',
+	'trimEnd',
 	'trimLeft',
-	'trimRight'
+	'trimRight',
+	'queueMicrotask'
 ];
 
 // Types that are defined in a common layer but are known to be only

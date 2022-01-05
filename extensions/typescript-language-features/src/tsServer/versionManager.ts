@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import { setImmediate } from '../utils/async';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
@@ -81,6 +82,11 @@ export class TypeScriptVersionManager extends Disposable {
 		const selected = await vscode.window.showQuickPick<QuickPickItem>([
 			this.getBundledPickItem(),
 			...this.getLocalPickItems(),
+			{
+				kind: vscode.QuickPickItemKind.Separator,
+				label: '',
+				run: () => { /* noop */ },
+			},
 			LearnMorePickItem,
 		], {
 			placeHolder: localize(
@@ -179,7 +185,7 @@ export class TypeScriptVersionManager extends Disposable {
 }
 
 const LearnMorePickItem: QuickPickItem = {
-	label: localize('learnMore', 'Learn more about managing TypeScript versions'),
+	label: localize('learnMore', "Learn more about managing TypeScript versions"),
 	description: '',
 	run: () => {
 		vscode.env.openExternal(vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));

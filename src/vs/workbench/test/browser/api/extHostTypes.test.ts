@@ -8,6 +8,8 @@ import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isWindows } from 'vs/base/common/platform';
 import { assertType } from 'vs/base/common/types';
+import { Mimes } from 'vs/base/common/mime';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -21,14 +23,14 @@ suite('ExtHostTypes', function () {
 
 		let uri = URI.parse('file:///path/test.file');
 		assert.deepStrictEqual(uri.toJSON(), {
-			$mid: 1,
+			$mid: MarshalledId.Uri,
 			scheme: 'file',
 			path: '/path/test.file'
 		});
 
 		assert.ok(uri.fsPath);
 		assert.deepStrictEqual(uri.toJSON(), {
-			$mid: 1,
+			$mid: MarshalledId.Uri,
 			scheme: 'file',
 			path: '/path/test.file',
 			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
@@ -37,7 +39,7 @@ suite('ExtHostTypes', function () {
 
 		assert.ok(uri.toString());
 		assert.deepStrictEqual(uri.toJSON(), {
-			$mid: 1,
+			$mid: MarshalledId.Uri,
 			scheme: 'file',
 			path: '/path/test.file',
 			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
@@ -648,38 +650,62 @@ suite('ExtHostTypes', function () {
 		assert.deepStrictEqual(md.value, '\n```html\n<img src=0 onerror="alert(1)">\n```\n');
 	});
 
-	test('NotebookMetadata - with custom', function () {
-		const obj = new types.NotebookDocumentMetadata();
-		const newObj = obj.with({ mycustom: { display: 'hello' } });
-		assert.ok(obj !== newObj);
-		assert.deepStrictEqual(newObj.mycustom, { display: 'hello' });
+	test('NotebookCellOutputItem - factories', function () {
+
+		assert.throws(() => {
+			// invalid mime type
+			new types.NotebookCellOutputItem(new Uint8Array(), 'invalid');
+		});
+
+		// --- err
+
+		let item = types.NotebookCellOutputItem.error(new Error());
+		assert.strictEqual(item.mime, 'application/vnd.code.notebook.error');
+		item = types.NotebookCellOutputItem.error({ name: 'Hello' });
+		assert.strictEqual(item.mime, 'application/vnd.code.notebook.error');
+
+		// --- JSON
+
+		item = types.NotebookCellOutputItem.json(1);
+		assert.strictEqual(item.mime, 'application/json');
+		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(1)));
+
+		item = types.NotebookCellOutputItem.json(1, 'foo/bar');
+		assert.strictEqual(item.mime, 'foo/bar');
+		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(1)));
+
+		item = types.NotebookCellOutputItem.json(true);
+		assert.strictEqual(item.mime, 'application/json');
+		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(true)));
+
+		item = types.NotebookCellOutputItem.json([true, 1, 'ddd']);
+		assert.strictEqual(item.mime, 'application/json');
+		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify([true, 1, 'ddd'], undefined, '\t')));
+
+		// --- text
+
+		item = types.NotebookCellOutputItem.text('Hęłlö');
+		assert.strictEqual(item.mime, Mimes.text);
+		assert.deepStrictEqual(item.data, new TextEncoder().encode('Hęłlö'));
+
+		item = types.NotebookCellOutputItem.text('Hęłlö', 'foo/bar');
+		assert.strictEqual(item.mime, 'foo/bar');
+		assert.deepStrictEqual(item.data, new TextEncoder().encode('Hęłlö'));
 	});
 
-	test('NotebookCellMetadata - with', function () {
-		const obj = new types.NotebookCellMetadata(true, true);
+	test('FileDecoration#validate', function () {
 
-		const newObj = obj.with({ inputCollapsed: false });
-		assert.ok(obj !== newObj);
-		assert.strictEqual(obj.inputCollapsed, true);
-		assert.strictEqual(obj.custom, undefined);
-
-		assert.strictEqual(newObj.inputCollapsed, false);
-		assert.strictEqual(newObj.custom, undefined);
-	});
-
-	test('NotebookCellMetadata - with custom', function () {
-		const obj = new types.NotebookCellMetadata(true, true);
-		const newObj = obj.with({ inputCollapsed: false, custom: { display: 'hello' } });
-		assert.ok(obj !== newObj);
-		const sameObj = newObj.with({ inputCollapsed: false });
-		assert.ok(newObj === sameObj);
-		assert.strictEqual(obj.inputCollapsed, true);
-		assert.strictEqual(newObj.inputCollapsed, false);
-		assert.deepStrictEqual(newObj.custom, { display: 'hello' });
-
-		const newCustom = newObj.with({ anotherCustom: { display: 'hello2' } });
-		assert.strictEqual(newCustom.inputCollapsed, false);
-		assert.deepStrictEqual(newCustom.mycustom, undefined);
-		assert.deepStrictEqual(newCustom.anotherCustom, { display: 'hello2' });
+		assert.ok(types.FileDecoration.validate({ badge: 'u' }));
+		assert.ok(types.FileDecoration.validate({ badge: 'ü' }));
+		assert.ok(types.FileDecoration.validate({ badge: '1' }));
+		assert.ok(types.FileDecoration.validate({ badge: 'ãã' }));
+		assert.ok(types.FileDecoration.validate({ badge: '👋' }));
+		assert.ok(types.FileDecoration.validate({ badge: '👋👋' }));
+		assert.ok(types.FileDecoration.validate({ badge: '👩‍👩‍👧‍👧' }));
+		assert.ok(types.FileDecoration.validate({ badge: 'போ' }));
+		assert.throws(() => types.FileDecoration.validate({ badge: 'hel' }));
+		assert.throws(() => types.FileDecoration.validate({ badge: '👋👋👋' }));
+		assert.throws(() => types.FileDecoration.validate({ badge: 'புன்சிரிப்போடு' }));
+		assert.throws(() => types.FileDecoration.validate({ badge: 'ããã' }));
 	});
 });

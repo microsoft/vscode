@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Color, RGBA, HSLA, HSVA } from 'vs/base/common/color';
+import { Color, HSLA, HSVA, RGBA } from 'vs/base/common/color';
 
 suite('Color', () => {
 

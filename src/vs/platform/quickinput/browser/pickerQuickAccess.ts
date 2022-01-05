@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IQuickPickSeparator, IKeyMods, IQuickPickDidAcceptEvent } from 'vs/base/parts/quickinput/common/quickInput';
-import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
-import { IDisposable, DisposableStore, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
+import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 export enum TriggerAction {
 
@@ -298,14 +298,22 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 						case TriggerAction.REFRESH_PICKER:
 							updatePickerItems();
 							break;
-						case TriggerAction.REMOVE_ITEM:
+						case TriggerAction.REMOVE_ITEM: {
 							const index = picker.items.indexOf(item);
 							if (index !== -1) {
 								const items = picker.items.slice();
-								items.splice(index, 1);
+								const removed = items.splice(index, 1);
+								const activeItems = picker.activeItems.filter(activeItem => activeItem !== removed[0]);
+								const keepScrollPositionBefore = picker.keepScrollPosition;
+								picker.keepScrollPosition = true;
 								picker.items = items;
+								if (activeItems) {
+									picker.activeItems = activeItems;
+								}
+								picker.keepScrollPosition = keepScrollPositionBefore;
 							}
 							break;
+						}
 					}
 				}
 			}

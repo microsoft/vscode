@@ -22,7 +22,7 @@ import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 
 const DEFAULT_EDITOR_CONFIG = {};
-const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true };
+const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true, useParentIgnoreFiles: true };
 const DEFAULT_QUERY_PROPS = {};
 const DEFAULT_TEXT_QUERY_PROPS = { usePCRE2: false };
 
@@ -810,7 +810,7 @@ suite('QueryBuilder', () => {
 			const ROOT_2 = '/project/root2';
 			const ROOT_2_URI = getUri(ROOT_2);
 			const ROOT_1_FOLDERNAME = 'folder/one';
-			const ROOT_2_FOLDERNAME = 'folder/two';
+			const ROOT_2_FOLDERNAME = 'folder/two+'; // And another regex character, #126003
 			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath, name: ROOT_1_FOLDERNAME }, { path: ROOT_2_URI.fsPath, name: ROOT_2_FOLDERNAME }], WS_CONFIG_PATH, extUriBiasedIgnorePathCase);
 			mockWorkspace.configuration = uri.file(fixPath('config'));
 
@@ -824,7 +824,7 @@ suite('QueryBuilder', () => {
 					}
 				],
 				[
-					'./folder/two/foo/',
+					'./folder/two+/foo/',
 					{
 						searchPaths: [{
 							searchPath: ROOT_2_URI,
@@ -833,10 +833,16 @@ suite('QueryBuilder', () => {
 					}
 				],
 				[
+					'./folder/onesomethingelse',
+					{ searchPaths: [] }
+				],
+				[
+					'./folder/onesomethingelse/foo',
+					{ searchPaths: [] }
+				],
+				[
 					'./folder',
-					{
-						searchPaths: []
-					}
+					{ searchPaths: [] }
 				]
 			];
 			cases.forEach(testIncludesDataItem);

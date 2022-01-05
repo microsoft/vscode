@@ -83,7 +83,7 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 			const actions = this._info.getActions ? this._info.getActions() : undefined;
 			this._hoverOptions = {
 				target: this._domNode,
-				text: new MarkdownString(this._info.getInfo()),
+				content: new MarkdownString(this._info.getInfo()),
 				actions
 			};
 		}

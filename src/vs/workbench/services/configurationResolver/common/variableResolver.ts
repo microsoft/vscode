@@ -141,7 +141,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 		// loop through all variables occurrences in 'value'
 		const replaced = value.replace(AbstractVariableResolverService.VARIABLE_REGEXP, (match: string, variable: string) => {
-			// disallow attempted nesting, see #77289
+			// disallow attempted nesting, see #77289. This doesn't exclude variables that resolve to other variables.
 			if (variable.includes(AbstractVariableResolverService.VARIABLE_LHS)) {
 				return match;
 			}
@@ -150,6 +150,10 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 			if (resolvedVariables) {
 				resolvedVariables.set(variable, resolvedValue);
+			}
+
+			if ((resolvedValue !== match) && types.isString(resolvedValue) && resolvedValue.match(AbstractVariableResolverService.VARIABLE_REGEXP)) {
+				resolvedValue = this.resolveString(environment, folderUri, resolvedValue, commandValueMapping, resolvedVariables);
 			}
 
 			return resolvedValue;
@@ -266,20 +270,20 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 					case 'workspaceFolderBasename':
 						return paths.basename(this.fsPath(getFolderUri()));
 
-					case 'lineNumber':
+					case 'lineNumber': {
 						const lineNumber = this._context.getLineNumber();
 						if (lineNumber) {
 							return lineNumber;
 						}
 						throw new Error(localize('canNotResolveLineNumber', "Variable {0} can not be resolved. Make sure to have a line selected in the active editor.", match));
-
-					case 'selectedText':
+					}
+					case 'selectedText': {
 						const selectedText = this._context.getSelectedText();
 						if (selectedText) {
 							return selectedText;
 						}
 						throw new Error(localize('canNotResolveSelectedText', "Variable {0} can not be resolved. Make sure to have some text selected in the active editor.", match));
-
+					}
 					case 'file':
 						return getFilePath();
 
@@ -292,14 +296,14 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						}
 						return getFilePath();
 
-					case 'relativeFileDirname':
+					case 'relativeFileDirname': {
 						const dirname = paths.dirname(getFilePath());
 						if (folderUri || argument) {
 							const relative = paths.relative(this.fsPath(getFolderUri()), dirname);
 							return relative.length === 0 ? '.' : relative;
 						}
 						return dirname;
-
+					}
 					case 'fileDirname':
 						return paths.dirname(getFilePath());
 
@@ -309,27 +313,27 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 					case 'fileBasename':
 						return paths.basename(getFilePath());
 
-					case 'fileBasenameNoExtension':
+					case 'fileBasenameNoExtension': {
 						const basename = paths.basename(getFilePath());
 						return (basename.slice(0, basename.length - paths.extname(basename).length));
-
+					}
 					case 'fileDirnameBasename':
 						return paths.basename(paths.dirname(getFilePath()));
 
-					case 'execPath':
+					case 'execPath': {
 						const ep = this._context.getExecPath();
 						if (ep) {
 							return ep;
 						}
 						return match;
-
-					case 'execInstallFolder':
+					}
+					case 'execInstallFolder': {
 						const ar = this._context.getAppRoot();
 						if (ar) {
 							return ar;
 						}
 						return match;
-
+					}
 					case 'pathSeparator':
 						return paths.sep;
 

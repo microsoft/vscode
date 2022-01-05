@@ -122,16 +122,13 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 				}
 
 				const modules = lookup[request];
-				const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
+				const ext = extensionPaths.findSubstr(URI.file(parent.filename));
 				let cache = modulesCache.get(ext);
 				if (!cache) {
 					modulesCache.set(ext, cache = {});
 				}
 				if (!cache[request]) {
 					let mod = modules.default;
-					if (ext && ext.enableProposedApi) {
-						mod = (modules as any)[(<any>ext).proxySupport] || modules.onRequest;
-					}
 					cache[request] = <any>{ ...mod }; // Copy to work around #93167.
 				}
 				return cache[request];

@@ -14,8 +14,8 @@ import { ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/p
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -116,6 +116,7 @@ export class SimpleFileDialog {
 	private autoCompletePathSegment: string = '';
 	private activeItem: FileQuickPickItem | undefined;
 	private userHome!: URI;
+	private isWindows: boolean = false;
 	private badPath: string | undefined;
 	private remoteAgentEnvironment: IRemoteAgentEnvironment | null | undefined;
 	private separator: string = '/';
@@ -134,7 +135,7 @@ export class SimpleFileDialog {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IPathService protected readonly pathService: IPathService,
@@ -201,7 +202,7 @@ export class SimpleFileDialog {
 				defaultUri = resources.joinPath(defaultUri, filename);
 			}
 		}
-		if ((this.scheme !== Schemas.file) && !this.fileService.canHandleResource(defaultUri)) {
+		if ((this.scheme !== Schemas.file) && !this.fileService.hasProvider(defaultUri)) {
 			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'File system provider for {0} is not available.', defaultUri.toString()));
 			return undefined;
 		}
@@ -210,13 +211,13 @@ export class SimpleFileDialog {
 		return newOptions;
 	}
 
-	private remoteUriFrom(path: string): URI {
+	private remoteUriFrom(path: string, hintUri?: URI): URI {
 		if (!path.startsWith('\\\\')) {
 			path = path.replace(/\\/g, '/');
 		}
-		const uri: URI = this.scheme === Schemas.file ? URI.file(path) : URI.from({ scheme: this.scheme, path });
-		// If the default scheme is file, then we don't care about the remote authority
-		const authority = uri.scheme === Schemas.file ? undefined : this.remoteAuthority;
+		const uri: URI = this.scheme === Schemas.file ? URI.file(path) : URI.from({ scheme: this.scheme, path, query: hintUri?.query, fragment: hintUri?.fragment });
+		// If the default scheme is file, then we don't care about the remote authority or the hint authority
+		const authority = (uri.scheme === Schemas.file) ? undefined : (this.remoteAuthority ?? hintUri?.authority);
 		return resources.toLocalResource(uri, authority,
 			// If there is a remote authority, then we should use the system's default URI as the local scheme.
 			// If there is *no* remote authority, then we should use the default scheme for this dialog as that is already local.
@@ -251,6 +252,7 @@ export class SimpleFileDialog {
 		this.allowFileSelection = !!this.options.canSelectFiles;
 		this.separator = this.labelService.getSeparator(this.scheme, this.remoteAuthority);
 		this.hidden = false;
+		this.isWindows = await this.checkIsWindowsOS();
 		let homedir: URI = this.options.defaultUri ? this.options.defaultUri : this.workspaceContextService.getWorkspace().folders[0].uri;
 		let stat: IFileStat | undefined;
 		let ext: string = resources.extname(homedir);
@@ -266,7 +268,7 @@ export class SimpleFileDialog {
 			}
 		}
 
-		return new Promise<URI | undefined>(async (resolve) => {
+		return new Promise<URI | undefined>((resolve) => {
 			this.filePickBox = this.quickInputService.createQuickPick<FileQuickPickItem>();
 			this.busy = true;
 			this.filePickBox.matchOnLabel = false;
@@ -395,13 +397,14 @@ export class SimpleFileDialog {
 
 			this.filePickBox.show();
 			this.contextKey.set(true);
-			await this.updateItems(homedir, true, this.trailing);
-			if (this.trailing) {
-				this.filePickBox.valueSelection = [this.filePickBox.value.length - this.trailing.length, this.filePickBox.value.length - ext.length];
-			} else {
-				this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
-			}
-			this.busy = false;
+			this.updateItems(homedir, true, this.trailing).then(() => {
+				if (this.trailing) {
+					this.filePickBox.valueSelection = [this.filePickBox.value.length - this.trailing.length, this.filePickBox.value.length - ext.length];
+				} else {
+					this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
+				}
+				this.busy = false;
+			});
 		});
 	}
 
@@ -450,8 +453,12 @@ export class SimpleFileDialog {
 
 	private constructFullUserPath(): string {
 		const currentFolderPath = this.pathFromUri(this.currentFolder);
-		if (equalsIgnoreCase(this.filePickBox.value.substr(0, this.userEnteredPathSegment.length), this.userEnteredPathSegment) && equalsIgnoreCase(this.filePickBox.value.substr(0, currentFolderPath.length), currentFolderPath)) {
-			return currentFolderPath;
+		if (equalsIgnoreCase(this.filePickBox.value.substr(0, this.userEnteredPathSegment.length), this.userEnteredPathSegment)) {
+			if (equalsIgnoreCase(this.filePickBox.value.substr(0, currentFolderPath.length), currentFolderPath)) {
+				return currentFolderPath;
+			} else {
+				return this.userEnteredPathSegment;
+			}
 		} else {
 			return this.pathAppend(this.currentFolder, this.userEnteredPathSegment);
 		}
@@ -459,19 +466,19 @@ export class SimpleFileDialog {
 
 	private filePickBoxValue(): URI {
 		// The file pick box can't render everything, so we use the current folder to create the uri so that it is an existing path.
-		const directUri = this.remoteUriFrom(this.filePickBox.value.trimRight());
+		const directUri = this.remoteUriFrom(this.filePickBox.value.trimRight(), this.currentFolder);
 		const currentPath = this.pathFromUri(this.currentFolder);
 		if (equalsIgnoreCase(this.filePickBox.value, currentPath)) {
 			return this.currentFolder;
 		}
-		const currentDisplayUri = this.remoteUriFrom(currentPath);
+		const currentDisplayUri = this.remoteUriFrom(currentPath, this.currentFolder);
 		const relativePath = resources.relativePath(currentDisplayUri, directUri);
 		const isSameRoot = (this.filePickBox.value.length > 1 && currentPath.length > 1) ? equalsIgnoreCase(this.filePickBox.value.substr(0, 2), currentPath.substr(0, 2)) : false;
 		if (relativePath && isSameRoot) {
 			let path = resources.joinPath(this.currentFolder, relativePath);
 			const directBasename = resources.basename(directUri);
 			if ((directBasename === '.') || (directBasename === '..')) {
-				path = this.remoteUriFrom(this.pathAppend(path, directBasename));
+				path = this.remoteUriFrom(this.pathAppend(path, directBasename), this.currentFolder);
 			}
 			return resources.hasTrailingPathSeparator(directUri) ? resources.addTrailingPathSeparator(path) : path;
 		} else {
@@ -541,16 +548,14 @@ export class SimpleFileDialog {
 
 	private tildaReplace(value: string): URI {
 		const home = this.userHome;
-		if ((value[0] === '~') && (value.length > 1)) {
+		if ((value.length > 0) && (value[0] === '~')) {
 			return resources.joinPath(home, value.substring(1));
-		} else if (value[value.length - 1] === '~') {
-			return home;
 		}
 		return this.remoteUriFrom(value);
 	}
 
 	private async tryUpdateItems(value: string, valueUri: URI): Promise<UpdateResult> {
-		if ((value.length > 0) && ((value[value.length - 1] === '~') || (value[0] === '~'))) {
+		if ((value.length > 0) && (value[0] === '~')) {
 			let newDir = this.tildaReplace(value);
 			return await this.updateItems(newDir, true) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 		} else if (value === '\\') {
@@ -575,8 +580,11 @@ export class SimpleFileDialog {
 				return UpdateResult.InvalidPath;
 			} else {
 				const inputUriDirname = resources.dirname(valueUri);
-				if (!resources.extUriIgnorePathCase.isEqual(resources.removeTrailingPathSeparator(this.currentFolder), inputUriDirname)
-					&& (!/^[a-zA-Z]:$/.test(this.filePickBox.value) || !equalsIgnoreCase(this.pathFromUri(this.currentFolder).substring(0, this.filePickBox.value.length), this.filePickBox.value))) {
+				const currentFolderWithoutSep = resources.removeTrailingPathSeparator(resources.addTrailingPathSeparator(this.currentFolder));
+				const inputUriDirnameWithoutSep = resources.removeTrailingPathSeparator(resources.addTrailingPathSeparator(inputUriDirname));
+				if (!resources.extUriIgnorePathCase.isEqual(currentFolderWithoutSep, inputUriDirnameWithoutSep)
+					&& (!/^[a-zA-Z]:$/.test(this.filePickBox.value)
+						|| !equalsIgnoreCase(this.pathFromUri(this.currentFolder).substring(0, this.filePickBox.value.length), this.filePickBox.value))) {
 					let statWithoutTrailing: IFileStat | undefined;
 					try {
 						statWithoutTrailing = await this.fileService.resolve(inputUriDirname);
@@ -647,7 +655,11 @@ export class SimpleFileDialog {
 			this.activeItem = quickPickItem;
 			// Changing the active items will trigger the onDidActiveItemsChanged. Clear the autocomplete first, then set it after.
 			this.autoCompletePathSegment = '';
-			this.filePickBox.activeItems = [quickPickItem];
+			if (quickPickItem.isFolder || !this.trailing) {
+				this.filePickBox.activeItems = [quickPickItem];
+			} else {
+				this.filePickBox.activeItems = [];
+			}
 			return true;
 		} else if (force && (!equalsIgnoreCase(this.basenameWithTrailingSlash(quickPickItem.uri), (this.userEnteredPathSegment + this.autoCompletePathSegment)))) {
 			this.userEnteredPathSegment = '';
@@ -773,7 +785,7 @@ export class SimpleFileDialog {
 				// Show a yes/no prompt
 				const message = nls.localize('remoteFileDialog.validateExisting', '{0} already exists. Are you sure you want to overwrite it?', resources.basename(uri));
 				return this.yesNoPrompt(uri, message);
-			} else if (!(isValidBasename(resources.basename(uri), await this.isWindowsOS()))) {
+			} else if (!(isValidBasename(resources.basename(uri), this.isWindows))) {
 				// Filename not allowed
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateBadFilename', 'Please enter a valid file name.');
 				return Promise.resolve(false);
@@ -787,7 +799,7 @@ export class SimpleFileDialog {
 				// File or folder doesn't exist
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
 				return Promise.resolve(false);
-			} else if (uri.path === '/' && (await this.isWindowsOS())) {
+			} else if (uri.path === '/' && this.isWindows) {
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.windowsDriveLetter', 'Please start the path with a drive letter.');
 				return Promise.resolve(false);
 			} else if (stat.isDirectory && !this.allowFolderSelection) {
@@ -864,7 +876,7 @@ export class SimpleFileDialog {
 	}
 
 	private pathFromUri(uri: URI, endWithSeparator: boolean = false): string {
-		let result: string = normalizeDriveLetter(uri.fsPath).replace(/\n/g, '');
+		let result: string = normalizeDriveLetter(uri.fsPath, this.isWindows).replace(/\n/g, '');
 		if (this.separator === '/') {
 			result = result.replace(/\\/g, this.separator);
 		} else {
@@ -885,7 +897,7 @@ export class SimpleFileDialog {
 		}
 	}
 
-	private async isWindowsOS(): Promise<boolean> {
+	private async checkIsWindowsOS(): Promise<boolean> {
 		let isWindowsOS = isWindows;
 		const env = await this.getRemoteAgentEnvironment();
 		if (env) {
@@ -904,20 +916,22 @@ export class SimpleFileDialog {
 		return child.substring(parent.length);
 	}
 
-	private createBackItem(currFolder: URI): FileQuickPickItem | null {
+	private async createBackItem(currFolder: URI): Promise<FileQuickPickItem | undefined> {
 		const fileRepresentationCurr = this.currentFolder.with({ scheme: Schemas.file, authority: '' });
 		const fileRepresentationParent = resources.dirname(fileRepresentationCurr);
 		if (!resources.isEqual(fileRepresentationCurr, fileRepresentationParent)) {
 			const parentFolder = resources.dirname(currFolder);
-			return { label: '..', uri: resources.addTrailingPathSeparator(parentFolder, this.separator), isFolder: true };
+			if (await this.fileService.exists(parentFolder)) {
+				return { label: '..', uri: resources.addTrailingPathSeparator(parentFolder, this.separator), isFolder: true };
+			}
 		}
-		return null;
+		return undefined;
 	}
 
 	private async createItems(folder: IFileStat | undefined, currentFolder: URI, token: CancellationToken): Promise<FileQuickPickItem[]> {
 		const result: FileQuickPickItem[] = [];
 
-		const backDir = this.createBackItem(currentFolder);
+		const backDir = await this.createBackItem(currentFolder);
 		try {
 			if (!folder) {
 				folder = await this.fileService.resolve(currentFolder);
@@ -974,9 +988,9 @@ export class SimpleFileDialog {
 		if (stat.isDirectory) {
 			const filename = resources.basename(fullPath);
 			fullPath = resources.addTrailingPathSeparator(fullPath, this.separator);
-			return { label: filename, uri: fullPath, isFolder: true, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined, FileKind.FOLDER) };
+			return { label: filename, uri: fullPath, isFolder: true, iconClasses: getIconClasses(this.modelService, this.languageService, fullPath || undefined, FileKind.FOLDER) };
 		} else if (!stat.isDirectory && this.allowFileSelection && this.filterFile(fullPath)) {
-			return { label: stat.name, uri: fullPath, isFolder: false, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined) };
+			return { label: stat.name, uri: fullPath, isFolder: false, iconClasses: getIconClasses(this.modelService, this.languageService, fullPath || undefined) };
 		}
 		return undefined;
 	}

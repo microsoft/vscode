@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -13,7 +13,7 @@ import { equals } from 'vs/base/common/arrays';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Command } from 'vs/editor/common/modes';
+import { Command } from 'vs/editor/common/languages';
 import { reset } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -23,6 +23,10 @@ export function isSCMRepository(element: any): element is ISCMRepository {
 
 export function isSCMInput(element: any): element is ISCMInput {
 	return !!(element as ISCMInput).validateInput && typeof (element as ISCMInput).value === 'string';
+}
+
+export function isSCMActionButton(element: any): element is ISCMActionButton {
+	return (element as ISCMActionButton).type === 'actionButton';
 }
 
 export function isSCMResourceGroup(element: any): element is ISCMResourceGroup {

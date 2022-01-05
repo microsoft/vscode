@@ -12,34 +12,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { timeout } from 'vs/base/common/async';
 import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-
-namespace TrustedFunction {
-
-	// workaround a chrome issue not allowing to create new functions
-	// see https://github.com/w3c/webappsec-trusted-types/wiki/Trusted-Types-for-function-constructor
-	const ttpTrustedFunction = self.trustedTypes?.createPolicy('TrustedFunctionWorkaround', {
-		createScript: (_, ...args: string[]) => {
-			args.forEach((arg) => {
-				if (!self.trustedTypes?.isScript(arg)) {
-					throw new Error('TrustedScripts only, please');
-				}
-			});
-			// NOTE: This is insecure without parsing the arguments and body,
-			// Malicious inputs  can escape the function body and execute immediately!
-			const fnArgs = args.slice(0, -1).join(',');
-			const fnBody = args.pop()!.toString();
-			const body = `(function anonymous(${fnArgs}) {\n${fnBody}\n})`;
-			return body;
-		}
-	});
-
-	export function create(...args: string[]): Function {
-		if (!ttpTrustedFunction) {
-			return new Function(...args);
-		}
-		return self.eval(ttpTrustedFunction.createScript('', ...args) as unknown as string);
-	}
-}
+import { FileAccess } from 'vs/base/common/network';
 
 class WorkerRequireInterceptor extends RequireInterceptor {
 
@@ -63,8 +36,6 @@ class WorkerRequireInterceptor extends RequireInterceptor {
 
 export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 	readonly extensionRuntime = ExtensionRuntime.Webworker;
-
-	private static _ttpExtensionScripts = self.trustedTypes?.createPolicy('ExtensionScripts', { createScript: source => source });
 
 	private _fakeModules?: WorkerRequireInterceptor;
 
@@ -91,7 +62,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		if (extensionId) {
 			performance.mark(`code/extHost/willFetchExtensionCode/${extensionId.value}`);
 		}
-		const response = await fetch(module.toString(true));
+		const response = await fetch(FileAccess.asBrowserUri(module).toString(true));
 		if (extensionId) {
 			performance.mark(`code/extHost/didFetchExtensionCode/${extensionId.value}`);
 		}
@@ -108,12 +79,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		const fullSource = `${source}\n//# sourceURL=${sourceURL}`;
 		let initFn: Function;
 		try {
-			initFn = TrustedFunction.create(
-				ExtHostExtensionService._ttpExtensionScripts?.createScript('module') as unknown as string ?? 'module',
-				ExtHostExtensionService._ttpExtensionScripts?.createScript('exports') as unknown as string ?? 'exports',
-				ExtHostExtensionService._ttpExtensionScripts?.createScript('require') as unknown as string ?? 'require',
-				ExtHostExtensionService._ttpExtensionScripts?.createScript(fullSource) as unknown as string ?? fullSource
-			);
+			initFn = new Function('module', 'exports', 'require', fullSource);
 		} catch (err) {
 			if (extensionId) {
 				console.error(`Loading code for extension ${extensionId.value} failed: ${err.message}`);
@@ -152,7 +118,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 	}
 
 	async $setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> {
-		throw new Error('Not supported');
+		return;
 	}
 
 	private async _waitForDebuggerAttachment(waitTimeout = 5000) {

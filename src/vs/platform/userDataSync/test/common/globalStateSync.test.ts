@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncStoreService, IUserDataSyncService, SyncResource, SyncStatus, IGlobalState, ISyncData } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { IGlobalState, ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
 
 suite('GlobalStateSync', () => {
@@ -27,7 +26,7 @@ suite('GlobalStateSync', () => {
 	setup(async () => {
 		testClient = disposableStore.add(new UserDataSyncClient(server));
 		await testClient.setUp(true);
-		testObject = (testClient.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getSynchroniser(SyncResource.GlobalState) as GlobalStateSynchroniser;
+		testObject = testClient.getSynchronizer(SyncResource.GlobalState) as GlobalStateSynchroniser;
 		disposableStore.add(toDisposable(() => testClient.instantiationService.get(IUserDataSyncStoreService).clear()));
 
 		client2 = disposableStore.add(new UserDataSyncClient(server));

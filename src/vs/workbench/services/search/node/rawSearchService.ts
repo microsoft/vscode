@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as gracefulFs from 'graceful-fs';
 import * as arrays from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -19,8 +17,6 @@ import { ICachedSearchStats, IFileQuery, IFileSearchProgressItem, IFileSearchSta
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
 
-gracefulFs.gracefulify(fs);
-
 export type IProgressCallback = (p: ISerializedSearchProgressItem) => void;
 export type IFileProgressCallback = (p: IFileSearchProgressItem) => void;
 
@@ -29,6 +25,8 @@ export class SearchService implements IRawSearchService {
 	private static readonly BATCH_SIZE = 512;
 
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
+
+	constructor(private readonly processType: IFileSearchStats['type'] = 'searchProcess') { }
 
 	fileSearch(config: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		let promise: CancelablePromise<ISerializedSearchSuccess>;
@@ -124,7 +122,7 @@ export class SearchService implements IRawSearchService {
 				type: 'success',
 				stats: {
 					detailStats: complete.stats,
-					type: 'searchProcess',
+					type: this.processType,
 					fromCache: false,
 					resultCount,
 					sortingTime: undefined
@@ -191,7 +189,7 @@ export class SearchService implements IRawSearchService {
 							detailStats: result.stats,
 							sortingTime,
 							fromCache: false,
-							type: 'searchProcess',
+							type: this.processType,
 							workspaceFolderCount: config.folderQueries.length,
 							resultCount: sortedResults.length
 						},
@@ -226,7 +224,7 @@ export class SearchService implements IRawSearchService {
 						const stats: IFileSearchStats = {
 							fromCache: true,
 							detailStats: cacheStats,
-							type: 'searchProcess',
+							type: this.processType,
 							resultCount: results.length,
 							sortingTime
 						};

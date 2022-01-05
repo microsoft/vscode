@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { Protocol as ElectronProtocol } from 'vs/base/parts/ipc/common/ipc.electron';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 /**
- * An implemention of `IPCClient` on top of Electron `ipcRenderer` IPC communication
+ * An implementation of `IPCClient` on top of Electron `ipcRenderer` IPC communication
  * provided from sandbox globals (via preload script).
  */
 export class Client extends IPCClient implements IDisposable {

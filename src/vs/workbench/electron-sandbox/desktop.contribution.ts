@@ -19,9 +19,9 @@ import { IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { PartsSplash } from 'vs/workbench/electron-sandbox/splash';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
+import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
+import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
 // Actions
 (function registerActions(): void {
@@ -36,6 +36,25 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 	registerAction2(QuickSwitchWindowAction);
 	registerAction2(CloseWindowAction);
 
+	if (isMacintosh) {
+		// macOS: behave like other native apps that have documents
+		// but can run without a document opened and allow to close
+		// the window when the last document is closed
+		// (https://github.com/microsoft/vscode/issues/126042)
+		KeybindingsRegistry.registerKeybindingRule({
+			id: CloseWindowAction.ID,
+			weight: KeybindingWeight.WorkbenchContrib,
+			when: ContextKeyExpr.and(EditorsVisibleContext.toNegated(), SingleEditorGroupsContext),
+			primary: KeyMod.CtrlCmd | KeyCode.KeyW
+		});
+	}
+
+	// Actions: Install Shell Script (macOS only)
+	if (isMacintosh) {
+		registerAction2(InstallShellScriptAction);
+		registerAction2(UninstallShellScriptAction);
+	}
+
 	// Quit
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'workbench.action.quit',
@@ -45,8 +64,8 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 			nativeHostService.quit();
 		},
 		when: undefined,
-		mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q },
-		linux: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q }
+		mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyQ },
+		linux: { primary: KeyMod.CtrlCmd | KeyCode.KeyQ }
 	});
 
 	// Actions: macOS Native Tabs
@@ -210,9 +229,10 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 		'properties': {
 			'telemetry.enableCrashReporter': {
 				'type': 'boolean',
-				'description': localize('telemetry.enableCrashReporting', "Enable crash reports to be sent to a Microsoft online service. \nThis option requires restart to take effect."),
+				'description': localize('telemetry.enableCrashReporting', "Enable crash reports to be collected. This helps us improve stability. \nThis option requires restart to take effect."),
 				'default': true,
-				'tags': ['usesOnlineServices']
+				'tags': ['usesOnlineServices', 'telemetry'],
+				'markdownDeprecationMessage': localize('enableCrashReporterDeprecated', "If this setting is false, no telemetry will be sent regardless of the new setting's value. Deprecated due to being combined into the {0} setting.", `\`#${TELEMETRY_SETTING_ID}#\``),
 			}
 		}
 	});
@@ -300,11 +320,4 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 	}
 
 	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);
-})();
-
-// Workbench Contributions
-(function registerWorkbenchContributions() {
-
-	// Splash
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(PartsSplash, LifecyclePhase.Starting);
 })();

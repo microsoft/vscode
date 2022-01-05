@@ -37,9 +37,9 @@ const enum TestUriParts {
 	Results = 'results',
 
 	Messages = 'message',
-	Text = 'text',
-	ActualOutput = 'actualOutput',
-	ExpectedOutput = 'expectedOutput',
+	Text = 'TestFailureMessage',
+	ActualOutput = 'ActualOutput',
+	ExpectedOutput = 'ExpectedOutput',
 }
 
 export const parseTestUri = (uri: URI): ParsedTestUri | undefined => {

@@ -8,8 +8,9 @@ import { Logger } from '../logger';
 import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable, disposeAll } from '../util/dispose';
+import { isMarkdownFile } from '../util/file';
 import { TopmostLineMonitor } from '../util/topmostLineMonitor';
-import { DynamicMarkdownPreview, ManagedMarkdownPreview, StartingScrollFragment, StaticMarkdownPreview } from './preview';
+import { DynamicMarkdownPreview, ManagedMarkdownPreview, scrollEditorToLine, StartingScrollFragment, StaticMarkdownPreview } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider } from './previewContentProvider';
 
@@ -74,7 +75,19 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	) {
 		super();
 		this._register(vscode.window.registerWebviewPanelSerializer(DynamicMarkdownPreview.viewType, this));
-		this._register(vscode.window.registerCustomEditorProvider(this.customEditorViewType, this));
+		this._register(vscode.window.registerCustomEditorProvider(this.customEditorViewType, this, {
+			webviewOptions: { enableFindWidget: true }
+		}));
+
+		this._register(vscode.window.onDidChangeActiveTextEditor(textEditor => {
+			// When at a markdown file, apply existing scroll settings
+			if (textEditor?.document && isMarkdownFile(textEditor.document)) {
+				const line = this._topmostLineMonitor.getPreviousStaticEditorLineByUri(textEditor.document.uri);
+				if (typeof line === 'number') {
+					scrollEditorToLine(line, textEditor);
+				}
+			}
+		}));
 	}
 
 	public refresh() {
@@ -160,14 +173,18 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		document: vscode.TextDocument,
 		webview: vscode.WebviewPanel
 	): Promise<void> {
+		const lineNumber = this._topmostLineMonitor.getPreviousTextEditorLineByUri(document.uri);
 		const preview = StaticMarkdownPreview.revive(
 			document.uri,
 			webview,
 			this._contentProvider,
 			this._previewConfigurations,
+			this._topmostLineMonitor,
 			this._logger,
 			this._contributions,
-			this._engine);
+			this._engine,
+			lineNumber
+		);
 		this.registerStaticPreview(preview);
 	}
 

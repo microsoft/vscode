@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { FoldingModel } from 'vs/editor/contrib/folding/foldingModel';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
-import { TestDecorationProvider } from './foldingModel.test';
-import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
 import { IRange } from 'vs/editor/common/core/range';
+import { FoldingModel } from 'vs/editor/contrib/folding/foldingModel';
+import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
+import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { TestDecorationProvider } from './foldingModel.test';
 
 
 interface ExpectedRange {
@@ -90,6 +90,8 @@ suite('Hidden Range Model', () => {
 		assert.strictEqual(hiddenRangeModel.isHidden(8), false);
 		assert.strictEqual(hiddenRangeModel.isHidden(9), false);
 		assert.strictEqual(hiddenRangeModel.isHidden(10), false);
+
+		textModel.dispose();
 
 	});
 

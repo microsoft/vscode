@@ -14,7 +14,7 @@ import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationEditingService, ConfigurationEditingErrorCode, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
-import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH, USER_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
+import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH, USER_STANDALONE_CONFIGURATIONS, IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -30,18 +30,24 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
-import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
+import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentService';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { getSingleFolderWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+
+export class ConfigurationCache implements IConfigurationCache {
+	needsCaching(resource: URI): boolean { return false; }
+	async read(): Promise<string> { return ''; }
+	async write(): Promise<void> { }
+	async remove(): Promise<void> { }
+}
 
 suite('ConfigurationEditingService', () => {
 
@@ -88,7 +94,7 @@ suite('ConfigurationEditingService', () => {
 		environmentService = TestEnvironmentService;
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
-		disposables.add(fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, logService))));
+		disposables.add(fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, fileService, logService))));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
@@ -153,11 +159,6 @@ suite('ConfigurationEditingService', () => {
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
 		}
-	});
-
-	test('dirty error is not thrown if not asked to save', async () => {
-		instantiationService.stub(ITextFileService, 'isDirty', true);
-		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotSave: true });
 	});
 
 	test('do not notify error', async () => {

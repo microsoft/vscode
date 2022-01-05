@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IQuickAccessController, IQuickAccessProvider, IQuickAccessRegistry, Extensions, IQuickAccessProviderDescriptor, IQuickAccessOptions, DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { once } from 'vs/base/common/functional';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
+import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class QuickAccessController extends Disposable implements IQuickAccessController {
 
@@ -111,10 +112,9 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 
 		// Pick mode: setup a promise that can be resolved
 		// with the selected items and prevent execution
-		let pickPromise: Promise<IQuickPickItem[]> | undefined = undefined;
-		let pickResolve: Function | undefined = undefined;
+		let pickPromise: DeferredPromise<IQuickPickItem[]> | undefined = undefined;
 		if (pick) {
-			pickPromise = new Promise<IQuickPickItem[]>(resolve => pickResolve = resolve);
+			pickPromise = new DeferredPromise<IQuickPickItem[]>();
 			disposables.add(once(picker.onWillAccept)(e => {
 				e.veto();
 				picker.hide();
@@ -143,7 +143,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 			disposables.dispose();
 
 			// Resolve pick promise with selected items
-			pickResolve?.(picker.selectedItems);
+			pickPromise?.complete(picker.selectedItems.slice(0));
 		});
 
 		// Finally, show the picker. This is important because a provider
@@ -153,7 +153,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 
 		// Pick mode: return with promise
 		if (pick) {
-			return pickPromise;
+			return pickPromise?.p;
 		}
 	}
 

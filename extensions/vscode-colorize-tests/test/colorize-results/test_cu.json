@@ -806,8 +806,8 @@
 		"c": "%s",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp meta.block.cpp meta.block.cpp string.quoted.double.cpp constant.other.placeholder",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -839,8 +839,8 @@
 		"c": "%s",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp meta.block.cpp meta.block.cpp string.quoted.double.cpp constant.other.placeholder",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -861,8 +861,8 @@
 		"c": "%d",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp meta.block.cpp meta.block.cpp string.quoted.double.cpp constant.other.placeholder",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -1752,8 +1752,8 @@
 		"c": "%s",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp meta.block.cpp meta.block.cpp string.quoted.double.cpp constant.other.placeholder",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -1785,8 +1785,8 @@
 		"c": "%x",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp meta.block.cpp meta.block.cpp string.quoted.double.cpp constant.other.placeholder",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -1807,8 +1807,8 @@
 		"c": "%s",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp meta.block.cpp meta.block.cpp string.quoted.double.cpp constant.other.placeholder",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -1829,8 +1829,8 @@
 		"c": "%d",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp meta.block.cpp meta.block.cpp string.quoted.double.cpp constant.other.placeholder",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -11344,8 +11344,8 @@
 		"c": "%u",
 		"t": "source.cuda-cpp meta.function.definition.cuda-cpp meta.body.function.definition.cuda-cpp meta.block.cuda-cpp meta.block.cuda-cpp string.quoted.double.cuda-cpp constant.other.placeholder",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -11366,8 +11366,8 @@
 		"c": "%u",
 		"t": "source.cuda-cpp meta.function.definition.cuda-cpp meta.body.function.definition.cuda-cpp meta.block.cuda-cpp meta.block.cuda-cpp string.quoted.double.cuda-cpp constant.other.placeholder",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -11388,8 +11388,8 @@
 		"c": "%u",
 		"t": "source.cuda-cpp meta.function.definition.cuda-cpp meta.body.function.definition.cuda-cpp meta.block.cuda-cpp meta.block.cuda-cpp string.quoted.double.cuda-cpp constant.other.placeholder",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"

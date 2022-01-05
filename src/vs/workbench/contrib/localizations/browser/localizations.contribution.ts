@@ -13,18 +13,19 @@ import { ConfigureLocaleAction } from 'vs/workbench/contrib/localizations/browse
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { IExtensionManagementService, DidInstallExtensionEvent, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension, InstallOperation, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { minimumTranslatedStrings } from 'vs/workbench/contrib/localizations/browser/minimalTranslations';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 // Register action to configure locale and related settings
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
@@ -41,36 +42,41 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@IViewletService private readonly viewletService: IViewletService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
 		this.checkAndInstall();
-		this._register(this.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
+		this._register(this.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
 	}
 
-	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
-		if (e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
-			const locale = e.local.manifest.contributes.localizations[0].languageId;
-			if (platform.language !== locale) {
-				const updateAndRestart = platform.locale !== locale;
-				this.notificationService.prompt(
-					Severity.Info,
-					updateAndRestart ? localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId)
-						: localize('activateLanguagePack', "In order to use VS Code in {0}, VS Code needs to restart.", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
-					[{
-						label: updateAndRestart ? localize('changeAndRestart', "Change Language and Restart") : localize('restart', "Restart"),
-						run: () => {
-							const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true) : Promise.resolve(undefined);
-							updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));
+	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
+		for (const e of results) {
+			if (e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
+				const locale = e.local.manifest.contributes.localizations[0].languageId;
+				if (platform.language !== locale) {
+					const updateAndRestart = platform.locale !== locale;
+					this.notificationService.prompt(
+						Severity.Info,
+						updateAndRestart ? localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId)
+							: localize('activateLanguagePack', "In order to use VS Code in {0}, VS Code needs to restart.", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
+						[{
+							label: updateAndRestart ? localize('changeAndRestart', "Change Language and Restart") : localize('restart', "Restart"),
+							run: () => {
+								const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true) : Promise.resolve(undefined);
+								updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));
+							}
+						}, {
+							label: updateAndRestart ? localize('doNotChangeAndRestart', "Don't Change Language") : localize('doNotRestart', "Don't Restart"),
+							run: () => { }
+						}],
+						{
+							sticky: true,
+							neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true }
 						}
-					}],
-					{
-						sticky: true,
-						neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true }
-					}
-				);
+					);
+				}
 			}
 		}
 	}
@@ -83,10 +89,10 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-		if (!language || !locale || language === 'en' || language.indexOf('en-') === 0) {
+		if (!language || !locale || locale === 'en' || locale.indexOf('en-') === 0) {
 			return;
 		}
-		if (language === locale || languagePackSuggestionIgnoreList.indexOf(language) > -1) {
+		if (language === locale || languagePackSuggestionIgnoreList.indexOf(locale) > -1) {
 			return;
 		}
 
@@ -133,14 +139,14 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 										"language": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 									}
 								*/
-								this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction, language });
+								this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction, language: locale });
 							};
 
 							const searchAction = {
 								label: translations['searchMarketplace'],
 								run: () => {
 									logUserReaction('search');
-									this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
+									this.paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true)
 										.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 										.then(viewlet => {
 											viewlet.search(`tag:lp-${locale}`);
@@ -167,7 +173,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 									label: localize('neverAgain', "Don't Show Again"),
 									isSecondary: true,
 									run: () => {
-										languagePackSuggestionIgnoreList.push(language);
+										languagePackSuggestionIgnoreList.push(locale);
 										this.storageService.store(
 											LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY,
 											JSON.stringify(languagePackSuggestionIgnoreList),
@@ -201,7 +207,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private installExtension(extension: IGalleryExtension): Promise<void> {
-		return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID)
+		return this.paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar)
 			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => viewlet.search(`@id:${extension.identifier.id}`))
 			.then(() => this.extensionManagementService.installFromGallery(extension))
@@ -214,6 +220,7 @@ workbenchRegistry.registerWorkbenchContribution(LocalizationWorkbenchContributio
 
 ExtensionsRegistry.registerExtensionPoint({
 	extensionPoint: 'localizations',
+	defaultExtensionKind: ['ui', 'workspace'],
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.localizations', "Contributes localizations to the editor"),
 		type: 'array',
@@ -246,7 +253,7 @@ ExtensionsRegistry.registerExtensionPoint({
 							id: {
 								type: 'string',
 								description: localize('vscode.extension.contributes.localizations.translations.id', "Id of VS Code or Extension for which this translation is contributed to. Id of VS Code is always `vscode` and of extension should be in format `publisherId.extensionName`."),
-								pattern: '^((vscode)|([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*))$',
+								pattern: '^((vscode)|([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*))$',
 								patternErrorMessage: localize('vscode.extension.contributes.localizations.translations.id.pattern', "Id should be `vscode` or in format `publisherId.extensionName` for translating VS code or an extension respectively.")
 							},
 							path: {

@@ -5,13 +5,13 @@
 
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { distinct } from 'vs/base/common/objects';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, SET_CONTEXT_COMMAND_ID, ContextKeyExpression, RawContextKey, ContextKeyInfo } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression, ContextKeyInfo, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, RawContextKey, SET_CONTEXT_COMMAND_ID } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';

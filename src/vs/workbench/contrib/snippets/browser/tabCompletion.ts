@@ -27,7 +27,7 @@ export class TabCompletionController implements IEditorContribution {
 	public static readonly ID = 'editor.tabCompletionController';
 	static readonly ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);
 
-	public static get(editor: ICodeEditor): TabCompletionController {
+	public static get(editor: ICodeEditor): TabCompletionController | null {
 		return editor.getContribution<TabCompletionController>(TabCompletionController.ID);
 	}
 
@@ -140,7 +140,7 @@ export class TabCompletionController implements IEditorContribution {
 					return;
 				}
 			}
-			SnippetController2.get(this._editor).insert(snippet.codeSnippet, {
+			SnippetController2.get(this._editor)?.insert(snippet.codeSnippet, {
 				overwriteBefore: snippet.prefix.length, overwriteAfter: 0,
 				clipboardText
 			});

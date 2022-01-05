@@ -118,10 +118,6 @@ export abstract class Composite extends Component implements IComposite {
 		this.parent = parent;
 	}
 
-	override updateStyles(): void {
-		super.updateStyles();
-	}
-
 	/**
 	 * Returns the container this composite is being build in.
 	 */
@@ -157,6 +153,13 @@ export abstract class Composite extends Component implements IComposite {
 	 * Layout the contents of this composite using the provided dimensions.
 	 */
 	abstract layout(dimension: Dimension): void;
+
+	/**
+	 * Update the styles of the contents of this composite.
+	 */
+	override updateStyles(): void {
+		super.updateStyles();
+	}
 
 	/**
 	 * Returns an array of actions to show in the action bar of the composite.

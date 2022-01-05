@@ -71,7 +71,8 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		const _decorations = ctx.getDecorationsInViewport();
 
 		// Keep only decorations with `className`
-		let decorations: ViewModelDecoration[] = [], decorationsLen = 0;
+		let decorations: ViewModelDecoration[] = [];
+		let decorationsLen = 0;
 		for (let i = 0, len = _decorations.length; i < len; i++) {
 			const d = _decorations[i];
 			if (d.options.className) {
@@ -202,9 +203,12 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 
 			if (showIfCollapsed && lineVisibleRanges.ranges.length === 1) {
 				const singleVisibleRange = lineVisibleRanges.ranges[0];
-				if (singleVisibleRange.width === 0) {
-					// collapsed range case => make the decoration visible by faking its width
-					lineVisibleRanges.ranges[0] = new HorizontalRange(singleVisibleRange.left, this._typicalHalfwidthCharacterWidth);
+				if (singleVisibleRange.width < this._typicalHalfwidthCharacterWidth) {
+					// collapsed/very small range case => make the decoration visible by expanding its width
+					// expand its size on both sides (both to the left and to the right, keeping it centered)
+					const center = Math.round(singleVisibleRange.left + singleVisibleRange.width / 2);
+					const left = Math.max(0, Math.round(center - this._typicalHalfwidthCharacterWidth / 2));
+					lineVisibleRanges.ranges[0] = new HorizontalRange(left, this._typicalHalfwidthCharacterWidth);
 				}
 			}
 

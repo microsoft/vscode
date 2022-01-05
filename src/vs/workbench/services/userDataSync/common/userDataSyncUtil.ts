@@ -10,7 +10,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextResourcePropertiesService, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourcePropertiesService, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 class UserDataSyncUtilService implements IUserDataSyncUtilService {
 
@@ -46,7 +46,7 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 		}
 		return {
 			eol: this.textResourcePropertiesService.getEOL(resource),
-			insertSpaces: this.textResourceConfigurationService.getValue<boolean>(resource, 'editor.insertSpaces'),
+			insertSpaces: !!this.textResourceConfigurationService.getValue(resource, 'editor.insertSpaces'),
 			tabSize: this.textResourceConfigurationService.getValue(resource, 'editor.tabSize')
 		};
 	}

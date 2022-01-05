@@ -191,7 +191,7 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 				}
 			}
 
-			console.log(`Open in VS Code the folder at '${destPath}' and you can alayze the compilation error`);
+			console.log(`Open in VS Code the folder at '${destPath}' and you can analyze the compilation error`);
 			throw new Error('Standalone Editor compilation failed. If this is the build machine, simply launch `yarn run gulp editor-distro` on your machine to further analyze the compilation problem.');
 		});
 	}
@@ -231,7 +231,10 @@ function toExternalDTS(contents) {
 
 		if (line.indexOf('declare let MonacoEnvironment') === 0) {
 			lines[i] = `declare global {\n    let MonacoEnvironment: Environment | undefined;\n}`;
-			// lines[i] = line.replace('declare namespace monaco.', 'export namespace ');
+		}
+
+		if (line.indexOf('\tMonacoEnvironment?') === 0) {
+			lines[i] = `    MonacoEnvironment?: Environment | undefined;`;
 		}
 	}
 	return lines.join('\n').replace(/\n\n\n+/g, '\n\n');

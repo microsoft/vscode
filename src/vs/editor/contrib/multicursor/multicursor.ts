@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { status } from 'vs/base/browser/ui/aria/aria';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { status } from 'vs/base/browser/ui/aria/aria';
+import { Constants } from 'vs/base/common/uint';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { CursorState } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveCommands';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Constants } from 'vs/base/common/uint';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
+import { DocumentHighlightProviderRegistry } from 'vs/editor/common/languages';
 import { CommonFindController } from 'vs/editor/contrib/find/findController';
 import { FindOptionOverride, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
+import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { CursorState } from 'vs/editor/common/controller/cursorCommon';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { overviewRulerSelectionHighlightForeground, minimapSelectionOccurrenceHighlight } from 'vs/platform/theme/common/colorRegistry';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 function announceCursorChange(previousCursorState: CursorState[], cursorState: CursorState[]): void {
 	const cursorDiff = cursorState.filter(cs => !previousCursorState.find(pcs => pcs.equals(cs)));
@@ -70,7 +70,10 @@ export class InsertCursorAbove extends EditorAction {
 			return;
 		}
 
-		const useLogicalLine = (args && args.logicalLine === true);
+		let useLogicalLine = true;
+		if (args && args.logicalLine === false) {
+			useLogicalLine = false;
+		}
 		const viewModel = editor._getViewModel();
 
 		if (viewModel.cursorConfig.readOnly) {
@@ -120,7 +123,10 @@ export class InsertCursorBelow extends EditorAction {
 			return;
 		}
 
-		const useLogicalLine = (args && args.logicalLine === true);
+		let useLogicalLine = true;
+		if (args && args.logicalLine === false) {
+			useLogicalLine = false;
+		}
 		const viewModel = editor._getViewModel();
 
 		if (viewModel.cursorConfig.readOnly) {
@@ -149,7 +155,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyI,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
@@ -452,7 +458,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 	private _session: MultiCursorSession | null;
 	private readonly _sessionDispose = this._register(new DisposableStore());
 
-	public static get(editor: ICodeEditor): MultiCursorSelectionController {
+	public static get(editor: ICodeEditor): MultiCursorSelectionController | null {
 		return editor.getContribution<MultiCursorSelectionController>(MultiCursorSelectionController.ID);
 	}
 
@@ -693,7 +699,7 @@ export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionContr
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_D,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyD,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
@@ -738,7 +744,7 @@ export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionCont
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyD),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -771,7 +777,7 @@ export class SelectHighlightsAction extends MultiCursorSelectionControllerAction
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
@@ -811,34 +817,33 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 }
 
 class SelectionHighlighterState {
-	public readonly searchText: string;
-	public readonly matchCase: boolean;
-	public readonly wordSeparators: string | null;
-	public readonly modelVersionId: number;
+	private readonly _modelVersionId: number = this._model.getVersionId();
+	private _cachedFindMatches: Range[] | null = null;
 
-	constructor(searchText: string, matchCase: boolean, wordSeparators: string | null, modelVersionId: number) {
-		this.searchText = searchText;
-		this.matchCase = matchCase;
-		this.wordSeparators = wordSeparators;
-		this.modelVersionId = modelVersionId;
+	constructor(
+		private readonly _model: ITextModel,
+		private readonly _searchText: string,
+		private readonly _matchCase: boolean,
+		private readonly _wordSeparators: string | null,
+		prevState: SelectionHighlighterState | null
+	) {
+		if (prevState
+			&& this._model === prevState._model
+			&& this._searchText === prevState._searchText
+			&& this._matchCase === prevState._matchCase
+			&& this._wordSeparators === prevState._wordSeparators
+			&& this._modelVersionId === prevState._modelVersionId
+		) {
+			this._cachedFindMatches = prevState._cachedFindMatches;
+		}
 	}
 
-	/**
-	 * Everything equals except for `lastWordUnderCursor`
-	 */
-	public static softEquals(a: SelectionHighlighterState | null, b: SelectionHighlighterState | null): boolean {
-		if (!a && !b) {
-			return true;
+	public findMatches(): Range[] {
+		if (this._cachedFindMatches === null) {
+			this._cachedFindMatches = this._model.findMatches(this._searchText, true, false, this._matchCase, this._wordSeparators, false).map(m => m.range);
+			this._cachedFindMatches.sort(Range.compareRangesUsingStarts);
 		}
-		if (!a || !b) {
-			return false;
-		}
-		return (
-			a.searchText === b.searchText
-			&& a.matchCase === b.matchCase
-			&& a.wordSeparators === b.wordSeparators
-			&& a.modelVersionId === b.modelVersionId
-		);
+		return this._cachedFindMatches;
 	}
 }
 
@@ -892,16 +897,19 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 				this.updateSoon.schedule();
 			}
 		}));
-		this._register(CommonFindController.get(editor).getState().onFindReplaceStateChange((e) => {
-			this._update();
-		}));
+		const findController = CommonFindController.get(editor);
+		if (findController) {
+			this._register(findController.getState().onFindReplaceStateChange((e) => {
+				this._update();
+			}));
+		}
 	}
 
 	private _update(): void {
-		this._setState(SelectionHighlighter._createState(this._isEnabled, this.editor));
+		this._setState(SelectionHighlighter._createState(this.state, this._isEnabled, this.editor));
 	}
 
-	private static _createState(isEnabled: boolean, editor: ICodeEditor): SelectionHighlighterState | null {
+	private static _createState(oldState: SelectionHighlighterState | null, isEnabled: boolean, editor: ICodeEditor): SelectionHighlighterState | null {
 		if (!isEnabled) {
 			return null;
 		}
@@ -974,15 +982,11 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			}
 		}
 
-		return new SelectionHighlighterState(r.searchText, r.matchCase, r.wholeWord ? editor.getOption(EditorOption.wordSeparators) : null, editor.getModel().getVersionId());
+		return new SelectionHighlighterState(editor.getModel(), r.searchText, r.matchCase, r.wholeWord ? editor.getOption(EditorOption.wordSeparators) : null, oldState);
 	}
 
-	private _setState(state: SelectionHighlighterState | null): void {
-		if (SelectionHighlighterState.softEquals(this.state, state)) {
-			this.state = state;
-			return;
-		}
-		this.state = state;
+	private _setState(newState: SelectionHighlighterState | null): void {
+		this.state = newState;
 
 		if (!this.state) {
 			this.decorations = this.editor.deltaDecorations(this.decorations, []);
@@ -995,20 +999,17 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 
 		const model = this.editor.getModel();
 		if (model.isTooLargeForTokenization()) {
-			// the file is too large, so searching word under cursor in the whole document takes is blocking the UI.
+			// the file is too large, so searching word under cursor in the whole document would be blocking the UI.
 			return;
 		}
 
-		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model) && this.editor.getOption(EditorOption.occurrencesHighlight);
+		const allMatches = this.state.findMatches();
 
-		let allMatches = model.findMatches(this.state.searchText, true, false, this.state.matchCase, this.state.wordSeparators, false).map(m => m.range);
-		allMatches.sort(Range.compareRangesUsingStarts);
-
-		let selections = this.editor.getSelections();
+		const selections = this.editor.getSelections();
 		selections.sort(Range.compareRangesUsingStarts);
 
 		// do not overlap with selection (issue #64 and #512)
-		let matches: Range[] = [];
+		const matches: Range[] = [];
 		for (let i = 0, j = 0, len = allMatches.length, lenJ = selections.length; i < len;) {
 			const match = allMatches[i];
 
@@ -1035,6 +1036,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			}
 		}
 
+		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model) && this.editor.getOption(EditorOption.occurrencesHighlight);
 		const decorations = matches.map(r => {
 			return {
 				range: r,
@@ -1047,8 +1049,13 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	}
 
 	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
+		description: 'selection-highlight-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
+		minimap: {
+			color: themeColorFromId(minimapSelectionOccurrenceHighlight),
+			position: MinimapPosition.Inline
+		},
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
 			position: OverviewRulerLane.Center
@@ -1056,6 +1063,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	});
 
 	private static readonly _SELECTION_HIGHLIGHT = ModelDecorationOptions.register({
+		description: 'selection-highlight',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 	});

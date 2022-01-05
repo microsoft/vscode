@@ -12,15 +12,19 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { once } from 'vs/base/common/functional';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export class BrowserClipboardService extends BaseBrowserClipboardService {
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ILogService logService: ILogService,
+		@ILayoutService layoutService: ILayoutService
 	) {
-		super();
+		super(layoutService, logService);
 	}
 
 	override async readText(type?: string): Promise<string> {

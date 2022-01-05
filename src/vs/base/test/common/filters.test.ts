@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, createMatches, anyScore } from 'vs/base/common/filters';
+import { anyScore, createMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesCamelCase, matchesContiguousSubString, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -200,6 +200,9 @@ suite('Filters', () => {
 
 		filterOk(matchesWords, 'öäk', 'Öhm: Älles Klar', [{ start: 0, end: 1 }, { start: 5, end: 6 }, { start: 11, end: 12 }]);
 
+		// Handles issue #123915
+		filterOk(matchesWords, 'C++', 'C/C++: command', [{ start: 2, end: 5 }]);
+
 		// assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
 		// assert.deepStrictEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
 
@@ -215,7 +218,6 @@ suite('Filters', () => {
 
 		filterOk(matchesWords, 'foo bar', 'foo-bar');
 		filterOk(matchesWords, 'foo bar', '123 foo-bar 456');
-		filterOk(matchesWords, 'foo+bar', 'foo-bar');
 		filterOk(matchesWords, 'foo-bar', 'foo bar');
 		filterOk(matchesWords, 'foo:bar', 'foo:bar');
 	});

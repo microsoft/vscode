@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IUndoRedoService, IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoElement, IPastFutureElements, ResourceEditStackSnapshot, UriComparisonKeyComputer, IResourceUndoRedoElement, UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
+import { Disposable, IDisposable, isDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import Severity from 'vs/base/common/severity';
+import { URI } from 'vs/base/common/uri';
+import * as nls from 'vs/nls';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDisposable, Disposable, isDisposable } from 'vs/base/common/lifecycle';
+import { IPastFutureElements, IResourceUndoRedoElement, IUndoRedoElement, IUndoRedoService, IWorkspaceUndoRedoElement, ResourceEditStackSnapshot, UndoRedoElementType, UndoRedoGroup, UndoRedoSource, UriComparisonKeyComputer } from 'vs/platform/undoRedo/common/undoRedo';
 
 const DEBUG = false;
 
@@ -709,7 +709,7 @@ export class UndoRedoService implements IUndoRedoService {
 
 	private _onError(err: Error, element: StackElement): void {
 		onUnexpectedError(err);
-		// An error occured while undoing or redoing => drop the undo/redo stack for all affected resources
+		// An error occurred while undoing or redoing => drop the undo/redo stack for all affected resources
 		for (const strResource of element.strResources) {
 			this.removeElements(strResource);
 		}
@@ -1109,7 +1109,7 @@ export class UndoRedoService implements IUndoRedoService {
 			Severity.Info,
 			nls.localize('confirmDifferentSource', "Would you like to undo '{0}'?", element.label),
 			[
-				nls.localize('confirmDifferentSource.ok', "Undo"),
+				nls.localize('confirmDifferentSource.yes', "Yes"),
 				nls.localize('cancel', "Cancel"),
 			],
 			{

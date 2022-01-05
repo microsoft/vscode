@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 
 /**
  * Declare minimal `MessageEvent` and `MessagePort` interfaces here

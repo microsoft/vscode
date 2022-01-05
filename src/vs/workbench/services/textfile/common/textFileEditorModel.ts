@@ -10,9 +10,9 @@ import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEdit
 import { IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { IModelService } from 'vs/editor/common/services/model';
 import { timeout, TaskSequentializer } from 'vs/base/common/async';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -24,6 +24,12 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { extUri } from 'vs/base/common/resources';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -74,6 +80,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	readonly capabilities = WorkingCopyCapabilities.None;
 
 	readonly name = basename(this.labelService.getUriLabel(this.resource));
+	private resourceHasExtension: boolean = !!extUri.extname(this.resource);
 
 	private contentEncoding: string | undefined; // encoding as reported from disk
 
@@ -94,10 +101,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private inErrorMode = false;
 
 	constructor(
-		public readonly resource: URI,
-		private preferredEncoding: string | undefined,	// encoding as chosen by the user
-		private preferredMode: string | undefined,		// mode as chosen by the user
-		@IModeService modeService: IModeService,
+		readonly resource: URI,
+		private preferredEncoding: string | undefined,		// encoding as chosen by the user
+		private preferredLanguageId: string | undefined,	// language id as chosen by the user
+		@ILanguageService languageService: ILanguageService,
 		@IModelService modelService: IModelService,
 		@IFileService private readonly fileService: IFileService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -105,9 +112,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IPathService private readonly pathService: IPathService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
-		super(modelService, modeService);
+		super(modelService, languageService, languageDetectionService, accessibilityService);
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
@@ -178,15 +189,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		const firstLineText = this.getFirstLineText(this.textEditorModel);
-		const languageSelection = this.getOrCreateMode(this.resource, this.modeService, this.preferredMode, firstLineText);
+		const languageSelection = this.getOrCreateLanguage(this.resource, this.languageService, this.preferredLanguageId, firstLineText);
 
 		this.modelService.setMode(this.textEditorModel, languageSelection);
 	}
 
-	override setMode(mode: string): void {
-		super.setMode(mode);
+	override setLanguageId(languageId: string): void {
+		super.setLanguageId(languageId);
 
-		this.preferredMode = mode;
+		this.preferredLanguageId = languageId;
 	}
 
 	//#region Backup
@@ -437,8 +448,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.setOrphaned(result === FileOperationResult.FILE_NOT_FOUND);
 
 			// NotModified status is expected and can be handled gracefully
-			// if we are resolved
+			// if we are resolved. We still want to update our last resolved
+			// stat to e.g. detect changes to the file's readonly state
 			if (this.isResolved() && result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
+				if (error instanceof NotModifiedSinceFileOperationError) {
+					this.updateLastResolvedFileStat(error.stat);
+				}
+
 				return;
 			}
 
@@ -515,10 +531,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.logService.trace('[text file model] doCreateTextModel()', this.resource.toString(true));
 
 		// Create model
-		const textModel = this.createTextEditorModel(value, resource, this.preferredMode);
+		const textModel = this.createTextEditorModel(value, resource, this.preferredLanguageId);
 
 		// Model Listeners
 		this.installModelListeners(textModel);
+
+		// Detect language from content
+		this.autoDetectLanguage();
 	}
 
 	private doUpdateTextModel(value: ITextBufferFactory): void {
@@ -527,7 +546,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Update model value in a block that ignores content change events for dirty tracking
 		this.ignoreDirtyOnModelContentChange = true;
 		try {
-			this.updateTextEditorModel(value, this.preferredMode);
+			this.updateTextEditorModel(value, this.preferredLanguageId);
 		} finally {
 			this.ignoreDirtyOnModelContentChange = false;
 		}
@@ -588,6 +607,32 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Emit as event
 		this._onDidChangeContent.fire();
+
+		// Detect language from content
+		this.autoDetectLanguage();
+	}
+
+	private static _whenReadyToDetectLanguage: Promise<boolean> | undefined;
+	private whenReadyToDetectLanguage(): Promise<boolean> {
+		if (TextFileEditorModel._whenReadyToDetectLanguage === undefined) {
+			// We need to wait until installed extensions are registered because if the editor is created before that (like when restoring an editor)
+			// it could be created with a language of plaintext. This would trigger language detection even though the real issue is that the
+			// language extensions are not yet loaded to provide the actual language.
+			TextFileEditorModel._whenReadyToDetectLanguage = this.extensionService.whenInstalledExtensionsRegistered();
+		}
+		return TextFileEditorModel._whenReadyToDetectLanguage;
+	}
+
+	protected override async autoDetectLanguage(): Promise<void> {
+		await this.whenReadyToDetectLanguage();
+		const languageId = this.getLanguageId();
+		if (
+			this.resource.scheme === this.pathService.defaultUriScheme &&	// make sure to not detect language for non-user visible documents
+			(!languageId || languageId === PLAINTEXT_LANGUAGE_ID) &&		// only run on files with plaintext language set or no language set at all
+			!this.resourceHasExtension										// only run if this particular file doesn't have an extension
+		) {
+			return super.autoDetectLanguage();
+		}
 	}
 
 	//#endregion
@@ -666,7 +711,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		await this.doSave(options);
 		this.logService.trace('[text file model] save() - exit', this.resource.toString(true));
 
-		return true;
+		return this.hasState(TextFileEditorModelState.SAVED);
 	}
 
 	private async doSave(options: ITextFileSaveOptions): Promise<void> {
@@ -810,7 +855,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					const stat = await this.textFileService.write(lastResolvedFileStat.resource, resolvedTextFileEditorModel.createSnapshot(), {
 						mtime: lastResolvedFileStat.mtime,
 						encoding: this.getEncoding(),
-						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, resolvedTextFileEditorModel.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
+						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, resolvedTextFileEditorModel.getLanguageId())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 						unlock: options.writeUnlock,
 						writeElevated: options.writeElevated
 					});
@@ -924,18 +969,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	joinState(state: TextFileEditorModelState.PENDING_SAVE): Promise<void> {
-		return this.saveSequentializer.pending ?? Promise.resolve();
+	async joinState(state: TextFileEditorModelState.PENDING_SAVE): Promise<void> {
+		return this.saveSequentializer.pending;
 	}
 
-	override getMode(this: IResolvedTextFileEditorModel): string;
-	override getMode(): string | undefined;
-	override getMode(): string | undefined {
+	override getLanguageId(this: IResolvedTextFileEditorModel): string;
+	override getLanguageId(): string | undefined;
+	override getLanguageId(): string | undefined {
 		if (this.textEditorModel) {
-			return this.textEditorModel.getModeId();
+			return this.textEditorModel.getLanguageId();
 		}
 
-		return this.preferredMode;
+		return this.preferredLanguageId;
 	}
 
 	//#region Encoding

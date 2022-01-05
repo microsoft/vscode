@@ -5,13 +5,13 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeLensProvider, CodeLensProviderRegistry, CodeLens, CodeLensList } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { CodeLens, CodeLensList, CodeLensProvider, CodeLensProviderRegistry } from 'vs/editor/common/languages';
+import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { assertType } from 'vs/base/common/types';
 
 export interface CodeLensItem {
 	symbol: CodeLens;
@@ -26,6 +26,10 @@ export class CodeLensModel {
 
 	dispose(): void {
 		this._disposables.dispose();
+	}
+
+	get isDisposed(): boolean {
+		return this._disposables.isDisposed;
 	}
 
 	add(list: CodeLensList, provider: CodeLensProvider): void {

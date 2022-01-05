@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { app, BrowserWindow, Event as IpcEvent, ipcMain } from 'electron';
+import { coalesce } from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
+import { assertIsDefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { whenDeleted } from 'vs/base/node/pfs';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDiagnosticInfo, IDiagnosticInfoOptions, IRemoteDiagnosticError, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
-import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { whenDeleted } from 'vs/base/node/pfs';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
-import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
-import { coalesce } from 'vs/base/common/arrays';
-import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { ICodeWindow, IOpenConfiguration, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { assertIsDefined } from 'vs/base/common/types';
+import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
@@ -121,9 +121,17 @@ export class LaunchMainService implements ILaunchMainService {
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
 		const remoteAuthority = args.remote || undefined;
 
+		const baseConfig: IOpenConfiguration = {
+			context,
+			cli: args,
+			userEnv,
+			waitMarkerFileURI,
+			remoteAuthority
+		};
+
 		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv, waitMarkerFileURI, remoteAuthority });
+			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, baseConfig);
 		}
 
 		// Start without file/folder arguments
@@ -159,13 +167,9 @@ export class LaunchMainService implements ILaunchMainService {
 			// Open new Window
 			if (openNewWindow) {
 				usedWindows = this.windowsMainService.open({
-					context,
-					cli: args,
-					userEnv,
+					...baseConfig,
 					forceNewWindow: true,
-					forceEmpty: true,
-					waitMarkerFileURI,
-					remoteAuthority
+					forceEmpty: true
 				});
 			}
 
@@ -173,11 +177,14 @@ export class LaunchMainService implements ILaunchMainService {
 			else {
 				const lastActive = this.windowsMainService.getLastActiveWindow();
 				if (lastActive) {
-					lastActive.focus();
+					this.windowsMainService.openExistingWindow(lastActive, baseConfig);
 
 					usedWindows = [lastActive];
 				} else {
-					usedWindows = this.windowsMainService.open({ context, cli: args, forceEmpty: true, remoteAuthority });
+					usedWindows = this.windowsMainService.open({
+						...baseConfig,
+						forceEmpty: true
+					});
 				}
 			}
 		}
@@ -185,18 +192,14 @@ export class LaunchMainService implements ILaunchMainService {
 		// Start with file/folder arguments
 		else {
 			usedWindows = this.windowsMainService.open({
-				context,
-				cli: args,
-				userEnv,
+				...baseConfig,
 				forceNewWindow: args['new-window'],
 				preferNewWindow: !args['reuse-window'] && !args.wait,
 				forceReuseWindow: args['reuse-window'],
 				diffMode: args.diff,
 				addMode: args.add,
 				noRecentEntry: !!args['skip-add-to-recently-opened'],
-				waitMarkerFileURI,
-				gotoLineMode: args.goto,
-				remoteAuthority
+				gotoLineMode: args.goto
 			});
 		}
 

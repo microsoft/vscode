@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Event } from 'vs/base/common/event';
-import { IDriver, IElement, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
+import { IDriver, IElement, ILocaleInfo, ILocalizedStrings, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
 
 export class DriverChannel implements IServerChannel {
 
@@ -21,6 +21,8 @@ export class DriverChannel implements IServerChannel {
 		switch (command) {
 			case 'getWindowIds': return this.driver.getWindowIds();
 			case 'capturePage': return this.driver.capturePage(arg);
+			case 'startTracing': return this.driver.startTracing(arg[0], arg[1]);
+			case 'stopTracing': return this.driver.stopTracing(arg[0], arg[1], arg[2]);
 			case 'reloadWindow': return this.driver.reloadWindow(arg);
 			case 'exitApplication': return this.driver.exitApplication();
 			case 'dispatchKeybinding': return this.driver.dispatchKeybinding(arg[0], arg[1]);
@@ -34,6 +36,8 @@ export class DriverChannel implements IServerChannel {
 			case 'typeInEditor': return this.driver.typeInEditor(arg[0], arg[1], arg[2]);
 			case 'getTerminalBuffer': return this.driver.getTerminalBuffer(arg[0], arg[1]);
 			case 'writeInTerminal': return this.driver.writeInTerminal(arg[0], arg[1], arg[2]);
+			case 'getLocaleInfo': return this.driver.getLocaleInfo(arg);
+			case 'getLocalizedStrings': return this.driver.getLocalizedStrings(arg);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -54,11 +58,19 @@ export class DriverChannelClient implements IDriver {
 		return this.channel.call('capturePage', windowId);
 	}
 
+	startTracing(windowId: number, name: string): Promise<void> {
+		return this.channel.call('startTracing', [windowId, name]);
+	}
+
+	stopTracing(windowId: number, name: string, persist: boolean): Promise<void> {
+		return this.channel.call('stopTracing', [windowId, name, persist]);
+	}
+
 	reloadWindow(windowId: number): Promise<void> {
 		return this.channel.call('reloadWindow', windowId);
 	}
 
-	exitApplication(): Promise<void> {
+	exitApplication(): Promise<boolean> {
 		return this.channel.call('exitApplication');
 	}
 
@@ -104,6 +116,14 @@ export class DriverChannelClient implements IDriver {
 
 	writeInTerminal(windowId: number, selector: string, text: string): Promise<void> {
 		return this.channel.call('writeInTerminal', [windowId, selector, text]);
+	}
+
+	getLocaleInfo(windowId: number): Promise<ILocaleInfo> {
+		return this.channel.call('getLocaleInfo', windowId);
+	}
+
+	getLocalizedStrings(windowId: number): Promise<ILocalizedStrings> {
+		return this.channel.call('getLocalizedStrings', windowId);
 	}
 }
 

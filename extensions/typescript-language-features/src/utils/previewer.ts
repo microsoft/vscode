@@ -39,9 +39,9 @@ function getTagBodyText(
 		return undefined;
 	}
 
-	// Convert to markdown code block if it is not already one
+	// Convert to markdown code block if it does not already contain one
 	function makeCodeblock(text: string): string {
-		if (text.match(/^\s*[~`]{3}/g)) {
+		if (text.match(/^\s*[~`]{3}/m)) {
 			return text;
 		}
 		return '```\n' + text + '\n```';
@@ -49,15 +49,16 @@ function getTagBodyText(
 
 	const text = convertLinkTags(tag.text, filePathConverter);
 	switch (tag.name) {
-		case 'example':
+		case 'example': {
 			// check for caption tags, fix for #79704
 			const captionTagMatches = text.match(/<caption>(.*?)<\/caption>\s*(\r\n|\n)/);
 			if (captionTagMatches && captionTagMatches.index === 0) {
-				return captionTagMatches[1] + '\n\n' + makeCodeblock(text.substr(captionTagMatches[0].length));
+				return captionTagMatches[1] + '\n' + makeCodeblock(text.substr(captionTagMatches[0].length));
 			} else {
 				return makeCodeblock(text);
 			}
-		case 'author':
+		}
+		case 'author': {
 			// fix obsucated email address, #80898
 			const emailMatch = text.match(/(.+)\s<([-.\w]+@[-.\w]+)>/);
 
@@ -66,6 +67,7 @@ function getTagBodyText(
 			} else {
 				return `${emailMatch[1]} ${emailMatch[2]}`;
 			}
+		}
 		case 'default':
 			return makeCodeblock(text);
 	}
@@ -81,7 +83,7 @@ function getTagDocumentation(
 		case 'augments':
 		case 'extends':
 		case 'param':
-		case 'template':
+		case 'template': {
 			const body = (convertLinkTags(tag.text, filePathConverter)).split(/^(\S+)\s*-?\s*/);
 			if (body?.length === 3) {
 				const param = body[1];
@@ -90,8 +92,9 @@ function getTagDocumentation(
 				if (!doc) {
 					return label;
 				}
-				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc) : ` — ${processInlineTags(doc)}`);
+				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc) : ` \u2014 ${processInlineTags(doc)}`);
 			}
+		}
 	}
 
 	// Generic tag
@@ -100,7 +103,7 @@ function getTagDocumentation(
 	if (!text) {
 		return label;
 	}
-	return label + (text.match(/\r\n|\n/g) ? '  \n' + text : ` — ${text}`);
+	return label + (text.match(/\r\n|\n/g) ? '  \n' + text : ` \u2014 ${text}`);
 }
 
 export function plainWithLinks(
@@ -127,35 +130,47 @@ function convertLinkTags(
 
 	const out: string[] = [];
 
-	let currentLink: { name?: string, target?: Proto.FileSpan, text?: string } | undefined;
+	let currentLink: { name?: string, target?: Proto.FileSpan, text?: string, readonly linkcode: boolean } | undefined;
 	for (const part of parts) {
 		switch (part.kind) {
 			case 'link':
 				if (currentLink) {
-					const text = currentLink.text ?? currentLink.name;
 					if (currentLink.target) {
 						const link = filePathConverter.toResource(currentLink.target.file)
 							.with({
 								fragment: `L${currentLink.target.start.line},${currentLink.target.start.offset}`
 							});
 
-						out.push(`[${text}](${link.toString(true)})`);
+						const linkText = currentLink.text ? currentLink.text : escapeMarkdownSyntaxTokensForCode(currentLink.name ?? '');
+						out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${link.toString()})`);
 					} else {
+						const text = currentLink.text ?? currentLink.name;
 						if (text) {
-							out.push(text);
+							if (/^https?:/.test(text)) {
+								const parts = text.split(' ');
+								if (parts.length === 1) {
+									out.push(parts[0]);
+								} else if (parts.length > 1) {
+									const linkText = escapeMarkdownSyntaxTokensForCode(parts.slice(1).join(' '));
+									out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${parts[0]})`);
+								}
+							} else {
+								out.push(escapeMarkdownSyntaxTokensForCode(text));
+							}
 						}
 					}
 					currentLink = undefined;
 				} else {
-					currentLink = {};
+					currentLink = {
+						linkcode: part.text === '{@linkcode '
+					};
 				}
 				break;
 
 			case 'linkName':
 				if (currentLink) {
 					currentLink.name = part.text;
-					// TODO: remove cast once we pick up TS 4.3
-					currentLink.target = (part as any as Proto.JSDocLinkDisplayPart).target;
+					currentLink.target = (part as Proto.JSDocLinkDisplayPart).target;
 				}
 				break;
 
@@ -207,4 +222,8 @@ export function addMarkdownDocumentation(
 		}
 	}
 	return out;
+}
+
+function escapeMarkdownSyntaxTokensForCode(text: string): string {
+	return text.replace(/`/g, '\\$&');
 }

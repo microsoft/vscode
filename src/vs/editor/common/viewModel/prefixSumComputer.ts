@@ -3,19 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { arrayInsert } from 'vs/base/common/arrays';
 import { toUint32 } from 'vs/base/common/uint';
-
-export class PrefixSumIndexOfResult {
-	_prefixSumIndexOfResultBrand: void;
-
-	index: number;
-	remainder: number;
-
-	constructor(index: number, remainder: number) {
-		this.index = index;
-		this.remainder = remainder;
-	}
-}
 
 export class PrefixSumComputer {
 
@@ -71,7 +60,7 @@ export class PrefixSumComputer {
 		return true;
 	}
 
-	public changeValue(index: number, value: number): boolean {
+	public setValue(index: number, value: number): boolean {
 		index = toUint32(index);
 		value = toUint32(value);
 
@@ -85,9 +74,9 @@ export class PrefixSumComputer {
 		return true;
 	}
 
-	public removeValues(startIndex: number, cnt: number): boolean {
+	public removeValues(startIndex: number, count: number): boolean {
 		startIndex = toUint32(startIndex);
-		cnt = toUint32(cnt);
+		count = toUint32(count);
 
 		const oldValues = this.values;
 		const oldPrefixSum = this.prefixSum;
@@ -96,18 +85,18 @@ export class PrefixSumComputer {
 			return false;
 		}
 
-		let maxCnt = oldValues.length - startIndex;
-		if (cnt >= maxCnt) {
-			cnt = maxCnt;
+		const maxCount = oldValues.length - startIndex;
+		if (count >= maxCount) {
+			count = maxCount;
 		}
 
-		if (cnt === 0) {
+		if (count === 0) {
 			return false;
 		}
 
-		this.values = new Uint32Array(oldValues.length - cnt);
+		this.values = new Uint32Array(oldValues.length - count);
 		this.values.set(oldValues.subarray(0, startIndex), 0);
-		this.values.set(oldValues.subarray(startIndex + cnt), startIndex);
+		this.values.set(oldValues.subarray(startIndex + count), startIndex);
 
 		this.prefixSum = new Uint32Array(this.values.length);
 		if (startIndex - 1 < this.prefixSumValidIndex[0]) {
@@ -119,23 +108,27 @@ export class PrefixSumComputer {
 		return true;
 	}
 
-	public getTotalValue(): number {
+	public getTotalSum(): number {
 		if (this.values.length === 0) {
 			return 0;
 		}
-		return this._getAccumulatedValue(this.values.length - 1);
+		return this._getPrefixSum(this.values.length - 1);
 	}
 
-	public getAccumulatedValue(index: number): number {
+	/**
+	 * Returns the sum of the first `index + 1` many items.
+	 * @returns `SUM(0 <= j <= index, values[j])`.
+	 */
+	public getPrefixSum(index: number): number {
 		if (index < 0) {
 			return 0;
 		}
 
 		index = toUint32(index);
-		return this._getAccumulatedValue(index);
+		return this._getPrefixSum(index);
 	}
 
-	private _getAccumulatedValue(index: number): number {
+	private _getPrefixSum(index: number): number {
 		if (index <= this.prefixSumValidIndex[0]) {
 			return this.prefixSum[index];
 		}
@@ -157,11 +150,11 @@ export class PrefixSumComputer {
 		return this.prefixSum[index];
 	}
 
-	public getIndexOf(accumulatedValue: number): PrefixSumIndexOfResult {
-		accumulatedValue = Math.floor(accumulatedValue); //@perf
+	public getIndexOf(sum: number): PrefixSumIndexOfResult {
+		sum = Math.floor(sum);
 
 		// Compute all sums (to get a fully valid prefixSum)
-		this.getTotalValue();
+		this.getTotalSum();
 
 		let low = 0;
 		let high = this.values.length - 1;
@@ -175,15 +168,135 @@ export class PrefixSumComputer {
 			midStop = this.prefixSum[mid];
 			midStart = midStop - this.values[mid];
 
-			if (accumulatedValue < midStart) {
+			if (sum < midStart) {
 				high = mid - 1;
-			} else if (accumulatedValue >= midStop) {
+			} else if (sum >= midStop) {
 				low = mid + 1;
 			} else {
 				break;
 			}
 		}
 
-		return new PrefixSumIndexOfResult(mid, accumulatedValue - midStart);
+		return new PrefixSumIndexOfResult(mid, sum - midStart);
+	}
+}
+
+/**
+ * {@link getIndexOf} has an amortized runtime complexity of O(1).
+ *
+ * ({@link PrefixSumComputer.getIndexOf} is just  O(log n))
+*/
+export class ConstantTimePrefixSumComputer {
+	private _values: number[];
+	private _isValid: boolean;
+	private _validEndIndex: number;
+
+	/**
+	 * _prefixSum[i] = SUM(values[j]), 0 <= j <= i
+	 */
+	private _prefixSum: number[];
+
+	/**
+	 * _indexBySum[sum] = idx => _prefixSum[idx - 1] <= sum < _prefixSum[idx]
+	*/
+	private _indexBySum: number[];
+
+	constructor(values: number[]) {
+		this._values = values;
+		this._isValid = false;
+		this._validEndIndex = -1;
+		this._prefixSum = [];
+		this._indexBySum = [];
+	}
+
+	/**
+	 * @returns SUM(0 <= j < values.length, values[j])
+	 */
+	public getTotalSum(): number {
+		this._ensureValid();
+		return this._indexBySum.length;
+	}
+
+	/**
+	 * Returns the sum of the first `count` many items.
+	 * @returns `SUM(0 <= j < count, values[j])`.
+	 */
+	public getPrefixSum(count: number): number {
+		this._ensureValid();
+		if (count === 0) {
+			return 0;
+		}
+		return this._prefixSum[count - 1];
+	}
+
+	/**
+	 * @returns `result`, such that `getPrefixSum(result.index) + result.remainder = sum`
+	 */
+	public getIndexOf(sum: number): PrefixSumIndexOfResult {
+		this._ensureValid();
+		const idx = this._indexBySum[sum];
+		const viewLinesAbove = idx > 0 ? this._prefixSum[idx - 1] : 0;
+		return new PrefixSumIndexOfResult(idx, sum - viewLinesAbove);
+	}
+
+	public removeValues(start: number, deleteCount: number): void {
+		this._values.splice(start, deleteCount);
+		this._invalidate(start);
+	}
+
+	public insertValues(insertIndex: number, insertArr: number[]): void {
+		this._values = arrayInsert(this._values, insertIndex, insertArr);
+		this._invalidate(insertIndex);
+	}
+
+	private _invalidate(index: number): void {
+		this._isValid = false;
+		this._validEndIndex = Math.min(this._validEndIndex, index - 1);
+	}
+
+	private _ensureValid(): void {
+		if (this._isValid) {
+			return;
+		}
+
+		for (let i = this._validEndIndex + 1, len = this._values.length; i < len; i++) {
+			const value = this._values[i];
+			const sumAbove = i > 0 ? this._prefixSum[i - 1] : 0;
+
+			this._prefixSum[i] = sumAbove + value;
+			for (let j = 0; j < value; j++) {
+				this._indexBySum[sumAbove + j] = i;
+			}
+		}
+
+		// trim things
+		this._prefixSum.length = this._values.length;
+		this._indexBySum.length = this._prefixSum[this._prefixSum.length - 1];
+
+		// mark as valid
+		this._isValid = true;
+		this._validEndIndex = this._values.length - 1;
+	}
+
+	public setValue(index: number, value: number): void {
+		if (this._values[index] === value) {
+			// no change
+			return;
+		}
+		this._values[index] = value;
+		this._invalidate(index);
+	}
+}
+
+
+export class PrefixSumIndexOfResult {
+	_prefixSumIndexOfResultBrand: void = undefined;
+
+	constructor(
+		public readonly index: number,
+		public readonly remainder: number
+	) {
+		this.index = index;
+		this.remainder = remainder;
 	}
 }

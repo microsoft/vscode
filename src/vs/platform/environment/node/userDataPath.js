@@ -54,38 +54,42 @@
 				return path.join(portablePath, 'user-data');
 			}
 
-			// 2. Support explicit --user-data-dir
+			// 2. Support global VSCODE_APPDATA environment variable
+			let appDataPath = process.env['VSCODE_APPDATA'];
+			if (appDataPath) {
+				return path.join(appDataPath, productName);
+			}
+
+			// With Electron>=13 --user-data-dir switch will be propagated to
+			// all processes https://github.com/electron/electron/blob/1897b14af36a02e9aa7e4d814159303441548251/shell/browser/electron_browser_client.cc#L546-L553
+			// Check VSCODE_PORTABLE and VSCODE_APPDATA before this case to get correct values.
+			// 3. Support explicit --user-data-dir
 			const cliPath = cliArgs['user-data-dir'];
 			if (cliPath) {
 				return cliPath;
 			}
 
-			// 3. Support global VSCODE_APPDATA environment variable
-			let appDataPath = process.env['VSCODE_APPDATA'];
-
 			// 4. Otherwise check per platform
-			if (!appDataPath) {
-				switch (process.platform) {
-					case 'win32':
-						appDataPath = process.env['APPDATA'];
-						if (!appDataPath) {
-							const userProfile = process.env['USERPROFILE'];
-							if (typeof userProfile !== 'string') {
-								throw new Error('Windows: Unexpected undefined %USERPROFILE% environment variable');
-							}
-
-							appDataPath = path.join(userProfile, 'AppData', 'Roaming');
+			switch (process.platform) {
+				case 'win32':
+					appDataPath = process.env['APPDATA'];
+					if (!appDataPath) {
+						const userProfile = process.env['USERPROFILE'];
+						if (typeof userProfile !== 'string') {
+							throw new Error('Windows: Unexpected undefined %USERPROFILE% environment variable');
 						}
-						break;
-					case 'darwin':
-						appDataPath = path.join(os.homedir(), 'Library', 'Application Support');
-						break;
-					case 'linux':
-						appDataPath = process.env['XDG_CONFIG_HOME'] || path.join(os.homedir(), '.config');
-						break;
-					default:
-						throw new Error('Platform not supported');
-				}
+
+						appDataPath = path.join(userProfile, 'AppData', 'Roaming');
+					}
+					break;
+				case 'darwin':
+					appDataPath = path.join(os.homedir(), 'Library', 'Application Support');
+					break;
+				case 'linux':
+					appDataPath = process.env['XDG_CONFIG_HOME'] || path.join(os.homedir(), '.config');
+					break;
+				default:
+					throw new Error('Platform not supported');
 			}
 
 			return path.join(appDataPath, productName);

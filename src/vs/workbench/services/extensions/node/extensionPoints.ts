@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as semver from 'vs/base/common/semver/semver';
@@ -60,7 +59,7 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 	}
 
 	public parse(): Promise<IExtensionDescription> {
-		return fs.promises.readFile(this._absoluteManifestPath).then((manifestContents) => {
+		return pfs.Promises.readFile(this._absoluteManifestPath).then((manifestContents) => {
 			const errors: json.ParseError[] = [];
 			const manifest = ExtensionManifestParser._fastParseJSON(manifestContents.toString(), errors);
 			if (json.getNodeType(manifest) !== 'object') {
@@ -89,6 +88,21 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 	}
 }
 
+interface MessageBag {
+	[key: string]: string | { message: string; comment: string[] };
+}
+
+interface TranslationBundle {
+	contents: {
+		package: MessageBag;
+	};
+}
+
+interface LocalizedMessages {
+	values: MessageBag | undefined;
+	default: string | null;
+}
+
 class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 
 	private readonly _nlsConfig: NlsConfiguration;
@@ -99,21 +113,6 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	}
 
 	public replaceNLS(extensionDescription: IExtensionDescription): Promise<IExtensionDescription> {
-		interface MessageBag {
-			[key: string]: string;
-		}
-
-		interface TranslationBundle {
-			contents: {
-				package: MessageBag;
-			};
-		}
-
-		interface LocalizedMessages {
-			values: MessageBag | undefined;
-			default: string | null;
-		}
-
 		const reportErrors = (localized: string | null, errors: json.ParseError[]): void => {
 			errors.forEach((error) => {
 				this._log.error(this._absoluteFolderPath, nls.localize('jsonsParseReportErrors', "Failed to parse {0}: {1}.", localized, getParseErrorMessage(error.error)));
@@ -130,7 +129,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 		let translationPath = this._nlsConfig.translations[translationId];
 		let localizedMessages: Promise<LocalizedMessages | undefined>;
 		if (translationPath) {
-			localizedMessages = fs.promises.readFile(translationPath, 'utf8').then<LocalizedMessages, LocalizedMessages>((content) => {
+			localizedMessages = pfs.Promises.readFile(translationPath, 'utf8').then<LocalizedMessages, LocalizedMessages>((content) => {
 				let errors: json.ParseError[] = [];
 				let translationBundle: TranslationBundle = json.parse(content, errors);
 				if (errors.length > 0) {
@@ -155,7 +154,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 					if (!messageBundle.localized) {
 						return { values: undefined, default: messageBundle.original };
 					}
-					return fs.promises.readFile(messageBundle.localized, 'utf8').then(messageBundleContent => {
+					return pfs.Promises.readFile(messageBundle.localized, 'utf8').then(messageBundleContent => {
 						let errors: json.ParseError[] = [];
 						let messages: MessageBag = json.parse(messageBundleContent, errors);
 						if (errors.length > 0) {
@@ -204,7 +203,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	private static resolveOriginalMessageBundle(originalMessageBundle: string | null, errors: json.ParseError[]) {
 		return new Promise<{ [key: string]: string; } | null>((c, e) => {
 			if (originalMessageBundle) {
-				fs.promises.readFile(originalMessageBundle).then(originalBundleContent => {
+				pfs.Promises.readFile(originalMessageBundle).then(originalBundleContent => {
 					c(json.parse(originalBundleContent.toString(), errors));
 				}, (err) => {
 					c(null);
@@ -248,21 +247,22 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	 * This routine makes the following assumptions:
 	 * The root element is an object literal
 	 */
-	private static _replaceNLStrings<T extends object>(nlsConfig: NlsConfiguration, literal: T, messages: { [key: string]: string; }, originalMessages: { [key: string]: string } | null, log: ILog, messageScope: string): void {
+	private static _replaceNLStrings<T extends object>(nlsConfig: NlsConfiguration, literal: T, messages: MessageBag, originalMessages: MessageBag | null, log: ILog, messageScope: string): void {
 		function processEntry(obj: any, key: string | number, command?: boolean) {
-			let value = obj[key];
+			const value = obj[key];
 			if (types.isString(value)) {
-				let str = <string>value;
-				let length = str.length;
+				const str = <string>value;
+				const length = str.length;
 				if (length > 1 && str[0] === '%' && str[length - 1] === '%') {
-					let messageKey = str.substr(1, length - 2);
-					let message = messages[messageKey];
+					const messageKey = str.substr(1, length - 2);
+					let translated = messages[messageKey];
 					// If the messages come from a language pack they might miss some keys
 					// Fill them from the original messages.
-					if (message === undefined && originalMessages) {
-						message = originalMessages[messageKey];
+					if (translated === undefined && originalMessages) {
+						translated = originalMessages[messageKey];
 					}
-					if (message) {
+					let message: string | undefined = typeof translated === 'string' ? translated : (typeof translated?.message === 'string' ? translated.message : undefined);
+					if (message !== undefined) {
 						if (nlsConfig.pseudo) {
 							// FF3B and FF3D is the Unicode zenkaku representation for [ and ]
 							message = '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';
@@ -309,7 +309,6 @@ export interface IRelaxedExtensionDescription {
 		vscode: string;
 	};
 	main?: string;
-	enableProposedApi?: boolean;
 }
 
 class ExtensionManifestValidator extends ExtensionManifestHandler {
@@ -506,7 +505,7 @@ class DefaultExtensionResolver implements IExtensionResolver {
 	constructor(private root: string) { }
 
 	resolveExtensions(): Promise<IExtensionReference[]> {
-		return pfs.readDirsInDir(this.root)
+		return pfs.Promises.readDirsInDir(this.root)
 			.then(folders => folders.map(name => ({ name, path: path.join(this.root, name) })));
 	}
 }
@@ -553,7 +552,7 @@ export class ExtensionScanner {
 			let obsolete: { [folderName: string]: boolean; } = {};
 			if (!isBuiltin) {
 				try {
-					const obsoleteFileContents = await fs.promises.readFile(path.join(absoluteFolderPath, '.obsolete'), 'utf8');
+					const obsoleteFileContents = await pfs.Promises.readFile(path.join(absoluteFolderPath, '.obsolete'), 'utf8');
 					obsolete = JSON.parse(obsoleteFileContents);
 				} catch (err) {
 					// Don't care

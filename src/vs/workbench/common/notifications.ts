@@ -619,13 +619,17 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	}
 
 	updateSeverity(severity: Severity): void {
+		if (severity === this._severity) {
+			return;
+		}
+
 		this._severity = severity;
 		this._onDidChangeContent.fire({ kind: NotificationViewItemContentChangeKind.SEVERITY });
 	}
 
 	updateMessage(input: NotificationMessage): void {
 		const message = NotificationViewItem.parseNotificationMessage(input);
-		if (!message) {
+		if (!message || message.raw === this._message.raw) {
 			return;
 		}
 

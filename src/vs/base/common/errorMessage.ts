@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
+import * as types from 'vs/base/common/types';
+import * as nls from 'vs/nls';
 
 function exceptionToErrorMessage(exception: any, verbose: boolean): string {
 	if (verbose && (exception.stack || exception.stacktrace)) {

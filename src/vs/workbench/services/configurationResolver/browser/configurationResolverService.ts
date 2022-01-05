@@ -19,6 +19,7 @@ import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 
 import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
@@ -35,7 +36,8 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		private readonly commandService: ICommandService,
 		private readonly workspaceContextService: IWorkspaceContextService,
 		private readonly quickInputService: IQuickInputService,
-		private readonly labelService: ILabelService
+		private readonly labelService: ILabelService,
+		private readonly pathService: IPathService
 	) {
 		super({
 			getFolderUri: (folderName: string): uri | undefined => {
@@ -57,7 +59,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			getFilePath: (): string | undefined => {
 				const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
 					supportSideBySide: SideBySideEditor.PRIMARY,
-					filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote]
+					filterByScheme: [Schemas.file, Schemas.userData, this.pathService.defaultUriScheme]
 				});
 				if (!fileResource) {
 					return undefined;
@@ -67,7 +69,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			getWorkspaceFolderPathForFile: (): string | undefined => {
 				const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
 					supportSideBySide: SideBySideEditor.PRIMARY,
-					filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote]
+					filterByScheme: [Schemas.file, Schemas.userData, this.pathService.defaultUriScheme]
 				});
 				if (!fileResource) {
 					return undefined;
@@ -199,7 +201,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					result = await this.showUserInput(name, inputs);
 					break;
 
-				case 'command':
+				case 'command': {
 					// use the name as a command ID #12735
 					const commandId = (variableToCommandMap ? variableToCommandMap[name] : undefined) || name;
 					result = await this.commandService.executeCommand(commandId, configuration);
@@ -207,6 +209,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						throw new Error(nls.localize('commandVariable.noStringType', "Cannot substitute command variable '{0}' because command did not return a result of type string.", commandId));
 					}
 					break;
+				}
 				default:
 					// Try to resolve it as a contributed variable
 					if (this._contributedVariables.has(variable)) {
@@ -366,9 +369,10 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@ILabelService labelService: ILabelService,
+		@IPathService pathService: IPathService
 	) {
 		super({ getAppRoot: () => undefined, getExecPath: () => undefined },
 			Promise.resolve(Object.create(null)), editorService, configurationService,
-			commandService, workspaceContextService, quickInputService, labelService);
+			commandService, workspaceContextService, quickInputService, labelService, pathService);
 	}
 }

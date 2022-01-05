@@ -2,7 +2,9 @@
   "name": "simple-browser",
   "displayName": "%displayName%",
   "description": "%description%",
-  "enableProposedApi": true,
+  "enabledApiProposals": [
+    "externalUriOpener"
+  ],
   "version": "1.0.0",
   "icon": "media/icon.png",
   "publisher": "vscode",
@@ -18,14 +20,14 @@
   ],
   "extensionKind": [
     "ui",
-    "workspace",
-    "web"
+    "workspace"
   ],
   "activationEvents": [
     "onCommand:simpleBrowser.show",
     "onCommand:simpleBrowser.api.open",
     "onOpenExternalUri:http",
-    "onOpenExternalUri:https"
+    "onOpenExternalUri:https",
+    "onWebviewPanel:simpleBrowser.view"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -66,12 +68,12 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.1.7",
-    "vscode-nls": "^4.0.0"
+    "vscode-extension-telemetry": "0.4.4",
+    "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
-    "vscode-codicons": "^0.0.14",
-    "@types/node": "14.x"
+    "@types/vscode-webview": "^1.57.0",
+    "vscode-codicons": "^0.0.14"
   },
   "repository": {
     "type": "git",

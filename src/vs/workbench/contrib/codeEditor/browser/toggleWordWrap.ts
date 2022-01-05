@@ -15,7 +15,6 @@ import { ITextModel } from 'vs/editor/common/model';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { DefaultSettingsEditorContribution } from 'vs/workbench/contrib/preferences/browser/preferencesEditor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Codicon } from 'vs/base/common/codicons';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -32,7 +31,7 @@ const EDITOR_WORD_WRAP = new RawContextKey<boolean>('editorWordWrap', false, nls
 /**
  * State written/read by the toggle word wrap action and associated with a particular model.
  */
-interface IWordWrapTransientState {
+export interface IWordWrapTransientState {
 	readonly wordWrapOverride: 'on' | 'off';
 }
 
@@ -46,7 +45,7 @@ export function writeTransientState(model: ITextModel, state: IWordWrapTransient
 /**
  * Read (in memory) the word wrap state for a particular model.
  */
-function readTransientState(model: ITextModel, codeEditorService: ICodeEditorService): IWordWrapTransientState | null {
+export function readTransientState(model: ITextModel, codeEditorService: ICodeEditorService): IWordWrapTransientState | null {
 	return codeEditorService.getTransientModelProperty(model, transientWordWrapState);
 }
 
@@ -61,7 +60,7 @@ class ToggleWordWrapAction extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,
-				primary: KeyMod.Alt | KeyCode.KEY_Z,
+				primary: KeyMod.Alt | KeyCode.KeyZ,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -160,10 +159,6 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 
 function canToggleWordWrap(editor: ICodeEditor | null): editor is IActiveCodeEditor {
 	if (!editor) {
-		return false;
-	}
-	if (editor.getContribution(DefaultSettingsEditorContribution.ID)) {
-		// in the settings editor...
 		return false;
 	}
 	if (editor.isSimpleWidget) {

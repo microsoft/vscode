@@ -7,9 +7,18 @@
   "publisher": "vscode",
   "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
-  "enableProposedApi": true,
+  "enabledApiProposals": [
+    "inlayHints",
+    "languageStatus",
+    "quickPickSeparators",
+    "resolvers",
+    "workspaceTrust"
+  ],
   "capabilities": {
-    "virtualWorkspaces": true,
+    "virtualWorkspaces": {
+      "supported": "limited",
+      "description": "%virtualWorkspaces%"
+    },
     "untrustedWorkspaces": {
       "supported": "limited",
       "description": "%workspaceTrust%",
@@ -30,9 +39,8 @@
   "dependencies": {
     "jsonc-parser": "^2.2.1",
     "semver": "5.5.1",
-    "typescript-vscode-sh-plugin": "^0.7.3",
-    "vscode-extension-telemetry": "0.1.7",
-    "vscode-nls": "^4.1.1"
+    "vscode-extension-telemetry": "0.4.4",
+    "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "14.x",
@@ -55,10 +63,11 @@
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
-    "onCommand:workbench.action.tasks.runTask",
+    "onCommand:typescript.tsserverRequest",
     "onCommand:_typescript.configurePlugin",
     "onCommand:_typescript.learnMoreAboutRefactorings",
     "onCommand:typescript.fileReferences",
+    "onTaskType:typescript",
     "onLanguage:jsonc"
   ],
   "main": "./out/extension",
@@ -136,11 +145,7 @@
       "order": 20,
       "properties": {
         "typescript.tsdk": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null,
+          "type": "string",
           "markdownDescription": "%typescript.tsdk.desc%",
           "scope": "window"
         },
@@ -160,11 +165,7 @@
           "scope": "window"
         },
         "typescript.npm": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null,
+          "type": "string",
           "markdownDescription": "%typescript.npm%",
           "scope": "machine"
         },
@@ -265,6 +266,110 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.parameterNames.enabled": {
+          "type": "string",
+          "enum": [
+            "none",
+            "literals",
+            "all"
+          ],
+          "enumDescriptions": [
+            "%inlayHints.parameterNames.none%",
+            "%inlayHints.parameterNames.literals%",
+            "%inlayHints.parameterNames.all%"
+          ],
+          "default": "none",
+          "markdownDescription": "%configuration.inlayHints.parameterNames.enabled%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.parameterTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.variableTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.propertyDeclarationTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.functionLikeReturnTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.enumMemberValues.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.parameterNames.enabled": {
+          "type": "string",
+          "enum": [
+            "none",
+            "literals",
+            "all"
+          ],
+          "enumDescriptions": [
+            "%inlayHints.parameterNames.none%",
+            "%inlayHints.parameterNames.literals%",
+            "%inlayHints.parameterNames.all%"
+          ],
+          "default": "none",
+          "markdownDescription": "%configuration.inlayHints.parameterNames.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.parameterTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.variableTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.propertyDeclarationTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.functionLikeReturnTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.enumMemberValues.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
           "scope": "resource"
         },
         "javascript.suggest.includeCompletionsForImportStatements": {
@@ -644,10 +749,7 @@
           "scope": "resource"
         },
         "typescript.locale": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": "string",
           "enum": [
             "de",
             "es",
@@ -658,10 +760,8 @@
             "ko",
             "ru",
             "zh-CN",
-            "zh-TW",
-            null
+            "zh-TW"
           ],
-          "default": null,
           "markdownDescription": "%typescript.locale%",
           "scope": "window"
         },
@@ -771,6 +871,38 @@
           "description": "%typescript.preferences.importModuleSpecifierEnding%",
           "scope": "resource"
         },
+        "javascript.preferences.jsxAttributeCompletionStyle": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "braces",
+            "none"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.jsxAttributeCompletionStyle.auto%",
+            "%typescript.preferences.jsxAttributeCompletionStyle.braces%",
+            "%typescript.preferences.jsxAttributeCompletionStyle.none%"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.jsxAttributeCompletionStyle%",
+          "scope": "resource"
+        },
+        "typescript.preferences.jsxAttributeCompletionStyle": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "braces",
+            "none"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.jsxAttributeCompletionStyle.auto%",
+            "%typescript.preferences.jsxAttributeCompletionStyle.braces%",
+            "%typescript.preferences.jsxAttributeCompletionStyle.none%"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.jsxAttributeCompletionStyle%",
+          "scope": "resource"
+        },
         "typescript.preferences.includePackageJsonAutoImports": {
           "type": "string",
           "enum": [
@@ -877,7 +1009,24 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.tsserver.useSeparateSyntaxServer%",
+          "markdownDeprecationMessage": "%configuration.tsserver.useSeparateSyntaxServer.deprecation%",
           "scope": "window"
+        },
+        "typescript.tsserver.useSyntaxServer": {
+          "type": "string",
+          "scope": "window",
+          "description": "%configuration.tsserver.useSyntaxServer%",
+          "default": "auto",
+          "enum": [
+            "always",
+            "never",
+            "auto"
+          ],
+          "enumDescriptions": [
+            "%configuration.tsserver.useSyntaxServer.always%",
+            "%configuration.tsserver.useSyntaxServer.never%",
+            "%configuration.tsserver.useSyntaxServer.auto%"
+          ]
         },
         "typescript.tsserver.maxTsServerMemory": {
           "type": "number",
@@ -967,6 +1116,18 @@
           "default": "allOpenProjects",
           "markdownDescription": "%typescript.workspaceSymbols.scope%",
           "scope": "window"
+        },
+        "javascript.suggest.classMemberSnippets.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.classMemberSnippets.enabled%",
+          "scope": "resource"
+        },
+        "typescript.suggest.classMemberSnippets.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.classMemberSnippets.enabled%",
+          "scope": "resource"
         }
       }
     },
@@ -1066,19 +1227,23 @@
       "explorer/context": [
         {
           "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == javascript"
+          "when": "tsSupportsFileReferences && resourceLangId == typescript",
+          "group": "4_search"
         },
         {
           "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == javascriptreact"
+          "when": "tsSupportsFileReferences && resourceLangId == typescriptreact",
+          "group": "4_search"
         },
         {
           "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == typescript"
+          "when": "tsSupportsFileReferences && resourceLangId == javascript",
+          "group": "4_search"
         },
         {
           "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == typescriptreact"
+          "when": "tsSupportsFileReferences && resourceLangId == javascriptreact",
+          "group": "4_search"
         }
       ],
       "editor/title/context": [
@@ -1236,12 +1401,6 @@
             "title": "%codeActions.source.organizeImports.title%"
           }
         ]
-      }
-    ],
-    "typescriptServerPlugins": [
-      {
-        "name": "typescript-vscode-sh-plugin",
-        "enableForWorkspaceTypeScriptVersions": true
       }
     ]
   },

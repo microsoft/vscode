@@ -5,14 +5,15 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorInput, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration, IEditorIdentifier, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IFilesConfiguration as PlatformIFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService, ILanguageSelection } from 'vs/editor/common/services/language';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -73,6 +74,11 @@ export const FILE_EDITOR_INPUT_ID = 'workbench.editors.files.fileEditorInput';
  */
 export const BINARY_FILE_EDITOR_ID = 'workbench.editors.files.binaryFileEditor';
 
+/**
+ * Language identifier for binary files opened as text.
+ */
+export const BINARY_TEXT_FILE_MODE = 'code-text-binary';
+
 export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkbenchEditorConfiguration {
 	explorer: {
 		openEditors: {
@@ -82,6 +88,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		autoReveal: boolean | 'focusNoScroll';
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
+		expandSingleFolderWorkspaces: boolean;
 		sortOrder: SortOrder;
 		sortOrderLexicographicOptions: LexicographicOptions;
 		decorations: {
@@ -124,7 +131,7 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 	constructor(
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFileService private readonly fileService: IFileService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService
 	) {
 		super();
@@ -132,8 +139,8 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 	static async open(resource: URI, scheme: string, label: string, editorService: IEditorService, options?: ITextEditorOptions): Promise<void> {
 		await editorService.openEditor({
-			leftResource: TextFileContentProvider.resourceToTextFile(scheme, resource),
-			rightResource: resource,
+			original: { resource: TextFileContentProvider.resourceToTextFile(scheme, resource) },
+			modified: { resource },
 			label,
 			options
 		});
@@ -191,9 +198,9 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 			let languageSelector: ILanguageSelection;
 			if (textFileModel) {
-				languageSelector = this.modeService.create(textFileModel.getModeId());
+				languageSelector = this.languageService.createById(textFileModel.getLanguageId());
 			} else {
-				languageSelector = this.modeService.createByFilepathOrFirstLine(savedFileResource);
+				languageSelector = this.languageService.createByFilepathOrFirstLine(savedFileResource);
 			}
 
 			codeEditorModel = this.modelService.createModel(content.value, languageSelector, resource);
@@ -208,7 +215,7 @@ export class OpenEditor implements IEditorIdentifier {
 	private id: number;
 	private static COUNTER = 0;
 
-	constructor(private _editor: IEditorInput, private _group: IEditorGroup) {
+	constructor(private _editor: EditorInput, private _group: IEditorGroup) {
 		this.id = OpenEditor.COUNTER++;
 	}
 

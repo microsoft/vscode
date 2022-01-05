@@ -41,7 +41,7 @@ export class AccessibilityHelpController extends Disposable implements IEditorCo
 
 	public static readonly ID = 'editor.contrib.accessibilityHelpController';
 
-	public static get(editor: ICodeEditor): AccessibilityHelpController {
+	public static get(editor: ICodeEditor): AccessibilityHelpController | null {
 		return editor.getContribution<AccessibilityHelpController>(AccessibilityHelpController.ID);
 	}
 
@@ -117,7 +117,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 				return;
 			}
 
-			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_E)) {
+			if (e.equals(KeyMod.CtrlCmd | KeyCode.KeyE)) {
 				alert(nls.localize('emergencyConfOn', "Now changing the setting `editor.accessibilitySupport` to 'on'."));
 
 				this._configurationService.updateValue('editor.accessibilitySupport', 'on');
@@ -126,7 +126,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 				e.stopPropagation();
 			}
 
-			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_H)) {
+			if (e.equals(KeyMod.CtrlCmd | KeyCode.KeyH)) {
 				alert(nls.localize('openingDocs', "Now opening the VS Code Accessibility documentation page."));
 
 				this._openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=851010'));

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
 import { once } from 'vs/base/common/functional';
 
 export async function checksum(path: string, sha1hash: string | undefined): Promise<void> {

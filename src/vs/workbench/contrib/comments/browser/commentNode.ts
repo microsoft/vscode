@@ -5,14 +5,14 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, IActionRunner, IAction, Separator } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -35,6 +35,7 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 export class CommentNode extends Disposable {
 	private _domNode: HTMLElement;
@@ -79,7 +80,7 @@ export class CommentNode extends Disposable {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommentService private commentService: ICommentService,
 		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
+		@ILanguageService private languageService: ILanguageService,
 		@INotificationService private notificationService: INotificationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService
@@ -170,7 +171,7 @@ export class CommentNode extends Disposable {
 		this.toolbar.context = {
 			thread: this.commentThread,
 			commentUniqueId: this.comment.uniqueIdInThread,
-			$mid: 9
+			$mid: MarshalledId.CommentNode
 		};
 
 		this.registerActionBarListeners(this._actionsToolbarContainer);
@@ -220,9 +221,9 @@ export class CommentNode extends Disposable {
 			let item = new ReactionActionViewItem(action);
 			return item;
 		} else if (action instanceof MenuItemAction) {
-			return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
+			return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
 		} else if (action instanceof SubmenuItemAction) {
-			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
+			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, undefined);
 		} else {
 			let item = new ActionViewItem({}, action, options);
 			return item;
@@ -333,7 +334,7 @@ export class CommentNode extends Disposable {
 		const container = dom.append(editContainer, dom.$('.edit-textarea'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(), this.parentEditor, this.parentThread);
 		const resource = URI.parse(`comment:commentinput-${this.comment.uniqueIdInThread}-${Date.now()}.md`);
-		this._commentEditorModel = this.modelService.createModel('', this.modeService.createByFilepathOrFirstLine(resource), resource, false);
+		this._commentEditorModel = this.modelService.createModel('', this.languageService.createByFilepathOrFirstLine(resource), resource, false);
 
 		this._commentEditor.setModel(this._commentEditorModel);
 		this._commentEditor.setValue(this.comment.body.value);
@@ -433,7 +434,7 @@ export class CommentNode extends Disposable {
 				thread: this.commentThread,
 				commentUniqueId: this.comment.uniqueIdInThread,
 				text: text,
-				$mid: 10
+				$mid: MarshalledId.CommentThreadNode
 			});
 
 			this.removeCommentEditor();

@@ -12,14 +12,14 @@ fsevents/src/**
 fsevents/test/**
 !fsevents/**/*.node
 
-vscode-sqlite3/binding.gyp
-vscode-sqlite3/benchmark/**
-vscode-sqlite3/cloudformation/**
-vscode-sqlite3/deps/**
-vscode-sqlite3/test/**
-vscode-sqlite3/build/**
-vscode-sqlite3/src/**
-!vscode-sqlite3/build/Release/*.node
+@vscode/sqlite3/binding.gyp
+@vscode/sqlite3/benchmark/**
+@vscode/sqlite3/cloudformation/**
+@vscode/sqlite3/deps/**
+@vscode/sqlite3/test/**
+@vscode/sqlite3/build/**
+@vscode/sqlite3/src/**
+!@vscode/sqlite3/build/Release/*.node
 
 windows-mutex/binding.gyp
 windows-mutex/build/**
@@ -51,8 +51,6 @@ spdlog/test/**
 spdlog/*.yml
 !spdlog/build/Release/*.node
 
-jschardet/dist/**
-
 windows-foreground-love/binding.gyp
 windows-foreground-love/build/**
 windows-foreground-love/src/**
@@ -80,11 +78,11 @@ node-pty/scripts/**
 !node-pty/build/Release/*.dll
 !node-pty/build/Release/*.node
 
-nsfw/binding.gyp
-nsfw/build/**
-nsfw/src/**
-nsfw/includes/**
-!nsfw/build/Release/*.node
+@parcel/watcher/binding.gyp
+@parcel/watcher/build/**
+@parcel/watcher/prebuilds/**
+@parcel/watcher/src/**
+!@parcel/watcher/build/Release/*.node
 
 vsda/build/**
 vsda/ci/**
@@ -126,7 +124,9 @@ node-addon-api/**/*
 **/*.ts
 !typescript/**/*.d.ts
 
-jschardet/dist/**
+jschardet/index.js
+jschardet/src/**
+jschardet/dist/jschardet.js
 
 es6-promise/lib/**
 

@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isUndefinedOrNull } from 'vs/base/common/types';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IProgressRunner, IProgressIndicator, emptyProgressRunner } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { IViewsService } from 'vs/workbench/common/views';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { GroupModelChangeKind } from 'vs/workbench/common/editor';
 
-export class ProgressBarIndicator extends Disposable implements IProgressIndicator {
+class ProgressBarIndicator extends Disposable implements IProgressIndicator {
 
 	constructor(protected progressbar: ProgressBar) {
 		super();
@@ -61,17 +60,26 @@ export class ProgressBarIndicator extends Disposable implements IProgressIndicat
 
 export class EditorProgressIndicator extends ProgressBarIndicator {
 
-	declare readonly _serviceBrand: undefined;
-
-	constructor(progressBar: ProgressBar, private readonly group: IEditorGroupView) {
+	constructor(
+		progressBar: ProgressBar,
+		private readonly group: IEditorGroupView
+	) {
 		super(progressBar);
 
 		this.registerListeners();
 	}
 
 	private registerListeners() {
-		this._register(this.group.onDidCloseEditor(e => {
-			if (this.group.isEmpty) {
+
+		// Stop any running progress when the active editor changes or
+		// the group becomes empty.
+		// In contrast to the composite progress indicator, we do not
+		// track active editor progress and replay it later (yet).
+		this._register(this.group.onDidModelChange(e => {
+			if (
+				e.kind === GroupModelChangeKind.EDITOR_ACTIVE ||
+				(e.kind === GroupModelChangeKind.EDITOR_CLOSE && this.group.isEmpty)
+			) {
 				this.progressbar.stop().hide();
 			}
 		}));
@@ -123,6 +131,7 @@ namespace ProgressIndicatorState {
 	export const Infinite = { type: Type.Infinite } as const;
 
 	export class While {
+
 		readonly type = Type.While;
 
 		constructor(
@@ -133,6 +142,7 @@ namespace ProgressIndicatorState {
 	}
 
 	export class Work {
+
 		readonly type = Type.Work;
 
 		constructor(
@@ -152,8 +162,7 @@ namespace ProgressIndicatorState {
 export abstract class CompositeScope extends Disposable {
 
 	constructor(
-		private viewletService: IViewletService,
-		private panelService: IPanelService,
+		private paneCompositeService: IPaneCompositePartService,
 		private viewsService: IViewsService,
 		private scopeId: string
 	) {
@@ -165,11 +174,8 @@ export abstract class CompositeScope extends Disposable {
 	registerListeners(): void {
 		this._register(this.viewsService.onDidChangeViewVisibility(e => e.visible ? this.onScopeOpened(e.id) : this.onScopeClosed(e.id)));
 
-		this._register(this.viewletService.onDidViewletOpen(viewlet => this.onScopeOpened(viewlet.getId())));
-		this._register(this.panelService.onDidPanelOpen(({ panel }) => this.onScopeOpened(panel.getId())));
-
-		this._register(this.viewletService.onDidViewletClose(viewlet => this.onScopeClosed(viewlet.getId())));
-		this._register(this.panelService.onDidPanelClose(panel => this.onScopeClosed(panel.getId())));
+		this._register(this.paneCompositeService.onDidPaneCompositeOpen(e => this.onScopeOpened(e.composite.getId())));
+		this._register(this.paneCompositeService.onDidPaneCompositeClose(e => this.onScopeClosed(e.composite.getId())));
 	}
 
 	private onScopeClosed(scopeId: string) {
@@ -190,22 +196,17 @@ export abstract class CompositeScope extends Disposable {
 }
 
 export class CompositeProgressIndicator extends CompositeScope implements IProgressIndicator {
-	private isActive: boolean;
-	private progressbar: ProgressBar;
+
 	private progressState: ProgressIndicatorState.State = ProgressIndicatorState.None;
 
 	constructor(
-		progressbar: ProgressBar,
+		private readonly progressbar: ProgressBar,
 		scopeId: string,
-		isActive: boolean,
-		@IViewletService viewletService: IViewletService,
-		@IPanelService panelService: IPanelService,
+		private isActive: boolean,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IViewsService viewsService: IViewsService
 	) {
-		super(viewletService, panelService, viewsService, scopeId);
-
-		this.progressbar = progressbar;
-		this.isActive = isActive || isUndefinedOrNull(scopeId); // If service is unscoped, enable by default
+		super(paneCompositeService, viewsService, scopeId);
 	}
 
 	onScopeDeactivated(): void {

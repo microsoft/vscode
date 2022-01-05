@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
 
 export interface ITelemetryData {
 	readonly from?: string;
@@ -29,7 +29,7 @@ export interface IAction extends IDisposable {
 	tooltip: string;
 	class: string | undefined;
 	enabled: boolean;
-	checked: boolean;
+	checked?: boolean;
 	run(event?: unknown): unknown;
 }
 
@@ -58,7 +58,7 @@ export class Action extends Disposable implements IAction {
 	protected _tooltip: string | undefined;
 	protected _cssClass: string | undefined;
 	protected _enabled: boolean = true;
-	protected _checked: boolean = false;
+	protected _checked?: boolean;
 	protected readonly _actionCallback?: (event?: unknown) => unknown;
 
 	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: unknown) => unknown) {
@@ -134,15 +134,15 @@ export class Action extends Disposable implements IAction {
 		}
 	}
 
-	get checked(): boolean {
+	get checked(): boolean | undefined {
 		return this._checked;
 	}
 
-	set checked(value: boolean) {
+	set checked(value: boolean | undefined) {
 		this._setChecked(value);
 	}
 
-	protected _setChecked(value: boolean): void {
+	protected _setChecked(value: boolean | undefined): void {
 		if (this._checked !== value) {
 			this._checked = value;
 			this._onDidChange.fire({ checked: value });
@@ -193,6 +193,24 @@ export class ActionRunner extends Disposable implements IActionRunner {
 
 export class Separator extends Action {
 
+	/**
+	 * Joins all non-empty lists of actions with separators.
+	 */
+	public static join(...actionLists: readonly IAction[][]) {
+		let out: IAction[] = [];
+		for (const list of actionLists) {
+			if (!list.length) {
+				// skip
+			} else if (out.length) {
+				out = [...out, new Separator(), ...list];
+			} else {
+				out = list;
+			}
+		}
+
+		return out;
+	}
+
 	static readonly ID = 'vs.actions.separator';
 
 	constructor(label?: string) {
@@ -210,7 +228,7 @@ export class SubmenuAction implements IAction {
 	readonly class: string | undefined;
 	readonly tooltip: string = '';
 	readonly enabled: boolean = true;
-	readonly checked: boolean = false;
+	readonly checked: undefined = undefined;
 
 	private readonly _actions: readonly IAction[];
 	get actions(): readonly IAction[] { return this._actions; }

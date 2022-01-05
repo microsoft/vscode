@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { localize } from 'vs/nls';
-import { IWorkspaceFolder, IWorkspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { extname, isAbsolute } from 'vs/base/common/path';
-import { extname as resourceExtname, extUriBiasedIgnorePathCase, IExtUri } from 'vs/base/common/resources';
-import * as jsonEdit from 'vs/base/common/jsonEdit';
-import * as json from 'vs/base/common/json';
-import { Schemas } from 'vs/base/common/network';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { toSlashes } from 'vs/base/common/extpath';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { ILogService } from 'vs/platform/log/common/log';
 import { Event } from 'vs/base/common/event';
+import { toSlashes } from 'vs/base/common/extpath';
+import * as json from 'vs/base/common/json';
+import * as jsonEdit from 'vs/base/common/jsonEdit';
+import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { Schemas } from 'vs/base/common/network';
+import { extname, isAbsolute } from 'vs/base/common/path';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { extname as resourceExtname, extUriBiasedIgnorePathCase, IExtUri, isEqualAuthority } from 'vs/base/common/resources';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
+import { IWorkspace, IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export const WORKSPACE_EXTENSION = 'code-workspace';
 const WORKSPACE_SUFFIX = `.${WORKSPACE_EXTENSION}`;
@@ -52,7 +52,7 @@ export interface IWorkspacesService {
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 
 	// Dirty Workspaces
-	getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>>;
+	getDirtyWorkspaces(): Promise<Array<IWorkspaceBackupInfo | IFolderBackupInfo>>;
 }
 
 //#region Workspaces Recently Opened
@@ -93,6 +93,29 @@ export function isRecentFolder(curr: IRecent): curr is IRecentFolder {
 export function isRecentFile(curr: IRecent): curr is IRecentFile {
 	return curr.hasOwnProperty('fileUri');
 }
+
+//#endregion
+
+//#region Backups
+
+export interface IWorkspaceBackupInfo {
+	workspace: IWorkspaceIdentifier;
+	remoteAuthority?: string;
+}
+
+export interface IFolderBackupInfo {
+	folderUri: URI;
+	remoteAuthority?: string;
+}
+
+export function isFolderBackupInfo(curr: IWorkspaceBackupInfo | IFolderBackupInfo): curr is IFolderBackupInfo {
+	return curr && curr.hasOwnProperty('folderUri');
+}
+
+export function isWorkspaceBackupInfo(curr: IWorkspaceBackupInfo | IFolderBackupInfo): curr is IWorkspaceBackupInfo {
+	return curr && curr.hasOwnProperty('workspace');
+}
+
 
 //#endregion
 
@@ -239,14 +262,30 @@ export interface IRawUriWorkspaceFolder {
 
 export type IStoredWorkspaceFolder = IRawFileWorkspaceFolder | IRawUriWorkspaceFolder;
 
-export interface IResolvedWorkspace extends IWorkspaceIdentifier {
-	folders: IWorkspaceFolder[];
+interface IBaseWorkspace {
+
+	/**
+	 * If present, marks the window that opens the workspace
+	 * as a remote window with the given authority.
+	 */
 	remoteAuthority?: string;
+
+	/**
+	 * Transient workspaces are meant to go away after being used
+	 * once, e.g. a window reload of a transient workspace will
+	 * open an empty window.
+	 *
+	 * See: https://github.com/microsoft/vscode/issues/119695
+	 */
+	transient?: boolean;
 }
 
-export interface IStoredWorkspace {
+export interface IResolvedWorkspace extends IWorkspaceIdentifier, IBaseWorkspace {
+	folders: IWorkspaceFolder[];
+}
+
+export interface IStoredWorkspace extends IBaseWorkspace {
 	folders: IStoredWorkspaceFolder[];
-	remoteAuthority?: string;
 }
 
 export interface IWorkspaceFolderCreationData {
@@ -382,7 +421,7 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 	const edits = jsonEdit.setProperty(rawWorkspaceContents, ['folders'], rewrittenFolders, formattingOptions);
 	let newContent = jsonEdit.applyEdits(rawWorkspaceContents, edits);
 
-	if (storedWorkspace.remoteAuthority === getRemoteAuthority(targetConfigPathURI)) {
+	if (isEqualAuthority(storedWorkspace.remoteAuthority, getRemoteAuthority(targetConfigPathURI))) {
 		// unsaved remote workspaces have the remoteAuthority set. Remove it when no longer nexessary.
 		newContent = jsonEdit.applyEdits(newContent, jsonEdit.removeProperty(newContent, ['remoteAuthority'], formattingOptions));
 	}
@@ -531,6 +570,7 @@ export function toStoreData(recents: IRecentlyOpened): RecentlyOpenedStorageData
 	for (const recent of recents.files) {
 		serialized.entries.push({ fileUri: recent.fileUri.toString(), label: recent.label, remoteAuthority: recent.remoteAuthority });
 	}
+
 	return serialized;
 }
 

@@ -107,12 +107,14 @@ export class RangeHighlightDecorations extends Disposable {
 	}
 
 	private static readonly _WHOLE_LINE_RANGE_HIGHLIGHT = ModelDecorationOptions.register({
+		description: 'codeeditor-range-highlight-whole',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'rangeHighlight',
 		isWholeLine: true
 	});
 
 	private static readonly _RANGE_HIGHLIGHT = ModelDecorationOptions.register({
+		description: 'codeeditor-range-highlight',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'rangeHighlight'
 	});
@@ -209,7 +211,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 export class OpenWorkspaceButtonContribution extends Disposable implements IEditorContribution {
 
-	static get(editor: ICodeEditor): OpenWorkspaceButtonContribution {
+	static get(editor: ICodeEditor): OpenWorkspaceButtonContribution | null {
 		return editor.getContribution<OpenWorkspaceButtonContribution>(OpenWorkspaceButtonContribution.ID);
 	}
 
@@ -253,7 +255,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 			return false; // we need a workspace file
 		}
 
-		if (!this.fileService.canHandleResource(model.uri)) {
+		if (!this.fileService.hasProvider(model.uri)) {
 			return false; // needs to be backed by a file service
 		}
 

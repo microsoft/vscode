@@ -2,9 +2,11 @@
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "./out",
-		"experimentalDecorators": true
+		"types": []
 	},
 	"include": [
-		"src/**/*"
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.externalUriOpener.d.ts",
 	]
 }

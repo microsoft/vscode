@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as sinon from 'sinon';
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 import { memoize, throttle } from 'vs/base/common/decorators';
 
 suite('Decorators', () => {
@@ -161,7 +161,7 @@ suite('Decorators', () => {
 
 			clock.tick(200);
 			assert.deepStrictEqual(spy.args, [[1], [5]]);
-			spy.reset();
+			spy.resetHistory();
 
 			t.report(4);
 			t.report(5);

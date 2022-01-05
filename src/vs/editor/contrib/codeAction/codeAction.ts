@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals, flatten, isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
+import { coalesce, equals, flatten, isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -12,11 +12,11 @@ import { TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorS
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './types';
-import { IProgress, Progress } from 'vs/platform/progress/common/progress';
+import * as modes from 'vs/editor/common/languages';
+import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IProgress, Progress } from 'vs/platform/progress/common/progress';
+import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './types';
 
 export const codeActionCommandId = 'editor.action.codeAction';
 export const refactorCommandId = 'editor.action.refactor';

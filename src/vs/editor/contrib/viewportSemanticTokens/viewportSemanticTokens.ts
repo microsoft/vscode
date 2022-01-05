@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { DocumentRangeSemanticTokensProviderRegistry, DocumentRangeSemanticTokensProvider, SemanticTokens } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { toMultilineTokens2, SemanticTokensProviderStyling } from 'vs/editor/common/services/semanticTokensProviderStyling';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { DocumentRangeSemanticTokensProviderRegistry } from 'vs/editor/common/languages';
+import { getDocumentRangeSemanticTokens, hasDocumentRangeSemanticTokensProvider } from 'vs/editor/common/services/getSemanticTokens';
+import { IModelService } from 'vs/editor/common/services/model';
+import { isSemanticColoringEnabled, SEMANTIC_HIGHLIGHTING_SETTING_ID } from 'vs/editor/common/services/modelService';
+import { toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isSemanticColoringEnabled, SEMANTIC_HIGHLIGHTING_SETTING_ID } from 'vs/editor/common/services/modelServiceImpl';
-import { getDocumentRangeSemanticTokensProvider } from 'vs/editor/common/services/getSemanticTokens';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 class ViewportSemanticTokensContribution extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.viewportSemanticTokens';
 
-	public static get(editor: ICodeEditor): ViewportSemanticTokensContribution {
+	public static get(editor: ICodeEditor): ViewportSemanticTokensContribution | null {
 		return editor.getContribution<ViewportSemanticTokensContribution>(ViewportSemanticTokensContribution.ID);
 	}
 
 	private readonly _editor: ICodeEditor;
 	private readonly _tokenizeViewport: RunOnceScheduler;
-	private _outstandingRequests: CancelablePromise<SemanticTokens | null | undefined>[];
+	private _outstandingRequests: CancelablePromise<any>[];
 
 	constructor(
 		editor: ICodeEditor,
@@ -74,7 +74,7 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 		this._outstandingRequests = [];
 	}
 
-	private _removeOutstandingRequest(req: CancelablePromise<SemanticTokens | null | undefined>): void {
+	private _removeOutstandingRequest(req: CancelablePromise<any>): void {
 		for (let i = 0, len = this._outstandingRequests.length; i < len; i++) {
 			if (this._outstandingRequests[i] === req) {
 				this._outstandingRequests.splice(i, 1);
@@ -97,27 +97,27 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 			}
 			return;
 		}
-		const provider = getDocumentRangeSemanticTokensProvider(model);
-		if (!provider) {
+		if (!hasDocumentRangeSemanticTokensProvider(model)) {
 			if (model.hasSomeSemanticTokens()) {
 				model.setSemanticTokens(null, false);
 			}
 			return;
 		}
-		const styling = this._modelService.getSemanticTokensProviderStyling(provider);
 		const visibleRanges = this._editor.getVisibleRangesPlusViewportAboveBelow();
 
-		this._outstandingRequests = this._outstandingRequests.concat(visibleRanges.map(range => this._requestRange(model, range, provider, styling)));
+		this._outstandingRequests = this._outstandingRequests.concat(visibleRanges.map(range => this._requestRange(model, range)));
 	}
 
-	private _requestRange(model: ITextModel, range: Range, provider: DocumentRangeSemanticTokensProvider, styling: SemanticTokensProviderStyling): CancelablePromise<SemanticTokens | null | undefined> {
+	private _requestRange(model: ITextModel, range: Range): CancelablePromise<any> {
 		const requestVersionId = model.getVersionId();
-		const request = createCancelablePromise(token => Promise.resolve(provider.provideDocumentRangeSemanticTokens(model, range, token)));
+		const request = createCancelablePromise(token => Promise.resolve(getDocumentRangeSemanticTokens(model, range, token)));
 		request.then((r) => {
-			if (!r || model.isDisposed() || model.getVersionId() !== requestVersionId) {
+			if (!r || !r.tokens || model.isDisposed() || model.getVersionId() !== requestVersionId) {
 				return;
 			}
-			model.setPartialSemanticTokens(range, toMultilineTokens2(r, styling, model.getLanguageIdentifier()));
+			const { provider, tokens: result } = r;
+			const styling = this._modelService.getSemanticTokensProviderStyling(provider);
+			model.setPartialSemanticTokens(range, toMultilineTokens2(result, styling, model.getLanguageId()));
 		}).then(() => this._removeOutstandingRequest(request), () => this._removeOutstandingRequest(request));
 		return request;
 	}

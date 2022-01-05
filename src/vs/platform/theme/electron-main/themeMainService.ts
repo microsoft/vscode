@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, nativeTheme } from 'electron';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { IPartsSplash } from 'vs/platform/windows/common/windows';
 
 const DEFAULT_BG_LIGHT = '#FFFFFF';

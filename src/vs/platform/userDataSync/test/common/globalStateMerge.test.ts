@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
 
 suite('GlobalStateMerge', () => {
 

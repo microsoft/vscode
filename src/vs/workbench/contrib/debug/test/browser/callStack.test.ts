@@ -38,12 +38,10 @@ export function createMockSession(model: DebugModel, name = 'mockSession', optio
 				}
 			};
 		}
-	} as IDebugService, undefined!, undefined!, new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } }), undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!);
+	} as IDebugService, undefined!, undefined!, new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } }), undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!, undefined!);
 }
 
 function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFrame, secondStackFrame: StackFrame } {
-	let firstStackFrame: StackFrame;
-	let secondStackFrame: StackFrame;
 	const thread = new class extends Thread {
 		public override getCallStack(): StackFrame[] {
 			return [firstStackFrame, secondStackFrame];
@@ -61,8 +59,8 @@ function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFr
 		sourceReference: 11,
 	}, 'aDebugSessionId', mockUriIdentityService);
 
-	firstStackFrame = new StackFrame(thread, 0, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 10 }, 0, true);
-	secondStackFrame = new StackFrame(thread, 1, secondSource, 'app2.js', 'normal', { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 10 }, 1, true);
+	const firstStackFrame = new StackFrame(thread, 0, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 10 }, 0, true);
+	const secondStackFrame = new StackFrame(thread, 1, secondSource, 'app2.js', 'normal', { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 10 }, 1, true);
 
 	return { firstStackFrame, secondStackFrame };
 }
@@ -311,7 +309,7 @@ suite('Debug - CallStack', () => {
 		const session = createMockSession(model);
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
-		let decorations = createDecorationsForStackFrame(firstStackFrame, true);
+		let decorations = createDecorationsForStackFrame(firstStackFrame, true, false);
 		assert.strictEqual(decorations.length, 3);
 		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 3));
 		assert.strictEqual(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframe));
@@ -319,7 +317,7 @@ suite('Debug - CallStack', () => {
 		assert.strictEqual(decorations[1].options.className, 'debug-top-stack-frame-line');
 		assert.strictEqual(decorations[1].options.isWholeLine, true);
 
-		decorations = createDecorationsForStackFrame(secondStackFrame, true);
+		decorations = createDecorationsForStackFrame(secondStackFrame, true, false);
 		assert.strictEqual(decorations.length, 2);
 		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 3));
 		assert.strictEqual(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframeFocused));
@@ -327,7 +325,7 @@ suite('Debug - CallStack', () => {
 		assert.strictEqual(decorations[1].options.className, 'debug-focused-stack-frame-line');
 		assert.strictEqual(decorations[1].options.isWholeLine, true);
 
-		decorations = createDecorationsForStackFrame(firstStackFrame, true);
+		decorations = createDecorationsForStackFrame(firstStackFrame, true, false);
 		assert.strictEqual(decorations.length, 3);
 		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 3));
 		assert.strictEqual(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframe));
@@ -335,7 +333,7 @@ suite('Debug - CallStack', () => {
 		assert.strictEqual(decorations[1].options.className, 'debug-top-stack-frame-line');
 		assert.strictEqual(decorations[1].options.isWholeLine, true);
 		// Inline decoration gets rendered in this case
-		assert.strictEqual(decorations[2].options.beforeContentClassName, 'debug-top-stack-frame-column');
+		assert.strictEqual(decorations[2].options.before?.inlineClassName, 'debug-top-stack-frame-column');
 		assert.deepStrictEqual(decorations[2].range, new Range(1, 2, 1, Constants.MAX_SAFE_SMALL_INTEGER));
 	});
 
@@ -366,7 +364,7 @@ suite('Debug - CallStack', () => {
 		assert.strictEqual(contributedContext, session.getId());
 	});
 
-	test('focusStackFrameThreadAndSesion', () => {
+	test('focusStackFrameThreadAndSession', () => {
 		const threadId1 = 1;
 		const threadName1 = 'firstThread';
 		const threadId2 = 2;
@@ -378,7 +376,7 @@ suite('Debug - CallStack', () => {
 			override get state(): State {
 				return State.Stopped;
 			}
-		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!);
+		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!, undefined!);
 
 		const runningSession = createMockSession(model);
 		model.addSession(runningSession);

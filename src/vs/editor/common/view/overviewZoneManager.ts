@@ -8,7 +8,7 @@ const enum Constants {
 }
 
 export class ColorZone {
-	_colorZoneBrand: void;
+	_colorZoneBrand: void = undefined;
 
 	public readonly from: number;
 	public readonly to: number;
@@ -35,7 +35,7 @@ export class ColorZone {
  * A zone in the overview ruler
  */
 export class OverviewRulerZone {
-	_overviewRulerZoneBrand: void;
+	_overviewRulerZoneBrand: void = undefined;
 
 	public readonly startLineNumber: number;
 	public readonly endLineNumber: number;
@@ -175,13 +175,13 @@ export class OverviewZoneManager {
 
 	public resolveColorZones(): ColorZone[] {
 		const colorZonesInvalid = this._colorZonesInvalid;
-		const lineHeight = Math.floor(this._lineHeight); // @perf
-		const totalHeight = Math.floor(this.getCanvasHeight()); // @perf
-		const outerHeight = Math.floor(this._outerHeight); // @perf
+		const lineHeight = Math.floor(this._lineHeight);
+		const totalHeight = Math.floor(this.getCanvasHeight());
+		const outerHeight = Math.floor(this._outerHeight);
 		const heightRatio = totalHeight / outerHeight;
 		const halfMinimumHeight = Math.floor(Constants.MINIMUM_HEIGHT * this._pixelRatio / 2);
 
-		let allColorZones: ColorZone[] = [];
+		const allColorZones: ColorZone[] = [];
 		for (let i = 0, len = this._zones.length; i < len; i++) {
 			const zone = this._zones[i];
 

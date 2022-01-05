@@ -1,6 +1,6 @@
 Name:     @@NAME@@
 Version:  @@VERSION@@
-Release:  @@RELEASE@@.el8
+Release:  @@RELEASE@@.el7
 Summary:  Code editing. Redefined.
 Group:    Development/Tools
 Vendor:   Microsoft Corporation
@@ -65,6 +65,7 @@ update-mime-database /usr/share/mime &> /dev/null || :
 
 %files
 %defattr(-,root,root)
+%attr(4755, root, root) /usr/share/@@NAME@@/chrome-sandbox
 
 /usr/share/@@NAME@@/
 /usr/share/applications/@@NAME@@.desktop

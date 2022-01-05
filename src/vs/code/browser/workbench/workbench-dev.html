@@ -7,6 +7,12 @@
 		</script>
 		<meta charset="utf-8" />
 
+		<!-- Mobile tweaks -->
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-title" content="Code">
+		<link rel="apple-touch-icon" href="/code-192.png" />
+
 		<!-- Disable pinch zooming -->
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
 
@@ -28,8 +34,13 @@
 	</body>
 
 	<!-- Startup (do not modify order of script tags!) -->
+	<script src="./static/out/vs/loader.js"></script>
+	<script src="./static/out/vs/webPackagePaths.js"></script>
 	<script>
-		self.require = {
+		Object.keys(self.webPackagePaths).map(function (key, index) {
+			self.webPackagePaths[key] = `${window.location.origin}/static/remote/web/node_modules/${key}/${self.webPackagePaths[key]}`;
+		});
+		require.config({
 			baseUrl: `${window.location.origin}/static/out`,
 			recordStats: true,
 			trustedTypesPolicy: window.trustedTypes?.createPolicy('amdLoader', {
@@ -40,20 +51,10 @@
 					throw new Error(`Invalid script url: ${value}`)
 				}
 			}),
-			paths: {
-				'vscode-textmate': `${window.location.origin}/static/remote/web/node_modules/vscode-textmate/release/main`,
-				'vscode-oniguruma': `${window.location.origin}/static/remote/web/node_modules/vscode-oniguruma/release/main`,
-				'xterm': `${window.location.origin}/static/remote/web/node_modules/xterm/lib/xterm.js`,
-				'xterm-addon-search': `${window.location.origin}/static/remote/web/node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
-				'xterm-addon-unicode11': `${window.location.origin}/static/remote/web/node_modules/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
-				'xterm-addon-webgl': `${window.location.origin}/static/remote/web/node_modules/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
-				'tas-client-umd': `${window.location.origin}/static/remote/web/node_modules/tas-client-umd/lib/tas-client-umd.js`,
-				'iconv-lite-umd': `${window.location.origin}/static/remote/web/node_modules/iconv-lite-umd/lib/iconv-lite-umd.js`,
-				'jschardet': `${window.location.origin}/static/remote/web/node_modules/jschardet/dist/jschardet.min.js`,
-			}
-		};
+			paths: self.webPackagePaths
+		});
 	</script>
-	<script src="./static/out/vs/loader.js"></script>
+
 	<script>
 		performance.mark('code/willLoadWorkbenchMain');
 	</script>

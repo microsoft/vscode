@@ -87,7 +87,7 @@
 	opacity: 0.75;
 	font-size: 90%;
 	font-weight: 600;
-	padding: 0 16px 0 5px;
+	margin: auto 16px 0 5px; /* https://github.com/microsoft/vscode/issues/113223 */
 	text-align: center;
 }
 

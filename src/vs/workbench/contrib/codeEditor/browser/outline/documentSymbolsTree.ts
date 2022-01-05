@@ -11,7 +11,7 @@ import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelega
 import { ITreeNode, ITreeRenderer, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { Range } from 'vs/editor/common/core/range';
-import { SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/common/modes';
+import { SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/common/languages';
 import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -20,9 +20,10 @@ import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IdleValue } from 'vs/base/common/async';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IOutlineComparator, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
+import { CSSIcon } from 'vs/base/common/codicons';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -98,7 +99,7 @@ export class DocumentSymbolGroupRenderer implements ITreeRenderer<OutlineGroup, 
 		const labelContainer = dom.$('.outline-element-label');
 		container.classList.add('outline-element');
 		dom.append(container, labelContainer);
-		return new DocumentSymbolGroupTemplate(labelContainer, new HighlightedLabel(labelContainer, true));
+		return new DocumentSymbolGroupTemplate(labelContainer, new HighlightedLabel(labelContainer));
 	}
 
 	renderElement(node: ITreeNode<OutlineGroup, FuzzyScore>, _index: number, template: DocumentSymbolGroupTemplate): void {
@@ -141,7 +142,7 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
 			// add styles for the icons
 			template.iconClass.className = '';
-			template.iconClass.classList.add(`outline-element-icon`, ...SymbolKinds.toCssClassName(element.symbol.kind, true).split(' '));
+			template.iconClass.classList.add('outline-element-icon', 'inline', ...CSSIcon.asClassNameArray(SymbolKinds.toIcon(element.symbol.kind)));
 		}
 		if (element.symbol.tags.indexOf(SymbolTag.Deprecated) >= 0) {
 			options.extraClasses!.push(`deprecated`);

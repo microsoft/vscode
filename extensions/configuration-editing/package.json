@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "jsonc-parser": "^2.2.1",
-    "vscode-nls": "^4.1.1"
+    "vscode-nls": "^5.0.0"
   },
   "capabilities": {
     "virtualWorkspaces": true,
@@ -51,8 +51,9 @@
           ".devcontainer.json"
         ],
         "filenamePatterns": [
-					"**/.devcontainer/devcontainer.json"
-				]
+          "**/.devcontainer/devcontainer.json",
+          "**/User/snippets/*.json"
+        ]
       }
     ],
     "jsonValidation": [
@@ -135,6 +136,10 @@
       {
         "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-vscode-remote.remote-containers/imageConfigs/*.json",
         "url": "./schemas/attachContainer.schema.json"
+      },
+      {
+        "fileMatch": "**/quality/*/product.json",
+        "url": "vscode://schemas/vscode-product"
       }
     ]
   },

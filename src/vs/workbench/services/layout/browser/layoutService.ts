@@ -5,7 +5,6 @@
 
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension } from 'vs/base/browser/dom';
@@ -19,6 +18,7 @@ export const enum Parts {
 	ACTIVITYBAR_PART = 'workbench.parts.activitybar',
 	SIDEBAR_PART = 'workbench.parts.sidebar',
 	PANEL_PART = 'workbench.parts.panel',
+	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
 	EDITOR_PART = 'workbench.parts.editor',
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
@@ -34,6 +34,8 @@ export const enum PanelOpensMaximizedOptions {
 	NEVER,
 	REMEMBER_LAST
 }
+
+export type PanelAlignment = 'left' | 'center' | 'right' | 'justified';
 
 export function positionToString(position: Position): string {
 	switch (position) {
@@ -159,25 +161,9 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	getDimension(part: Parts): Dimension | undefined;
 
 	/**
-	 * Set activity bar hidden or not
+	 * Set part hidden or not
 	 */
-	setActivityBarHidden(hidden: boolean): void;
-
-	/**
-	 *
-	 * Set editor area hidden or not
-	 */
-	setEditorHidden(hidden: boolean): void;
-
-	/**
-	 * Set sidebar hidden or not
-	 */
-	setSideBarHidden(hidden: boolean): void;
-
-	/**
-	 * Set panel part hidden or not
-	 */
-	setPanelHidden(hidden: boolean): void;
+	setPartHidden(hidden: boolean, part: Exclude<Parts, Parts.STATUSBAR_PART | Parts.TITLEBAR_PART>): void;
 
 	/**
 	 * Maximizes the panel height if the panel is not already maximized.
@@ -209,11 +195,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.
 	 */
 	getSideBarPosition(): Position;
-
-	/**
-	 * Gets the current menubar visibility.
-	 */
-	getMenubarVisibility(): MenuBarVisibility;
 
 	/**
 	 * Toggles the menu bar visibility.

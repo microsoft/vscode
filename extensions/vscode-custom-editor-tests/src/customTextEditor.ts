@@ -133,7 +133,7 @@ class AbcEditor extends Disposable {
 	private get html() {
 		const contentRoot = path.join(this._extensionPath, 'customEditorMedia');
 		const scriptUri = vscode.Uri.file(path.join(contentRoot, 'textEditor.js'));
-		const nonce = Date.now() + '';
+		const nonce = getNonce();
 		return /* html */`<!DOCTYPE html>
 			<html lang="en">
 			<head>
@@ -162,4 +162,13 @@ class AbcEditor extends Disposable {
 		});
 		this.syncedVersion = this.document.version;
 	}
+}
+
+function getNonce() {
+	let text = '';
+	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	for (let i = 0; i < 64; i++) {
+		text += possible.charAt(Math.floor(Math.random() * possible.length));
+	}
+	return text;
 }

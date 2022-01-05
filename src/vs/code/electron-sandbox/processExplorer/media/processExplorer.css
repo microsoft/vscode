@@ -38,7 +38,7 @@ body {
 }
 
 .cpu {
-	width: 45px;
+	width: 60px;
 }
 
 .pid {
@@ -47,6 +47,10 @@ body {
 
 .memory {
 	width: 90px;
+}
+
+.monaco-list:focus {
+	outline: 0;
 }
 
 .monaco-list-row:first-of-type {

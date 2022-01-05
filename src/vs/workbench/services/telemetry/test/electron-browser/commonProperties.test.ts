@@ -10,7 +10,7 @@ import { release, tmpdir, hostname } from 'os';
 import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/electron-sandbox/workbenchCommonProperties';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { IStorageService, StorageScope, InMemoryStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { rimraf } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -40,11 +40,11 @@ suite('Telemetry - common properties', function () {
 	teardown(() => {
 		diskFileSystemProvider.dispose();
 
-		return rimraf(parentDir);
+		return Promises.rm(parentDir);
 	});
 
 	test('default', async function () {
-		await fs.promises.mkdir(parentDir, { recursive: true });
+		await Promises.mkdir(parentDir, { recursive: true });
 		fs.writeFileSync(installSource, 'my.install.source');
 		const props = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), hostname(), commit, version, 'someMachineId', undefined, installSource);
 		assert.ok('commitHash' in props);
@@ -64,14 +64,13 @@ suite('Telemetry - common properties', function () {
 		assert.ok('common.lastSessionDate' in props, 'lastSessionDate'); // conditional, see below, 'lastSessionDate'ow
 		assert.ok('common.isNewSession' in props, 'isNewSession');
 		// machine id et al
-		assert.ok('common.instanceId' in props, 'instanceId');
 		assert.ok('common.machineId' in props, 'machineId');
 		fs.unlinkSync(installSource);
 		const props_1 = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), hostname(), commit, version, 'someMachineId', undefined, installSource);
 		assert.ok(!('common.source' in props_1));
 	});
 
-	test('lastSessionDate when aviablale', async function () {
+	test('lastSessionDate when available', async function () {
 
 		testStorageService.store('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.GLOBAL, StorageTarget.MACHINE);
 

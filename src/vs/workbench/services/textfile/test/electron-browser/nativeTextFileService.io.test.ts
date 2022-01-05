@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { tmpdir } from 'os';
-import { promises } from 'fs';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { rimraf, copy, exists } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -21,7 +20,7 @@ import { workbenchInstantiationService, TestNativeTextFileServiceWithEncodingOve
 import createSuite from 'vs/workbench/services/textfile/test/common/textFileService.io.test';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 flakySuite('Files - NativeTextFileService i/o', function () {
 	const disposables = new DisposableStore();
@@ -32,12 +31,12 @@ flakySuite('Files - NativeTextFileService i/o', function () {
 	function readFile(path: string): Promise<Buffer>;
 	function readFile(path: string, encoding: BufferEncoding): Promise<string>;
 	function readFile(path: string, encoding?: BufferEncoding): Promise<Buffer | string> {
-		return promises.readFile(path, encoding);
+		return Promises.readFile(path, encoding);
 	}
 
 	createSuite({
 		setup: async () => {
-			const instantiationService = workbenchInstantiationService();
+			const instantiationService = workbenchInstantiationService(disposables);
 
 			const logService = new NullLogService();
 			const fileService = new FileService(logService);
@@ -56,7 +55,7 @@ flakySuite('Files - NativeTextFileService i/o', function () {
 			testDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
 			const sourceDir = getPathFromAmdModule(require, './fixtures');
 
-			await copy(sourceDir, testDir, { preserveSymlinks: false });
+			await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
 
 			return { service, testDir };
 		},
@@ -66,11 +65,11 @@ flakySuite('Files - NativeTextFileService i/o', function () {
 
 			disposables.clear();
 
-			return rimraf(testDir);
+			return Promises.rm(testDir);
 		},
 
-		exists,
-		stat: promises.stat,
+		exists: Promises.exists,
+		stat: Promises.stat,
 		readFile,
 		detectEncodingByBOM
 	});

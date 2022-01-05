@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/JuliaEditorSupport/atom-language-julia/commit/008e02c5ec9440fa9f0ea8a891712c7238f24706",
+	"version": "https://github.com/JuliaEditorSupport/atom-language-julia/commit/cbf818c487848f8ab1293e0ff6650aaa3bf02f98",
 	"name": "Julia",
 	"scopeName": "source.julia",
 	"comment": "This grammar is used by Atom (Oniguruma), GitHub (PCRE), and VSCode (Oniguruma),\nso all regexps must be compatible with both engines.\n\nSpecs:\n- https://github.com/kkos/oniguruma/blob/master/doc/RE\n- https://www.pcre.org/current/doc/html/",
@@ -17,6 +17,9 @@
 		},
 		{
 			"include": "#string"
+		},
+		{
+			"include": "#parentheses"
 		},
 		{
 			"include": "#bracket"
@@ -83,6 +86,29 @@
 				}
 			]
 		},
+		"parentheses": {
+			"patterns": [
+				{
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "meta.bracket.julia"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "meta.bracket.julia"
+						}
+					},
+					"patterns": [
+						{
+							"include": "$self"
+						}
+					]
+				}
+			]
+		},
 		"bracket": {
 			"patterns": [
 				{
@@ -135,13 +161,16 @@
 		"function_call": {
 			"patterns": [
 				{
-					"begin": "((?:[[:alpha:]_\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{So}←-⇿])(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿])*)({(?:[^{}]|{(?:[^{}]|{[^{}]*})*})*})?\\.?(?=\\()",
+					"begin": "((?:[[:alpha:]_\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{So}←-⇿])(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿])*)({(?:[^{}]|{(?:[^{}]|{[^{}]*})*})*})?\\.?(\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "support.function.julia"
 						},
 						"2": {
 							"name": "support.type.julia"
+						},
+						"3": {
+							"name": "meta.bracket.julia"
 						}
 					},
 					"end": "\\)(('|(\\.'))*\\.?')?",
@@ -176,7 +205,7 @@
 							"name": "support.type.julia"
 						}
 					},
-					"match": "((?:[[:alpha:]_\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{So}←-⇿])(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿])*)({(?:[^{}]|{(?:[^{}]|{[^{}]*})*})*})?(?=\\(.*\\)(::[^\\s]+)?(\\s*\\bwhere\\b\\s+.+?)?\\s*?=(?![=>]))",
+					"match": "((?:[[:alpha:]_\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{So}←-⇿])(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿])*)({(?:[^{}]|{(?:[^{}]|{[^{}]*})*})*})?(?=\\([^#]*\\)(::[^\\s]+)?(\\s*\\bwhere\\b\\s+.+?)?\\s*?=(?![=>]))",
 					"comment": "first group is function name\nSecond group is type parameters (e.g. {T<:Number, S})\nThen open parens\nThen a lookahead ensures that we are followed by:\n  - anything (function argumnets)\n  - 0 or more spaces\n  - Finally an equal sign\nNegative lookahead ensures we don't have another equal sign (not `==`)"
 				},
 				{
@@ -257,8 +286,15 @@
 		"number": {
 			"patterns": [
 				{
-					"match": "(?<!(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿]))((\\b0(x|X)[0-9a-fA-F](_?[0-9a-fA-F])*)|(\\b0o[0-7](_?[0-7])*)|(\\b0b[0-1](_?[0-1])*)|((\\b[0-9](_?[0-9])*\\.?(_?[0-9]*))|(\\.[0-9](_?[0-9])*))([efE][+-]?[0-9](_?[0-9])*)?(im\\b)?|\\bInf(16|32|64)?\\b|\\bNaN(16|32|64)?\\b|\\bπ\\b|\\bpi\\b|\\bℯ\\b)",
-					"name": "constant.numeric.julia"
+					"match": "((?<!(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿]))(?:(?:\\b0(?:x|X)[0-9a-fA-F](?:_?[0-9a-fA-F])*)|(?:\\b0o[0-7](?:_?[0-7])*)|(?:\\b0b[0-1](?:_?[0-1])*)|(?:(?:\\b[0-9](?:_?[0-9])*\\.?(?!\\.)(?:[_0-9]*))|(?:\\.[0-9](?:_?[0-9])*))(?:[efE][+-]?[0-9](?:_?[0-9])*)?(?:im\\b|Inf(?:16|32|64)?\\b|NaN(?:16|32|64)?\\b|π\\b|pi\\b|ℯ\\b)?|\\bInf(?:16|32|64)?\\b|\\bNaN(?:16|32|64)?\\b|\\bπ\\b|\\bpi\\b|\\bℯ\\b))('*)",
+					"captures": {
+						"1": {
+							"name": "constant.numeric.julia"
+						},
+						"2": {
+							"name": "keyword.operator.conjugate-number.julia"
+						}
+					}
 				},
 				{
 					"match": "\\bARGS\\b|\\bC_NULL\\b|\\bDEPOT_PATH\\b|\\bENDIAN_BOM\\b|\\bENV\\b|\\bLOAD_PATH\\b|\\bPROGRAM_FILE\\b|\\bstdin\\b|\\bstdout\\b|\\bstderr\\b|\\bVERSION\\b|\\bdevnull\\b",
@@ -308,7 +344,7 @@
 					"name": "keyword.operator.ternary.julia"
 				},
 				{
-					"match": "(?:\\|\\||&&|(?<![[:word:]])!)",
+					"match": "(?:\\|\\||&&|(?<!(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿]))!)",
 					"name": "keyword.operator.boolean.julia"
 				},
 				{
@@ -438,33 +474,6 @@
 					]
 				},
 				{
-					"begin": "((i?cxxt?)|([rpv]cpp))(\")",
-					"beginCaptures": {
-						"1": {
-							"name": "support.function.macro.julia"
-						},
-						"4": {
-							"name": "punctuation.definition.string.begin.julia"
-						}
-					},
-					"end": "\"",
-					"name": "embed.cxx.julia",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.end.julia"
-						}
-					},
-					"contentName": "meta.embedded.inline.cpp",
-					"patterns": [
-						{
-							"include": "source.cpp#root_context"
-						},
-						{
-							"include": "#string_dollar_sign_interpolate"
-						}
-					]
-				},
-				{
 					"begin": "(py)(\"\"\")",
 					"beginCaptures": {
 						"1": {
@@ -481,33 +490,6 @@
 						}
 					},
 					"name": "embed.python.julia",
-					"contentName": "meta.embedded.inline.python",
-					"patterns": [
-						{
-							"include": "source.python"
-						},
-						{
-							"include": "#string_dollar_sign_interpolate"
-						}
-					]
-				},
-				{
-					"begin": "(py)(\")",
-					"beginCaptures": {
-						"1": {
-							"name": "support.function.macro.julia"
-						},
-						"2": {
-							"name": "punctuation.definition.string.begin.julia"
-						}
-					},
-					"end": "(\\w*)(\")",
-					"name": "embed.python.julia",
-					"endCaptures": {
-						"2": {
-							"name": "punctuation.definition.string.end.julia"
-						}
-					},
 					"contentName": "meta.embedded.inline.python",
 					"patterns": [
 						{
@@ -546,33 +528,6 @@
 					]
 				},
 				{
-					"begin": "(js)(\")",
-					"beginCaptures": {
-						"1": {
-							"name": "support.function.macro.julia"
-						},
-						"2": {
-							"name": "punctuation.definition.string.begin.julia"
-						}
-					},
-					"end": "\"",
-					"name": "embed.js.julia",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.end.julia"
-						}
-					},
-					"contentName": "meta.embedded.inline.javascript",
-					"patterns": [
-						{
-							"include": "source.js"
-						},
-						{
-							"include": "#string_dollar_sign_interpolate"
-						}
-					]
-				},
-				{
 					"begin": "(R)(\"\"\")",
 					"beginCaptures": {
 						"1": {
@@ -589,33 +544,6 @@
 						}
 					},
 					"name": "embed.R.julia",
-					"contentName": "meta.embedded.inline.r",
-					"patterns": [
-						{
-							"include": "source.r"
-						},
-						{
-							"include": "#string_dollar_sign_interpolate"
-						}
-					]
-				},
-				{
-					"begin": "(R)(\")",
-					"beginCaptures": {
-						"1": {
-							"name": "support.function.macro.julia"
-						},
-						"2": {
-							"name": "punctuation.definition.string.begin.julia"
-						}
-					},
-					"end": "\"",
-					"name": "embed.R.julia",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.end.julia"
-						}
-					},
 					"contentName": "meta.embedded.inline.r",
 					"patterns": [
 						{
@@ -690,33 +618,6 @@
 					]
 				},
 				{
-					"begin": "(sql)(\")",
-					"beginCaptures": {
-						"1": {
-							"name": "support.function.macro.julia"
-						},
-						"2": {
-							"name": "punctuation.definition.string.begin.julia"
-						}
-					},
-					"end": "\"",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.end.julia"
-						}
-					},
-					"name": "embed.sql.julia",
-					"contentName": "meta.embedded.inline.sql",
-					"patterns": [
-						{
-							"include": "source.sql"
-						},
-						{
-							"include": "#string_dollar_sign_interpolate"
-						}
-					]
-				},
-				{
 					"begin": "var\"\"\"",
 					"end": "\"\"\"",
 					"name": "constant.other.symbol.julia"
@@ -725,66 +626,6 @@
 					"begin": "var\"",
 					"end": "\"",
 					"name": "constant.other.symbol.julia"
-				},
-				{
-					"begin": "(md)(\"\"\")",
-					"beginCaptures": {
-						"1": {
-							"name": "support.function.macro.julia"
-						},
-						"2": {
-							"name": "punctuation.definition.string.begin.julia"
-						}
-					},
-					"end": "\"\"\"",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.end.julia"
-						}
-					},
-					"name": "embed.markdown.julia",
-					"contentName": "meta.embedded.inline.markdown",
-					"patterns": [
-						{
-							"include": "text.md"
-						},
-						{
-							"include": "text.html.markdown.julia"
-						},
-						{
-							"include": "#string_dollar_sign_interpolate"
-						}
-					]
-				},
-				{
-					"begin": "(md)(\")",
-					"beginCaptures": {
-						"1": {
-							"name": "support.function.macro.julia"
-						},
-						"2": {
-							"name": "punctuation.definition.string.begin.julia"
-						}
-					},
-					"end": "\"",
-					"name": "embed.markdown.julia",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.end.julia"
-						}
-					},
-					"contentName": "meta.embedded.inline.markdown",
-					"patterns": [
-						{
-							"include": "text.md"
-						},
-						{
-							"include": "text.html.markdown.julia"
-						},
-						{
-							"include": "#string_dollar_sign_interpolate"
-						}
-					]
 				},
 				{
 					"begin": "^\\s?(doc)?(\"\"\")\\s?$",
@@ -945,7 +786,7 @@
 							"name": "punctuation.definition.string.end.julia"
 						},
 						"2": {
-							"name": "punctuation.definition.string.end.julia"
+							"name": "support.function.macro.julia"
 						}
 					},
 					"name": "string.quoted.other.julia",
@@ -971,7 +812,7 @@
 							"name": "punctuation.definition.string.end.julia"
 						},
 						"2": {
-							"name": "punctuation.definition.string.end.julia"
+							"name": "support.function.macro.julia"
 						}
 					},
 					"name": "string.quoted.other.julia",
@@ -997,7 +838,7 @@
 							"name": "punctuation.definition.string.end.julia"
 						},
 						"2": {
-							"name": "punctuation.definition.string.end.julia"
+							"name": "support.function.macro.julia"
 						}
 					},
 					"name": "string.interpolated.backtick.julia",
@@ -1023,7 +864,7 @@
 							"name": "punctuation.definition.string.end.julia"
 						},
 						"2": {
-							"name": "punctuation.definition.string.end.julia"
+							"name": "support.function.macro.julia"
 						}
 					},
 					"name": "string.interpolated.backtick.julia",
@@ -1056,28 +897,12 @@
 					"comment": "`punctuation.section.embedded`, `constant.escape`,\n& `meta.embedded.line` were considered but appear to have even spottier\nsupport among popular syntaxes.",
 					"patterns": [
 						{
-							"include": "#nest_parens_and_self"
+							"include": "#parentheses"
 						},
 						{
 							"include": "$self"
 						}
 					]
-				}
-			]
-		},
-		"nest_parens_and_self": {
-			"patterns": [
-				{
-					"begin": "\\(",
-					"end": "\\)",
-					"patterns": [
-						{
-							"include": "#nest_parens_and_self"
-						}
-					]
-				},
-				{
-					"include": "$self"
 				}
 			]
 		},

@@ -9,7 +9,6 @@
   "engines": {
     "vscode": "0.10.x"
   },
-  "enableProposedApi": true,
   "activationEvents": [
     "onLanguage:php"
   ],
@@ -68,22 +67,7 @@
         "fileMatch": "composer.json",
         "url": "https://getcomposer.org/schema.json"
       }
-    ],
-    "commands": [
-      {
-        "title": "%command.untrustValidationExecutable%",
-        "category": "%commands.categroy.php%",
-        "command": "php.untrustValidationExecutable"
-      }
-    ],
-    "menus": {
-      "commandPalette": [
-        {
-          "command": "php.untrustValidationExecutable",
-          "when": "php.untrustValidationExecutableContext"
-        }
-      ]
-    }
+    ]
   },
   "scripts": {
     "compile": "npx gulp compile-extension:php-language-features",

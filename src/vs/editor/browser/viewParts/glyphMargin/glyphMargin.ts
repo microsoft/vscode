@@ -12,7 +12,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
 export class DecorationToRender {
-	_decorationToRenderBrand: void;
+	_decorationToRenderBrand: void = undefined;
 
 	public startLineNumber: number;
 	public endLineNumber: number;
@@ -142,7 +142,8 @@ export class GlyphMarginOverlay extends DedupOverlay {
 
 	protected _getDecorations(ctx: RenderingContext): DecorationToRender[] {
 		const decorations = ctx.getDecorationsInViewport();
-		let r: DecorationToRender[] = [], rLen = 0;
+		const r: DecorationToRender[] = [];
+		let rLen = 0;
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const d = decorations[i];
 			const glyphMarginClassName = d.options.glyphMarginClassName;

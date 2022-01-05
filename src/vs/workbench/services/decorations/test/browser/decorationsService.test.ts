@@ -5,14 +5,14 @@
 
 import * as assert from 'assert';
 import { DecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
-import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as resources from 'vs/base/common/resources';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { mock } from 'vs/base/test/common/mock';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('DecorationsService', function () {
 
@@ -23,10 +23,10 @@ suite('DecorationsService', function () {
 			service.dispose();
 		}
 		service = new DecorationsService(
-			new TestThemeService(),
 			new class extends mock<IUriIdentityService>() {
 				override extUri = resources.extUri;
-			}
+			},
+			new TestThemeService()
 		);
 	});
 
@@ -43,7 +43,8 @@ suite('DecorationsService', function () {
 				return new Promise<IDecorationData>(resolve => {
 					setTimeout(() => resolve({
 						color: 'someBlue',
-						tooltip: 'T'
+						tooltip: 'T',
+						strikethrough: true
 					}));
 				});
 			}
@@ -59,6 +60,7 @@ suite('DecorationsService', function () {
 
 			// sync result
 			assert.deepStrictEqual(service.getDecoration(uri, false)!.tooltip, 'T');
+			assert.deepStrictEqual(service.getDecoration(uri, false)!.strikethrough, true);
 			assert.strictEqual(callCounter, 1);
 		});
 	});
@@ -79,6 +81,7 @@ suite('DecorationsService', function () {
 
 		// trigger -> sync
 		assert.deepStrictEqual(service.getDecoration(uri, false)!.tooltip, 'Z');
+		assert.deepStrictEqual(service.getDecoration(uri, false)!.strikethrough, false);
 		assert.strictEqual(callCounter, 1);
 	});
 
@@ -298,5 +301,32 @@ suite('DecorationsService', function () {
 			gone = true;
 			emitter.fire([uri]);
 		});
+	});
+
+	test('FileDecorationProvider intermittently fails #133210', async function () {
+
+		const invokeOrder: string[] = [];
+
+		service.registerDecorationsProvider(new class {
+			label = 'Provider-1';
+			onDidChange = Event.None;
+			provideDecorations() {
+				invokeOrder.push(this.label);
+				return undefined;
+			}
+		});
+
+		service.registerDecorationsProvider(new class {
+			label = 'Provider-2';
+			onDidChange = Event.None;
+			provideDecorations() {
+				invokeOrder.push(this.label);
+				return undefined;
+			}
+		});
+
+		service.getDecoration(URI.parse('test://me/path'), false);
+
+		assert.deepStrictEqual(invokeOrder, ['Provider-2', 'Provider-1']);
 	});
 });

@@ -2,769 +2,666 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Config",
-    "editable": true
+    "value": "## Config"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$since=2020-10-01",
-    "editable": true
-  },
-  {
-    "kind": 1,
-    "language": "markdown",
-    "value": "# vscode\n\nQuery exceeds the maximum result. Run the query manually: `is:issue is:open closed:>2020-10-01`",
-    "editable": true
-  },
-  {
-    "kind": 2,
-    "language": "github-issues",
-    "value": "//repo:microsoft/vscode is:issue closed:>$since",
-    "editable": true
-  },
-  {
-    "kind": 2,
-    "language": "github-issues",
-    "value": "//repo:microsoft/vscode is:issue created:>$since",
-    "editable": true
+    "value": "$since=2021-10-01"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-remote-release",
-    "editable": true
+    "value": "# vscode\n\nQuery exceeds the maximum result. Run the query manually: `is:issue is:open closed:>2021-10-01`"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-remote-release is:issue closed:>$since",
-    "editable": true
+    "value": "//repo:microsoft/vscode is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-remote-release is:issue created:>$since",
-    "editable": true
+    "value": "//repo:microsoft/vscode is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# monaco-editor",
-    "editable": true
+    "value": "# vscode-remote-release"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/monaco-editor is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-remote-release is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/monaco-editor is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-remote-release is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-docs",
-    "editable": true
+    "value": "# monaco-editor"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-docs is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/monaco-editor is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-docs is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/monaco-editor is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-js-debug",
-    "editable": true
+    "value": "# vscode-docs"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-js-debug is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-docs is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-js-debug is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-docs is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# language-server-protocol",
-    "editable": true
+    "value": "# vscode-js-debug"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/language-server-protocol is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-js-debug is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/language-server-protocol is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-js-debug is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-eslint",
-    "editable": true
+    "value": "# language-server-protocol"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-eslint is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/language-server-protocol is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-eslint is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/language-server-protocol is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-css-languageservice",
-    "editable": true
+    "value": "# vscode-eslint"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-css-languageservice is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-eslint is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-css-languageservice is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-eslint is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-test",
-    "editable": true
+    "value": "# vscode-css-languageservice"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-test is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-css-languageservice is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-test is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-css-languageservice is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-pull-request-github",
-    "editable": true
+    "value": "# vscode-test"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-pull-request-github is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-test is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-test is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-test is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-chrome-debug (deprecated)",
-    "editable": true
+    "value": "# vscode-pull-request-github"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-chrome-debug is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-pull-request-github is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-chrome-debug is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-test is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-chrome-debug-core",
-    "editable": true
+    "value": "# vscode-chrome-debug-core"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-chrome-debug-core is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-chrome-debug-core is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-chrome-debug-core is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-chrome-debug-core is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-debugadapter-node",
-    "editable": true
+    "value": "# vscode-debugadapter-node"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-debugadapter-node is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-debugadapter-node is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-debugadapter-node is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-debugadapter-node is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-emmet-helper",
-    "editable": true
+    "value": "# vscode-emmet-helper"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-emmet-helper is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-emmet-helper is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-emmet-helper is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-emmet-helper is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-extension-vscode\n\nDeprecated",
-    "editable": true
+    "value": "# vscode-extension-vscode\n\nDeprecated"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-extension-vscode is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-extension-vscode is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-extension-vscode is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-extension-vscode is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-extension-samples",
-    "editable": true
+    "value": "# vscode-extension-samples"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-extension-samples is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-extension-samples is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-extension-samples is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-extension-samples is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-filewatcher-windows",
-    "editable": true
+    "value": "# vscode-filewatcher-windows"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-filewatcher-windows is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-filewatcher-windows is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-filewatcher-windows is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-filewatcher-windows is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-generator-code",
-    "editable": true
+    "value": "# vscode-generator-code"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-generator-code is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-generator-code is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-generator-code is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-generator-code is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-html-languageservice",
-    "editable": true
+    "value": "# vscode-html-languageservice"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-html-languageservice is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-html-languageservice is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-html-languageservice is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-html-languageservice is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-jshint",
-    "editable": true
+    "value": "# vscode-json-languageservice"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-jshint is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-json-languageservice is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-jshint is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-json-languageservice is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-json-languageservice",
-    "editable": true
+    "value": "# vscode-languageserver-node"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-json-languageservice is:issue closed:>$since",
-    "editable": true
-  },
-  {
-    "kind": 2,
-    "language": "github-issues",
-    "value": "repo:microsoft/vscode-json-languageservice is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-languageserver-node is:issue closed:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-languageserver-node",
-    "editable": true
+    "value": ""
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-languageserver-node is:issue closed:>$since",
-    "editable": true
-  },
-  {
-    "kind": 2,
-    "language": "github-issues",
-    "value": "repo:microsoft/vscode-languageserver-node is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-languageserver-node is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-loader",
-    "editable": true
+    "value": "# vscode-loader"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-loader is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-loader is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-loader is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-loader is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-mono-debug",
-    "editable": true
+    "value": "# vscode-mono-debug"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-mono-debug is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-mono-debug is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-mono-debug is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-mono-debug is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-node-debug",
-    "editable": true
+    "value": "# vscode-node-debug"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-node-debug is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-node-debug is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-node-debug is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-node-debug is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-node-debug2",
-    "editable": true
+    "value": "# vscode-node-debug2"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-node-debug2 is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-node-debug2 is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-node-debug2 is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-node-debug2 is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-recipes",
-    "editable": true
+    "value": "# vscode-recipes"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-recipes is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-recipes is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-recipes is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-recipes is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-textmate",
-    "editable": true
+    "value": "# vscode-textmate"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-textmate is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-textmate is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-textmate is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-textmate is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-themes",
-    "editable": true
+    "value": "# vscode-themes"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-themes is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-themes is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-themes is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-themes is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-vsce",
-    "editable": true
+    "value": "# vscode-vsce"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-vsce is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-vsce is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-vsce is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-vsce is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-website",
-    "editable": true
+    "value": "# vscode-website"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-website is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-website is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-website is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-website is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-windows-process-tree",
-    "editable": true
+    "value": "# vscode-windows-process-tree"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-windows-process-tree is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-windows-process-tree is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-windows-process-tree is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-windows-process-tree is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# debug-adapter-protocol",
-    "editable": true
+    "value": "# debug-adapter-protocol"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/debug-adapter-protocol is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/debug-adapter-protocol is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/debug-adapter-protocol is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/debug-adapter-protocol is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# inno-updater",
-    "editable": true
+    "value": "# inno-updater"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/inno-updater is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/inno-updater is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/inno-updater is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/inno-updater is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# language-server-protocol-inspector",
-    "editable": true
+    "value": "# monaco-languages"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/language-server-protocol-inspector is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/monaco-languages is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/language-server-protocol-inspector is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/monaco-languages is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# monaco-languages",
-    "editable": true
+    "value": "# monaco-typescript"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/monaco-languages is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/monaco-typescript is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/monaco-languages is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/monaco-typescript is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# monaco-typescript",
-    "editable": true
+    "value": "# monaco-css"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/monaco-typescript is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/monaco-css is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/monaco-typescript is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/monaco-css is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# monaco-css",
-    "editable": true
+    "value": "# monaco-json"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/monaco-css is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/monaco-json is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/monaco-css is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/monaco-json is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# monaco-json",
-    "editable": true
+    "value": "# monaco-html"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/monaco-json is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/monaco-html is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/monaco-json is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/monaco-html is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# monaco-html",
-    "editable": true
+    "value": "# monaco-editor-webpack-plugin"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/monaco-html is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/monaco-editor-webpack-plugin is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/monaco-html is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/monaco-editor-webpack-plugin is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# monaco-editor-webpack-plugin",
-    "editable": true
+    "value": "# node-jsonc-parser"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/monaco-editor-webpack-plugin is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/node-jsonc-parser is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/monaco-editor-webpack-plugin is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/node-jsonc-parser is:issue created:>$since"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# node-jsonc-parser",
-    "editable": true
+    "value": "# vscode-jupyter"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/node-jsonc-parser is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-jupyter is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/node-jsonc-parser is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-jupyter is:issue created:>$since"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# vscode-python"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-python is:issue closed:>$since"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-python is:issue created:>$since"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# vscode-livepreview"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-livepreview is:issue closed:>$since"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-livepreview is:issue created:>$since"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": ""
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# vscode-test"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-test is:issue closed:>$since"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-test is:issue created:>$since"
   }
 ]

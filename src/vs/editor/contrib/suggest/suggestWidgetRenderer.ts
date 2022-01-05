@@ -3,27 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { isSafari } from 'vs/base/browser/browser';
+import { $, append, hide, show } from 'vs/base/browser/dom';
+import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IListRenderer } from 'vs/base/browser/ui/list/list';
+import { flatten } from 'vs/base/common/arrays';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches } from 'vs/base/common/filters';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { append, $, hide, show } from 'vs/base/browser/dom';
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CompletionItem } from './suggest';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { CompletionItemKind, completionKindToCssClass, CompletionItemTag } from 'vs/editor/common/modes';
-import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { URI } from 'vs/base/common/uri';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { CompletionItemKind, CompletionItemKinds, CompletionItemTag } from 'vs/editor/common/languages';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import * as nls from 'vs/nls';
 import { FileKind } from 'vs/platform/files/common/files';
-import { flatten } from 'vs/base/common/arrays';
-import { canExpandCompletionItem } from './suggestWidgetDetails';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { CompletionItem } from './suggest';
+import { canExpandCompletionItem } from './suggestWidgetDetails';
 
 export function getAriaId(index: number): string {
 	return `suggest-aria-id:${index}`;
@@ -92,7 +93,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IModelService private readonly _modelService: IModelService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IThemeService private readonly _themeService: IThemeService
 	) { }
 
@@ -130,7 +131,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 		const configureFont = () => {
 			const options = this._editor.getOptions();
 			const fontInfo = options.get(EditorOption.fontInfo);
-			const fontFamily = fontInfo.fontFamily;
+			const fontFamily = fontInfo.getMassagedFontFamily(isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null);
 			const fontFeatureSettings = fontInfo.fontFeatureSettings;
 			const fontSize = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
 			const lineHeight = options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
@@ -181,8 +182,8 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			// special logic for 'file' completion items
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
-			const labelClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FILE);
-			const detailClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FILE);
+			const labelClasses = getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FILE);
+			const detailClasses = getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FILE);
 			labelOptions.extraClasses = labelClasses.length > detailClasses.length ? labelClasses : detailClasses;
 
 		} else if (completion.kind === CompletionItemKind.Folder && this._themeService.getFileIconTheme().hasFolderIcons) {
@@ -190,14 +191,14 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
 			labelOptions.extraClasses = flatten([
-				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FOLDER),
-				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FOLDER)
+				getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FOLDER),
+				getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FOLDER)
 			]);
 		} else {
 			// normal icon
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = '';
-			data.iconContainer.classList.add('suggest-icon', ...completionKindToCssClass(completion.kind).split(' '));
+			data.iconContainer.classList.add('suggest-icon', ...CSSIcon.asClassNameArray(CompletionItemKinds.toIcon(completion.kind)));
 		}
 
 		if (completion.tags && completion.tags.indexOf(CompletionItemTag.Deprecated) >= 0) {
@@ -208,16 +209,12 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 		data.iconLabel.setLabel(element.textLabel, undefined, labelOptions);
 		if (typeof completion.label === 'string') {
 			data.parametersLabel.textContent = '';
-			data.qualifierLabel.textContent = '';
 			data.detailsLabel.textContent = stripNewLines(completion.detail || '');
 			data.root.classList.add('string-label');
-			data.root.title = '';
 		} else {
-			data.parametersLabel.textContent = stripNewLines(completion.label.parameters || '');
-			data.qualifierLabel.textContent = stripNewLines(completion.label.qualifier || '');
-			data.detailsLabel.textContent = stripNewLines(completion.label.type || '');
+			data.parametersLabel.textContent = stripNewLines(completion.label.detail || '');
+			data.detailsLabel.textContent = stripNewLines(completion.label.description || '');
 			data.root.classList.remove('string-label');
-			data.root.title = `${element.textLabel}${completion.label.parameters ?? ''}  ${completion.label.qualifier ?? ''}  ${completion.label.type ?? ''}`;
 		}
 
 		if (this._editor.getOption(EditorOption.suggest).showInlineDetails) {

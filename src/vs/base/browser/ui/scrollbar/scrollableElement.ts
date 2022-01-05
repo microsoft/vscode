@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scrollbars';
+import { getZoomFactor } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IMouseEvent, StandardWheelEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
+import { IMouseEvent, IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import { HorizontalScrollbar } from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
 import { ScrollableElementChangeOptions, ScrollableElementCreationOptions, ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
@@ -14,10 +14,10 @@ import { VerticalScrollbar } from 'vs/base/browser/ui/scrollbar/verticalScrollba
 import { Widget } from 'vs/base/browser/ui/widget';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { getZoomFactor } from 'vs/base/browser/browser';
+import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
+import 'vs/css!./media/scrollbars';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
@@ -288,8 +288,6 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	/**
 	 * Update configuration options for the scrollbar.
-	 * Really this is Editor.IEditorScrollbarOptions, but base shouldn't
-	 * depend on Editor.
 	 */
 	public updateOptions(newOptions: ScrollableElementChangeOptions): void {
 		if (typeof newOptions.handleMouseWheel !== 'undefined') {
@@ -305,9 +303,23 @@ export abstract class AbstractScrollableElement extends Widget {
 		if (typeof newOptions.scrollPredominantAxis !== 'undefined') {
 			this._options.scrollPredominantAxis = newOptions.scrollPredominantAxis;
 		}
-		if (typeof newOptions.horizontalScrollbarSize !== 'undefined') {
-			this._horizontalScrollbar.updateScrollbarSize(newOptions.horizontalScrollbarSize);
+		if (typeof newOptions.horizontal !== 'undefined') {
+			this._options.horizontal = newOptions.horizontal;
 		}
+		if (typeof newOptions.vertical !== 'undefined') {
+			this._options.vertical = newOptions.vertical;
+		}
+		if (typeof newOptions.horizontalScrollbarSize !== 'undefined') {
+			this._options.horizontalScrollbarSize = newOptions.horizontalScrollbarSize;
+		}
+		if (typeof newOptions.verticalScrollbarSize !== 'undefined') {
+			this._options.verticalScrollbarSize = newOptions.verticalScrollbarSize;
+		}
+		if (typeof newOptions.scrollByPage !== 'undefined') {
+			this._options.scrollByPage = newOptions.scrollByPage;
+		}
+		this._horizontalScrollbar.updateOptions(this._options);
+		this._verticalScrollbar.updateOptions(this._options);
 
 		if (!this._options.lazyRender) {
 			this._render();
@@ -397,11 +409,15 @@ export abstract class AbstractScrollableElement extends Widget {
 
 			let desiredScrollPosition: INewScrollPosition = {};
 			if (deltaY) {
-				const desiredScrollTop = futureScrollPosition.scrollTop - SCROLL_WHEEL_SENSITIVITY * deltaY;
+				const deltaScrollTop = SCROLL_WHEEL_SENSITIVITY * deltaY;
+				// Here we convert values such as -0.3 to -1 or 0.3 to 1, otherwise low speed scrolling will never scroll
+				const desiredScrollTop = futureScrollPosition.scrollTop - (deltaScrollTop < 0 ? Math.floor(deltaScrollTop) : Math.ceil(deltaScrollTop));
 				this._verticalScrollbar.writeScrollPosition(desiredScrollPosition, desiredScrollTop);
 			}
 			if (deltaX) {
-				const desiredScrollLeft = futureScrollPosition.scrollLeft - SCROLL_WHEEL_SENSITIVITY * deltaX;
+				const deltaScrollLeft = SCROLL_WHEEL_SENSITIVITY * deltaX;
+				// Here we convert values such as -0.3 to -1 or 0.3 to 1, otherwise low speed scrolling will never scroll
+				const desiredScrollLeft = futureScrollPosition.scrollLeft - (deltaScrollLeft < 0 ? Math.floor(deltaScrollLeft) : Math.ceil(deltaScrollLeft));
 				this._horizontalScrollbar.writeScrollPosition(desiredScrollPosition, desiredScrollLeft);
 			}
 

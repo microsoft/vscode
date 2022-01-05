@@ -5,7 +5,7 @@
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { ToggleHighContrastNLS } from 'vs/editor/common/standaloneStrings';
 
 class ToggleHighContrast extends EditorAction {

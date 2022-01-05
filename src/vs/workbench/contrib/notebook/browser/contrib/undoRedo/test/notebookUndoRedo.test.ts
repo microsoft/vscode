@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('Notebook Undo/Redo', () => {
 	test('Basics', async function () {
@@ -15,14 +15,13 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, accessor) => {
-				const modeService = accessor.get(IModeService);
-				const viewModel = editor.viewModel;
+			async (editor, viewModel, accessor) => {
+				const languageService = accessor.get(ILanguageService);
 				assert.strictEqual(viewModel.length, 2);
 				assert.strictEqual(viewModel.getVersionId(), 0);
 				assert.strictEqual(viewModel.getAlternativeId(), '0_0,1;1,1');
 
-				viewModel.notebookDocument.applyEdits([{
+				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: []
 				}], true, undefined, () => undefined, undefined, true);
 				assert.strictEqual(viewModel.length, 0);
@@ -39,9 +38,9 @@ suite('Notebook Undo/Redo', () => {
 				assert.strictEqual(viewModel.getVersionId(), 3);
 				assert.strictEqual(viewModel.getAlternativeId(), '1_');
 
-				viewModel.notebookDocument.applyEdits([{
+				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 0, cells: [
-						new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], modeService),
+						new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], languageService),
 					]
 				}], true, undefined, () => undefined, undefined, true);
 				assert.strictEqual(viewModel.getVersionId(), 4);
@@ -60,17 +59,16 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, accessor) => {
-				const modeService = accessor.get(IModeService);
-				const viewModel = editor.viewModel;
-				viewModel.notebookDocument.applyEdits([{
+			async (editor, viewModel, accessor) => {
+				const languageService = accessor.get(ILanguageService);
+				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: []
 				}], true, undefined, () => undefined, undefined, true);
 
 				assert.doesNotThrow(() => {
-					viewModel.notebookDocument.applyEdits([{
+					editor.textModel.applyEdits([{
 						editType: CellEditType.Replace, index: 0, count: 2, cells: [
-							new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], modeService),
+							new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], languageService),
 						]
 					}], true, undefined, () => undefined, undefined, true);
 				});
@@ -84,9 +82,8 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
-				viewModel.notebookDocument.applyEdits([{
+			async (editor, viewModel) => {
+				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 1, count: 2, cells: []
 				}], true, undefined, () => undefined, undefined, true);
 
@@ -103,16 +100,15 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, accessor) => {
-				const modeService = accessor.get(IModeService);
-				const viewModel = editor.viewModel;
-				viewModel.notebookDocument.applyEdits([{
+			async (editor, viewModel, accessor) => {
+				const languageService = accessor.get(ILanguageService);
+				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: []
 				}], true, undefined, () => undefined, undefined, true);
 
-				viewModel.notebookDocument.applyEdits([{
+				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: [
-						new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], modeService),
+						new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], languageService),
 					]
 				}], true, undefined, () => undefined, undefined, true);
 
@@ -122,7 +118,7 @@ suite('Notebook Undo/Redo', () => {
 				await viewModel.undo();
 
 				assert.deepStrictEqual(viewModel.length, 2);
-				viewModel.notebookDocument.applyEdits([{
+				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 1, count: 2, cells: []
 				}], true, undefined, () => undefined, undefined, true);
 				assert.deepStrictEqual(viewModel.length, 1);

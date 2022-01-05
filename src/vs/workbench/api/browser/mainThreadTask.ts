@@ -17,7 +17,7 @@ import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platf
 import {
 	ContributedTask, ConfiguringTask, KeyedTaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
 	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource,
-	TaskSourceKind, ExtensionTaskSource, RunOptions, TaskSet, TaskDefinition
+	TaskSourceKind, ExtensionTaskSource, RunOptions, TaskSet, TaskDefinition, TaskGroup
 } from 'vs/workbench/contrib/tasks/common/tasks';
 
 
@@ -320,9 +320,8 @@ namespace TaskDTO {
 			hasDefinedMatchers: ContributedTask.is(task) ? task.hasDefinedMatchers : false,
 			runOptions: RunOptionsDTO.from(task.runOptions),
 		};
-		if (task.configurationProperties.group) {
-			result.group = task.configurationProperties.group;
-		}
+		result.group = TaskGroup.from(task.configurationProperties.group);
+
 		if (task.configurationProperties.detail) {
 			result.detail = task.configurationProperties.detail;
 		}
@@ -660,7 +659,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._taskService.registerTaskSystem(key, {
 			platform: platform,
 			uriProvider: (path: string): URI => {
-				return URI.parse(`${info.scheme}://${info.authority}${path}`);
+				return URI.from({ scheme: info.scheme, authority: info.authority, path });
 			},
 			context: this._extHostContext,
 			resolveVariables: (workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet, target: ConfigurationTarget): Promise<ResolvedVariables | undefined> => {

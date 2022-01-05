@@ -10,7 +10,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { Position } from 'vs/editor/common/core/position';
 import { IEditorContribution, IDiffEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { MenuId, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
@@ -181,6 +181,7 @@ export class MultiCommand extends Command {
 
 	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
 		const logService = accessor.get(ILogService);
+		logService.trace(`Executing Command '${this.id}' which has ${this._implementations.length} bound.`);
 		for (const impl of this._implementations) {
 			const result = impl.implementation(accessor, args);
 			if (result) {
@@ -191,6 +192,7 @@ export class MultiCommand extends Command {
 				return result;
 			}
 		}
+		logService.trace(`The Command '${this.id}' was not handled by any implementation.`);
 	}
 }
 
@@ -227,7 +229,7 @@ export abstract class EditorCommand extends Command {
 	/**
 	 * Create a command class that is bound to a certain editor contribution.
 	 */
-	public static bindToContribution<T extends IEditorContribution>(controllerGetter: (editor: ICodeEditor) => T): EditorControllerCommand<T> {
+	public static bindToContribution<T extends IEditorContribution>(controllerGetter: (editor: ICodeEditor) => T | null): EditorControllerCommand<T> {
 		return class EditorControllerCommandImpl extends EditorCommand {
 			private readonly _callback: (controller: T, args: any) => void;
 
@@ -240,7 +242,7 @@ export abstract class EditorCommand extends Command {
 			public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 				const controller = controllerGetter(editor);
 				if (controller) {
-					this._callback(controllerGetter(editor), args);
+					this._callback(controller, args);
 				}
 			}
 		};
@@ -591,7 +593,7 @@ export const UndoCommand = registerCommand(new MultiCommand({
 	precondition: undefined,
 	kbOpts: {
 		weight: KeybindingWeight.EditorCore,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
+		primary: KeyMod.CtrlCmd | KeyCode.KeyZ
 	},
 	menuOpts: [{
 		menuId: MenuId.MenubarEditMenu,
@@ -613,9 +615,9 @@ export const RedoCommand = registerCommand(new MultiCommand({
 	precondition: undefined,
 	kbOpts: {
 		weight: KeybindingWeight.EditorCore,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
+		primary: KeyMod.CtrlCmd | KeyCode.KeyY,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyZ],
+		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyZ }
 	},
 	menuOpts: [{
 		menuId: MenuId.MenubarEditMenu,
@@ -638,7 +640,7 @@ export const SelectAllCommand = registerCommand(new MultiCommand({
 	kbOpts: {
 		weight: KeybindingWeight.EditorCore,
 		kbExpr: null,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_A
+		primary: KeyMod.CtrlCmd | KeyCode.KeyA
 	},
 	menuOpts: [{
 		menuId: MenuId.MenubarSelectionMenu,

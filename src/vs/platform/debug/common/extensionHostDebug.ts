@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IExtensionHostDebugService = createDecorator<IExtensionHostDebugService>('extensionHostDebugService');
 
@@ -54,5 +54,5 @@ export interface IExtensionHostDebugService {
 	terminateSession(sessionId: string, subId?: string): void;
 	readonly onTerminateSession: Event<ITerminateSessionEvent>;
 
-	openExtensionDevelopmentHostWindow(args: string[], env: INullableProcessEnvironment | undefined, debugRenderer: boolean): Promise<IOpenExtensionWindowResult>;
+	openExtensionDevelopmentHostWindow(args: string[], debugRenderer: boolean): Promise<IOpenExtensionWindowResult>;
 }

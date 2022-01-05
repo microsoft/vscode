@@ -8,12 +8,13 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Event } from 'vs/base/common/event';
-import { INotebookRendererInfo, NotebookDataDto, TransientOptions, IOrderedMimeType, IOutputDto, INotebookContributionData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookRendererInfo, NotebookData, TransientOptions, IOrderedMimeType, IOutputDto, INotebookContributionData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
@@ -21,20 +22,20 @@ export const INotebookService = createDecorator<INotebookService>('notebookServi
 export interface INotebookContentProvider {
 	options: TransientOptions;
 
-	open(uri: URI, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions; }>;
+	open(uri: URI, backupId: string | VSBuffer | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<{ data: NotebookData, transientOptions: TransientOptions; }>;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
-	backup(uri: URI, token: CancellationToken): Promise<string>;
+	backup(uri: URI, token: CancellationToken): Promise<string | VSBuffer>;
 }
 
 export interface INotebookSerializer {
 	options: TransientOptions;
-	dataToNotebook(data: VSBuffer): Promise<NotebookDataDto>
-	notebookToData(data: NotebookDataDto): Promise<VSBuffer>;
+	dataToNotebook(data: VSBuffer): Promise<NotebookData>
+	notebookToData(data: NotebookData): Promise<VSBuffer>;
 }
 
 export interface INotebookRawData {
-	data: NotebookDataDto;
+	data: NotebookData;
 	transientOptions: TransientOptions;
 }
 
@@ -70,15 +71,16 @@ export interface INotebookService {
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable;
 	withNotebookDataProvider(resource: URI, viewType?: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>;
 
-	getMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[];
+	getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[];
 
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
 	getRenderers(): INotebookRendererInfo[];
 
 	/** Updates the preferred renderer for the given mimetype in the workspace. */
-	updateMimePreferredRenderer(mimeType: string, rendererId: string): void;
+	updateMimePreferredRenderer(viewType: string, mimeType: string, rendererId: string, otherMimetypes: readonly string[]): void;
+	saveMimeDisplayOrder(target: ConfigurationTarget): void;
 
-	createNotebookTextModel(viewType: string, uri: URI, data: NotebookDataDto, transientOptions: TransientOptions): NotebookTextModel;
+	createNotebookTextModel(viewType: string, uri: URI, data: NotebookData, transientOptions: TransientOptions): NotebookTextModel;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
 	listNotebookDocuments(): readonly NotebookTextModel[];
@@ -90,4 +92,5 @@ export interface INotebookService {
 
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean): void;
 	getToCopy(): { items: NotebookCellTextModel[], isCopy: boolean; } | undefined;
+	clearEditorCache(): void;
 }

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { SplitView, IView, Sizing, LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
 import { Sash, SashState } from 'vs/base/browser/ui/sash/sash';
+import { IView, LayoutPriority, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
+import { Emitter } from 'vs/base/common/event';
 
 class TestView implements IView<number> {
 
@@ -297,12 +297,12 @@ suite('Splitview', () => {
 		assert.strictEqual(sashes[1].state, SashState.Disabled, 'second sash is disabled');
 
 		view1.maximumSize = 300;
-		assert.strictEqual(sashes[0].state, SashState.Minimum, 'first sash is enabled');
-		assert.strictEqual(sashes[1].state, SashState.Minimum, 'second sash is enabled');
+		assert.strictEqual(sashes[0].state, SashState.AtMinimum, 'first sash is enabled');
+		assert.strictEqual(sashes[1].state, SashState.AtMinimum, 'second sash is enabled');
 
 		view2.maximumSize = 200;
-		assert.strictEqual(sashes[0].state, SashState.Minimum, 'first sash is enabled');
-		assert.strictEqual(sashes[1].state, SashState.Minimum, 'second sash is enabled');
+		assert.strictEqual(sashes[0].state, SashState.AtMinimum, 'first sash is enabled');
+		assert.strictEqual(sashes[1].state, SashState.AtMinimum, 'second sash is enabled');
 
 		splitview.resizeView(0, 40);
 		assert.strictEqual(sashes[0].state, SashState.Enabled, 'first sash is enabled');

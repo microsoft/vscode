@@ -15,13 +15,14 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditableData } from 'vs/workbench/common/views';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IBulkEditService, ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { IExplorerView, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { IProgressService, ProgressLocation, IProgressNotificationOptions, IProgressCompositeOptions } from 'vs/platform/progress/common/progress';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -48,7 +49,8 @@ export class ExplorerService implements IExplorerService {
 		@IEditorService private editorService: IEditorService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@IHostService hostService: IHostService
 	) {
 		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
 		this._lexicographicOptions = this.configurationService.getValue('explorer.sortOrderLexicographicOptions');
@@ -78,13 +80,16 @@ export class ExplorerService implements IExplorerService {
 			// Or if they affect not yet resolved parts of the explorer. If that is the case we will not refresh.
 			events.forEach(e => {
 				if (!shouldRefresh) {
-					const added = e.getAdded();
-					if (added.some(a => {
-						const parent = this.model.findClosest(dirname(a.resource));
-						// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
-						return parent && !parent.getChild(basename(a.resource));
-					})) {
-						shouldRefresh = true;
+					const added = e.rawAdded;
+					if (added) {
+						for (const [resource] of added) {
+							const parent = this.model.findClosest(dirname(resource));
+							// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
+							if (parent && !parent.getChild(basename(resource))) {
+								shouldRefresh = true;
+								break;
+							}
+						}
 					}
 				}
 			});
@@ -97,6 +102,10 @@ export class ExplorerService implements IExplorerService {
 
 		this.disposables.add(this.fileService.onDidFilesChange(e => {
 			this.fileChangeEvents.push(e);
+			// Don't mess with the file tree while in the process of editing. #112293
+			if (this.editable) {
+				return;
+			}
 			if (!this.onFileChangesScheduler.isScheduled()) {
 				this.onFileChangesScheduler.schedule();
 			}
@@ -121,6 +130,8 @@ export class ExplorerService implements IExplorerService {
 				this.view.setTreeInput();
 			}
 		}));
+		// Refresh explorer when window gets focus to compensate for missing file events #126817
+		this.disposables.add(hostService.onDidChangeFocus(hasFocus => hasFocus ? this.refresh(false) : undefined));
 	}
 
 	get roots(): ExplorerItem[] {
@@ -193,6 +204,10 @@ export class ExplorerService implements IExplorerService {
 		}
 		const isEditing = this.isEditable(stat);
 		await this.view.setEditable(stat, isEditing);
+
+		if (!this.editable && this.fileChangeEvents.length && !this.onFileChangesScheduler.isScheduled()) {
+			this.onFileChangesScheduler.schedule();
+		}
 	}
 
 	async setToCopy(items: ExplorerItem[], cut: boolean): Promise<void> {
@@ -344,7 +359,6 @@ export class ExplorerService implements IExplorerService {
 					const parent = element.parent;
 					// Remove Element from Parent (Model)
 					parent.removeChild(element);
-					this.view?.focusNeighbourIfItemFocused(element);
 					// Refresh Parent (View)
 					await this.view?.refresh(false, parent);
 				}

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeNode, TreeVisibility, ITreeModelSpliceEvent, TreeError } from 'vs/base/browser/ui/tree/tree';
-import { tail2 } from 'vs/base/common/arrays';
+import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { splice, tail2 } from 'vs/base/common/arrays';
+import { Delayer, MicrotaskDelay } from 'vs/base/common/async';
 import { LcsDiff } from 'vs/base/common/diff/diff';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -23,6 +24,7 @@ export interface IIndexTreeNode<T, TFilterData = void> extends ITreeNode<T, TFil
 	visibility: TreeVisibility;
 	visible: boolean;
 	filterData: TFilterData | undefined;
+	lastDiffIds?: string[];
 }
 
 export function isFilterResult<T>(obj: any): obj is ITreeFilterDataResult<T> {
@@ -87,7 +89,7 @@ function isCollapsibleStateUpdate(update: CollapseStateUpdate): update is Collap
 }
 
 export interface IList<T> extends ISpliceable<T> {
-	updateElementHeight(index: number, height: number): void;
+	updateElementHeight(index: number, height: number | undefined): void;
 }
 
 export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
@@ -109,6 +111,8 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 	private readonly _onDidSplice = new Emitter<ITreeModelSpliceEvent<T, TFilterData>>();
 	readonly onDidSplice = this._onDidSplice.event;
+
+	private readonly refilterDelayer = new Delayer(MicrotaskDelay);
 
 	constructor(
 		private user: string,
@@ -162,10 +166,14 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		recurseLevels = options.diffDepth ?? 0,
 	) {
 		const { parentNode } = this.getParentNodeWithListIndex(location);
+		if (!parentNode.lastDiffIds) {
+			return this.spliceSimple(location, deleteCount, toInsertIterable, options);
+		}
+
 		const toInsert = [...toInsertIterable];
 		const index = location[location.length - 1];
 		const diff = new LcsDiff(
-			{ getElements: () => parentNode.children.map(e => identity.getId(e.element).toString()) },
+			{ getElements: () => parentNode.lastDiffIds! },
 			{
 				getElements: () => [
 					...parentNode.children.slice(0, index),
@@ -177,6 +185,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 		// if we were given a 'best effort' diff, use default behavior
 		if (diff.quitEarly) {
+			parentNode.lastDiffIds = undefined;
 			return this.spliceSimple(location, deleteCount, toInsert, options);
 		}
 
@@ -221,7 +230,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		location: number[],
 		deleteCount: number,
 		toInsert: Iterable<ITreeElement<T>> = Iterable.empty(),
-		{ onDidCreateNode, onDidDeleteNode }: IIndexTreeModelSpliceOptions<T, TFilterData>,
+		{ onDidCreateNode, onDidDeleteNode, diffIdentityProvider }: IIndexTreeModelSpliceOptions<T, TFilterData>,
 	) {
 		const { parentNode, listIndex, revealed, visible } = this.getParentNodeWithListIndex(location);
 		const treeListElementsToInsert: ITreeNode<T, TFilterData>[] = [];
@@ -256,7 +265,15 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			}
 		}
 
-		const deletedNodes = parentNode.children.splice(lastIndex, deleteCount, ...nodesToInsert);
+		const deletedNodes = splice(parentNode.children, lastIndex, deleteCount, nodesToInsert);
+
+		if (!diffIdentityProvider) {
+			parentNode.lastDiffIds = undefined;
+		} else if (parentNode.lastDiffIds) {
+			splice(parentNode.lastDiffIds, lastIndex, deleteCount, nodesToInsert.map(n => diffIdentityProvider.getId(n.element).toString()));
+		} else {
+			parentNode.lastDiffIds = parentNode.children.map(n => diffIdentityProvider.getId(n.element).toString());
+		}
 
 		// figure out what is the count of deleted visible children
 		let deletedVisibleChildrenCount = 0;
@@ -308,7 +325,8 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 		while (node) {
 			if (node.visibility === TreeVisibility.Recurse) {
-				this.refilter();
+				// delayed to avoid excessive refiltering, see #135941
+				this.refilterDelayer.trigger(() => this.refilter());
 				break;
 			}
 
@@ -328,7 +346,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		}
 	}
 
-	updateElementHeight(location: number[], height: number): void {
+	updateElementHeight(location: number[], height: number | undefined): void {
 		if (location.length === 0) {
 			throw new TreeError(this.user, 'Invalid tree location');
 		}
@@ -473,6 +491,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		const previousRenderNodeCount = this.root.renderNodeCount;
 		const toInsert = this.updateNodeAfterFilterChange(this.root);
 		this.list.splice(0, previousRenderNodeCount, toInsert);
+		this.refilterDelayer.cancel();
 	}
 
 	private createTreeNode(
@@ -619,6 +638,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 		if (node !== this.root) {
 			node.visible = visibility! === TreeVisibility.Recurse ? hasVisibleDescendants : (visibility! === TreeVisibility.Visible);
+			node.visibility = visibility!;
 		}
 
 		if (!node.visible) {

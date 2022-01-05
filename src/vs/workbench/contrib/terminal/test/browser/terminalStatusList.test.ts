@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
+import { Codicon } from 'vs/base/common/codicons';
 import Severity from 'vs/base/common/severity';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 
 function statusesEqual(list: TerminalStatusList, expected: [string, Severity][]) {
@@ -13,9 +17,11 @@ function statusesEqual(list: TerminalStatusList, expected: [string, Severity][])
 
 suite('Workbench - TerminalStatusList', () => {
 	let list: TerminalStatusList;
+	let configService: TestConfigurationService;
 
 	setup(() => {
-		list = new TerminalStatusList();
+		configService = new TestConfigurationService();
+		list = new TerminalStatusList(configService);
 	});
 
 	teardown(() => {
@@ -106,6 +112,21 @@ suite('Workbench - TerminalStatusList', () => {
 			['warning', Severity.Warning],
 			['error', Severity.Error]
 		]);
+	});
+
+	test('add should remove animation', () => {
+		statusesEqual(list, []);
+		list.add({ id: 'info', severity: Severity.Info, icon: spinningLoading });
+		statusesEqual(list, [
+			['info', Severity.Info]
+		]);
+		strictEqual(list.statuses[0].icon!.id, Codicon.play.id, 'loading~spin should be converted to play');
+		list.add({ id: 'warning', severity: Severity.Warning, icon: ThemeIcon.modify(Codicon.zap, 'spin') });
+		statusesEqual(list, [
+			['info', Severity.Info],
+			['warning', Severity.Warning]
+		]);
+		strictEqual(list.statuses[1].icon!.id, Codicon.zap.id, 'zap~spin should have animation removed only');
 	});
 
 	test('remove', () => {

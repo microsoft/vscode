@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { URI } from 'vs/base/common/uri';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { FileService } from 'vs/platform/files/common/fileService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { Registry } from 'vs/platform/registry/common/platform';
+
 
 suite('ConfigurationService', () => {
 
@@ -89,12 +89,12 @@ suite('ConfigurationService', () => {
 	test('trigger configuration change event when file does not exist', async () => {
 		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
 		await testObject.initialize();
-		return new Promise<void>(async (c) => {
+		return new Promise<void>((c, e) => {
 			disposables.add(Event.filter(testObject.onDidChangeConfiguration, e => e.source === ConfigurationTarget.USER)(() => {
 				assert.strictEqual(testObject.getValue('foo'), 'bar');
 				c();
 			}));
-			await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));
+			fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }')).catch(e);
 		});
 
 	});

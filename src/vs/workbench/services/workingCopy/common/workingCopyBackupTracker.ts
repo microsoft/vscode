@@ -8,13 +8,16 @@ import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/l
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, IWorkingCopyIdentifier, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ShutdownReason, ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ShutdownReason, ILifecycleService, LifecyclePhase, InternalBeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorsOrder, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 /**
  * The working copy backup tracker deals with:
@@ -32,12 +35,15 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		private readonly lifecycleService: ILifecycleService,
 		protected readonly filesConfigurationService: IFilesConfigurationService,
 		private readonly workingCopyEditorService: IWorkingCopyEditorService,
-		protected readonly editorService: IEditorService
+		protected readonly editorService: IEditorService,
+		private readonly editorGroupService: IEditorGroupsService
 	) {
 		super();
 
 		// Fill in initial dirty working copies
-		this.workingCopyService.dirtyWorkingCopies.forEach(workingCopy => this.onDidRegister(workingCopy));
+		for (const workingCopy of this.workingCopyService.dirtyWorkingCopies) {
+			this.onDidRegister(workingCopy);
+		}
 
 		this.registerListeners();
 	}
@@ -50,23 +56,31 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onDidChangeDirty(workingCopy)));
 		this._register(this.workingCopyService.onDidChangeContent(workingCopy => this.onDidChangeContent(workingCopy)));
 
-		// Lifecycle (handled in subclasses)
-		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason), 'veto.backups'));
+		// Lifecycle
+		this.lifecycleService.onBeforeShutdown(event => (event as InternalBeforeShutdownEvent).finalVeto(() => this.onFinalBeforeShutdown(event.reason), 'veto.backups'));
+		this.lifecycleService.onWillShutdown(() => this.onWillShutdown());
 
 		// Once a handler registers, restore backups
 		this._register(this.workingCopyEditorService.onDidRegisterHandler(handler => this.restoreBackups(handler)));
 	}
 
+	protected abstract onFinalBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean>;
+
+	private onWillShutdown(): void {
+
+		// Here we know that we will shutdown. Any backup operation that is
+		// already scheduled or being scheduled from this moment on runs
+		// at the risk of corrupting a backup because the backup operation
+		// might terminate at any given time now. As such, we need to disable
+		// this tracker from performing more backups by cancelling pending
+		// operations and suspending the tracker without resuming.
+
+		this.cancelBackupOperations();
+		this.suspendBackupOperations();
+	}
+
 
 	//#region Backup Creator
-
-	// A map from working copy to a version ID we compute on each content
-	// change. This version ID allows to e.g. ask if a backup for a specific
-	// content has been made before closing.
-	private readonly mapWorkingCopyToContentVersion = new Map<IWorkingCopy, number>();
-
-	// A map of scheduled pending backups for working copies
-	protected readonly pendingBackups = new Map<IWorkingCopy, IDisposable>();
 
 	// Delay creation of backups when content changes to avoid too much
 	// load on the backup service when the user is typing into the editor
@@ -82,7 +96,22 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		[AutoSaveMode.AFTER_LONG_DELAY]: 1000
 	};
 
+	// A map from working copy to a version ID we compute on each content
+	// change. This version ID allows to e.g. ask if a backup for a specific
+	// content has been made before closing.
+	private readonly mapWorkingCopyToContentVersion = new Map<IWorkingCopy, number>();
+
+	// A map of scheduled pending backup operations for working copies
+	protected readonly pendingBackupOperations = new Map<IWorkingCopy, IDisposable>();
+
+	private suspended = false;
+
 	private onDidRegister(workingCopy: IWorkingCopy): void {
+		if (this.suspended) {
+			this.logService.warn(`[backup tracker] suspended, ignoring register event`, workingCopy.resource.toString(true), workingCopy.typeId);
+			return;
+		}
+
 		if (workingCopy.isDirty()) {
 			this.scheduleBackup(workingCopy);
 		}
@@ -93,11 +122,22 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		// Remove from content version map
 		this.mapWorkingCopyToContentVersion.delete(workingCopy);
 
+		// Check suspended
+		if (this.suspended) {
+			this.logService.warn(`[backup tracker] suspended, ignoring unregister event`, workingCopy.resource.toString(true), workingCopy.typeId);
+			return;
+		}
+
 		// Discard backup
 		this.discardBackup(workingCopy);
 	}
 
 	private onDidChangeDirty(workingCopy: IWorkingCopy): void {
+		if (this.suspended) {
+			this.logService.warn(`[backup tracker] suspended, ignoring dirty change event`, workingCopy.resource.toString(true), workingCopy.typeId);
+			return;
+		}
+
 		if (workingCopy.isDirty()) {
 			this.scheduleBackup(workingCopy);
 		} else {
@@ -111,6 +151,12 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		const contentVersionId = this.getContentVersion(workingCopy);
 		this.mapWorkingCopyToContentVersion.set(workingCopy, contentVersionId + 1);
 
+		// Check suspended
+		if (this.suspended) {
+			this.logService.warn(`[backup tracker] suspended, ignoring content change event`, workingCopy.resource.toString(true), workingCopy.typeId);
+			return;
+		}
+
 		// Schedule backup if dirty
 		if (workingCopy.isDirty()) {
 			// this listener will make sure that the backup is
@@ -123,7 +169,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 	private scheduleBackup(workingCopy: IWorkingCopy): void {
 
 		// Clear any running backup operation
-		this.cancelBackup(workingCopy);
+		this.cancelBackupOperation(workingCopy);
 
 		this.logService.trace(`[backup tracker] scheduling backup`, workingCopy.resource.toString(true), workingCopy.typeId);
 
@@ -154,18 +200,16 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 				}
 			}
 
-			if (cts.token.isCancellationRequested) {
-				return;
+			// Clear disposable unless we got canceled which would
+			// indicate another operation has started meanwhile
+			if (!cts.token.isCancellationRequested) {
+				this.pendingBackupOperations.delete(workingCopy);
 			}
-
-			// Clear disposable
-			this.pendingBackups.delete(workingCopy);
-
 		}, this.getBackupScheduleDelay(workingCopy));
 
 		// Keep in map for disposal as needed
-		this.pendingBackups.set(workingCopy, toDisposable(() => {
-			this.logService.trace(`[backup tracker] clearing pending backup`, workingCopy.resource.toString(true), workingCopy.typeId);
+		this.pendingBackupOperations.set(workingCopy, toDisposable(() => {
+			this.logService.trace(`[backup tracker] clearing pending backup creation`, workingCopy.resource.toString(true), workingCopy.typeId);
 
 			cts.dispose(true);
 			clearTimeout(handle);
@@ -186,21 +230,55 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 	}
 
 	private discardBackup(workingCopy: IWorkingCopy): void {
-		this.logService.trace(`[backup tracker] discarding backup`, workingCopy.resource.toString(true), workingCopy.typeId);
 
 		// Clear any running backup operation
-		this.cancelBackup(workingCopy);
+		this.cancelBackupOperation(workingCopy);
 
-		// Forward to working copy backup service
-		this.workingCopyBackupService.discardBackup(workingCopy);
+		// Schedule backup discard asap
+		const cts = new CancellationTokenSource();
+		(async () => {
+			this.logService.trace(`[backup tracker] discarding backup`, workingCopy.resource.toString(true), workingCopy.typeId);
+
+			// Discard backup
+			try {
+				await this.workingCopyBackupService.discardBackup(workingCopy, cts.token);
+			} catch (error) {
+				this.logService.error(error);
+			}
+
+			// Clear disposable unless we got canceled which would
+			// indicate another operation has started meanwhile
+			if (!cts.token.isCancellationRequested) {
+				this.pendingBackupOperations.delete(workingCopy);
+			}
+		})();
+
+		// Keep in map for disposal as needed
+		this.pendingBackupOperations.set(workingCopy, toDisposable(() => {
+			this.logService.trace(`[backup tracker] clearing pending backup discard`, workingCopy.resource.toString(true), workingCopy.typeId);
+
+			cts.dispose(true);
+		}));
 	}
 
-	private cancelBackup(workingCopy: IWorkingCopy): void {
-		dispose(this.pendingBackups.get(workingCopy));
-		this.pendingBackups.delete(workingCopy);
+	private cancelBackupOperation(workingCopy: IWorkingCopy): void {
+		dispose(this.pendingBackupOperations.get(workingCopy));
+		this.pendingBackupOperations.delete(workingCopy);
 	}
 
-	protected abstract onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean>;
+	protected cancelBackupOperations(): void {
+		for (const [, disposable] of this.pendingBackupOperations) {
+			dispose(disposable);
+		}
+
+		this.pendingBackupOperations.clear();
+	}
+
+	protected suspendBackupOperations(): { resume: () => void } {
+		this.suspended = true;
+
+		return { resume: () => this.suspended = false };
+	}
 
 	//#endregion
 
@@ -233,8 +311,8 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 
 		// Figure out already opened editors for backups vs
 		// non-opened.
-		const openedEditorsForBackups: IEditorInput[] = [];
-		const nonOpenedEditorsForBackups: IEditorInput[] = [];
+		const openedEditorsForBackups = new Set<EditorInput>();
+		const nonOpenedEditorsForBackups = new Set<EditorInput>();
 
 		// Ensure each backup that can be handled has an
 		// associated editor.
@@ -250,7 +328,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			for (const { editor } of this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
 				const isUnrestoredBackupOpened = handler.isOpen(unrestoredBackup, editor);
 				if (isUnrestoredBackupOpened) {
-					openedEditorsForBackups.push(editor);
+					openedEditorsForBackups.add(editor);
 					hasOpenedEditorForBackup = true;
 				}
 			}
@@ -258,7 +336,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			// Otherwise, make sure to create at least one editor
 			// for the backup to show
 			if (!hasOpenedEditorForBackup) {
-				nonOpenedEditorsForBackups.push(await handler.createEditor(unrestoredBackup));
+				nonOpenedEditorsForBackups.add(await handler.createEditor(unrestoredBackup));
 			}
 
 			// Remember as (potentially) restored
@@ -267,22 +345,33 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 
 		// Ensure editors are opened for each backup without editor
 		// in the background without stealing focus
-		if (nonOpenedEditorsForBackups.length > 0) {
-			await this.editorService.openEditors(nonOpenedEditorsForBackups.map(nonOpenedEditorForBackup => ({
+		if (nonOpenedEditorsForBackups.size > 0) {
+			await this.editorGroupService.activeGroup.openEditors([...nonOpenedEditorsForBackups].map(nonOpenedEditorForBackup => ({
 				editor: nonOpenedEditorForBackup,
 				options: {
 					pinned: true,
 					preserveFocus: true,
-					inactive: true
+					inactive: true,
+					override: EditorResolution.DISABLED // very important to disable overrides because the editor input we got is proper
 				}
 			})));
 
-			openedEditorsForBackups.push(...nonOpenedEditorsForBackups);
+			for (const nonOpenedEditorForBackup of nonOpenedEditorsForBackups) {
+				openedEditorsForBackups.add(nonOpenedEditorForBackup);
+			}
 		}
 
-		// Then, resolve each editor to make sure the working copy
+		// Then, resolve each opened editor to make sure the working copy
 		// is loaded and the dirty editor appears properly
-		await Promises.settled(openedEditorsForBackups.map(openedEditorsForBackup => openedEditorsForBackup.resolve()));
+		// We only do that for editors that are not active in a group
+		// already to prevent calling `resolve` twice!
+		await Promises.settled([...openedEditorsForBackups].map(async openedEditorForBackup => {
+			if (this.editorService.isVisible(openedEditorForBackup)) {
+				return;
+			}
+
+			return openedEditorForBackup.resolve();
+		}));
 
 		// Finally, remove all handled backups from the list
 		for (const restoredBackup of restoredBackups) {

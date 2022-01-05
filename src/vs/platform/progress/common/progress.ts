@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -69,6 +69,7 @@ export interface IProgressNotificationOptions extends IProgressOptions {
 export interface IProgressDialogOptions extends IProgressOptions {
 	readonly delay?: number;
 	readonly detail?: string;
+	readonly sticky?: boolean;
 }
 
 export interface IProgressWindowOptions extends IProgressOptions {

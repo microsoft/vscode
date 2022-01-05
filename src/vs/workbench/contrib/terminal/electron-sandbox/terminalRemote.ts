@@ -9,8 +9,12 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { TERMINAL_ACTION_CATEGORY, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Action } from 'vs/base/common/actions';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { URI } from 'vs/base/common/uri';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { Schemas } from 'vs/base/common/network';
 
 export function registerRemoteContributions() {
 	const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
@@ -24,18 +28,34 @@ export class CreateNewLocalTerminalAction extends Action {
 	constructor(
 		id: string, label: string,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@INativeEnvironmentService private readonly _nativeEnvironmentService: INativeEnvironmentService
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+		@INativeEnvironmentService private readonly _nativeEnvironmentService: INativeEnvironmentService,
+		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IHistoryService private readonly _historyService: IHistoryService
 	) {
 		super(id, label);
 	}
 
-	override run(): Promise<any> {
-		const instance = this._terminalService.createTerminal({ cwd: this._nativeEnvironmentService.userHome });
+	override async run(): Promise<any> {
+		let cwd: URI | undefined;
+		try {
+			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.vscodeRemote);
+			if (activeWorkspaceRootUri) {
+				const canonicalUri = await this._remoteAuthorityResolverService.getCanonicalURI(activeWorkspaceRootUri);
+				if (canonicalUri.scheme === Schemas.file) {
+					cwd = canonicalUri;
+				}
+			}
+		} catch { }
+		if (!cwd) {
+			cwd = this._nativeEnvironmentService.userHome;
+		}
+		const instance = await this._terminalService.createTerminal({ cwd });
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
 
 		this._terminalService.setActiveInstance(instance);
-		return this._terminalService.showPanel(true);
+		return this._terminalGroupService.showPanel(true);
 	}
 }

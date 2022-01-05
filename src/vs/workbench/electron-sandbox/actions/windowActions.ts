@@ -10,8 +10,8 @@ import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { FileKind } from 'vs/platform/files/common/files';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IQuickInputService, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -27,9 +27,11 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 
 export class CloseWindowAction extends Action2 {
 
+	static readonly ID = 'workbench.action.closeWindow';
+
 	constructor() {
 		super({
-			id: 'workbench.action.closeWindow',
+			id: CloseWindowAction.ID,
 			title: {
 				value: localize('closeWindow', "Close Window"),
 				mnemonicTitle: localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Clos&&e Window"),
@@ -38,9 +40,9 @@ export class CloseWindowAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W },
-				linux: { primary: KeyMod.Alt | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W] },
-				win: { primary: KeyMod.Alt | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W] }
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyW },
+				linux: { primary: KeyMod.Alt | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyW] },
+				win: { primary: KeyMod.Alt | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyW] }
 			},
 			menu: {
 				id: MenuId.MenubarFileMenu,
@@ -61,7 +63,7 @@ abstract class BaseZoomAction extends Action2 {
 
 	private static readonly SETTING_KEY = 'window.zoomLevel';
 
-	private static readonly MAX_ZOOM_LEVEL = 9;
+	private static readonly MAX_ZOOM_LEVEL = 8;
 	private static readonly MIN_ZOOM_LEVEL = -8;
 
 	constructor(desc: Readonly<IAction2Options>) {
@@ -97,8 +99,8 @@ export class ZoomInAction extends BaseZoomAction {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.US_EQUAL,
-				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_EQUAL, KeyMod.CtrlCmd | KeyCode.NUMPAD_ADD]
+				primary: KeyMod.CtrlCmd | KeyCode.Equal,
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Equal, KeyMod.CtrlCmd | KeyCode.NumpadAdd]
 			},
 			menu: {
 				id: MenuId.MenubarAppearanceMenu,
@@ -127,11 +129,11 @@ export class ZoomOutAction extends BaseZoomAction {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.US_MINUS,
-				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS, KeyMod.CtrlCmd | KeyCode.NUMPAD_SUBTRACT],
+				primary: KeyMod.CtrlCmd | KeyCode.Minus,
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, KeyMod.CtrlCmd | KeyCode.NumpadSubtract],
 				linux: {
-					primary: KeyMod.CtrlCmd | KeyCode.US_MINUS,
-					secondary: [KeyMod.CtrlCmd | KeyCode.NUMPAD_SUBTRACT]
+					primary: KeyMod.CtrlCmd | KeyCode.Minus,
+					secondary: [KeyMod.CtrlCmd | KeyCode.NumpadSubtract]
 				}
 			},
 			menu: {
@@ -161,7 +163,7 @@ export class ZoomResetAction extends BaseZoomAction {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.NUMPAD_0
+				primary: KeyMod.CtrlCmd | KeyCode.Numpad0
 			},
 			menu: {
 				id: MenuId.MenubarAppearanceMenu,
@@ -199,7 +201,7 @@ abstract class BaseSwitchWindow extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const keybindingService = accessor.get(IKeybindingService);
 		const modelService = accessor.get(IModelService);
-		const modeService = accessor.get(IModeService);
+		const languageService = accessor.get(ILanguageService);
 		const nativeHostService = accessor.get(INativeHostService);
 
 		const currentWindowId = nativeHostService.windowId;
@@ -212,8 +214,8 @@ abstract class BaseSwitchWindow extends Action2 {
 			return {
 				payload: window.id,
 				label: window.title,
-				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}, dirty window", window.title) : window.title,
-				iconClasses: getIconClasses(modelService, modeService, resource, fileKind),
+				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}, window with unsaved changes", window.title) : window.title,
+				iconClasses: getIconClasses(modelService, languageService, resource, fileKind),
 				description: (currentWindowId === window.id) ? localize('current', "Current Window") : undefined,
 				buttons: currentWindowId !== window.id ? window.dirty ? [this.closeDirtyWindowAction] : [this.closeWindowAction] : undefined
 			};
@@ -247,7 +249,7 @@ export class SwitchWindowAction extends BaseSwitchWindow {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_W }
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyW }
 			}
 		});
 	}

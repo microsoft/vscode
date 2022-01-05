@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { OutlineElement, OutlineGroup, OutlineModel } from '../outlineModel';
-import { SymbolKind, DocumentSymbol, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { Range } from 'vs/editor/common/core/range';
-import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { URI } from 'vs/base/common/uri';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
+import { Range } from 'vs/editor/common/core/range';
+import { DocumentSymbol, DocumentSymbolProviderRegistry, SymbolKind } from 'vs/editor/common/languages';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { OutlineElement, OutlineGroup, OutlineModel } from '../outlineModel';
 
 suite('OutlineModel', function () {
 
@@ -38,6 +38,7 @@ suite('OutlineModel', function () {
 		assert.strictEqual(count, 2);
 
 		reg.dispose();
+		model.dispose();
 	});
 
 	test('OutlineModel#create, cached/cancel', async function () {
@@ -69,6 +70,7 @@ suite('OutlineModel', function () {
 		assert.strictEqual(isCancelled, true);
 
 		reg.dispose();
+		model.dispose();
 	});
 
 	function fakeSymbolInformation(range: Range, name: string = 'foo'): DocumentSymbol {

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, ILoggerService, ILogger, ILoggerOptions, AbstractLoggerService, LogLevel } from 'vs/platform/log/common/log';
-import { URI } from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
-import { FileLogger } from 'vs/platform/log/common/fileLog';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
-import { IFileService } from 'vs/platform/files/common/files';
+import { basename } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IFileService } from 'vs/platform/files/common/files';
+import { FileLogger } from 'vs/platform/log/common/fileLog';
+import { AbstractLoggerService, ILogger, ILoggerOptions, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 
 export class LoggerService extends AbstractLoggerService implements ILoggerService {
 
@@ -23,13 +23,9 @@ export class LoggerService extends AbstractLoggerService implements ILoggerServi
 
 	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
 		if (resource.scheme === Schemas.file) {
-			const logger = new SpdLogLogger(options?.name || generateUuid(), resource.fsPath, !options?.donotRotate, logLevel);
-			if (options?.donotUseFormatters) {
-				(<SpdLogLogger>logger).clearFormatters();
-			}
-			return logger;
+			return new SpdLogLogger(options?.name || generateUuid(), resource.fsPath, !options?.donotRotate, !!options?.donotUseFormatters, logLevel);
 		} else {
-			return new FileLogger(options?.name ?? basename(resource), resource, logLevel, this.fileService);
+			return new FileLogger(options?.name ?? basename(resource), resource, logLevel, !!options?.donotUseFormatters, this.fileService);
 		}
 	}
 }

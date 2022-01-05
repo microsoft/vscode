@@ -9,7 +9,20 @@
     "*"
   ],
   "main": "./out/extension",
-  "enableProposedApi": true,
+  "enabledApiProposals": [
+    "notebookCellExecutionState",
+    "notebookConcatTextDocument",
+    "notebookContentProvider",
+    "notebookControllerKind",
+    "notebookDebugOptions",
+    "notebookDeprecated",
+    "notebookEditor",
+    "notebookEditorDecorationType",
+    "notebookEditorEdit",
+    "notebookLiveShare",
+    "notebookMessaging",
+    "notebookMime"
+  ],
   "engines": {
     "vscode": "^1.25.0"
   },
@@ -36,7 +49,7 @@
     ],
     "notebooks": [
       {
-        "viewType": "notebookSmokeTest",
+        "type": "notebookSmokeTest",
         "displayName": "Notebook Smoke Test",
         "selector": [
           {
@@ -46,7 +59,7 @@
         ]
       }
     ],
-    "notebookOutputRenderer": [
+    "notebookRenderer": [
       {
         "id": "notebookCoreTestRenderer",
         "displayName": "Notebook Core Test Renderer",
@@ -60,7 +73,7 @@
       "notebook/cell/title": [
         {
           "command": "vscode-notebook-tests.debugAction",
-          "when": "notebookViewType == notebookSmokeTest",
+          "when": "notebookType == notebookSmokeTest",
           "group": "inline@1"
         }
       ]

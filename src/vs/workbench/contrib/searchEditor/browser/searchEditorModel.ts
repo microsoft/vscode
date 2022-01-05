@@ -5,16 +5,15 @@
 
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { parseSavedSearchEditor, parseSerializedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { SearchConfiguration } from './searchEditorInput';
 import { assertIsDefined } from 'vs/base/common/types';
-import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { SearchEditorScheme, SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
+import { SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 
@@ -50,7 +49,7 @@ class SearchEditorModelFactory {
 			throw Error('Unable to contruct model for resource that already exists');
 		}
 
-		const modeService = accessor.get(IModeService);
+		const languageService = accessor.get(ILanguageService);
 		const modelService = accessor.get(IModelService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
@@ -62,13 +61,13 @@ class SearchEditorModelFactory {
 				if (!ongoingResolve) {
 					ongoingResolve = (async () => {
 
-						const backup = await this.tryFetchModelFromBackupService(resource, modeService, modelService, workingCopyBackupService, instantiationService);
+						const backup = await this.tryFetchModelFromBackupService(resource, languageService, modelService, workingCopyBackupService, instantiationService);
 						if (backup) {
 							return backup;
 						}
 
 						return Promise.resolve({
-							resultsModel: modelService.getModel(resource) ?? modelService.createModel('', modeService.create('search-result'), resource),
+							resultsModel: modelService.getModel(resource) ?? modelService.createModel('', languageService.createById('search-result'), resource),
 							configurationModel: new SearchConfigurationModel(config)
 						});
 					})();
@@ -83,7 +82,7 @@ class SearchEditorModelFactory {
 			throw Error('Unable to contruct model for resource that already exists');
 		}
 
-		const modeService = accessor.get(IModeService);
+		const languageService = accessor.get(ILanguageService);
 		const modelService = accessor.get(IModelService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
@@ -95,13 +94,13 @@ class SearchEditorModelFactory {
 				if (!ongoingResolve) {
 					ongoingResolve = (async () => {
 
-						const backup = await this.tryFetchModelFromBackupService(resource, modeService, modelService, workingCopyBackupService, instantiationService);
+						const backup = await this.tryFetchModelFromBackupService(resource, languageService, modelService, workingCopyBackupService, instantiationService);
 						if (backup) {
 							return backup;
 						}
 
 						return Promise.resolve({
-							resultsModel: modelService.createModel(contents ?? '', modeService.create('search-result'), resource),
+							resultsModel: modelService.createModel(contents ?? '', languageService.createById('search-result'), resource),
 							configurationModel: new SearchConfigurationModel(config)
 						});
 					})();
@@ -116,7 +115,7 @@ class SearchEditorModelFactory {
 			throw Error('Unable to contruct model for resource that already exists');
 		}
 
-		const modeService = accessor.get(IModeService);
+		const languageService = accessor.get(ILanguageService);
 		const modelService = accessor.get(IModelService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
@@ -128,14 +127,14 @@ class SearchEditorModelFactory {
 				if (!ongoingResolve) {
 					ongoingResolve = (async () => {
 
-						const backup = await this.tryFetchModelFromBackupService(resource, modeService, modelService, workingCopyBackupService, instantiationService);
+						const backup = await this.tryFetchModelFromBackupService(resource, languageService, modelService, workingCopyBackupService, instantiationService);
 						if (backup) {
 							return backup;
 						}
 
 						const { text, config } = await instantiationService.invokeFunction(parseSavedSearchEditor, existingFile);
 						return ({
-							resultsModel: modelService.createModel(text ?? '', modeService.create('search-result'), resource),
+							resultsModel: modelService.createModel(text ?? '', languageService.createById('search-result'), resource),
 							configurationModel: new SearchConfigurationModel(config)
 						});
 					})();
@@ -145,27 +144,14 @@ class SearchEditorModelFactory {
 		});
 	}
 
-	private async tryFetchModelFromBackupService(resource: URI, modeService: IModeService, modelService: IModelService, workingCopyBackupService: IWorkingCopyBackupService, instantiationService: IInstantiationService): Promise<SearchEditorData | undefined> {
-		let discardLegacyBackup = false;
-		let backup = await workingCopyBackupService.resolve({ resource, typeId: SearchEditorWorkingCopyTypeId });
-		if (!backup) {
-			// TODO@bpasero remove this fallback after some releases
-			backup = await workingCopyBackupService.resolve({ resource, typeId: NO_TYPE_ID });
-
-			if (backup && resource.scheme === SearchEditorScheme) {
-				discardLegacyBackup = true;
-			}
-		}
+	private async tryFetchModelFromBackupService(resource: URI, languageService: ILanguageService, modelService: IModelService, workingCopyBackupService: IWorkingCopyBackupService, instantiationService: IInstantiationService): Promise<SearchEditorData | undefined> {
+		const backup = await workingCopyBackupService.resolve({ resource, typeId: SearchEditorWorkingCopyTypeId });
 
 		let model = modelService.getModel(resource);
 		if (!model && backup) {
 			const factory = await createTextBufferFactoryFromStream(backup.value);
 
-			if (discardLegacyBackup) {
-				await workingCopyBackupService.discardBackup({ resource, typeId: NO_TYPE_ID });
-			}
-
-			model = modelService.createModel(factory, modeService.create('search-result'), resource);
+			model = modelService.createModel(factory, languageService.createById('search-result'), resource);
 		}
 
 		if (model) {
@@ -173,7 +159,7 @@ class SearchEditorModelFactory {
 			const { text, config } = parseSerializedSearchEditor(existingFile);
 			modelService.destroyModel(resource);
 			return ({
-				resultsModel: modelService.createModel(text ?? '', modeService.create('search-result'), resource),
+				resultsModel: modelService.createModel(text ?? '', languageService.createById('search-result'), resource),
 				configurationModel: new SearchConfigurationModel(config)
 			});
 		}

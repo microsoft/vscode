@@ -17,7 +17,8 @@ function workspaceFile(...segments: string[]) {
 
 const testDocument = workspaceFile('bower.json');
 
-suite.skip('vscode API - webview', () => {
+
+suite('vscode API - webview', () => {
 	const disposables: vscode.Disposable[] = [];
 
 	function _register<T extends vscode.Disposable>(disposable: T) {
@@ -150,7 +151,9 @@ suite.skip('vscode API - webview', () => {
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	test('webviews with retainContextWhenHidden should preserve their context when they are hidden', async () => {
+	test.skip('webviews with retainContextWhenHidden should preserve their context when they are hidden', async function () {
+		this.retries(3);
+
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMessage(webview);
 
@@ -239,7 +242,7 @@ suite.skip('vscode API - webview', () => {
 	});
 
 
-	test.skip('webviews should only be able to load resources from workspace by default', async () => {
+	test.skip('webviews should only be able to load resources from workspace by default', async () => { // TODO@mjbvz https://github.com/microsoft/vscode/issues/139960
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', {
 			viewColumn: vscode.ViewColumn.One
 		}, {
@@ -254,18 +257,23 @@ suite.skip('vscode API - webview', () => {
 					img.addEventListener('load', () => {
 						vscode.postMessage({ value: true });
 					});
-					img.addEventListener('error', () => {
+					img.addEventListener('error', (e) => {
+						console.log(e);
 						vscode.postMessage({ value: false });
 					});
 					img.src = message.data.src;
 					document.body.appendChild(img);
 				});
 
-				vscode.postMessage({ type: 'ready' });
+				vscode.postMessage({ type: 'ready', userAgent: window.navigator.userAgent });
 			</script>`);
 
 		const ready = getMessage(webview);
-		await ready;
+		if ((await ready).userAgent.indexOf('Firefox') >= 0) {
+			// Skip on firefox web for now.
+			// Firefox service workers never seem to get any 'fetch' requests here. Other browsers work fine
+			return;
+		}
 
 		{
 			const imagePath = webview.webview.asWebviewUri(workspaceFile('image.png'));
@@ -324,7 +332,7 @@ suite.skip('vscode API - webview', () => {
 		}
 	});
 
-	test.skip('webviews using hard-coded old style vscode-resource uri should work', async () => {
+	test.skip('webviews using hard-coded old style vscode-resource uri should work', async () => { // TODO@mjbvz https://github.com/microsoft/vscode/issues/139572
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {
 			enableScripts: true,
 			localResourceRoots: [workspaceFile('sub')]
@@ -336,14 +344,22 @@ suite.skip('vscode API - webview', () => {
 			<img src="${imagePath}">
 			<script>
 				const vscode = acquireVsCodeApi();
+				vscode.postMessage({ type: 'ready', userAgent: window.navigator.userAgent });
+
 				const img = document.getElementsByTagName('img')[0];
 				img.addEventListener('load', () => { vscode.postMessage({ value: true }); });
 				img.addEventListener('error', () => { vscode.postMessage({ value: false }); });
 			</script>`);
 
-		const firstResponse = getMessage(webview);
+		const ready = getMessage(webview);
+		if ((await ready).userAgent.indexOf('Firefox') >= 0) {
+			// Skip on firefox web for now.
+			// Firefox service workers never seem to get any 'fetch' requests here. Other browsers work fine
+			return;
+		}
+		const firstResponse = await sendRecieveMessage(webview, { src: imagePath.toString() });
 
-		assert.strictEqual((await firstResponse).value, true);
+		assert.strictEqual(firstResponse.value, true);
 	});
 
 	test('webviews should have real view column after they are created, #56097', async () => {
@@ -400,7 +416,7 @@ suite.skip('vscode API - webview', () => {
 		});
 	}
 
-	test('webviews should transfer ArrayBuffers to and from webviews', async () => {
+	test.skip('webviews should transfer ArrayBuffers to and from webviews', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMessage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
@@ -451,7 +467,7 @@ suite.skip('vscode API - webview', () => {
 		}
 	});
 
-	test('webviews should transfer Typed arrays to and from webviews', async () => {
+	test.skip('webviews should transfer Typed arrays to and from webviews', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMessage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`

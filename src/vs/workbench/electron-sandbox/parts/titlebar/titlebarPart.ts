@@ -25,9 +25,9 @@ import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class TitlebarPart extends BrowserTitleBarPart {
-	private windowControls: HTMLElement | undefined;
 	private maxRestoreControl: HTMLElement | undefined;
 	private dragRegion: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
@@ -53,6 +53,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
 		@ILabelService labelService: ILabelService,
 		@IStorageService storageService: IStorageService,
@@ -63,7 +64,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@IProductService productService: IProductService,
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
-		super(contextMenuService, configurationService, editorService, environmentService, contextService, instantiationService, themeService, labelService, storageService, layoutService, menuService, contextKeyService, hostService, productService);
+		super(contextMenuService, configurationService, editorService, environmentService, contextService, instantiationService, keybindingService, themeService, labelService, storageService, layoutService, menuService, contextKeyService, hostService, productService);
 
 		this.environmentService = environmentService;
 	}
@@ -187,9 +188,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		this.dragRegion = prepend(this.element, $('div.titlebar-drag-region'));
 
 		// Window Controls (Native Windows/Linux)
-		if (!isMacintosh) {
-			this.windowControls = append(this.element, $('div.window-controls-container'));
-
+		if (!isMacintosh && this.windowControls) {
 			// Minimize
 			const minimizeIcon = append(this.windowControls, $('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
@@ -229,25 +228,25 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if (isMacintosh || this.currentMenubarVisibility === 'hidden') {
-				this.title.style.zoom = `${1 / getZoomFactor()}`;
+				(this.title.style as any).zoom = `${1 / getZoomFactor()}`;
 				if (isWindows || isLinux) {
 					if (this.appIcon) {
-						this.appIcon.style.zoom = `${1 / getZoomFactor()}`;
+						(this.appIcon.style as any).zoom = `${1 / getZoomFactor()}`;
 					}
 
 					if (this.windowControls) {
-						this.windowControls.style.zoom = `${1 / getZoomFactor()}`;
+						(this.windowControls.style as any).zoom = `${1 / getZoomFactor()}`;
 					}
 				}
 			} else {
-				this.title.style.zoom = '';
+				(this.title.style as any).zoom = '';
 				if (isWindows || isLinux) {
 					if (this.appIcon) {
-						this.appIcon.style.zoom = '';
+						(this.appIcon.style as any).zoom = '';
 					}
 
 					if (this.windowControls) {
-						this.windowControls.style.zoom = '';
+						(this.windowControls.style as any).zoom = '';
 					}
 				}
 			}

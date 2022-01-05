@@ -42,7 +42,7 @@ export interface IResourceWorkingCopy extends IWorkingCopy, IDisposable {
 export abstract class ResourceWorkingCopy extends Disposable implements IResourceWorkingCopy {
 
 	constructor(
-		public readonly resource: URI,
+		readonly resource: URI,
 		@IFileService protected readonly fileService: IFileService
 	) {
 		super();
@@ -146,15 +146,18 @@ export abstract class ResourceWorkingCopy extends Disposable implements IResourc
 
 	//#region Abstract
 
+	abstract typeId: string;
 	abstract name: string;
 	abstract capabilities: WorkingCopyCapabilities;
+
 	abstract onDidChangeDirty: Event<void>;
 	abstract onDidChangeContent: Event<void>;
+
 	abstract isDirty(): boolean;
+
 	abstract backup(token: CancellationToken): Promise<IWorkingCopyBackup>;
 	abstract save(options?: ISaveOptions): Promise<boolean>;
 	abstract revert(options?: IRevertOptions): Promise<void>;
-	abstract typeId: string;
 
 	//#endregion
 }

@@ -35,5 +35,12 @@
 	padding-left: 0px;
 	padding-right: 0px;
 	line-height: 16px;
-	margin-left: -4px;
+	margin-left: -3px;
+}
+
+.monaco-dropdown-with-primary > .dropdown-action-container > .monaco-dropdown > .dropdown-label > .action-label {
+	display: block;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
 }

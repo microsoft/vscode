@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command } from 'vs/editor/common/modes';
+import { Command } from 'vs/editor/common/languages';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
@@ -37,13 +37,17 @@ export namespace Extensions {
 
 export const enum ViewContainerLocation {
 	Sidebar,
-	Panel
+	Panel,
+	AuxiliaryBar
 }
+
+export const ViewContainerLocations = [ViewContainerLocation.Sidebar, ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar];
 
 export function ViewContainerLocationToString(viewContainerLocation: ViewContainerLocation) {
 	switch (viewContainerLocation) {
 		case ViewContainerLocation.Sidebar: return 'sidebar';
 		case ViewContainerLocation.Panel: return 'panel';
+		case ViewContainerLocation.AuxiliaryBar: return 'auxiliarybar';
 	}
 }
 
@@ -293,6 +297,18 @@ export interface IViewDescriptor {
 
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor
 }
+
+export interface ICustomTreeViewDescriptor extends ITreeViewDescriptor {
+	readonly extensionId: ExtensionIdentifier;
+	readonly originalContainerId: string;
+}
+
+export interface ICustomWebviewViewDescriptor extends IViewDescriptor {
+	readonly extensionId: ExtensionIdentifier;
+	readonly originalContainerId: string;
+}
+
+export type ICustomViewDescriptor = ICustomTreeViewDescriptor | ICustomWebviewViewDescriptor;
 
 export interface IViewDescriptorRef {
 	viewDescriptor: IViewDescriptor;
@@ -626,6 +642,12 @@ export interface IViewDescriptorService {
 
 // Custom views
 
+export interface ITreeDataTransferItem {
+	asString(): Thenable<string>;
+}
+
+export type ITreeDataTransfer = Map<string, ITreeDataTransferItem>;
+
 export interface ITreeView extends IDisposable {
 
 	dataProvider: ITreeViewDataProvider | undefined;
@@ -659,6 +681,8 @@ export interface ITreeView extends IDisposable {
 	readonly onDidChangeDescription: Event<string | undefined>;
 
 	readonly onDidChangeWelcomeState: Event<void>;
+
+	readonly container: any | undefined;
 
 	refresh(treeItems?: ITreeItem[]): Promise<void>;
 
@@ -811,11 +835,13 @@ export class ResolvableTreeItem implements ITreeItem {
 export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
 	onDidChangeEmpty?: Event<void>;
-	getChildren(element?: ITreeItem): Promise<ITreeItem[]>;
+	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
 }
 
 export interface ITreeViewDragAndDropController {
-	onDrop(elements: ITreeItem[], target: ITreeItem): Promise<void>;
+	readonly supportedMimeTypes: string[];
+	onWillDrop(sourceTreeItemHandles: string[], operationUuid: string): Promise<ITreeDataTransfer | undefined>;
+	onDrop(elements: ITreeDataTransfer, target: ITreeItem, operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 }
 
 export interface IEditableData {

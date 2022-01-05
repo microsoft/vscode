@@ -3,22 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./messageController';
-import * as nls from 'vs/nls';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { alert } from 'vs/base/browser/ui/aria/aria';
+import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import 'vs/css!./messageController';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IPosition } from 'vs/editor/common/core/position';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { inputValidationInfoBorder, inputValidationInfoBackground, inputValidationInfoForeground } from 'vs/platform/theme/common/colorRegistry';
+import * as nls from 'vs/nls';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export class MessageController implements IEditorContribution {
 
@@ -26,7 +23,7 @@ export class MessageController implements IEditorContribution {
 
 	static readonly MESSAGE_VISIBLE = new RawContextKey<boolean>('messageVisible', false, nls.localize('messageVisible', 'Whether the editor is currently showing an inline message'));
 
-	static get(editor: ICodeEditor): MessageController {
+	static get(editor: ICodeEditor): MessageController | null {
 		return editor.getContribution<MessageController>(MessageController.ID);
 	}
 
@@ -193,21 +190,3 @@ class MessageWidget implements IContentWidget {
 }
 
 registerEditorContribution(MessageController.ID, MessageController);
-
-registerThemingParticipant((theme, collector) => {
-	const border = theme.getColor(inputValidationInfoBorder);
-	if (border) {
-		let borderWidth = theme.type === ColorScheme.HIGH_CONTRAST ? 2 : 1;
-		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .anchor.below { border-top-color: ${border}; }`);
-		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .anchor.top { border-bottom-color: ${border}; }`);
-		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { border: ${borderWidth}px solid ${border}; }`);
-	}
-	const background = theme.getColor(inputValidationInfoBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { background-color: ${background}; }`);
-	}
-	const foreground = theme.getColor(inputValidationInfoForeground);
-	if (foreground) {
-		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { color: ${foreground}; }`);
-	}
-});

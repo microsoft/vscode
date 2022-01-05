@@ -3,12 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
+
+const terminalDescriptors = '\n- ' + [
+	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
+	'`\${cwdFolder}`: ' + localize('cwdFolder', "the terminal's current working directory, displayed for multi-root workspaces or in a single root workspace when the value differs from the initial working directory. This will not be displayed for Windows."),
+	'`\${workspaceFolder}`: ' + localize('workspaceFolder', "the workspace in which the terminal was launched"),
+	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace"),
+	'`\${process}`: ' + localize('process', "the name of the terminal process"),
+	'`\${separator}`: ' + localize('separator', "a conditional separator (\" - \") that only shows when surrounded by variables with values or static text."),
+	'`\${sequence}`: ' + localize('sequence', "the name provided to xterm.js by the process"),
+	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task"),
+].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
+
+let terminalTitleDescription = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
+terminalTitleDescription += terminalDescriptors;
+
+let terminalDescriptionDescription = localize('terminalDescription', "Controls the terminal description, which appears to the right of the title. Variables are substituted based on the context:");
+terminalDescriptionDescription += terminalDescriptors;
 
 const terminalConfiguration: IConfigurationNode = {
 	id: 'terminal',
@@ -26,13 +43,19 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true,
 		},
+		[TerminalSettingId.TabsEnableAnimation]: {
+			description: localize('terminal.integrated.tabs.enableAnimation', 'Controls whether terminal tab statuses support animation (eg. in progress tasks).'),
+			type: 'boolean',
+			default: true,
+		},
 		[TerminalSettingId.TabsHideCondition]: {
 			description: localize('terminal.integrated.tabs.hideCondition', 'Controls whether the terminal tabs view will hide under certain conditions.'),
 			type: 'string',
-			enum: ['never', 'singleTerminal'],
+			enum: ['never', 'singleTerminal', 'singleGroup'],
 			enumDescriptions: [
 				localize('terminal.integrated.tabs.hideCondition.never', "Never hide the terminal tabs view"),
 				localize('terminal.integrated.tabs.hideCondition.singleTerminal', "Hide the terminal tabs view when there is only a single terminal opened"),
+				localize('terminal.integrated.tabs.hideCondition.singleGroup', "Hide the terminal tabs view when there is only a single terminal group opened"),
 			],
 			default: 'singleTerminal',
 		},
@@ -48,6 +71,18 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'singleTerminalOrNarrow',
 		},
+		[TerminalSettingId.TabsShowActions]: {
+			description: localize('terminal.integrated.tabs.showActions', 'Controls whether terminal split and kill buttons are displays next to the new terminal button.'),
+			type: 'string',
+			enum: ['always', 'singleTerminal', 'singleTerminalOrNarrow', 'never'],
+			enumDescriptions: [
+				localize('terminal.integrated.tabs.showActions.always', "Always show the actions"),
+				localize('terminal.integrated.tabs.showActions.singleTerminal', "Show the actions when it is the only terminal opened"),
+				localize('terminal.integrated.tabs.showActions.singleTerminalOrNarrow', "Show the actions when it is the only terminal opened or when the tabs view is in its narrow textless state"),
+				localize('terminal.integrated.tabs.showActions.never', "Never show the actions"),
+			],
+			default: 'singleTerminalOrNarrow',
+		},
 		[TerminalSettingId.TabsLocation]: {
 			type: 'string',
 			enum: ['left', 'right'],
@@ -57,6 +92,16 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'right',
 			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
+		},
+		[TerminalSettingId.DefaultLocation]: {
+			type: 'string',
+			enum: [TerminalLocationString.Editor, TerminalLocationString.TerminalView],
+			enumDescriptions: [
+				localize('terminal.integrated.defaultLocation.editor', "Create terminals in the editor"),
+				localize('terminal.integrated.defaultLocation.view', "Create terminals in the terminal view")
+			],
+			default: 'view',
+			description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear.")
 		},
 		[TerminalSettingId.TabsFocusMode]: {
 			type: 'string',
@@ -106,7 +151,9 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.FontSize]: {
 			description: localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
 			type: 'number',
-			default: isMacintosh ? 12 : 14
+			default: isMacintosh ? 12 : 14,
+			minimum: 6,
+			maximum: 100
 		},
 		[TerminalSettingId.LetterSpacing]: {
 			description: localize('terminal.integrated.letterSpacing', "Controls the letter spacing of the terminal, this is an integer value which represents the amount of additional pixels to add between characters."),
@@ -209,14 +256,30 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.GpuAcceleration]: {
 			type: 'string',
-			enum: ['auto', 'on', 'off'],
+			enum: ['auto', 'on', 'off', 'canvas'],
 			markdownEnumDescriptions: [
 				localize('terminal.integrated.gpuAcceleration.auto', "Let VS Code detect which renderer will give the best experience."),
 				localize('terminal.integrated.gpuAcceleration.on', "Enable GPU acceleration within the terminal."),
-				localize('terminal.integrated.gpuAcceleration.off', "Disable GPU acceleration within the terminal.")
+				localize('terminal.integrated.gpuAcceleration.off', "Disable GPU acceleration within the terminal."),
+				localize('terminal.integrated.gpuAcceleration.canvas', "Use the fallback canvas renderer within the terminal. This uses a 2d context instead of webgl and may be better on some systems.")
 			],
 			default: 'auto',
 			description: localize('terminal.integrated.gpuAcceleration', "Controls whether the terminal will leverage the GPU to do its rendering.")
+		},
+		[TerminalSettingId.TerminalTitleSeparator]: {
+			'type': 'string',
+			'default': ' - ',
+			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by `terminal.integrated.title` and `terminal.integrated.description`.")
+		},
+		[TerminalSettingId.TerminalTitle]: {
+			'type': 'string',
+			'default': '${process}',
+			'markdownDescription': terminalTitleDescription
+		},
+		[TerminalSettingId.TerminalDescription]: {
+			'type': 'string',
+			'default': '${task}${separator}${local}${separator}${cwdFolder}',
+			'markdownDescription': terminalDescriptionDescription
 		},
 		[TerminalSettingId.RightClickBehavior]: {
 			type: 'string',
@@ -234,12 +297,31 @@ const terminalConfiguration: IConfigurationNode = {
 			restricted: true,
 			description: localize('terminal.integrated.cwd', "An explicit start path where the terminal will be launched, this is used as the current working directory (cwd) for the shell process. This may be particularly useful in workspace settings if the root directory is not a convenient cwd."),
 			type: 'string',
-			default: undefined
+			default: undefined,
+			scope: ConfigurationScope.RESOURCE
 		},
 		[TerminalSettingId.ConfirmOnExit]: {
-			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm on exit if there are active terminal sessions."),
-			type: 'boolean',
-			default: false
+			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm when the window closes if there are active terminal sessions."),
+			type: 'string',
+			enum: ['never', 'always', 'hasChildProcesses'],
+			enumDescriptions: [
+				localize('terminal.integrated.confirmOnExit.never', "Never confirm."),
+				localize('terminal.integrated.confirmOnExit.always', "Always confirm if there are terminals."),
+				localize('terminal.integrated.confirmOnExit.hasChildProcesses', "Confirm if there are any terminals that have child processes."),
+			],
+			default: 'never'
+		},
+		[TerminalSettingId.ConfirmOnKill]: {
+			description: localize('terminal.integrated.confirmOnKill', "Controls whether to confirm killing terminals when they have child processes. When set to editor, terminals in the editor area will be marked as changed when they have child processes. Note that child process detection may not work well for shells like Git Bash which don't run their processes as child processes of the shell."),
+			type: 'string',
+			enum: ['never', 'editor', 'panel', 'always'],
+			enumDescriptions: [
+				localize('terminal.integrated.confirmOnKill.never', "Never confirm."),
+				localize('terminal.integrated.confirmOnKill.editor', "Confirm if the terminal is in the editor."),
+				localize('terminal.integrated.confirmOnKill.panel', "Confirm if the terminal is in the panel."),
+				localize('terminal.integrated.confirmOnKill.always', "Confirm if the terminal is either in the editor or panel."),
+			],
+			default: 'editor'
 		},
 		[TerminalSettingId.EnableBell]: {
 			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled, this shows up as a visual bell next to the terminal's name."),
@@ -247,7 +329,12 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		[TerminalSettingId.CommandsToSkipShell]: {
-			markdownDescription: localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell but instead always be handled by VS Code. This allows keybindings that would normally be consumed by the shell to act instead the same as when the terminal is not focused, for example `Ctrl+P` to launch Quick Open.\n\n&nbsp;\n\nMany commands are skipped by default. To override a default and pass that command's keybinding to the shell instead, add the command prefixed with the `-` character. For example add `-workbench.action.quickOpen` to allow `Ctrl+P` to reach the shell.\n\n&nbsp;\n\nThe following list of default skipped commands is truncated when viewed in Settings Editor. To see the full list, [open the default settings JSON](command:workbench.action.openRawDefaultSettings 'Open Default Settings (JSON)') and search for the first command from the list below.\n\n&nbsp;\n\nDefault Skipped Commands:\n\n{0}", DEFAULT_COMMANDS_TO_SKIP_SHELL.sort().map(command => `- ${command}`).join('\n')),
+			markdownDescription: localize(
+				'terminal.integrated.commandsToSkipShell',
+				"A set of command IDs whose keybindings will not be sent to the shell but instead always be handled by VS Code. This allows keybindings that would normally be consumed by the shell to act instead the same as when the terminal is not focused, for example `Ctrl+P` to launch Quick Open.\n\n&nbsp;\n\nMany commands are skipped by default. To override a default and pass that command's keybinding to the shell instead, add the command prefixed with the `-` character. For example add `-workbench.action.quickOpen` to allow `Ctrl+P` to reach the shell.\n\n&nbsp;\n\nThe following list of default skipped commands is truncated when viewed in Settings Editor. To see the full list, {1} and search for the first command from the list below.\n\n&nbsp;\n\nDefault Skipped Commands:\n\n{0}",
+				DEFAULT_COMMANDS_TO_SKIP_SHELL.sort().map(command => `- ${command}`).join('\n'),
+				`[${localize('openDefaultSettingsJson', "open the default settings JSON")}](command:workbench.action.openRawDefaultSettings '${localize('openDefaultSettingsJson.capitalized', "Open Default Settings (JSON)")}')`
+			),
 			type: 'array',
 			items: {
 				type: 'string'
@@ -331,12 +418,8 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.WordSeparators]: {
 			description: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators by the double click to select word feature."),
 			type: 'string',
-			default: ' ()[]{}\',"`─'
-		},
-		[TerminalSettingId.ExperimentalUseTitleEvent]: {
-			description: localize('terminal.integrated.experimentalUseTitleEvent', "An experimental setting that will use the terminal title event for the dropdown title. This setting will only apply to new terminals."),
-			type: 'boolean',
-			default: false
+			// allow-any-unicode-next-line
+			default: ' ()[]{}\',"`─‘’'
 		},
 		[TerminalSettingId.EnableFileLinks]: {
 			description: localize('terminal.integrated.enableFileLinks', "Whether to enable file links in the terminal. Links can be slow when working on a network drive in particular because each file link is verified against the file system. Changing this will take effect only in new terminals."),
@@ -359,13 +442,24 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.LocalEchoLatencyThreshold]: {
-			description: localize('terminal.integrated.localEchoLatencyThreshold', "Experimental: length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
+			description: localize('terminal.integrated.localEchoLatencyThreshold', "Length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
 			type: 'integer',
 			minimum: -1,
 			default: 30,
 		},
+		[TerminalSettingId.LocalEchoEnabled]: {
+			markdownDescription: localize('terminal.integrated.localEchoEnabled', "When local echo should be enabled. This will override `#terminal.integrated.localEchoLatencyThreshold#`"),
+			type: 'string',
+			enum: ['on', 'off', 'auto'],
+			enumDescriptions: [
+				localize('terminal.integrated.localEchoEnabled.on', "Always enabled"),
+				localize('terminal.integrated.localEchoEnabled.off', "Always disabled"),
+				localize('terminal.integrated.localEchoEnabled.auto', "Enabled only for remote workspaces")
+			],
+			default: 'auto'
+		},
 		[TerminalSettingId.LocalEchoExcludePrograms]: {
-			description: localize('terminal.integrated.localEchoExcludePrograms', "Experimental: local echo will be disabled when any of these program names are found in the terminal title."),
+			description: localize('terminal.integrated.localEchoExcludePrograms', "Local echo will be disabled when any of these program names are found in the terminal title."),
 			type: 'array',
 			items: {
 				type: 'string',
@@ -374,7 +468,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: DEFAULT_LOCAL_ECHO_EXCLUDE,
 		},
 		[TerminalSettingId.LocalEchoStyle]: {
-			description: localize('terminal.integrated.localEchoStyle', "Experimental: terminal style of locally echoed text; either a font style or an RGB color."),
+			description: localize('terminal.integrated.localEchoStyle', "Terminal style of locally echoed text; either a font style or an RGB color."),
 			default: 'dim',
 			oneOf: [
 				{
@@ -394,6 +488,33 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
+		[TerminalSettingId.PersistentSessionReviveProcess]: {
+			markdownDescription: localize('terminal.integrated.persistentSessionReviveProcess', "When the terminal process must be shutdown (eg. on window or application close), this determines when the previous terminal session contents should be restored and processes be recreated when the workspace is next opened.\n\nCaveats:\n\n- Restoring of the process current working directory depends on whether it is supported by the shell.\n- Time to persist the session during shutdown is limited, so it may be aborted when using high-latency remote connections."),
+			type: 'string',
+			enum: ['onExit', 'onExitAndWindowClose', 'never'],
+			markdownEnumDescriptions: [
+				localize('terminal.integrated.persistentSessionReviveProcess.onExit', "Revive the processes after the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu)."),
+				localize('terminal.integrated.persistentSessionReviveProcess.onExitAndWindowClose', "Revive the processes after the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu), or when the window is closed."),
+				localize('terminal.integrated.persistentSessionReviveProcess.never', "Never restore the terminal buffers or recreate the process.")
+			],
+			default: 'onExit'
+		},
+		[TerminalSettingId.CustomGlyphs]: {
+			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work with the DOM renderer"),
+			type: 'boolean',
+			default: true
+		},
+		[TerminalSettingId.AutoReplies]: {
+			description: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses. Note that the message includes escape sequences so the reply might not happen with styled text. Each reply can only happen once every second."),
+			type: 'object',
+			additionalProperties: {
+				type: 'string',
+				description: localize('terminal.integrated.autoReplies.reply', "The reply to send to the process.")
+			},
+			default: {
+				'Terminate batch job (Y/N)': 'Y\r'
+			}
+		}
 	}
 };
 

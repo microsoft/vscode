@@ -109,6 +109,7 @@ export interface IOpenerService {
 
 	/**
 	 * Resolve a resource to its external form.
+	 * @throws whenever resolvers couldn't resolve this resource externally.
 	 */
 	resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri>;
 }
@@ -124,10 +125,14 @@ export const NullOpenerService = Object.freeze({
 	async resolveExternalUri(uri: URI) { return { resolved: uri, dispose() { } }; },
 } as IOpenerService);
 
-export function matchesScheme(target: URI | string, scheme: string) {
+export function matchesScheme(target: URI | string, scheme: string): boolean {
 	if (URI.isUri(target)) {
 		return equalsIgnoreCase(target.scheme, scheme);
 	} else {
 		return startsWithIgnoreCase(target, scheme + ':');
 	}
+}
+
+export function matchesSomeScheme(target: URI | string, ...schemes: string[]): boolean {
+	return schemes.some(scheme => matchesScheme(target, scheme));
 }

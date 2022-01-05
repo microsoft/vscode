@@ -18,10 +18,13 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
 import { Schemas } from 'vs/base/common/network';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -36,13 +39,16 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		@IOpenerService openerService: IOpenerService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IDialogService dialogService: IDialogService,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
 		@ILabelService labelService: ILabelService,
-		@IPathService pathService: IPathService
+		@IPathService pathService: IPathService,
+		@ICommandService commandService: ICommandService,
+		@IEditorService editorService: IEditorService,
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super(hostService, contextService, historyService, environmentService, instantiationService,
-			configurationService, fileService, openerService, dialogService, modeService, workspacesService, labelService, pathService);
+			configurationService, fileService, openerService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService);
 	}
 
 	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
@@ -62,7 +68,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		};
 	}
 
-	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
@@ -76,7 +82,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return this.nativeHostService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
@@ -90,7 +96,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return this.nativeHostService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
@@ -104,6 +110,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 
 	async pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
+		options.availableFileSystems = this.getWorkspaceAvailableFileSystems(options);
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
@@ -186,12 +193,6 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		const result = await this.nativeHostService.showOpenDialog(newOptions);
 		return result && Array.isArray(result.filePaths) && result.filePaths.length > 0 ? result.filePaths.map(URI.file) : undefined;
-	}
-
-	protected addFileSchemaIfNeeded(schema: string): string[] {
-		// Include File schema unless the schema is web
-		// Don't allow untitled schema through.
-		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
 	}
 }
 

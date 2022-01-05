@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { ChecksumService } from 'vs/platform/checksum/node/checksumService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';

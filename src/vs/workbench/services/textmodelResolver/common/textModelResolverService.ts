@@ -6,8 +6,8 @@
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
-import { IDisposable, toDisposable, IReference, ReferenceCollection, Disposable } from 'vs/base/common/lifecycle';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IDisposable, toDisposable, IReference, ReferenceCollection, Disposable, AsyncReferenceCollection } from 'vs/base/common/lifecycle';
+import { IModelService } from 'vs/editor/common/services/model';
 import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
 import { ITextFileService, TextFileResolveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
@@ -17,7 +17,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ModelUndoRedoParticipant } from 'vs/editor/common/services/modelUndoRedoParticipant';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorModel>> {
 
@@ -59,7 +59,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		}
 
 		// File or remote file: go through text file service
-		if (this.fileService.canHandleResource(resource)) {
+		if (this.fileService.hasProvider(resource)) {
 			return this.textFileService.files.resolve(resource, { reason: TextFileResolveReason.REFERENCE });
 		}
 
@@ -89,7 +89,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		}
 
 		// Track as being disposed before waiting for model to load
-		// to handle the case that the reference is aquired again
+		// to handle the case that the reference is acquired again
 		this.modelsToDispose.add(key);
 
 		(async () => {
@@ -97,7 +97,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 				const model = await modelPromise;
 
 				if (!this.modelsToDispose.has(key)) {
-					// return if model has been aquired again meanwhile
+					// return if model has been acquired again meanwhile
 					return;
 				}
 
@@ -108,7 +108,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 				}
 
 				if (!this.modelsToDispose.has(key)) {
-					// return if model has been aquired again meanwhile
+					// return if model has been acquired again meanwhile
 					return;
 				}
 
@@ -174,6 +174,7 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 	declare readonly _serviceBrand: undefined;
 
 	private readonly resourceModelCollection = this.instantiationService.createInstance(ResourceModelCollection);
+	private readonly asyncModelCollection = new AsyncReferenceCollection(this.resourceModelCollection);
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -194,20 +195,8 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 		// with different resource forms (e.g. path casing on Windows)
 		resource = this.uriIdentityService.asCanonicalUri(resource);
 
-		const ref = this.resourceModelCollection.acquire(resource.toString());
-
-		try {
-			const model = await ref.object;
-
-			return {
-				object: model as IResolvedTextEditorModel,
-				dispose: () => ref.dispose()
-			};
-		} catch (error) {
-			ref.dispose();
-
-			throw error;
-		}
+		const result = await this.asyncModelCollection.acquire(resource.toString());
+		return result as IReference<IResolvedTextEditorModel>; // TODO@Ben: why is this cast here?
 	}
 
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
@@ -215,7 +204,7 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 	}
 
 	canHandleResource(resource: URI): boolean {
-		if (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled || resource.scheme === Schemas.inMemory) {
+		if (this.fileService.hasProvider(resource) || resource.scheme === Schemas.untitled || resource.scheme === Schemas.inMemory) {
 			return true; // we handle file://, untitled:// and inMemory:// automatically
 		}
 

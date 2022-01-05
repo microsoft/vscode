@@ -11,7 +11,7 @@ import { EndOfLineSequence, FindMatch } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { SearchData, SearchParams, TextModelSearch, isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 // --------- Find
 suite('TextModelSearch', () => {
@@ -718,20 +718,6 @@ suite('TextModelSearch', () => {
 			[
 				[1, 5, 1, 7],
 				[1, 16, 3, 1]
-			]
-		);
-	});
-
-	test('issue #65281. \w should match line break.', () => {
-		assertFindMatches(
-			[
-				'this/is{',
-				'a test',
-				'}',
-			].join('\n'),
-			'this/\\w*[^}]*', true, false, null,
-			[
-				[1, 1, 3, 1]
 			]
 		);
 	});

@@ -172,6 +172,7 @@ class FileSearchEngine {
 			includes,
 			useIgnoreFiles: !fq.disregardIgnoreFiles,
 			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
+			useParentIgnoreFiles: !fq.disregardParentIgnoreFiles,
 			followSymlinks: !fq.ignoreSymlinks,
 			maxResults: this.config.maxResults,
 			session: this.sessionToken
@@ -225,7 +226,7 @@ class FileSearchEngine {
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what she
 				// is searching for and we want to include the result in that case anyway
-				if (!queryTester.includedInQuerySync(relativePath, basename, filePattern !== basename ? hasSibling : undefined)) {
+				if (queryTester.matchesExcludesSync(relativePath, basename, filePattern !== basename ? hasSibling : undefined)) {
 					continue;
 				}
 

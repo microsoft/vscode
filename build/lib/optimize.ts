@@ -41,7 +41,7 @@ export function loaderConfig() {
 
 const IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
 
-function loader(src: string, bundledFileHeader: string, bundleLoader: boolean): NodeJS.ReadWriteStream {
+function loader(src: string, bundledFileHeader: string, bundleLoader: boolean, externalLoaderInfo?: any): NodeJS.ReadWriteStream {
 	let sources = [
 		`${src}/vs/loader.js`
 	];
@@ -68,6 +68,15 @@ function loader(src: string, bundledFileHeader: string, bundleLoader: boolean): 
 				} else {
 					this.emit('data', data);
 				}
+			}, function () {
+				if (externalLoaderInfo !== undefined) {
+					this.emit('data', new VinylFile({
+						path: 'fake2',
+						base: '.',
+						contents: Buffer.from(`require.config(${JSON.stringify(externalLoaderInfo, undefined, 2)});`)
+					}));
+				}
+				this.emit('end');
 			}))
 			.pipe(concat('vs/loader.js'))
 	);
@@ -133,6 +142,10 @@ export interface IOptimizeTaskOpts {
 	 */
 	resources: string[];
 	loaderConfig: any;
+	/**
+	 * Additional info we append to the end of the loader
+	 */
+	externalLoaderInfo?: any;
 	/**
 	 * (true by default - append css and nls to loader)
 	 */
@@ -211,7 +224,7 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 		});
 
 		const result = es.merge(
-			loader(src, bundledFileHeader, bundleLoader),
+			loader(src, bundledFileHeader, bundleLoader, opts.externalLoaderInfo),
 			bundlesStream,
 			resourcesStream,
 			bundleInfoStream
@@ -254,7 +267,7 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 					sourcemap: 'external',
 					outdir: '.',
 					platform: 'node',
-					target: ['node12.18'],
+					target: ['esnext'],
 					write: false
 				}).then(res => {
 					const jsFile = res.outputFiles.find(f => /\.js$/.test(f.path))!;

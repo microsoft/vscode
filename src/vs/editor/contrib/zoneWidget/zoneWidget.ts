@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./zoneWidget';
 import * as dom from 'vs/base/browser/dom';
 import { IHorizontalSashLayoutProvider, ISashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
+import 'vs/css!./zoneWidget';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -146,9 +146,15 @@ class Arrow {
 	}
 
 	show(where: IPosition): void {
+
+		if (where.column === 1) {
+			// the arrow isn't pretty at column 1 and we need to push it out a little
+			where = { lineNumber: where.lineNumber, column: 2 };
+		}
+
 		this._decorations = this._editor.deltaDecorations(
 			this._decorations,
-			[{ range: Range.fromPositions(where), options: { className: this._ruleName, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } }]
+			[{ range: Range.fromPositions(where), options: { description: 'zone-widget-arrow', className: this._ruleName, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } }]
 		);
 	}
 
@@ -485,7 +491,6 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this._resizeSash = this._disposables.add(new Sash(this.domNode, this, { orientation: Orientation.HORIZONTAL }));
 
 		if (!this.options.isResizeable) {
-			this._resizeSash.hide();
 			this._resizeSash.state = SashState.Disabled;
 		}
 

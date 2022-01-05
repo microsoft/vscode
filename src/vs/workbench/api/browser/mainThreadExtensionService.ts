@@ -21,6 +21,7 @@ import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensio
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
@@ -35,6 +36,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		@IHostService private readonly _hostService: IHostService,
 		@IWorkbenchExtensionEnablementService private readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@ITimerService private readonly _timerService: ITimerService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		this._extensionHostKind = extHostContext.extensionHostKind;
@@ -105,15 +107,36 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 			});
 		} else {
 			const enablementState = this._extensionEnablementService.getEnablementState(missingInstalledDependency);
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: localize('disabledDep', "Cannot activate the '{0}' extension because it depends on the '{1}' extension, which is disabled. Would you like to enable the extension and reload the window?", extName, missingInstalledDependency.manifest.displayName || missingInstalledDependency.manifest.name),
-				actions: {
-					primary: [new Action('enable', localize('enable dep', "Enable and Reload"), '', true,
-						() => this._extensionEnablementService.setEnablement([missingInstalledDependency], enablementState === EnablementState.DisabledGlobally ? EnablementState.EnabledGlobally : EnablementState.EnabledWorkspace)
-							.then(() => this._hostService.reload(), e => this._notificationService.error(e)))]
-				}
-			});
+			if (enablementState === EnablementState.DisabledByVirtualWorkspace) {
+				this._notificationService.notify({
+					severity: Severity.Error,
+					message: localize('notSupportedInWorkspace', "Cannot activate the '{0}' extension because it depends on the '{1}' extension which is not supported in the current workspace", extName, missingInstalledDependency.manifest.displayName || missingInstalledDependency.manifest.name),
+				});
+			} else if (enablementState === EnablementState.DisabledByTrustRequirement) {
+				this._notificationService.notify({
+					severity: Severity.Error,
+					message: localize('restrictedMode', "Cannot activate the '{0}' extension because it depends on the '{1}' extension which is not supported in Restricted Mode", extName, missingInstalledDependency.manifest.displayName || missingInstalledDependency.manifest.name),
+					actions: {
+						primary: [new Action('manageWorkspaceTrust', localize('manageWorkspaceTrust', "Manage Workspace Trust"), '', true,
+							() => this._commandService.executeCommand('workbench.trust.manage'))]
+					}
+				});
+			} else if (this._extensionEnablementService.canChangeEnablement(missingInstalledDependency)) {
+				this._notificationService.notify({
+					severity: Severity.Error,
+					message: localize('disabledDep', "Cannot activate the '{0}' extension because it depends on the '{1}' extension which is disabled. Would you like to enable the extension and reload the window?", extName, missingInstalledDependency.manifest.displayName || missingInstalledDependency.manifest.name),
+					actions: {
+						primary: [new Action('enable', localize('enable dep', "Enable and Reload"), '', true,
+							() => this._extensionEnablementService.setEnablement([missingInstalledDependency], enablementState === EnablementState.DisabledGlobally ? EnablementState.EnabledGlobally : EnablementState.EnabledWorkspace)
+								.then(() => this._hostService.reload(), e => this._notificationService.error(e)))]
+					}
+				});
+			} else {
+				this._notificationService.notify({
+					severity: Severity.Error,
+					message: localize('disabledDepNoAction', "Cannot activate the '{0}' extension because it depends on the '{1}' extension which is disabled.", extName, missingInstalledDependency.manifest.displayName || missingInstalledDependency.manifest.name),
+				});
+			}
 		}
 	}
 

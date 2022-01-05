@@ -10,7 +10,7 @@ import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
 import * as errors from 'vs/base/common/errors';
@@ -18,13 +18,12 @@ import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { Schemas } from 'vs/base/common/network';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchview';
-import { getCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { getCodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -46,14 +45,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getSelectionKeyboardEvent, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Link } from 'vs/platform/opener/browser/link';
+import { INotificationService, } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, foreground, listActiveSelectionForeground, textLinkActiveForeground, textLinkForeground, toolbarActiveBackground, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { attachLinkStyler } from 'vs/platform/theme/common/styler';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
@@ -65,6 +62,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { appendKeyBindingLabel, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchMessage';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, SearchDND } from 'vs/workbench/contrib/search/browser/searchResultsView';
 import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
@@ -89,8 +87,6 @@ export enum SearchViewPosition {
 
 const SEARCH_CANCELLED_MESSAGE = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
 export class SearchView extends ViewPane {
-
-	private static readonly MAX_TEXT_RESULTS = 10000;
 
 	private static readonly ACTIONS_RIGHT_CLASS_NAME = 'actions-right';
 
@@ -323,8 +319,9 @@ export class SearchView extends ViewPane {
 		dom.append(folderIncludesList, $('h4', undefined, filesToIncludeTitle));
 
 		this.inputPatternIncludes = this._register(this.instantiationService.createInstance(IncludePatternInputWidget, folderIncludesList, this.contextViewService, {
-			ariaLabel: nls.localize('label.includes', 'Search Include Patterns'),
-			tooltip: nls.localize('placeholder.includes', "(e.g. *.ts, src/**/include)"),
+			ariaLabel: filesToIncludeTitle,
+			placeholder: nls.localize('placeholder.includes', "e.g. *.ts, src/**/include"),
+			showPlaceholderOnFocus: true,
 			history: patternIncludesHistory,
 		}));
 
@@ -341,8 +338,9 @@ export class SearchView extends ViewPane {
 		const excludesTitle = nls.localize('searchScope.excludes', "files to exclude");
 		dom.append(excludesList, $('h4', undefined, excludesTitle));
 		this.inputPatternExcludes = this._register(this.instantiationService.createInstance(ExcludePatternInputWidget, excludesList, this.contextViewService, {
-			ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns'),
-			tooltip: nls.localize('placeholder.excludes', "(e.g. *.ts, src/**/exclude)"),
+			ariaLabel: excludesTitle,
+			placeholder: nls.localize('placeholder.excludes', "e.g. *.ts, src/**/exclude"),
+			showPlaceholderOnFocus: true,
 			history: patternExclusionsHistory,
 		}));
 
@@ -364,7 +362,7 @@ export class SearchView extends ViewPane {
 		this._register(this.inputPatternIncludes.onSubmit(onFilePatternSubmit));
 		this._register(this.inputPatternExcludes.onSubmit(onFilePatternSubmit));
 
-		this.messagesElement = dom.append(this.container, $('.messages'));
+		this.messagesElement = dom.append(this.container, $('.messages.text-search-provider-messages'));
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.showSearchWithoutFolderMessage();
 		}
@@ -507,7 +505,7 @@ export class SearchView extends ViewPane {
 
 	private refreshAndUpdateCount(event?: IChangeEvent): void {
 		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
-		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles);
+		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors);
 		return this.refreshTree(event);
 	}
 
@@ -914,8 +912,8 @@ export class SearchView extends ViewPane {
 	updateTextFromFindWidgetOrSelection({ allowUnselectedWord = true, allowSearchOnType = true }): boolean {
 		let activeEditor = this.editorService.activeTextEditorControl;
 		if (isCodeEditor(activeEditor) && !activeEditor?.hasTextFocus()) {
-			const controller = CommonFindController.get(activeEditor as ICodeEditor);
-			if (controller.isFindInputFocused()) {
+			const controller = CommonFindController.get(activeEditor);
+			if (controller && controller.isFindInputFocused()) {
 				return this.updateTextFromFindWidget(controller, { allowSearchOnType });
 			}
 
@@ -1242,6 +1240,9 @@ export class SearchView extends ViewPane {
 		if (typeof args.useExcludeSettingsAndIgnoreFiles === 'boolean') {
 			this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(args.useExcludeSettingsAndIgnoreFiles);
 		}
+		if (typeof args.onlyOpenEditors === 'boolean') {
+			this.searchIncludePattern.setOnlySearchInOpenEditors(args.onlyOpenEditors);
+		}
 	}
 
 	toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
@@ -1341,7 +1342,7 @@ export class SearchView extends ViewPane {
 		const options: ITextQueryBuilderOptions = {
 			_reason: 'searchView',
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
-			maxResults: SearchView.MAX_TEXT_RESULTS,
+			maxResults: withNullAsUndefined(this.searchConfig.maxResults),
 			disregardIgnoreFiles: !useExcludesAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !useExcludesAndIgnoreFiles || undefined,
 			onlyOpenEditors: onlySearchInOpenEditors,
@@ -1519,29 +1520,18 @@ export class SearchView extends ViewPane {
 				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
 			}
 
-			let warningMessage = '';
 
 			if (completed && completed.limitHit) {
-				warningMessage += nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.");
+				completed.messages.push({ type: TextSearchCompleteMessageType.Warning, text: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") });
 			}
 
 			if (completed && completed.messages) {
 				for (const message of completed.messages) {
-					if (message.type === TextSearchCompleteMessageType.Information) {
-						this.addMessage(message);
-					}
-					else if (message.type === TextSearchCompleteMessageType.Warning) {
-						warningMessage += (warningMessage ? ' - ' : '') + message.text;
-					}
+					this.addMessage(message);
 				}
 			}
 
-			if (warningMessage) {
-				this.searchWidget.searchInput.showMessage({
-					content: warningMessage,
-					type: MessageType.WARNING
-				});
-			}
+			this.reLayout();
 		};
 
 		const onError = (e: any) => {
@@ -1577,20 +1567,21 @@ export class SearchView extends ViewPane {
 
 		this.searchWidget.setReplaceAllActionState(false);
 
+		this.tree.setSelection([]);
 		return this.viewModel.search(query)
 			.then(onComplete, onError);
 	}
 
 	private onOpenSettings(e: dom.EventLike): void {
 		dom.EventHelper.stop(e, false);
-		this.openSettings('@id:files.exclude,search.exclude,search.useGlobalIgnoreFiles,search.useIgnoreFiles');
+		this.openSettings('@id:files.exclude,search.exclude,search.useParentIgnoreFiles,search.useGlobalIgnoreFiles,search.useIgnoreFiles');
 	}
 
 	private openSettings(query: string): Promise<IEditorPane | undefined> {
 		const options: ISettingsEditorOptions = { query };
 		return this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
-			this.preferencesService.openWorkspaceSettings(undefined, options) :
-			this.preferencesService.openGlobalSettings(undefined, options);
+			this.preferencesService.openWorkspaceSettings(options) :
+			this.preferencesService.openUserSettings(options);
 	}
 
 	private onLearnMore(): void {
@@ -1610,7 +1601,12 @@ export class SearchView extends ViewPane {
 		this.searchExcludePattern.setUseExcludesAndIgnoreFiles(true);
 	}
 
-	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean): void {
+	private onDisableSearchInOpenEditors(): void {
+		this.toggleQueryDetails(false, true);
+		this.inputPatternIncludes.setOnlySearchInOpenEditors(false);
+	}
+
+	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean, onlyOpenEditors?: boolean): void {
 		const fileCount = this.viewModel.searchResult.fileCount();
 		this.hasSearchResultsKey.set(fileCount > 0);
 
@@ -1626,6 +1622,12 @@ export class SearchView extends ViewPane {
 				const excludesDisabledMessage = ' - ' + nls.localize('useIgnoresAndExcludesDisabled', "exclude settings and ignore files are disabled") + ' ';
 				const enableExcludesButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('excludes.enable', "enable"), this.onEnableExcludes.bind(this), nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files")));
 				dom.append(messageEl, $('span', undefined, excludesDisabledMessage, '(', enableExcludesButton.element, ')'));
+			}
+
+			if (onlyOpenEditors) {
+				const searchingInOpenMessage = ' - ' + nls.localize('onlyOpenEditors', "searching only in open files") + ' ';
+				const disableOpenEditorsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openEditors.disable', "disable"), this.onDisableSearchInOpenEditors.bind(this), nls.localize('disableOpenEditors', "Search in entire workspace")));
+				dom.append(messageEl, $('span', undefined, searchingInOpenMessage, '(', disableOpenEditorsButton.element, ')'));
 			}
 
 			dom.append(messageEl, ' - ');
@@ -1646,48 +1648,9 @@ export class SearchView extends ViewPane {
 	}
 
 	private addMessage(message: TextSearchCompleteMessage) {
-		const linkedText = parseLinkedText(message.text);
-
 		const messageBox = this.messagesElement.firstChild as HTMLDivElement;
-		if (!messageBox) {
-			return;
-		}
-
-		const span = dom.append(messageBox, $('span.providerMessage'));
-
-		if (messageBox.innerText) {
-			dom.append(span, document.createTextNode(' - '));
-		}
-
-		for (const node of linkedText.nodes) {
-			if (typeof node === 'string') {
-				dom.append(span, document.createTextNode(node));
-			} else {
-				const link = this.instantiationService.createInstance(Link, node, {
-					opener: async href => {
-						if (!message.trusted) { return; }
-						const parsed = URI.parse(href, true);
-						if (parsed.scheme === Schemas.command && message.trusted) {
-							const result = await this.commandService.executeCommand(parsed.path);
-							if ((result as any)?.triggerSearch) {
-								this.triggerQueryChange();
-							}
-						} else if (parsed.scheme === Schemas.https) {
-							this.openerService.open(parsed);
-						} else {
-							if (parsed.scheme === Schemas.command && !message.trusted) {
-								this.notificationService.error(nls.localize('unable to open trust', "Unable to open command link from untrusted source: {0}", href));
-							} else {
-								this.notificationService.error(nls.localize('unable to open', "Unable to open unknown link: {0}", href));
-							}
-						}
-					}
-				});
-				dom.append(span, link.el);
-				this.messageDisposables.add(link);
-				this.messageDisposables.add(attachLinkStyler(link, this.themeService));
-			}
-		}
+		if (!messageBox) { return; }
+		dom.append(messageBox, renderSearchMessage(message, this.instantiationService, this.notificationService, this.openerService, this.commandService, this.messageDisposables, () => this.triggerQueryChange()));
 	}
 
 	private buildResultCountMessage(resultCount: number, fileCount: number): string {
@@ -1708,20 +1671,10 @@ export class SearchView extends ViewPane {
 		const textEl = dom.append(this.searchWithoutFolderMessageElement,
 			$('p', undefined, nls.localize('searchWithoutFolder', "You have not opened or specified a folder. Only open files are currently searched - ")));
 
-		const actionRunner = this.messageDisposables.add(new ActionRunner());
 		const openFolderButton = this.messageDisposables.add(new SearchLinkButton(
 			nls.localize('openFolder', "Open Folder"),
 			() => {
-				const action = env.isMacintosh ?
-					this.instantiationService.createInstance(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL) :
-					this.instantiationService.createInstance(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL);
-
-				actionRunner.run(action).then(() => {
-					action.dispose();
-				}, err => {
-					action.dispose();
-					errors.onUnexpectedError(err);
-				});
+				this.commandService.executeCommand(env.isMacintosh && env.isNative ? OpenFileFolderAction.ID : OpenFolderAction.ID).catch(err => errors.onUnexpectedError(err));
 			}));
 		dom.append(textEl, openFolderButton.element);
 	}
@@ -1795,7 +1748,7 @@ export class SearchView extends ViewPane {
 					const codeEditor = getCodeEditor(editor.getControl());
 					if (codeEditor) {
 						const multiCursorController = MultiCursorSelectionController.get(codeEditor);
-						multiCursorController.selectAllUsingSelections(selections);
+						multiCursorController?.selectAllUsingSelections(selections);
 					}
 				}
 			}

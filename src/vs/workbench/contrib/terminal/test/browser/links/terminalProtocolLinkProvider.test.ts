@@ -9,8 +9,9 @@ import { Terminal, ILink } from 'xterm';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { URI } from 'vs/base/common/uri';
 
-suite('Workbench - TerminalWebLinkProvider', () => {
+suite('Workbench - TerminalProtocolLinkProvider', () => {
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
@@ -20,7 +21,9 @@ suite('Workbench - TerminalWebLinkProvider', () => {
 
 	async function assertLink(text: string, expected: { text: string, range: [number, number][] }[]) {
 		const xterm = new Terminal();
-		const provider = instantiationService.createInstance(TerminalProtocolLinkProvider, xterm, () => { }, () => { });
+		const provider = instantiationService.createInstance(TerminalProtocolLinkProvider, xterm, () => { }, () => { }, () => { }, (text: string, cb: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => {
+			cb({ uri: URI.parse(text), isDirectory: false });
+		});
 
 		// Write the text and wait for the parser to finish
 		await new Promise<void>(r => xterm.write(text, r));

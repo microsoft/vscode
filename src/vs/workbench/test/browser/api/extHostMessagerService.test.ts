@@ -10,27 +10,8 @@ import { INotificationService, INotification, NoOpNotification, INotificationHan
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { mock } from 'vs/base/test/common/mock';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
-
-const emptyDialogService = new class implements IDialogService {
-	declare readonly _serviceBrand: undefined;
-	show(): never {
-		throw new Error('not implemented');
-	}
-
-	confirm(): never {
-		throw new Error('not implemented');
-	}
-
-	about(): never {
-		throw new Error('not implemented');
-	}
-
-	input(): never {
-		throw new Error('not implemented');
-	}
-};
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 
 const emptyCommandService: ICommandService = {
 	_serviceBrand: undefined,
@@ -107,8 +88,8 @@ suite('ExtHostMessageService', function () {
 
 		let service = new MainThreadMessageService(null!, new EmptyNotificationService(notification => {
 			assert.strictEqual(notification.actions!.primary!.length, 1);
-			platform.setImmediate(() => notification.actions!.primary![0].run());
-		}), emptyCommandService, emptyDialogService);
+			queueMicrotask(() => notification.actions!.primary![0].run());
+		}), emptyCommandService, new TestDialogService());
 
 		const handle = await service.$showMessage(1, 'h', {}, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]);
 		assert.strictEqual(handle, 42);

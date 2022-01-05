@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/f074a48ae0b7ba313af3faf3d8bfda8537864bd1",
+	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/db3f4e4a5d8335b2f6d689bec490c23f8313630f",
 	"name": "C++",
 	"scopeName": "source.cpp",
 	"patterns": [
@@ -2179,7 +2179,7 @@
 			]
 		},
 		"control_flow_keywords": {
-			"match": "((?:((?:(?>(?:\\s)+)|\\/\\*(?:[^\\*]|(?:\\*)++[^\\/])*+(?:\\*)++\\/)+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:co_return)|(?:co_yield)|(?:co_await)|(?:continue)|(?:default)|(?:return)|(?:switch)|(?:catch)|(?:while)|(?:throw)|(?:break)|(?:else)|(?:case)|(?:goto)|(?:for)|(?:try)|(?:if)|(?:do))(?!\\w))",
+			"match": "((?:((?:(?>(?:\\s)+)|\\/\\*(?:[^\\*]|(?:\\*)++[^\\/])*+(?:\\*)++\\/)+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:co_return)|(?:co_yield)|(?:co_await)|(?:continue)|(?:default)|(?:switch)|(?:return)|(?:catch)|(?:while)|(?:throw)|(?:break)|(?:case)|(?:goto)|(?:else)|(?:for)|(?:try)|(?:if)|(?:do))(?!\\w))",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -5397,6 +5397,9 @@
 			"patterns": [
 				{
 					"include": "#ever_present_context"
+				},
+				{
+					"include": "#string_context"
 				},
 				{
 					"include": "#parameter"

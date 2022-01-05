@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { renderText, renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('FormattedTextRenderer', () => {
@@ -47,10 +47,10 @@ suite('FormattedTextRenderer', () => {
 		result = renderFormattedText('``code``');
 		assert.strictEqual(result.innerHTML, '``code``');
 
-		result = renderFormattedText('``code``', { renderCodeSegements: true });
+		result = renderFormattedText('``code``', { renderCodeSegments: true });
 		assert.strictEqual(result.innerHTML, '<code>code</code>');
 
-		result = renderFormattedText('this string has **bold**, __italics__, and ``code``!!', { renderCodeSegements: true });
+		result = renderFormattedText('this string has **bold**, __italics__, and ``code``!!', { renderCodeSegments: true });
 		assert.strictEqual(result.innerHTML, 'this string has <b>bold</b>, <i>italics</i>, and <code>code</code>!!');
 	});
 
@@ -72,10 +72,10 @@ suite('FormattedTextRenderer', () => {
 					assert.strictEqual(content, '0');
 					callbackCalled = true;
 				},
-				disposeables: store
+				disposables: store
 			}
 		});
-		assert.strictEqual(result.innerHTML, '<a href="#">action</a>');
+		assert.strictEqual(result.innerHTML, '<a>action</a>');
 
 		let event: MouseEvent = <any>document.createEvent('MouseEvent');
 		event.initEvent('click', true, true);
@@ -91,10 +91,10 @@ suite('FormattedTextRenderer', () => {
 					assert.strictEqual(content, '0');
 					callbackCalled = true;
 				},
-				disposeables: store
+				disposables: store
 			}
 		});
-		assert.strictEqual(result.innerHTML, '<i><b><a href="#">action</a></b></i>');
+		assert.strictEqual(result.innerHTML, '<i><b><a>action</a></b></i>');
 
 		let event: MouseEvent = <any>document.createEvent('MouseEvent');
 		event.initEvent('click', true, true);
@@ -105,16 +105,16 @@ suite('FormattedTextRenderer', () => {
 	test('fancier action', () => {
 		let callbackCalled = false;
 		let result: HTMLElement = renderFormattedText('``__**[[action]]**__``', {
-			renderCodeSegements: true,
+			renderCodeSegments: true,
 			actionHandler: {
 				callback(content) {
 					assert.strictEqual(content, '0');
 					callbackCalled = true;
 				},
-				disposeables: store
+				disposables: store
 			}
 		});
-		assert.strictEqual(result.innerHTML, '<code><i><b><a href="#">action</a></b></i></code>');
+		assert.strictEqual(result.innerHTML, '<code><i><b><a>action</a></b></i></code>');
 
 		let event: MouseEvent = <any>document.createEvent('MouseEvent');
 		event.initEvent('click', true, true);

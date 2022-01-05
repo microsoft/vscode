@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event, Emitter, PauseableEmitter } from 'vs/base/common/event';
-import { Disposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
-import { InMemoryStorageDatabase, IStorage, Storage } from 'vs/base/parts/storage/common/storage';
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
+import { Disposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
+import { mark } from 'vs/base/common/performance';
+import { isUndefinedOrNull } from 'vs/base/common/types';
+import { InMemoryStorageDatabase, IStorage, Storage } from 'vs/base/parts/storage/common/storage';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 
 export const IS_NEW_KEY = '__$__isNewStorageMarker';
 const TARGET_KEY = '__$__targetStorageMarker';
@@ -156,7 +157,7 @@ export interface IStorageService {
 	 * @returns a `Promise` that can be awaited on when all updates
 	 * to the underlying storage have been flushed.
 	 */
-	flush(): Promise<void>;
+	flush(reason?: WillSaveStateReason): Promise<void>;
 }
 
 export const enum StorageScope {
@@ -244,7 +245,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	private readonly flushWhenIdleScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), this.options.flushInterval));
 	private readonly runFlushWhenIdle = this._register(new MutableDisposable());
 
-	constructor(private options: IStorageServiceOptions = { flushInterval: AbstractStorageService.DEFAULT_FLUSH_INTERVAL }) {
+	constructor(private readonly options: IStorageServiceOptions = { flushInterval: AbstractStorageService.DEFAULT_FLUSH_INTERVAL }) {
 		super();
 	}
 
@@ -271,8 +272,14 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		if (!this.initializationPromise) {
 			this.initializationPromise = (async () => {
 
-				// Ask subclasses to initialize storage
-				await this.doInitialize();
+				// Init all storage locations
+				mark('code/willInitStorage');
+				try {
+					// Ask subclasses to initialize storage
+					await this.doInitialize();
+				} finally {
+					mark('code/didInitStorage');
+				}
 
 				// On some OS we do not get enough time to persist state on shutdown (e.g. when
 				// Windows restarts after applying updates). In other cases, VSCode might crash,
@@ -454,16 +461,33 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this.getBoolean(IS_NEW_KEY, scope) === true;
 	}
 
-	async flush(): Promise<void> {
+	async flush(reason = WillSaveStateReason.NONE): Promise<void> {
 
 		// Signal event to collect changes
-		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
+		this._onWillSaveState.fire({ reason });
 
-		// Await flush
-		await Promises.settled([
-			this.getStorage(StorageScope.GLOBAL)?.whenFlushed() ?? Promise.resolve(),
-			this.getStorage(StorageScope.WORKSPACE)?.whenFlushed() ?? Promise.resolve()
-		]);
+		const globalStorage = this.getStorage(StorageScope.GLOBAL);
+		const workspaceStorage = this.getStorage(StorageScope.WORKSPACE);
+
+		switch (reason) {
+
+			// Unspecific reason: just wait when data is flushed
+			case WillSaveStateReason.NONE:
+				await Promises.settled([
+					globalStorage?.whenFlushed() ?? Promise.resolve(),
+					workspaceStorage?.whenFlushed() ?? Promise.resolve()
+				]);
+				break;
+
+			// Shutdown: we want to flush as soon as possible
+			// and not hit any delays that might be there
+			case WillSaveStateReason.SHUTDOWN:
+				await Promises.settled([
+					globalStorage?.flush(0) ?? Promise.resolve(),
+					workspaceStorage?.flush(0) ?? Promise.resolve()
+				]);
+				break;
+		}
 	}
 
 	async logStorage(): Promise<void> {
@@ -491,8 +515,8 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 export class InMemoryStorageService extends AbstractStorageService {
 
-	private globalStorage = new Storage(new InMemoryStorageDatabase());
-	private workspaceStorage = new Storage(new InMemoryStorageDatabase());
+	private readonly globalStorage = this._register(new Storage(new InMemoryStorageDatabase()));
+	private readonly workspaceStorage = this._register(new Storage(new InMemoryStorageDatabase()));
 
 	constructor() {
 		super();

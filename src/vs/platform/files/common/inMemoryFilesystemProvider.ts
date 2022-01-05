@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as resources from 'vs/base/common/resources';
-import { FileChangeType, FileType, IWatchOptions, IStat, FileSystemProviderErrorCode, FileSystemProviderError, FileWriteOptions, IFileChange, FileDeleteOptions, FileSystemProviderCapabilities, FileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
+import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
 class File implements IStat {
 

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { sep } from 'vs/base/common/path';
 import { IdleValue } from 'vs/base/common/async';
+import { sep } from 'vs/base/common/path';
 
 // When comparing large numbers of strings it's better for performance to create an
 // Intl.Collator object and use the function provided by its compare property
@@ -132,7 +132,7 @@ export function compareFileExtensions(one: string | null, other: string | null):
 	return result;
 }
 
-/** Compares filenames by extenson, then by full filename. Mixes uppercase and lowercase names together. */
+/** Compares filenames by extension, then by full filename. Mixes uppercase and lowercase names together. */
 export function compareFileExtensionsDefault(one: string | null, other: string | null): number {
 	one = one || '';
 	other = other || '';

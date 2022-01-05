@@ -16,7 +16,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { joinPath, isEqualOrParent, basenameOrAuthority } from 'vs/base/common/resources';
 import { SortOrder } from 'vs/workbench/contrib/files/common/files';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class ExplorerModel implements IDisposable {
 
@@ -286,6 +286,7 @@ export class ExplorerItem {
 			// Resolve metadata only when the mtime is needed since this can be expensive
 			// Mtime is only used when the sort order is 'modified'
 			const resolveMetadata = sortOrder === SortOrder.Modified;
+			this.isError = false;
 			try {
 				const stat = await this.fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
 				const resolved = ExplorerItem.create(this.fileService, stat, this);

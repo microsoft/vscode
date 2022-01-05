@@ -9,7 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import * as glob from 'vs/base/common/glob';
 import { IDisposable, DisposableStore, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { posix } from 'vs/base/common/path';
+import { posix, relative } from 'vs/base/common/path';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
@@ -31,7 +31,7 @@ import { IOutline, IOutlineComparator } from 'vs/workbench/services/outline/brow
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 interface ILayoutInfo {
 	maxHeight: number;
@@ -323,7 +323,7 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 		}
 
 		const expression = this._cachedExpressions.get(folder.uri.toString())!;
-		return !expression(element.resource.path, basename(element.resource));
+		return !expression(relative(folder.uri.path, element.resource.path), basename(element.resource));
 	}
 }
 

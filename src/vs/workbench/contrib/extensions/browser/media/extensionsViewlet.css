@@ -20,7 +20,7 @@
 .extensions-viewlet > .header {
 	height: 41px;
 	box-sizing: border-box;
-	padding: 5px 12px 6px 16px;
+	padding: 5px 12px 6px 20px;
 }
 
 .extensions-viewlet > .header > .search-box {
@@ -38,14 +38,13 @@
 	height: calc(100% - 41px);
 }
 
-.extensions-viewlet > .extensions .extension-view-header .count-badge-wrapper,
 .extensions-viewlet > .extensions .extension-list-item .monaco-action-bar,
 .extensions-viewlet > .extensions .extension-view-header .monaco-action-bar {
 	margin-right: 4px;
 }
 
-.extensions-viewlet > .extensions .extension-list-item .monaco-action-bar .action-label.icon {
-	padding: 1px 2px;
+.extensions-viewlet > .extensions .extension-view-header .count-badge-wrapper {
+	margin-right: 12px;
 }
 
 .extensions-viewlet > .extensions .extension-view-header .monaco-action-bar .action-item > .action-label.icon.codicon {
@@ -55,11 +54,6 @@
 
 .extensions-viewlet > .extensions .extension-view-header .monaco-action-bar .action-item.disabled  {
 	display: none;
-}
-
-.extensions-viewlet > .extensions .extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
-.extensions-viewlet > .extensions .extension-list-item .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
-	margin-left: 6px;
 }
 
 .extensions-viewlet > .extensions .extensions-list.hidden,
@@ -102,14 +96,22 @@
 	background: url('loading.svg') center center no-repeat;
 }
 
-.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container,
 .extensions-viewlet > .extensions .extension-list-item.loading > .icon-container {
 	display: none;
 }
 
+.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container > .icon {
+	width: 24px;
+	height: 24px;
+	padding-top: 8px;
+	padding-right: 6px;
+}
+
 .extensions-viewlet:not(.narrow) > .extensions .extension-list-item > .details > .header-container > .header > .extension-remote-badge-container,
-.extensions-viewlet.narrow > .extensions .extension-list-item > .details > .header-container > .header > .ratings,
-.extensions-viewlet.narrow > .extensions .extension-list-item > .details > .header-container > .header > .install-count {
+.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container .extension-badge,
+.extensions-viewlet.mini > .extensions .extension-list-item > .icon-container > .icon,
+.extensions-viewlet.mini > .extensions .extension-list-item > .details > .header-container > .header > .ratings,
+.extensions-viewlet.mini > .extensions .extension-bookmark-container {
 	display: none;
 }
 

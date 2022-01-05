@@ -8,7 +8,7 @@ import { IReference, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
+import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService, FileOperation } from 'vs/platform/files/common/files';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
@@ -17,7 +17,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalResource, extUri, IExtUri } from 'vs/base/common/resources';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { Emitter } from 'vs/base/common/event';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ResourceMap } from 'vs/base/common/map';
@@ -29,8 +29,9 @@ export class BoundModelReferenceCollection {
 
 	constructor(
 		private readonly _extUri: IExtUri,
-		private readonly _maxAge: number = 1000 * 60 * 3,
-		private readonly _maxLength: number = 1024 * 1024 * 80,
+		private readonly _maxAge: number = 1000 * 60 * 3, // auto-dispse by age
+		private readonly _maxLength: number = 1024 * 1024 * 80, // auto-dispose by total length
+		private readonly _maxSize: number = 50 // auto-dispose by number of references
 	) {
 		//
 	}
@@ -69,8 +70,14 @@ export class BoundModelReferenceCollection {
 	}
 
 	private _cleanup(): void {
+		// clean-up wrt total length
 		while (this._length > this._maxLength) {
 			this._data[0].dispose();
+		}
+		// clean-up wrt number of documents
+		const extraSize = Math.ceil(this._maxSize * 1.2);
+		if (this._data.length >= extraSize) {
+			dispose(this._data.slice(0, extraSize - this._maxSize));
 		}
 	}
 }
@@ -131,7 +138,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 
 		this._register(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
 		this._register(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
-		this._register(_modelService.onModelModeChanged(this._onModelModeChanged, this));
+		this._register(_modelService.onModelLanguageChanged(this._onModelModeChanged, this));
 
 		this._register(_textFileService.files.onDidSave(e => {
 			if (this._shouldHandleFileEvent(e.model.resource)) {
@@ -186,12 +193,12 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		this._modelTrackers.set(model.uri, new ModelTracker(model, this._onIsCaughtUpWithContentChanges, this._proxy, this._textFileService));
 	}
 
-	private _onModelModeChanged(event: { model: ITextModel; oldModeId: string; }): void {
+	private _onModelModeChanged(event: { model: ITextModel; oldLanguageId: string; }): void {
 		let { model } = event;
 		if (!this._modelIsSynced.has(model.uri)) {
 			return;
 		}
-		this._proxy.$acceptModelModeChanged(model.uri, model.getLanguageIdentifier().language);
+		this._proxy.$acceptModelLanguageChanged(model.uri, model.getLanguageId());
 	}
 
 	private _onModelRemoved(modelUrl: URI): void {
@@ -264,10 +271,10 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		});
 	}
 
-	private _doCreateUntitled(associatedResource?: URI, mode?: string, initialValue?: string): Promise<URI> {
+	private _doCreateUntitled(associatedResource?: URI, languageId?: string, initialValue?: string): Promise<URI> {
 		return this._textFileService.untitled.resolve({
 			associatedResource,
-			mode,
+			languageId,
 			initialValue
 		}).then(model => {
 			const resource = model.resource;

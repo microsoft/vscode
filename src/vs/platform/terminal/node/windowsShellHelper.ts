@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import type * as WindowsProcessTreeType from 'windows-process-tree';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { debounce } from 'vs/base/common/decorators';
 import { timeout } from 'vs/base/common/async';
+import { debounce } from 'vs/base/common/decorators';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isWindows, platform } from 'vs/base/common/platform';
+import { TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import type * as WindowsProcessTreeType from 'windows-process-tree';
 
 export interface IWindowsShellHelper extends IDisposable {
 	readonly onShellNameChanged: Event<string>;
@@ -120,7 +120,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	/**
 	 * Returns the innermost shell executable running in the terminal
 	 */
-	getShellName(): Promise<string> {
+	async getShellName(): Promise<string> {
 		if (this._isDisposed) {
 			return Promise.resolve('');
 		}
@@ -128,10 +128,10 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		if (this._currentRequest) {
 			return this._currentRequest;
 		}
-		this._currentRequest = new Promise<string>(async resolve => {
-			if (!windowsProcessTree) {
-				windowsProcessTree = await import('windows-process-tree');
-			}
+		if (!windowsProcessTree) {
+			windowsProcessTree = await import('windows-process-tree');
+		}
+		this._currentRequest = new Promise<string>(resolve => {
 			windowsProcessTree.getProcessTree(this._rootProcessId, (tree) => {
 				const name = this.traverseTree(tree);
 				this._currentRequest = undefined;

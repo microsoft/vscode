@@ -12,6 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CLIOutput, IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
 import { getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -21,7 +22,6 @@ import { IOpenWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IExtensionManifest } from 'vs/workbench/workbench.web.api';
 
 
 // this class contains the commands that the CLI server is reying on
@@ -31,8 +31,11 @@ CommandsRegistry.registerCommand('_remoteCLI.openExternal', function (accessor: 
 	return openerService.open(isString(uri) ? uri : URI.revive(uri), { openExternal: true, allowTunneling: true });
 });
 
-CommandsRegistry.registerCommand('_remoteCLI.windowOpen', function (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) {
+CommandsRegistry.registerCommand('_remoteCLI.windowOpen', function (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options: IOpenWindowOptions) {
 	const commandService = accessor.get(ICommandService);
+	if (!toOpen.length) {
+		return commandService.executeCommand('_files.newWindow', options);
+	}
 	return commandService.executeCommand('_files.windowOpen', toOpen, options);
 });
 
@@ -68,7 +71,7 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 		const revive = (inputs: (string | UriComponents)[]) => inputs.map(input => isString(input) ? input : URI.revive(input));
 		if (Array.isArray(args.install) && args.install.length) {
 			try {
-				await cliService.installExtensions(revive(args.install), [], true, !!args.force, output);
+				await cliService.installExtensions(revive(args.install), [], { isMachineScoped: true }, !!args.force, output);
 			} catch (e) {
 				lines.push(e.message);
 			}

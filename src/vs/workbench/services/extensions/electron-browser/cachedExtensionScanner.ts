@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as errors from 'vs/base/common/errors';
@@ -15,12 +14,13 @@ import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE, ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, IRelaxedExtensionDescription } from 'vs/workbench/services/extensions/node/extensionPoints';
 import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
+import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 
 interface IExtensionCacheData {
 	input: ExtensionScannerInput;
@@ -80,32 +80,7 @@ export class CachedExtensionScanner {
 		try {
 			const translations = await this.translationConfig;
 			const { system, user, development } = await CachedExtensionScanner._scanInstalledExtensions(this._hostService, this._notificationService, this._environmentService, this._extensionEnablementService, this._productService, log, translations);
-
-			let result = new Map<string, IExtensionDescription>();
-			system.forEach((systemExtension) => {
-				const extensionKey = ExtensionIdentifier.toKey(systemExtension.identifier);
-				const extension = result.get(extensionKey);
-				if (extension) {
-					log.warn(systemExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, systemExtension.extensionLocation.fsPath));
-				}
-				result.set(extensionKey, systemExtension);
-			});
-			user.forEach((userExtension) => {
-				const extensionKey = ExtensionIdentifier.toKey(userExtension.identifier);
-				const extension = result.get(extensionKey);
-				if (extension) {
-					log.warn(userExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, userExtension.extensionLocation.fsPath));
-				}
-				result.set(extensionKey, userExtension);
-			});
-			development.forEach(developedExtension => {
-				log.info('', nls.localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionLocation.fsPath));
-				const extensionKey = ExtensionIdentifier.toKey(developedExtension.identifier);
-				result.set(extensionKey, developedExtension);
-			});
-			let r: IExtensionDescription[] = [];
-			result.forEach((value) => r.push(value));
-
+			const r = dedupExtensions(system, user, development, log);
 			this._scannedExtensionsResolve(r);
 		} catch (err) {
 			this._scannedExtensionsReject(err);
@@ -131,7 +106,7 @@ export class CachedExtensionScanner {
 		}
 
 		try {
-			await pfs.rimraf(cacheFile, pfs.RimRafMode.MOVE);
+			await pfs.Promises.rm(cacheFile, pfs.RimRafMode.MOVE);
 		} catch (err) {
 			errors.onUnexpectedError(err);
 			console.error(err);
@@ -152,7 +127,7 @@ export class CachedExtensionScanner {
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
 		try {
-			const cacheRawContents = await fs.promises.readFile(cacheFile, 'utf8');
+			const cacheRawContents = await pfs.Promises.readFile(cacheFile, 'utf8');
 			return JSON.parse(cacheRawContents);
 		} catch (err) {
 			// That's ok...
@@ -166,13 +141,13 @@ export class CachedExtensionScanner {
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
 		try {
-			await fs.promises.mkdir(cacheFolder, { recursive: true });
+			await pfs.Promises.mkdir(cacheFolder, { recursive: true });
 		} catch (err) {
 			// That's ok...
 		}
 
 		try {
-			await pfs.writeFile(cacheFile, JSON.stringify(cacheContents));
+			await pfs.Promises.writeFile(cacheFile, JSON.stringify(cacheContents));
 		} catch (err) {
 			// That's ok...
 		}
@@ -185,7 +160,7 @@ export class CachedExtensionScanner {
 		}
 
 		try {
-			const folderStat = await fs.promises.stat(input.absoluteFolderPath);
+			const folderStat = await pfs.Promises.stat(input.absoluteFolderPath);
 			input.mtime = folderStat.mtime.getTime();
 		} catch (err) {
 			// That's ok...
@@ -225,7 +200,7 @@ export class CachedExtensionScanner {
 	private static async _readTranslationConfig(): Promise<Translations> {
 		if (platform.translationsConfigFile) {
 			try {
-				const content = await fs.promises.readFile(platform.translationsConfigFile, 'utf8');
+				const content = await pfs.Promises.readFile(platform.translationsConfigFile, 'utf8');
 				return JSON.parse(content) as Translations;
 			} catch (err) {
 				// no problemo
@@ -265,7 +240,7 @@ export class CachedExtensionScanner {
 			const builtInExtensions = Promise.resolve<IBuiltInExtension[]>(productService.builtInExtensions || []);
 
 			const controlFilePath = joinPath(environmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json').fsPath;
-			const controlFile = fs.promises.readFile(controlFilePath, 'utf8')
+			const controlFile = pfs.Promises.readFile(controlFilePath, 'utf8')
 				.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
 
 			const input = new ExtensionScannerInput(version, date, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, false, translations);

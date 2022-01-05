@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { sep } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { IExpression } from 'vs/base/common/glob';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { startsWithIgnoreCase } from 'vs/base/common/strings';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { isNumber, isUndefinedOrNull } from 'vs/base/common/types';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
+import { IExpression } from 'vs/base/common/glob';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
+import { sep } from 'vs/base/common/path';
+import { ReadableStreamEvents } from 'vs/base/common/stream';
+import { startsWithIgnoreCase } from 'vs/base/common/strings';
+import { isNumber } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 //#region file service & providers
 
@@ -57,9 +57,22 @@ export interface IFileService {
 	activateProvider(scheme: string): Promise<void>;
 
 	/**
-	 * Checks if this file service can handle the given resource.
+	 * Checks if this file service can handle the given resource by
+	 * first activating any extension that wants to be activated
+	 * on the provided resource scheme to include extensions that
+	 * contribute file system providers for the given resource.
 	 */
-	canHandleResource(resource: URI): boolean;
+	canHandleResource(resource: URI): Promise<boolean>;
+
+	/**
+	 * Checks if the file service has a registered provider for the
+	 * provided resource.
+	 *
+	 * Note: this does NOT account for contributed providers from
+	 * extensions that have not been activated yet. To include those,
+	 * consider to call `await fileService.canHandleResource(resource)`.
+	 */
+	hasProvider(resource: URI): boolean;
 
 	/**
 	 * Checks if the provider for the provided resource has the provided file system capability.
@@ -76,6 +89,15 @@ export interface IFileService {
 	 * (if any) as well as all files that have been watched explicitly using the #watch() API.
 	 */
 	readonly onDidFilesChange: Event<FileChangesEvent>;
+
+	/**
+	 *
+	 * Raw access to all file events emitted from file system providers.
+	 *
+	 * @deprecated use this method only if you know what you are doing. use the other watch related events
+	 * and APIs for more efficient file watching.
+	 */
+	readonly onDidChangeFilesRaw: Event<IRawFileChangesEvent>;
 
 	/**
 	 * An event that is fired upon successful completion of a certain file operation.
@@ -114,12 +136,12 @@ export interface IFileService {
 	/**
 	 * Read the contents of the provided resource unbuffered.
 	 */
-	readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent>;
+	readFile(resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent>;
 
 	/**
 	 * Read the contents of the provided resource buffered as stream.
 	 */
-	readFileStream(resource: URI, options?: IReadFileStreamOptions): Promise<IFileStreamContent>;
+	readFileStream(resource: URI, options?: IReadFileStreamOptions, token?: CancellationToken): Promise<IFileStreamContent>;
 
 	/**
 	 * Updates the content replacing its previous value.
@@ -186,11 +208,17 @@ export interface IFileService {
 	canDelete(resource: URI, options?: Partial<FileDeleteOptions>): Promise<Error | true>;
 
 	/**
+	 * An event that signals an error when watching for file changes.
+	 */
+	readonly onDidWatchError: Event<Error>;
+
+	/**
 	 * Allows to start a watcher that reports file/folder change events on the provided resource.
 	 *
-	 * Note: watching a folder does not report events recursively for child folders yet.
+	 * Note: watching a folder does not report events recursively unless the provided options
+	 * explicitly opt-in to recursive watching.
 	 */
-	watch(resource: URI): IDisposable;
+	watch(resource: URI, options?: IWatchOptions): IDisposable;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -215,6 +243,26 @@ export interface FileUnlockOptions {
 	 * attempt to write to unless `unlock: true` is provided.
 	 */
 	readonly unlock: boolean;
+}
+
+export interface FileAtomicReadOptions {
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `readFile` method is not running in parallel with
+	 * any `write` operations in the same process.
+	 *
+	 * Typically you should not need to use this flag but if
+	 * for example you are quickly reading a file right after
+	 * a file event occurred and the file changes a lot, there
+	 * is a chance that a read returns an empty or partial file
+	 * because a pending write has not finished yet.
+	 *
+	 * Note: this does not prevent the file from being written
+	 * to from a different process. If you need such atomic
+	 * operations, you better use a real database as storage.
+	 */
+	readonly atomic: true;
 }
 
 export interface FileReadStreamOptions {
@@ -405,7 +453,13 @@ export const enum FileSystemProviderCapabilities {
 	/**
 	 * Provider support to unlock files for writing.
 	 */
-	FileWriteUnlock = 1 << 13
+	FileWriteUnlock = 1 << 13,
+
+	/**
+	 * Provider support to read files atomically. This implies the
+	 * provider provides the `FileReadWrite` capability too.
+	 */
+	FileAtomicRead = 1 << 14
 }
 
 export interface IFileSystemProvider {
@@ -413,9 +467,8 @@ export interface IFileSystemProvider {
 	readonly capabilities: FileSystemProviderCapabilities;
 	readonly onDidChangeCapabilities: Event<void>;
 
-	readonly onDidErrorOccur?: Event<string>;
-
 	readonly onDidChangeFile: Event<readonly IFileChange[]>;
+	readonly onDidWatchError?: Event<string>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
 
 	stat(resource: URI): Promise<IStat>;
@@ -473,6 +526,18 @@ export function hasFileReadStreamCapability(provider: IFileSystemProvider): prov
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileReadStream);
 }
 
+export interface IFileSystemProviderWithFileAtomicReadCapability extends IFileSystemProvider {
+	readFile(resource: URI, opts?: FileAtomicReadOptions): Promise<Uint8Array>;
+}
+
+export function hasFileAtomicReadCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicReadCapability {
+	if (!hasReadWriteCapability(provider)) {
+		return false; // we require the `FileReadWrite` capability too
+	}
+
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicRead);
+}
+
 export enum FileSystemProviderErrorCode {
 	FileExists = 'EntryExists',
 	FileNotFound = 'EntryNotFound',
@@ -488,7 +553,7 @@ export enum FileSystemProviderErrorCode {
 
 export class FileSystemProviderError extends Error {
 
-	constructor(message: string, public readonly code: FileSystemProviderErrorCode) {
+	constructor(message: string, readonly code: FileSystemProviderErrorCode) {
 		super(message);
 	}
 }
@@ -605,7 +670,7 @@ export class FileOperationEvent {
 
 	constructor(resource: URI, operation: FileOperation.DELETE);
 	constructor(resource: URI, operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY, target: IFileStatWithMetadata);
-	constructor(public readonly resource: URI, public readonly operation: FileOperation, public readonly target?: IFileStatWithMetadata) { }
+	constructor(readonly resource: URI, readonly operation: FileOperation, readonly target?: IFileStatWithMetadata) { }
 
 	isOperation(operation: FileOperation.DELETE): boolean;
 	isOperation(operation: FileOperation.MOVE | FileOperation.COPY | FileOperation.CREATE): this is { readonly target: IFileStatWithMetadata };
@@ -639,42 +704,46 @@ export interface IFileChange {
 	readonly resource: URI;
 }
 
-export class FileChangesEvent {
+export interface IRawFileChangesEvent {
 
 	/**
-	 * @deprecated use the `contains()` or `affects` method to efficiently find
-	 * out if the event relates to a given resource. these methods ensure:
-	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
-	 * - correctly handles `FileChangeType.DELETED` events
+	 * @deprecated use `FileChangesEvent` instead unless you know what you are doing
 	 */
 	readonly changes: readonly IFileChange[];
+}
+
+export class FileChangesEvent {
 
 	private readonly added: TernarySearchTree<URI, IFileChange> | undefined = undefined;
 	private readonly updated: TernarySearchTree<URI, IFileChange> | undefined = undefined;
 	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
 
-	constructor(changes: readonly IFileChange[], private readonly ignorePathCasing: boolean) {
-		this.changes = changes;
+	constructor(changes: readonly IFileChange[], ignorePathCasing: boolean) {
+
+		const entriesByType = new Map<FileChangeType, [URI, IFileChange][]>();
 
 		for (const change of changes) {
-			switch (change.type) {
+			const array = entriesByType.get(change.type);
+			if (array) {
+				array.push([change.resource, change]);
+			} else {
+				entriesByType.set(change.type, [[change.resource, change]]);
+			}
+		}
+
+		for (const [key, value] of entriesByType) {
+			switch (key) {
 				case FileChangeType.ADDED:
-					if (!this.added) {
-						this.added = TernarySearchTree.forUris<IFileChange>(() => this.ignorePathCasing);
-					}
-					this.added.set(change.resource, change);
+					this.added = TernarySearchTree.forUris<IFileChange>(() => ignorePathCasing);
+					this.added.fill(value);
 					break;
 				case FileChangeType.UPDATED:
-					if (!this.updated) {
-						this.updated = TernarySearchTree.forUris<IFileChange>(() => this.ignorePathCasing);
-					}
-					this.updated.set(change.resource, change);
+					this.updated = TernarySearchTree.forUris<IFileChange>(() => ignorePathCasing);
+					this.updated.fill(value);
 					break;
 				case FileChangeType.DELETED:
-					if (!this.deleted) {
-						this.deleted = TernarySearchTree.forUris<IFileChange>(() => this.ignorePathCasing);
-					}
-					this.deleted.set(change.resource, change);
+					this.deleted = TernarySearchTree.forUris<IFileChange>(() => ignorePathCasing);
+					this.deleted.fill(value);
 					break;
 			}
 		}
@@ -742,30 +811,10 @@ export class FileChangesEvent {
 	}
 
 	/**
-	 * @deprecated use the `contains()` method to efficiently find out if the event
-	 * relates to a given resource. this method ensures:
-	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
-	 * - correctly handles `FileChangeType.DELETED` events
-	 */
-	getAdded(): IFileChange[] {
-		return this.getOfType(FileChangeType.ADDED);
-	}
-
-	/**
 	 * Returns if this event contains added files.
 	 */
 	gotAdded(): boolean {
 		return !!this.added;
-	}
-
-	/**
-	 * @deprecated use the `contains()` method to efficiently find out if the event
-	 * relates to a given resource. this method ensures:
-	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
-	 * - correctly handles `FileChangeType.DELETED` events
-	 */
-	getDeleted(): IFileChange[] {
-		return this.getOfType(FileChangeType.DELETED);
 	}
 
 	/**
@@ -776,44 +825,36 @@ export class FileChangesEvent {
 	}
 
 	/**
-	 * @deprecated use the `contains()` method to efficiently find out if the event
-	 * relates to a given resource. this method ensures:
-	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
-	 * - correctly handles `FileChangeType.DELETED` events
-	 */
-	getUpdated(): IFileChange[] {
-		return this.getOfType(FileChangeType.UPDATED);
-	}
-
-	/**
 	 * Returns if this event contains updated files.
 	 */
 	gotUpdated(): boolean {
 		return !!this.updated;
 	}
 
-	private getOfType(type: FileChangeType): IFileChange[] {
-		const changes: IFileChange[] = [];
-
-		const eventsForType = type === FileChangeType.ADDED ? this.added : type === FileChangeType.UPDATED ? this.updated : this.deleted;
-		if (eventsForType) {
-			for (const [, change] of eventsForType) {
-				changes.push(change);
-			}
-		}
-
-		return changes;
-	}
-
 	/**
-	 * @deprecated use the `contains()` method to efficiently find out if the event
-	 * relates to a given resource. this method ensures:
-	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
+	 * @deprecated use the `contains` or `affects` method to efficiently find
+	 * out if the event relates to a given resource. these methods ensure:
+	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
 	 * - correctly handles `FileChangeType.DELETED` events
 	 */
-	filter(filterFn: (change: IFileChange) => boolean): FileChangesEvent {
-		return new FileChangesEvent(this.changes.filter(change => filterFn(change)), this.ignorePathCasing);
-	}
+	get rawAdded(): TernarySearchTree<URI, IFileChange> | undefined { return this.added; }
+
+	/**
+	 * @deprecated use the `contains` or `affects` method to efficiently find
+	 * out if the event relates to a given resource. these methods ensure:
+	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
+	 * - correctly handles `FileChangeType.DELETED` events
+	 */
+	get rawUpdated(): TernarySearchTree<URI, IFileChange> | undefined { return this.updated; }
+
+	/**
+	 * @deprecated use the `contains` or `affects` method to efficiently find
+	 * out if the event relates to a given resource. these methods ensure:
+	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
+	 * - correctly handles `FileChangeType.DELETED` events
+	 */
+	get rawDeleted(): TernarySearchTree<URI, IFileChange> | undefined { return this.deleted; }
+
 }
 
 export function isParent(path: string, candidate: string, ignoreCase?: boolean): boolean {
@@ -975,7 +1016,7 @@ export interface IReadFileOptions extends IBaseReadFileOptions {
 	 *
 	 * Typically you should not need to use this flag but if
 	 * for example you are quickly reading a file right after
-	 * a file event occured and the file changes a lot, there
+	 * a file event occurred and the file changes a lot, there
 	 * is a chance that a read returns an empty or partial file
 	 * because a pending write has not finished yet.
 	 *
@@ -1038,12 +1079,23 @@ export interface ICreateFileOptions {
 }
 
 export class FileOperationError extends Error {
-	constructor(message: string, public fileOperationResult: FileOperationResult, public options?: IReadFileOptions & IWriteFileOptions & ICreateFileOptions) {
+	constructor(
+		message: string,
+		readonly fileOperationResult: FileOperationResult,
+		readonly options?: IReadFileOptions & IWriteFileOptions & ICreateFileOptions
+	) {
 		super(message);
 	}
+}
 
-	static isFileOperationError(obj: unknown): obj is FileOperationError {
-		return obj instanceof Error && !isUndefinedOrNull((obj as FileOperationError).fileOperationResult);
+export class NotModifiedSinceFileOperationError extends FileOperationError {
+
+	constructor(
+		message: string,
+		readonly stat: IFileStatWithMetadata,
+		options?: IReadFileOptions
+	) {
+		super(message, FileOperationResult.FILE_NOT_MODIFIED_SINCE, options);
 	}
 }
 
@@ -1087,6 +1139,7 @@ export interface IFilesConfiguration {
 		associations: { [filepattern: string]: string };
 		exclude: IExpression;
 		watcherExclude: { [filepattern: string]: boolean };
+		watcherInclude: string[];
 		encoding: string;
 		autoGuessEncoding: boolean;
 		defaultLanguage: string;
@@ -1126,7 +1179,7 @@ export function etag(stat: { mtime: number | undefined, size: number | undefined
 }
 
 export async function whenProviderRegistered(file: URI, fileService: IFileService): Promise<void> {
-	if (fileService.canHandleResource(URI.from({ scheme: file.scheme }))) {
+	if (fileService.hasProvider(URI.from({ scheme: file.scheme }))) {
 		return;
 	}
 

@@ -22,13 +22,14 @@ import { editorWidgetBackground, editorWidgetForeground, inputActiveOptionBackgr
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/replacePattern';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
-const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous match");
-const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next match");
+const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
+const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
-const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
+const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace");
 const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
 const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
 const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
@@ -267,6 +268,13 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 	protected get replaceValue() {
 		return this._replaceInput.getValue();
+	}
+
+	protected get replacePattern() {
+		if (this._state.isRegex) {
+			return parseReplaceString(this.replaceValue);
+		}
+		return ReplacePattern.fromStaticValue(this.replaceValue);
 	}
 
 	public get focusTracker(): dom.IFocusTracker {

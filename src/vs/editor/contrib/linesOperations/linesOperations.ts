@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsText } from 'vs/editor/common/commands/replaceCommand';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -21,9 +21,9 @@ import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/mod
 import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/copyLinesCommand';
 import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCommand';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
+import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 // copy lines
 
@@ -282,6 +282,74 @@ export class SortLinesDescendingAction extends AbstractSortLinesAction {
 	}
 }
 
+export class DeleteDuplicateLinesAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.removeDuplicateLines',
+			label: nls.localize('lines.deleteDuplicates', "Delete Duplicate Lines"),
+			alias: 'Delete Duplicate Lines',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		let model: ITextModel = editor.getModel();
+		if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
+			return;
+		}
+
+		let edits: IIdentifiedSingleEditOperation[] = [];
+		let endCursorState: Selection[] = [];
+
+		let linesDeleted = 0;
+
+		for (let selection of editor.getSelections()) {
+			let uniqueLines = new Set();
+			let lines = [];
+
+			for (let i = selection.startLineNumber; i <= selection.endLineNumber; i++) {
+				let line = model.getLineContent(i);
+
+				if (uniqueLines.has(line)) {
+					continue;
+				}
+
+				lines.push(line);
+				uniqueLines.add(line);
+			}
+
+
+			let selectionToReplace = new Selection(
+				selection.startLineNumber,
+				1,
+				selection.endLineNumber,
+				model.getLineMaxColumn(selection.endLineNumber)
+			);
+
+			let adjustedSelectionStart = selection.startLineNumber - linesDeleted;
+			let finalSelection = new Selection(
+				adjustedSelectionStart,
+				1,
+				adjustedSelectionStart + lines.length - 1,
+				lines[lines.length - 1].length
+			);
+
+			edits.push(EditOperation.replace(selectionToReplace, lines.join('\n')));
+			endCursorState.push(finalSelection);
+
+			linesDeleted += (selection.endLineNumber - selection.startLineNumber + 1) - lines.length;
+		}
+
+		editor.pushUndoStop();
+		editor.executeEdits(this.id, edits, endCursorState);
+		editor.pushUndoStop();
+	}
+}
+
 export class TrimTrailingWhitespaceAction extends EditorAction {
 
 	public static readonly ID = 'editor.action.trimTrailingWhitespace';
@@ -294,7 +362,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyX),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -342,7 +410,7 @@ export class DeleteLinesAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyK,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -444,7 +512,7 @@ export class IndentLinesAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET,
+				primary: KeyMod.CtrlCmd | KeyCode.BracketRight,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -470,7 +538,7 @@ class OutdentLinesAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET,
+				primary: KeyMod.CtrlCmd | KeyCode.BracketLeft,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -662,7 +730,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyK, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] },
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -729,7 +797,7 @@ export class JoinLinesAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_J },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyJ },
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -1008,43 +1076,6 @@ export class LowerCaseAction extends AbstractCaseAction {
 	}
 }
 
-export class TitleCaseAction extends AbstractCaseAction {
-	constructor() {
-		super({
-			id: 'editor.action.transformToTitlecase',
-			label: nls.localize('editor.transformToTitlecase', "Transform to Title Case"),
-			alias: 'Transform to Title Case',
-			precondition: EditorContextKeys.writable
-		});
-	}
-
-	protected _modifyText(text: string, wordSeparators: string): string {
-		const separators = '\r\n\t ' + wordSeparators;
-		const excludedChars = separators.split('');
-
-		let title = '';
-		let startUpperCase = true;
-
-		for (let i = 0; i < text.length; i++) {
-			let currentChar = text[i];
-
-			if (excludedChars.indexOf(currentChar) >= 0) {
-				startUpperCase = true;
-
-				title += currentChar;
-			} else if (startUpperCase) {
-				startUpperCase = false;
-
-				title += currentChar.toLocaleUpperCase();
-			} else {
-				title += currentChar.toLocaleLowerCase();
-			}
-		}
-
-		return title;
-	}
-}
-
 class BackwardsCompatibleRegExp {
 
 	private _actual: RegExp | null;
@@ -1075,10 +1106,35 @@ class BackwardsCompatibleRegExp {
 	}
 }
 
+export class TitleCaseAction extends AbstractCaseAction {
+
+	public static titleBoundary = new BackwardsCompatibleRegExp('(^|[^\\p{L}\\p{N}\']|((^|\\P{L})\'))\\p{L}', 'gmu');
+
+	constructor() {
+		super({
+			id: 'editor.action.transformToTitlecase',
+			label: nls.localize('editor.transformToTitlecase', "Transform to Title Case"),
+			alias: 'Transform to Title Case',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	protected _modifyText(text: string, wordSeparators: string): string {
+		const titleBoundary = TitleCaseAction.titleBoundary.get();
+		if (!titleBoundary) {
+			// cannot support this
+			return text;
+		}
+		return text
+			.toLocaleLowerCase()
+			.replace(titleBoundary, (b) => b.toLocaleUpperCase());
+	}
+}
+
 export class SnakeCaseAction extends AbstractCaseAction {
 
-	public static regExp1 = new BackwardsCompatibleRegExp('(\\p{Ll})(\\p{Lu})', 'gmu');
-	public static regExp2 = new BackwardsCompatibleRegExp('(\\p{Lu}|\\p{N})(\\p{Lu})(\\p{Ll})', 'gmu');
+	public static caseBoundary = new BackwardsCompatibleRegExp('(\\p{Ll})(\\p{Lu})', 'gmu');
+	public static singleLetters = new BackwardsCompatibleRegExp('(\\p{Lu}|\\p{N})(\\p{Lu})(\\p{Ll})', 'gmu');
 
 	constructor() {
 		super({
@@ -1090,15 +1146,15 @@ export class SnakeCaseAction extends AbstractCaseAction {
 	}
 
 	protected _modifyText(text: string, wordSeparators: string): string {
-		const regExp1 = SnakeCaseAction.regExp1.get();
-		const regExp2 = SnakeCaseAction.regExp2.get();
-		if (!regExp1 || !regExp2) {
+		const caseBoundary = SnakeCaseAction.caseBoundary.get();
+		const singleLetters = SnakeCaseAction.singleLetters.get();
+		if (!caseBoundary || !singleLetters) {
 			// cannot support this
 			return text;
 		}
 		return (text
-			.replace(regExp1, '$1_$2')
-			.replace(regExp2, '$1_$2$3')
+			.replace(caseBoundary, '$1_$2')
+			.replace(singleLetters, '$1_$2$3')
 			.toLocaleLowerCase()
 		);
 	}
@@ -1111,6 +1167,7 @@ registerEditorAction(MoveLinesUpAction);
 registerEditorAction(MoveLinesDownAction);
 registerEditorAction(SortLinesAscendingAction);
 registerEditorAction(SortLinesDescendingAction);
+registerEditorAction(DeleteDuplicateLinesAction);
 registerEditorAction(TrimTrailingWhitespaceAction);
 registerEditorAction(DeleteLinesAction);
 registerEditorAction(IndentLinesAction);
@@ -1123,8 +1180,10 @@ registerEditorAction(JoinLinesAction);
 registerEditorAction(TransposeAction);
 registerEditorAction(UpperCaseAction);
 registerEditorAction(LowerCaseAction);
-registerEditorAction(TitleCaseAction);
 
-if (SnakeCaseAction.regExp1.isSupported() && SnakeCaseAction.regExp2.isSupported()) {
+if (SnakeCaseAction.caseBoundary.isSupported() && SnakeCaseAction.singleLetters.isSupported()) {
 	registerEditorAction(SnakeCaseAction);
+}
+if (TitleCaseAction.titleBoundary.isSupported()) {
+	registerEditorAction(TitleCaseAction);
 }

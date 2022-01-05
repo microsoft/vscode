@@ -9,7 +9,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
-import { CodeActionTriggerType } from 'vs/editor/common/modes';
+import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { CodeActionItem, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -84,6 +84,7 @@ export class CodeActionUi extends Disposable {
 				const validActionToApply = this.tryGetValidActionToApply(newState.trigger, actions);
 				if (validActionToApply) {
 					try {
+						this._lightBulbWidget.getValue().hide();
 						await this.delegate.applyCodeAction(validActionToApply, false);
 					} finally {
 						actions.dispose();
@@ -95,7 +96,7 @@ export class CodeActionUi extends Disposable {
 				if (newState.trigger.context) {
 					const invalidAction = this.getInvalidActionThatWouldHaveBeenApplied(newState.trigger, actions);
 					if (invalidAction && invalidAction.action.disabled) {
-						MessageController.get(this._editor).showMessage(invalidAction.action.disabled, newState.trigger.context.position);
+						MessageController.get(this._editor)?.showMessage(invalidAction.action.disabled, newState.trigger.context.position);
 						actions.dispose();
 						return;
 					}
@@ -105,7 +106,7 @@ export class CodeActionUi extends Disposable {
 			const includeDisabledActions = !!newState.trigger.filter?.include;
 			if (newState.trigger.context) {
 				if (!actions.allActions.length || !includeDisabledActions && !actions.validActions.length) {
-					MessageController.get(this._editor).showMessage(newState.trigger.context.notAvailableMessage, newState.trigger.context.position);
+					MessageController.get(this._editor)?.showMessage(newState.trigger.context.notAvailableMessage, newState.trigger.context.position);
 					this._activeCodeActions.value = actions;
 					actions.dispose();
 					return;
