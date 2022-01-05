@@ -49,7 +49,8 @@ async function main(): Promise<void> {
 	await new Promise<void>((c, e) => {
 		const listing = new Vinyl({
 			path: 'files.txt',
-			contents: Buffer.from(files.join('\n'))
+			contents: Buffer.from(files.join('\n')),
+			stat: { mode: 0o666 } as any
 		});
 
 		console.log(`Uploading: files.txt (${files.length} files)`); // debug
