@@ -84,7 +84,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		shellType: undefined,
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
-		overrideDimensions: undefined
+		overrideDimensions: undefined,
+		capability: ProcessCapability.CommandCognisant
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
@@ -425,6 +426,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
 		if (type === ProcessPropertyType.FixedDimensions) {
 			this._properties.fixedDimensions = value as IProcessPropertyMap[ProcessPropertyType.FixedDimensions];
+		} else if (type === ProcessPropertyType.Capability) {
+			if (!this.capabilities.find(c => c === value) && value) {
+				this.capabilities.push(value as ProcessCapability);
+			}
 		}
 	}
 

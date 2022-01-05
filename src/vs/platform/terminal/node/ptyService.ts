@@ -15,7 +15,7 @@ import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, ProcessCapability, IPersistentTerminalProcessLaunchOptions, ICrossVersionSerializedTerminalState, ISerializedTerminalState } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { Terminal as XtermTerminal } from 'xterm-headless';
+import { ITerminalAddon, Terminal as XtermTerminal } from 'xterm-headless';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from 'xterm-addon-serialize';
 import type { Unicode11Addon as XtermUnicode11Addon } from 'xterm-addon-unicode11';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
@@ -200,6 +200,11 @@ export class PtyService extends Disposable implements IPtyService {
 			for (const e of this._autoReplies.entries()) {
 				persistentProcess.installAutoReply(e[0], e[1]);
 			}
+		});
+		const shellIntegrationAddon = new ShellIntegrationAddon();
+		shellIntegrationAddon.onDidStartShellIntegration(() => {
+			this._logService.info('updating shell');
+			process.updateProperty(ProcessPropertyType.Capability, ProcessCapability.CommandCognisant);
 		});
 		this._ptys.set(id, persistentProcess);
 		return id;
@@ -501,6 +506,10 @@ export class PersistentTerminalProcess extends Disposable {
 			unicodeVersion,
 			reviveBuffer
 		);
+		const shellIntegrationAddon = new ShellIntegrationAddon();
+		shellIntegrationAddon.onDidStartShellIntegration(() => {
+			this._terminalProcess.updateProperty(ProcessPropertyType.Capability, ProcessCapability.CommandCognisant);
+		});
 		this._fixedDimensions = fixedDimensions;
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
@@ -564,6 +573,11 @@ export class PersistentTerminalProcess extends Disposable {
 	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
 		if (type === ProcessPropertyType.FixedDimensions) {
 			return this._setFixedDimensions(value as IProcessPropertyMap[ProcessPropertyType.FixedDimensions]);
+		} else if (type === ProcessPropertyType.Capability) {
+			//TODO:?
+			//	// if (!this.capabilities.find(c => c === value) && value) {
+			// 	this.capabilities.push(value);
+			// }
 		}
 	}
 
@@ -718,6 +732,23 @@ export class PersistentTerminalProcess extends Disposable {
 
 		await this._orphanQuestionBarrier.wait();
 		return (Date.now() - this._orphanQuestionReplyTime > 500);
+	}
+}
+
+class ShellIntegrationAddon extends Disposable implements ITerminalAddon {
+	private readonly _onDidStartShellIntegration = this._register(new Emitter<void>());
+	readonly onDidStartShellIntegration = this._onDidStartShellIntegration.event;
+	activate(terminal: XtermTerminal): void {
+		terminal.parser.registerOscHandler(133, (data => this._handleShellIntegration(data)));
+	}
+	private _handleShellIntegration(data: string): boolean {
+		const [command,] = data.split(';');
+		switch (command) {
+			case 'E':
+				this._onDidStartShellIntegration.fire();
+			default:
+				return false;
+		}
 	}
 }
 

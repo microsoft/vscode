@@ -191,7 +191,8 @@ export const enum ProcessPropertyType {
 	ShellType = 'shellType',
 	HasChildProcesses = 'hasChildProcesses',
 	ResolvedShellLaunchConfig = 'resolvedShellLaunchConfig',
-	OverrideDimensions = 'overrideDimensions'
+	OverrideDimensions = 'overrideDimensions',
+	Capability = 'capability'
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -208,6 +209,7 @@ export interface IProcessPropertyMap {
 	[ProcessPropertyType.HasChildProcesses]: boolean,
 	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig,
 	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined
+	[ProcessPropertyType.Capability]: ProcessCapability | undefined
 }
 
 export interface IFixedTerminalDimensions {
@@ -548,7 +550,8 @@ export interface IProcessReadyEvent {
 }
 
 export const enum ProcessCapability {
-	CwdDetection = 'cwdDetection'
+	CwdDetection = 'cwdDetection',
+	CommandCognisant = 'commandCognisant'
 }
 
 /**
