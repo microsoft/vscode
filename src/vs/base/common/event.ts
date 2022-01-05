@@ -371,6 +371,23 @@ export namespace Event {
 		handler(undefined);
 		return event(e => handler(e));
 	}
+
+	export function runAndSubscribeWithStore<T>(event: Event<T>, handler: (e: T | undefined, disposableStore: DisposableStore) => any): IDisposable {
+		let store: DisposableStore | null = null;
+
+		function run(e: T | undefined) {
+			store?.dispose();
+			store = new DisposableStore();
+			handler(e, store);
+		}
+
+		run(undefined);
+		const disposable = event(e => run(e));
+		return toDisposable(() => {
+			disposable.dispose();
+			store?.dispose();
+		});
+	}
 }
 
 export type Listener<T> = [(e: T) => void, any] | ((e: T) => void);
