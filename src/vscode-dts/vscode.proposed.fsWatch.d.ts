@@ -14,9 +14,11 @@ declare module 'vscode' {
 		 * depending on the configuration.
 		 *
 		 * By default, all opened {@link workspace.workspaceFolders workspace folders} will be watched
-		 * for file changes recursively. User configurable excludes (via `files.watcherExclude`) may
-		 * be applied to reduce the number of events for known folders with lots of changes
-		 * (such as `node_modules`).
+		 * for file changes recursively. On top of that, any visible editor that shows a file outside
+		 * of the workspace, will also be watched for changes for as long as the editor remains visible.
+		 *
+		 * User configurable excludes (via `files.watcherExclude`) may be applied to all file events to
+		 * reduce the number of events for known folders with lots of changes (such as `node_modules`).
 		 *
 		 * Additional folders can be added for file watching by providing a {@link RelativePattern} with
 		 * a `base` that is outside of the currently opened workspace folders. If the `pattern` is complex
@@ -26,6 +28,16 @@ declare module 'vscode' {
 		 * Providing a `string` as `globPattern` will apply it to all events from any file watcher that
 		 * was created. As such, it is strongly recommended to leverage {@link RelativePattern} to avoid
 		 * being notified for file changes that are not relevant.
+		 *
+		 * Optionally, flags to ignore certain kinds of events can be provided.
+		 *
+		 * To stop listening to events the watcher must be disposed.
+		 *
+		 * *Note* that file changes for the path to be watched may not be delivered when the path itself changes. For example,
+		 * when watching a path `/Users/somename/Desktop` for changes and the path itself is being deleted, the watcher may not
+		 * report an event and may not work anymore from that moment on. If you are interested in being notified when the watched
+		 * path itself is being deleted, you have to watch it's parent folder.
+		 *
 		 *
 		 * ### Examples
 		 *
@@ -49,7 +61,7 @@ declare module 'vscode' {
 		 * vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.workspace.workspaceFolders[0], '**​/*.js'));
 		 * ```
 		 *
-		 * Note that the array of workspace folders can be empy if no workspace is opened (empty window).
+		 * *Note:* the array of workspace folders can be empy if no workspace is opened (empty window).
 		 *
 		 * #### Out of workspace file watching
 		 *
@@ -77,16 +89,6 @@ declare module 'vscode' {
 		 * ```ts
 		 * vscode.workspace.createFileSystemWatcher('**​/*.js'));
 		 * ```
-		 *
-		 * Note that the array of workspace folders can be empy if no workspace is opened (empty window).
-		 * Optionally, flags to ignore certain kinds of events can be provided.
-		 *
-		 * To stop listening to events the watcher must be disposed.
-		 *
-		 * *Note* that file changes for the path to be watched may not be delivered when the path itself changes. For example,
-		 * when watching a path `/Users/somename/Desktop` for changes and the path itself is being deleted, the watcher may not
-		 * report an event and may not work anymore from that moment on. If you are interested in being notified when the watched
-		 * path itself is being deleted, you have to watch it's parent folder.
 		 *
 		 * @param globPattern A {@link GlobPattern glob pattern} that controls which file events the watcher should report.
 		 * @param ignoreCreateEvents Ignore when files have been created.
