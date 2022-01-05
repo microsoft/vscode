@@ -129,7 +129,7 @@
 .debug-pane .monaco-list-row .monaco-action-bar {
 	display: none;
 	flex-shrink: 0;
-	margin-right: 1px;
+	margin-right: 6px;
 }
 
 .debug-pane .monaco-list-row:hover .monaco-action-bar,
