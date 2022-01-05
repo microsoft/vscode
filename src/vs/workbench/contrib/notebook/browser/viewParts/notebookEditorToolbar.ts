@@ -81,7 +81,7 @@ class FixedLabelStrategy implements IActionLayoutStrategy {
 		const hasToggleMoreAction = lastItemInLeft.action.id === ToggleMenuAction.ID;
 
 		let size = 0;
-		let actions: IActionModel[] = [];
+		const actions: IActionModel[] = [];
 
 		for (let i = 0; i < primaryActions.length - (hasToggleMoreAction ? 1 : 0); i++) {
 			const actionModel = primaryActions[i];
@@ -165,7 +165,7 @@ class DynamicLabelStrategy implements IActionLayoutStrategy {
 			};
 		}
 
-		let totalWidthWithLabels = actions.map(action => action.size).reduce((a, b) => a + b, 0) + (actions.length - 1) * ACTION_PADDING;
+		const totalWidthWithLabels = actions.map(action => action.size).reduce((a, b) => a + b, 0) + (actions.length - 1) * ACTION_PADDING;
 		if (totalWidthWithLabels <= leftToolbarContainerMaxWidth) {
 			primaryActions.forEach(action => {
 				action.visible = true;
@@ -222,7 +222,7 @@ class DynamicLabelStrategy implements IActionLayoutStrategy {
 		// all actions hidden labels
 		primaryActions.forEach(action => { action.renderLabel = false; });
 		let size = 0;
-		let renderActions: IActionModel[] = [];
+		const renderActions: IActionModel[] = [];
 
 		for (let i = 0; i < actions.length; i++) {
 			const actionModel = actions[i];
@@ -501,7 +501,7 @@ export class NotebookEditorToolbar extends Disposable {
 		const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true, renderShortTitle: true });
 		this.domNode.style.display = 'flex';
 		const primaryLeftGroups = groups.filter(group => /^navigation/.test(group[0]));
-		let primaryActions: IAction[] = [];
+		const primaryActions: IAction[] = [];
 		primaryLeftGroups.sort((a, b) => {
 			if (a[0] === 'navigation') {
 				return 1;
@@ -539,7 +539,7 @@ export class NotebookEditorToolbar extends Disposable {
 	}
 
 	private _cacheItemSizes(toolbar: ToolBar) {
-		let actions: IActionModel[] = [];
+		const actions: IActionModel[] = [];
 
 		for (let i = 0; i < toolbar.getItemsLength(); i++) {
 			const action = toolbar.getItemAction(i);

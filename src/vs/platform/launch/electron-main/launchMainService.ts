@@ -266,7 +266,7 @@ export class LaunchMainService implements ILaunchMainService {
 					});
 
 					setTimeout(() => {
-						resolve({ hostName: remoteAuthority, errorMessage: `Fetching remote diagnostics for '${remoteAuthority}' timed out.` });
+						resolve({ hostName: remoteAuthority, errorMessage: `Connection to '${remoteAuthority}' could not be established` });
 					}, 5000);
 				} else {
 					resolve(undefined);

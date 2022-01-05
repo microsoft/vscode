@@ -133,10 +133,13 @@ export function isUNC(path: string): boolean {
 	if (code !== CharCode.Backslash) {
 		return false;
 	}
+
 	code = path.charCodeAt(1);
+
 	if (code !== CharCode.Backslash) {
 		return false;
 	}
+
 	let pos = 2;
 	const start = pos;
 	for (; pos < path.length; pos++) {
@@ -145,13 +148,17 @@ export function isUNC(path: string): boolean {
 			break;
 		}
 	}
+
 	if (start === pos) {
 		return false;
 	}
+
 	code = path.charCodeAt(pos + 1);
+
 	if (isNaN(code) || code === CharCode.Backslash) {
 		return false;
 	}
+
 	return true;
 }
 
@@ -343,7 +350,7 @@ export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn
 	let line: number | undefined = undefined;
 	let column: number | undefined = undefined;
 
-	segments.forEach(segment => {
+	for (const segment of segments) {
 		const segmentAsNumber = Number(segment);
 		if (!isNumber(segmentAsNumber)) {
 			path = !!path ? [path, segment].join(':') : segment; // a colon can well be part of a path (e.g. C:\...)
@@ -352,7 +359,7 @@ export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn
 		} else if (column === undefined) {
 			column = segmentAsNumber;
 		}
-	});
+	}
 
 	if (!path) {
 		throw new Error('Format for `--goto` should be: `FILE:LINE(:COLUMN)`');

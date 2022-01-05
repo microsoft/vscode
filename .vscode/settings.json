@@ -42,7 +42,9 @@
 		}
 	],
 	"eslint.options": {
-		"rulePaths": ["./build/lib/eslint"]
+		"rulePaths": [
+			"./build/lib/eslint"
+		]
 	},
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"npm.exclude": "**/extensions/**",
@@ -52,11 +54,15 @@
 	"typescript.preferences.quoteStyle": "single",
 	"json.schemas": [
 		{
-			"fileMatch": ["cgmanifest.json"],
+			"fileMatch": [
+				"cgmanifest.json"
+			],
 			"url": "./.vscode/cgmanifest.schema.json"
 		},
 		{
-			"fileMatch": ["cglicenses.json"],
+			"fileMatch": [
+				"cglicenses.json"
+			],
 			"url": "./.vscode/cglicenses.schema.json"
 		}
 	],
@@ -78,6 +84,12 @@
 		"editor.formatOnSave": true
 	},
 	"typescript.tsc.autoDetect": "off",
+	"editor.inlayHints.enabled": true,
+	"typescript.inlayHints.enumMemberValues.enabled": true,
+	"typescript.inlayHints.functionLikeReturnTypes.enabled": true,
+	"typescript.inlayHints.parameterTypes.enabled": true,
+	"typescript.inlayHints.propertyDeclarationTypes.enabled": true,
+	"typescript.inlayHints.variableTypes.enabled": true,
 	"testing.autoRun.mode": "rerun",
 	"conventionalCommits.scopes": [
 		"tree",

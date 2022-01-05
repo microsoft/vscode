@@ -272,7 +272,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * resource editor input that e.g. can be used to serialize the
 	 * editor input into a form that it can be restored.
 	 *
-	 * May return `undefined` if a untyped representatin is not supported.
+	 * May return `undefined` if an untyped representation is not supported.
 	 *
 	 * @param options additional configuration for the expected return type.
 	 * When `preserveViewState` is provided, implementations should try to

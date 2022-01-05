@@ -136,7 +136,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		const replacePattern = this.replacePattern;
 
 		const cellFindMatches = this._findModel.findMatches;
-		let replaceStrings: string[] = [];
+		const replaceStrings: string[] = [];
 		cellFindMatches.forEach(cellFindMatch => {
 			const findMatches = cellFindMatch.matches;
 			findMatches.forEach(findMatch => {
@@ -271,7 +271,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			if (this._state.matchesCount >= MATCHES_LIMIT) {
 				matchesCount += '+';
 			}
-			let matchesPosition: string = this._findModel.currentMatch < 0 ? '?' : String((this._findModel.currentMatch + 1));
+			const matchesPosition: string = this._findModel.currentMatch < 0 ? '?' : String((this._findModel.currentMatch + 1));
 			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
 		} else {
 			label = NLS_NO_RESULTS;

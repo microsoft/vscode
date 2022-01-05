@@ -17,7 +17,7 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguag
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
+import { IDiffComputationResult } from 'vs/editor/common/services/editorWorker';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 /**
@@ -989,9 +989,9 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	readonly maxComputationTime: number;
 
 	/**
-	 * @see {@link ICodeEditor.getDomNode}
+	 * @see {@link ICodeEditor.getContainerDomNode}
 	 */
-	getDomNode(): HTMLElement;
+	getContainerDomNode(): HTMLElement;
 
 	/**
 	 * An event emitted when the diff information computed by this diff editor has been updated.

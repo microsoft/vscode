@@ -518,7 +518,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	private _getVisibleRangesFromIndex(topViewIndex: number, topModelIndex: number, bottomViewIndex: number, bottomModelIndex: number) {
-		let stack: number[] = [];
+		const stack: number[] = [];
 		const ranges: ICellRange[] = [];
 		// there are hidden ranges
 		let index = topViewIndex;

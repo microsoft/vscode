@@ -85,7 +85,7 @@ export class PrefixSumComputer {
 			return false;
 		}
 
-		let maxCount = oldValues.length - startIndex;
+		const maxCount = oldValues.length - startIndex;
 		if (count >= maxCount) {
 			count = maxCount;
 		}

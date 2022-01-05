@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICodeEditor, isCodeEditor, isDiffEditor, isCompositeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -16,7 +16,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 
-export class CodeEditorService extends CodeEditorServiceImpl {
+export class CodeEditorService extends AbstractCodeEditorService {
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,

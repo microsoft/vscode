@@ -55,7 +55,7 @@ const profiles = {
 
 async function applyProfile(configService: IConfigurationService, profile: Record<string, any>): Promise<void> {
 	const promises = [];
-	for (let settingKey in profile) {
+	for (const settingKey in profile) {
 		promises.push(configService.updateValue(settingKey, profile[settingKey]));
 	}
 

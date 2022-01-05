@@ -10,7 +10,7 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { CopyOptions, ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, ClipboardDataToCopy, TextAreaWrapper } from 'vs/editor/browser/controller/textAreaInput';
 import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/textAreaState';
 import { ViewController } from 'vs/editor/browser/view/viewController';
@@ -167,7 +167,7 @@ export class TextAreaHandler extends ViewPart {
 		};
 
 		const textAreaInputHost: ITextAreaInputHost = {
-			getDataToCopy: (generateHTML: boolean): ClipboardDataToCopy => {
+			getDataToCopy: (): ClipboardDataToCopy => {
 				const rawTextToCopy = this._context.model.getPlainTextToCopy(this._modelSelections, this._emptySelectionClipboard, platform.isWindows);
 				const newLineCharacter = this._context.model.getEOL();
 
@@ -177,13 +177,11 @@ export class TextAreaHandler extends ViewPart {
 
 				let html: string | null | undefined = undefined;
 				let mode: string | null = null;
-				if (generateHTML) {
-					if (CopyOptions.forceCopyWithSyntaxHighlighting || (this._copyWithSyntaxHighlighting && text.length < 65536)) {
-						const richText = this._context.model.getRichTextToCopy(this._modelSelections, this._emptySelectionClipboard);
-						if (richText) {
-							html = richText.html;
-							mode = richText.mode;
-						}
+				if (CopyOptions.forceCopyWithSyntaxHighlighting || (this._copyWithSyntaxHighlighting && text.length < 65536)) {
+					const richText = this._context.model.getRichTextToCopy(this._modelSelections, this._emptySelectionClipboard);
+					if (richText) {
+						html = richText.html;
+						mode = richText.mode;
 					}
 				}
 				return {
@@ -710,7 +708,7 @@ export class TextAreaHandler extends ViewPart {
 		const ta = this.textArea;
 		const tac = this.textAreaCover;
 
-		Configuration.applyFontInfo(ta, this._fontInfo);
+		applyFontInfo(ta, this._fontInfo);
 
 		ta.setTop(top);
 		ta.setLeft(left);
@@ -728,7 +726,7 @@ export class TextAreaHandler extends ViewPart {
 		const ta = this.textArea;
 		const tac = this.textAreaCover;
 
-		Configuration.applyFontInfo(ta, this._fontInfo);
+		applyFontInfo(ta, this._fontInfo);
 		ta.setTop(0);
 		ta.setLeft(0);
 		tac.setTop(0);
@@ -775,7 +773,7 @@ function measureText(text: string, fontInfo: BareFontInfo): number {
 	container.style.width = '50000px';
 
 	const regularDomNode = document.createElement('span');
-	Configuration.applyFontInfoSlow(regularDomNode, fontInfo);
+	applyFontInfo(regularDomNode, fontInfo);
 	regularDomNode.style.whiteSpace = 'pre'; // just like the textarea
 	regularDomNode.append(text);
 	container.appendChild(regularDomNode);
