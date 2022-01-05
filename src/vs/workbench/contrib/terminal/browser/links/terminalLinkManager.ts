@@ -98,10 +98,20 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	async getLinks(y: number): Promise<IDetectedLinks | undefined> {
-		const wordLinks = (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalWordLinkProvider.id)?.provideLinks(y, r)));
-		let webLinks = (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalProtocolLinkProvider.id)?.provideLinks(y, r)));
-		let fileLinks = (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalValidatedLocalLinkProvider.id)?.provideLinks(y, r)));
-
+		let unfilteredWordLinks = (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalWordLinkProvider.id)?.provideLinks(y, r)));
+		const webLinks = (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalProtocolLinkProvider.id)?.provideLinks(y, r)));
+		const fileLinks = (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalValidatedLocalLinkProvider.id)?.provideLinks(y, r)));
+		const words = new Set();
+		let wordLinks;
+		if (unfilteredWordLinks) {
+			wordLinks = [];
+			for (const link of unfilteredWordLinks) {
+				if (!words.has(link.text)) {
+					wordLinks.push(link);
+					words.add(link.text);
+				}
+			}
+		}
 		return { wordLinks, webLinks, fileLinks };
 	}
 	private _tooltipCallback(link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) {
