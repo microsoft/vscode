@@ -197,7 +197,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	toggleDevTools(open?: boolean): Promise<void>;
 	handleNewRegisteredBackend(backend: ITerminalBackend): void;
 }
-export class TerminalLinkQuickpickEvent extends MouseEvent {
+export class TerminalLinkQuickPickEvent extends MouseEvent {
 
 }
 export interface ITerminalServiceNativeDelegate {
@@ -789,6 +789,8 @@ export interface ITerminalInstance {
 
 	/**
 	 * Triggers a quick pick that displays links from the viewport of the active terminal.
+	 * Selecting a file or web link will open it. Selecting a word link will copy it to the
+	 * clipboard.
 	 */
 	showLinkQuickpick(): Promise<void>;
 

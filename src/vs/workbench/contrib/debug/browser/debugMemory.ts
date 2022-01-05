@@ -45,11 +45,17 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 			return toDisposable(() => { });
 		}
 
-		const { session, memoryReference } = this.parseUri(resource);
+		const { session, memoryReference, offset } = this.parseUri(resource);
 		return session.onDidInvalidateMemory(e => {
-			if (e.body.memoryReference === memoryReference) {
-				this.changeEmitter.fire([{ resource, type: FileChangeType.UPDATED }]);
+			if (e.body.memoryReference !== memoryReference) {
+				return;
 			}
+
+			if (offset && (e.body.offset >= offset.toOffset || e.body.offset + e.body.count < offset.fromOffset)) {
+				return;
+			}
+
+			this.changeEmitter.fire([{ resource, type: FileChangeType.UPDATED }]);
 		});
 	}
 

@@ -25,7 +25,7 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, ITerminalProfileResolverService, TerminalCommandId, ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { IDetectedLinks, TerminalLinkManager, TerminalLinkProviderType } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
+import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
@@ -66,8 +66,8 @@ import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalLinkQuickpick';
 import { isFirefox, isSafari } from 'vs/base/browser/browser';
+import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 
 const enum Constants {
 	/**
@@ -746,6 +746,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (result) {
 			this.sendText(type === 'cwd' ? `cd ${result.label}` : result.label, true);
 		}
+		return { wordLinks: wordResults, webLinks: webResults, fileLinks: fileResults };
 	}
 
 	detachFromElement(): void {
