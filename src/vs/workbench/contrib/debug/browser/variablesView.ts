@@ -12,7 +12,7 @@ import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeMouseEvent, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
 import { coalesce } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
@@ -28,7 +28,9 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -521,10 +523,11 @@ CommandsRegistry.registerCommand({
 
 		const commandService = accessor.get(ICommandService);
 		const editorService = accessor.get(IEditorService);
-		const ext = await accessor.get(IExtensionService).getExtension(HEX_EDITOR_EXTENSION_ID);
-		if (!ext) {
-			await commandService.executeCommand('workbench.extensions.search', `@id:${HEX_EDITOR_EXTENSION_ID}`);
-		} else {
+		const notifications = accessor.get(INotificationService);
+		const progressService = accessor.get(IProgressService);
+		const extensionService = accessor.get(IExtensionService);
+		const ext = await extensionService.getExtension(HEX_EDITOR_EXTENSION_ID);
+		if (ext || await tryInstallHexEditor(notifications, progressService, extensionService, commandService)) {
 			await editorService.openEditor({
 				resource: getUriForDebugMemory(arg.sessionId, arg.variable.memoryReference),
 				options: {
@@ -535,6 +538,55 @@ CommandsRegistry.registerCommand({
 		}
 	}
 });
+
+function tryInstallHexEditor(notifications: INotificationService, progressService: IProgressService, extensionService: IExtensionService, commandService: ICommandService) {
+	return new Promise<boolean>(resolve => {
+		let installing = false;
+
+		const handle = notifications.prompt(
+			Severity.Info,
+			localize("viewMemory.prompt", "Inspecting binary data requires the Hex Editor extension. Would you like to install it now?"), [
+			{
+				label: localize("cancel", "Cancel"),
+				run: () => resolve(false),
+			},
+			{
+				label: localize("install", "Install"),
+				run: async () => {
+					installing = true;
+					try {
+						await progressService.withProgress(
+							{
+								location: ProgressLocation.Notification,
+								title: localize("viewMemory.install.progress", "Installing the Hex Editor..."),
+							},
+							async () => {
+								await commandService.executeCommand('workbench.extensions.installExtension', HEX_EDITOR_EXTENSION_ID);
+								// it seems like the extension is not registered immediately on install --
+								// wait for it to appear before returning.
+								while (!(await extensionService.getExtension(HEX_EDITOR_EXTENSION_ID))) {
+									await timeout(30);
+								}
+							},
+						);
+						resolve(true);
+					} catch (e) {
+						notifications.error(e as Error);
+						resolve(false);
+					}
+				}
+			},
+		],
+			{ sticky: true },
+		);
+
+		handle.onDidClose(e => {
+			if (!installing) {
+				resolve(false);
+			}
+		});
+	});
+}
 
 export const BREAK_WHEN_VALUE_CHANGES_ID = 'debug.breakWhenValueChanges';
 CommandsRegistry.registerCommand({
