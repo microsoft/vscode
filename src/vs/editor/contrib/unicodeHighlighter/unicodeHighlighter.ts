@@ -444,16 +444,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 			// text refers to a single character.
 			const codePoint = char.codePointAt(0)!;
 
-			function formatCodePoint(codePoint: number) {
-				let value = `\`U+${codePoint.toString(16).padStart(4, '0')}\``;
-				if (!InvisibleCharacters.isInvisibleCharacter(codePoint)) {
-					// Don't render any control characters or any invisible characters, as they cannot be seen anyways.
-					value += ` "${`${renderCodePointAsInlineCode(codePoint)}`}"`;
-				}
-				return value;
-			}
-
-			const codePointStr = formatCodePoint(codePoint);
+			const codePointStr = formatCodePointMarkdown(codePoint);
 
 			let reason: string;
 			switch (highlightInfo.reason.kind) {
@@ -462,7 +453,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 						'unicodeHighlight.characterIsAmbiguous',
 						'The character {0} could be confused with the character {1}, which is more common in source code.',
 						codePointStr,
-						formatCodePoint(highlightInfo.reason.confusableWith.codePointAt(0)!)
+						formatCodePointMarkdown(highlightInfo.reason.confusableWith.codePointAt(0)!)
 					);
 					break;
 
@@ -504,6 +495,19 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 	public renderHoverParts(hoverParts: MarkdownHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
 		return renderMarkdownHovers(hoverParts, fragment, this._editor, this._hover, this._languageService, this._openerService);
 	}
+}
+
+function codePointToHex(codePoint: number): string {
+	return `U+${codePoint.toString(16).padStart(4, '0')}`;
+}
+
+function formatCodePointMarkdown(codePoint: number) {
+	let value = `\`${codePointToHex(codePoint)}\``;
+	if (!InvisibleCharacters.isInvisibleCharacter(codePoint)) {
+		// Don't render any control characters or any invisible characters, as they cannot be seen anyways.
+		value += ` "${`${renderCodePointAsInlineCode(codePoint)}`}"`;
+	}
+	return value;
 }
 
 function renderCodePointAsInlineCode(codePoint: number): string {
@@ -704,9 +708,9 @@ export class ShowExcludeOptions extends EditorAction {
 
 		function getExcludeCharFromBeingHighlightedLabel(codePoint: number) {
 			if (InvisibleCharacters.isInvisibleCharacter(codePoint)) {
-				return nls.localize('unicodeHighlight.excludeInvisibleCharFromBeingHighlighted', 'Exclude {0} (invisible character) from being highlighted', `U+${codePoint.toString(16)}`);
+				return nls.localize('unicodeHighlight.excludeInvisibleCharFromBeingHighlighted', 'Exclude {0} (invisible character) from being highlighted', codePointToHex(codePoint));
 			}
-			return nls.localize('unicodeHighlight.excludeCharFromBeingHighlighted', 'Exclude {0} from being highlighted', `U+${codePoint.toString(16)} "${char}"`);
+			return nls.localize('unicodeHighlight.excludeCharFromBeingHighlighted', 'Exclude {0} from being highlighted', `${codePointToHex(codePoint)} "${char}"`);
 		}
 
 		const options: ExtendedOptions[] = [];

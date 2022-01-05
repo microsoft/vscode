@@ -98,6 +98,12 @@ export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents, name: string, index: number; }[];
 }
 
+export interface MessagePortLike {
+	postMessage(message: any, transfer?: any[]): void;
+	addEventListener(type: 'message', listener: (e: any) => any): void;
+	removeEventListener(type: 'message', listener: (e: any) => any): void;
+}
+
 export interface IInitData {
 	version: string;
 	commit?: string;
@@ -114,6 +120,7 @@ export interface IInitData {
 	autoStart: boolean;
 	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null; };
 	uiKind: UIKind;
+	messagePorts?: ReadonlyMap<string, MessagePortLike>;
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
@@ -2260,7 +2267,7 @@ export const MainContext = {
 	MainThreadTheming: createMainId<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline'),
-	MainThreadTesting: createMainId<MainThreadTestingShape>('MainThreadTesting')
+	MainThreadTesting: createMainId<MainThreadTestingShape>('MainThreadTesting'),
 };
 
 export const ExtHostContext = {

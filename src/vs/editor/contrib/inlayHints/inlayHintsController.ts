@@ -104,7 +104,7 @@ class InlayHintsCache {
 }
 
 class InlayHintLink {
-	constructor(readonly href: string) { }
+	constructor(readonly href: string, readonly index: number, readonly hint: InlayHint) { }
 }
 
 export class InlayHintsController implements IEditorContribution {
@@ -120,6 +120,7 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _cache = new InlayHintsCache();
 	private readonly _decorationsMetadata = new Map<string, { hint: InlayHint, classNameRef: IDisposable }>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
+	private _activeInlayHintLink?: InlayHintLink;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -209,18 +210,24 @@ export class InlayHintsController implements IEditorContribution {
 				undoHover();
 				return;
 			}
+			const model = this._editor.getModel()!;
 			const options = mouseEvent.target.detail?.injectedText?.options;
 			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLink) {
-				if (mouseEvent.target.element instanceof HTMLElement) {
-					// todo@jrieken not proper, won't work with wrapped lines. use decoration instead
-					mouseEvent.target.element.style.cursor = 'pointer';
-					mouseEvent.target.element.style.color = `var(${colors.asCssVariableName(colors.editorActiveLinkForeground)})`;
-					undoHover = () => {
-						(<HTMLElement>mouseEvent.target.element).style.cursor = '';
-						(<HTMLElement>mouseEvent.target.element).style.color = '';
-						undoHover = () => { };
-					};
+				this._activeInlayHintLink = options.attachedData;
+
+				const lineNumber = this._activeInlayHintLink.hint.position.lineNumber;
+				const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
+				const lineHints = new Set<InlayHint>();
+				for (let data of this._decorationsMetadata.values()) {
+					if (range.containsPosition(data.hint.position)) {
+						lineHints.add(data.hint);
+					}
 				}
+				this._updateHintsDecorators([range], Array.from(lineHints));
+				undoHover = () => {
+					this._activeInlayHintLink = undefined;
+					this._updateHintsDecorators([range], Array.from(lineHints));
+				};
 			}
 		}));
 		this._sessionDisposables.add(gesture.onCancel(undoHover));
@@ -230,10 +237,9 @@ export class InlayHintsController implements IEditorContribution {
 			}
 			const options = e.target.detail?.injectedText?.options;
 			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLink) {
-				this._openerService.open(options.attachedData.href, { allowCommands: true });
+				this._openerService.open(options.attachedData.href, { allowCommands: true, openToSide: e.hasSideBySideModifier });
 			}
 		}));
-
 	}
 
 	private _getHintsRanges(): Range[] {
@@ -304,7 +310,12 @@ export class InlayHintsController implements IEditorContribution {
 
 				if (isLink) {
 					cssProperties.textDecoration = 'underline';
-					// cssProperties.cursor = 'pointer';
+
+					if (this._activeInlayHintLink?.hint === hint && this._activeInlayHintLink.index === i && this._activeInlayHintLink.href === node.href) {
+						// active link!
+						cssProperties.cursor = 'pointer';
+						cssProperties.color = themeColorFromId(colors.editorActiveLinkForeground);
+					}
 				}
 
 				if (isFirst && isLast) {
@@ -338,7 +349,7 @@ export class InlayHintsController implements IEditorContribution {
 								content: fixSpace(isLink ? node.label : node),
 								inlineClassNameAffectsLetterSpacing: true,
 								inlineClassName: classNameRef.className,
-								attachedData: isLink ? new InlayHintLink(node.href) : undefined
+								attachedData: isLink ? new InlayHintLink(node.href, i, hint) : undefined
 							} as InjectedTextOptions,
 							description: 'InlayHint',
 							showIfCollapsed: !usesWordRange,

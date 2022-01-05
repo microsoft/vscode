@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/402cd37bf494f7e04e2df15423ba91ce8a9b1301",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/c2bb8faa5501da4d3a7544b029e5abc5355ef673",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -2546,13 +2546,13 @@
 		"image-inline": {
 			"captures": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.link.description.begin.markdown"
 				},
 				"2": {
 					"name": "string.other.link.description.markdown"
 				},
 				"4": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.link.description.end.markdown"
 				},
 				"5": {
 					"name": "punctuation.definition.metadata.markdown"
@@ -2603,13 +2603,13 @@
 		"image-ref": {
 			"captures": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.link.description.begin.markdown"
 				},
 				"2": {
 					"name": "string.other.link.description.markdown"
 				},
 				"4": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.link.description.end.markdown"
 				},
 				"5": {
 					"name": "punctuation.definition.constant.markdown"
@@ -2718,13 +2718,13 @@
 		"link-inline": {
 			"captures": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.link.title.begin.markdown"
 				},
 				"2": {
 					"name": "string.other.link.title.markdown"
 				},
 				"4": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.link.title.end.markdown"
 				},
 				"5": {
 					"name": "punctuation.definition.metadata.markdown"
@@ -2775,13 +2775,13 @@
 		"link-ref": {
 			"captures": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.link.title.begin.markdown"
 				},
 				"2": {
 					"name": "string.other.link.title.markdown"
 				},
 				"4": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.link.title.end.markdown"
 				},
 				"5": {
 					"name": "punctuation.definition.constant.begin.markdown"
@@ -2799,13 +2799,13 @@
 		"link-ref-literal": {
 			"captures": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.link.title.begin.markdown"
 				},
 				"2": {
 					"name": "string.other.link.title.markdown"
 				},
 				"4": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.link.title.end.markdown"
 				},
 				"5": {
 					"name": "punctuation.definition.constant.begin.markdown"
@@ -2820,13 +2820,13 @@
 		"link-ref-shortcut": {
 			"captures": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.link.title.begin.markdown"
 				},
 				"2": {
 					"name": "string.other.link.title.markdown"
 				},
 				"3": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.link.title.end.markdown"
 				}
 			},
 			"match": "(\\[)(\\S+?)(\\])",

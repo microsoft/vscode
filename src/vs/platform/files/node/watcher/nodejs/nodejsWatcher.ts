@@ -23,7 +23,7 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 	// atomic save operations where a tool may chose
 	// to delete a file before creating it again for
 	// an update.
-	private static readonly FILE_DELETE_HANDLER_DELAY = 25;
+	private static readonly FILE_DELETE_HANDLER_DELAY = 100;
 
 	// A delay for collecting file changes from node.js
 	// before collecting them for coalescing and emitting
@@ -65,6 +65,8 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
 				this.error(error);
+			} else {
+				this.trace(error);
 			}
 		}
 	}
@@ -112,6 +114,7 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 		let disposables = new DisposableStore();
 
 		try {
+			const pathBasename = basename(path);
 
 			// Creating watcher can fail with an exception
 			const watcher = watch(path);
@@ -142,6 +145,10 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 
 			watcher.on('error', (code: number, signal: string) => {
 				this.error(`Failed to watch ${path} for changes using fs.watch() (${code}, ${signal})`);
+
+				// The watcher is no longer functional reliably
+				// so we go ahead and dispose it
+				this.dispose();
 			});
 
 			watcher.on('change', (type, raw) => {
@@ -149,7 +156,7 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 					return; // ignore if already disposed
 				}
 
-				this.trace(`["${type}"] ${raw} (fs.watch() raw event)`);
+				this.trace(`[raw] ["${type}"] ${raw}`);
 
 				// Normalize file name
 				let changedFileName = '';
@@ -166,52 +173,10 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 					return; // ignore unexpected events
 				}
 
-				// File
-				if (!isDirectory) {
-					if (type === 'rename' || changedFileName !== basename(path)) {
-
-						// The file was either deleted or renamed. Many tools apply changes to files in an
-						// atomic way ("Atomic Save") by first renaming the file to a temporary name and then
-						// renaming it back to the original name. Our watcher will detect this as a rename
-						// and then stops to work on Mac and Linux because the watcher is applied to the
-						// inode and not the name. The fix is to detect this case and trying to watch the file
-						// again after a certain delay.
-						// In addition, we send out a delete event if after a timeout we detect that the file
-						// does indeed not exist anymore.
-
-						const timeoutHandle = setTimeout(async () => {
-							const fileExists = await Promises.exists(path);
-
-							if (cts.token.isCancellationRequested) {
-								return; // ignore if disposed by now
-							}
-
-							// File still exists, so emit as change event and reapply the watcher
-							if (fileExists) {
-								this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED });
-
-								disposables.add(await this.doWatch(path, false));
-							}
-
-							// File seems to be really gone, so emit a deleted event
-							else {
-								this.onFileChange({ path: this.request.path, type: FileChangeType.DELETED });
-							}
-						}, NodeJSFileWatcher.FILE_DELETE_HANDLER_DELAY);
-
-						// Very important to dispose the watcher which now points to a stale inode
-						// and wire in a new disposable that tracks our timeout that is installed
-						disposables.clear();
-						disposables.add(toDisposable(() => clearTimeout(timeoutHandle)));
-					} else {
-						this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED });
-					}
-				}
-
 				// Folder
-				else {
+				if (isDirectory) {
 
-					// Children add/delete
+					// Folder child added/deleted
 					if (type === 'rename') {
 
 						// Cancel any previous stats for this file if existing
@@ -222,57 +187,71 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 						const timeoutHandle = setTimeout(async () => {
 							mapPathToStatDisposable.delete(changedFileName);
 
-							// fs.watch() does not really help us figuring out
-							// if the root folder got deleted. As such we have
-							// to check if our watched path still exists and
-							// handle that accordingly. The only hint we get
-							// is that the event file name will be the same
-							// as the folder we are watching...
+							// Depending on the OS the watcher runs on, there
+							// is different behaviour for when the watched
+							// folder path is being deleted:
+							//
+							// -   macOS: not reported but events continue to
+							//            work even when the folder is brought
+							//            back, though it seems every change
+							//            to a file is reported as "rename"
+							// -   Linux: "rename" event is reported with the
+							//            name of the folder and events stop
+							//            working
+							// - Windows: an EPERM error is thrown that we
+							//            handle from the `on('error')` event
 							//
 							// We do not re-attach the watcher after timeout
 							// though as we do for file watches because for
 							// file watching specifically we want to handle
-							// the atomic-write cases.
-							if (changedFileName === basename(path) && !await Promises.exists(path)) {
-								this.onFileChange({ path: this.request.path, type: FileChangeType.DELETED });
+							// the atomic-write cases where the file is being
+							// deleted and recreated with different contents.
+							//
+							// Same as with recursive watching, we do not
+							// emit a delete event in this case.
+							if (changedFileName === pathBasename && !await Promises.exists(path)) {
+								this.warn('Watcher shutdown because watched path got deleted');
+
+								// The watcher is no longer functional reliably
+								// so we go ahead and dispose it
+								this.dispose();
+
+								return;
 							}
 
-							else {
+							// In order to properly detect renames on a case-insensitive
+							// file system, we need to use `existsChildStrictCase` helper
+							// because otherwise we would wrongly assume a file exists
+							// when it was renamed to same name but different case.
+							const fileExists = await this.existsChildStrictCase(join(path, changedFileName));
 
-								// In order to properly detect renames on a case-insensitive
-								// file system, we need to use `existsChildStrictCase` helper
-								// because otherwise we would wrongly assume a file exists
-								// when it was renamed in the old form.
-								const fileExists = await this.existsChildStrictCase(join(path, changedFileName));
+							if (cts.token.isCancellationRequested) {
+								return; // ignore if disposed by now
+							}
 
-								if (cts.token.isCancellationRequested) {
-									return; // ignore if disposed by now
-								}
-
-								// Figure out the correct event type:
-								// File Exists: either 'added' or 'updated' if known before
-								// File Does not Exist: always 'deleted'
-								let type: FileChangeType;
-								if (fileExists) {
-									if (folderChildren.has(changedFileName)) {
-										type = FileChangeType.UPDATED;
-									} else {
-										type = FileChangeType.ADDED;
-										folderChildren.add(changedFileName);
-									}
+							// Figure out the correct event type:
+							// File Exists: either 'added' or 'updated' if known before
+							// File Does not Exist: always 'deleted'
+							let type: FileChangeType;
+							if (fileExists) {
+								if (folderChildren.has(changedFileName)) {
+									type = FileChangeType.UPDATED;
 								} else {
-									folderChildren.delete(changedFileName);
-									type = FileChangeType.DELETED;
+									type = FileChangeType.ADDED;
+									folderChildren.add(changedFileName);
 								}
-
-								this.onFileChange({ path: join(this.request.path, changedFileName), type });
+							} else {
+								folderChildren.delete(changedFileName);
+								type = FileChangeType.DELETED;
 							}
+
+							this.onFileChange({ path: join(this.request.path, changedFileName), type });
 						}, NodeJSFileWatcher.FILE_DELETE_HANDLER_DELAY);
 
 						mapPathToStatDisposable.set(changedFileName, toDisposable(() => clearTimeout(timeoutHandle)));
 					}
 
-					// Other events
+					// Folder child changed
 					else {
 
 						// Figure out the correct event type: if this is the
@@ -288,6 +267,70 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 						this.onFileChange({ path: join(this.request.path, changedFileName), type });
 					}
 				}
+
+				// File
+				else {
+
+					// File added/deleted
+					if (type === 'rename' || changedFileName !== pathBasename) {
+
+						// Depending on the OS the watcher runs on, there
+						// is different behaviour for when the watched
+						// file path is being deleted:
+						//
+						// -   macOS: "rename" event is reported and events
+						//            stop working
+						// -   Linux: "rename" event is reported and events
+						//            stop working
+						// - Windows: "rename" event is reported and events
+						//            continue to work when file is restored
+						//
+						// As opposed to folder watching, we re-attach the
+						// watcher after brief timeout to support "atomic save"
+						// operations where a tool may decide to delete a file
+						// and then create it with the updated contents.
+						//
+						// Different to folder watching, we emit a delete event
+						// though we never detect when the file is brought back
+						// because the watcher is disposed then.
+
+						const timeoutHandle = setTimeout(async () => {
+							const fileExists = await Promises.exists(path);
+
+							if (cts.token.isCancellationRequested) {
+								return; // ignore if disposed by now
+							}
+
+							// File still exists, so emit as change event and reapply the watcher
+							if (fileExists) {
+								this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED });
+
+								disposables.add(await this.doWatch(path, false));
+							}
+
+							// File seems to be really gone, so emit a deleted event and dispose
+							else {
+								const eventPromise = this.onFileChange({ path: this.request.path, type: FileChangeType.DELETED });
+
+								// Important to await the event delivery
+								// before disposing the watcher, otherwise
+								// we will loose this event.
+								await eventPromise;
+								this.dispose();
+							}
+						}, NodeJSFileWatcher.FILE_DELETE_HANDLER_DELAY);
+
+						// Very important to dispose the watcher which now points to a stale inode
+						// and wire in a new disposable that tracks our timeout that is installed
+						disposables.clear();
+						disposables.add(toDisposable(() => clearTimeout(timeoutHandle)));
+					}
+
+					// File changed
+					else {
+						this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED });
+					}
+				}
 			});
 		} catch (error) {
 			if (await Promises.exists(path) && !cts.token.isCancellationRequested) {
@@ -301,7 +344,7 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 		});
 	}
 
-	private onFileChange(event: IDiskFileChange): void {
+	private async onFileChange(event: IDiskFileChange): Promise<void> {
 		if (this.cts.token.isCancellationRequested) {
 			return;
 		}
@@ -321,38 +364,44 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 		}
 
 		// Handle emit through delayer to accommodate for bulk changes and thus reduce spam
-		this.fileChangesDelayer.trigger(async () => {
-			const fileChanges = this.fileChangesBuffer;
-			this.fileChangesBuffer = [];
+		try {
+			await this.fileChangesDelayer.trigger(async () => {
+				const fileChanges = this.fileChangesBuffer;
+				this.fileChangesBuffer = [];
 
-			// Coalesce events: merge events of same kind
-			const coalescedFileChanges = coalesceEvents(fileChanges);
+				// Coalesce events: merge events of same kind
+				const coalescedFileChanges = coalesceEvents(fileChanges);
 
-			// Logging
-			if (this.verboseLogging) {
-				for (const event of coalescedFileChanges) {
-					this.trace(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
+				// Logging
+				if (this.verboseLogging) {
+					for (const event of coalescedFileChanges) {
+						this.trace(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
+					}
 				}
-			}
 
-			// Broadcast to clients
-			if (coalescedFileChanges.length > 0) {
-				this.onDidFilesChange(coalescedFileChanges);
-			}
-		}).catch(() => {
+				// Broadcast to clients
+				if (coalescedFileChanges.length > 0) {
+					this.onDidFilesChange(coalescedFileChanges);
+				}
+			});
+		} catch (error) {
 			// ignore (we are likely disposed and cancelled)
-		});
+		}
 	}
 
 	private async existsChildStrictCase(path: string): Promise<boolean> {
 		if (isLinux) {
-			return await Promises.exists(path);
+			return Promises.exists(path);
 		}
 
 		try {
+			const pathBasename = basename(path);
 			const children = await Promises.readdir(dirname(path));
-			return children.some(child => child === basename(path));
-		} catch {
+
+			return children.some(child => child === pathBasename);
+		} catch (error) {
+			this.trace(error);
+
 			return false;
 		}
 	}
@@ -380,6 +429,8 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 	}
 
 	override dispose(): void {
+		this.trace('stopping file watcher');
+
 		this.cts.dispose(true);
 
 		super.dispose();

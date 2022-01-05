@@ -540,6 +540,13 @@ interface IWorkbenchConstructionOptions {
 	//#endregion
 
 
+	//#region IPC
+
+	readonly messagePorts?: ReadonlyMap<ExtensionId, MessagePort>;
+
+	//#endregion
+
+
 	//#region Development options
 
 	readonly developmentOptions?: IDevelopmentOptions;

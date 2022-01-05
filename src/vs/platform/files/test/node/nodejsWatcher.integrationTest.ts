@@ -12,16 +12,19 @@ import { FileChangeType } from 'vs/platform/files/common/files';
 import { IDiskFileChange } from 'vs/platform/files/common/watcher';
 import { NodeJSFileWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { getDriveLetter } from 'vs/base/common/extpath';
+import { ltrim } from 'vs/base/common/strings';
+import { DeferredPromise } from 'vs/base/common/async';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('Recursive File Watcher (node.js)', () => {
+((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (node.js)', () => {
 
 	let testDir: string;
-	let watcher: NodeJSFileWatcher;
+	let watcher: TestNodeJSFileWatcher;
 	let event: Event<IDiskFileChange[]>;
 
 	let loggingEnabled = false;
@@ -32,6 +35,18 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 	}
 
 	enableLogging(false);
+
+	class TestNodeJSFileWatcher extends NodeJSFileWatcher {
+
+		private readonly _whenDisposed = new DeferredPromise<void>();
+		readonly whenDisposed = this._whenDisposed.p;
+
+		override dispose(): void {
+			super.dispose();
+
+			this._whenDisposed.complete();
+		}
+	}
 
 	setup(async function () {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher');
@@ -51,7 +66,7 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 		const emitter = new Emitter<IDiskFileChange[]>();
 		event = emitter.event;
 
-		watcher = new NodeJSFileWatcher({ path, excludes: [] }, changes => emitter.fire(changes), msg => {
+		watcher = new TestNodeJSFileWatcher({ path, excludes: [] }, changes => emitter.fire(changes), msg => {
 			if (loggingEnabled) {
 				console.log(`[recursive watcher test message] ${msg.type}: ${msg.message}`);
 			}
@@ -336,12 +351,29 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 
 		await createWatcher(link);
 
-		// New file
-		const newFilePath = join(link, 'newFile.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(event, newFilePath, FileChangeType.ADDED);
-		await Promises.writeFile(newFilePath, 'Hello World');
-		await changeFuture;
+		return basicCrudTest(join(link, 'newFile.txt'));
 	});
+
+	async function basicCrudTest(filePath: string, skipAdd?: boolean): Promise<void> {
+		let changeFuture: Promise<unknown>;
+
+		// New file
+		if (!skipAdd) {
+			changeFuture = awaitEvent(event, filePath, FileChangeType.ADDED);
+			await Promises.writeFile(filePath, 'Hello World');
+			await changeFuture;
+		}
+
+		// Change file
+		changeFuture = awaitEvent(event, filePath, FileChangeType.UPDATED);
+		await Promises.writeFile(filePath, 'Hello Change');
+		await changeFuture;
+
+		// Delete file
+		changeFuture = awaitEvent(event, filePath, FileChangeType.DELETED);
+		await Promises.unlink(await Promises.realpath(filePath)); // support symlinks
+		await changeFuture;
+	}
 
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (file watch)', async function () {
 		const link = join(testDir, 'lorem.txt-linked');
@@ -350,41 +382,42 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 
 		await createWatcher(link);
 
-		// Change file
-		let changeFuture = awaitEvent(event, link, FileChangeType.UPDATED);
-		await Promises.writeFile(link, 'Hello Change');
-		await changeFuture;
+		return basicCrudTest(link, true);
+	});
 
-		// Delete file
-		changeFuture = awaitEvent(event, link, FileChangeType.DELETED);
-		await Promises.unlink(linkTarget);
-		await changeFuture;
+	(!isWindows /* UNC is windows only */ ? test.skip : test)('unc support (folder watch)', async function () {
+
+		// Local UNC paths are in the form of: \\localhost\c$\my_dir
+		const uncPath = `\\\\localhost\\${getDriveLetter(testDir)?.toLowerCase()}$\\${ltrim(testDir.substr(testDir.indexOf(':') + 1), '\\')}`;
+
+		await createWatcher(uncPath);
+
+		return basicCrudTest(join(uncPath, 'newFile.txt'));
+	});
+
+	(!isWindows /* UNC is windows only */ ? test.skip : test)('unc support (file watch)', async function () {
+
+		// Local UNC paths are in the form of: \\localhost\c$\my_dir
+		const uncPath = `\\\\localhost\\${getDriveLetter(testDir)?.toLowerCase()}$\\${ltrim(testDir.substr(testDir.indexOf(':') + 1), '\\')}\\lorem.txt`;
+
+		await createWatcher(uncPath);
+
+		return basicCrudTest(uncPath, true);
 	});
 
 	(isLinux /* linux: is case sensitive */ ? test.skip : test)('wrong casing (folder watch)', async function () {
 		const wrongCase = join(dirname(testDir), basename(testDir).toUpperCase());
+
 		await createWatcher(wrongCase);
 
-		// New file
-		const newFilePath = join(wrongCase, 'newFile.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(event, newFilePath, FileChangeType.ADDED);
-		await Promises.writeFile(newFilePath, 'Hello World');
-		await changeFuture;
+		return basicCrudTest(join(wrongCase, 'newFile.txt'));
 	});
 
 	(isLinux /* linux: is case sensitive */ ? test.skip : test)('wrong casing (file watch)', async function () {
 		const filePath = join(testDir, 'LOREM.txt');
 		await createWatcher(filePath);
 
-		// Change file
-		let changeFuture = awaitEvent(event, filePath, FileChangeType.UPDATED);
-		await Promises.writeFile(filePath, 'Hello Change');
-		await changeFuture;
-
-		// Delete file
-		changeFuture = awaitEvent(event, filePath, FileChangeType.DELETED);
-		await Promises.unlink(filePath);
-		await changeFuture;
+		return basicCrudTest(filePath, true);
 	});
 
 	test('invalid path does not explode', async function () {
@@ -397,10 +430,9 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 		const watchedPath = join(testDir, 'deep');
 		await createWatcher(watchedPath);
 
-		// Delete watched path
-		const changeFuture = awaitEvent(event, watchedPath, FileChangeType.DELETED);
+		// Delete watched path and ensure watcher is now disposed
 		Promises.rm(watchedPath, RimRafMode.UNLINK);
-		await changeFuture;
+		await watcher.whenDisposed;
 	});
 
 	test('deleting watched path is handled properly (file watch)', async function () {
@@ -411,5 +443,8 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 		const changeFuture = awaitEvent(event, watchedPath, FileChangeType.DELETED);
 		Promises.unlink(watchedPath);
 		await changeFuture;
+
+		// Ensure watcher is now disposed
+		await watcher.whenDisposed;
 	});
 });
