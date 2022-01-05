@@ -431,6 +431,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this.capabilities.push(value as ProcessCapability);
 			}
 		}
+		this._onDidChangeProperty.fire({ type, value });
 	}
 
 	private _startWrite(): void {

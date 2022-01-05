@@ -506,10 +506,10 @@ export class PersistentTerminalProcess extends Disposable {
 			unicodeVersion,
 			reviveBuffer
 		);
-		const shellIntegrationAddon = new ShellIntegrationAddon();
-		shellIntegrationAddon.onDidStartShellIntegration(() => {
+		this._serializer.onDidStartShellIntegration(() => {
 			this._terminalProcess.updateProperty(ProcessPropertyType.Capability, ProcessCapability.CommandCognisant);
 		});
+
 		this._fixedDimensions = fixedDimensions;
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
@@ -755,18 +755,25 @@ class ShellIntegrationAddon extends Disposable implements ITerminalAddon {
 class XtermSerializer implements ITerminalSerializer {
 	private _xterm: XtermTerminal;
 	private _unicodeAddon?: XtermUnicode11Addon;
-
+	private readonly _onDidStartShellIntegration = new Emitter<void>();
+	readonly onDidStartShellIntegration = this._onDidStartShellIntegration.event;
 	constructor(
 		cols: number,
 		rows: number,
 		scrollback: number,
 		unicodeVersion: '6' | '11',
-		reviveBuffer: string | undefined
+		reviveBuffer: string | undefined,
 	) {
 		this._xterm = new XtermTerminal({ cols, rows, scrollback });
 		if (reviveBuffer) {
 			this._xterm.writeln(reviveBuffer);
 		}
+		const shellIntegrationAddon = new ShellIntegrationAddon();
+		shellIntegrationAddon.activate(this._xterm);
+		shellIntegrationAddon.onDidStartShellIntegration(() => {
+			this._onDidStartShellIntegration.fire();
+		});
+		this._xterm.loadAddon(new ShellIntegrationAddon());
 		this.setUnicodeVersion(unicodeVersion);
 	}
 
@@ -855,4 +862,5 @@ export interface ITerminalSerializer {
 	handleResize(cols: number, rows: number): void;
 	generateReplayEvent(normalBufferOnly?: boolean): Promise<IPtyHostProcessReplayEvent>;
 	setUnicodeVersion?(version: '6' | '11'): void;
+	onDidStartShellIntegration: Event<void>;
 }

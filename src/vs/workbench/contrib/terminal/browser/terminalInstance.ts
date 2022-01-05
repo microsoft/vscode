@@ -1152,6 +1152,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				case ProcessPropertyType.HasChildProcesses:
 					this._onDidChangeHasChildProcesses.fire(value);
 					break;
+				case ProcessPropertyType.Capability:
+					this._capabilities.push(value);
 			}
 		});
 
