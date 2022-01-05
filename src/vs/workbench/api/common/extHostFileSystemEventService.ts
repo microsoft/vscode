@@ -39,19 +39,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 	}
 
 	constructor(mainContext: IMainContext, extension: IExtensionDescription, dispatcher: Event<FileSystemEvents>, globPattern: string | RelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean) {
-
-		// If the `globPattern` provides a `baseFolder`, make sure
-		// it is being watched for changes, because it may be for
-		// a folder outside of the currently opened workspace.
-		let watcherDisposable: Disposable;
-		if (typeof globPattern !== 'string' && globPattern.baseFolder && isProposedApiEnabled(extension, 'fsWatch')) {
-			const session = Math.random();
-			const proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
-			proxy.$watch(session, globPattern.baseFolder, { recursive: false, excludes: [] });
-			watcherDisposable = Disposable.from({ dispose: () => proxy.$unwatch(session) });
-		} else {
-			watcherDisposable = Disposable.from();
-		}
+		const watcherDisposable = this.ensureWatching(mainContext, extension, globPattern);
 
 		this._config = 0;
 		if (ignoreCreateEvents) {
@@ -94,6 +82,34 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		});
 
 		this._disposable = Disposable.from(watcherDisposable, this._onDidCreate, this._onDidChange, this._onDidDelete, subscription);
+	}
+
+	private ensureWatching(mainContext: IMainContext, extension: IExtensionDescription, globPattern: string | RelativePattern): Disposable {
+		let disposable = Disposable.from();
+
+		if (typeof globPattern === 'string') {
+			return disposable; // a pattern alone does not carry sufficient information to start watching anything
+		}
+
+		if (!globPattern.baseFolder) {
+			return disposable; // we need a base folder to start watching
+		}
+
+		if (!isProposedApiEnabled(extension, 'fsWatch')) {
+			return disposable; // this is behind proposed API (TODO@bpasero finalize this API)
+		}
+
+		const proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
+
+		let recursive = false;
+		if (globPattern.pattern.includes('**') || globPattern.pattern.includes('/')) {
+			recursive = true; // only watch recursively if pattern indicates the need for it
+		}
+
+		const session = Math.random();
+		proxy.$watch(session, globPattern.baseFolder, { recursive, excludes: [] /* excludes are not yet surfaced in the API */ });
+
+		return Disposable.from({ dispose: () => proxy.$unwatch(session) });
 	}
 
 	dispose() {
