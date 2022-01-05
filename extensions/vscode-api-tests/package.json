@@ -16,6 +16,7 @@
     "fileSearchProvider",
     "findTextInFiles",
     "fsChunks",
+    "fsWatch",
     "inlayHints",
     "inlineCompletions",
     "languageStatus",
