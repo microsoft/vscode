@@ -39,7 +39,7 @@ suite('Debug - ANSI Handling', () => {
 		linkDetector = instantiationService.createInstance(LinkDetector);
 
 		const colors: { [id: string]: string; } = {};
-		for (let color in ansiColorMap) {
+		for (const color in ansiColorMap) {
 			colors[color] = <any>ansiColorMap[color].defaults.dark;
 		}
 		const testTheme = new TestColorTheme(colors);
@@ -347,7 +347,7 @@ suite('Debug - ANSI Handling', () => {
 		for (let r = 0; r <= 255; r += 64) {
 			for (let g = 0; g <= 255; g += 64) {
 				for (let b = 0; b <= 255; b += 64) {
-					let color = new RGBA(r, g, b);
+					const color = new RGBA(r, g, b);
 					// Foreground codes should add class and inline style
 					assertSingleSequenceElement(`\x1b[38;2;${r};${g};${b}m`, (child) => {
 						assert(child.classList.contains('code-foreground-colored'), 'DOM should have "code-foreground-colored" class for advanced ANSI colors.');
@@ -1033,7 +1033,7 @@ suite('Debug - ANSI Handling', () => {
 		for (let red = 0; red <= 5; red++) {
 			for (let green = 0; green <= 5; green++) {
 				for (let blue = 0; blue <= 5; blue++) {
-					let colorOut: any = calcANSI8bitColor(16 + red * 36 + green * 6 + blue);
+					const colorOut: any = calcANSI8bitColor(16 + red * 36 + green * 6 + blue);
 					assert(colorOut.r === Math.round(red * (255 / 5)), 'Incorrect red value encountered for color');
 					assert(colorOut.g === Math.round(green * (255 / 5)), 'Incorrect green value encountered for color');
 					assert(colorOut.b === Math.round(blue * (255 / 5)), 'Incorrect balue value encountered for color');
@@ -1043,7 +1043,7 @@ suite('Debug - ANSI Handling', () => {
 
 		// All grays
 		for (let i = 232; i <= 255; i++) {
-			let grayOut: any = calcANSI8bitColor(i);
+			const grayOut: any = calcANSI8bitColor(i);
 			assert(grayOut.r === grayOut.g);
 			assert(grayOut.r === grayOut.b);
 			assert(grayOut.r === Math.round((i - 232) / 23 * 255));

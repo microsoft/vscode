@@ -22,8 +22,8 @@ import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { FoldingRangeKind, FoldingRangeProviderRegistry } from 'vs/editor/common/modes';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { FoldingRangeKind, FoldingRangeProviderRegistry } from 'vs/editor/common/languages';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { CollapseMemento, FoldingModel, getNextFoldLine, getParentFoldLine as getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateForType, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp, toggleCollapseState } from 'vs/editor/contrib/folding/foldingModel';
 import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
 import { IndentRangeProvider } from 'vs/editor/contrib/folding/indentRangeProvider';
@@ -396,7 +396,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		const range = e.target.range;
 		let iconClicked = false;
 		switch (e.target.type) {
-			case MouseTargetType.GUTTER_LINE_DECORATIONS:
+			case MouseTargetType.GUTTER_LINE_DECORATIONS: {
 				const data = e.target.detail as IMarginData;
 				const offsetLeftInGutter = (e.target.element as HTMLElement).offsetLeft;
 				const gutterOffsetX = data.offsetX - offsetLeftInGutter;
@@ -410,6 +410,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 				iconClicked = true;
 				break;
+			}
 			case MouseTargetType.CONTENT_EMPTY: {
 				if (this._unfoldOnClickAfterEndOfLine && this.hiddenRangeModel.hasRanges()) {
 					const data = e.target.detail as IEmptyContentData;

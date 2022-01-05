@@ -9,11 +9,11 @@ import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFi
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { IFileService, ByteSize, getPlatformLimits, Arch } from 'vs/platform/files/common/files';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -22,7 +22,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/common/async';

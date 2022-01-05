@@ -12,7 +12,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -36,7 +36,7 @@ suite('SnippetSession', function () {
 			[ILabelService, new class extends mock<ILabelService>() { }],
 			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
 		);
-		editor = createTestCodeEditor({ model, serviceCollection }) as IActiveCodeEditor;
+		editor = createTestCodeEditor(model, { serviceCollection }) as IActiveCodeEditor;
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
 		assert.strictEqual(model.getEOL(), '\n');
 	});

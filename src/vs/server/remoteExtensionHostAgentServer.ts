@@ -55,8 +55,8 @@ import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAg
 import { IPCServer, ClientConnectionEvent, IMessagePassingProtocol, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { Emitter, Event } from 'vs/base/common/event';
 import { RemoteAgentEnvironmentChannel } from 'vs/server/remoteAgentEnvironmentImpl';
-import { RemoteAgentFileSystemProviderChannel } from 'vs/server/remoteFileSystemProviderIpc';
-import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
+import { RemoteAgentFileSystemProviderChannel } from 'vs/server/remoteFileSystemProviderServer';
+import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
 import { RequestChannel } from 'vs/platform/request/common/requestIpc';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';

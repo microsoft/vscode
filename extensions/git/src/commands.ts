@@ -2821,7 +2821,7 @@ export class CommandCenter {
 						type = 'warning';
 						options.modal = false;
 						break;
-					case GitErrorCodes.AuthenticationFailed:
+					case GitErrorCodes.AuthenticationFailed: {
 						const regex = /Authentication failed for '(.*)'/i;
 						const match = regex.exec(err.stderr || String(err));
 
@@ -2829,12 +2829,13 @@ export class CommandCenter {
 							? localize('auth failed specific', "Failed to authenticate to git remote:\n\n{0}", match[1])
 							: localize('auth failed', "Failed to authenticate to git remote.");
 						break;
+					}
 					case GitErrorCodes.NoUserNameConfigured:
 					case GitErrorCodes.NoUserEmailConfigured:
 						message = localize('missing user info', "Make sure you configure your 'user.name' and 'user.email' in git.");
 						choices.set(localize('learn more', "Learn More"), () => commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/book/en/v2/Getting-Started-First-Time-Git-Setup')));
 						break;
-					default:
+					default: {
 						const hint = (err.stderr || err.message || String(err))
 							.replace(/^error: /mi, '')
 							.replace(/^> husky.*$/mi, '')
@@ -2847,6 +2848,7 @@ export class CommandCenter {
 							: localize('git error', "Git error");
 
 						break;
+					}
 				}
 
 				if (!message) {

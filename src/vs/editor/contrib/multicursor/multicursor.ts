@@ -20,7 +20,7 @@ import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
+import { DocumentHighlightProviderRegistry } from 'vs/editor/common/languages';
 import { CommonFindController } from 'vs/editor/contrib/find/findController';
 import { FindOptionOverride, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
 import * as nls from 'vs/nls';

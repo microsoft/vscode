@@ -51,7 +51,7 @@ import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+import { IExplorerService, IExplorerView } from 'vs/workbench/contrib/files/browser/files';
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -136,7 +136,7 @@ export interface IExplorerViewContainerDelegate {
 	didOpenElement(event?: UIEvent): void;
 }
 
-export class ExplorerView extends ViewPane {
+export class ExplorerView extends ViewPane implements IExplorerView {
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
 	private tree!: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;

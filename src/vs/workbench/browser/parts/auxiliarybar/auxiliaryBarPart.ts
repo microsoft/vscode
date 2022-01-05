@@ -56,16 +56,6 @@ export class AuxiliaryBarPart extends BasePanelPart {
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		super(
-			Parts.AUXILIARYBAR_PART,
-			AuxiliaryBarPart.activePanelSettingsKey,
-			AuxiliaryBarPart.pinnedPanelsKey,
-			AuxiliaryBarPart.placeholdeViewContainersKey,
-			PaneCompositeExtensions.Auxiliary,
-			SIDE_BAR_BACKGROUND,
-			ViewContainerLocation.AuxiliaryBar,
-			ActiveAuxiliaryContext.bindTo(contextKeyService),
-			AuxiliaryBarFocusContext.bindTo(contextKeyService),
-			() => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0,
 			notificationService,
 			storageService,
 			telemetryService,
@@ -77,6 +67,20 @@ export class AuxiliaryBarPart extends BasePanelPart {
 			viewDescriptorService,
 			contextKeyService,
 			extensionService,
+			Parts.AUXILIARYBAR_PART,
+			AuxiliaryBarPart.activePanelSettingsKey,
+			AuxiliaryBarPart.pinnedPanelsKey,
+			AuxiliaryBarPart.placeholdeViewContainersKey,
+			PaneCompositeExtensions.Auxiliary,
+			SIDE_BAR_BACKGROUND,
+			ViewContainerLocation.AuxiliaryBar,
+			ActiveAuxiliaryContext.bindTo(contextKeyService),
+			AuxiliaryBarFocusContext.bindTo(contextKeyService),
+			{
+				useIcons: true,
+				hasTitle: true,
+				borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0,
+			}
 		);
 	}
 

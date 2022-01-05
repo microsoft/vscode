@@ -16,7 +16,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { CodeActionsExtensionPoint, ContributedCodeAction } from 'vs/workbench/contrib/codeActions/common/codeActionsExtensionPoint';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
+import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
 
 const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
 	'source.fixAll': {

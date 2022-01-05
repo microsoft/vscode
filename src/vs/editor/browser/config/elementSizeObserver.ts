@@ -5,50 +5,24 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
-
-interface ResizeObserver {
-	observe(target: Element): void;
-	unobserve(target: Element): void;
-	disconnect(): void;
-}
-
-interface ResizeObserverSize {
-	inlineSize: number;
-	blockSize: number;
-}
-
-interface ResizeObserverEntry {
-	readonly target: Element;
-	readonly contentRect: DOMRectReadOnly;
-	readonly borderBoxSize: ResizeObserverSize;
-	readonly contentBoxSize: ResizeObserverSize;
-}
-
-type ResizeObserverCallback = (entries: ReadonlyArray<ResizeObserverEntry>, observer: ResizeObserver) => void;
-
-declare const ResizeObserver: {
-	prototype: ResizeObserver;
-	new(callback: ResizeObserverCallback): ResizeObserver;
-};
-
+import { Emitter, Event } from 'vs/base/common/event';
 
 export class ElementSizeObserver extends Disposable {
 
-	private readonly referenceDomElement: HTMLElement | null;
-	private readonly changeCallback: () => void;
-	private width: number;
-	private height: number;
-	private resizeObserver: ResizeObserver | null;
-	private measureReferenceDomElementToken: number;
+	private _onDidChange = this._register(new Emitter<void>());
+	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	constructor(referenceDomElement: HTMLElement | null, dimension: IDimension | undefined, changeCallback: () => void) {
+	private readonly _referenceDomElement: HTMLElement | null;
+	private _width: number;
+	private _height: number;
+	private _resizeObserver: ResizeObserver | null;
+
+	constructor(referenceDomElement: HTMLElement | null, dimension: IDimension | undefined) {
 		super();
-		this.referenceDomElement = referenceDomElement;
-		this.changeCallback = changeCallback;
-		this.width = -1;
-		this.height = -1;
-		this.resizeObserver = null;
-		this.measureReferenceDomElementToken = -1;
+		this._referenceDomElement = referenceDomElement;
+		this._width = -1;
+		this._height = -1;
+		this._resizeObserver = null;
 		this.measureReferenceDomElement(false, dimension);
 	}
 
@@ -58,41 +32,30 @@ export class ElementSizeObserver extends Disposable {
 	}
 
 	public getWidth(): number {
-		return this.width;
+		return this._width;
 	}
 
 	public getHeight(): number {
-		return this.height;
+		return this._height;
 	}
 
 	public startObserving(): void {
-		if (typeof ResizeObserver !== 'undefined') {
-			if (!this.resizeObserver && this.referenceDomElement) {
-				this.resizeObserver = new ResizeObserver((entries) => {
-					if (entries && entries[0] && entries[0].contentRect) {
-						this.observe({ width: entries[0].contentRect.width, height: entries[0].contentRect.height });
-					} else {
-						this.observe();
-					}
-				});
-				this.resizeObserver.observe(this.referenceDomElement);
-			}
-		} else {
-			if (this.measureReferenceDomElementToken === -1) {
-				// setInterval type defaults to NodeJS.Timeout instead of number, so specify it as a number
-				this.measureReferenceDomElementToken = <number><any>setInterval(() => this.observe(), 100);
-			}
+		if (!this._resizeObserver && this._referenceDomElement) {
+			this._resizeObserver = new ResizeObserver((entries) => {
+				if (entries && entries[0] && entries[0].contentRect) {
+					this.observe({ width: entries[0].contentRect.width, height: entries[0].contentRect.height });
+				} else {
+					this.observe();
+				}
+			});
+			this._resizeObserver.observe(this._referenceDomElement);
 		}
 	}
 
 	public stopObserving(): void {
-		if (this.resizeObserver) {
-			this.resizeObserver.disconnect();
-			this.resizeObserver = null;
-		}
-		if (this.measureReferenceDomElementToken !== -1) {
-			clearInterval(this.measureReferenceDomElementToken);
-			this.measureReferenceDomElementToken = -1;
+		if (this._resizeObserver) {
+			this._resizeObserver.disconnect();
+			this._resizeObserver = null;
 		}
 	}
 
@@ -100,25 +63,24 @@ export class ElementSizeObserver extends Disposable {
 		this.measureReferenceDomElement(true, dimension);
 	}
 
-	private measureReferenceDomElement(callChangeCallback: boolean, dimension?: IDimension): void {
+	private measureReferenceDomElement(emitEvent: boolean, dimension?: IDimension): void {
 		let observedWidth = 0;
 		let observedHeight = 0;
 		if (dimension) {
 			observedWidth = dimension.width;
 			observedHeight = dimension.height;
-		} else if (this.referenceDomElement) {
-			observedWidth = this.referenceDomElement.clientWidth;
-			observedHeight = this.referenceDomElement.clientHeight;
+		} else if (this._referenceDomElement) {
+			observedWidth = this._referenceDomElement.clientWidth;
+			observedHeight = this._referenceDomElement.clientHeight;
 		}
 		observedWidth = Math.max(5, observedWidth);
 		observedHeight = Math.max(5, observedHeight);
-		if (this.width !== observedWidth || this.height !== observedHeight) {
-			this.width = observedWidth;
-			this.height = observedHeight;
-			if (callChangeCallback) {
-				this.changeCallback();
+		if (this._width !== observedWidth || this._height !== observedHeight) {
+			this._width = observedWidth;
+			this._height = observedHeight;
+			if (emitEvent) {
+				this._onDidChange.fire();
 			}
 		}
 	}
-
 }

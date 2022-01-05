@@ -18,8 +18,8 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import * as modes from 'vs/editor/common/languages';
+import { tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { localize } from 'vs/nls';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -47,6 +47,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 const $ = DOM.$;
 
@@ -353,14 +354,14 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		private renderedEditors: Map<ICellViewModel, ICodeEditor>,
 		dndController: CellDragAndDropController,
 		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 	) {
-		super(instantiationService, notebookEditor, contextMenuService, menuService, configurationService, keybindingService, notificationService, contextKeyServiceProvider, 'plaintext', dndController);
+		super(instantiationService, notebookEditor, contextMenuService, menuService, configurationService, keybindingService, notificationService, contextKeyServiceProvider, PLAINTEXT_LANGUAGE_ID, dndController);
 	}
 
 	get templateId() {
@@ -395,7 +396,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
 
 		const editor = editorInstaService.createInstance(CodeEditorWidget, editorContainer, {
-			...this.editorOptions.getValue(),
+			...this.editorOptions.getDefaultValue(),
 			dimension: {
 				width: 0,
 				height: 0
@@ -407,7 +408,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		templateDisposables.add(editor);
 
-		const progressBar = templateDisposables.add(new CellProgressBar(editorPart, cellInputCollapsedContainer));
+		const progressBar = templateDisposables.add(this.instantiationService.createInstance(CellProgressBar, editorPart, cellInputCollapsedContainer));
 
 		const statusBar = templateDisposables.add(this.instantiationService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart));
 
@@ -561,17 +562,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		return combinedDisposable(dragHandleListener, collapsedPartListener, clickHandler);
 	}
 
-	private updateFocusIndicatorsForTitleMenu(templateData: CodeCellRenderTemplate): void {
-		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
-		if (templateData.titleToolbar.hasActions) {
-			templateData.focusIndicator.left.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
-			templateData.focusIndicator.right.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
-		} else {
-			templateData.focusIndicator.left.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
-			templateData.focusIndicator.right.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
-		}
-	}
-
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
 		if (!this.notebookEditor.hasModel()) {
 			throw new Error('The notebook editor is not attached with view model yet.');
@@ -589,7 +579,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.outputContainer.domNode.appendChild(templateData.cellOutputCollapsedContainer);
 
 		const elementDisposables = templateData.elementDisposables;
-		const cellEditorOptions = elementDisposables.add(new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, element.language));
 
 		const codeCellView = elementDisposables.add(templateData.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData, [
 			templateData.focusIndicator,
@@ -598,16 +587,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateData.progressBar,
 			templateData.titleToolbar,
 			templateData.runToolbar,
-			cellEditorOptions,
 			templateData.cellExecution,
 			templateData.dragHandle
 		]));
 
 		this.renderedEditors.set(element, templateData.editor);
-
-		elementDisposables.add(cellEditorOptions.onDidChange(() => templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata))));
-		templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata));
-		cellEditorOptions.setLineNumbers(element.lineNumbers);
 
 		this.updateFocusIndicatorsForTitleMenuAndSubscribe(element, templateData, codeCellView);
 	}
@@ -627,6 +611,17 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.elementDisposables.add(templateData.titleToolbar.onDidUpdateActions(() => {
 			this.updateFocusIndicatorsForTitleMenu(templateData);
 		}));
+	}
+
+	private updateFocusIndicatorsForTitleMenu(templateData: CodeCellRenderTemplate): void {
+		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
+		if (templateData.titleToolbar.hasActions) {
+			templateData.focusIndicator.left.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
+			templateData.focusIndicator.right.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
+		} else {
+			templateData.focusIndicator.left.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
+			templateData.focusIndicator.right.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
+		}
 	}
 
 	disposeTemplate(templateData: CodeCellRenderTemplate): void {

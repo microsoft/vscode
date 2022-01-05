@@ -13,8 +13,8 @@ import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -450,9 +450,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			case ConfigurationTarget.USER:
 			case ConfigurationTarget.USER_LOCAL:
 				return this.userSettingsResource;
-			case ConfigurationTarget.USER_REMOTE:
+			case ConfigurationTarget.USER_REMOTE: {
 				const remoteEnvironment = await this.remoteAgentService.getEnvironment();
 				return remoteEnvironment ? remoteEnvironment.settingsPath : null;
+			}
 			case ConfigurationTarget.WORKSPACE:
 				return this.workspaceSettingsResource;
 			case ConfigurationTarget.WORKSPACE_FOLDER:

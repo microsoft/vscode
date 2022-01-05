@@ -34,7 +34,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { FileAccess } from 'vs/base/common/network';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
@@ -366,7 +366,7 @@ class Extensions extends Disposable {
 	private installed: Extension[] = [];
 
 	constructor(
-		private readonly server: IExtensionManagementServer,
+		readonly server: IExtensionManagementServer,
 		private readonly stateProvider: IExtensionStateProvider<ExtensionState>,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
@@ -792,7 +792,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				const keywords = lookup[ext] || [];
 
 				// Get mode name
-				const languageId = this.languageService.getLanguageIdByFilepathOrFirstLine(URI.file(`.${ext}`));
+				const languageId = this.languageService.guessLanguageIdByFilepathOrFirstLine(URI.file(`.${ext}`));
 				const languageName = languageId && this.languageService.getLanguageName(languageId);
 				const languageTag = languageName ? ` tag:"${languageName}"` : '';
 
@@ -1006,40 +1006,27 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private async syncWithGallery(): Promise<void> {
-		const ids: string[] = [], preReleaseIds: string[] = [], names: string[] = [], preReleaseNames: string[] = [];
+		const identifiers: (IExtensionIdentifier & { preRelease: boolean })[] = [], names: string[] = [];
 		for (const installed of this.local) {
 			if (installed.type === ExtensionType.User) {
 				if (installed.identifier.uuid) {
-					if (installed.local?.isPreReleaseVersion || installed.local?.preRelease) {
-						preReleaseIds.push(installed.identifier.uuid);
-					} else {
-						ids.push(installed.identifier.uuid);
-					}
+					identifiers.push({ ...installed.identifier, preRelease: !!installed.local?.isPreReleaseVersion || !!installed.local?.preRelease });
 				} else {
-					if (installed.local?.isPreReleaseVersion || installed.local?.preRelease) {
-						preReleaseNames.push(installed.identifier.id);
-					} else {
-						names.push(installed.identifier.id);
-					}
+					names.push(installed.identifier.id);
 				}
 			}
 		}
 
-		const promises: Promise<IPager<IExtension>>[] = [];
-		if (ids.length) {
-			promises.push(this.queryGallery({ ids, pageSize: ids.length, includePreRelease: false }, CancellationToken.None));
-		}
-		if (preReleaseIds.length) {
-			promises.push(this.queryGallery({ ids: preReleaseIds, pageSize: preReleaseIds.length, includePreRelease: true }, CancellationToken.None));
+		const promises: Promise<any>[] = [];
+		if (identifiers.length) {
+			const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
+			promises.push(this.galleryService.getExtensions2(identifiers).then(galleryExtensions => galleryExtensions.forEach(gallery => this.fromGallery(gallery, extensionsControlManifest))));
 		}
 		if (names.length) {
-			promises.push(this.queryGallery({ names, pageSize: names.length, includePreRelease: false }, CancellationToken.None));
-		}
-		if (preReleaseNames.length) {
-			promises.push(this.queryGallery({ names: preReleaseNames, pageSize: names.length, includePreRelease: true }, CancellationToken.None));
+			promises.push(this.queryGallery({ names, pageSize: names.length }, CancellationToken.None));
 		}
 
-		await Promises.settled(promises);
+		return Promises.settled(promises).then(() => undefined);
 	}
 
 	private eventuallyAutoUpdateExtensions(): void {

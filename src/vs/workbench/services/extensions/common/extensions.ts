@@ -13,6 +13,7 @@ import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/ex
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
+import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	identifier: new ExtensionIdentifier('nullExtensionDescription'),
@@ -99,7 +100,7 @@ export interface IExtensionHostProfile {
 	/**
 	 * Get the information as a .cpuprofile.
 	 */
-	data: object;
+	data: IV8Profile;
 
 	/**
 	 * Get the aggregated time per segmentId

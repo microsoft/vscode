@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { join } from 'path';
 import { Application, ActivityBarPosition, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 
@@ -14,7 +15,7 @@ export function setup(logger: Logger) {
 
 		it('turns off editor line numbers and verifies the live change', async function () {
 			const app = this.app as Application;
-			await app.workbench.quickaccess.openFile('app.js');
+			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'app.js'));
 			await app.code.waitForElements('.line-numbers', false, elements => !!elements.length);
 
 			await app.workbench.settingsEditor.addUserSetting('editor.lineNumbers', '"off"');

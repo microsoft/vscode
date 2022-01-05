@@ -332,8 +332,8 @@ export class TernarySearchTree<K, V> {
 		return new TernarySearchTree<URI, E>(new UriIterator(ignorePathCasing));
 	}
 
-	static forPaths<E>(): TernarySearchTree<string, E> {
-		return new TernarySearchTree<string, E>(new PathIterator());
+	static forPaths<E>(ignorePathCasing = false): TernarySearchTree<string, E> {
+		return new TernarySearchTree<string, E>(new PathIterator(undefined, !ignorePathCasing));
 	}
 
 	static forStrings<E>(): TernarySearchTree<string, E> {

@@ -17,7 +17,7 @@ import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness 
 import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { IntervalNode, IntervalTree } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { WorkspaceTextEdit } from 'vs/editor/common/modes';
+import { WorkspaceTextEdit } from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -412,7 +412,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	// selection change from list view's `setFocus` and `setSelection` should always use `source: view` to prevent events breaking the list view focus/selection change transaction
 	updateSelectionsState(state: ISelectionState, source: 'view' | 'model' = 'model') {
-		if (this._focused) {
+		if (this._focused || source === 'model') {
 			if (state.kind === SelectionStateType.Handle) {
 				const primaryIndex = state.primary !== null ? this.getCellIndexByHandle(state.primary) : null;
 				const primarySelection = primaryIndex !== null ? this.validateRange({ start: primaryIndex, end: primaryIndex + 1 }) : null;
@@ -752,7 +752,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			result.push(...ret);
 		});
 
-		for (let _handle in deletesByHandle) {
+		for (const _handle in deletesByHandle) {
 			const handle = parseInt(_handle);
 			const ids = deletesByHandle[handle];
 			const cell = this.getCellByHandle(handle);

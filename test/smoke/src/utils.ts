@@ -18,6 +18,25 @@ export function itRepeat(n: number, description: string, callback: (this: Contex
 	}
 }
 
+/**
+ * Defines a test-case that will run but will be skips it if it throws an exception. This is useful
+ * to get some runs in CI when trying to stabilize a flaky test, without failing the build. Note
+ * that this only works if something inside the test throws, so a test's overall timeout won't work
+ * but throwing due to a polling timeout will.
+ * @param title The test-case title.
+ * @param callback The test-case callback.
+ */
+export function itSkipOnFail(title: string, callback: (this: Context) => any): void {
+	it(title, function () {
+		return Promise.resolve().then(() => {
+			return callback.apply(this, arguments);
+		}).catch(e => {
+			console.warn(`Test "${title}" failed but was marked as skip on fail:`, e);
+			this.skip();
+		});
+	});
+}
+
 export function installAllHandlers(logger: Logger, optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions) {
 	installDiagnosticsHandler(logger);
 	installAppBeforeHandler(optionsTransform);
@@ -69,7 +88,8 @@ export function installDiagnosticsHandler(logger: Logger, appFn?: () => Applicat
 
 function installAppBeforeHandler(optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions) {
 	before(async function () {
-		this.app = await startApp(this.defaultOptions, optionsTransform);
+		this.app = createApp(this.defaultOptions, optionsTransform);
+		await this.app.start();
 	});
 }
 
@@ -86,7 +106,7 @@ export function installAppAfterHandler(appFn?: () => Application | undefined, jo
 	});
 }
 
-export async function startApp(options: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions): Promise<Application> {
+export function createApp(options: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions): Application {
 	if (optionsTransform) {
 		options = optionsTransform({ ...options });
 	}
@@ -95,8 +115,6 @@ export async function startApp(options: ApplicationOptions, optionsTransform?: (
 		...options,
 		userDataDir: getRandomUserDataDir(options)
 	});
-
-	await app.start();
 
 	return app;
 }

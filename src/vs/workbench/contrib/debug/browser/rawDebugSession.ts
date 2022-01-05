@@ -521,6 +521,22 @@ export class RawDebugSession implements IDisposable {
 		return Promise.reject(new Error('disassemble is not supported'));
 	}
 
+	async readMemory(args: DebugProtocol.ReadMemoryArguments): Promise<DebugProtocol.ReadMemoryResponse | undefined> {
+		if (this.capabilities.supportsReadMemoryRequest) {
+			return await this.send('readMemory', args);
+		}
+
+		return Promise.reject(new Error('readMemory is not supported'));
+	}
+
+	async writeMemory(args: DebugProtocol.WriteMemoryArguments): Promise<DebugProtocol.WriteMemoryResponse | undefined> {
+		if (this.capabilities.supportsWriteMemoryRequest) {
+			return await this.send('writeMemory', args);
+		}
+
+		return Promise.reject(new Error('writeMemory is not supported'));
+	}
+
 	cancel(args: DebugProtocol.CancelArguments): Promise<DebugProtocol.CancelResponse | undefined> {
 		return this.send('cancel', args);
 	}
@@ -641,7 +657,7 @@ export class RawDebugSession implements IDisposable {
 
 		const args: string[] = [];
 
-		for (let arg of vscodeArgs.args) {
+		for (const arg of vscodeArgs.args) {
 			const a2 = (arg.prefix || '') + (arg.path || '');
 			const match = /^--(.+)=(.+)$/.exec(a2);
 			if (match && match.length === 3) {

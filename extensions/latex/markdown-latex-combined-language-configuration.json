@@ -1,0 +1,74 @@
+{
+	"comments": {
+		// symbols used for start and end a block comment. Remove this entry if your language does not support block comments
+		"blockComment": [
+			"<!--",
+			"-->"
+		]
+	},
+	"brackets": [
+		["{", "}"],
+		["[", "]"],
+		["(", ")"],
+		["[", ")"],
+		["(", "]"],
+		["\\left(", "\\right)"],
+		["\\left(", "\\right."],
+		["\\left.", "\\right)"],
+		["\\left[", "\\right]"],
+		["\\left[", "\\right."],
+		["\\left.", "\\right]"],
+		["\\left\\{", "\\right\\}"],
+		["\\left\\{", "\\right."],
+		["\\left.", "\\right\\}"],
+		["\\left<", "\\right>"]
+	],
+	"autoClosingPairs": [
+		["\\left(", "\\right)"],
+		["\\left[", "\\right]"],
+		["\\left{", "\\right}"],
+		["\\bigl(", "\\bigr)"],
+		["\\bigl[", "\\bigr]"],
+		["\\bigl{", "\\bigr}"],
+		["\\Bigl(", "\\Bigr)"],
+		["\\Bigl[", "\\Bigr]"],
+		["\\Bigl{", "\\Bigr}"],
+		["\\biggl(", "\\biggr)"],
+		["\\biggl[", "\\biggr]"],
+		["\\biggl{", "\\biggr}"],
+		["\\Biggl(", "\\Biggr)"],
+		["\\Biggl[", "\\Biggr]"],
+		["\\Biggl{", "\\Biggr}"],
+		["\\(", "\\)"],
+		["\\[", "\\]"],
+		["\\{", "\\}"],
+		["{", "}"],
+		["[", "]"],
+		["(", ")"],
+		["`", "'"]
+	],
+	"surroundingPairs": [
+		["{", "}"],
+		["[", "]"],
+		["(", ")"],
+		["\"", "\""],
+		["'", "'"],
+		["$", "$"],
+		["`", "`"],
+		["_", "_"],
+		["*", "*"],
+	],
+	"indentationRules": {
+		"increaseIndentPattern": "\\\\begin{(?!document)([^}]*)}(?!.*\\\\end{\\1})",
+		"decreaseIndentPattern": "^\\s*\\\\end{(?!document)"
+	},
+	"folding": {
+		"offSide": true,
+		"markers": {
+			"start": "^\\s*<!--\\s*#?region\\b.*-->",
+			"end": "^\\s*<!--\\s*#?endregion\\b.*-->"
+		}
+	},
+	"autoCloseBefore": ";:.,=}])>\\` \n\t$",
+	"wordPattern": "([^\\s`'\"~_!?|$#@%^&*\\-=+;:,.<>(){}[\\]\\/]+)"
+}

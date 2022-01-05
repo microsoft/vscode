@@ -201,19 +201,13 @@ sw.addEventListener('activate', (event) => {
  * @param {URL} requestUrl
  */
 async function processResourceRequest(event, requestUrl) {
-	const client = await sw.clients.get(event.clientId);
-	if (!client) {
-		console.error('Could not find inner client for request');
-		return notFound();
-	}
-
 	const shouldTryCaching = (event.request.method === 'GET');
 
 	/**
 	 * @param {ResourceResponse} entry
 	 * @param {Response | undefined} cachedResponse
 	 */
-	async function resolveResourceEntry(entry, cachedResponse) {
+	const resolveResourceEntry = (entry, cachedResponse) => {
 		if (entry.status === 304) { // Not modified
 			if (cachedResponse) {
 				return cachedResponse.clone();
@@ -250,7 +244,7 @@ async function processResourceRequest(event, requestUrl) {
 			});
 		}
 		return response.clone();
-	}
+	};
 
 	/** @type {Response | undefined} */
 	let cached;

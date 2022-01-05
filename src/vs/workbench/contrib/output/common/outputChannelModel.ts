@@ -6,13 +6,13 @@
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as resources from 'vs/base/common/resources';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { Promises, ThrottledDelayer } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { Disposable, toDisposable, IDisposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import { EditOperation } from 'vs/editor/common/core/editOperation';

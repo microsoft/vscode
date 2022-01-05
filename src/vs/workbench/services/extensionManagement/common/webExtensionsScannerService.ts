@@ -34,6 +34,13 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { basename } from 'vs/base/common/path';
 import { flatten } from 'vs/base/common/arrays';
 
+type GalleryExtensionInfo = { readonly id: string, preRelease?: boolean };
+
+function isGalleryExtensionInfo(obj: unknown): obj is GalleryExtensionInfo {
+	const galleryExtensionInfo = obj as GalleryExtensionInfo | undefined;
+	return typeof galleryExtensionInfo?.id === 'string' && (galleryExtensionInfo.preRelease === undefined || typeof galleryExtensionInfo.preRelease === 'boolean');
+}
+
 interface IStoredWebExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly version: string;
@@ -59,7 +66,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	declare readonly _serviceBrand: undefined;
 
 	private readonly builtinExtensionsPromise: Promise<IExtension[]> = Promise.resolve([]);
-	private readonly cutomBuiltinExtensions: ({ id: string, preRelease?: boolean } | URI)[];
+	private readonly cutomBuiltinExtensions: (GalleryExtensionInfo | UriComponents)[];
 	private readonly customBuiltinExtensionsPromise: Promise<IExtension[]> = Promise.resolve([]);
 
 	private readonly customBuiltinExtensionsCacheResource: URI | undefined = undefined;
@@ -101,10 +108,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	private async readCustomBuiltinExtensions(): Promise<IExtension[]> {
 		const extensions: { id: string, preRelease: boolean }[] = [], extensionLocations: URI[] = [], result: IExtension[] = [];
 		for (const e of this.cutomBuiltinExtensions) {
-			if (URI.isUri(e)) {
-				extensionLocations.push(URI.revive(e));
-			} else {
+			if (isGalleryExtensionInfo(e)) {
 				extensions.push({ id: e.id, preRelease: !!e.preRelease });
+			} else {
+				extensionLocations.push(URI.revive(e));
 			}
 		}
 

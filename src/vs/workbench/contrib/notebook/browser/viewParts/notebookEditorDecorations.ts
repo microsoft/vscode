@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { IContentDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
 import { IColorTheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { _CSS_MAP } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { _CSS_MAP } from 'vs/editor/browser/services/abstractCodeEditorService';
 
 export class NotebookRefCountedStyleSheet {
 	private readonly _key: string;
@@ -167,7 +167,7 @@ export class NotebookDecorationCSSRules {
 
 	private _collectCSSText(opts: any, properties: string[], cssTextArr: string[]): boolean {
 		const lenBefore = cssTextArr.length;
-		for (let property of properties) {
+		for (const property of properties) {
 			const value = this._resolveValue(opts[property]);
 			if (typeof value === 'string') {
 				cssTextArr.push(strings.format(_CSS_MAP[property], value));

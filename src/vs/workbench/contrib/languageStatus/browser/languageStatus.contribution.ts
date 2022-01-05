@@ -188,7 +188,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			const props = EditorStatusContribution._asStatusbarEntry(status);
 			let entry = this._dedicatedEntries.get(status.id);
 			if (!entry) {
-				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, 100.09999);
+				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.RIGHT });
 			} else {
 				entry.update(props);
 				this._dedicatedEntries.delete(status.id);
@@ -316,7 +316,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			text: item.busy ? `${item.label}\u00A0\u00A0$(sync~spin)` : item.label,
 			ariaLabel: item.accessibilityInfo?.label ?? item.label,
 			role: item.accessibilityInfo?.role,
-			tooltip: item.command?.tooltip || new MarkdownString(item.detail, true),
+			tooltip: item.command?.tooltip || new MarkdownString(item.detail, { isTrusted: true, supportThemeIcons: true }),
 			color,
 			backgroundColor,
 			command: item.command

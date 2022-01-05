@@ -77,6 +77,16 @@
   {
     "kind": 1,
     "language": "markdown",
+    "value": "#### Triage Needed"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode assignee:@me label:triage-needed"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
     "value": "\n#### Missing Type label"
   },
   {

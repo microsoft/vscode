@@ -15,7 +15,7 @@
 		"type": "label",
 		"name": "*question",
 		"action": "close",
-		"comment": "We closed this issue because it is a question about using VS Code rather than an issue or feature request. Please search for help on [StackOverflow](https://aka.ms/vscodestackoverflow), where the community has already answered thousands of similar questions. You may find their [guide on asking a new question](https://aka.ms/vscodestackoverflowquestion) helpful if your question has not already been asked. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+		"comment": "We closed this issue because it is a question about using VS Code rather than an issue or feature request. Please search for help on [StackOverflow](https://aka.ms/vscodestackoverflow), where the community has already answered thousands of similar questions. You may find their [guide on asking a new question](https://aka.ms/vscodestackoverflowquestion) helpful if your question has not already been asked. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
@@ -27,19 +27,19 @@
 		"type": "label",
 		"name": "*extension-candidate",
 		"action": "close",
-		"comment": "We try to keep VS Code lean and we think the functionality you're asking for is great for a VS Code extension. Maybe you can already find one that suits you in the [VS Code Marketplace](https://aka.ms/vscodemarketplace). Just in case, in a few simple steps you can get started [writing your own extension](https://aka.ms/vscodewritingextensions). See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+		"comment": "We try to keep VS Code lean and we think the functionality you're asking for is great for a VS Code extension. Maybe you can already find one that suits you in the [VS Code Marketplace](https://aka.ms/vscodemarketplace). Just in case, in a few simple steps you can get started [writing your own extension](https://aka.ms/vscodewritingextensions). See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
 		"name": "*not-reproducible",
 		"action": "close",
-		"comment": "We closed this issue because we are unable to reproduce the problem with the steps you describe. Chances are we've already fixed your problem in a recent version of VS Code. If not, please ask us to reopen the issue and provide us with more detail. Our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines might help you with that.\n\nHappy Coding!"
+		"comment": "We closed this issue because we are unable to reproduce the problem with the steps you describe. Chances are we've already fixed your problem in a recent version of VS Code. If not, please ask us to reopen the issue and provide us with more detail. Our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) might help you with that.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
 		"name": "*out-of-scope",
 		"action": "close",
-		"comment": "We closed this issue because we don't plan to address it in the foreseeable future. You can find more detailed information about our decision-making process [here](https://aka.ms/vscode-out-of-scope). If you disagree and feel that this issue is crucial: We are happy to listen and to reconsider.\n\nIf you wonder what we are up to, please see our [roadmap](https://aka.ms/vscoderoadmap) and [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nThanks for your understanding and happy coding!"
+		"comment": "We closed this issue because we [don't plan to address it](https://aka.ms/vscode-out-of-scope) in the foreseeable future. If you disagree and feel that this issue is crucial: we are happy to listen and to reconsider.\n\nIf you wonder what we are up to, please see our [roadmap](https://aka.ms/vscoderoadmap) and [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nThanks for your understanding, and happy coding!"
 	},
 	{
 		"type": "comment",
@@ -57,13 +57,13 @@
 		"type": "label",
 		"name": "*caused-by-extension",
 		"action": "close",
-		"comment": "This issue is caused by an extension, please file it with the repository (or contact) the extension has linked in its overview in VS Code or the [marketplace](https://aka.ms/vscodemarketplace) for VS Code. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+		"comment": "This issue is caused by an extension, please file it with the repository (or contact) the extension has linked in its overview in VS Code or the [marketplace](https://aka.ms/vscodemarketplace) for VS Code. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
 		"name": "*as-designed",
 		"action": "close",
-		"comment": "The described behavior is how it is expected to work. If you disagree, please explain what is expected and what is not in more detail. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+		"comment": "The described behavior is how it is expected to work. If you disagree, please explain what is expected and what is not in more detail. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
@@ -104,7 +104,7 @@
 		"type": "label",
 		"name": "*duplicate",
 		"action": "close",
-		"comment": "Thanks for creating this issue! We figured it's covering the same as another one we already have. Thus, we closed this one as a duplicate. You can search for existing issues [here](${duplicateQuery}). See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+		"comment": "Thanks for creating this issue! We figured it's covering the same as another one we already have. Thus, we closed this one as a duplicate. You can search for [similar existing issues](${duplicateQuery}). See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -193,7 +193,7 @@
 		"action": "updateLabels",
 		"addLabel": "needs more info",
 		"removeLabel": "~needs more info",
-		"comment": "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines. Please take the time to review these and update the issue.\n\nHappy Coding!"
+		"comment": "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
@@ -201,7 +201,7 @@
 		"action": "updateLabels",
 		"addLabel": "needs more info",
 		"removeLabel": "~needs version info",
-		"comment": "Thanks for creating this issue! We figured it's missing some basic information, such as a version number, or in some other way doesn't follow our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines. Please take the time to review these and update the issue.\n\nHappy Coding!"
+		"comment": "Thanks for creating this issue! We figured it's missing some basic information, such as a version number, or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -222,7 +222,7 @@
 		"type": "label",
 		"name": "*off-topic",
 		"action": "close",
-		"comment": "Thanks for creating this issue. We think this issue is unactionable or unrelated to the goals of this project. Please follow our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+		"comment": "Thanks for creating this issue. We think this issue is unactionable or unrelated to the goals of this project. Please follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -235,7 +235,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the Python extension. Please file it with the repository [here](https://github.com/microsoft/vscode-python). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the Python extension. Please file the issue to the [Python extension repository](https://github.com/microsoft/vscode-python). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -248,7 +248,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the Jupyter extension. Please file it with the repository [here](https://github.com/microsoft/vscode-jupyter). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the Jupyter extension. Please file the issue to the [Jupyter extension repository](https://github.com/microsoft/vscode-jupyter). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -261,7 +261,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the C extension. Please file it with the repository [here](https://github.com/microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the C extension. Please file the issue to the [C extension repository](https://github.com/microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -274,7 +274,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the C++ extension. Please file it with the repository [here](https://github.com/microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the C++ extension. Please file the issue to the [C++ extension repository](https://github.com/microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -287,7 +287,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the C++ extension. Please file it with the repository [here](https://github.com/microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the C++ extension. Please file the issue to the [C++ extension repository](https://github.com/microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -300,7 +300,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the TypeScript language service. Please file it with the repository [here](https://github.com/microsoft/TypeScript/). Make sure to check their [contributing guidelines](https://github.com/microsoft/TypeScript/blob/master/CONTRIBUTING.md) and provide relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the TypeScript language service. Please file the issue to the [TypeScript repository](https://github.com/microsoft/TypeScript/). Make sure to check their [contributing guidelines](https://github.com/microsoft/TypeScript/blob/master/CONTRIBUTING.md) and provide relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -313,7 +313,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the TypeScript/JavaScript language service. Please file it with the repository [here](https://github.com/microsoft/TypeScript/). Make sure to check their [contributing guidelines](https://github.com/microsoft/TypeScript/blob/master/CONTRIBUTING.md) and provide relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the TypeScript/JavaScript language service. Please file the issue to the [TypeScript repository](https://github.com/microsoft/TypeScript/). Make sure to check their [contributing guidelines](https://github.com/microsoft/TypeScript/blob/master/CONTRIBUTING.md) and provide relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -326,7 +326,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the C# extension. Please file it with the repository [here](https://github.com/OmniSharp/omnisharp-vscode.git). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the C# extension. Please file the issue to the [C# extension repository](https://github.com/OmniSharp/omnisharp-vscode.git). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -339,7 +339,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the Go extension. Please file it with the repository [here](https://github.com/golang/vscode-go). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the Go extension. Please file the issue to the [Go extension repository](https://github.com/golang/vscode-go). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -352,7 +352,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the PowerShell extension. Please file it with the repository [here](https://github.com/PowerShell/vscode-powershell). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the PowerShell extension. Please file the issue to the [PowerShell extension repository](https://github.com/PowerShell/vscode-powershell). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -365,7 +365,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the LiveShare extension. Please file it with the repository [here](https://github.com/MicrosoftDocs/live-share). Make sure to check their [contributing guidelines](https://github.com/MicrosoftDocs/live-share/blob/master/CONTRIBUTING.md) and provide relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the LiveShare extension. Please file the issue to the [LiveShare repository](https://github.com/MicrosoftDocs/live-share). Make sure to check their [contributing guidelines](https://github.com/MicrosoftDocs/live-share/blob/master/CONTRIBUTING.md) and provide relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -378,7 +378,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the Docker extension. Please file it with the repository [here](https://github.com/microsoft/vscode-docker). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the Docker extension. Please file the issue to the [Docker extension repository](https://github.com/microsoft/vscode-docker). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -391,7 +391,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the Java extension. Please file it with the repository [here](https://github.com/redhat-developer/vscode-java). Make sure to check their [troubleshooting instructions](https://github.com/redhat-developer/vscode-java/wiki/Troubleshooting) and provide relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the Java extension. Please file the issue to the [Java extension repository](https://github.com/redhat-developer/vscode-java). Make sure to check their [troubleshooting instructions](https://github.com/redhat-developer/vscode-java/wiki/Troubleshooting) and provide relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -404,7 +404,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the Java Debugger extension. Please file it with the repository [here](https://github.com/microsoft/vscode-java-debug). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the Java Debugger extension. Please file the issue to the [Java Debugger repository](https://github.com/microsoft/vscode-java-debug). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",

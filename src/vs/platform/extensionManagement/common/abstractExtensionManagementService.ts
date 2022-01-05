@@ -414,6 +414,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			throw new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.Incompatible);
 		}
 
+		this.logService.info('Getting Manifest...', compatibleExtension.identifier.id);
 		const manifest = await this.galleryService.getManifest(compatibleExtension, CancellationToken.None);
 		if (manifest === null) {
 			throw new ExtensionManagementError(`Missing manifest for extension ${extension.identifier.id}`, ExtensionManagementErrorCode.Invalid);

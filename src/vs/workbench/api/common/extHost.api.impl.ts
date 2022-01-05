@@ -10,8 +10,8 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { OverviewRulerLane } from 'vs/editor/common/model';
-import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
-import { score } from 'vs/editor/common/modes/languageSelector';
+import * as languageConfiguration from 'vs/editor/common/languages/languageConfiguration';
+import { score } from 'vs/editor/common/languages/languageSelector';
 import * as files from 'vs/platform/files/common/files';
 import { ExtHostContext, MainContext, UIKind, CandidatePortSource, ExtHostLogLevelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
@@ -599,7 +599,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			showQuickPick(items: any, options?: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
 				// TODO: remove this once quickPickSeparators has been finalized.
-				if (Array.isArray(items) && items.some((item) => item.kind !== undefined)) {
+				if (Array.isArray(items) && items.some((item) => item.kind === extHostTypes.QuickPickItemKind.Separator)) {
 					checkProposedApiEnabled(extension, 'quickPickSeparators');
 				}
 				return extHostQuickOpen.showQuickPick(items, options, token);
@@ -1124,7 +1124,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onDidChangeNotebookCellExecutionState(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension, 'notebookCellExecutionState');
-				return extHostNotebook.onDidChangeNotebookCellExecutionState(listener, thisArgs, disposables);
+				return extHostNotebookKernels.onDidChangeNotebookCellExecutionState(listener, thisArgs, disposables);
 			},
 			onDidChangeCellOutputs(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension, 'notebookEditor');

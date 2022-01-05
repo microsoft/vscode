@@ -84,7 +84,7 @@ function findGitDarwin(onValidate: (path: string) => boolean): Promise<IGit> {
 				return e('git not found');
 			}
 
-			const path = gitPathBuffer.toString().replace(/^\s+|\s+$/g, '');
+			const path = gitPathBuffer.toString().trim();
 
 			function getVersion(path: string) {
 				if (!onValidate(path)) {
@@ -1196,7 +1196,7 @@ export class Repository {
 					break;
 
 				// Rename contains two paths, the second one is what the file is renamed/copied to.
-				case 'R':
+				case 'R': {
 					if (index >= entries.length) {
 						break;
 					}
@@ -1215,7 +1215,7 @@ export class Repository {
 					});
 
 					continue;
-
+				}
 				default:
 					// Unknown status
 					break entriesLoop;

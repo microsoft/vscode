@@ -104,6 +104,10 @@ export class ApiRepository implements Repository {
 		return this._repository.getCommit(ref);
 	}
 
+	add(paths: string[]) {
+		return this._repository.add(paths.map(p => Uri.file(p)));
+	}
+
 	clean(paths: string[]) {
 		return this._repository.clean(paths.map(p => Uri.file(p)));
 	}
@@ -172,6 +176,14 @@ export class ApiRepository implements Repository {
 
 	getMergeBase(ref1: string, ref2: string): Promise<string> {
 		return this._repository.getMergeBase(ref1, ref2);
+	}
+
+	tag(name: string, upstream: string): Promise<void> {
+		return this._repository.tag(name, upstream);
+	}
+
+	deleteTag(name: string): Promise<void> {
+		return this._repository.deleteTag(name);
 	}
 
 	status(): Promise<void> {

@@ -50,7 +50,8 @@
 }
 
 .monaco-workbench .part.basepanel .empty-panel-message-area .empty-panel-message {
-	margin: 10px;
+	margin: 12px;
+	text-align: center;
 }
 
 .monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar {
@@ -70,6 +71,12 @@
 	padding-bottom: 1px; /* puts the bottom border down */
 	padding-top: 2px;
 	display: flex;
+}
+
+.monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.icon {
+	padding-left: 2px;
+	padding-right: 2px;
+	border-radius: 0px !important;
 }
 
 .monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::before,
@@ -131,7 +138,7 @@
 	padding: 2px;
 }
 
-.monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item .action-label:not(.codicon) {
+.monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item .action-label {
 	background: none !important;
 	border-radius: 0;
 }
