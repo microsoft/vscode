@@ -14,6 +14,7 @@ import { NodeJSFileWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsW
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { ltrim } from 'vs/base/common/strings';
+import { DeferredPromise } from 'vs/base/common/async';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -23,7 +24,7 @@ import { ltrim } from 'vs/base/common/strings';
 ((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (node.js)', () => {
 
 	let testDir: string;
-	let watcher: NodeJSFileWatcher;
+	let watcher: TestNodeJSFileWatcher;
 	let event: Event<IDiskFileChange[]>;
 
 	let loggingEnabled = false;
@@ -34,6 +35,18 @@ import { ltrim } from 'vs/base/common/strings';
 	}
 
 	enableLogging(false);
+
+	class TestNodeJSFileWatcher extends NodeJSFileWatcher {
+
+		private readonly _whenDisposed = new DeferredPromise<void>();
+		readonly whenDisposed = this._whenDisposed.p;
+
+		override dispose(): void {
+			super.dispose();
+
+			this._whenDisposed.complete();
+		}
+	}
 
 	setup(async function () {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher');
@@ -53,7 +66,7 @@ import { ltrim } from 'vs/base/common/strings';
 		const emitter = new Emitter<IDiskFileChange[]>();
 		event = emitter.event;
 
-		watcher = new NodeJSFileWatcher({ path, excludes: [] }, changes => emitter.fire(changes), msg => {
+		watcher = new TestNodeJSFileWatcher({ path, excludes: [] }, changes => emitter.fire(changes), msg => {
 			if (loggingEnabled) {
 				console.log(`[recursive watcher test message] ${msg.type}: ${msg.message}`);
 			}
@@ -417,10 +430,9 @@ import { ltrim } from 'vs/base/common/strings';
 		const watchedPath = join(testDir, 'deep');
 		await createWatcher(watchedPath);
 
-		// Delete watched path
-		const changeFuture = awaitEvent(event, watchedPath, FileChangeType.DELETED);
+		// Delete watched path and ensure watcher is now disposed
 		Promises.rm(watchedPath, RimRafMode.UNLINK);
-		await changeFuture;
+		await watcher.whenDisposed;
 	});
 
 	test('deleting watched path is handled properly (file watch)', async function () {
@@ -431,5 +443,8 @@ import { ltrim } from 'vs/base/common/strings';
 		const changeFuture = awaitEvent(event, watchedPath, FileChangeType.DELETED);
 		Promises.unlink(watchedPath);
 		await changeFuture;
+
+		// Ensure watcher is now disposed
+		await watcher.whenDisposed;
 	});
 });
