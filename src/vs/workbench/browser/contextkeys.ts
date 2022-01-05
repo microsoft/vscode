@@ -190,11 +190,9 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// Centered Layout
 		this.isCenteredLayoutContext = IsCenteredLayoutContext.bindTo(this.contextKeyService);
 
-		// Tabs Visible
-		this.editorTabsVisibleContext = EditorTabsVisibleContext.bindTo(this.contextKeyService);
-
 		// Editor Area
 		this.editorAreaVisibleContext = EditorAreaVisibleContext.bindTo(this.contextKeyService);
+		this.editorTabsVisibleContext = EditorTabsVisibleContext.bindTo(this.contextKeyService);
 
 		// Sidebar
 		this.sideBarVisibleContext = SideBarVisibleContext.bindTo(this.contextKeyService);
@@ -207,7 +205,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.panelMaximizedContext = PanelMaximizedContext.bindTo(this.contextKeyService);
 		this.panelMaximizedContext.set(this.layoutService.isPanelMaximized());
 
-		// Auxiliarybar
+		// Auxiliary Bar
 		this.auxiliaryBarVisibleContext = AuxiliaryBarVisibleContext.bindTo(this.contextKeyService);
 		this.auxiliaryBarVisibleContext.set(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART));
 
@@ -216,7 +214,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 	private registerListeners(): void {
 		this.editorGroupService.whenReady.then(() => {
-			this.editorTabsVisibleContext.set(!!this.editorGroupService.partOptions.showTabs);
+			this.updateEditorAreaContextKeys();
 			this.updateEditorContextKeys();
 		});
 
@@ -229,11 +227,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		this._register(this.editorGroupService.onDidChangeActiveGroup(() => this.updateEditorGroupContextKeys()));
 		this._register(this.editorGroupService.onDidChangeGroupLocked(() => this.updateEditorGroupContextKeys()));
-		this._register(this.editorGroupService.onDidChangeEditorPartOptions((e) => {
-			if (e.newPartOptions.showTabs !== undefined) {
-				this.editorTabsVisibleContext.set(e.newPartOptions.showTabs);
-			}
-		}));
+
+		this._register(this.editorGroupService.onDidChangeEditorPartOptions(() => this.updateEditorAreaContextKeys()));
 
 		this._register(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(), true));
 
@@ -265,6 +260,10 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		}));
 
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.dirtyWorkingCopiesContext.set(workingCopy.isDirty() || this.workingCopyService.hasDirty)));
+	}
+
+	private updateEditorAreaContextKeys(): void {
+		this.editorTabsVisibleContext.set(!!this.editorGroupService.partOptions.showTabs);
 	}
 
 	private updateEditorContextKeys(): void {
