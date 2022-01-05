@@ -69,6 +69,7 @@ export class RawDebugSession implements IDisposable {
 	private readonly _onDidProgressUpdate = new Emitter<DebugProtocol.ProgressUpdateEvent>();
 	private readonly _onDidProgressEnd = new Emitter<DebugProtocol.ProgressEndEvent>();
 	private readonly _onDidInvalidated = new Emitter<DebugProtocol.InvalidatedEvent>();
+	private readonly _onDidInvalidateMemory = new Emitter<DebugProtocol.MemoryEvent>();
 	private readonly _onDidCustomEvent = new Emitter<DebugProtocol.Event>();
 	private readonly _onDidEvent = new Emitter<DebugProtocol.Event>();
 
@@ -154,6 +155,9 @@ export class RawDebugSession implements IDisposable {
 					break;
 				case 'invalidated':
 					this._onDidInvalidated.fire(event as DebugProtocol.InvalidatedEvent);
+					break;
+				case 'memory':
+					this._onDidInvalidateMemory.fire(event as DebugProtocol.MemoryEvent);
 					break;
 				case 'process':
 					break;
@@ -241,6 +245,10 @@ export class RawDebugSession implements IDisposable {
 
 	get onDidInvalidated(): Event<DebugProtocol.InvalidatedEvent> {
 		return this._onDidInvalidated.event;
+	}
+
+	get onDidInvalidateMemory(): Event<DebugProtocol.MemoryEvent> {
+		return this._onDidInvalidateMemory.event;
 	}
 
 	get onDidEvent(): Event<DebugProtocol.Event> {
