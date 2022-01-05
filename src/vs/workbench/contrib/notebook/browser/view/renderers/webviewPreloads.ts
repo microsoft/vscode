@@ -553,6 +553,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		let sel = window.getSelection();
 		sel?.removeAllRanges();
 		sel?.addRange(range);
+		document.designMode = 'On';
 
 		while (find && matches.length < 200) {
 			find = (window as any).find(query, /* caseSensitive*/ false,
@@ -575,10 +576,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 					const lastEl: any = matches.length ? matches[matches.length - 1] : null;
 
 					if (lastEl && lastEl.container.contains(anchorNode)) {
-						document.designMode = 'On';
 						// document.execCommand('hiliteColor', false, '#ff0000');
 						window.document.execCommand('hiliteColor', false, matchColor);
-						document.designMode = 'Off';
 
 						const range = window.getSelection()!.getRangeAt(0).cloneRange();
 						matches.push({
@@ -606,10 +605,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 								// inside output
 								const cellId = node.parentElement?.parentElement?.id;
 								if (cellId) {
-									document.designMode = 'On';
 									// document.execCommand('hiliteColor', false, '#ff0000');
 									window.document.execCommand('hiliteColor', false, matchColor);
-									document.designMode = 'Off';
 
 									const range = window.getSelection()!.getRangeAt(0);
 
@@ -643,6 +640,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 			}
 		}
+
+		document.designMode = 'Off';
 
 		_findingMatches = matches;
 		postNotebookMessage('didFind', {
