@@ -37,6 +37,20 @@ export interface IconContribution {
 	readonly defaults: IconDefaults;
 }
 
+export namespace IconContribution {
+	export function getDefinition(contribution: IconContribution, registry: IIconRegistry): IconDefinition | undefined {
+		let definition = contribution.defaults;
+		while (ThemeIcon.isThemeIcon(definition)) {
+			const c = iconRegistry.getIcon(definition.id);
+			if (!c) {
+				return undefined;
+			}
+			definition = c.defaults;
+		}
+		return definition;
+	}
+}
+
 export interface IconFontContribution {
 	readonly id: string;
 	getDefinition(): IconFontDefinition | undefined;

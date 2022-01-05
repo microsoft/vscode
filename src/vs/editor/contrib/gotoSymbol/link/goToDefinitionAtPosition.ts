@@ -20,7 +20,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { IFoundBracket } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
-import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/modes';
+import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';

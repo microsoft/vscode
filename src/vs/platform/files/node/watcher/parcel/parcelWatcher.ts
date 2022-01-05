@@ -19,7 +19,7 @@ import { dirname, isAbsolute, join, normalize, sep } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { rtrim } from 'vs/base/common/strings';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
-import { watchFolder } from 'vs/base/node/watcher';
+import { NodeJSFileWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IDiskFileChange, ILogMessage, coalesceEvents, IWatchRequest, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
 
@@ -397,12 +397,12 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 				this.trace(`${type === FileChangeType.ADDED ? '[ADDED]' : type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`);
 			}
 
-			if (!this.isPathIgnored(path, excludes)) {
-				events.push({ type, path });
-			} else {
+			if (excludes.some(exclude => exclude(path))) {
 				if (this.verboseLogging) {
 					this.trace(` >> ignored ${path}`);
 				}
+			} else {
+				events.push({ type, path });
 			}
 		}
 
@@ -508,27 +508,29 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 		const parentPath = dirname(watcher.request.path);
 		if (existsSync(parentPath)) {
-			const disposable = watchFolder(parentPath, (type, path) => {
+			const nodeWatcher = new NodeJSFileWatcher({ path: parentPath, excludes: [] }, changes => {
 				if (watcher.token.isCancellationRequested) {
 					return; // return early when disposed
 				}
 
 				// Watcher path came back! Restart watching...
-				if (path === watcher.request.path && (type === 'added' || type === 'changed')) {
-					this.warn('Watcher restarts because watched path got created again', watcher);
+				for (const { path, type } of changes) {
+					if (path === watcher.request.path && (type === FileChangeType.ADDED || type === FileChangeType.UPDATED)) {
+						this.warn('Watcher restarts because watched path got created again', watcher);
 
-					// Stop watching that parent folder
-					disposable.dispose();
+						// Stop watching that parent folder
+						nodeWatcher.dispose();
 
-					// Restart the file watching
-					this.restartWatching(watcher);
+						// Restart the file watching
+						this.restartWatching(watcher);
+
+						break;
+					}
 				}
-			}, error => {
-				// Ignore
-			});
+			}, msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
 
 			// Make sure to stop watching when the watcher is disposed
-			watcher.token.onCancellationRequested(() => disposable.dispose());
+			watcher.token.onCancellationRequested(() => nodeWatcher.dispose());
 		}
 	}
 
@@ -606,7 +608,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 	}
 
 	protected normalizeRequests(requests: IWatchRequest[]): IWatchRequest[] {
-		const requestTrie = TernarySearchTree.forPaths<IWatchRequest>();
+		const requestTrie = TernarySearchTree.forPaths<IWatchRequest>(!isLinux);
 
 		// Sort requests by path length to have shortest first
 		// to have a way to prevent children to be watched if
@@ -638,10 +640,6 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 
 		return Array.from(requestTrie).map(([, request]) => request);
-	}
-
-	private isPathIgnored(absolutePath: string, ignored: ParsedPattern[]): boolean {
-		return ignored.some(ignore => ignore(absolutePath));
 	}
 
 	async setVerboseLogging(enabled: boolean): Promise<void> {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { BracketAstNode } from './ast';
 import { toLength } from './length';
 import { DenseKeyProvider, identityKeyProvider, SmallImmutableSet } from './smallImmutableSet';

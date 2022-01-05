@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
-export interface IRecursiveWatcher {
+export interface IRecursiveWatcher extends IDisposable {
 
 	/**
 	 * A normalized file change event from the raw events
@@ -46,6 +46,19 @@ export interface IRecursiveWatcher {
 	 * Stop all watchers.
 	 */
 	stop(): Promise<void>;
+}
+
+export interface INonRecursiveWatcher extends IDisposable {
+
+	/**
+	 * A promise that indicates when the watcher is ready.
+	 */
+	readonly ready: Promise<void>;
+
+	/**
+	 * Enable verbose logging in the watcher.
+	 */
+	setVerboseLogging(enabled: boolean): void;
 }
 
 export abstract class AbstractRecursiveWatcherClient extends Disposable {
@@ -201,13 +214,9 @@ class EventCoalescer {
 			const currentChangeType = existingEvent.type;
 			const newChangeType = event.type;
 
-			// macOS/Windows: track renames to different case but
-			// same name by changing current event to DELETED
-			// this encodes some underlying knowledge about the
-			// file watcher being used by assuming we first get
-			// an event for the CREATE and then an event that we
-			// consider as DELETE if same name / different case.
-			if (existingEvent.path !== event.path && event.type === FileChangeType.DELETED) {
+			// macOS/Windows: track renames to different case
+			// by keeping both CREATE and DELETE events
+			if (existingEvent.path !== event.path && (event.type === FileChangeType.DELETED || event.type === FileChangeType.ADDED)) {
 				keepEvent = true;
 			}
 

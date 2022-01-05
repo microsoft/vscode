@@ -9,9 +9,9 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { localize } from 'vs/nls';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { inputPlaceholderForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ChangeModeAction } from 'vs/workbench/browser/parts/editor/editorStatus';
+import { ChangeLanguageAction } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -106,7 +106,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			const language = $('a.language-mode');
 			language.style.cursor = 'pointer';
 			language.innerText = localize('selectAlanguage2', "Select a language");
-			const languageKeyBinding = this.keybindingService.lookupKeybinding(ChangeModeAction.ID);
+			const languageKeyBinding = this.keybindingService.lookupKeybinding(ChangeLanguageAction.ID);
 			const languageKeybindingLabel = languageKeyBinding?.getLabel();
 			if (languageKeybindingLabel) {
 				language.title = localize('keyboardBindingTooltip', "{0}", languageKeybindingLabel);
@@ -129,7 +129,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				e.stopPropagation();
 				// Need to focus editor before so current editor becomes active and the command is properly executed
 				this.editor.focus();
-				await this.commandService.executeCommand(ChangeModeAction.ID, { from: 'hint' });
+				await this.commandService.executeCommand(ChangeLanguageAction.ID, { from: 'hint' });
 				this.editor.focus();
 			};
 			this.toDispose.push(dom.addDisposableListener(language, 'click', languageOnClickOrTap));

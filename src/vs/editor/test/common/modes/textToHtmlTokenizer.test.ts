@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
-import { ColorId, FontStyle, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
-import { tokenizeLineToHTML, _tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { ColorId, FontStyle, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
+import { tokenizeLineToHTML, _tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/test/common/core/viewLineToken';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';

@@ -5,7 +5,7 @@
 
 import { URI as uri } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { guessMimeTypes } from 'vs/base/common/mime';
+import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/services/language';
@@ -17,7 +17,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 /**
  * Debug URI format
@@ -134,7 +134,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 					});
 				} else {
 					// create text model
-					const mime = response.body.mimeType || guessMimeTypes(resource)[0];
+					const mime = response.body.mimeType || getMimeTypes(resource)[0];
 					const languageSelection = this.languageService.createByMimeType(mime);
 					return this.modelService.createModel(response.body.content, languageSelection, resource);
 				}

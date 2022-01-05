@@ -7,12 +7,12 @@ import { coalesce } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import * as mime from 'vs/base/common/mime';
-import * as strings from 'vs/base/common/strings';
+import { compareIgnoreCase, regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
+import { clearLanguageAssociations, getMimeTypes, registerLanguageAssociation } from 'vs/editor/common/services/languagesAssociations';
 import { URI } from 'vs/base/common/uri';
-import { ILanguageIdCodec, LanguageId } from 'vs/editor/common/modes';
-import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageExtensionPoint, ILanguageNameIdPair } from 'vs/editor/common/services/language';
+import { ILanguageIdCodec, LanguageId } from 'vs/editor/common/languages';
+import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageExtensionPoint, ILanguageNameIdPair, ILanguageIcon } from 'vs/editor/common/services/language';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -27,6 +27,7 @@ export interface IResolvedLanguage {
 	extensions: string[];
 	filenames: string[];
 	configurationFiles: URI[];
+	icons: ILanguageIcon[];
 }
 
 export class LanguageIdCodec implements ILanguageIdCodec {
@@ -114,7 +115,7 @@ export class LanguagesRegistry extends Disposable {
 		this._nameMap = {};
 		this._lowercaseNameMap = {};
 
-		mime.clearTextMimes();
+		clearLanguageAssociations();
 		const desc = (<ILanguageExtensionPoint[]>[]).concat(ModesRegistry.getLanguages()).concat(this._dynamicLanguages);
 		this._registerLanguages(desc);
 	}
@@ -130,7 +131,7 @@ export class LanguagesRegistry extends Disposable {
 		this._nameMap = {};
 		this._lowercaseNameMap = {};
 		Object.keys(this._languages).forEach((langId) => {
-			let language = this._languages[langId];
+			const language = this._languages[langId];
 			if (language.name) {
 				this._nameMap[language.name] = language.identifier;
 			}
@@ -162,7 +163,8 @@ export class LanguagesRegistry extends Disposable {
 				aliases: [],
 				extensions: [],
 				filenames: [],
-				configurationFiles: []
+				configurationFiles: [],
+				icons: []
 			};
 			this._languages[langId] = resolvedLanguage;
 		}
@@ -193,20 +195,20 @@ export class LanguagesRegistry extends Disposable {
 				resolvedLanguage.extensions = resolvedLanguage.extensions.concat(lang.extensions);
 			}
 			for (let extension of lang.extensions) {
-				mime.registerTextMime({ id: langId, mime: primaryMime, extension: extension }, this._warnOnOverwrite);
+				registerLanguageAssociation({ id: langId, mime: primaryMime, extension: extension }, this._warnOnOverwrite);
 			}
 		}
 
 		if (Array.isArray(lang.filenames)) {
 			for (let filename of lang.filenames) {
-				mime.registerTextMime({ id: langId, mime: primaryMime, filename: filename }, this._warnOnOverwrite);
+				registerLanguageAssociation({ id: langId, mime: primaryMime, filename: filename }, this._warnOnOverwrite);
 				resolvedLanguage.filenames.push(filename);
 			}
 		}
 
 		if (Array.isArray(lang.filenamePatterns)) {
 			for (let filenamePattern of lang.filenamePatterns) {
-				mime.registerTextMime({ id: langId, mime: primaryMime, filepattern: filenamePattern }, this._warnOnOverwrite);
+				registerLanguageAssociation({ id: langId, mime: primaryMime, filepattern: filenamePattern }, this._warnOnOverwrite);
 			}
 		}
 
@@ -216,9 +218,9 @@ export class LanguagesRegistry extends Disposable {
 				firstLineRegexStr = '^' + firstLineRegexStr;
 			}
 			try {
-				let firstLineRegex = new RegExp(firstLineRegexStr);
-				if (!strings.regExpLeadsToEndlessLoop(firstLineRegex)) {
-					mime.registerTextMime({ id: langId, mime: primaryMime, firstline: firstLineRegex }, this._warnOnOverwrite);
+				const firstLineRegex = new RegExp(firstLineRegexStr);
+				if (!regExpLeadsToEndlessLoop(firstLineRegex)) {
+					registerLanguageAssociation({ id: langId, mime: primaryMime, firstline: firstLineRegex }, this._warnOnOverwrite);
 				}
 			} catch (err) {
 				// Most likely, the regex was bad
@@ -247,11 +249,11 @@ export class LanguagesRegistry extends Disposable {
 			}
 		}
 
-		let containsAliases = (langAliases !== null && langAliases.length > 0);
+		const containsAliases = (langAliases !== null && langAliases.length > 0);
 		if (containsAliases && langAliases![0] === null) {
 			// signal that this language should not get a name
 		} else {
-			let bestName = (containsAliases ? langAliases![0] : null) || langId;
+			const bestName = (containsAliases ? langAliases![0] : null) || langId;
 			if (containsAliases || !resolvedLanguage.name) {
 				resolvedLanguage.name = bestName;
 			}
@@ -259,6 +261,10 @@ export class LanguagesRegistry extends Disposable {
 
 		if (lang.configuration) {
 			resolvedLanguage.configurationFiles.push(lang.configuration);
+		}
+
+		if (lang.icon) {
+			resolvedLanguage.icons.push(lang.icon);
 		}
 	}
 
@@ -283,7 +289,7 @@ export class LanguagesRegistry extends Disposable {
 				});
 			}
 		}
-		result.sort((a, b) => strings.compareIgnoreCase(a.languageName, b.languageName));
+		result.sort((a, b) => compareIgnoreCase(a.languageName, b.languageName));
 		return result;
 	}
 
@@ -316,6 +322,14 @@ export class LanguagesRegistry extends Disposable {
 		return this._languages[languageId].filenames;
 	}
 
+	public getIcon(languageId: string): ILanguageIcon | null {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
+			return null;
+		}
+		const language = this._languages[languageId];
+		return (language.icons[0] || null);
+	}
+
 	public getConfigurationFiles(languageId: string): ReadonlyArray<URI> {
 		if (!hasOwnProperty.call(this._languages, languageId)) {
 			return [];
@@ -345,7 +359,7 @@ export class LanguagesRegistry extends Disposable {
 		if (!resource && !firstLine) {
 			return [];
 		}
-		const mimeTypes = mime.guessMimeTypes(resource, firstLine);
+		const mimeTypes = getMimeTypes(resource, firstLine);
 		return coalesce(mimeTypes.map(mimeType => this.getLanguageIdByMimeType(mimeType)));
 	}
 }

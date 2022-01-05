@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { IndentationRule } from 'vs/editor/common/languages/languageConfiguration';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';

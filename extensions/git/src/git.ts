@@ -84,7 +84,7 @@ function findGitDarwin(onValidate: (path: string) => boolean): Promise<IGit> {
 				return e('git not found');
 			}
 
-			const path = gitPathBuffer.toString().replace(/^\s+|\s+$/g, '');
+			const path = gitPathBuffer.toString().trim();
 
 			function getVersion(path: string) {
 				if (!onValidate(path)) {

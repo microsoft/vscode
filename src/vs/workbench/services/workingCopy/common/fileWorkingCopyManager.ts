@@ -406,7 +406,10 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		await targetStoredFileWorkingCopy.model?.update(sourceContents, CancellationToken.None);
 
 		// Save target
-		await targetStoredFileWorkingCopy.save({ ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
+		const success = await targetStoredFileWorkingCopy.save({ ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
+		if (!success) {
+			return undefined;
+		}
 
 		// Revert the source
 		await sourceWorkingCopy?.revert();

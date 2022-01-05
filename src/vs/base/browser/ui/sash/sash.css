@@ -121,6 +121,10 @@
 	top: calc(50% - (var(--sash-hover-size) / 2));
 }
 
+.pointer-events-disabled {
+	pointer-events: none !important;
+}
+
 /** Debug **/
 
 .monaco-sash.debug {

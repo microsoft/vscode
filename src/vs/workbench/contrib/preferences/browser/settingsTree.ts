@@ -2284,6 +2284,8 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 
 			const descriptionWithoutSettingLinks = fixSettingLinks(element.description, false);
 			return `${element.displayCategory} ${element.displayLabel}. ${descriptionWithoutSettingLinks}. ${modifiedText} ${otherOverridesLabel}`;
+		} else if (element instanceof SettingsTreeGroupElement) {
+			return element.label;
 		} else {
 			return element.id;
 		}

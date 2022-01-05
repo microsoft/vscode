@@ -145,11 +145,11 @@ export interface IEditorService {
 	readonly activeTextEditorControl: IEditor | IDiffEditor | undefined;
 
 	/**
-	 * The currently active text editor mode or `undefined` if there is currently no active
+	 * The currently active text editor language id or `undefined` if there is currently no active
 	 * editor or the active editor control is neither a text nor a diff editor. If the active
-	 * editor is a diff editor, the modified side's mode will be taken.
+	 * editor is a diff editor, the modified side's language id will be taken.
 	 */
-	readonly activeTextEditorMode: string | undefined;
+	readonly activeTextEditorLanguageId: string | undefined;
 
 	/**
 	 * All editor panes that are currently visible across all editor groups.

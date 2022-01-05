@@ -25,8 +25,8 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 	}
 
 	public createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer {
-		let requests: string[] = [];
-		let injectedTexts: (LineInjectedText[] | null)[] = [];
+		const requests: string[] = [];
+		const injectedTexts: (LineInjectedText[] | null)[] = [];
 		return {
 			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
 				requests.push(lineText);
@@ -132,10 +132,10 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 	containerDomNode.style.wordWrap = 'break-word';
 	document.body.appendChild(containerDomNode);
 
-	let range = document.createRange();
+	const range = document.createRange();
 	const lineDomNodes = Array.prototype.slice.call(containerDomNode.children, 0);
 
-	let result: (ModelLineProjectionData | null)[] = [];
+	const result: (ModelLineProjectionData | null)[] = [];
 	for (let i = 0; i < requests.length; i++) {
 		const lineDomNode = lineDomNodes[i];
 		const breakOffsets: number[] | null = readLineBreaks(range, lineDomNode, renderLineContents[i], allCharOffsets[i]);
@@ -185,7 +185,7 @@ const enum Constants {
 function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: IStringBuilder, wrappingIndentLength: number): [number[], number[]] {
 
 	if (wrappingIndentLength !== 0) {
-		let hangingOffset = String(wrappingIndentLength);
+		const hangingOffset = String(wrappingIndentLength);
 		sb.appendASCIIString('<div style="text-indent: -');
 		sb.appendASCIIString(hangingOffset);
 		sb.appendASCIIString('px; padding-left: ');
@@ -203,8 +203,8 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	const len = lineContent.length;
 	let visibleColumn = initialVisibleColumn;
 	let charOffset = 0;
-	let charOffsets: number[] = [];
-	let visibleColumns: number[] = [];
+	const charOffsets: number[] = [];
+	const visibleColumns: number[] = [];
 	let nextCharCode = (0 < len ? lineContent.charCodeAt(0) : CharCode.Null);
 
 	sb.appendASCIIString('<span>');

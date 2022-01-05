@@ -11,7 +11,7 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileChangeType } from 'vs/workbench/api/common/extHostTypes';
 import * as typeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { State, StateMachine, LinkComputer, Edge } from 'vs/editor/common/modes/linkComputer';
+import { State, StateMachine, LinkComputer, Edge } from 'vs/editor/common/languages/linkComputer';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 import { VSBuffer } from 'vs/base/common/buffer';

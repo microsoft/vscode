@@ -10231,10 +10231,10 @@ v8-compile-cache@^2.2.0:
   resolved "https://registry.yarnpkg.com/v8-compile-cache/-/v8-compile-cache-2.3.0.tgz#2de19618c66dc247dcfb6f99338035d8245a2cee"
   integrity sha512-l8lCEmLcLYZh4nbunNZvQCJc5pv7+RCwa8q/LdUx8u7lsWvPDKmpodJAJNwkAhJC//dFY48KuIEmjtd4RViDrA==
 
-v8-inspect-profiler@^0.0.22:
-  version "0.0.22"
-  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.22.tgz#34d3ba35a965c437ed28279d31cd42d7698a4002"
-  integrity sha512-r2p7UkbFlFopAWUVprbECP+EpdjuEKPFQLhqpnHx9KxeTTLVaHuGpUNHye53MtYMoJFl9nJiMyIM7J2yY+dTQg==
+v8-inspect-profiler@^0.1.0:
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.1.0.tgz#0d3f80e2dc878f737c31ae7ff4c033425a33a724"
+  integrity sha512-K7RyY4p59+rIPvgcTN/Oo7VU9cJ68LOl+dz8RCh/M4VwbZ9yS3Ci+qajbMDojW207anNn7CehkLvqpSIrNT9oA==
   dependencies:
     chrome-remote-interface "0.28.2"
 
@@ -10426,10 +10426,10 @@ vscode-regexpp@^3.1.0:
   resolved "https://registry.yarnpkg.com/vscode-regexpp/-/vscode-regexpp-3.1.0.tgz#42d059b6fffe99bd42939c0d013f632f0cad823f"
   integrity sha512-pqtN65VC1jRLawfluX4Y80MMG0DHJydWhe5ZwMHewZD6sys4LbU6lHwFAHxeuaVE6Y6+xZOtAw+9hvq7/0ejkg==
 
-vscode-ripgrep@^1.12.1:
-  version "1.12.1"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.12.1.tgz#4a319809d4010ea230659ce605fddacd1e36a589"
-  integrity sha512-4edKlcXNSKdC9mIQmQ9Wl25v0SF5DOK31JlvKHKHYV4co0V2MjI9pbDPdmogwbtiykz+kFV/cKnZH2TgssEasQ==
+vscode-ripgrep@^1.12.1, vscode-ripgrep@^1.13.2:
+  version "1.13.2"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.13.2.tgz#8ccebc33f14d54442c4b11962aead163c55b506e"
+  integrity sha512-RlK9U87EokgHfiOjDQ38ipQQX936gWOcWPQaJpYf+kAkz1PQ1pK2n7nhiscdOmLu6XGjTs7pWFJ/ckonpN7twQ==
   dependencies:
     https-proxy-agent "^4.0.0"
     proxy-from-env "^1.1.0"

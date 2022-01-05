@@ -56,7 +56,15 @@ async function rimrafMove(path: string): Promise<void> {
 	try {
 		const pathInTemp = randomPath(tmpdir());
 		try {
-			await Promises.rename(path, pathInTemp);
+			// Intentionally using `fs.promises` here to skip
+			// the patched graceful-fs method that can result
+			// in very long running `rename` calls when the
+			// folder is locked by a file watcher. We do not
+			// really want to slow down this operation more
+			// than necessary and we have a fallback to delete
+			// via unlink.
+			// https://github.com/microsoft/vscode/issues/139908
+			await fs.promises.rename(path, pathInTemp);
 		} catch (error) {
 			return rimrafUnlink(path); // if rename fails, delete without tmp dir
 		}

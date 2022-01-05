@@ -10,9 +10,9 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Token, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
-import * as modes from 'vs/editor/common/modes';
-import { NullState } from 'vs/editor/common/modes/nullMode';
-import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
+import * as modes from 'vs/editor/common/languages';
+import { NullState } from 'vs/editor/common/languages/nullMode';
+import { TokenTheme } from 'vs/editor/common/languages/supports/tokenization';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
@@ -141,7 +141,7 @@ class EmbeddedLanguageData {
 	}
 
 	public clone(): EmbeddedLanguageData {
-		let stateClone = this.state.clone();
+		const stateClone = this.state.clone();
 		// save an object
 		if (stateClone === this.state) {
 			return this;
@@ -177,7 +177,7 @@ class MonarchLineStateFactory {
 			// no caching above a certain depth
 			return new MonarchLineState(stack, embeddedLanguageData);
 		}
-		let stackElementId = MonarchStackElement.getStackElementId(stack);
+		const stackElementId = MonarchStackElement.getStackElementId(stack);
 
 		let result = this._entries[stackElementId];
 		if (result) {
@@ -314,7 +314,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 	}
 
 	public emit(startOffset: number, type: string): void {
-		let metadata = this._theme.match(this._currentLanguageId, type);
+		const metadata = this._theme.match(this._currentLanguageId, type);
 		if (this._lastTokenMetadata === metadata) {
 			return;
 		}
@@ -324,9 +324,9 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 	}
 
 	private static _merge(a: Uint32Array | null, b: number[], c: Uint32Array | null): Uint32Array {
-		let aLen = (a !== null ? a.length : 0);
-		let bLen = b.length;
-		let cLen = (c !== null ? c.length : 0);
+		const aLen = (a !== null ? a.length : 0);
+		const bLen = b.length;
+		const cLen = (c !== null ? c.length : 0);
 
 		if (aLen === 0 && bLen === 0 && cLen === 0) {
 			return new Uint32Array(0);
@@ -338,7 +338,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 			return a!;
 		}
 
-		let result = new Uint32Array(aLen + bLen + cLen);
+		const result = new Uint32Array(aLen + bLen + cLen);
 		if (a !== null) {
 			result.set(a);
 		}
@@ -412,7 +412,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 			}
 			let isOneOfMyEmbeddedModes = false;
 			for (let i = 0, len = e.changedLanguages.length; i < len; i++) {
-				let language = e.changedLanguages[i];
+				const language = e.changedLanguages[i];
 				if (this._embeddedLanguages[language]) {
 					isOneOfMyEmbeddedModes = true;
 					break;
@@ -431,7 +431,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 	}
 
 	public getLoadStatus(): ILoadStatus {
-		let promises: Thenable<any>[] = [];
+		const promises: Thenable<any>[] = [];
 		for (let nestedLanguageId in this._embeddedLanguages) {
 			const tokenizationSupport = modes.TokenizationRegistry.get(nestedLanguageId);
 			if (tokenizationSupport) {
@@ -463,19 +463,19 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 	}
 
 	public getInitialState(): modes.IState {
-		let rootState = MonarchStackElementFactory.create(null, this._lexer.start!);
+		const rootState = MonarchStackElementFactory.create(null, this._lexer.start!);
 		return MonarchLineStateFactory.create(rootState, null);
 	}
 
 	public tokenize(line: string, hasEOL: boolean, lineState: modes.IState): TokenizationResult {
-		let tokensCollector = new MonarchClassicTokensCollector();
-		let endLineState = this._tokenize(line, hasEOL, <MonarchLineState>lineState, tokensCollector);
+		const tokensCollector = new MonarchClassicTokensCollector();
+		const endLineState = this._tokenize(line, hasEOL, <MonarchLineState>lineState, tokensCollector);
 		return tokensCollector.finalize(endLineState);
 	}
 
 	public tokenizeEncoded(line: string, hasEOL: boolean, lineState: modes.IState): EncodedTokenizationResult {
-		let tokensCollector = new MonarchModernTokensCollector(this._languageService, this._standaloneThemeService.getColorTheme().tokenTheme);
-		let endLineState = this._tokenize(line, hasEOL, <MonarchLineState>lineState, tokensCollector);
+		const tokensCollector = new MonarchModernTokensCollector(this._languageService, this._standaloneThemeService.getColorTheme().tokenTheme);
+		const endLineState = this._tokenize(line, hasEOL, <MonarchLineState>lineState, tokensCollector);
 		return tokensCollector.finalize(endLineState);
 	}
 
@@ -506,13 +506,13 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 			hasEmbeddedPopRule = true;
 
 			let regex = rule.regex;
-			let regexSource = rule.regex.source;
+			const regexSource = rule.regex.source;
 			if (regexSource.substr(0, 4) === '^(?:' && regexSource.substr(regexSource.length - 1, 1) === ')') {
-				let flags = (regex.ignoreCase ? 'i' : '') + (regex.unicode ? 'u' : '');
+				const flags = (regex.ignoreCase ? 'i' : '') + (regex.unicode ? 'u' : '');
 				regex = new RegExp(regexSource.substr(4, regexSource.length - 5), flags);
 			}
 
-			let result = line.search(regex);
+			const result = line.search(regex);
 			if (result === -1 || (result !== 0 && rule.matchOnlyAtLineStart)) {
 				continue;
 			}
@@ -531,21 +531,21 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 
 	private _nestedTokenize(line: string, hasEOL: boolean, lineState: MonarchLineState, offsetDelta: number, tokensCollector: IMonarchTokensCollector): MonarchLineState {
 
-		let popOffset = this._findLeavingNestedLanguageOffset(line, lineState);
+		const popOffset = this._findLeavingNestedLanguageOffset(line, lineState);
 
 		if (popOffset === -1) {
 			// tokenization will not leave nested language
-			let nestedEndState = tokensCollector.nestedLanguageTokenize(line, hasEOL, lineState.embeddedLanguageData!, offsetDelta);
+			const nestedEndState = tokensCollector.nestedLanguageTokenize(line, hasEOL, lineState.embeddedLanguageData!, offsetDelta);
 			return MonarchLineStateFactory.create(lineState.stack, new EmbeddedLanguageData(lineState.embeddedLanguageData!.languageId, nestedEndState));
 		}
 
-		let nestedLanguageLine = line.substring(0, popOffset);
+		const nestedLanguageLine = line.substring(0, popOffset);
 		if (nestedLanguageLine.length > 0) {
 			// tokenize with the nested language
 			tokensCollector.nestedLanguageTokenize(nestedLanguageLine, false, lineState.embeddedLanguageData!, offsetDelta);
 		}
 
-		let restOfTheLine = line.substring(popOffset);
+		const restOfTheLine = line.substring(popOffset);
 		return this._myTokenize(restOfTheLine, hasEOL, lineState, offsetDelta + popOffset, tokensCollector);
 	}
 
@@ -834,14 +834,14 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 				// todo: for efficiency we could pre-sanitize tokenPostfix and substitutions
 				let tokenType: string | null = null;
 				if (monarchCommon.isString(result) && result.indexOf('@brackets') === 0) {
-					let rest = result.substr('@brackets'.length);
-					let bracket = findBracket(this._lexer, matched);
+					const rest = result.substr('@brackets'.length);
+					const bracket = findBracket(this._lexer, matched);
 					if (!bracket) {
 						throw monarchCommon.createError(this._lexer, '@brackets token returned but no bracket defined as: ' + matched);
 					}
 					tokenType = monarchCommon.sanitize(bracket.token + rest);
 				} else {
-					let token = (result === '' ? '' : result + this._lexer.tokenPostfix);
+					const token = (result === '' ? '' : result + this._lexer.tokenPostfix);
 					tokenType = monarchCommon.sanitize(token);
 				}
 
@@ -887,7 +887,7 @@ function findBracket(lexer: monarchCommon.ILexer, matched: string) {
 	}
 	matched = monarchCommon.fixCase(lexer, matched);
 
-	let brackets = lexer.brackets;
+	const brackets = lexer.brackets;
 	for (const bracket of brackets) {
 		if (bracket.open === matched) {
 			return { token: bracket.token, bracketType: monarchCommon.MonarchBracket.Open };

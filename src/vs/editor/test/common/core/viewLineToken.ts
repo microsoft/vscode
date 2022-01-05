@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
-import { ColorId, TokenMetadata } from 'vs/editor/common/modes';
+import { IViewLineTokens } from 'vs/editor/common/model/tokens/lineTokens';
+import { ColorId, TokenMetadata } from 'vs/editor/common/languages';
 
 /**
  * A token on a line.

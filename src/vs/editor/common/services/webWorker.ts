@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { EditorWorkerClient } from 'vs/editor/common/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/model';
 import * as types from 'vs/base/common/types';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 /**
  * Create a new web worker that has model syncing capabilities built in.
@@ -107,7 +107,7 @@ class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWork
 						};
 					};
 
-					let foreignProxy = {} as T;
+					const foreignProxy = {} as T;
 					for (const foreignMethod of foreignMethods) {
 						(<any>foreignProxy)[foreignMethod] = createProxyMethod(foreignMethod, proxyMethodRequest);
 					}

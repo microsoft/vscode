@@ -65,7 +65,8 @@ export class LineDecoration {
 			return [];
 		}
 
-		let result: LineDecoration[] = [], resultLen = 0;
+		const result: LineDecoration[] = [];
+		let resultLen = 0;
 
 		for (let i = 0, len = lineDecorations.length; i < len; i++) {
 			const d = lineDecorations[i];
@@ -212,7 +213,7 @@ export class LineDecorationsNormalizer {
 			return [];
 		}
 
-		let result: DecorationSegment[] = [];
+		const result: DecorationSegment[] = [];
 
 		const stack = new Stack();
 		let nextStartOffset = 0;

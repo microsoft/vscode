@@ -50,7 +50,8 @@
 }
 
 .monaco-workbench .part.basepanel .empty-panel-message-area .empty-panel-message {
-	margin: 10px;
+	margin: 12px;
+	text-align: center;
 }
 
 .monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar {

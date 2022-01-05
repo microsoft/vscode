@@ -12,7 +12,7 @@ import { basename, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { flakySuite } from 'vs/base/test/common/testUtils';
 import { IndexedDBFileSystemProvider } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
-import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileSystemProviderErrorCode, FileType, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 
@@ -290,6 +290,193 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 		await (Promise.all([single1.assertContentsEmpty(), single2.assertContentsEmpty(), batch1.assertContentsEmpty(), batch2.assertContentsEmpty()]));
 	});
 
+	test('rename not existing resource', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const sourceFile = joinPath(parent.resource, 'sourceFile');
+		const targetFile = joinPath(parent.resource, 'targetFile');
+
+		try {
+			await service.move(sourceFile, targetFile, false);
+		} catch (error) {
+			assert.deepStrictEqual((<FileSystemProviderError>error).code, FileSystemProviderErrorCode.FileNotFound);
+			return;
+		}
+
+		assert.fail('This should fail with error');
+	});
+
+	test('rename to an existing file without overwrite', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const sourceFile = joinPath(parent.resource, 'sourceFile');
+		await service.writeFile(sourceFile, VSBuffer.fromString('This is source file'));
+
+		const targetFile = joinPath(parent.resource, 'targetFile');
+		await service.writeFile(targetFile, VSBuffer.fromString('This is target file'));
+
+		try {
+			await service.move(sourceFile, targetFile, false);
+		} catch (error) {
+			assert.deepStrictEqual((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_MOVE_CONFLICT);
+			return;
+		}
+
+		assert.fail('This should fail with error');
+	});
+
+	test('rename folder to an existing folder without overwrite', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const sourceFolder = joinPath(parent.resource, 'sourceFolder');
+		await service.createFolder(sourceFolder);
+		const targetFolder = joinPath(parent.resource, 'targetFolder');
+		await service.createFolder(targetFolder);
+
+		try {
+			await service.move(sourceFolder, targetFolder, false);
+		} catch (error) {
+			assert.deepStrictEqual((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_MOVE_CONFLICT);
+			return;
+		}
+
+		assert.fail('This should fail with cannot overwrite error');
+	});
+
+	test('rename file to a folder', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const sourceFile = joinPath(parent.resource, 'sourceFile');
+		await service.writeFile(sourceFile, VSBuffer.fromString('This is source file'));
+
+		const targetFolder = joinPath(parent.resource, 'targetFolder');
+		await service.createFolder(targetFolder);
+
+		try {
+			await service.move(sourceFile, targetFolder, false);
+		} catch (error) {
+			assert.deepStrictEqual((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_MOVE_CONFLICT);
+			return;
+		}
+
+		assert.fail('This should fail with error');
+	});
+
+	test('rename folder to a file', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const sourceFolder = joinPath(parent.resource, 'sourceFile');
+		await service.createFolder(sourceFolder);
+
+		const targetFile = joinPath(parent.resource, 'targetFile');
+		await service.writeFile(targetFile, VSBuffer.fromString('This is target file'));
+
+		try {
+			await service.move(sourceFolder, targetFile, false);
+		} catch (error) {
+			assert.deepStrictEqual((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_MOVE_CONFLICT);
+			return;
+		}
+
+		assert.fail('This should fail with error');
+	});
+
+	test('rename file', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const sourceFile = joinPath(parent.resource, 'sourceFile');
+		await service.writeFile(sourceFile, VSBuffer.fromString('This is source file'));
+
+		const targetFile = joinPath(parent.resource, 'targetFile');
+		await service.move(sourceFile, targetFile, false);
+
+		const content = await service.readFile(targetFile);
+		assert.strictEqual(await service.exists(sourceFile), false);
+		assert.strictEqual(content.value.toString(), 'This is source file');
+	});
+
+	test('rename to an existing file with overwrite', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const sourceFile = joinPath(parent.resource, 'sourceFile');
+		await service.writeFile(sourceFile, VSBuffer.fromString('This is source file'));
+
+		const targetFile = joinPath(parent.resource, 'targetFile');
+		await service.writeFile(targetFile, VSBuffer.fromString('This is target file'));
+
+		await service.move(sourceFile, targetFile, true);
+
+		const content = await service.readFile(targetFile);
+		assert.strictEqual(await service.exists(sourceFile), false);
+		assert.strictEqual(content.value.toString(), 'This is source file');
+	});
+
+	test('rename folder to a new folder', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const sourceFolder = joinPath(parent.resource, 'sourceFolder');
+		await service.createFolder(sourceFolder);
+
+		const targetFolder = joinPath(parent.resource, 'targetFolder');
+		await service.move(sourceFolder, targetFolder, false);
+
+		assert.deepStrictEqual(await service.exists(sourceFolder), false);
+		assert.deepStrictEqual(await service.exists(targetFolder), true);
+	});
+
+	test('rename folder to an existing folder', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const sourceFolder = joinPath(parent.resource, 'sourceFolder');
+		await service.createFolder(sourceFolder);
+		const targetFolder = joinPath(parent.resource, 'targetFolder');
+		await service.createFolder(targetFolder);
+
+		await service.move(sourceFolder, targetFolder, true);
+
+		assert.deepStrictEqual(await service.exists(sourceFolder), false);
+		assert.deepStrictEqual(await service.exists(targetFolder), true);
+	});
+
+	test('rename a folder that has multiple files and folders', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+
+		const sourceFolder = joinPath(parent.resource, 'sourceFolder');
+		const sourceFile1 = joinPath(sourceFolder, 'folder1', 'file1');
+		await service.writeFile(sourceFile1, VSBuffer.fromString('Source File 1'));
+		const sourceFile2 = joinPath(sourceFolder, 'folder2', 'file1');
+		await service.writeFile(sourceFile2, VSBuffer.fromString('Source File 2'));
+		const sourceEmptyFolder = joinPath(sourceFolder, 'folder3');
+		await service.createFolder(sourceEmptyFolder);
+
+		const targetFolder = joinPath(parent.resource, 'targetFolder');
+		const targetFile1 = joinPath(targetFolder, 'folder1', 'file1');
+		const targetFile2 = joinPath(targetFolder, 'folder2', 'file1');
+		const targetEmptyFolder = joinPath(targetFolder, 'folder3');
+
+		await service.move(sourceFolder, targetFolder, false);
+
+		assert.deepStrictEqual(await service.exists(sourceFolder), false);
+		assert.deepStrictEqual(await service.exists(targetFolder), true);
+		assert.strictEqual((await service.readFile(targetFile1)).value.toString(), 'Source File 1');
+		assert.strictEqual((await service.readFile(targetFile2)).value.toString(), 'Source File 2');
+		assert.deepStrictEqual(await service.exists(targetEmptyFolder), true);
+	});
+
+	test('rename a folder to another folder that has some files', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+
+		const sourceFolder = joinPath(parent.resource, 'sourceFolder');
+		const sourceFile1 = joinPath(sourceFolder, 'folder1', 'file1');
+		await service.writeFile(sourceFile1, VSBuffer.fromString('Source File 1'));
+
+		const targetFolder = joinPath(parent.resource, 'targetFolder');
+		const targetFile1 = joinPath(targetFolder, 'folder1', 'file1');
+		const targetFile2 = joinPath(targetFolder, 'folder1', 'file2');
+		await service.writeFile(targetFile2, VSBuffer.fromString('Target File 2'));
+		const targetFile3 = joinPath(targetFolder, 'folder2', 'file1');
+		await service.writeFile(targetFile3, VSBuffer.fromString('Target File 3'));
+
+		await service.move(sourceFolder, targetFolder, true);
+
+		assert.deepStrictEqual(await service.exists(sourceFolder), false);
+		assert.deepStrictEqual(await service.exists(targetFolder), true);
+		assert.strictEqual((await service.readFile(targetFile1)).value.toString(), 'Source File 1');
+		assert.strictEqual(await service.exists(targetFile2), false);
+		assert.strictEqual(await service.exists(targetFile3), false);
+	});
+
 	test('deleteFile', async () => {
 		await initFixtures();
 
@@ -373,5 +560,46 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 			error = e;
 		}
 		assert.ok(error);
+	});
+
+	test('delete empty folder', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const folder = joinPath(parent.resource, 'folder');
+		await service.createFolder(folder);
+
+		await service.del(folder);
+
+		assert.deepStrictEqual(await service.exists(folder), false);
+	});
+
+	test('delete empty folder with reccursive', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const folder = joinPath(parent.resource, 'folder');
+		await service.createFolder(folder);
+
+		await service.del(folder, { recursive: true });
+
+		assert.deepStrictEqual(await service.exists(folder), false);
+	});
+
+	test('deleteFolder with folders and files (recursive)', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+
+		const targetFolder = joinPath(parent.resource, 'targetFolder');
+		const file1 = joinPath(targetFolder, 'folder1', 'file1');
+		await service.createFile(file1);
+		const file2 = joinPath(targetFolder, 'folder2', 'file1');
+		await service.createFile(file2);
+		const emptyFolder = joinPath(targetFolder, 'folder3');
+		await service.createFolder(emptyFolder);
+
+		await service.del(targetFolder, { recursive: true });
+
+		assert.deepStrictEqual(await service.exists(targetFolder), false);
+		assert.deepStrictEqual(await service.exists(joinPath(targetFolder, 'folder1')), false);
+		assert.deepStrictEqual(await service.exists(joinPath(targetFolder, 'folder2')), false);
+		assert.deepStrictEqual(await service.exists(file1), false);
+		assert.deepStrictEqual(await service.exists(file2), false);
+		assert.deepStrictEqual(await service.exists(emptyFolder), false);
 	});
 });

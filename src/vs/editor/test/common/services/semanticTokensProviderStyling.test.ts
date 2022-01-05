@@ -5,9 +5,9 @@
 
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MultilineTokens2, SparseEncodedTokens } from 'vs/editor/common/model/tokensStore';
-import { MetadataConsts } from 'vs/editor/common/modes';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { SparseMultilineTokens } from 'vs/editor/common/model/tokens/sparseMultilineTokens';
+import { MetadataConsts } from 'vs/editor/common/languages';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 import { createModelServices } from 'vs/editor/test/common/testTextModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -64,7 +64,7 @@ suite('ModelService', () => {
 			])
 		};
 		const result = toMultilineTokens2(badTokens, styling, languageId);
-		const expected = new MultilineTokens2(1, new SparseEncodedTokens(new Uint32Array([
+		const expected = SparseMultilineTokens.create(1, new Uint32Array([
 			0, 13, 29, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (1 << MetadataConsts.FOREGROUND_OFFSET)),
 			1, 2, 8, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (2 << MetadataConsts.FOREGROUND_OFFSET)),
 			1, 9, 15, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (3 << MetadataConsts.FOREGROUND_OFFSET)),
@@ -74,7 +74,7 @@ suite('ModelService', () => {
 			2, 12, 20, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (7 << MetadataConsts.FOREGROUND_OFFSET)),
 			2, 31, 36, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (8 << MetadataConsts.FOREGROUND_OFFSET)),
 			2, 36, 41, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (9 << MetadataConsts.FOREGROUND_OFFSET)),
-		])));
+		]));
 		assert.deepStrictEqual(result.toString(), expected.toString());
 	});
 });

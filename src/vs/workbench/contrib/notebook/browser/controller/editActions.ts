@@ -430,7 +430,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		];
 
 		const selection = await quickInputService.pick(picks, { placeHolder: localize('pickLanguageToConfigure', "Select Language Mode") }) as ILanguagePickInput | undefined;
-		let languageId = selection === autoDetectMode
+		const languageId = selection === autoDetectMode
 			? await languageDetectionService.detectLanguage(context.cell.uri)
 			: selection?.languageId;
 

@@ -94,8 +94,8 @@ async function poll<T>(
 	acceptFn: (result: T) => boolean,
 	logger: Logger,
 	timeoutMessage: string,
-	retryCount: number = 200,
-	retryInterval: number = 100 // millis
+	retryCount = 200,
+	retryInterval = 100 // millis
 ): Promise<T> {
 	let trial = 1;
 	let lastError: string = '';
@@ -174,8 +174,8 @@ export class Code {
 		}
 	}
 
-	async waitForWindowIds(fn: (windowIds: number[]) => boolean): Promise<void> {
-		await poll(() => this.driver.getWindowIds(), fn, this.logger, `get window ids`);
+	async waitForWindowIds(accept: (windowIds: number[]) => boolean): Promise<void> {
+		await poll(() => this.driver.getWindowIds(), accept, this.logger, `get window ids`);
 	}
 
 	async dispatchKeybinding(keybinding: string): Promise<void> {
@@ -262,9 +262,9 @@ export class Code {
 		await poll(() => this.driver.isActiveElement(windowId, selector), r => r, this.logger, `is active element '${selector}'`, retryCount);
 	}
 
-	async waitForTitle(fn: (title: string) => boolean): Promise<void> {
+	async waitForTitle(accept: (title: string) => boolean): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.getTitle(windowId), fn, this.logger, `get title`);
+		await poll(() => this.driver.getTitle(windowId), accept, this.logger, `get title`);
 	}
 
 	async waitForTypeInEditor(selector: string, text: string): Promise<void> {
@@ -284,12 +284,12 @@ export class Code {
 
 	async getLocaleInfo(): Promise<ILocaleInfo> {
 		const windowId = await this.getActiveWindowId();
-		return await this.driver.getLocaleInfo(windowId);
+		return this.driver.getLocaleInfo(windowId);
 	}
 
 	async getLocalizedStrings(): Promise<ILocalizedStrings> {
 		const windowId = await this.getActiveWindowId();
-		return await this.driver.getLocalizedStrings(windowId);
+		return this.driver.getLocalizedStrings(windowId);
 	}
 
 	private async getActiveWindowId(): Promise<number> {

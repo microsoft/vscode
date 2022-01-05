@@ -627,6 +627,9 @@ export interface INotebookEditor {
 	getCellByHandle(handle: number): ICellViewModel | undefined;
 	getCellIndex(cell: ICellViewModel): number | undefined;
 	getNextVisibleCellIndex(index: number): number | undefined;
+
+	showProgress(): void;
+	hideProgress(): void;
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {
@@ -786,7 +789,7 @@ export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INote
 export function expandCellRangesWithHiddenCells(editor: INotebookEditor, ranges: ICellRange[]) {
 	// assuming ranges are sorted and no overlap
 	const indexes = cellRangesToIndexes(ranges);
-	let modelRanges: ICellRange[] = [];
+	const modelRanges: ICellRange[] = [];
 	indexes.forEach(index => {
 		const viewCell = editor.cellAt(index);
 

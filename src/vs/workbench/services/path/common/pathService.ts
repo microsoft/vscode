@@ -68,7 +68,8 @@ export interface IPathService {
 	 * these OS. Other remotes are not supported and this method
 	 * will always return `true` for them.
 	 */
-	hasValidBasename(resource: URI): Promise<boolean>;
+	hasValidBasename(resource: URI, basename?: string): Promise<boolean>;
+	hasValidBasename(resource: URI, os: OperatingSystem, basename?: string): boolean;
 
 	/**
 	 * @deprecated use `userHome` instead.
@@ -109,15 +110,26 @@ export abstract class AbstractPathService implements IPathService {
 		})();
 	}
 
-	async hasValidBasename(resource: URI): Promise<boolean> {
+	hasValidBasename(resource: URI, basename?: string): Promise<boolean>;
+	hasValidBasename(resource: URI, os: OperatingSystem, basename?: string): boolean;
+	hasValidBasename(resource: URI, arg2?: string | OperatingSystem, basename?: string): boolean | Promise<boolean> {
+
+		// async version
+		if (typeof arg2 === 'string' || typeof arg2 === 'undefined') {
+			return this.resolveOS.then(os => this.doHasValidBasename(resource, os, arg2));
+		}
+
+		// sync version
+		return this.doHasValidBasename(resource, arg2, basename);
+	}
+
+	private doHasValidBasename(resource: URI, os: OperatingSystem, name?: string): boolean {
 
 		// Our `isValidBasename` method only works with our
 		// standard schemes for files on disk, either locally
 		// or remote.
 		if (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote) {
-			const os = await this.resolveOS;
-
-			return isValidBasename(basename(resource), os === OperatingSystem.Windows);
+			return isValidBasename(name ?? basename(resource), os === OperatingSystem.Windows);
 		}
 
 		return true;

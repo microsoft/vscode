@@ -11,7 +11,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
-import { TextEdit } from 'vs/editor/common/modes';
+import { TextEdit } from 'vs/editor/common/languages';
 
 suite('MainThreadDocumentContentProviders', function () {
 

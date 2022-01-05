@@ -10,7 +10,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { DocumentRangeSemanticTokensProviderRegistry } from 'vs/editor/common/modes';
+import { DocumentRangeSemanticTokensProviderRegistry } from 'vs/editor/common/languages';
 import { getDocumentRangeSemanticTokens, hasDocumentRangeSemanticTokensProvider } from 'vs/editor/common/services/getSemanticTokens';
 import { IModelService } from 'vs/editor/common/services/model';
 import { isSemanticColoringEnabled, SEMANTIC_HIGHLIGHTING_SETTING_ID } from 'vs/editor/common/services/modelService';

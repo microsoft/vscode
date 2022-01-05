@@ -12,7 +12,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { CellKind, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 export class NotebookExecutionService implements INotebookExecutionService {
 	declare _serviceBrand: undefined;
@@ -26,13 +26,6 @@ export class NotebookExecutionService implements INotebookExecutionService {
 	) {
 	}
 
-	getSelectedOrSuggestedKernel(notebook: INotebookTextModel): INotebookKernel | undefined {
-		// TODO later can be inlined in notebookEditorWidget
-		// returns SELECTED or the ONLY available kernel
-		const info = this._notebookKernelService.getMatchingKernel(notebook);
-		return info.selected ?? (info.all.length === 1 ? info.all[0] : undefined);
-	}
-
 	async executeNotebookCells(notebook: INotebookTextModel, cells: Iterable<NotebookCellTextModel>): Promise<void> {
 		const cellsArr = Array.from(cells);
 		this._logService.debug(`NotebookExecutionService#executeNotebookCells ${JSON.stringify(cellsArr.map(c => c.handle))}`);
@@ -42,10 +35,10 @@ export class NotebookExecutionService implements INotebookExecutionService {
 			return;
 		}
 
-		let kernel = this.getSelectedOrSuggestedKernel(notebook);
+		let kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
 		if (!kernel) {
 			await this._commandService.executeCommand(SELECT_KERNEL_ID);
-			kernel = this.getSelectedOrSuggestedKernel(notebook);
+			kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
 		}
 
 		if (!kernel) {
@@ -73,7 +66,7 @@ export class NotebookExecutionService implements INotebookExecutionService {
 	async cancelNotebookCellHandles(notebook: INotebookTextModel, cells: Iterable<number>): Promise<void> {
 		const cellsArr = Array.from(cells);
 		this._logService.debug(`NotebookExecutionService#cancelNotebookCellHandles ${JSON.stringify(cellsArr)}`);
-		const kernel = this.getSelectedOrSuggestedKernel(notebook);
+		const kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
 		if (kernel) {
 			await kernel.cancelNotebookCellExecution(notebook.uri, cellsArr);
 		}

@@ -16,9 +16,9 @@ import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Token } from 'vs/editor/common/core/token';
 import { EditorType } from 'vs/editor/common/editorCommon';
 import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NullState, nullTokenize } from 'vs/editor/common/modes/nullMode';
+import * as modes from 'vs/editor/common/languages';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { NullState, nullTokenize } from 'vs/editor/common/languages/nullMode';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { createWebWorker as actualCreateWebWorker, IWebWorkerOptions, MonacoWebWorker } from 'vs/editor/common/services/webWorker';
@@ -216,7 +216,7 @@ export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize
  * @internal
  */
 function getSafeTokenizationSupport(language: string): Omit<modes.ITokenizationSupport, 'tokenizeEncoded'> {
-	let tokenizationSupport = modes.TokenizationRegistry.get(language);
+	const tokenizationSupport = modes.TokenizationRegistry.get(language);
 	if (tokenizationSupport) {
 		return tokenizationSupport;
 	}
@@ -233,13 +233,13 @@ export function tokenize(text: string, languageId: string): Token[][] {
 	// Needed in order to get the mode registered for subsequent look-ups
 	modes.TokenizationRegistry.getOrCreate(languageId);
 
-	let tokenizationSupport = getSafeTokenizationSupport(languageId);
-	let lines = splitLines(text);
-	let result: Token[][] = [];
+	const tokenizationSupport = getSafeTokenizationSupport(languageId);
+	const lines = splitLines(text);
+	const result: Token[][] = [];
 	let state = tokenizationSupport.getInitialState();
 	for (let i = 0, len = lines.length; i < len; i++) {
-		let line = lines[i];
-		let tokenizationResult = tokenizationSupport.tokenize(line, true, state);
+		const line = lines[i];
+		const tokenizationResult = tokenizationSupport.tokenize(line, true, state);
 
 		result[i] = tokenizationResult.tokens;
 		state = tokenizationResult.endState;

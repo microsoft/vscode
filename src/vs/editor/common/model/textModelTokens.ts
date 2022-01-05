@@ -5,16 +5,17 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
-import { ILanguageIdCodec, IState, ITokenizationSupport, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/modes';
-import { nullTokenizeEncoded } from 'vs/editor/common/modes/nullMode';
+import { ILanguageIdCodec, IState, ITokenizationSupport, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
+import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullMode';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { MultilineTokensBuilder, countEOL } from 'vs/editor/common/model/tokensStore';
+import { countEOL } from 'vs/editor/common/model/pieceTreeTextBuffer/eolCounter';
+import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/model/tokens/contiguousMultilineTokensBuilder';
 import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
 import { setTimeout0 } from 'vs/base/common/platform';
 
@@ -303,7 +304,7 @@ export class TextModelTokenization extends Disposable {
 	 */
 	private _backgroundTokenizeForAtLeast1ms(): void {
 		const lineCount = this._textModel.getLineCount();
-		const builder = new MultilineTokensBuilder();
+		const builder = new ContiguousMultilineTokensBuilder();
 		const sw = StopWatch.create(false);
 
 		do {
@@ -321,13 +322,13 @@ export class TextModelTokenization extends Disposable {
 			}
 		} while (this._hasLinesToTokenize());
 
-		this._textModel.setTokens(builder.tokens, !this._hasLinesToTokenize());
+		this._textModel.setTokens(builder.finalize(), !this._hasLinesToTokenize());
 	}
 
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
-		const builder = new MultilineTokensBuilder();
+		const builder = new ContiguousMultilineTokensBuilder();
 		this._tokenizeViewport(builder, startLineNumber, endLineNumber);
-		this._textModel.setTokens(builder.tokens, !this._hasLinesToTokenize());
+		this._textModel.setTokens(builder.finalize(), !this._hasLinesToTokenize());
 	}
 
 	public reset(): void {
@@ -336,9 +337,9 @@ export class TextModelTokenization extends Disposable {
 	}
 
 	public forceTokenization(lineNumber: number): void {
-		const builder = new MultilineTokensBuilder();
+		const builder = new ContiguousMultilineTokensBuilder();
 		this._updateTokensUntilLine(builder, lineNumber);
-		this._textModel.setTokens(builder.tokens, !this._hasLinesToTokenize());
+		this._textModel.setTokens(builder.finalize(), !this._hasLinesToTokenize());
 	}
 
 	public getTokenTypeIfInsertingCharacter(position: Position, character: string): StandardTokenType {
@@ -400,7 +401,7 @@ export class TextModelTokenization extends Disposable {
 		return (this._tokenizationStateStore.invalidLineStartIndex < this._textModel.getLineCount());
 	}
 
-	private _tokenizeOneInvalidLine(builder: MultilineTokensBuilder): number {
+	private _tokenizeOneInvalidLine(builder: ContiguousMultilineTokensBuilder): number {
 		if (!this._hasLinesToTokenize()) {
 			return this._textModel.getLineCount() + 1;
 		}
@@ -409,7 +410,7 @@ export class TextModelTokenization extends Disposable {
 		return lineNumber;
 	}
 
-	private _updateTokensUntilLine(builder: MultilineTokensBuilder, lineNumber: number): void {
+	private _updateTokensUntilLine(builder: ContiguousMultilineTokensBuilder, lineNumber: number): void {
 		if (!this._tokenizationSupport) {
 			return;
 		}
@@ -429,7 +430,7 @@ export class TextModelTokenization extends Disposable {
 		}
 	}
 
-	private _tokenizeViewport(builder: MultilineTokensBuilder, startLineNumber: number, endLineNumber: number): void {
+	private _tokenizeViewport(builder: ContiguousMultilineTokensBuilder, startLineNumber: number, endLineNumber: number): void {
 		if (!this._tokenizationSupport) {
 			// nothing to do
 			return;

@@ -10,9 +10,9 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IWorkbenchThemeService, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
-import { IGrammar, StackElement } from 'vscode-textmate';
-import { TokenizationRegistry, TokenMetadata } from 'vs/editor/common/modes';
+import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
+import type { IGrammar, StackElement } from 'vscode-textmate';
+import { TokenizationRegistry, TokenMetadata } from 'vs/editor/common/languages';
 import { ThemeRule, findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
 import { Color } from 'vs/base/common/color';
 import { IFileService } from 'vs/platform/files/common/files';

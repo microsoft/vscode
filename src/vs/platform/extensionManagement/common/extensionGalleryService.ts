@@ -171,6 +171,7 @@ const DefaultQueryState: IQueryState = {
 
 type GalleryServiceQueryClassification = {
 	readonly filterTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	readonly flags: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	readonly sortBy: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	readonly sortOrder: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	readonly duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', 'isMeasurement': true };
@@ -183,6 +184,7 @@ type GalleryServiceQueryClassification = {
 };
 
 type QueryTelemetryData = {
+	readonly flags: number;
 	readonly filterTypes: string[];
 	readonly sortBy: string;
 	readonly sortOrder: string;
@@ -261,6 +263,7 @@ class Query {
 	get telemetryData(): QueryTelemetryData {
 		return {
 			filterTypes: this.state.criteria.map(criterium => String(criterium.filterType)),
+			flags: this.state.flags,
 			sortBy: String(this.sortBy),
 			sortOrder: String(this.sortOrder)
 		};
@@ -499,7 +502,6 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		let query = new Query()
 			.withFlags(Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, identifiers.length)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
 			.withFilter(FilterType.ExtensionName, ...identifiers.map(({ id }) => id.toLowerCase()));
 
 		if (identifiers.every(identifier => !(<IExtensionIdentifierWithVersion>identifier).version)) {
@@ -525,8 +527,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		}
 		let query = new Query()
 			.withFlags(Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties, Flags.IncludeLatestVersionOnly)
-			.withPage(1, identifiers.length)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
+			.withPage(1, identifiers.length);
 		if (ids.length) {
 			query = query.withFilter(FilterType.ExtensionId, ...ids);
 		}
@@ -557,8 +558,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const { id, uuid } = extension ? extension.identifier : <IExtensionIdentifier>arg1;
 		let query = new Query()
 			.withFlags(Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
-			.withPage(1, 1)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
+			.withPage(1, 1);
 
 		if (uuid) {
 			query = query.withFilter(FilterType.ExtensionId, uuid);
@@ -638,8 +638,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 		let query = new Query()
 			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
-			.withPage(1, pageSize)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
+			.withPage(1, pageSize);
 
 		if (text) {
 			// Use category filter instead of "category:themes"
@@ -734,7 +733,6 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			const query = new Query()
 				.withFlags(Flags.IncludeVersions, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 				.withPage(1, preReleaseVersions.size)
-				.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
 				.withFilter(FilterType.ExtensionId, ...preReleaseVersions.keys());
 			const { galleryExtensions } = await this.queryGallery(query, targetPlatform, token);
 			this.telemetryService.publicLog2<GalleryServicePreReleasesQueryEvent, GalleryServicePreReleaseQueryClassification>('galleryService:preReleasesQuery', {
@@ -760,9 +758,11 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			throw new Error('No extension gallery service configured.');
 		}
 
-		// Always exclude non validated and unpublished extensions
 		query = query
+			/* Always exclude non validated extensions */
 			.withFlags(query.flags, Flags.ExcludeNonValidated)
+			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
+			/* Always exclude unpublished extensions */
 			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished));
 
 		const commonHeaders = await this.commonHeadersPromise;
@@ -915,8 +915,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	async getAllCompatibleVersions(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]> {
 		let query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
-			.withPage(1, 1)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
+			.withPage(1, 1);
 
 		if (extension.identifier.uuid) {
 			query = query.withFilter(FilterType.ExtensionId, extension.identifier.uuid);

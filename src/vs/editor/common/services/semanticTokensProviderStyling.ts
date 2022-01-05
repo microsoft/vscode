@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SemanticTokensLegend, TokenMetadata, FontStyle, MetadataConsts, SemanticTokens } from 'vs/editor/common/modes';
+import { SemanticTokensLegend, TokenMetadata, FontStyle, MetadataConsts, SemanticTokens } from 'vs/editor/common/languages';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { MultilineTokens2, SparseEncodedTokens } from 'vs/editor/common/model/tokensStore';
+import { SparseMultilineTokens } from 'vs/editor/common/model/tokens/sparseMultilineTokens';
 import { ILanguageService } from 'vs/editor/common/services/language';
 
 export const enum SemanticTokensProviderStylingConstants {
@@ -123,11 +123,11 @@ const enum SemanticColoringConstants {
 	DesiredMaxAreas = 1024,
 }
 
-export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticTokensProviderStyling, languageId: string): MultilineTokens2[] {
+export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticTokensProviderStyling, languageId: string): SparseMultilineTokens[] {
 	const srcData = tokens.data;
 	const tokenCount = (tokens.data.length / 5) | 0;
 	const tokensPerArea = Math.max(Math.ceil(tokenCount / SemanticColoringConstants.DesiredMaxAreas), SemanticColoringConstants.DesiredTokensPerArea);
-	const result: MultilineTokens2[] = [];
+	const result: SparseMultilineTokens[] = [];
 
 	let tokenIndex = 0;
 	let lastLineNumber = 1;
@@ -209,7 +209,7 @@ export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticToke
 			destData = destData.subarray(0, destOffset);
 		}
 
-		const tokens = new MultilineTokens2(areaLine, new SparseEncodedTokens(destData));
+		const tokens = SparseMultilineTokens.create(areaLine, destData);
 		result.push(tokens);
 	}
 

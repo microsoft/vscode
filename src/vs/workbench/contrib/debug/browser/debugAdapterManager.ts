@@ -193,7 +193,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	}
 
 	hasEnabledDebuggers(): boolean {
-		for (let [type] of this.debugAdapterFactories) {
+		for (const [type] of this.debugAdapterFactories) {
 			const dbg = this.getDebugger(type);
 			if (dbg && dbg.enabled) {
 				return true;
@@ -204,7 +204,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	}
 
 	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined {
-		let factory = this.debugAdapterFactories.get(session.configuration.type);
+		const factory = this.debugAdapterFactories.get(session.configuration.type);
 		if (factory) {
 			return factory.createDebugAdapter(session);
 		}
@@ -212,7 +212,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	}
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
-		let factory = this.debugAdapterFactories.get(debugType);
+		const factory = this.debugAdapterFactories.get(debugType);
 		if (factory) {
 			return factory.substituteVariables(folder, config);
 		}
@@ -220,7 +220,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	}
 
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
-		let factory = this.debugAdapterFactories.get(debugType);
+		const factory = this.debugAdapterFactories.get(debugType);
 		if (factory) {
 			return factory.runInTerminal(args, sessionId);
 		}

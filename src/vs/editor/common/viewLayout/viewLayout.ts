@@ -341,9 +341,9 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 	public saveState(): { scrollTop: number; scrollTopWithoutViewZones: number; scrollLeft: number; } {
 		const currentScrollPosition = this._scrollable.getFutureScrollPosition();
-		let scrollTop = currentScrollPosition.scrollTop;
-		let firstLineNumberInViewport = this._linesLayout.getLineNumberAtOrAfterVerticalOffset(scrollTop);
-		let whitespaceAboveFirstLine = this._linesLayout.getWhitespaceAccumulatedHeightBeforeLineNumber(firstLineNumberInViewport);
+		const scrollTop = currentScrollPosition.scrollTop;
+		const firstLineNumberInViewport = this._linesLayout.getLineNumberAtOrAfterVerticalOffset(scrollTop);
+		const whitespaceAboveFirstLine = this._linesLayout.getWhitespaceAccumulatedHeightBeforeLineNumber(firstLineNumberInViewport);
 		return {
 			scrollTop: scrollTop,
 			scrollTopWithoutViewZones: scrollTop - whitespaceAboveFirstLine,

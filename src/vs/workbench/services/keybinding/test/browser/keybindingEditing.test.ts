@@ -59,7 +59,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 interface Modifiers {
@@ -114,7 +114,7 @@ suite('KeybindingsEditing', () => {
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(ILanguageConfigurationService, new TestLanguageConfigurationService());
 		instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
-		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, new NullLogService())));
+		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, fileService, new NullLogService())));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
 		instantiationService.stub(IWorkingCopyFileService, disposables.add(instantiationService.createInstance(WorkingCopyFileService)));
