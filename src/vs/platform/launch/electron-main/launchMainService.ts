@@ -266,7 +266,7 @@ export class LaunchMainService implements ILaunchMainService {
 					});
 
 					setTimeout(() => {
-						resolve({ hostName: remoteAuthority, errorMessage: `Connection to 'SSH:${remoteAuthority}' could not be established` });
+						resolve({ hostName: remoteAuthority, errorMessage: `Connection to '${remoteAuthority}' could not be established` });
 					}, 5000);
 				} else {
 					resolve(undefined);
