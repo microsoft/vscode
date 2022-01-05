@@ -5,8 +5,7 @@
 		"preserveConstEnums": true,
 		"sourceMap": false,
 		"outDir": "../out/vs",
-		"target": "es6",
-		"lib": ["es2020", "dom", "dom.iterable"],
+		"target": "es2020",
 		"types": [
 			"keytar",
 			"mocha",
