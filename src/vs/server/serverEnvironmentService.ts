@@ -61,8 +61,14 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 };
 
 export interface ServerParsedArgs {
+
+	/* ----- server setup ----- */
+
+	host?: string;
 	port?: string;
 	'pick-port'?: string;
+	'socket-path'?: string;
+
 	/**
 	 * A secret token that must be provided by the web client with all requests.
 	 * Use only `[0-9A-Za-z\-]`.
@@ -84,21 +90,39 @@ export interface ServerParsedArgs {
 	 * This secret must be communicated to any vscode instance via the resolver or embedder API.
 	 */
 	'connection-secret'?: string;
-	host?: string;
-	'socket-path'?: string;
-	driver?: string;
+
+	'disable-websocket-compression'?: boolean;
+
 	'print-startup-performance'?: boolean;
 	'print-ip-address'?: boolean;
-	'disable-websocket-compression'?: boolean;
+
+	'accept-server-license-terms': boolean;
+
+	/* ----- vs code options ----- */
+
+	'user-data-dir'?: string;
+
+	driver?: string;
+
 	'disable-telemetry'?: boolean;
 	fileWatcherPolling?: string;
-	'start-server'?: boolean;
 
-	'enable-remote-auto-shutdown'?: boolean;
-	'remote-auto-shutdown-without-delay'?: boolean;
+	'log'?: string;
+	'logsPath'?: string;
+
+	'force-disable-user-env'?: boolean;
+
+	/* ----- vs code web options ----- */
+	workspace: string;
+	folder: string;
+	'enable-sync'?: boolean;
+	'github-auth'?: string;
+
+	/* ----- extension management ----- */
 
 	'extensions-dir'?: string;
 	'extensions-download-dir'?: string;
+	'builtin-extensions-dir'?: string;
 	'install-extension'?: string[];
 	'install-builtin-extension'?: string[];
 	'uninstall-extension'?: string[];
@@ -106,32 +130,23 @@ export interface ServerParsedArgs {
 	'locate-extension'?: string[];
 	'show-versions'?: boolean;
 	'category'?: string;
-
-	'force-disable-user-env'?: boolean;
-	'use-host-proxy'?: string;
-
-	'without-browser-env-var'?: boolean;
-
 	force?: boolean; // used by install-extension
 	'do-not-sync'?: boolean; // used by install-extension
 	'pre-release'?: boolean; // used by install-extension
 
-	'user-data-dir'?: string;
-	'builtin-extensions-dir'?: string;
+	'start-server'?: boolean;
 
-	// web
-	workspace: string;
-	folder: string;
-	'enable-sync'?: boolean;
-	'github-auth'?: string;
-	'log'?: string;
-	'logsPath'?: string;
+	/* ----- remote development options ----- */
 
-	// server cli
+	'enable-remote-auto-shutdown'?: boolean;
+	'remote-auto-shutdown-without-delay'?: boolean;
+
+	'use-host-proxy'?: string;
+	'without-browser-env-var'?: boolean;
+
+	/* ----- server cli ----- */
 	help: boolean;
 	version: boolean;
-
-	'accept-server-license-terms': boolean;
 
 	_: string[];
 }
