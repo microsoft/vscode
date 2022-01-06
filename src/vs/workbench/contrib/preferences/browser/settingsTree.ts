@@ -1903,8 +1903,9 @@ export class SettingUntrustedRenderer extends AbstractSettingRenderer implements
 		linkElement.setAttribute('tabindex', '0');
 		linkElement.href = '#';
 		template.toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.CLICK, (e: MouseEvent) => {
-			this._commandService.executeCommand('workbench.trust.manage');
+			e.preventDefault();
 			e.stopPropagation();
+			this._commandService.executeCommand('workbench.trust.manage');
 		}));
 		template.toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
