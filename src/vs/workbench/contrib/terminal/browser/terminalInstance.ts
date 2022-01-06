@@ -721,7 +721,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				items.push({
 					label,
 					description: exitCodeDescription + cwdDescription,
-					detail: fromNow(timestamp),
+					detail: fromNow(timestamp) === 'now' ? 'now' : `${fromNow(timestamp)} ago`,
 					id: timestamp.toString()
 				});
 			}
