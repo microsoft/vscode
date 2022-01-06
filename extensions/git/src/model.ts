@@ -17,6 +17,7 @@ import { Askpass } from './askpass';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
+import { Log, LogLevel } from './log';
 
 const localize = nls.loadMessageBundle();
 
@@ -133,12 +134,20 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 	}
 
 	/**
-	 * Scans the first level of each workspace folder, looking
-	 * for git repositories.
+	 * Scans each workspace folder, looking for git repositories. By
+	 * default it scans one level deep but that can be changed using
+	 * the git.repositoryScanMaxDepth setting.
 	 */
 	private async scanWorkspaceFolders(): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+		const repositoryScanMaxDepth = config.get<number>('repositoryScanMaxDepth', 1);
+
+		// Log repository scan settings
+		if (Log.logLevel <= LogLevel.Trace) {
+			this.outputChannel.appendLine(`${logTimestamp()} Trace: autoRepositoryDetection="${autoRepositoryDetection}"`);
+			this.outputChannel.appendLine(`${logTimestamp()} Trace: repositoryScanMaxDepth=${repositoryScanMaxDepth}`);
+		}
 
 		if (autoRepositoryDetection !== true && autoRepositoryDetection !== 'subFolders') {
 			return;
@@ -146,9 +155,11 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 
 		await Promise.all((workspace.workspaceFolders || []).map(async folder => {
 			const root = folder.uri.fsPath;
-			const children = (await fs.promises.readdir(root, { withFileTypes: true })).filter(dirent => dirent.isDirectory()).map(dirent => dirent.name);
-			const subfolders = new Set(children.filter(child => child !== '.git').map(child => path.join(root, child)));
 
+			// Workspace folder children
+			const subfolders = await this.traverseWorkspaceFolder(root, repositoryScanMaxDepth);
+
+			// Repository scan folders
 			const scanPaths = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<string[]>('scanRepositories') || [];
 			for (const scanPath of scanPaths) {
 				if (scanPath === '.git') {
@@ -163,8 +174,35 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 				subfolders.add(path.join(root, scanPath));
 			}
 
+			console.log([...subfolders]);
 			await Promise.all([...subfolders].map(f => this.openRepository(f)));
 		}));
+	}
+
+	private async traverseWorkspaceFolder(workspaceFolder: string, maxDepth: number): Promise<Set<string>> {
+		const result = new Set<string>();
+		const folders = [{ path: workspaceFolder, depth: 0 }];
+
+		while (folders.length > 0) {
+			const currentFolder = folders.shift()!;
+
+			if (currentFolder.depth < maxDepth || maxDepth === -1) {
+				const children = await fs.promises.readdir(currentFolder.path, { withFileTypes: true });
+
+				folders.push(...children
+					.filter(dirent => dirent.isDirectory() && dirent.name !== '.git')
+					.map(dirent => {
+						return { path: path.join(currentFolder.path, dirent.name), depth: currentFolder.depth + 1 };
+					})
+				);
+			}
+
+			if (currentFolder.depth !== 0) {
+				result.add(currentFolder.path);
+			}
+		}
+
+		return result;
 	}
 
 	private onPossibleGitRepositoryChange(uri: Uri): void {
@@ -303,7 +341,9 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			repository.status(); // do not await this, we want SCM to know about the repo asap
 		} catch (ex) {
 			// noop
-			this.outputChannel.appendLine(`${logTimestamp()} Opening repository for path='${repoPath}' failed; ex=${ex}`);
+			if (Log.logLevel <= LogLevel.Trace) {
+				this.outputChannel.appendLine(`${logTimestamp()} Trace: Opening repository for path='${repoPath}' failed; ex=${ex}`);
+			}
 		}
 	}
 
