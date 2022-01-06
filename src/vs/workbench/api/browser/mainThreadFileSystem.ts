@@ -167,7 +167,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 			return; // refuse to watch anything that is already watched
 		}
 
-		this._logService.trace(`MainThreadFileSystem#$watch(): request to start watching (extension: ${extension.identifier.value}, path: ${uri.toString(true)}, recursive: ${opts.recursive})`);
+		this._logService.trace(`MainThreadFileSystem#$watch(): request to start watching (extension: ${extension.identifier.value}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
 
 		const subscription = this._fileService.watch(uri, opts);
 		this._watches.set(session, subscription);
@@ -176,6 +176,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	$unwatch(session: number): void {
 		const subscription = this._watches.get(session);
 		if (subscription) {
+			this._logService.trace(`MainThreadFileSystem#$unwatch(): request to stop watching (session: ${session})`);
+
 			subscription.dispose();
 			this._watches.delete(session);
 		}
