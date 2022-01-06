@@ -14,30 +14,33 @@ declare module 'vscode' {
 		 * depending on the configuration.
 		 *
 		 * By default, all opened {@link workspace.workspaceFolders workspace folders} will be watched
-		 * for file changes recursively. On top of that, any visible editor that shows a file outside
-		 * of the workspace, will also be watched for changes for as long as the editor remains visible.
-		 *
-		 * User configurable excludes (via `files.watcherExclude`) may be applied to all file events to
-		 * reduce the number of events for known folders with lots of changes (such as `node_modules`).
+		 * for file changes recursively.
 		 *
 		 * Additional folders can be added for file watching by providing a {@link RelativePattern} with
-		 * a `base` that is outside of the currently opened workspace folders. If the `pattern` is complex
-		 * (e.g. contains `**` or path segments), the folder will be watched recursively and otherwise will
-		 * be watched flat (i.e. only changes to the top level hirarchy of the path will be reported).
+		 * a `base` that is outside of any of the currently opened workspace folders. If the `pattern` is
+		 * complex (e.g. contains `**` or path segments), the folder will be watched recursively and
+		 * otherwise will be watched non-recursively (i.e. only changes to the top level hirarchy of the
+		 * path will be reported).
 		 *
-		 * Providing a `string` as `globPattern` will apply it to all events from any file watcher that
-		 * was created. As such, it is strongly recommended to leverage {@link RelativePattern} to avoid
-		 * being notified for file changes that are not relevant.
+		 * Providing a `string` as `globPattern` acts as convenience method for watching file events in
+		 * all opened workspace folders. This method should be used if you only care about file events
+		 * from the workspace and not from any other folder.
 		 *
 		 * Optionally, flags to ignore certain kinds of events can be provided.
 		 *
 		 * To stop listening to events the watcher must be disposed.
 		 *
-		 * *Note* that file changes for the path to be watched may not be delivered when the path itself changes. For example,
-		 * when watching a path `/Users/somename/Desktop` for changes and the path itself is being deleted, the watcher may not
-		 * report an event and may not work anymore from that moment on. If you are interested in being notified when the watched
-		 * path itself is being deleted, you have to watch it's parent folder.
+		 * *Note* that user configurable excludes (via `files.watcherExclude`) may be applied to all file
+		 * events to reduce the number of events for known folders with lots of changes (such as `node_modules`).
 		 *
+		 * *Note* that symbolic links are not automatically followed for file watching unless the path to
+		 * watch itself is a symbolic link.
+		 *
+		 * *Note* that file changes for the path to be watched may not be delivered when the path itself
+		 * changes. For example, when watching a path `/Users/somename/Desktop` for changes and the path
+		 * itself is being deleted, the watcher may not report an event and may not work anymore from that
+		 * moment on. If you are interested in being notified when the watched path itself is being deleted,
+		 * you have to watch it's parent folder.
 		 *
 		 * ### Examples
 		 *
