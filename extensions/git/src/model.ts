@@ -157,7 +157,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			const root = folder.uri.fsPath;
 
 			// Workspace folder children
-			const subfolders = await this.traverseWorkspaceFolder(root, repositoryScanMaxDepth);
+			const subfolders = new Set(await this.traverseWorkspaceFolder(root, repositoryScanMaxDepth));
 
 			// Repository scan folders
 			const scanPaths = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<string[]>('scanRepositories') || [];
@@ -174,31 +174,27 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 				subfolders.add(path.join(root, scanPath));
 			}
 
-			console.log([...subfolders]);
 			await Promise.all([...subfolders].map(f => this.openRepository(f)));
 		}));
 	}
 
-	private async traverseWorkspaceFolder(workspaceFolder: string, maxDepth: number): Promise<Set<string>> {
-		const result = new Set<string>();
-		const folders = [{ path: workspaceFolder, depth: 0 }];
+	private async traverseWorkspaceFolder(workspaceFolder: string, maxDepth: number): Promise<string[]> {
+		const result: string[] = [];
+		const foldersToTravers = [{ path: workspaceFolder, depth: 0 }];
 
-		while (folders.length > 0) {
-			const currentFolder = folders.shift()!;
+		while (foldersToTravers.length > 0) {
+			const currentFolder = foldersToTravers.shift()!;
 
 			if (currentFolder.depth < maxDepth || maxDepth === -1) {
 				const children = await fs.promises.readdir(currentFolder.path, { withFileTypes: true });
-
-				folders.push(...children
+				const childrenFolders = children
 					.filter(dirent => dirent.isDirectory() && dirent.name !== '.git')
-					.map(dirent => {
-						return { path: path.join(currentFolder.path, dirent.name), depth: currentFolder.depth + 1 };
-					})
-				);
-			}
+					.map(dirent => path.join(currentFolder.path, dirent.name));
 
-			if (currentFolder.depth !== 0) {
-				result.add(currentFolder.path);
+				result.push(...childrenFolders);
+				foldersToTravers.push(...childrenFolders.map(folder => {
+					return { path: folder, depth: currentFolder.depth + 1 };
+				}));
 			}
 		}
 
