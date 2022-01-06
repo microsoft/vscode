@@ -5,6 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { ShellIntegrationInfo, ShellIntegrationInteraction, TerminalCommand } from 'vs/platform/terminal/common/terminal';
+import { getCurrentTimestamp } from 'vs/workbench/contrib/terminal/browser/terminalTime';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { Terminal } from 'xterm';
 
@@ -47,7 +48,7 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 					this._commands.push(
 						{
 							command: this._currentCommand,
-							timestamp: this._getCurrentTimestamp(),
+							timestamp: getCurrentTimestamp(),
 							cwd: this._cwd,
 							exitCode: this._exitCode
 						});
@@ -57,13 +58,6 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 			default:
 				return;
 		}
-	}
-
-	private _getCurrentTimestamp(): string {
-		const toTwoDigits = (v: number) => v < 10 ? `0${v}` : v;
-		const toThreeDigits = (v: number) => v < 10 ? `00${v}` : v < 100 ? `0${v}` : v;
-		const currentTime = new Date();
-		return `${currentTime.getFullYear()}-${toTwoDigits(currentTime.getMonth() + 1)}-${toTwoDigits(currentTime.getDate())} ${toTwoDigits(currentTime.getHours())}:${toTwoDigits(currentTime.getMinutes())}:${toTwoDigits(currentTime.getSeconds())}.${toThreeDigits(currentTime.getMilliseconds())}`;
 	}
 
 	override getCommands(): TerminalCommand[] {

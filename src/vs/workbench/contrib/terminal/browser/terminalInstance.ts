@@ -69,6 +69,7 @@ import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/work
 import { isFirefox, isSafari } from 'vs/base/browser/browser';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 import { CognisantCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/cognisantCommandTrackerAddon';
+import { getTimeSinceCommand } from 'vs/workbench/contrib/terminal/browser/terminalTime';
 
 const enum Constants {
 	/**
@@ -720,7 +721,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				items.push({
 					label,
 					description: exitCodeDescription + cwdDescription,
-					detail: timestamp,
+					detail: getTimeSinceCommand(timestamp),
 					id: timestamp
 				});
 			}
