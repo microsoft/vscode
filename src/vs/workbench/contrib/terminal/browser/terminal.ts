@@ -845,14 +845,11 @@ export interface IXtermTerminal {
 	 * viewport.
 	 */
 	clearBuffer(): void;
-<<<<<<< HEAD
 
 	/*
 	 * When process capabilites are updated, update the command tracker
 	 */
 	upgradeCommandTracker(): void;
-=======
->>>>>>> main
 }
 
 export interface IRequestAddInstanceToGroupEvent {
