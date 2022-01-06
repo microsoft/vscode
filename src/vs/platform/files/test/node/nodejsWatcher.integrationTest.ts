@@ -58,7 +58,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 		await createWatcher(testDir);
 	});
 
-	function createWatcher(path: string): Promise<void> {
+	function createWatcher(path: string, excludes: string[] = []): Promise<void> {
 		if (watcher) {
 			watcher.dispose();
 		}
@@ -66,7 +66,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 		const emitter = new Emitter<IDiskFileChange[]>();
 		event = emitter.event;
 
-		watcher = new TestNodeJSFileWatcher({ path, excludes: [] }, changes => emitter.fire(changes), msg => {
+		watcher = new TestNodeJSFileWatcher({ path, excludes }, changes => emitter.fire(changes), msg => {
 			if (loggingEnabled) {
 				console.log(`[recursive watcher test message] ${msg.type}: ${msg.message}`);
 			}
@@ -342,6 +342,13 @@ import { DeferredPromise } from 'vs/base/common/async';
 		]);
 
 		await Promise.all([changeFuture1]);
+	});
+
+	test('excludes are ignored (file watch)', async function () {
+		const filePath = join(testDir, 'lorem.txt');
+		await createWatcher(filePath, ['**']);
+
+		return basicCrudTest(filePath, true);
 	});
 
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (folder watch)', async function () {

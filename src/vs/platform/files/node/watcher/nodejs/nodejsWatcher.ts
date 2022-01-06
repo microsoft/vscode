@@ -303,14 +303,14 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 
 							// File still exists, so emit as change event and reapply the watcher
 							if (fileExists) {
-								this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED });
+								this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED }, true /* skip excludes (file is explicitly watched) */);
 
 								disposables.add(await this.doWatch(path, false));
 							}
 
 							// File seems to be really gone, so emit a deleted event and dispose
 							else {
-								const eventPromise = this.onFileChange({ path: this.request.path, type: FileChangeType.DELETED });
+								const eventPromise = this.onFileChange({ path: this.request.path, type: FileChangeType.DELETED }, true /* skip excludes (file is explicitly watched) */);
 
 								// Important to await the event delivery
 								// before disposing the watcher, otherwise
@@ -328,7 +328,7 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 
 					// File changed
 					else {
-						this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED });
+						this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED }, true /* skip excludes (file is explicitly watched) */);
 					}
 				}
 			});
@@ -344,7 +344,7 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 		});
 	}
 
-	private async onFileChange(event: IDiskFileChange): Promise<void> {
+	private async onFileChange(event: IDiskFileChange, skipExcludes = false): Promise<void> {
 		if (this.cts.token.isCancellationRequested) {
 			return;
 		}
@@ -354,8 +354,8 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 			this.trace(`${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
 		}
 
-		// Add to buffer unless ignored
-		if (this.excludes.some(exclude => exclude(event.path))) {
+		// Add to buffer unless ignored (not if explicitly disabled)
+		if (!skipExcludes && this.excludes.some(exclude => exclude(event.path))) {
 			if (this.verboseLogging) {
 				this.trace(` >> ignored ${event.path}`);
 			}
