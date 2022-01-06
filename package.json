@@ -61,6 +61,7 @@
   "dependencies": {
     "@microsoft/applicationinsights-web": "^2.6.4",
     "@parcel/watcher": "2.0.5",
+    "@vscode/debugprotocol": "1.51.0",
     "@vscode/sqlite3": "4.0.12",
     "@vscode/sudo-prompt": "9.3.1",
     "@vscode/vscode-languagedetection": "1.0.21",
@@ -202,7 +203,6 @@
     "util": "^0.12.4",
     "vinyl": "^2.0.0",
     "vinyl-fs": "^3.0.0",
-    "vscode-debugprotocol": "1.51.0",
     "vscode-nls-dev": "^3.3.1",
     "vscode-telemetry-extractor": "^1.9.5",
     "webpack": "^5.42.0",
