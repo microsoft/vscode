@@ -68,8 +68,8 @@ import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnviro
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isFirefox, isSafari } from 'vs/base/browser/browser';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
-import { CognisantCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/cognisantCommandTrackerAddon';
 import { getTimeSinceCommand } from 'vs/workbench/contrib/terminal/browser/terminalTime';
+import { CognisantCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 
 const enum Constants {
 	/**

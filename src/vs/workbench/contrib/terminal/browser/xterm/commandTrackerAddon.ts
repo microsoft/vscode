@@ -5,7 +5,9 @@
 
 import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
 import { ICommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalCommand } from 'vs/platform/terminal/common/terminal';
+import { ShellIntegrationInfo, ShellIntegrationInteraction, TerminalCommand } from 'vs/platform/terminal/common/terminal';
+import { getCurrentTimestamp } from 'vs/workbench/contrib/terminal/browser/terminalTime';
+import { Emitter } from 'vs/base/common/event';
 
 /**
  * The minimum size of the prompt in which to assume the line is a command.
@@ -22,20 +24,15 @@ export const enum ScrollPosition {
 	Middle
 }
 
-export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
+export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 	private _currentMarker: IMarker | Boundary = Boundary.Bottom;
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
-	private _terminal: Terminal | undefined;
+	abstract _terminal: Terminal | undefined;
 
-	getCommands(): TerminalCommand[] {
-		return [];
-	}
-
-	activate(terminal: Terminal): void {
-		this._terminal = terminal;
-		terminal.onKey(e => this._onKey(e.key));
-	}
+	abstract getCommands(): TerminalCommand[];
+	abstract activate(terminal: Terminal): void;
+	abstract handleIntegratedShellChange(event: { type: string, value: string }): void;
 
 	dispose(): void {
 	}
@@ -45,27 +42,6 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		// bottom of the buffer
 		this._currentMarker = Boundary.Bottom;
 		this._selectionStart = null;
-	}
-
-	handleIntegratedShellChange(event: { type: string, value: string }): void {
-
-	}
-
-	private _onKey(key: string): void {
-		if (key === '\x0d') {
-			this._onEnter();
-		}
-
-		this.clearMarker();
-	}
-
-	private _onEnter(): void {
-		if (!this._terminal) {
-			return;
-		}
-		if (this._terminal.buffer.active.cursorX >= MINIMUM_PROMPT_LENGTH) {
-			this._terminal.registerMarker(0);
-		}
 	}
 
 	scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
@@ -333,5 +309,95 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		}
 
 		return xterm.markers.length;
+	}
+}
+
+export class NaiveCommandTrackerAddon extends CommandTrackerAddon {
+	_terminal: Terminal | undefined;
+	getCommands(): TerminalCommand[] {
+		return [];
+	}
+
+	activate(terminal: Terminal): void {
+		this._terminal = terminal;
+		terminal.onKey(e => this._onKey(e.key));
+	}
+
+	private _onKey(key: string): void {
+		if (key === '\x0d') {
+			this._onEnter();
+		}
+
+		this.clearMarker();
+	}
+
+	private _onEnter(): void {
+		if (!this._terminal) {
+			return;
+		}
+		if (this._terminal.buffer.active.cursorX >= MINIMUM_PROMPT_LENGTH) {
+			this._terminal.registerMarker(0);
+		}
+	}
+
+	handleIntegratedShellChange(event: { type: string; value: string; }): void {
+		throw new Error('Integrated shell change not supported');
+	}
+}
+
+export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
+	_terminal: Terminal | undefined;
+	private _dataIsCommand = false;
+	private _commands: TerminalCommand[] = [];
+	private _exitCode: number | undefined;
+	private _cwd: string | undefined;
+	private _currentCommand = '';
+
+	private readonly _onCwdChanged = new Emitter<string>();
+	readonly onCwdChanged = this._onCwdChanged.event;
+
+	activate(terminal: Terminal): void {
+		terminal.onData(data => {
+			if (this._dataIsCommand) {
+				this._currentCommand += data;
+			}
+		});
+	}
+
+	handleIntegratedShellChange(event: { type: string, value: string }): void {
+		switch (event.type) {
+			case ShellIntegrationInfo.CurrentDir:
+				this._cwd = event.value;
+				this._onCwdChanged.fire(this._cwd);
+				break;
+			case ShellIntegrationInfo.RemoteHost:
+				break;
+			case ShellIntegrationInteraction.PromptStart:
+				break;
+			case ShellIntegrationInteraction.CommandStart:
+				this._dataIsCommand = true;
+				break;
+			case ShellIntegrationInteraction.CommandExecuted:
+				break;
+			case ShellIntegrationInteraction.CommandFinished:
+				this._exitCode = Number.parseInt(event.value);
+				if (!this._currentCommand.startsWith('\\') && this._currentCommand !== '') {
+					this._commands.push(
+						{
+							command: this._currentCommand,
+							timestamp: getCurrentTimestamp(),
+							cwd: this._cwd,
+							exitCode: this._exitCode
+						});
+				}
+				this._currentCommand = '';
+				break;
+			default:
+				return;
+		}
+	}
+
+	getCommands(): TerminalCommand[] {
+		return this._commands;
 	}
 }
