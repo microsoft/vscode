@@ -142,16 +142,16 @@ sw.addEventListener('message', event => {
 				});
 				return;
 			}
+		default:
+			console.log('Unknown message');
+			return;
 	}
-
-	console.log('Unknown message');
 });
 
 vscodeMessageChannel.port1.onmessage = (event) => {
 	switch (event.data.channel) {
 		case 'did-load-resource':
 			{
-
 				/** @type {ResourceResponse} */
 				const response = event.data;
 				if (!resourceRequestStore.resolve(response.id, response)) {
@@ -167,9 +167,10 @@ vscodeMessageChannel.port1.onmessage = (event) => {
 				}
 				return;
 			}
+		default:
+			console.log('Unknown message');
+			return;
 	}
-
-	console.log('Unknown message');
 };
 
 sw.addEventListener('fetch', (event) => {

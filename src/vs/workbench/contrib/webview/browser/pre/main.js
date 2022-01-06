@@ -214,6 +214,7 @@ const workerReady = new Promise((resolve, reject) => {
 			 */
 			const versionHandler = async (event) => {
 				if (event.data.channel !== 'init') {
+					console.log('Unknown message received in webview from service worker');
 					return;
 				}
 				navigator.serviceWorker.removeEventListener('message', versionHandler);

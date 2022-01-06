@@ -207,6 +207,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 		try {
 			if (isModule) {
 				const module: KernelPreloadModule = await __import(url);
+				if (!module.activate) {
+					console.error(`Notebook preload (${url}) looks like a module but does not export an activate function`);
+					return;
+				}
 				return module.activate(createKernelContext());
 			} else {
 				return invokeSourceWithGlobals(text, { ...kernelPreloadGlobals, scriptUrl: url });
