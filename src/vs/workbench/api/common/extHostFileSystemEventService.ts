@@ -15,7 +15,6 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { FileOperation } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
@@ -101,10 +100,6 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 
 		if (!globPattern.baseFolder) {
 			return disposable; // we need a base folder to start watching
-		}
-
-		if (!isProposedApiEnabled(extension, 'fsWatch')) {
-			return disposable; // this is behind proposed API (TODO@bpasero finalize this API)
 		}
 
 		const proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
