@@ -21,7 +21,7 @@ import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
 import { ColorHoverParticipant } from 'vs/editor/contrib/hover/colorHoverParticipant';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
-import { HoverAnchor, HoverAnchorType, HoverRangeAnchor, IEditorHover, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverRenderContext, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverRangeAnchor, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverRenderContext, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
 import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsHoverParticipant';
@@ -36,7 +36,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const $ = dom.$;
 
-export class ContentHoverController extends Disposable implements IEditorHover {
+export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
 	private readonly _widget: ContentHoverWidget;
@@ -59,12 +59,12 @@ export class ContentHoverController extends Disposable implements IEditorHover {
 		super();
 
 		this._participants = [
-			instantiationService.createInstance(ColorHoverParticipant, this._editor, this),
-			instantiationService.createInstance(MarkdownHoverParticipant, this._editor, this),
-			instantiationService.createInstance(InlineCompletionsHoverParticipant, this._editor, this),
-			instantiationService.createInstance(UnicodeHighlighterHoverParticipant, this._editor, this),
-			instantiationService.createInstance(MarkerHoverParticipant, this._editor, this),
-			instantiationService.createInstance(InlayHintsHover, this._editor, this),
+			instantiationService.createInstance(ColorHoverParticipant, this._editor),
+			instantiationService.createInstance(MarkdownHoverParticipant, this._editor),
+			instantiationService.createInstance(InlineCompletionsHoverParticipant, this._editor),
+			instantiationService.createInstance(UnicodeHighlighterHoverParticipant, this._editor),
+			instantiationService.createInstance(MarkerHoverParticipant, this._editor),
+			instantiationService.createInstance(InlayHintsHover, this._editor),
 		];
 		this._widget = this._register(instantiationService.createInstance(ContentHoverWidget, this._editor));
 
@@ -232,10 +232,6 @@ export class ContentHoverController extends Disposable implements IEditorHover {
 		return !!this._widget.colorPicker;
 	}
 
-	public onContentsChanged(): void {
-		this._widget.onContentsChanged();
-	}
-
 	private _withResult(result: IHoverPart[], complete: boolean): void {
 		this._messages = result;
 		this._messagesAreComplete = complete;
@@ -281,6 +277,12 @@ export class ContentHoverController extends Disposable implements IEditorHover {
 			statusBar,
 			setColorPicker: (widget: ColorPickerWidget): void => {
 				colorPicker = widget;
+			},
+			onContentsChanged: (): void => {
+				this._widget.onContentsChanged();
+			},
+			hide: (): void => {
+				this.hide();
 			}
 		};
 

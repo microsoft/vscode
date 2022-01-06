@@ -16,7 +16,7 @@ import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
-import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
+import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class ColorHover implements IHoverPart {
@@ -47,7 +47,6 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _hover: IEditorHover,
 		@IThemeService private readonly _themeService: IThemeService,
 	) { }
 
@@ -135,7 +134,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 			if (model.presentation.additionalTextEdits) {
 				textEdits = [...model.presentation.additionalTextEdits as IIdentifiedSingleEditOperation[]];
 				this._editor.executeEdits('colorpicker', textEdits);
-				this._hover.hide();
+				context.hide();
 			}
 			this._editor.pushUndoStop();
 			range = newRange;

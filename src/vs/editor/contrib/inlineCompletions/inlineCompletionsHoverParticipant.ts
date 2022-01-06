@@ -12,7 +12,7 @@ import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/brows
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { ILanguageService } from 'vs/editor/common/services/language';
-import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHover, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 import { commitInlineSuggestionAction, GhostTextController, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction } from 'vs/editor/contrib/inlineCompletions/ghostTextController';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -44,7 +44,6 @@ export class InlineCompletionsHover implements IHoverPart {
 export class InlineCompletionsHoverParticipant implements IEditorHoverParticipant<InlineCompletionsHover> {
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _hover: IEditorHover,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -94,7 +93,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		const part = hoverParts[0];
 
 		if (this.accessibilityService.isScreenReaderOptimized()) {
-			this.renderScreenReaderText(part, context.fragment, disposableStore);
+			this.renderScreenReaderText(context, part, disposableStore);
 		}
 
 		const menu = disposableStore.add(this._menuService.createMenu(
@@ -143,7 +142,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		return disposableStore;
 	}
 
-	private renderScreenReaderText(part: InlineCompletionsHover, fragment: DocumentFragment, disposableStore: DisposableStore) {
+	private renderScreenReaderText(context: IEditorHoverRenderContext, part: InlineCompletionsHover, disposableStore: DisposableStore) {
 		const $ = dom.$;
 		const markdownHoverElement = $('div.hover-row.markdown-hover');
 		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
@@ -151,7 +150,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		const render = (code: string) => {
 			disposableStore.add(renderer.onDidRenderAsync(() => {
 				hoverContentsElement.className = 'hover-contents code-hover-contents';
-				this._hover.onContentsChanged();
+				context.onContentsChanged();
 			}));
 
 			const inlineSuggestionAvailable = nls.localize('inlineSuggestionFollows', "Suggestion:");
@@ -164,6 +163,6 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			const lineText = this._editor.getModel()!.getLineContent(ghostText.lineNumber);
 			render(ghostText.renderForScreenReader(lineText));
 		}
-		fragment.appendChild(markdownHoverElement);
+		context.fragment.appendChild(markdownHoverElement);
 	}
 }
