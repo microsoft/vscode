@@ -59,10 +59,10 @@ export class AudioCueContribution extends DisposableStore implements IWorkbenchC
 	}
 
 	private get audioCuesEnabled(): boolean {
-		const value = this._configurationService.getValue<'smart' | 'on' | 'off'>('audioCues.enabled');
+		const value = this._configurationService.getValue<'auto' | 'on' | 'off'>('audioCues.enabled');
 		if (value === 'on') {
 			return true;
-		} else if (value === 'smart') {
+		} else if (value === 'auto') {
 			return this.accessibilityService.isScreenReaderOptimized();
 		} else {
 			return false;

@@ -17,10 +17,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'audioCues.enabled': {
 			'type': 'string',
 			'description': localize('audioCues.enabled', "Controls whether audio cues are enabled."),
-			'enum': ['smart', 'on', 'off'],
-			'default': 'smart',
+			'enum': ['auto', 'on', 'off'],
+			'default': 'auto',
 			'enumDescriptions': [
-				localize('audioCues.enabled.smart', "Enable audio cues when a screen reader is attached."),
+				localize('audioCues.enabled.auto', "Enable audio cues when a screen reader is attached."),
 				localize('audioCues.enabled.on', "Enable audio cues."),
 				localize('audioCues.enabled.off', "Disable audio cues.")
 			],
