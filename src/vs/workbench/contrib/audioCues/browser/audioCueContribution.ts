@@ -8,7 +8,7 @@ import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Event } from 'vs/base/common/event';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { raceTimeout } from 'vs/base/common/async';
 import { FileAccess } from 'vs/base/common/network';
