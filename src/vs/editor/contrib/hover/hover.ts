@@ -15,8 +15,8 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/link/goToDefinitionAtPosition';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
-import { ModesContentHoverWidget } from 'vs/editor/contrib/hover/modesContentHover';
-import { ModesGlyphHoverWidget } from 'vs/editor/contrib/hover/modesGlyphHover';
+import { ContentHoverWidget } from 'vs/editor/contrib/hover/contentHover';
+import { MarginHoverWidget } from 'vs/editor/contrib/hover/marginHover';
 import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -33,8 +33,8 @@ export class ModesHoverController implements IEditorContribution {
 	private readonly _toUnhook = new DisposableStore();
 	private readonly _didChangeConfigurationHandler: IDisposable;
 
-	private _contentWidget: ModesContentHoverWidget | null;
-	private _glyphWidget: ModesGlyphHoverWidget | null;
+	private _contentWidget: ContentHoverWidget | null;
+	private _glyphWidget: MarginHoverWidget | null;
 
 	private _isMouseDown: boolean;
 	private _hoverClicked: boolean;
@@ -81,7 +81,6 @@ export class ModesHoverController implements IEditorContribution {
 			this._toUnhook.add(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
 			this._toUnhook.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._toUnhook.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
-			this._toUnhook.add(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
 		} else {
 			this._toUnhook.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._toUnhook.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
@@ -96,11 +95,6 @@ export class ModesHoverController implements IEditorContribution {
 		this._toUnhook.clear();
 	}
 
-	private _onModelDecorationsChanged(): void {
-		this._contentWidget?.onModelDecorationsChanged();
-		this._glyphWidget?.onModelDecorationsChanged();
-	}
-
 	private _onEditorScrollChanged(e: IScrollEvent): void {
 		if (e.scrollTopChanged || e.scrollLeftChanged) {
 			this._hideWidgets();
@@ -112,18 +106,18 @@ export class ModesHoverController implements IEditorContribution {
 
 		const targetType = mouseEvent.target.type;
 
-		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID) {
+		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ContentHoverWidget.ID) {
 			this._hoverClicked = true;
 			// mouse down on top of content hover widget
 			return;
 		}
 
-		if (targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID) {
+		if (targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === MarginHoverWidget.ID) {
 			// mouse down on top of overlay hover widget
 			return;
 		}
 
-		if (targetType !== MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail !== ModesGlyphHoverWidget.ID) {
+		if (targetType !== MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail !== MarginHoverWidget.ID) {
 			this._hoverClicked = false;
 		}
 
@@ -141,7 +135,7 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		if (this._isHoverSticky && targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID) {
+		if (this._isHoverSticky && targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ContentHoverWidget.ID) {
 			// mouse moved on top of content hover widget
 			return;
 		}
@@ -152,14 +146,14 @@ export class ModesHoverController implements IEditorContribution {
 		}
 
 		if (
-			!this._isHoverSticky && targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID
+			!this._isHoverSticky && targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ContentHoverWidget.ID
 			&& this._contentWidget?.isColorPickerVisible()
 		) {
 			// though the hover is not sticky, the color picker needs to.
 			return;
 		}
 
-		if (this._isHoverSticky && targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID) {
+		if (this._isHoverSticky && targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === MarginHoverWidget.ID) {
 			// mouse moved on top of overlay hover widget
 			return;
 		}
@@ -178,7 +172,7 @@ export class ModesHoverController implements IEditorContribution {
 		if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN && mouseEvent.target.position) {
 			this._contentWidget?.hide();
 			if (!this._glyphWidget) {
-				this._glyphWidget = new ModesGlyphHoverWidget(this._editor, this._languageService, this._openerService);
+				this._glyphWidget = new MarginHoverWidget(this._editor, this._languageService, this._openerService);
 			}
 			this._glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
 			return;
@@ -204,9 +198,9 @@ export class ModesHoverController implements IEditorContribution {
 		this._contentWidget?.hide();
 	}
 
-	private _getOrCreateContentWidget(): ModesContentHoverWidget {
+	private _getOrCreateContentWidget(): ContentHoverWidget {
 		if (!this._contentWidget) {
-			this._contentWidget = this._instantiationService.createInstance(ModesContentHoverWidget, this._editor, this._hoverVisibleKey);
+			this._contentWidget = this._instantiationService.createInstance(ContentHoverWidget, this._editor, this._hoverVisibleKey);
 		}
 		return this._contentWidget;
 	}

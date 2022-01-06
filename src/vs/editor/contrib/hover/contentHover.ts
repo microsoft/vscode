@@ -69,7 +69,7 @@ class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
 	}
 }
 
-class ModesContentComputer implements IHoverComputer<IHoverPart> {
+class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 
 	private readonly _editor: ICodeEditor;
 	private _result: IHoverPart[];
@@ -130,7 +130,7 @@ class ModesContentComputer implements IHoverComputer<IHoverPart> {
 			return AsyncIterableObject.EMPTY;
 		}
 
-		const lineDecorations = ModesContentComputer._getLineDecorations(this._editor, anchor);
+		const lineDecorations = ContentHoverComputer._getLineDecorations(this._editor, anchor);
 		return AsyncIterableObject.merge(
 			this._participants.map(participant => this._computeAsync(participant, lineDecorations, anchor, token))
 		);
@@ -148,7 +148,7 @@ class ModesContentComputer implements IHoverComputer<IHoverPart> {
 			return [];
 		}
 
-		const lineDecorations = ModesContentComputer._getLineDecorations(this._editor, this._anchor);
+		const lineDecorations = ContentHoverComputer._getLineDecorations(this._editor, this._anchor);
 
 		let result: IHoverPart[] = [];
 		for (const participant of this._participants) {
@@ -186,7 +186,7 @@ class ModesContentComputer implements IHoverComputer<IHoverPart> {
 	}
 }
 
-export class ModesContentHoverWidget extends Widget implements IContentWidget, IEditorHover {
+export class ContentHoverWidget extends Widget implements IContentWidget, IEditorHover {
 
 	static readonly ID = 'editor.contrib.modesContentHoverWidget';
 
@@ -205,7 +205,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	private _messages: IHoverPart[];
 	private _messagesAreComplete: boolean;
 	private _lastAnchor: HoverAnchor | null;
-	private readonly _computer: ModesContentComputer;
+	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 	private _highlightDecorations: string[];
 	private _isChangingDecorations: boolean;
@@ -252,9 +252,9 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			}
 		}));
 
-		this._editor.onDidLayoutChange(() => this.layout());
+		this._editor.onDidLayoutChange(() => this._layout());
 
-		this.layout();
+		this._layout();
 		this._editor.addContentWidget(this);
 		this._showAtPosition = null;
 		this._showAtRange = null;
@@ -263,7 +263,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		this._messages = [];
 		this._messagesAreComplete = false;
 		this._lastAnchor = null;
-		this._computer = new ModesContentComputer(this._editor, this._participants);
+		this._computer = new ContentHoverComputer(this._editor, this._participants);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
 		this._shouldFocus = false;
@@ -278,6 +278,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			this._editor.getOption(EditorOption.hover).delay
 		);
 
+		this._register(editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
 		this._register(editor.onDidChangeConfiguration(() => {
 			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
 			this._preferAbove = this._editor.getOption(EditorOption.hover).above;
@@ -297,7 +298,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	}
 
 	public getId(): string {
-		return ModesContentHoverWidget.ID;
+		return ContentHoverWidget.ID;
 	}
 
 	public getDomNode(): HTMLElement {
@@ -357,31 +358,6 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		return true;
 	}
 
-	private _showAt(node: DocumentFragment, position: Position, range: Range | null, focus: boolean): void {
-		// Position has changed
-		this._showAtPosition = position;
-		this._showAtRange = range;
-		this._hoverVisibleKey.set(true);
-		this._isVisible = true;
-		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
-
-		this._editor.layoutContentWidget(this);
-		// Simply force a synchronous render on the editor
-		// such that the widget does not really render with left = '0px'
-		this._editor.render();
-		this._stoleFocus = focus;
-		if (focus) {
-			this._hover.containerDomNode.focus();
-		}
-
-		this._hover.contentsDomNode.textContent = '';
-		this._hover.contentsDomNode.appendChild(node);
-		this._updateFont();
-
-		this._editor.layoutContentWidget(this);
-		this._hover.onContentsChanged();
-	}
-
 	public getPosition(): IContentWidgetPosition | null {
 		if (this._isVisible) {
 			let preferAbove = this._preferAbove;
@@ -409,7 +385,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}
 
-	private layout(): void {
+	private _layout(): void {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
 		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
 
@@ -419,7 +395,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 	}
 
-	public onModelDecorationsChanged(): void {
+	private _onModelDecorationsChanged(): void {
 		if (this._isChangingDecorations) {
 			return;
 		}
@@ -579,9 +555,34 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		this._isChangingDecorations = true;
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, highlightRange ? [{
 			range: highlightRange,
-			options: ModesContentHoverWidget._DECORATION_OPTIONS
+			options: ContentHoverWidget._DECORATION_OPTIONS
 		}] : []);
 		this._isChangingDecorations = false;
+	}
+
+	private _showAt(node: DocumentFragment, position: Position, range: Range | null, focus: boolean): void {
+		// Position has changed
+		this._showAtPosition = position;
+		this._showAtRange = range;
+		this._hoverVisibleKey.set(true);
+		this._isVisible = true;
+		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
+
+		this._editor.layoutContentWidget(this);
+		// Simply force a synchronous render on the editor
+		// such that the widget does not really render with left = '0px'
+		this._editor.render();
+		this._stoleFocus = focus;
+		if (focus) {
+			this._hover.containerDomNode.focus();
+		}
+
+		this._hover.contentsDomNode.textContent = '';
+		this._hover.contentsDomNode.appendChild(node);
+		this._updateFont();
+
+		this._editor.layoutContentWidget(this);
+		this._hover.onContentsChanged();
 	}
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({

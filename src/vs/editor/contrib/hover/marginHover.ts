@@ -22,7 +22,7 @@ export interface IHoverMessage {
 	value: IMarkdownString;
 }
 
-class MarginComputer implements IHoverComputer<IHoverMessage> {
+class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
 
 	private readonly _editor: ICodeEditor;
 	private _lineNumber: number;
@@ -87,7 +87,7 @@ class MarginComputer implements IHoverComputer<IHoverMessage> {
 	}
 }
 
-export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
+export class MarginHoverWidget extends Widget implements IOverlayWidget {
 
 	public static readonly ID = 'editor.contrib.modesGlyphHoverWidget';
 
@@ -99,7 +99,7 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 	private _lastLineNumber: number;
 
 	private readonly _markdownRenderer: MarkdownRenderer;
-	private readonly _computer: MarginComputer;
+	private readonly _computer: MarginHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverMessage>;
 	private readonly _renderDisposeables = this._register(new DisposableStore());
 
@@ -119,7 +119,7 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 
 		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this._editor }, languageService, openerService));
-		this._computer = new MarginComputer(this._editor);
+		this._computer = new MarginHoverComputer(this._editor);
 		this._hoverOperation = new HoverOperation(
 			this._computer,
 			(result: IHoverMessage[]) => this._withResult(result),
@@ -128,6 +128,7 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 			300
 		);
 
+		this._register(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
 				this._updateFont();
@@ -144,7 +145,7 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 	}
 
 	public getId(): string {
-		return ModesGlyphHoverWidget.ID;
+		return MarginHoverWidget.ID;
 	}
 
 	public getDomNode(): HTMLElement {
@@ -155,35 +156,12 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 		return null;
 	}
 
-	private _showAt(lineNumber: number): void {
-		if (!this._isVisible) {
-			this._isVisible = true;
-			this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
-		}
-
-		const editorLayout = this._editor.getLayoutInfo();
-		const topForLineNumber = this._editor.getTopForLineNumber(lineNumber);
-		const editorScrollTop = this._editor.getScrollTop();
-		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const nodeHeight = this._hover.containerDomNode.clientHeight;
-		const top = topForLineNumber - editorScrollTop - ((nodeHeight - lineHeight) / 2);
-
-		this._hover.containerDomNode.style.left = `${editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth}px`;
-		this._hover.containerDomNode.style.top = `${Math.max(Math.round(top), 0)}px`;
-	}
-
 	private _updateFont(): void {
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}
 
-	private _updateContents(node: Node): void {
-		this._hover.contentsDomNode.textContent = '';
-		this._hover.contentsDomNode.appendChild(node);
-		this._updateFont();
-	}
-
-	public onModelDecorationsChanged(): void {
+	private _onModelDecorationsChanged(): void {
 		if (this._isVisible) {
 			// The decorations have changed and the hover is visible,
 			// we need to recompute the displayed text
@@ -243,5 +221,28 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 
 		this._updateContents(fragment);
 		this._showAt(lineNumber);
+	}
+
+	private _updateContents(node: Node): void {
+		this._hover.contentsDomNode.textContent = '';
+		this._hover.contentsDomNode.appendChild(node);
+		this._updateFont();
+	}
+
+	private _showAt(lineNumber: number): void {
+		if (!this._isVisible) {
+			this._isVisible = true;
+			this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
+		}
+
+		const editorLayout = this._editor.getLayoutInfo();
+		const topForLineNumber = this._editor.getTopForLineNumber(lineNumber);
+		const editorScrollTop = this._editor.getScrollTop();
+		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const nodeHeight = this._hover.containerDomNode.clientHeight;
+		const top = topForLineNumber - editorScrollTop - ((nodeHeight - lineHeight) / 2);
+
+		this._hover.containerDomNode.style.left = `${editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth}px`;
+		this._hover.containerDomNode.style.top = `${Math.max(Math.round(top), 0)}px`;
 	}
 }

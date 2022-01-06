@@ -141,7 +141,9 @@ export interface IContentWidget {
 	 * Render this content widget in a location where it could overflow the editor's view dom node.
 	 */
 	allowEditorOverflow?: boolean;
-
+	/**
+	 * Call preventDefault() on mousedown events that target the content widget.
+	 */
 	suppressMouseDown?: boolean;
 	/**
 	 * Get a unique identifier of the content widget.
