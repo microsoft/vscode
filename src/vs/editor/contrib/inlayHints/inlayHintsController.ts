@@ -111,8 +111,9 @@ export class InlayHintsController implements IEditorContribution {
 
 	static readonly ID: string = 'editor.contrib.InlayHints';
 
-	private static _decorationOwnerIdPool = 0;
-	private readonly _decorationOwnerId = ++InlayHintsController._decorationOwnerIdPool;
+	static get(editor: ICodeEditor) {
+		return editor.getContribution(InlayHintsController.ID) ?? undefined;
+	}
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
@@ -368,7 +369,8 @@ export class InlayHintsController implements IEditorContribution {
 		// and only update those decorations
 		const decorationIdsToReplace: string[] = [];
 		for (const range of ranges) {
-			for (const { id } of model.getDecorationsInRange(range, this._decorationOwnerId, true)) {
+
+			for (const { id } of this._editor.getDecorationsInRange(range) ?? []) {
 				const metadata = this._decorationsMetadata.get(id);
 				if (metadata) {
 					decorationIdsToReplace.push(id);
@@ -377,7 +379,7 @@ export class InlayHintsController implements IEditorContribution {
 				}
 			}
 		}
-		const newDecorationIds = model.deltaDecorations(decorationIdsToReplace, newDecorationsData.map(d => d.decoration), this._decorationOwnerId);
+		const newDecorationIds = this._editor.deltaDecorations(decorationIdsToReplace, newDecorationsData.map(d => d.decoration));
 		for (let i = 0; i < newDecorationIds.length; i++) {
 			const data = newDecorationsData[i];
 			this._decorationsMetadata.set(newDecorationIds[i], { hint: data.hint, classNameRef: data.classNameRef });
