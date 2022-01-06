@@ -1265,7 +1265,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
-		active = false;
 		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_CENTERED, active);
 
 		let smartActive = active;
