@@ -353,8 +353,6 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 		if (!executable) {
 			return validateProfilePaths(profileName, defaultProfileName, potentialPaths, fsProvider, shellEnv, args);
 		}
-		profile.path = executable;
-		profile.isFromPath = true;
 		return profile;
 	}
 
