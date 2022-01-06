@@ -363,8 +363,6 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 				this._cwd = event.value;
 				this._onCwdChanged.fire(this._cwd);
 				break;
-			case ShellIntegrationInfo.RemoteHost:
-				break;
 			case ShellIntegrationInteraction.PromptStart:
 				break;
 			case ShellIntegrationInteraction.CommandStart:

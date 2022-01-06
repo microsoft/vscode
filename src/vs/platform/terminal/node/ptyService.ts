@@ -738,7 +738,7 @@ class XtermSerializer implements ITerminalSerializer {
 		rows: number,
 		scrollback: number,
 		unicodeVersion: '6' | '11',
-		reviveBuffer: string | undefined,
+		reviveBuffer: string | undefined
 	) {
 		this._xterm = new XtermTerminal({ cols, rows, scrollback });
 		if (reviveBuffer) {

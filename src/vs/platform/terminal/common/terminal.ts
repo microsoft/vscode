@@ -380,7 +380,6 @@ export interface TerminalCommand {
 }
 
 export enum ShellIntegrationInfo {
-	RemoteHost = 'RemoteHost',
 	CurrentDir = 'CurrentDir',
 }
 
