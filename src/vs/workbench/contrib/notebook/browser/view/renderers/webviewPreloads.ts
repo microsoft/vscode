@@ -206,13 +206,13 @@ async function webviewPreloads(ctx: PreloadContext) {
 		const isModule = /\bexport\b.*\bactivate\b/.test(text);
 		try {
 			if (isModule) {
-				const module: KernelPreloadModule = await __import(url);
+				const module: KernelPreloadModule = await __import(`data:text/javascript,${text}`);
 				return module.activate(createKernelContext());
 			} else {
 				return invokeSourceWithGlobals(text, { ...kernelPreloadGlobals, scriptUrl: url });
 			}
 		} catch (e) {
-			console.error(e);
+			console.error(`${e} with ${url}`);
 			throw e;
 		}
 	};
