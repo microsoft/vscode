@@ -15,7 +15,7 @@ import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, ProcessCapability, IPersistentTerminalProcessLaunchOptions, ICrossVersionSerializedTerminalState, ISerializedTerminalState } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { ITerminalAddon, Terminal as XtermTerminal } from 'xterm-headless';
+import { Terminal as XtermTerminal } from 'xterm-headless';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from 'xterm-addon-serialize';
 import type { Unicode11Addon as XtermUnicode11Addon } from 'xterm-addon-unicode11';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
@@ -201,11 +201,7 @@ export class PtyService extends Disposable implements IPtyService {
 				persistentProcess.installAutoReply(e[0], e[1]);
 			}
 		});
-		const shellIntegrationAddon = new ShellIntegrationAddon();
-		shellIntegrationAddon.onDidStartShellIntegration(() => {
-			this._logService.info('updating shell');
-			process.updateProperty(ProcessPropertyType.Capability, ProcessCapability.CommandCognisant);
-		});
+
 		this._ptys.set(id, persistentProcess);
 		return id;
 	}
@@ -735,28 +731,13 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 }
 
-class ShellIntegrationAddon extends Disposable implements ITerminalAddon {
-	private readonly _onDidStartShellIntegration = this._register(new Emitter<void>());
-	readonly onDidStartShellIntegration = this._onDidStartShellIntegration.event;
-	activate(terminal: XtermTerminal): void {
-		terminal.parser.registerOscHandler(133, (data => this._handleShellIntegration(data)));
-	}
-	private _handleShellIntegration(data: string): boolean {
-		const [command,] = data.split(';');
-		switch (command) {
-			case 'E':
-				this._onDidStartShellIntegration.fire();
-			default:
-				return false;
-		}
-	}
-}
-
 class XtermSerializer implements ITerminalSerializer {
 	private _xterm: XtermTerminal;
 	private _unicodeAddon?: XtermUnicode11Addon;
 	private readonly _onDidStartShellIntegration = new Emitter<void>();
 	readonly onDidStartShellIntegration = this._onDidStartShellIntegration.event;
+	private _shellIntegration: boolean | undefined;
+
 	constructor(
 		cols: number,
 		rows: number,
@@ -768,13 +749,22 @@ class XtermSerializer implements ITerminalSerializer {
 		if (reviveBuffer) {
 			this._xterm.writeln(reviveBuffer);
 		}
-		const shellIntegrationAddon = new ShellIntegrationAddon();
-		shellIntegrationAddon.activate(this._xterm);
-		shellIntegrationAddon.onDidStartShellIntegration(() => {
-			this._onDidStartShellIntegration.fire();
-		});
-		this._xterm.loadAddon(new ShellIntegrationAddon());
+		this._xterm.parser.registerOscHandler(133, (data => this._handleShellIntegration(data)));
+		if (this._shellIntegration) {
+			this._xterm.writeln('\033]133;E\007');
+		}
 		this.setUnicodeVersion(unicodeVersion);
+	}
+
+	private _handleShellIntegration(data: string): boolean {
+		const [command,] = data.split(';');
+		switch (command) {
+			case 'E':
+				this._shellIntegration = true;
+				this._onDidStartShellIntegration.fire();
+			default:
+				return false;
+		}
 	}
 
 	handleData(data: string): void {
