@@ -689,6 +689,11 @@ export interface ITerminalProfile {
 	path: string;
 	isDefault: boolean;
 	isAutoDetected?: boolean;
+	/**
+	 * Whether the profile path was found on the `$PATH` environment variable, if so it will be
+	 * cleaner to display this profile in the UI using only `basename(path)`.
+	 */
+	isFromPath?: boolean;
 	args?: string | string[] | undefined;
 	env?: ITerminalEnvironment;
 	overrideName?: boolean;
