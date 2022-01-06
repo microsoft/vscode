@@ -15,11 +15,11 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/link/goToDefinitionAtPosition';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
-import { ContentHoverWidget } from 'vs/editor/contrib/hover/contentHover';
+import { ContentHoverWidget, ContentHoverController } from 'vs/editor/contrib/hover/contentHover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/marginHover';
 import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -33,15 +33,13 @@ export class ModesHoverController implements IEditorContribution {
 	private readonly _toUnhook = new DisposableStore();
 	private readonly _didChangeConfigurationHandler: IDisposable;
 
-	private _contentWidget: ContentHoverWidget | null;
+	private _contentWidget: ContentHoverController | null;
 	private _glyphWidget: MarginHoverWidget | null;
 
 	private _isMouseDown: boolean;
 	private _hoverClicked: boolean;
 	private _isHoverEnabled!: boolean;
 	private _isHoverSticky!: boolean;
-
-	private _hoverVisibleKey: IContextKey<boolean>;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -66,8 +64,6 @@ export class ModesHoverController implements IEditorContribution {
 				this._hookEvents();
 			}
 		});
-
-		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(_contextKeyService);
 	}
 
 	private _hookEvents(): void {
@@ -198,9 +194,9 @@ export class ModesHoverController implements IEditorContribution {
 		this._contentWidget?.hide();
 	}
 
-	private _getOrCreateContentWidget(): ContentHoverWidget {
+	private _getOrCreateContentWidget(): ContentHoverController {
 		if (!this._contentWidget) {
-			this._contentWidget = this._instantiationService.createInstance(ContentHoverWidget, this._editor, this._hoverVisibleKey);
+			this._contentWidget = this._instantiationService.createInstance(ContentHoverController, this._editor);
 		}
 		return this._contentWidget;
 	}

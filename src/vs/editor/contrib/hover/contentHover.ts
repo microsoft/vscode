@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { HoverAction, HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
-import { Widget } from 'vs/base/browser/ui/widget';
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -27,15 +25,436 @@ import { HoverAnchor, HoverAnchorType, HoverRangeAnchor, IEditorHover, IEditorHo
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
 import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsHoverParticipant';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { UnicodeHighlighterHoverParticipant } from 'vs/editor/contrib/unicodeHighlighter/unicodeHighlighter';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/inlayHintsHover';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const $ = dom.$;
+
+export class ContentHoverController extends Disposable implements IEditorHover {
+
+	private readonly _participants: IEditorHoverParticipant[];
+	private readonly _widget: ContentHoverWidget;
+
+	private _messages: IHoverPart[];
+	private _messagesAreComplete: boolean;
+	private _lastAnchor: HoverAnchor | null;
+	private readonly _computer: ContentHoverComputer;
+	private readonly _hoverOperation: HoverOperation<IHoverPart>;
+	private _highlightDecorations: string[];
+	private _isChangingDecorations: boolean;
+	private _shouldFocus: boolean;
+	private _colorPicker: ColorPickerWidget | null;
+	private _renderDisposable: DisposableStore | null;
+
+	constructor(
+		private readonly _editor: ICodeEditor,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+	) {
+		super();
+
+		this._participants = [
+			instantiationService.createInstance(ColorHoverParticipant, this._editor, this),
+			instantiationService.createInstance(MarkdownHoverParticipant, this._editor, this),
+			instantiationService.createInstance(InlineCompletionsHoverParticipant, this._editor, this),
+			instantiationService.createInstance(UnicodeHighlighterHoverParticipant, this._editor, this),
+			instantiationService.createInstance(MarkerHoverParticipant, this._editor, this),
+			instantiationService.createInstance(InlayHintsHover, this._editor, this),
+		];
+		this._widget = this._register(instantiationService.createInstance(ContentHoverWidget, this._editor));
+
+		this._messages = [];
+		this._messagesAreComplete = false;
+		this._lastAnchor = null;
+		this._computer = new ContentHoverComputer(this._editor, this._participants);
+		this._highlightDecorations = [];
+		this._isChangingDecorations = false;
+		this._shouldFocus = false;
+		this._colorPicker = null;
+		this._renderDisposable = null;
+
+		this._hoverOperation = new HoverOperation(
+			this._computer,
+			result => this._withResult(result, true),
+			null,
+			result => this._withResult(result, false),
+			this._editor.getOption(EditorOption.hover).delay
+		);
+
+		this._register(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
+		this._register(this._editor.onDidChangeConfiguration(() => {
+			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
+		}));
+		this._register(dom.addStandardDisposableListener(this._widget.getDomNode(), 'keydown', (e) => {
+			if (e.equals(KeyCode.Escape)) {
+				this.hide();
+			}
+		}));
+		this._register(TokenizationRegistry.onDidChange(() => {
+			if (this._widget.position && this._lastAnchor && this._messages.length > 0) {
+				this._widget.clear();
+				this._renderMessages(this._lastAnchor, this._messages);
+			}
+		}));
+	}
+
+	public override dispose(): void {
+		this._hoverOperation.cancel();
+		super.dispose();
+	}
+
+	private _shouldShowAt(mouseEvent: IEditorMouseEvent): boolean {
+		const targetType = mouseEvent.target.type;
+		if (targetType === MouseTargetType.CONTENT_TEXT) {
+			return true;
+		}
+
+		if (targetType === MouseTargetType.CONTENT_EMPTY) {
+			const epsilon = this._editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
+			const data = <IEmptyContentData>mouseEvent.target.detail;
+			if (data && !data.isAfterLines && typeof data.horizontalDistanceToText === 'number' && data.horizontalDistanceToText < epsilon) {
+				// Let hover kick in even when the mouse is technically in the empty area after a line, given the distance is small enough
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
+		const anchorCandidates: HoverAnchor[] = [];
+
+		for (const participant of this._participants) {
+			if (participant.suggestHoverAnchor) {
+				const anchor = participant.suggestHoverAnchor(mouseEvent);
+				if (anchor) {
+					anchorCandidates.push(anchor);
+				}
+			}
+		}
+
+		if (this._shouldShowAt(mouseEvent) && mouseEvent.target.range) {
+			// TODO@rebornix. This should be removed if we move Color Picker out of Hover component.
+			// Check if mouse is hovering on color decorator
+			const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'))
+				&& mouseEvent.target.range.endColumn - mouseEvent.target.range.startColumn === 1;
+			const showAtRange = (
+				hoverOnColorDecorator // shift the mouse focus by one as color decorator is a `before` decoration of next character.
+					? new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1)
+					: mouseEvent.target.range
+			);
+			anchorCandidates.push(new HoverRangeAnchor(0, showAtRange));
+		}
+
+		if (anchorCandidates.length === 0) {
+			return false;
+		}
+
+		anchorCandidates.sort((a, b) => b.priority - a.priority);
+		this._startShowingAt(anchorCandidates[0], HoverStartMode.Delayed, false);
+
+		return true;
+	}
+
+	private _onModelDecorationsChanged(): void {
+		if (this._isChangingDecorations) {
+			return;
+		}
+		if (this._widget.position) {
+			// The decorations have changed and the hover is visible,
+			// we need to recompute the displayed text
+			this._hoverOperation.cancel();
+			this._computer.clearResult();
+
+			if (!this._colorPicker) { // TODO@Michel ensure that displayed text for other decorations is computed even if color picker is in place
+				this._hoverOperation.start(HoverStartMode.Delayed);
+			}
+		}
+	}
+
+	public startShowingAtRange(range: Range, mode: HoverStartMode, focus: boolean): void {
+		this._startShowingAt(new HoverRangeAnchor(0, range), mode, focus);
+	}
+
+	private _startShowingAt(anchor: HoverAnchor, mode: HoverStartMode, focus: boolean): void {
+		if (this._lastAnchor && this._lastAnchor.equals(anchor)) {
+			// We have to show the widget at the exact same range as before, so no work is needed
+			return;
+		}
+
+		this._hoverOperation.cancel();
+
+		if (this._widget.position) {
+			// The range might have changed, but the hover is visible
+			// Instead of hiding it completely, filter out messages that are still in the new range and
+			// kick off a new computation
+			if (!this._lastAnchor || !anchor.canAdoptVisibleHover(this._lastAnchor, this._widget.position)) {
+				this.hide();
+			} else {
+				const filteredMessages = this._messages.filter((m) => m.isValidForHoverAnchor(anchor));
+				if (filteredMessages.length === 0) {
+					this.hide();
+				} else if (filteredMessages.length === this._messages.length && this._messagesAreComplete) {
+					// no change
+					return;
+				} else {
+					this._renderMessages(anchor, filteredMessages);
+				}
+			}
+		}
+
+		this._lastAnchor = anchor;
+		this._computer.setAnchor(anchor);
+		this._shouldFocus = focus;
+		this._hoverOperation.start(mode);
+	}
+
+	public hide(): void {
+		this._lastAnchor = null;
+		this._hoverOperation.cancel();
+
+		this._widget.hide();
+
+		this._isChangingDecorations = true;
+		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, []);
+		this._isChangingDecorations = false;
+		if (this._renderDisposable) {
+			this._renderDisposable.dispose();
+			this._renderDisposable = null;
+		}
+		this._colorPicker = null;
+	}
+
+	public isColorPickerVisible(): boolean {
+		return !!this._colorPicker;
+	}
+
+	public setColorPicker(widget: ColorPickerWidget): void {
+		this._colorPicker = widget;
+	}
+
+	public onContentsChanged(): void {
+		this._widget.onContentsChanged();
+	}
+
+	private _withResult(result: IHoverPart[], complete: boolean): void {
+		this._messages = result;
+		this._messagesAreComplete = complete;
+
+		if (this._lastAnchor && this._messages.length > 0) {
+			this._renderMessages(this._lastAnchor, this._messages);
+		} else if (complete) {
+			this.hide();
+		}
+	}
+
+	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
+		if (this._renderDisposable) {
+			this._renderDisposable.dispose();
+			this._renderDisposable = null;
+		}
+		this._colorPicker = null as ColorPickerWidget | null; // TODO: TypeScript thinks this is always null
+
+		// update column from which to show
+		let renderColumn = Constants.MAX_SAFE_SMALL_INTEGER;
+		let highlightRange: Range = messages[0].range;
+		let forceShowAtRange: Range | null = null;
+		const groupedHoverParts = new Map<IEditorHoverParticipant, IHoverPart[]>();
+		for (const msg of messages) {
+			renderColumn = Math.min(renderColumn, msg.range.startColumn);
+			highlightRange = Range.plusRange(highlightRange, msg.range);
+			if (msg.forceShowAtRange) {
+				forceShowAtRange = msg.range;
+			}
+
+			if (!groupedHoverParts.has(msg.owner)) {
+				groupedHoverParts.set(msg.owner, []);
+			}
+			groupedHoverParts.get(msg.owner)!.push(msg);
+		}
+
+		this._renderDisposable = new DisposableStore();
+		const statusBar = this._renderDisposable.add(new EditorHoverStatusBar(this._keybindingService));
+		const fragment = document.createDocumentFragment();
+		for (const participant of this._participants) {
+			if (groupedHoverParts.has(participant)) {
+				const participantHoverParts = groupedHoverParts.get(participant)!;
+				this._renderDisposable.add(participant.renderHoverParts(participantHoverParts, fragment, statusBar));
+			}
+		}
+		if (statusBar.hasContent) {
+			fragment.appendChild(statusBar.hoverElement);
+		}
+
+		// show
+
+		if (fragment.hasChildNodes()) {
+			if (forceShowAtRange) {
+				this._widget.showAt(fragment, forceShowAtRange.getStartPosition(), forceShowAtRange, this._shouldFocus);
+			} else {
+				this._widget.showAt(fragment, new Position(anchor.range.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
+			}
+		}
+		if (this._colorPicker) {
+			this._colorPicker.layout();
+		}
+
+		this._isChangingDecorations = true;
+		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, highlightRange ? [{
+			range: highlightRange,
+			options: ContentHoverController._DECORATION_OPTIONS
+		}] : []);
+		this._isChangingDecorations = false;
+	}
+
+	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
+		description: 'content-hover-highlight',
+		className: 'hoverHighlight'
+	});
+}
+
+class ContentHoverVisibleData {
+	constructor(
+		public readonly showAtPosition: Position | null,
+		public readonly showAtRange: Range | null,
+		public readonly preferAbove: boolean,
+		public readonly stoleFocus: boolean,
+	) { }
+}
+
+export class ContentHoverWidget extends Disposable implements IContentWidget {
+
+	static readonly ID = 'editor.contrib.contentHoverWidget';
+
+	public readonly allowEditorOverflow = true;
+	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
+	private readonly _hover: HoverWidget = this._register(new HoverWidget());
+
+	private _visibleData: ContentHoverVisibleData | null = null;
+
+	/**
+	 * Returns `null` if the hover is not visible.
+	 */
+	public get position(): Position | null {
+		return this._visibleData?.showAtPosition ?? null;
+	}
+
+	constructor(
+		private readonly _editor: ICodeEditor,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+	) {
+		super();
+
+		this._hoverVisibleKey.set(!!this._visibleData);
+		this._hover.containerDomNode.classList.toggle('hidden', !this._visibleData);
+
+		this._register(this._editor.onDidLayoutChange(() => this._layout()));
+		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (e.hasChanged(EditorOption.fontInfo)) {
+				this._updateFont();
+			}
+		}));
+
+		this._layout();
+		this._editor.addContentWidget(this);
+	}
+
+	public override dispose(): void {
+		this._editor.removeContentWidget(this);
+		super.dispose();
+	}
+
+	public getId(): string {
+		return ContentHoverWidget.ID;
+	}
+
+	public getDomNode(): HTMLElement {
+		return this._hover.containerDomNode;
+	}
+
+	public getPosition(): IContentWidgetPosition | null {
+		if (!this._visibleData) {
+			return null;
+		}
+		let preferAbove = this._visibleData.preferAbove;
+		if (!preferAbove && this._contextKeyService.getContextKeyValue<boolean>(SuggestContext.Visible.key)) {
+			// Prefer rendering above if the suggest widget is visible
+			preferAbove = true;
+		}
+		return {
+			position: this._visibleData.showAtPosition,
+			range: this._visibleData.showAtRange,
+			preference: (
+				preferAbove
+					? [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
+					: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
+			),
+		};
+	}
+
+	private _layout(): void {
+		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
+		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
+
+		this._hover.contentsDomNode.style.fontSize = `${fontSize}px`;
+		this._hover.contentsDomNode.style.lineHeight = `${lineHeight / fontSize}`;
+		this._hover.contentsDomNode.style.maxHeight = `${height}px`;
+		this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
+	}
+
+	private _updateFont(): void {
+		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
+		codeClasses.forEach(node => this._editor.applyFontInfo(node));
+	}
+
+	public showAt(node: DocumentFragment, position: Position, range: Range | null, focus: boolean): void {
+		this._visibleData = new ContentHoverVisibleData(position, range, this._editor.getOption(EditorOption.hover).above, focus);
+		this._hoverVisibleKey.set(!!this._visibleData);
+		this._hover.containerDomNode.classList.toggle('hidden', !this._visibleData);
+
+		this._hover.contentsDomNode.textContent = '';
+		this._hover.contentsDomNode.appendChild(node);
+		this._updateFont();
+
+		this._editor.layoutContentWidget(this);
+		this._hover.onContentsChanged();
+
+		// Simply force a synchronous render on the editor
+		// such that the widget does not really render with left = '0px'
+		this._editor.render();
+		if (focus) {
+			this._hover.containerDomNode.focus();
+		}
+	}
+
+	public hide(): void {
+		if (this._visibleData) {
+			const stoleFocus = this._visibleData.stoleFocus;
+			this._visibleData = null;
+			this._hoverVisibleKey.set(!!this._visibleData);
+			this._hover.containerDomNode.classList.toggle('hidden', !this._visibleData);
+
+			this._editor.layoutContentWidget(this);
+			if (stoleFocus) {
+				this._editor.focus();
+			}
+		}
+	}
+
+	public onContentsChanged(): void {
+		this._hover.onContentsChanged();
+	}
+
+	public clear(): void {
+		this._hover.contentsDomNode.textContent = '';
+	}
+}
 
 class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
 
@@ -184,409 +603,4 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 		}
 		return this._result.slice(0);
 	}
-}
-
-export class ContentHoverWidget extends Widget implements IContentWidget, IEditorHover {
-
-	static readonly ID = 'editor.contrib.modesContentHoverWidget';
-
-	private readonly _participants: IEditorHoverParticipant[];
-
-	private readonly _hover: HoverWidget;
-	private readonly _editor: ICodeEditor;
-	private _isVisible: boolean;
-	private _showAtPosition: Position | null;
-	private _showAtRange: Range | null;
-	private _stoleFocus: boolean;
-
-	// IContentWidget.allowEditorOverflow
-	public readonly allowEditorOverflow = true;
-
-	private _messages: IHoverPart[];
-	private _messagesAreComplete: boolean;
-	private _lastAnchor: HoverAnchor | null;
-	private readonly _computer: ContentHoverComputer;
-	private readonly _hoverOperation: HoverOperation<IHoverPart>;
-	private _highlightDecorations: string[];
-	private _isChangingDecorations: boolean;
-	private _shouldFocus: boolean;
-	private _colorPicker: ColorPickerWidget | null;
-	private _renderDisposable: DisposableStore | null;
-	private _preferAbove: boolean;
-
-	constructor(
-		editor: ICodeEditor,
-		private readonly _hoverVisibleKey: IContextKey<boolean>,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-	) {
-		super();
-
-		this._participants = [
-			instantiationService.createInstance(ColorHoverParticipant, editor, this),
-			instantiationService.createInstance(MarkdownHoverParticipant, editor, this),
-			instantiationService.createInstance(InlineCompletionsHoverParticipant, editor, this),
-			instantiationService.createInstance(UnicodeHighlighterHoverParticipant, editor, this),
-			instantiationService.createInstance(MarkerHoverParticipant, editor, this),
-			instantiationService.createInstance(InlayHintsHover, editor, this),
-		];
-
-		this._editor = editor;
-		this._isVisible = false;
-		this._stoleFocus = false;
-		this._renderDisposable = null;
-
-		this._hover = this._register(new HoverWidget());
-		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
-
-		this.onkeydown(this._hover.containerDomNode, (e: IKeyboardEvent) => {
-			if (e.equals(KeyCode.Escape)) {
-				this.hide();
-			}
-		});
-
-		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
-			if (e.hasChanged(EditorOption.fontInfo)) {
-				this._updateFont();
-			}
-		}));
-
-		this._editor.onDidLayoutChange(() => this._layout());
-
-		this._layout();
-		this._editor.addContentWidget(this);
-		this._showAtPosition = null;
-		this._showAtRange = null;
-		this._stoleFocus = false;
-
-		this._messages = [];
-		this._messagesAreComplete = false;
-		this._lastAnchor = null;
-		this._computer = new ContentHoverComputer(this._editor, this._participants);
-		this._highlightDecorations = [];
-		this._isChangingDecorations = false;
-		this._shouldFocus = false;
-		this._colorPicker = null;
-		this._preferAbove = this._editor.getOption(EditorOption.hover).above;
-
-		this._hoverOperation = new HoverOperation(
-			this._computer,
-			result => this._withResult(result, true),
-			null,
-			result => this._withResult(result, false),
-			this._editor.getOption(EditorOption.hover).delay
-		);
-
-		this._register(editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
-		this._register(editor.onDidChangeConfiguration(() => {
-			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
-			this._preferAbove = this._editor.getOption(EditorOption.hover).above;
-		}));
-		this._register(TokenizationRegistry.onDidChange(() => {
-			if (this._isVisible && this._lastAnchor && this._messages.length > 0) {
-				this._hover.contentsDomNode.textContent = '';
-				this._renderMessages(this._lastAnchor, this._messages);
-			}
-		}));
-	}
-
-	public override dispose(): void {
-		this._hoverOperation.cancel();
-		this._editor.removeContentWidget(this);
-		super.dispose();
-	}
-
-	public getId(): string {
-		return ContentHoverWidget.ID;
-	}
-
-	public getDomNode(): HTMLElement {
-		return this._hover.containerDomNode;
-	}
-
-	private _shouldShowAt(mouseEvent: IEditorMouseEvent): boolean {
-		const targetType = mouseEvent.target.type;
-		if (targetType === MouseTargetType.CONTENT_TEXT) {
-			return true;
-		}
-
-		if (targetType === MouseTargetType.CONTENT_EMPTY) {
-			const epsilon = this._editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
-			const data = <IEmptyContentData>mouseEvent.target.detail;
-			if (data && !data.isAfterLines && typeof data.horizontalDistanceToText === 'number' && data.horizontalDistanceToText < epsilon) {
-				// Let hover kick in even when the mouse is technically in the empty area after a line, given the distance is small enough
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
-		const anchorCandidates: HoverAnchor[] = [];
-
-		for (const participant of this._participants) {
-			if (typeof participant.suggestHoverAnchor === 'function') {
-				const anchor = participant.suggestHoverAnchor(mouseEvent);
-				if (anchor) {
-					anchorCandidates.push(anchor);
-				}
-			}
-		}
-
-		if (this._shouldShowAt(mouseEvent) && mouseEvent.target.range) {
-			// TODO@rebornix. This should be removed if we move Color Picker out of Hover component.
-			// Check if mouse is hovering on color decorator
-			const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'))
-				&& mouseEvent.target.range.endColumn - mouseEvent.target.range.startColumn === 1;
-			const showAtRange = (
-				hoverOnColorDecorator // shift the mouse focus by one as color decorator is a `before` decoration of next character.
-					? new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1)
-					: mouseEvent.target.range
-			);
-			anchorCandidates.push(new HoverRangeAnchor(0, showAtRange));
-		}
-
-		if (anchorCandidates.length === 0) {
-			return false;
-		}
-
-		anchorCandidates.sort((a, b) => b.priority - a.priority);
-		this._startShowingAt(anchorCandidates[0], HoverStartMode.Delayed, false);
-
-		return true;
-	}
-
-	public getPosition(): IContentWidgetPosition | null {
-		if (this._isVisible) {
-			let preferAbove = this._preferAbove;
-			if (!preferAbove && this._contextKeyService.getContextKeyValue<boolean>(SuggestContext.Visible.key)) {
-				// Prefer rendering above if the suggest widget is visible
-				preferAbove = true;
-			}
-			return {
-				position: this._showAtPosition,
-				range: this._showAtRange,
-				preference: preferAbove ? [
-					ContentWidgetPositionPreference.ABOVE,
-					ContentWidgetPositionPreference.BELOW,
-				] : [
-					ContentWidgetPositionPreference.BELOW,
-					ContentWidgetPositionPreference.ABOVE,
-				],
-			};
-		}
-		return null;
-	}
-
-	private _updateFont(): void {
-		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
-		codeClasses.forEach(node => this._editor.applyFontInfo(node));
-	}
-
-	private _layout(): void {
-		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
-		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
-
-		this._hover.contentsDomNode.style.fontSize = `${fontSize}px`;
-		this._hover.contentsDomNode.style.lineHeight = `${lineHeight / fontSize}`;
-		this._hover.contentsDomNode.style.maxHeight = `${height}px`;
-		this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
-	}
-
-	private _onModelDecorationsChanged(): void {
-		if (this._isChangingDecorations) {
-			return;
-		}
-		if (this._isVisible) {
-			// The decorations have changed and the hover is visible,
-			// we need to recompute the displayed text
-			this._hoverOperation.cancel();
-			this._computer.clearResult();
-
-			if (!this._colorPicker) { // TODO@Michel ensure that displayed text for other decorations is computed even if color picker is in place
-				this._hoverOperation.start(HoverStartMode.Delayed);
-			}
-		}
-	}
-
-	public startShowingAtRange(range: Range, mode: HoverStartMode, focus: boolean): void {
-		this._startShowingAt(new HoverRangeAnchor(0, range), mode, focus);
-	}
-
-	private _startShowingAt(anchor: HoverAnchor, mode: HoverStartMode, focus: boolean): void {
-		if (this._lastAnchor && this._lastAnchor.equals(anchor)) {
-			// We have to show the widget at the exact same range as before, so no work is needed
-			return;
-		}
-
-		this._hoverOperation.cancel();
-
-		if (this._isVisible) {
-			// The range might have changed, but the hover is visible
-			// Instead of hiding it completely, filter out messages that are still in the new range and
-			// kick off a new computation
-			if (!this._showAtPosition || !this._lastAnchor || !anchor.canAdoptVisibleHover(this._lastAnchor, this._showAtPosition)) {
-				this.hide();
-			} else {
-				const filteredMessages = this._messages.filter((m) => m.isValidForHoverAnchor(anchor));
-				if (filteredMessages.length === 0) {
-					this.hide();
-				} else if (filteredMessages.length === this._messages.length && this._messagesAreComplete) {
-					// no change
-					return;
-				} else {
-					this._renderMessages(anchor, filteredMessages);
-				}
-			}
-		}
-
-		this._lastAnchor = anchor;
-		this._computer.setAnchor(anchor);
-		this._shouldFocus = focus;
-		this._hoverOperation.start(mode);
-	}
-
-	public hide(): void {
-		this._lastAnchor = null;
-		this._hoverOperation.cancel();
-
-		if (this._isVisible) {
-			setTimeout(() => {
-				// Give commands a chance to see the key
-				if (!this._isVisible) {
-					this._hoverVisibleKey.set(false);
-				}
-			}, 0);
-			this._isVisible = false;
-			this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
-
-			this._editor.layoutContentWidget(this);
-			if (this._stoleFocus) {
-				this._editor.focus();
-			}
-		}
-
-		this._isChangingDecorations = true;
-		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, []);
-		this._isChangingDecorations = false;
-		if (this._renderDisposable) {
-			this._renderDisposable.dispose();
-			this._renderDisposable = null;
-		}
-		this._colorPicker = null;
-	}
-
-	public isColorPickerVisible(): boolean {
-		return !!this._colorPicker;
-	}
-
-	public setColorPicker(widget: ColorPickerWidget): void {
-		this._colorPicker = widget;
-	}
-
-	public onContentsChanged(): void {
-		this._hover.onContentsChanged();
-	}
-
-	private _withResult(result: IHoverPart[], complete: boolean): void {
-		this._messages = result;
-		this._messagesAreComplete = complete;
-
-		if (this._lastAnchor && this._messages.length > 0) {
-			this._renderMessages(this._lastAnchor, this._messages);
-		} else if (complete) {
-			this.hide();
-		}
-	}
-
-	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
-		if (this._renderDisposable) {
-			this._renderDisposable.dispose();
-			this._renderDisposable = null;
-		}
-		this._colorPicker = null as ColorPickerWidget | null; // TODO: TypeScript thinks this is always null
-
-		// update column from which to show
-		let renderColumn = Constants.MAX_SAFE_SMALL_INTEGER;
-		let highlightRange: Range = messages[0].range;
-		let forceShowAtRange: Range | null = null;
-		const groupedHoverParts = new Map<IEditorHoverParticipant, IHoverPart[]>();
-		for (const msg of messages) {
-			renderColumn = Math.min(renderColumn, msg.range.startColumn);
-			highlightRange = Range.plusRange(highlightRange, msg.range);
-			if (msg.forceShowAtRange) {
-				forceShowAtRange = msg.range;
-			}
-
-			if (!groupedHoverParts.has(msg.owner)) {
-				groupedHoverParts.set(msg.owner, []);
-			}
-			groupedHoverParts.get(msg.owner)!.push(msg);
-		}
-
-		this._renderDisposable = new DisposableStore();
-		const statusBar = this._renderDisposable.add(new EditorHoverStatusBar(this._keybindingService));
-		const fragment = document.createDocumentFragment();
-		for (const participant of this._participants) {
-			if (groupedHoverParts.has(participant)) {
-				const participantHoverParts = groupedHoverParts.get(participant)!;
-				this._renderDisposable.add(participant.renderHoverParts(participantHoverParts, fragment, statusBar));
-			}
-		}
-		if (statusBar.hasContent) {
-			fragment.appendChild(statusBar.hoverElement);
-		}
-
-		// show
-
-		if (fragment.hasChildNodes()) {
-			if (forceShowAtRange) {
-				this._showAt(fragment, forceShowAtRange.getStartPosition(), forceShowAtRange, this._shouldFocus);
-			} else {
-				this._showAt(fragment, new Position(anchor.range.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
-			}
-		}
-		if (this._colorPicker) {
-			this._colorPicker.layout();
-		}
-
-		this._isChangingDecorations = true;
-		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, highlightRange ? [{
-			range: highlightRange,
-			options: ContentHoverWidget._DECORATION_OPTIONS
-		}] : []);
-		this._isChangingDecorations = false;
-	}
-
-	private _showAt(node: DocumentFragment, position: Position, range: Range | null, focus: boolean): void {
-		// Position has changed
-		this._showAtPosition = position;
-		this._showAtRange = range;
-		this._hoverVisibleKey.set(true);
-		this._isVisible = true;
-		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
-
-		this._editor.layoutContentWidget(this);
-		// Simply force a synchronous render on the editor
-		// such that the widget does not really render with left = '0px'
-		this._editor.render();
-		this._stoleFocus = focus;
-		if (focus) {
-			this._hover.containerDomNode.focus();
-		}
-
-		this._hover.contentsDomNode.textContent = '';
-		this._hover.contentsDomNode.appendChild(node);
-		this._updateFont();
-
-		this._editor.layoutContentWidget(this);
-		this._hover.onContentsChanged();
-	}
-
-	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
-		description: 'content-hover-highlight',
-		className: 'hoverHighlight'
-	});
 }
