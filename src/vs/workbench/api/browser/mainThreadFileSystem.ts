@@ -11,6 +11,8 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -23,7 +25,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService private readonly _fileService: IFileService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 
@@ -158,11 +161,13 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		return this._fileService.activateProvider(scheme);
 	}
 
-	$watch(session: number, resource: UriComponents, opts: IWatchOptions): void {
+	$watch(extension: IExtensionDescription, session: number, resource: UriComponents, opts: IWatchOptions): void {
 		const uri = URI.revive(resource);
 		if (this._contextService.isInsideWorkspace(uri)) {
 			return; // refuse to watch anything that is already watched
 		}
+
+		this._logService.trace(`MainThreadFileSystem#$watch(): request to start watching (extension: ${extension.identifier.value}, path: ${uri.toString(true)}, recursive: ${opts.recursive})`);
 
 		const subscription = this._fileService.watch(uri, opts);
 		this._watches.set(session, subscription);
