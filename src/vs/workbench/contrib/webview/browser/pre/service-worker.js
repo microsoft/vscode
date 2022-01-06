@@ -118,6 +118,9 @@ const resourceRequestStore = new RequestStore();
  */
 const localhostRequestStore = new RequestStore();
 
+const unauthorized = () =>
+	new Response('Unauthorized', { status: 401, });
+
 const notFound = () =>
 	new Response('Not Found', { status: 404, });
 
@@ -214,6 +217,10 @@ async function processResourceRequest(event, requestUrl) {
 			} else {
 				throw new Error('No cache found');
 			}
+		}
+
+		if (entry.status === 401) {
+			return unauthorized();
 		}
 
 		if (entry.status !== 200) {
