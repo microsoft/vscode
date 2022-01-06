@@ -15,8 +15,8 @@ const testFileName = vscode.Uri.file('test.md');
 suite('markdown.engine', () => {
 	suite('rendering', () => {
 		const input = '# hello\n\nworld!';
-		const output = '<h1 data-line="0" class="code-line" id="hello">hello</h1>\n'
-			+ '<p data-line="2" class="code-line">world!</p>\n';
+		const output = '<h1 data-line="0" class="code-line" dir="auto" id="hello">hello</h1>\n'
+			+ '<p data-line="2" class="code-line" dir="auto">world!</p>\n';
 
 		test('Renders a document', async () => {
 			const doc = new InMemoryDocument(testFileName, input);
@@ -36,7 +36,7 @@ suite('markdown.engine', () => {
 		test('Extracts all images', async () => {
 			const engine = createNewMarkdownEngine();
 			assert.deepStrictEqual((await engine.render(input)), {
-				html: '<p data-line="0" class="code-line">'
+				html: '<p data-line="0" class="code-line" dir="auto">'
 					+ '<img src="img.png" alt="" class="loading" id="image-hash--754511435" data-src="img.png"> '
 					+ '<a href="no-img.png" data-href="no-img.png"></a> '
 					+ '<img src="http://example.org/img.png" alt="" class="loading" id="image-hash--1903814170" data-src="http://example.org/img.png"> '

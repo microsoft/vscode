@@ -4,7 +4,7 @@
 		<meta http-equiv="Content-Security-Policy" content="
 			default-src 'none';
 			child-src 'self' data: blob:;
-			script-src 'self' 'unsafe-eval' 'sha256-cb2sg39EJV8ABaSNFfWu/ou8o1xVXYK7jp90oZ9vpcg=' https:;
+			script-src 'self' 'unsafe-eval' 'sha256-7r+WjLnkogQ49YJMiebuJrtdmXlsN8evaIGRDcHnFCo=' https:;
 			connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"/>
 	</head>
 	<body>
@@ -59,6 +59,8 @@
 			console.error(event.message, event.error);
 			sendError(event.error);
 		};
+
+		self.onmessage = (event) => worker.postMessage(event.data, event.ports);
 	} catch(err) {
 		console.error(err);
 		sendError(err);

@@ -190,7 +190,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(selectionRedo[0].end, 2);
 	});
 
-	test('editor editing event', async function () {
+	test.skip('editor editing event', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/140200
 		const notebook = await openRandomNotebookDocument();
 		const editor = await vscode.window.showNotebookDocument(notebook);
 
@@ -311,7 +311,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(secondCell.executionSummary?.success, true);
 	});
 
-	test('notebook cell actions', async function () {
+	test.skip('notebook cell actions', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/140201
 		const notebook = await openRandomNotebookDocument();
 		const editor = await vscode.window.showNotebookDocument(notebook);
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');

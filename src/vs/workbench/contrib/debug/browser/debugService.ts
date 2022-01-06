@@ -652,8 +652,9 @@ export class DebugService implements IDebugService {
 			}
 
 			if (session.configuration.postDebugTask) {
+				const root = session.root ?? this.contextService.getWorkspace();
 				try {
-					await this.taskRunner.runTask(session.root, session.configuration.postDebugTask);
+					await this.taskRunner.runTask(root, session.configuration.postDebugTask);
 				} catch (err) {
 					this.notificationService.error(err);
 				}
