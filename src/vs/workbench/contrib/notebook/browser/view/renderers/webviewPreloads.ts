@@ -377,6 +377,225 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return false;
 	}
 
+	function _internalHighlightRange(range: Range, tagName = 'mark', attributes = {}) {
+		// derived from https://github.com/Treora/dom-highlight-range/blob/master/highlight-range.js
+
+		// Return an array of the text nodes in the range. Split the start and end nodes if required.
+		function _textNodesInRange(range: Range): Text[] {
+			if (!range.startContainer.ownerDocument) {
+				return [];
+			}
+
+			// If the start or end node is a text node and only partly in the range, split it.
+			if (range.startContainer.nodeType === Node.TEXT_NODE && range.startOffset > 0) {
+				const startContainer = range.startContainer as Text;
+				const endOffset = range.endOffset; // (this may get lost when the splitting the node)
+				const createdNode = startContainer.splitText(range.startOffset);
+				if (range.endContainer === startContainer) {
+					// If the end was in the same container, it will now be in the newly created node.
+					range.setEnd(createdNode, endOffset - range.startOffset);
+				}
+
+				range.setStart(createdNode, 0);
+			}
+
+			if (
+				range.endContainer.nodeType === Node.TEXT_NODE
+				&& range.endOffset < (range.endContainer as Text).length
+			) {
+				(range.endContainer as Text).splitText(range.endOffset);
+			}
+
+			// Collect the text nodes.
+			const walker = range.startContainer.ownerDocument.createTreeWalker(
+				range.commonAncestorContainer,
+				NodeFilter.SHOW_TEXT,
+				node => range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
+			);
+
+			walker.currentNode = range.startContainer;
+
+			// // Optimise by skipping nodes that are explicitly outside the range.
+			// const NodeTypesWithCharacterOffset = [
+			//  Node.TEXT_NODE,
+			//  Node.PROCESSING_INSTRUCTION_NODE,
+			//  Node.COMMENT_NODE,
+			// ];
+			// if (!NodeTypesWithCharacterOffset.includes(range.startContainer.nodeType)) {
+			//   if (range.startOffset < range.startContainer.childNodes.length) {
+			//     walker.currentNode = range.startContainer.childNodes[range.startOffset];
+			//   } else {
+			//     walker.nextSibling(); // TODO verify this is correct.
+			//   }
+			// }
+
+			const nodes: Text[] = [];
+			if (walker.currentNode.nodeType === Node.TEXT_NODE) {
+				nodes.push(walker.currentNode as Text);
+			}
+
+			while (walker.nextNode() && range.comparePoint(walker.currentNode, 0) !== 1) {
+				if (walker.currentNode.nodeType === Node.TEXT_NODE) {
+					nodes.push(walker.currentNode as Text);
+				}
+			}
+
+			return nodes;
+		}
+
+		// Replace [node] with <tagName ...attributes>[node]</tagName>
+		function wrapNodeInHighlight(node: Text, tagName: string, attributes: any) {
+			const highlightElement = node.ownerDocument.createElement(tagName);
+			Object.keys(attributes).forEach(key => {
+				highlightElement.setAttribute(key, attributes[key]);
+			});
+			const tempRange = node.ownerDocument.createRange();
+			tempRange.selectNode(node);
+			tempRange.surroundContents(highlightElement);
+			return highlightElement;
+		}
+
+		if (range.collapsed) {
+			return {
+				remove: () => { },
+				update: () => { }
+			};
+		}
+
+		// First put all nodes in an array (splits start and end nodes if needed)
+		const nodes = _textNodesInRange(range);
+
+		// Highlight each node
+		const highlightElements: Element[] = [];
+		for (const nodeIdx in nodes) {
+			const highlightElement = wrapNodeInHighlight(nodes[nodeIdx], tagName, attributes);
+			highlightElements.push(highlightElement);
+		}
+
+		// Remove a highlight element created with wrapNodeInHighlight.
+		function _removeHighlight(highlightElement: Element) {
+			if (highlightElement.childNodes.length === 1) {
+				highlightElement.parentNode?.replaceChild(highlightElement.firstChild!, highlightElement);
+			} else {
+				// If the highlight somehow contains multiple nodes now, move them all.
+				while (highlightElement.firstChild) {
+					highlightElement.parentNode?.insertBefore(highlightElement.firstChild, highlightElement);
+				}
+				highlightElement.remove();
+			}
+		}
+
+		// Return a function that cleans up the highlightElements.
+		function _removeHighlights() {
+			// Remove each of the created highlightElements.
+			for (const highlightIdx in highlightElements) {
+				_removeHighlight(highlightElements[highlightIdx]);
+			}
+		}
+
+		function _updateHighlight(highlightElement: Element, attributes: any = {}) {
+			Object.keys(attributes).forEach(key => {
+				highlightElement.setAttribute(key, attributes[key]);
+			});
+		}
+
+		function updateHighlights(attributes: any) {
+			for (const highlightIdx in highlightElements) {
+				_updateHighlight(highlightElements[highlightIdx], attributes);
+			}
+		}
+
+		return {
+			remove: _removeHighlights,
+			update: updateHighlights
+		};
+	}
+
+	interface ICommonRange {
+		collapsed: boolean,
+		commonAncestorContainer: Node,
+		endContainer: Node,
+		endOffset: number,
+		startContainer: Node,
+		startOffset: number
+
+	}
+
+	interface IHighlightResult {
+		range: ICommonRange;
+		dispose: () => void,
+		update: (color: string | undefined, className: string | undefined) => void;
+	}
+
+	function selectRange(_range: ICommonRange) {
+		const sel = window.getSelection();
+		if (sel) {
+			try {
+				sel.removeAllRanges();
+				const r = document.createRange();
+				r.setStart(_range.startContainer, _range.startOffset);
+				r.setEnd(_range.endContainer, _range.endOffset);
+				sel.addRange(r);
+			} catch (e) {
+				console.log(e);
+			}
+		}
+	}
+
+	function highlightRange(range: Range, useCustom: boolean, tagName = 'mark', attributes = {}): IHighlightResult {
+		if (useCustom) {
+			const ret = _internalHighlightRange(range, tagName, {
+				'class': 'find-match'
+			});
+			return {
+				range: range,
+				dispose: ret.remove,
+				update: (color: string | undefined, className: string | undefined) => {
+					ret.update({
+						'class': className
+					});
+				}
+			};
+		} else {
+			window.document.execCommand('hiliteColor', false, matchColor);
+			const cloneRange = window.getSelection()!.getRangeAt(0).cloneRange();
+			const _range = {
+				collapsed: cloneRange.collapsed,
+				commonAncestorContainer: cloneRange.commonAncestorContainer,
+				endContainer: cloneRange.endContainer,
+				endOffset: cloneRange.endOffset,
+				startContainer: cloneRange.startContainer,
+				startOffset: cloneRange.startOffset
+			};
+			return {
+				range: _range,
+				dispose: () => {
+					selectRange(_range);
+					try {
+						document.designMode = 'On';
+						document.execCommand('removeFormat', false, undefined);
+						document.designMode = 'Off';
+						window.getSelection()?.removeAllRanges();
+					} catch (e) {
+						console.log(e);
+					}
+				},
+				update: (color: string | undefined, className: string | undefined) => {
+					selectRange(_range);
+					try {
+						document.designMode = 'On';
+						document.execCommand('removeFormat', false, undefined);
+						window.document.execCommand('hiliteColor', false, color);
+						document.designMode = 'Off';
+						window.getSelection()?.removeAllRanges();
+					} catch (e) {
+						console.log(e);
+					}
+				}
+			};
+		}
+	}
+
 	class OutputFocusTracker {
 		private _outputId: string;
 		private _hasFocus: boolean = false;
@@ -533,20 +752,29 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	window.addEventListener('wheel', handleWheel);
 
-	let _findingMatches: {
-		type: any;
-		cellId: string;
-		id: string;
-		container: any;
-		range: any;
-	}[] = [];
+	interface IFindMatch {
+		type: 'input' | 'output',
+		id: string,
+		cellId: string,
+		container: Node,
+		highlightResult: IHighlightResult
+	}
+
+	let _findingMatches: IFindMatch[] = [];
 	let _findMatchIndex = -1;
 	let matchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).color;
 	let currentMatchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).backgroundColor;
 
 	const find = (query: string) => {
 		let find = true;
-		let matches = [];
+		let matches: {
+			type: 'input' | 'output',
+			id: string,
+			cellId: string,
+			container: Node,
+			originalRange: Range,
+			highlightResult?: IHighlightResult
+		}[] = [];
 
 		let range = document.createRange();
 		range.selectNodeContents(document.getElementById('findStart')!);
@@ -576,23 +804,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 					const lastEl: any = matches.length ? matches[matches.length - 1] : null;
 
 					if (lastEl && lastEl.container.contains(anchorNode)) {
-						// document.execCommand('hiliteColor', false, '#ff0000');
-						window.document.execCommand('hiliteColor', false, matchColor);
-
-						const range = window.getSelection()!.getRangeAt(0).cloneRange();
 						matches.push({
 							type: lastEl.type,
 							id: lastEl.id,
 							cellId: lastEl.cellId,
 							container: lastEl.container,
-							range: {
-								collapsed: range.collapsed,
-								commonAncestorContainer: range.commonAncestorContainer,
-								endContainer: range.endContainer,
-								endOffset: range.endOffset,
-								startContainer: range.startContainer,
-								startOffset: range.startOffset
-							}
+							originalRange: window.getSelection()!.getRangeAt(0)
 						});
 
 					} else {
@@ -605,24 +822,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 								// inside output
 								const cellId = node.parentElement?.parentElement?.id;
 								if (cellId) {
-									// document.execCommand('hiliteColor', false, '#ff0000');
-									window.document.execCommand('hiliteColor', false, matchColor);
-
-									const range = window.getSelection()!.getRangeAt(0);
-
 									matches.push({
 										type: 'output',
 										id: node.id,
 										cellId: cellId,
 										container: node,
-										range: {
-											collapsed: range.collapsed,
-											commonAncestorContainer: range.commonAncestorContainer,
-											endContainer: range.endContainer,
-											endOffset: range.endOffset,
-											startContainer: range.startContainer,
-											startOffset: range.startOffset
-										}
+										originalRange: window.getSelection()!.getRangeAt(0)
 									});
 
 								}
@@ -641,9 +846,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 		}
 
+		for (let i = matches.length - 1; i >= 0; i--) {
+			const match = matches[i];
+			const ret = highlightRange(match.originalRange, true);
+			match.highlightResult = ret;
+		}
+
 		document.designMode = 'Off';
 
-		_findingMatches = matches;
+		_findingMatches = matches as IFindMatch[];
 		postNotebookMessage('didFind', {
 			matches: matches.map((match, index) => ({
 				type: match.type,
@@ -657,106 +868,43 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const highlightCurrentMatch = (index: number) => {
 		const oldMatch = _findingMatches[_findMatchIndex];
 		if (oldMatch) {
-			const sel = window.getSelection();
-			if (sel) {
-				try {
-					sel.removeAllRanges();
-					const r = document.createRange();
-					r.setStart(oldMatch.range.startContainer, oldMatch.range.startOffset);
-					r.setEnd(oldMatch.range.endContainer, oldMatch.range.endOffset);
-					sel.addRange(r);
-					document.designMode = 'On';
-					document.execCommand('removeFormat', false, undefined);
-					window.document.execCommand('hiliteColor', false, matchColor);
-					document.designMode = 'Off';
-
-					sel.removeAllRanges();
-				} catch (e) {
-					console.log(e);
-				}
-			}
+			oldMatch.highlightResult.update(matchColor, 'find-match');
 		}
+
 		const match = _findingMatches[index];
 		_findMatchIndex = index;
 		const sel = window.getSelection();
 		if (!!match && !!sel) {
-			// const outputOffset = match.cellId
 			let offset = 0;
 			try {
 				const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
 				const tempRange = document.createRange();
-				tempRange.selectNode(match.range.startContainer);
+				tempRange.selectNode(match.highlightResult.range.startContainer);
 				const rangeOffset = tempRange.getBoundingClientRect().top;
 				tempRange.detach();
 				offset = rangeOffset - outputOffset;
 			} catch (e) {
 			}
 
-			try {
-				sel.removeAllRanges();
-				const r = document.createRange();
-				r.setStart(match.range.startContainer, match.range.startOffset);
-				r.setEnd(match.range.endContainer, match.range.endOffset);
-				sel.addRange(r);
-				document.designMode = 'On';
-				window.document.execCommand('hiliteColor', false, currentMatchColor);
-				document.designMode = 'Off';
+			match.highlightResult.update(currentMatchColor, 'current-find-match');
 
-				sel.removeAllRanges();
-
-				postNotebookMessage('didFindHighlight', {
-					offset
-				});
-			} catch (e) {
-				console.log(e);
-			}
+			document.getSelection()?.removeAllRanges();
+			postNotebookMessage('didFindHighlight', {
+				offset
+			});
 		}
 	};
 
 	const unHighlightCurrentMatch = (index: number) => {
 		const oldMatch = _findingMatches[index];
 		if (oldMatch) {
-			const sel = window.getSelection();
-			if (sel) {
-				try {
-					sel.removeAllRanges();
-					const r = document.createRange();
-					r.setStart(oldMatch.range.startContainer, oldMatch.range.startOffset);
-					r.setEnd(oldMatch.range.endContainer, oldMatch.range.endOffset);
-					sel.addRange(r);
-					document.designMode = 'On';
-					document.execCommand('removeFormat', false, undefined);
-					window.document.execCommand('hiliteColor', false, matchColor);
-					document.designMode = 'Off';
-
-					sel.removeAllRanges();
-				} catch (e) {
-					console.log(e);
-				}
-			}
+			oldMatch.highlightResult.update(matchColor, 'find-match');
 		}
 	};
 
 	const clearFindMatches = () => {
 		_findingMatches.forEach(match => {
-			const sel = window.getSelection();
-			if (sel) {
-				try {
-					sel.removeAllRanges();
-					const r = document.createRange();
-					r.setStart(match.range.startContainer, match.range.startOffset);
-					r.setEnd(match.range.endContainer, match.range.endOffset);
-					sel.addRange(r);
-					document.designMode = 'On';
-					// document.execCommand('hiliteColor', false, '#ff0000');
-					document.execCommand('removeFormat', false, undefined);
-					document.designMode = 'Off';
-
-					sel.removeAllRanges();
-				} catch (e) {
-					console.log(e);
-				}
-			}
+			match.highlightResult.dispose();
 		});
 
 		_findingMatches = [];

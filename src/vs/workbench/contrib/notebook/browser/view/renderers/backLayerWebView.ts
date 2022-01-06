@@ -356,6 +356,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						font-weight: normal;
 					}
 
+					.find-match {
+						background-color: var(--vscode-editor-findMatchHighlightBackground);
+					}
+
+					.current-find-match {
+						background-color: var(--vscode-editor-findMatchBackground);
+					}
+
 					#_defaultColorPalatte {
 						color: var(--vscode-editor-findMatchHighlightBackground);
 						background-color: var(--vscode-editor-findMatchBackground);
