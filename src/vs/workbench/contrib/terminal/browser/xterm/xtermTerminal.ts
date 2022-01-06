@@ -12,7 +12,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ProcessCapability, ShellIntegrationInfo, ShellIntegrationInteraction, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ICommandTracker, ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
 import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -28,6 +28,7 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
+import { CognisantCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/cognisantCommandTrackerAddon';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -76,6 +77,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		cols: number,
 		rows: number,
 		location: TerminalLocation,
+		capabilities: ProcessCapability[],
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -118,6 +120,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		}));
 		this._core = (this.raw as any)._core as IXtermCore;
 
+		this.raw.parser.registerOscHandler(133, (data => this._handleShellIntegration(data)));
+		this.raw.parser.registerOscHandler(1337, (data => this._updateCwd(data)));
 		this.add(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
 				XtermTerminal._suggestedRendererType = undefined;
@@ -140,8 +144,56 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		// Load addons
 		this._updateUnicodeVersion();
 
-		this._commandTrackerAddon = new CommandTrackerAddon();
+		this._commandTrackerAddon = capabilities.find(c => c === ProcessCapability.CommandCognisant) ? new CognisantCommandTrackerAddon() : new CommandTrackerAddon();
 		this.raw.loadAddon(this._commandTrackerAddon);
+	}
+
+	private _updateCwd(data: string): boolean {
+		let value: string | undefined;
+		const [type, info] = data.split('=');
+		switch (type) {
+			case ShellIntegrationInfo.CurrentDir:
+				value = info;
+				break;
+			default:
+				return false;
+		}
+		if (!value) {
+			return false;
+		}
+		this._commandTrackerAddon.handleIntegratedShellChange({ type, value });
+		return true;
+	}
+
+	private _handleShellIntegration(data: string): boolean {
+		let type: ShellIntegrationInteraction | undefined;
+		const [command, exitCode] = data.split(';');
+		switch (command) {
+			case 'A':
+				type = ShellIntegrationInteraction.PromptStart;
+				break;
+			case 'B':
+				type = ShellIntegrationInteraction.CommandStart;
+				break;
+			case 'C':
+				type = ShellIntegrationInteraction.CommandExecuted;
+				break;
+			case 'D':
+				type = ShellIntegrationInteraction.CommandFinished;
+				if (this.raw.buffer.active.cursorX >= 2) {
+					this.raw?.registerMarker(0);
+					this.commandTracker.clearMarker();
+				}
+				break;
+			default:
+				return false;
+		}
+		const value = exitCode || type;
+		if (!value) {
+			return false;
+		}
+		this._commandTrackerAddon.handleIntegratedShellChange({ type, value });
+		return true;
 	}
 
 	attachToElement(container: HTMLElement) {

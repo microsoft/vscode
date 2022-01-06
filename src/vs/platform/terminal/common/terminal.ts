@@ -372,6 +372,28 @@ export interface IHeartbeatService {
 	readonly onBeat: Event<void>;
 }
 
+export interface TerminalCommand {
+	command: string;
+	timestamp: string;
+	cwd?: string;
+	exitCode?: number;
+}
+
+export enum ShellIntegrationInfo {
+	RemoteHost = 'RemoteHost',
+	CurrentDir = 'CurrentDir',
+}
+
+export enum ShellIntegrationInteraction {
+	PromptStart = 'PROMPT_START',
+	CommandStart = 'COMMAND_START',
+	CommandExecuted = 'COMMAND_EXECUTED',
+	CommandFinished = 'COMMAND_FINISHED'
+}
+
+
+export interface IShellChangeEvent { type: ShellIntegrationInfo | ShellIntegrationInteraction, value: string }
+
 export interface IShellLaunchConfig {
 	/**
 	 * The name of the terminal, if this is not set the name of the process will be used.

@@ -5,6 +5,7 @@
 
 import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
 import { ICommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalCommand } from 'vs/platform/terminal/common/terminal';
 
 /**
  * The minimum size of the prompt in which to assume the line is a command.
@@ -27,6 +28,10 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 	private _isDisposable: boolean = false;
 	private _terminal: Terminal | undefined;
 
+	getCommands(): TerminalCommand[] {
+		return [];
+	}
+
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
 		terminal.onKey(e => this._onKey(e.key));
@@ -35,15 +40,23 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 	dispose(): void {
 	}
 
+	clearMarker(): void {
+		// Clear the current marker so successive focus/selection actions are performed from the
+		// bottom of the buffer
+		this._currentMarker = Boundary.Bottom;
+		this._selectionStart = null;
+	}
+
+	handleIntegratedShellChange(event: { type: string, value: string }): void {
+
+	}
+
 	private _onKey(key: string): void {
 		if (key === '\x0d') {
 			this._onEnter();
 		}
 
-		// Clear the current marker so successive focus/selection actions are performed from the
-		// bottom of the buffer
-		this._currentMarker = Boundary.Bottom;
-		this._selectionStart = null;
+		this.clearMarker();
 	}
 
 	private _onEnter(): void {
