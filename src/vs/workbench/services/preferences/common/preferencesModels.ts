@@ -461,7 +461,6 @@ export class DefaultSettings extends Disposable {
 
 	private _allSettingsGroups: ISettingsGroup[] | undefined;
 	private _content: string | undefined;
-	private _contentWithoutMostCommonlyUsed: string | undefined;
 	private _settingsByName = new Map<string, ISetting>();
 
 	readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
@@ -482,14 +481,6 @@ export class DefaultSettings extends Disposable {
 		return this._content!;
 	}
 
-	getContentWithoutMostCommonlyUsed(forceUpdate = false): string {
-		if (!this._contentWithoutMostCommonlyUsed || forceUpdate) {
-			this.initialize();
-		}
-
-		return this._contentWithoutMostCommonlyUsed!;
-	}
-
 	getSettingsGroups(forceUpdate = false): ISettingsGroup[] {
 		if (!this._allSettingsGroups || forceUpdate) {
 			this.initialize();
@@ -500,8 +491,7 @@ export class DefaultSettings extends Disposable {
 
 	private initialize(): void {
 		this._allSettingsGroups = this.parse();
-		this._content = this.toContent(this._allSettingsGroups, 0);
-		this._contentWithoutMostCommonlyUsed = this.toContent(this._allSettingsGroups, 1);
+		this._content = this.toContent(this._allSettingsGroups);
 	}
 
 	private parse(): ISettingsGroup[] {
@@ -748,11 +738,11 @@ export class DefaultSettings extends Disposable {
 		return c1.order - c2.order;
 	}
 
-	private toContent(settingsGroups: ISettingsGroup[], startIndex: number): string {
+	private toContent(settingsGroups: ISettingsGroup[]): string {
 		const builder = new SettingsContentBuilder();
-		for (let i = startIndex; i < settingsGroups.length - 1; i++) {
-			builder.pushGroup(settingsGroups[i], i === startIndex, i === settingsGroups.length - 1);
-		}
+		settingsGroups.forEach((settingsGroup, i) => {
+			builder.pushGroup(settingsGroup, i === 0, i === settingsGroups.length - 1);
+		});
 		return builder.getContent();
 	}
 

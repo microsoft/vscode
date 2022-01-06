@@ -120,8 +120,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	resolveModel(uri: URI): ITextModel | null {
 		if (this.isDefaultSettingsResource(uri)) {
-			// We opened a split json editor in this case,
-			// and this half shows the default settings.
+
 			const target = this.getConfigurationTargetFromDefaultSettingsResource(uri);
 			const languageSelection = this.languageService.createById('jsonc');
 			const model = this._register(this.modelService.createModel('', languageSelection, uri));
@@ -135,7 +134,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 						return;
 					}
 					defaultSettings = this.getDefaultSettings(target);
-					this.modelService.updateModel(model, defaultSettings.getContentWithoutMostCommonlyUsed(true));
+					this.modelService.updateModel(model, defaultSettings.getContent(true));
 					defaultSettings._onDidChange.fire();
 				}
 			});
@@ -143,7 +142,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			// Check if Default settings is already created and updated in above promise
 			if (!defaultSettings) {
 				defaultSettings = this.getDefaultSettings(target);
-				this.modelService.updateModel(model, defaultSettings.getContentWithoutMostCommonlyUsed(true));
+				this.modelService.updateModel(model, defaultSettings.getContent(true));
 			}
 
 			return model;
