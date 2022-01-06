@@ -374,7 +374,7 @@ export interface IHeartbeatService {
 
 export interface TerminalCommand {
 	command: string;
-	timestamp: string;
+	timestamp: number;
 	cwd?: string;
 	exitCode?: number;
 }

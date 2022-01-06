@@ -68,8 +68,8 @@ import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnviro
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isFirefox, isSafari } from 'vs/base/browser/browser';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
-import { getTimeSinceCommand } from 'vs/workbench/contrib/terminal/browser/terminalTime';
 import { CognisantCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
+import { fromNow } from 'vs/base/common/date';
 
 const enum Constants {
 	/**
@@ -721,8 +721,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				items.push({
 					label,
 					description: exitCodeDescription + cwdDescription,
-					detail: getTimeSinceCommand(timestamp),
-					id: timestamp
+					detail: fromNow(timestamp),
+					id: timestamp.toString()
 				});
 			}
 		} else {

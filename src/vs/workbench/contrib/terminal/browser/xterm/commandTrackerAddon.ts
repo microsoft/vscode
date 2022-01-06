@@ -6,7 +6,6 @@
 import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
 import { ICommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ShellIntegrationInfo, ShellIntegrationInteraction, TerminalCommand } from 'vs/platform/terminal/common/terminal';
-import { getCurrentTimestamp } from 'vs/workbench/contrib/terminal/browser/terminalTime';
 import { Emitter } from 'vs/base/common/event';
 
 /**
@@ -385,7 +384,7 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 					this._commands.push(
 						{
 							command: this._currentCommand,
-							timestamp: getCurrentTimestamp(),
+							timestamp: new Date().getTime(),
 							cwd: this._cwd,
 							exitCode: this._exitCode
 						});
