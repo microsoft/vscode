@@ -10,7 +10,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Constants } from 'vs/base/common/uint';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -211,7 +211,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	private _isChangingDecorations: boolean;
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget | null;
-	private _renderDisposable: IDisposable | null;
+	private _renderDisposable: DisposableStore | null;
 	private _preferAbove: boolean;
 
 	constructor(
@@ -365,7 +365,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		return true;
 	}
 
-	private _showAt(position: Position, range: Range | null, focus: boolean): void {
+	private _showAt(node: DocumentFragment, position: Position, range: Range | null, focus: boolean): void {
 		// Position has changed
 		this._showAtPosition = position;
 		this._showAtRange = range;
@@ -381,6 +381,13 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		if (focus) {
 			this._hover.containerDomNode.focus();
 		}
+
+		this._hover.contentsDomNode.textContent = '';
+		this._hover.contentsDomNode.appendChild(node);
+		this._updateFont();
+
+		this._editor.layoutContentWidget(this);
+		this._hover.onContentsChanged();
 	}
 
 	public getPosition(): IContentWidgetPosition | null {
@@ -408,15 +415,6 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	private _updateFont(): void {
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
-	}
-
-	private _updateContents(node: Node): void {
-		this._hover.contentsDomNode.textContent = '';
-		this._hover.contentsDomNode.appendChild(node);
-		this._updateFont();
-
-		this._editor.layoutContentWidget(this);
-		this._hover.onContentsChanged();
 	}
 
 	private layout(): void {
@@ -546,49 +544,41 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		let renderColumn = Constants.MAX_SAFE_SMALL_INTEGER;
 		let highlightRange: Range = messages[0].range;
 		let forceShowAtRange: Range | null = null;
-		let fragment = document.createDocumentFragment();
-
-		const disposables = new DisposableStore();
-		const hoverParts = new Map<IEditorHoverParticipant, IHoverPart[]>();
+		const groupedHoverParts = new Map<IEditorHoverParticipant, IHoverPart[]>();
 		for (const msg of messages) {
 			renderColumn = Math.min(renderColumn, msg.range.startColumn);
 			highlightRange = Range.plusRange(highlightRange, msg.range);
-
 			if (msg.forceShowAtRange) {
 				forceShowAtRange = msg.range;
 			}
 
-			if (!hoverParts.has(msg.owner)) {
-				hoverParts.set(msg.owner, []);
+			if (!groupedHoverParts.has(msg.owner)) {
+				groupedHoverParts.set(msg.owner, []);
 			}
-			const dest = hoverParts.get(msg.owner)!;
-			dest.push(msg);
+			groupedHoverParts.get(msg.owner)!.push(msg);
 		}
 
-		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
-
+		this._renderDisposable = new DisposableStore();
+		const statusBar = this._renderDisposable.add(new EditorHoverStatusBar(this._keybindingService));
+		const fragment = document.createDocumentFragment();
 		for (const participant of this._participants) {
-			if (hoverParts.has(participant)) {
-				const participantHoverParts = hoverParts.get(participant)!;
-				disposables.add(participant.renderHoverParts(participantHoverParts, fragment, statusBar));
+			if (groupedHoverParts.has(participant)) {
+				const participantHoverParts = groupedHoverParts.get(participant)!;
+				this._renderDisposable.add(participant.renderHoverParts(participantHoverParts, fragment, statusBar));
 			}
 		}
-
 		if (statusBar.hasContent) {
 			fragment.appendChild(statusBar.hoverElement);
 		}
-
-		this._renderDisposable = disposables;
 
 		// show
 
 		if (fragment.hasChildNodes()) {
 			if (forceShowAtRange) {
-				this._showAt(forceShowAtRange.getStartPosition(), forceShowAtRange, this._shouldFocus);
+				this._showAt(fragment, forceShowAtRange.getStartPosition(), forceShowAtRange, this._shouldFocus);
 			} else {
-				this._showAt(new Position(anchor.range.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
+				this._showAt(fragment, new Position(anchor.range.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
 			}
-			this._updateContents(fragment);
 		}
 		if (this._colorPicker) {
 			this._colorPicker.layout();
