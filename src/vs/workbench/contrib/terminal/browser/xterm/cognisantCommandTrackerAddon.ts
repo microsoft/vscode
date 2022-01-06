@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { ProcessCapability, ShellIntegrationInfo, ShellIntegrationInteraction, TerminalCommand } from 'vs/platform/terminal/common/terminal';
+import { ShellIntegrationInfo, ShellIntegrationInteraction, TerminalCommand } from 'vs/platform/terminal/common/terminal';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { Terminal } from 'xterm';
 
 export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
-	private _capabilities: ProcessCapability[] | undefined = undefined;
 	private _dataIsCommand = false;
 	private _commands: TerminalCommand[] = [];
 	private _exitCode: number | undefined;
@@ -21,20 +20,13 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 
 	override activate(terminal: Terminal): void {
 		terminal.onData(data => {
-			if (this._shellIntegrationEnabled() && this._dataIsCommand) {
+			if (this._dataIsCommand) {
 				this._currentCommand += data;
 			}
 		});
 	}
 
-	private _shellIntegrationEnabled(): boolean {
-		return this._capabilities?.includes(ProcessCapability.CommandCognisant) || false;
-	}
-
 	override handleIntegratedShellChange(event: { type: string, value: string }): void {
-		if (!this._shellIntegrationEnabled()) {
-			return;
-		}
 		switch (event.type) {
 			case ShellIntegrationInfo.CurrentDir:
 				this._cwd = event.value;

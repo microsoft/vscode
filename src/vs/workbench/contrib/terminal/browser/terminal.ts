@@ -850,6 +850,11 @@ export interface IXtermTerminal {
 	 * Enables the webgl renderer
 	 */
 	enableWebglRenderer(): Promise<void>
+
+	/*
+	 * When process capabilites are updated, update the command tracker
+	 */
+	upgradeCommandTracker(): void;
 }
 
 export interface IRequestAddInstanceToGroupEvent {

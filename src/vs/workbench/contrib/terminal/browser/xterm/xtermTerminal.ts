@@ -143,9 +143,16 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 		// Load addons
 		this._updateUnicodeVersion();
-
-		this._commandTrackerAddon = capabilities.find(c => c === ProcessCapability.CommandCognisant) ? new CognisantCommandTrackerAddon() : new CommandTrackerAddon();
+		this._commandTrackerAddon = new CommandTrackerAddon();
 		this.raw.loadAddon(this._commandTrackerAddon);
+	}
+
+	upgradeCommandTracker(): void {
+		this.raw.parser.registerOscHandler(133, (data => this._handleShellIntegration(data)));
+		this.raw.parser.registerOscHandler(1337, (data => this._updateCwd(data)));
+		this._commandTrackerAddon.dispose();
+		this._commandTrackerAddon = new CognisantCommandTrackerAddon();
+		this._commandTrackerAddon.activate(this.raw);
 	}
 
 	private _updateCwd(data: string): boolean {
