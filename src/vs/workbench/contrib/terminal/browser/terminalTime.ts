@@ -15,17 +15,18 @@ export function getTimeSinceCommand(timeOfCommand: string): string {
 	while (now[i] === command[i] && i < command.length) {
 		i++;
 	}
+	const amount = Number.parseInt(now[i]) - Number.parseInt(command[i]);
 	switch (i) {
 		case 0:
-			return `${i} months ago`;
+			return `${amount} months ago`;
 		case 1:
-			return `${i} days ago`;
+			return `${amount} days ago`;
 		case 2:
-			return `${i} hours ago`;
+			return `${amount} hours ago`;
 		case 3:
-			return `${i} minutes ago`;
+			return `${amount} minutes ago`;
 		case 4:
-			return `${i} seconds ago`;
+			return `${amount} seconds ago`;
 	}
 	return 'a long time ago';
 }
