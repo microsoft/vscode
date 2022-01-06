@@ -151,6 +151,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			this.raw.open(container);
 		}
 		this._container = container;
+		if (this._shouldLoadWebgl()) {
+			this._enableWebglRenderer();
+		}
 	}
 
 	updateConfig(): void {
@@ -171,12 +174,16 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.options.rightClickSelectsWord = config.rightClickBehavior === 'selectWord';
 		this.raw.options.wordSeparator = config.wordSeparators;
 		this.raw.options.customGlyphs = config.customGlyphs;
-		if ((!isSafari && config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
-			this.enableWebglRenderer();
+		if (this._shouldLoadWebgl()) {
+			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
 			this.raw.options.rendererType = this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType);
 		}
+	}
+
+	private _shouldLoadWebgl(): boolean {
+		return !isSafari && (this._configHelper.config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || this._configHelper.config.gpuAcceleration === 'on';
 	}
 
 	forceRedraw() {
@@ -312,7 +319,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		return rendererType;
 	}
 
-	async enableWebglRenderer(): Promise<void> {
+	private async _enableWebglRenderer(): Promise<void> {
 		if (!this.raw.element || this._webglAddon) {
 			return;
 		}

@@ -66,7 +66,7 @@ import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { isFirefox, isSafari } from 'vs/base/browser/browser';
+import { isFirefox } from 'vs/base/browser/browser';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 
 const enum Constants {
@@ -626,9 +626,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm.raw, this._processManager!);
 			this._areLinksReady = true;
 			this._onLinksReady.fire(this);
-			if ((!isSafari && this._configHelper.config.gpuAcceleration === 'auto') || this._configHelper.config.gpuAcceleration === 'on') {
-				await xterm.enableWebglRenderer();
-			}
 		});
 
 		this._loadTypeAheadAddon(xterm);
