@@ -17,7 +17,7 @@ import { IModelDecoration } from 'vs/editor/common/model';
 import { HoverProviderRegistry } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
-import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
+import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -115,8 +115,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			});
 	}
 
-	public renderHoverParts(hoverParts: MarkdownHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
-		return renderMarkdownHovers(hoverParts, fragment, this._editor, this._hover, this._languageService, this._openerService);
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IDisposable {
+		return renderMarkdownHovers(hoverParts, context.fragment, this._editor, this._hover, this._languageService, this._openerService);
 	}
 }
 

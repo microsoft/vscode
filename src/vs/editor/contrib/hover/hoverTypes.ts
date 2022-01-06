@@ -33,7 +33,6 @@ export interface IHoverPart {
 export interface IEditorHover {
 	hide(): void;
 	onContentsChanged(): void;
-	setColorPicker(widget: ColorPickerWidget): void;
 }
 
 export const enum HoverAnchorType {
@@ -83,10 +82,16 @@ export interface IEditorHoverAction {
 	setEnabled(enabled: boolean): void;
 }
 
+export interface IEditorHoverRenderContext {
+	readonly fragment: DocumentFragment;
+	readonly statusBar: IEditorHoverStatusBar;
+	setColorPicker(widget: ColorPickerWidget): void;
+}
+
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	suggestHoverAnchor?(mouseEvent: IEditorMouseEvent): HoverAnchor | null;
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): T[];
 	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
-	renderHoverParts(hoverParts: T[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable;
+	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IDisposable;
 }

@@ -16,7 +16,7 @@ import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
-import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
+import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class ColorHover implements IHoverPart {
@@ -96,7 +96,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return new ColorHover(this, Range.lift(colorInfo.range), model, provider);
 	}
 
-	public renderHoverParts(hoverParts: ColorHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IDisposable {
 		if (hoverParts.length === 0 || !this._editor.hasModel()) {
 			return Disposable.None;
 		}
@@ -105,7 +105,8 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		const colorHover = hoverParts[0];
 		const editorModel = this._editor.getModel();
 		const model = colorHover.model;
-		const widget = disposables.add(new ColorPickerWidget(fragment, model, this._editor.getOption(EditorOption.pixelRatio), this._themeService));
+		const widget = disposables.add(new ColorPickerWidget(context.fragment, model, this._editor.getOption(EditorOption.pixelRatio), this._themeService));
+		context.setColorPicker(widget);
 
 		let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
 
@@ -158,8 +159,6 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 			updateColorPresentations(color).then(updateEditorModel);
 		}));
 		disposables.add(model.onDidChangeColor(updateColorPresentations));
-
-		this._hover.setColorPicker(widget);
 
 		return disposables;
 	}

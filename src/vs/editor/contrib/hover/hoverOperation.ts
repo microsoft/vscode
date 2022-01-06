@@ -7,29 +7,29 @@ import { AsyncIterableObject, CancelableAsyncIterableObject, createCancelableAsy
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
-export interface IHoverComputer<Result> {
+export interface IHoverComputer<T> {
 
 	/**
 	 * This is called after half the hover time
 	 */
-	computeAsync?: (token: CancellationToken) => AsyncIterableObject<Result>;
+	computeAsync?: (token: CancellationToken) => AsyncIterableObject<T>;
 
 	/**
 	 * This is called after all the hover time
 	 */
-	computeSync?: () => Result[];
+	computeSync?: () => T[];
 
 	/**
 	 * This is called whenever one of the compute* methods returns a truey value
 	 */
-	onResult: (result: Result[], isFromSynchronousComputation: boolean) => void;
+	onResult: (result: T[], isFromSynchronousComputation: boolean) => void;
 
 	/**
 	 * This is what will be sent as progress/complete to the computation promise
 	 */
-	getResult: () => Result[];
+	getResult: () => T[];
 
-	getResultWithLoadingMessage: () => Result[];
+	getResultWithLoadingMessage: () => T[];
 
 }
 

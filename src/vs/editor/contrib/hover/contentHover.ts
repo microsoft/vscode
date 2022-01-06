@@ -21,7 +21,7 @@ import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
 import { ColorHoverParticipant } from 'vs/editor/contrib/hover/colorHoverParticipant';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
-import { HoverAnchor, HoverAnchorType, HoverRangeAnchor, IEditorHover, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverRangeAnchor, IEditorHover, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverRenderContext, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
 import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsHoverParticipant';
@@ -49,7 +49,6 @@ export class ContentHoverController extends Disposable implements IEditorHover {
 	private _highlightDecorations: string[];
 	private _isChangingDecorations: boolean;
 	private _shouldFocus: boolean;
-	private _colorPicker: ColorPickerWidget | null;
 	private _renderDisposable: DisposableStore | null;
 
 	constructor(
@@ -76,7 +75,6 @@ export class ContentHoverController extends Disposable implements IEditorHover {
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
 		this._shouldFocus = false;
-		this._colorPicker = null;
 		this._renderDisposable = null;
 
 		this._hoverOperation = new HoverOperation(
@@ -172,7 +170,7 @@ export class ContentHoverController extends Disposable implements IEditorHover {
 			this._hoverOperation.cancel();
 			this._computer.clearResult();
 
-			if (!this._colorPicker) { // TODO@Michel ensure that displayed text for other decorations is computed even if color picker is in place
+			if (!this._widget.colorPicker) { // TODO@Michel ensure that displayed text for other decorations is computed even if color picker is in place
 				this._hoverOperation.start(HoverStartMode.Delayed);
 			}
 		}
@@ -228,15 +226,10 @@ export class ContentHoverController extends Disposable implements IEditorHover {
 			this._renderDisposable.dispose();
 			this._renderDisposable = null;
 		}
-		this._colorPicker = null;
 	}
 
 	public isColorPickerVisible(): boolean {
-		return !!this._colorPicker;
-	}
-
-	public setColorPicker(widget: ColorPickerWidget): void {
-		this._colorPicker = widget;
+		return !!this._widget.colorPicker;
 	}
 
 	public onContentsChanged(): void {
@@ -259,7 +252,6 @@ export class ContentHoverController extends Disposable implements IEditorHover {
 			this._renderDisposable.dispose();
 			this._renderDisposable = null;
 		}
-		this._colorPicker = null as ColorPickerWidget | null; // TODO: TypeScript thinks this is always null
 
 		// update column from which to show
 		let renderColumn = Constants.MAX_SAFE_SMALL_INTEGER;
@@ -282,10 +274,20 @@ export class ContentHoverController extends Disposable implements IEditorHover {
 		this._renderDisposable = new DisposableStore();
 		const statusBar = this._renderDisposable.add(new EditorHoverStatusBar(this._keybindingService));
 		const fragment = document.createDocumentFragment();
+
+		let colorPicker: ColorPickerWidget | null = null;
+		const context: IEditorHoverRenderContext = {
+			fragment,
+			statusBar,
+			setColorPicker: (widget: ColorPickerWidget): void => {
+				colorPicker = widget;
+			}
+		};
+
 		for (const participant of this._participants) {
 			if (groupedHoverParts.has(participant)) {
 				const participantHoverParts = groupedHoverParts.get(participant)!;
-				this._renderDisposable.add(participant.renderHoverParts(participantHoverParts, fragment, statusBar));
+				this._renderDisposable.add(participant.renderHoverParts(context, participantHoverParts));
 			}
 		}
 		if (statusBar.hasContent) {
@@ -296,13 +298,10 @@ export class ContentHoverController extends Disposable implements IEditorHover {
 
 		if (fragment.hasChildNodes()) {
 			if (forceShowAtRange) {
-				this._widget.showAt(fragment, forceShowAtRange.getStartPosition(), forceShowAtRange, this._shouldFocus);
+				this._widget.showAt(fragment, colorPicker, forceShowAtRange.getStartPosition(), forceShowAtRange, this._shouldFocus);
 			} else {
-				this._widget.showAt(fragment, new Position(anchor.range.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
+				this._widget.showAt(fragment, colorPicker, new Position(anchor.range.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
 			}
-		}
-		if (this._colorPicker) {
-			this._colorPicker.layout();
 		}
 
 		this._isChangingDecorations = true;
@@ -321,6 +320,7 @@ export class ContentHoverController extends Disposable implements IEditorHover {
 
 class ContentHoverVisibleData {
 	constructor(
+		public readonly colorPicker: ColorPickerWidget | null,
 		public readonly showAtPosition: Position | null,
 		public readonly showAtRange: Range | null,
 		public readonly preferAbove: boolean,
@@ -343,6 +343,13 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	 */
 	public get position(): Position | null {
 		return this._visibleData?.showAtPosition ?? null;
+	}
+
+	/**
+	 * Returns `null` if the color picker is not visible.
+	 */
+	public get colorPicker(): ColorPickerWidget | null {
+		return this._visibleData?.colorPicker ?? null;
 	}
 
 	constructor(
@@ -413,8 +420,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}
 
-	public showAt(node: DocumentFragment, position: Position, range: Range | null, focus: boolean): void {
-		this._visibleData = new ContentHoverVisibleData(position, range, this._editor.getOption(EditorOption.hover).above, focus);
+	public showAt(node: DocumentFragment, colorPicker: ColorPickerWidget | null, position: Position, range: Range | null, focus: boolean): void {
+		this._visibleData = new ContentHoverVisibleData(colorPicker, position, range, this._editor.getOption(EditorOption.hover).above, focus);
 		this._hoverVisibleKey.set(!!this._visibleData);
 		this._hover.containerDomNode.classList.toggle('hidden', !this._visibleData);
 
@@ -430,6 +437,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._editor.render();
 		if (focus) {
 			this._hover.containerDomNode.focus();
+		}
+		if (colorPicker) {
+			colorPicker.layout();
 		}
 	}
 
