@@ -6757,7 +6757,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface InlayHint {
-		text: string;
+		label: string;
 		tooltip?: string | IMarkdownString;
 		position: IPosition;
 		kind: InlayHintKind;
@@ -6765,9 +6765,15 @@ declare namespace monaco.languages {
 		whitespaceAfter?: boolean;
 	}
 
+	export interface InlayHintList {
+		hints: InlayHint[];
+		dispose(): void;
+	}
+
 	export interface InlayHintsProvider {
 		onDidChangeInlayHints?: IEvent<void>;
-		provideInlayHints(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
+		provideInlayHints(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHintList>;
+		resolveInlayHint?(hint: InlayHint, token: CancellationToken): ProviderResult<InlayHint>;
 	}
 
 	export interface SemanticTokensLegend {

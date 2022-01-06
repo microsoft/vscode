@@ -8,17 +8,17 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
-import { InlayHint } from 'vs/editor/common/languages';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { HoverAnchor, HoverForeignElementAnchor } from 'vs/editor/contrib/hover/hoverTypes';
 import { MarkdownHover, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
-import { InlayHintData, InlayHintsController } from 'vs/editor/contrib/inlayHints/inlayHintsController';
+import { InlayHintItem } from 'vs/editor/contrib/inlayHints/inlayHints';
+import { InlayHintLabelPart, InlayHintsController } from 'vs/editor/contrib/inlayHints/inlayHintsController';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 
-	constructor(readonly hint: InlayHint, owner: InlayHintsHover) {
-		super(10, owner, Range.fromPositions(hint.position));
+	constructor(readonly item: InlayHintItem, owner: InlayHintsHover) {
+		super(10, owner, Range.fromPositions(item.hint.position));
 	}
 }
 
@@ -33,10 +33,10 @@ export class InlayHintsHover extends MarkdownHoverParticipant {
 			return null;
 		}
 		const options = mouseEvent.target.detail?.injectedText?.options;
-		if (!(options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintData)) {
+		if (!(options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLabelPart)) {
 			return null;
 		}
-		return new InlayHintsHoverAnchor(options.attachedData.hint, this);
+		return new InlayHintsHoverAnchor(options.attachedData.item, this);
 	}
 
 	override computeSync(): MarkdownHover[] {
@@ -47,15 +47,19 @@ export class InlayHintsHover extends MarkdownHoverParticipant {
 		if (!(anchor instanceof InlayHintsHoverAnchor)) {
 			return AsyncIterableObject.EMPTY;
 		}
-		if (!anchor.hint.tooltip) {
-			return AsyncIterableObject.EMPTY;
-		}
-		let md: IMarkdownString;
-		if (typeof anchor.hint.tooltip === 'string') {
-			md = new MarkdownString().appendText(anchor.hint.tooltip);
-		} else {
-			md = anchor.hint.tooltip;
-		}
-		return new AsyncIterableObject(emitter => emitter.emitOne(new MarkdownHover(this, anchor.range, [md], 0)));
+
+		const { item } = anchor;
+		return AsyncIterableObject.fromPromise<MarkdownHover>(item.resolve(token).then(() => {
+			if (!item.hint.tooltip) {
+				return [];
+			}
+			let contents: IMarkdownString;
+			if (typeof item.hint.tooltip === 'string') {
+				contents = new MarkdownString().appendText(item.hint.tooltip);
+			} else {
+				contents = item.hint.tooltip;
+			}
+			return [new MarkdownHover(this, anchor.range, [contents], 0)];
+		}));
 	}
 }

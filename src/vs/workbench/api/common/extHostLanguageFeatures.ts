@@ -1171,6 +1171,9 @@ class SignatureHelpAdapter {
 }
 
 class InlayHintsAdapter {
+
+	private _cache = new Cache<vscode.InlayHint>('InlayHints');
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.InlayHintsProvider,
@@ -1178,8 +1181,51 @@ class InlayHintsAdapter {
 
 	async provideInlayHints(resource: URI, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlayHintsDto | undefined> {
 		const doc = this._documents.getDocument(resource);
-		const value = await this._provider.provideInlayHints(doc, typeConvert.Range.to(range), token);
-		return value ? { hints: value.map(typeConvert.InlayHint.from) } : undefined;
+
+		const hints = await this._provider.provideInlayHints(doc, typeConvert.Range.to(range), token);
+		if (!Array.isArray(hints) || hints.length === 0) {
+			// bad result
+			return undefined;
+		}
+		if (token.isCancellationRequested) {
+			// cancelled -> return without further ado, esp no caching
+			// of results as they will leak
+			return undefined;
+		}
+		if (typeof this._provider.resolveInlayHint !== 'function') {
+			// no resolve -> no caching
+			return { hints: hints.map(typeConvert.InlayHint.from) };
+
+		} else {
+			// cache links for future resolving
+			const pid = this._cache.add(hints);
+			const result: extHostProtocol.IInlayHintsDto = { hints: [], cacheId: pid };
+			for (let i = 0; i < hints.length; i++) {
+				const dto: extHostProtocol.IInlayHintDto = typeConvert.InlayHint.from(hints[i]);
+				dto.cacheId = [pid, i];
+				result.hints.push(dto);
+			}
+			return result;
+		}
+	}
+
+	async resolveInlayHint(id: extHostProtocol.ChainedCacheId, token: CancellationToken) {
+		if (typeof this._provider.resolveInlayHint !== 'function') {
+			return undefined;
+		}
+		const item = this._cache.get(...id);
+		if (!item) {
+			return undefined;
+		}
+		const hint = await this._provider.resolveInlayHint!(item, token);
+		if (!hint) {
+			return undefined;
+		}
+		return typeConvert.InlayHint.from(hint);
+	}
+
+	releaseHints(id: number): any {
+		this._cache.delete(id);
 	}
 }
 
@@ -1986,7 +2032,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		const eventHandle = typeof provider.onDidChangeInlayHints === 'function' ? this._nextHandle() : undefined;
 		const handle = this._addNewAdapter(new InlayHintsAdapter(this._documents, provider), extension);
 
-		this._proxy.$registerInlayHintsProvider(handle, this._transformDocumentSelector(selector), eventHandle);
+		this._proxy.$registerInlayHintsProvider(handle, this._transformDocumentSelector(selector), typeof provider.resolveInlayHint === 'function', eventHandle);
 		let result = this._createDisposable(handle);
 
 		if (eventHandle !== undefined) {
@@ -1998,6 +2044,14 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$provideInlayHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlayHintsDto | undefined> {
 		return this._withAdapter(handle, InlayHintsAdapter, adapter => adapter.provideInlayHints(URI.revive(resource), range, token), undefined);
+	}
+
+	$resolveInlayHint(handle: number, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.IInlayHintDto | undefined> {
+		return this._withAdapter(handle, InlayHintsAdapter, adapter => adapter.resolveInlayHint(id, token), undefined);
+	}
+
+	$releaseInlayHints(handle: number, id: number): void {
+		this._withAdapter(handle, InlayHintsAdapter, adapter => adapter.releaseHints(id), undefined);
 	}
 
 	// --- links

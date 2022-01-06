@@ -1722,7 +1722,7 @@ export enum InlayHintKind {
 }
 
 export interface InlayHint {
-	text: string;
+	label: string;
 	tooltip?: string | IMarkdownString
 	position: IPosition;
 	kind: InlayHintKind;
@@ -1730,9 +1730,15 @@ export interface InlayHint {
 	whitespaceAfter?: boolean;
 }
 
+export interface InlayHintList {
+	hints: InlayHint[];
+	dispose(): void;
+}
+
 export interface InlayHintsProvider {
 	onDidChangeInlayHints?: Event<void>;
-	provideInlayHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
+	provideInlayHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHintList>;
+	resolveInlayHint?(hint: InlayHint, token: CancellationToken): ProviderResult<InlayHint>;
 }
 
 export interface SemanticTokensLegend {
