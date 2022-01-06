@@ -278,14 +278,6 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			this._editor.getOption(EditorOption.hover).delay
 		);
 
-		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
-			if (this._colorPicker) {
-				this.getDomNode().classList.add('colorpicker-hover');
-			}
-		}));
-		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.BLUR, () => {
-			this.getDomNode().classList.remove('colorpicker-hover');
-		}));
 		this._register(editor.onDidChangeConfiguration(() => {
 			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
 			this._preferAbove = this._editor.getOption(EditorOption.hover).above;

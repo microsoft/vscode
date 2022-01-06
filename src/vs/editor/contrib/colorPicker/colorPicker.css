@@ -10,10 +10,6 @@
 	-ms-user-select: none;
 }
 
-.monaco-editor .colorpicker-hover:focus {
-	outline: none;
-}
-
 /* Decoration */
 
 .colorpicker-color-decoration {
