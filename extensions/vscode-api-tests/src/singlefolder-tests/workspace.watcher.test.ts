@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { TestFS } from '../memfs';
 import { assertNoRpc } from '../utils';
 
-suite.only('vscode API - workspace-watcher', () => {
+suite('vscode API - workspace-watcher', () => {
 
 	interface IWatchRequest {
 		uri: vscode.Uri;
