@@ -204,9 +204,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const runKernelPreload = async (url: string, originalUri: string): Promise<void> => {
 		const text = await loadScriptSource(url, originalUri);
 		const isModule = /\bexport\b.*\bactivate\b/.test(text);
+		const usesMeta = /import\.meta/.test(text);
 		try {
 			if (isModule) {
-				const module: KernelPreloadModule = await __import(`data:text/javascript,${text}`);
+				const module: KernelPreloadModule = usesMeta
+					? await __import(url)
+					: await __import(`data:text/javascript,${text}`);
 				return module.activate(createKernelContext());
 			} else {
 				return invokeSourceWithGlobals(text, { ...kernelPreloadGlobals, scriptUrl: url });
