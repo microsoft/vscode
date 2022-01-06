@@ -569,11 +569,6 @@ export class PersistentTerminalProcess extends Disposable {
 	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
 		if (type === ProcessPropertyType.FixedDimensions) {
 			return this._setFixedDimensions(value as IProcessPropertyMap[ProcessPropertyType.FixedDimensions]);
-		} else if (type === ProcessPropertyType.Capability) {
-			//TODO:?
-			//	// if (!this.capabilities.find(c => c === value) && value) {
-			// 	this.capabilities.push(value);
-			// }
 		}
 	}
 

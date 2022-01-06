@@ -221,13 +221,13 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 		}
 
 		if (this._currentMarker === Boundary.Bottom) {
-			this._currentMarker = this._addMarkerOrThrow(xterm, this._getOffset(xterm) - 1);
+			this._currentMarker = this._registerMarkerOrThrow(xterm, this._getOffset(xterm) - 1);
 		} else {
 			const offset = this._getOffset(xterm);
 			if (this._isDisposable) {
 				this._currentMarker.dispose();
 			}
-			this._currentMarker = this._addMarkerOrThrow(xterm, offset - 1);
+			this._currentMarker = this._registerMarkerOrThrow(xterm, offset - 1);
 		}
 		this._isDisposable = true;
 		this._scrollToMarker(this._currentMarker, scrollPosition);
@@ -244,20 +244,20 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 		}
 
 		if (this._currentMarker === Boundary.Top) {
-			this._currentMarker = this._addMarkerOrThrow(xterm, this._getOffset(xterm) + 1);
+			this._currentMarker = this._registerMarkerOrThrow(xterm, this._getOffset(xterm) + 1);
 		} else {
 			const offset = this._getOffset(xterm);
 			if (this._isDisposable) {
 				this._currentMarker.dispose();
 			}
-			this._currentMarker = this._addMarkerOrThrow(xterm, offset + 1);
+			this._currentMarker = this._registerMarkerOrThrow(xterm, offset + 1);
 		}
 		this._isDisposable = true;
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
-	private _addMarkerOrThrow(xterm: Terminal, cursorYOffset: number): IMarker {
-		const marker = xterm.addMarker(cursorYOffset);
+	private _registerMarkerOrThrow(xterm: Terminal, cursorYOffset: number): IMarker {
+		const marker = xterm.registerMarker(cursorYOffset);
 		if (!marker) {
 			throw new Error(`Could not create marker for ${cursorYOffset}`);
 		}
@@ -345,21 +345,16 @@ export class NaiveCommandTrackerAddon extends CommandTrackerAddon {
 
 export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 	_terminal: Terminal | undefined;
-	private _dataIsCommand = false;
 	private _commands: TerminalCommand[] = [];
 	private _exitCode: number | undefined;
 	private _cwd: string | undefined;
-	private _currentCommand = '';
-
+	private _commandMarker: IMarker | undefined;
+	private _commandCharStart: number | undefined;
 	private readonly _onCwdChanged = new Emitter<string>();
 	readonly onCwdChanged = this._onCwdChanged.event;
 
 	activate(terminal: Terminal): void {
-		terminal.onData(data => {
-			if (this._dataIsCommand) {
-				this._currentCommand += data;
-			}
-		});
+		this._terminal = terminal;
 	}
 
 	handleIntegratedShellChange(event: { type: string, value: string }): void {
@@ -373,22 +368,27 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 			case ShellIntegrationInteraction.PromptStart:
 				break;
 			case ShellIntegrationInteraction.CommandStart:
-				this._dataIsCommand = true;
+				this._commandMarker = this._terminal?.registerMarker(0);
+				this._commandCharStart = this._terminal?.buffer.active.cursorX;
 				break;
 			case ShellIntegrationInteraction.CommandExecuted:
 				break;
 			case ShellIntegrationInteraction.CommandFinished:
 				this._exitCode = Number.parseInt(event.value);
-				if (!this._currentCommand.startsWith('\\') && this._currentCommand !== '') {
+				if (!this._commandMarker?.line || !this._terminal?.buffer.active) {
+					break;
+				}
+				// eslint-disable-next-line no-case-declarations
+				const command = this._terminal.buffer.active.getLine(this._commandMarker.line)?.translateToString().substring(this._commandCharStart || 0);
+				if (command && !command.startsWith('\\') && command !== '') {
 					this._commands.push(
 						{
-							command: this._currentCommand,
+							command,
 							timestamp: new Date().getTime(),
 							cwd: this._cwd,
 							exitCode: this._exitCode
 						});
 				}
-				this._currentCommand = '';
 				break;
 			default:
 				return;
