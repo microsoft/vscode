@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -20,7 +19,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { InlayHint, InlayHintKind, InlayHintsProviderRegistry } from 'vs/editor/common/languages';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/languages/languageFeatureRegistry';
-import { IModelDeltaDecoration, InjectedTextOptions, ITextModel, IWordAtPosition, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, InjectedTextOptions, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
@@ -113,7 +112,6 @@ export class InlayHintsController implements IEditorContribution {
 			this._updateHintsDecorators([model.getFullModelRange()], cached);
 		}
 
-
 		const scheduler = new RunOnceScheduler(async () => {
 			const t1 = Date.now();
 
@@ -130,7 +128,7 @@ export class InlayHintsController implements IEditorContribution {
 				return;
 			}
 			this._updateHintsDecorators(ranges, inlayHints.items);
-			this._cache.set(model, distinct(Array.from(this._decorationsMetadata.values(), obj => obj.item)));
+			this._cacheHintsForFastRestore(model);
 
 		}, this._getInlayHintsDelays.get(model));
 
@@ -141,14 +139,19 @@ export class InlayHintsController implements IEditorContribution {
 		this._sessionDisposables.add(this._editor.onDidScrollChange(() => scheduler.schedule()));
 		scheduler.schedule();
 
-
 		// link gesture
-		let undoHover = () => { };
-		const gesture = this._sessionDisposables.add(new ClickLinkGesture(this._editor));
-		this._sessionDisposables.add(gesture.onMouseMoveOrRelevantKeyDown(e => {
+		this._sessionDisposables.add(this._installLinkGesture());
+	}
+
+	private _installLinkGesture(): IDisposable {
+
+		let removeHighlight = () => { };
+		const gesture = new ClickLinkGesture(this._editor);
+
+		gesture.onMouseMoveOrRelevantKeyDown(e => {
 			const [mouseEvent] = e;
 			if (mouseEvent.target.type !== MouseTargetType.CONTENT_TEXT || typeof mouseEvent.target.detail !== 'object' || !mouseEvent.hasTriggerModifier) {
-				undoHover();
+				removeHighlight();
 				return;
 			}
 			const model = this._editor.getModel()!;
@@ -165,14 +168,14 @@ export class InlayHintsController implements IEditorContribution {
 					}
 				}
 				this._updateHintsDecorators([range], Array.from(lineHints));
-				undoHover = () => {
+				removeHighlight = () => {
 					this._activeInlayHintPart = undefined;
 					this._updateHintsDecorators([range], Array.from(lineHints));
 				};
 			}
-		}));
-		this._sessionDisposables.add(gesture.onCancel(undoHover));
-		this._sessionDisposables.add(gesture.onExecute(e => {
+		});
+		gesture.onCancel(removeHighlight);
+		gesture.onExecute(e => {
 			if (e.target.type !== MouseTargetType.CONTENT_TEXT || typeof e.target.detail !== 'object' || !e.hasTriggerModifier) {
 				return;
 			}
@@ -180,7 +183,26 @@ export class InlayHintsController implements IEditorContribution {
 			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLabelPart && options.attachedData.href) {
 				this._openerService.open(options.attachedData.href, { allowCommands: true, openToSide: e.hasSideBySideModifier });
 			}
-		}));
+		});
+		return gesture;
+	}
+
+	private _cacheHintsForFastRestore(model: ITextModel): void {
+		const items = new Set<InlayHintItem>();
+		for (const [id, obj] of this._decorationsMetadata) {
+			if (items.has(obj.item)) {
+				// an inlay item can be rendered as multiple decorations
+				// but they will all uses the same range
+				continue;
+			}
+			items.add(obj.item);
+			const range = model.getDecorationRange(id);
+			if (range) {
+				// update range with whatever the editor has tweaked it to
+				obj.item.anchor.range = range;
+			}
+		}
+		this._cache.set(model, Array.from(items));
 	}
 
 	private _getHintsRanges(): Range[] {
@@ -202,8 +224,6 @@ export class InlayHintsController implements IEditorContribution {
 	private _updateHintsDecorators(ranges: Range[], items: readonly InlayHintItem[]): void {
 
 		const { fontSize, fontFamily } = this._getLayoutInfo();
-		const model = this._editor.getModel()!;
-
 		const newDecorationsData: { item: InlayHintItem, decoration: IModelDeltaDecoration, classNameRef: IDisposable }[] = [];
 
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
@@ -211,28 +231,10 @@ export class InlayHintsController implements IEditorContribution {
 
 		for (const item of items) {
 
-			const { position, whitespaceBefore, whitespaceAfter } = item.hint;
-
-			// position
-			let direction: 'before' | 'after' = 'before';
-			let range = Range.fromPositions(position);
-			let word = model.getWordAtPosition(position);
-			let usesWordRange = false;
-			if (word) {
-				if (word.endColumn === position.column) {
-					direction = 'after';
-					usesWordRange = true;
-					range = wordToRange(word, position.lineNumber);
-				} else if (word.startColumn === position.column) {
-					usesWordRange = true;
-					range = wordToRange(word, position.lineNumber);
-				}
-			}
-
 			// text w/ links
 			const { nodes } = parseLinkedText(item.hint.label);
-			const marginBefore = whitespaceBefore ? (fontSize / 3) | 0 : 0;
-			const marginAfter = whitespaceAfter ? (fontSize / 3) | 0 : 0;
+			const marginBefore = item.hint.whitespaceBefore ? (fontSize / 3) | 0 : 0;
+			const marginAfter = item.hint.whitespaceAfter ? (fontSize / 3) | 0 : 0;
 
 			for (let i = 0; i < nodes.length; i++) {
 				const node = nodes[i];
@@ -281,19 +283,19 @@ export class InlayHintsController implements IEditorContribution {
 				const classNameRef = this._ruleFactory.createClassNameRef(cssProperties);
 
 				newDecorationsData.push({
-					item: item,
+					item,
 					classNameRef,
 					decoration: {
-						range,
+						range: item.anchor.range,
 						options: {
-							[direction]: {
+							[item.anchor.direction]: {
 								content: fixSpace(isLink ? node.label : node),
 								inlineClassNameAffectsLetterSpacing: true,
 								inlineClassName: classNameRef.className,
 								attachedData: new InlayHintLabelPart(item, i, isLink ? node.href : undefined)
 							} as InjectedTextOptions,
 							description: 'InlayHint',
-							showIfCollapsed: !usesWordRange,
+							showIfCollapsed: !item.anchor.usesWordRange,
 							stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 						}
 					},
@@ -359,14 +361,7 @@ export class InlayHintsController implements IEditorContribution {
 	}
 }
 
-function wordToRange(word: IWordAtPosition, lineNumber: number): Range {
-	return new Range(
-		lineNumber,
-		word.startColumn,
-		lineNumber,
-		word.endColumn
-	);
-}
+
 
 // Prevents the view from potentially visible whitespace
 function fixSpace(str: string): string {
