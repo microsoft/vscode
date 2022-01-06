@@ -5,6 +5,7 @@
 
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { InlayHint } from 'vs/editor/common/languages';
@@ -38,15 +39,23 @@ export class InlayHintsHover extends MarkdownHoverParticipant {
 		return new InlayHintsHoverAnchor(options.attachedData.hint, this);
 	}
 
-	override computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkdownHover[] {
+	override computeSync(): MarkdownHover[] {
 		return [];
 	}
 
-	override computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<MarkdownHover> {
+	override computeAsync(anchor: HoverAnchor, _lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<MarkdownHover> {
 		if (!(anchor instanceof InlayHintsHoverAnchor)) {
 			return AsyncIterableObject.EMPTY;
 		}
-		return AsyncIterableObject.EMPTY;
-		// return AsyncIterableObject.fromArray([new MarkdownHover(this, anchor.range, [new MarkdownString(anchor.hint.text)], anchor.priority)]);
+		if (!anchor.hint.tooltip) {
+			return AsyncIterableObject.EMPTY;
+		}
+		let md: IMarkdownString;
+		if (typeof anchor.hint.tooltip === 'string') {
+			md = new MarkdownString().appendText(anchor.hint.tooltip);
+		} else {
+			md = anchor.hint.tooltip;
+		}
+		return new AsyncIterableObject(emitter => emitter.emitOne(new MarkdownHover(this, anchor.range, [md], 0)));
 	}
 }

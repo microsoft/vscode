@@ -1423,6 +1423,7 @@ export enum InlayHintKind {
 @es5ClassCompat
 export class InlayHint {
 	text: string;
+	tooltip?: string | vscode.MarkdownString;
 	position: Position;
 	kind?: vscode.InlayHintKind;
 	whitespaceBefore?: boolean;

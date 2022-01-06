@@ -1723,6 +1723,7 @@ export enum InlayHintKind {
 
 export interface InlayHint {
 	text: string;
+	tooltip?: string | IMarkdownString
 	position: IPosition;
 	kind: InlayHintKind;
 	whitespaceBefore?: boolean;
