@@ -8,7 +8,7 @@ import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Event } from 'vs/base/common/event';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { raceTimeout } from 'vs/base/common/async';
 import { FileAccess } from 'vs/base/common/network';
@@ -27,14 +27,16 @@ export class AudioCueContribution extends DisposableStore implements IWorkbenchC
 			let lastLineNumber = -1;
 
 			const activeTextEditorControl = editorService.activeTextEditorControl;
-			if (isCodeEditor(activeTextEditorControl)) {
+			if (isCodeEditor(activeTextEditorControl) || isDiffEditor(activeTextEditorControl)) {
+				const editor = isDiffEditor(activeTextEditorControl) ? activeTextEditorControl.getOriginalEditor() : activeTextEditorControl;
+
 				store.add(
-					activeTextEditorControl.onDidChangeCursorPosition(() => {
-						const model = activeTextEditorControl.getModel();
+					editor.onDidChangeCursorPosition(() => {
+						const model = editor.getModel();
 						if (!model) {
 							return;
 						}
-						const position = activeTextEditorControl.getPosition();
+						const position = editor.getPosition();
 						if (!position) {
 							return;
 						}
