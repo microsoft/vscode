@@ -64,6 +64,12 @@ declare module 'vscode' {
 		 * vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.workspace.workspaceFolders[0], '**​/*.js'));
 		 * ```
 		 *
+		 * If you want to monitor file events across all opened workspace folders:
+		 *
+		 * ```ts
+		 * vscode.workspace.createFileSystemWatcher('**​/*.js'));
+		 * ```
+		 *
 		 * *Note:* the array of workspace folders can be empy if no workspace is opened (empty window).
 		 *
 		 * #### Out of workspace file watching
@@ -81,16 +87,10 @@ declare module 'vscode' {
 		 * vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(<path to folder outside workspace>), '**​/*.js'));
 		 * ```
 		 *
-		 * #### Global file watching
-		 *
-		 * If you do not care about the origin of file events, pass in a glob pattern as `string` to be notified about any file event
-		 * that we have watchers registered for. This includes:
-		 * - all workspace folders
-		 * - all visible editors that have files opened that are not part of the workspace
-		 * - any file watcher that was installed via `createFileSystemWatcher` by any extension
+		 * Here is an example for watching the active editor for file changes:
 		 *
 		 * ```ts
-		 * vscode.workspace.createFileSystemWatcher('**​/*.js'));
+		 * vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.window.activeTextEditor.document.uri, '*'));
 		 * ```
 		 *
 		 * @param globPattern A {@link GlobPattern glob pattern} that controls which file events the watcher should report.
