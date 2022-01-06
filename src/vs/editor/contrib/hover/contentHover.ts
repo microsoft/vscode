@@ -43,7 +43,6 @@ export class ContentHoverController extends Disposable {
 
 	private _messages: IHoverPart[];
 	private _messagesAreComplete: boolean;
-	private _lastAnchor: HoverAnchor | null;
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 	private _highlightDecorations: string[];
@@ -70,7 +69,6 @@ export class ContentHoverController extends Disposable {
 
 		this._messages = [];
 		this._messagesAreComplete = false;
-		this._lastAnchor = null;
 		this._computer = new ContentHoverComputer(this._editor, this._participants);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
@@ -95,9 +93,9 @@ export class ContentHoverController extends Disposable {
 			}
 		}));
 		this._register(TokenizationRegistry.onDidChange(() => {
-			if (this._widget.position && this._lastAnchor && this._messages.length > 0) {
+			if (this._widget.position && this._computer.anchor && this._messages.length > 0) {
 				this._widget.clear();
-				this._renderMessages(this._lastAnchor, this._messages);
+				this._renderMessages(this._computer.anchor, this._messages);
 			}
 		}));
 	}
@@ -181,7 +179,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _startShowingAt(anchor: HoverAnchor, mode: HoverStartMode, focus: boolean): void {
-		if (this._lastAnchor && this._lastAnchor.equals(anchor)) {
+		if (this._computer.anchor && this._computer.anchor.equals(anchor)) {
 			// We have to show the widget at the exact same range as before, so no work is needed
 			return;
 		}
@@ -192,7 +190,7 @@ export class ContentHoverController extends Disposable {
 			// The range might have changed, but the hover is visible
 			// Instead of hiding it completely, filter out messages that are still in the new range and
 			// kick off a new computation
-			if (!this._lastAnchor || !anchor.canAdoptVisibleHover(this._lastAnchor, this._widget.position)) {
+			if (!this._computer.anchor || !anchor.canAdoptVisibleHover(this._computer.anchor, this._widget.position)) {
 				this.hide();
 			} else {
 				const filteredMessages = this._messages.filter((m) => m.isValidForHoverAnchor(anchor));
@@ -207,14 +205,13 @@ export class ContentHoverController extends Disposable {
 			}
 		}
 
-		this._lastAnchor = anchor;
-		this._computer.setAnchor(anchor);
+		this._computer.anchor = anchor;
 		this._shouldFocus = focus;
 		this._hoverOperation.start(mode);
 	}
 
 	public hide(): void {
-		this._lastAnchor = null;
+		this._computer.anchor = null;
 		this._hoverOperation.cancel();
 
 		this._widget.hide();
@@ -236,8 +233,8 @@ export class ContentHoverController extends Disposable {
 		this._messages = result;
 		this._messagesAreComplete = complete;
 
-		if (this._lastAnchor && this._messages.length > 0) {
-			this._renderMessages(this._lastAnchor, this._messages);
+		if (this._computer.anchor && this._messages.length > 0) {
+			this._renderMessages(this._computer.anchor, this._messages);
 		} else if (complete) {
 			this.hide();
 		}
@@ -335,6 +332,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	static readonly ID = 'editor.contrib.contentHoverWidget';
 
 	public readonly allowEditorOverflow = true;
+
 	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 
@@ -360,9 +358,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	) {
 		super();
 
-		this._hoverVisibleKey.set(!!this._visibleData);
-		this._hover.containerDomNode.classList.toggle('hidden', !this._visibleData);
-
 		this._register(this._editor.onDidLayoutChange(() => this._layout()));
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
@@ -370,6 +365,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			}
 		}));
 
+		this._setVisibleData(null);
 		this._layout();
 		this._editor.addContentWidget(this);
 	}
@@ -407,6 +403,12 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		};
 	}
 
+	private _setVisibleData(visibleData: ContentHoverVisibleData | null): void {
+		this._visibleData = visibleData;
+		this._hoverVisibleKey.set(!!this._visibleData);
+		this._hover.containerDomNode.classList.toggle('hidden', !this._visibleData);
+	}
+
 	private _layout(): void {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
 		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
@@ -423,9 +425,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public showAt(node: DocumentFragment, colorPicker: ColorPickerWidget | null, position: Position, range: Range | null, focus: boolean): void {
-		this._visibleData = new ContentHoverVisibleData(colorPicker, position, range, this._editor.getOption(EditorOption.hover).above, focus);
-		this._hoverVisibleKey.set(!!this._visibleData);
-		this._hover.containerDomNode.classList.toggle('hidden', !this._visibleData);
+		this._setVisibleData(new ContentHoverVisibleData(colorPicker, position, range, this._editor.getOption(EditorOption.hover).above, focus));
 
 		this._hover.contentsDomNode.textContent = '';
 		this._hover.contentsDomNode.appendChild(node);
@@ -448,10 +448,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	public hide(): void {
 		if (this._visibleData) {
 			const stoleFocus = this._visibleData.stoleFocus;
-			this._visibleData = null;
-			this._hoverVisibleKey.set(!!this._visibleData);
-			this._hover.containerDomNode.classList.toggle('hidden', !this._visibleData);
-
+			this._setVisibleData(null);
 			this._editor.layoutContentWidget(this);
 			if (stoleFocus) {
 				this._editor.focus();
@@ -506,6 +503,15 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 	private _result: IHoverPart[];
 	private _anchor: HoverAnchor | null;
 
+	public get anchor(): HoverAnchor | null {
+		return this._anchor;
+	}
+
+	public set anchor(value: HoverAnchor | null) {
+		this._anchor = value;
+		this._result = [];
+	}
+
 	constructor(
 		editor: ICodeEditor,
 		private readonly _participants: readonly IEditorHoverParticipant[]
@@ -513,11 +519,6 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 		this._editor = editor;
 		this._result = [];
 		this._anchor = null;
-	}
-
-	public setAnchor(anchor: HoverAnchor): void {
-		this._anchor = anchor;
-		this._result = [];
 	}
 
 	public clearResult(): void {
@@ -563,15 +564,13 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 
 		const lineDecorations = ContentHoverComputer._getLineDecorations(this._editor, anchor);
 		return AsyncIterableObject.merge(
-			this._participants.map(participant => this._computeAsync(participant, lineDecorations, anchor, token))
+			this._participants.map((participant) => {
+				if (!participant.computeAsync) {
+					return AsyncIterableObject.EMPTY;
+				}
+				return participant.computeAsync(anchor, lineDecorations, token);
+			})
 		);
-	}
-
-	private _computeAsync(participant: IEditorHoverParticipant, lineDecorations: IModelDecoration[], anchor: HoverAnchor, token: CancellationToken): AsyncIterableObject<IHoverPart> {
-		if (!participant.computeAsync) {
-			return AsyncIterableObject.EMPTY;
-		}
-		return participant.computeAsync(anchor, lineDecorations, token);
 	}
 
 	public computeSync(): IHoverPart[] {
