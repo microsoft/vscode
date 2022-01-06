@@ -263,6 +263,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/audioCues",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/actions",
 			"project": "vscode-workbench"
 		},
