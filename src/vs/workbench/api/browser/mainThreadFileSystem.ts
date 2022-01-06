@@ -166,11 +166,10 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	$watch(extension: IExtensionDescription, session: number, resource: UriComponents, opts: IWatchOptions): void {
 		const uri = URI.revive(resource);
 
-		// refuse to watch anything that is already watched recursively
-		// we still allow non-recursive watch requests to enable extensions
-		// to watch paths in the workspace that are ignored by our rules
-		if (opts.recursive && this._contextService.isInsideWorkspace(uri)) {
-			this._logService.trace(`MainThreadFileSystem#$watch(): ignoring request to start watching recursively because path is inside workspace (extension: ${extension.identifier.value}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
+		// refuse to watch anything that is already watched via
+		// our workspace watchers
+		if (this._contextService.isInsideWorkspace(uri)) {
+			this._logService.trace(`MainThreadFileSystem#$watch(): ignoring request to start watching because path is inside workspace (extension: ${extension.identifier.value}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
 			return;
 		}
 

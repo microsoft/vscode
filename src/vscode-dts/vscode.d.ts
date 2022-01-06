@@ -10963,7 +10963,7 @@ declare module 'vscode' {
 		 *
 		 * To stop listening to events the watcher must be disposed.
 		 *
-		 * *Note* that file events from recursive watchers may be excluded based on user configuration.
+		 * *Note* that file events from file watchers may be excluded based on user configuration.
 		 * The setting `files.watcherExclude` helps to reduce the overhead of file events from folders
 		 * that are known to produce many file changes at once (such as `node_modules` folders). As such,
 		 * it is highly recommended to watch with simple patterns that do not require recursive watchers.
