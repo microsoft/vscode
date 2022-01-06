@@ -17,7 +17,7 @@ import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestController, ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { ExtHostContext, ExtHostTestingShape, IExtHostContext, ILocationDto, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostTestingShape, IExtHostContext, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
 const reviveDiff = (diff: TestsDiff) => {
 	for (const entry of diff) {
@@ -40,6 +40,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	private readonly testProviderRegistrations = new Map<string, {
 		instance: IMainThreadTestController;
 		label: MutableObservableValue<string>;
+		canRefresh: MutableObservableValue<boolean>;
 		disposable: IDisposable
 	}>();
 
@@ -193,12 +194,15 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $registerTestController(controllerId: string, labelStr: string) {
+	public $registerTestController(controllerId: string, labelStr: string, canRefreshValue: boolean) {
 		const disposable = new DisposableStore();
-		const label = new MutableObservableValue(labelStr);
+		const label = disposable.add(new MutableObservableValue(labelStr));
+		const canRefresh = disposable.add(new MutableObservableValue(canRefreshValue));
 		const controller: IMainThreadTestController = {
 			id: controllerId,
 			label,
+			canRefresh,
+			refreshTests: () => this.proxy.$refreshTests(controllerId),
 			configureRunProfile: id => this.proxy.$configureRunProfile(controllerId, id),
 			runTests: (req, token) => this.proxy.$runControllerTests(req, token),
 			expandTest: (testId, levels) => this.proxy.$expandTest(testId, isFinite(levels) ? levels : -1),
@@ -211,6 +215,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		this.testProviderRegistrations.set(controllerId, {
 			instance: controller,
 			label,
+			canRefresh,
 			disposable
 		});
 	}
@@ -218,10 +223,18 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $updateControllerLabel(controllerId: string, label: string) {
+	public $updateController(controllerId: string, patch: ITestControllerPatch) {
 		const controller = this.testProviderRegistrations.get(controllerId);
-		if (controller) {
-			controller.label.value = label;
+		if (!controller) {
+			return;
+		}
+
+		if (patch.label !== undefined) {
+			controller.label.value = patch.label;
+		}
+
+		if (patch.canRefresh !== undefined) {
+			controller.canRefresh.value = patch.canRefresh;
 		}
 	}
 

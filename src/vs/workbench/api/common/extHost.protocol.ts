@@ -2159,15 +2159,22 @@ export interface ExtHostTestingShape {
 	$resolveFileCoverage(runId: string, taskId: string, fileIndex: number, token: CancellationToken): Promise<CoverageDetails[]>;
 	/** Configures a test run config. */
 	$configureRunProfile(controllerId: string, configId: number): void;
+	/** Asks the controller to refresh its tests */
+	$refreshTests(controllerId: string): Promise<void>;
+}
+
+export interface ITestControllerPatch {
+	label?: string;
+	canRefresh?: boolean;
 }
 
 export interface MainThreadTestingShape {
 	// --- test lifecycle:
 
 	/** Registers that there's a test controller with the given ID */
-	$registerTestController(controllerId: string, label: string): void;
+	$registerTestController(controllerId: string, label: string, canRefresh: boolean): void;
 	/** Updates the label of an existing test controller. */
-	$updateControllerLabel(controllerId: string, label: string): void;
+	$updateController(controllerId: string, patch: ITestControllerPatch): void;
 	/** Diposes of the test controller with the given ID */
 	$unregisterTestController(controllerId: string): void;
 	/** Requests tests published to VS Code. */
