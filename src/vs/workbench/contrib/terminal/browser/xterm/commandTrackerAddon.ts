@@ -340,7 +340,6 @@ export class NaiveCommandTrackerAddon extends CommandTrackerAddon {
 	}
 
 	handleIntegratedShellChange(event: { type: string; value: string; }): void {
-		throw new Error('Integrated shell change not supported');
 	}
 }
 
