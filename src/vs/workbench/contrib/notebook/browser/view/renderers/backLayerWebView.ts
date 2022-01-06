@@ -428,7 +428,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			resolveFunc = resolve;
 		});
 
-
 		if (!isWeb) {
 			const loaderUri = FileAccess.asFileUri('vs/loader.js', require);
 			const loader = this.asWebviewUri(loaderUri, undefined);
@@ -474,6 +473,22 @@ var requirejs = (function() {
 		}
 
 		await this._initialized;
+	}
+
+	private getBuiltinLocalResourceRoots(): URI[] {
+		// Python notebooks assume that requirejs is a global.
+		// For all other notebooks, they need to provide their own loader.
+		if (!this.documentUri.path.toLowerCase().endsWith('.ipynb')) {
+			return [];
+		}
+
+		if (isWeb) {
+			return []; // script is inlined
+		}
+
+		return [
+			dirname(FileAccess.asFileUri('vs/loader.js', require)),
+		];
 	}
 
 	private _initialize(content: string) {
@@ -842,8 +857,8 @@ var requirejs = (function() {
 			...this.notebookService.getNotebookProviderResourceRoots(),
 			...this.notebookService.getRenderers().map(x => dirname(x.entrypoint)),
 			...workspaceFolders,
+			...this.getBuiltinLocalResourceRoots(),
 		];
-
 		const webview = webviewService.createWebviewElement(this.id, {
 			purpose: WebviewContentPurpose.NotebookRenderer,
 			enableFindWidget: false,
