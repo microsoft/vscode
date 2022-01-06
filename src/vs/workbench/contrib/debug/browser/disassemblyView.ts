@@ -168,7 +168,7 @@ export class DisassemblyView extends EditorPane {
 					project(row: IDisassembledInstructionEntry): IDisassembledInstructionEntry { return row; }
 				},
 				{
-					label: 'instructions',
+					label: localize('disassemblyTableColumnLabel', "instructions"),
 					tooltip: '',
 					weight: 0.3,
 					templateId: InstructionRenderer.TEMPLATE_ID,
@@ -714,7 +714,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 			this.editorService.openEditor({
 				resource: sourceURI,
-				description: 'from disassembly',
+				description: localize('editorOpenedFromDisassemblyDescription', "from disassembly"),
 				options: {
 					preserveFocus: false,
 					selection: selection,

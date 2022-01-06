@@ -16,7 +16,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import type { Terminal, IViewportRange, ILinkProvider, ILink } from 'xterm';
 import { Schemas } from 'vs/base/common/network';
 import { posix, win32 } from 'vs/base/common/path';
-import { ITerminalExternalLinkProvider, ITerminalInstance, TerminalLinkQuickpickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalExternalLinkProvider, ITerminalInstance, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { OperatingSystem, isMacintosh, OS } from 'vs/base/common/platform';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { TerminalProtocolLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalProtocolLinkProvider';
@@ -44,7 +44,7 @@ interface IPath {
 export class TerminalLinkManager extends DisposableStore {
 	private _widgetManager: TerminalWidgetManager | undefined;
 	private _processCwd: string | undefined;
-	private _standardLinkProviders: ILinkProvider[] = [];
+	private _standardLinkProviders: Map<string, ILinkProvider> = new Map();
 	private _linkProvidersDisposables: IDisposable[] = [];
 
 	constructor(
@@ -67,7 +67,7 @@ export class TerminalLinkManager extends DisposableStore {
 			this._wrapLinkHandler.bind(this),
 			this._tooltipCallback.bind(this),
 			async (link, cb) => cb(await this._resolvePath(link)));
-		this._standardLinkProviders.push(protocolProvider);
+		this._standardLinkProviders.set(TerminalProtocolLinkProvider.id, protocolProvider);
 
 		// Validated local links
 		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
@@ -87,29 +87,32 @@ export class TerminalLinkManager extends DisposableStore {
 					}
 					return cb(undefined);
 				});
-			this._standardLinkProviders.push(validatedProvider);
+			this._standardLinkProviders.set(TerminalValidatedLocalLinkProvider.id, validatedProvider);
 		}
 
 		// Word links
 		const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
-		this._standardLinkProviders.push(wordProvider);
+		this._standardLinkProviders.set(TerminalWordLinkProvider.id, wordProvider);
 
 		this._registerStandardLinkProviders();
 	}
 
-	async getLinks(type: TerminalLinkProviderType, y: number): Promise<ILink[] | undefined> {
-		let provider: ILinkProvider | undefined = undefined;
-		if (type === TerminalLinkProviderType.Word) {
-			provider = this._standardLinkProviders.find(p => p instanceof TerminalWordLinkProvider);
-		} else if (type === TerminalLinkProviderType.Validated) {
-			provider = this._standardLinkProviders.find(p => p instanceof TerminalValidatedLocalLinkProvider);
-		} else {
-			provider = this._standardLinkProviders.find(p => p instanceof TerminalProtocolLinkProvider);
+	async getLinks(y: number): Promise<IDetectedLinks | undefined> {
+		let unfilteredWordLinks = (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalWordLinkProvider.id)?.provideLinks(y, r)));
+		const webLinks = (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalProtocolLinkProvider.id)?.provideLinks(y, r)));
+		const fileLinks = (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalValidatedLocalLinkProvider.id)?.provideLinks(y, r)));
+		const words = new Set();
+		let wordLinks;
+		if (unfilteredWordLinks) {
+			wordLinks = [];
+			for (const link of unfilteredWordLinks) {
+				if (!words.has(link.text)) {
+					wordLinks.push(link);
+					words.add(link.text);
+				}
+			}
 		}
-		if (provider === undefined) {
-			throw new Error(`no link provider of type ${type}`);
-		}
-		return (await new Promise<ILink[] | undefined>(r => provider?.provideLinks(y, r)))!;
+		return { wordLinks, webLinks, fileLinks };
 	}
 	private _tooltipCallback(link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) {
 		if (!this._widgetManager) {
@@ -165,7 +168,7 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	private _registerStandardLinkProviders(): void {
-		for (const p of this._standardLinkProviders) {
+		for (const p of this._standardLinkProviders.values()) {
 			this._linkProvidersDisposables.push(this._xterm.registerLinkProvider(p));
 		}
 	}
@@ -186,7 +189,7 @@ export class TerminalLinkManager extends DisposableStore {
 			event?.preventDefault();
 
 			// Require correct modifier on click unless event is coming from linkQuickPick selection
-			if (event && !(event instanceof TerminalLinkQuickpickEvent) && !this._isLinkActivationModifierDown(event)) {
+			if (event && !(event instanceof TerminalLinkQuickPickEvent) && !this._isLinkActivationModifierDown(event)) {
 				return;
 			}
 
@@ -439,8 +442,8 @@ export interface LineColumnInfo {
 	columnNumber: number;
 }
 
-export enum TerminalLinkProviderType {
-	Word = 'word',
-	Validated = 'validated',
-	Protocol = 'protocol'
+export interface IDetectedLinks {
+	wordLinks?: ILink[];
+	webLinks?: ILink[];
+	fileLinks?: ILink[];
 }

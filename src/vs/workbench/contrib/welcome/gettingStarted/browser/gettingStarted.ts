@@ -53,6 +53,7 @@ import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
 import { ResourceMap } from 'vs/base/common/map';
 import { IFileService } from 'vs/platform/files/common/files';
+import { parse } from 'vs/base/common/marshalling';
 import { joinPath } from 'vs/base/common/resources';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
@@ -72,6 +73,7 @@ import { IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
 import { AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { Codicon } from 'vs/base/common/codicons';
+import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcome/page/browser/welcomePage';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -1312,7 +1314,42 @@ export class GettingStartedPage extends EditorPane {
 				nonGettingStartedGroup.focus();
 			}
 		}
-		this.openerService.open(command, { allowCommands: true });
+		if (isCommand) {
+			const commandURI = URI.parse(command);
+
+			// execute as command
+			let args: any = [];
+			try {
+				args = parse(decodeURIComponent(commandURI.query));
+			} catch {
+				// ignore and retry
+				try {
+					args = parse(commandURI.query);
+				} catch {
+					// ignore error
+				}
+			}
+			if (!Array.isArray(args)) {
+				args = [args];
+			}
+			this.commandService.executeCommand(commandURI.path, ...args).then(result => {
+				const toOpen: URI = result?.openFolder;
+				if (toOpen) {
+					if (!URI.isUri(toOpen)) {
+						console.warn('Warn: Running walkthrough command', href, 'yielded non-URI `openFolder` result', toOpen, '. It will be disregarded.');
+						return;
+					}
+					const restoreData: RestoreWalkthroughsConfigurationValue = { folder: toOpen.toString(), category: this.editorInput.selectedCategory, step: this.editorInput.selectedStep };
+					this.storageService.store(
+						restoreWalkthroughsConfigurationKey,
+						JSON.stringify(restoreData),
+						StorageScope.GLOBAL, StorageTarget.MACHINE);
+					this.hostService.openWindow([{ folderUri: toOpen }]);
+				}
+			});
+		} else {
+			this.openerService.open(command, { allowCommands: true });
+		}
 
 		if (!isCommand && (href.startsWith('https://') || href.startsWith('http://'))) {
 			this.gettingStartedService.progressByEvent('onLink:' + href);

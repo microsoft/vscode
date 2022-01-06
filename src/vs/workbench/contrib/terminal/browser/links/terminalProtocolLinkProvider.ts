@@ -19,7 +19,7 @@ import { Schemas } from 'vs/base/common/network';
 
 export class TerminalProtocolLinkProvider extends TerminalBaseLinkProvider {
 	private _linkComputerTarget: ILinkComputerTarget | undefined;
-
+	static id: string = 'TerminalProtocolLinkProvider';
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => void,

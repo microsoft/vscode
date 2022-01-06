@@ -68,7 +68,9 @@ const CORE_TYPES = [
 	'BigInt64Array',
 	'btoa',
 	'atob',
-	'AbortSignal'
+	'AbortSignal',
+	'MessageChannel',
+	'MessagePort'
 ];
 
 // Types that are defined in a common layer but are known to be only

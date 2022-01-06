@@ -187,6 +187,10 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			throw barrierError;
 		}
 
+		// Send over message ports for extension API
+		const messagePorts = this._environmentService.options?.messagePorts ?? new Map();
+		iframe.contentWindow!.postMessage(messagePorts, '*', [...messagePorts.values()]);
+
 		port.onmessage = (event) => {
 			const { data } = event;
 			if (!(data instanceof ArrayBuffer)) {

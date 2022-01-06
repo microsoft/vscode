@@ -45,8 +45,8 @@ export class MarkdownHover implements IHoverPart {
 export class MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
 	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _hover: IEditorHover,
+		protected readonly _editor: ICodeEditor,
+		protected readonly _hover: IEditorHover,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,

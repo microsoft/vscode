@@ -44,6 +44,7 @@ export interface IEmptyContentData {
 
 export interface ITextContentData {
 	mightBeForeignElement: boolean;
+	injectedText: InjectedText | null;
 }
 
 const enum HitTestResultType {
@@ -569,7 +570,7 @@ export class MouseTargetFactory {
 			for (const d of lastViewCursorsRenderData) {
 
 				if (request.target === d.domNode) {
-					return request.fulfill(MouseTargetType.CONTENT_TEXT, d.position, null, { mightBeForeignElement: false });
+					return request.fulfill(MouseTargetType.CONTENT_TEXT, d.position, null, { mightBeForeignElement: false, injectedText: null });
 				}
 			}
 		}
@@ -601,7 +602,7 @@ export class MouseTargetFactory {
 					cursorVerticalOffset <= mouseVerticalOffset
 					&& mouseVerticalOffset <= cursorVerticalOffset + d.height
 				) {
-					return request.fulfill(MouseTargetType.CONTENT_TEXT, d.position, null, { mightBeForeignElement: false });
+					return request.fulfill(MouseTargetType.CONTENT_TEXT, d.position, null, { mightBeForeignElement: false, injectedText: null });
 				}
 			}
 		}
@@ -623,7 +624,7 @@ export class MouseTargetFactory {
 		// Is it the textarea?
 		if (ElementPath.isTextArea(request.targetPath)) {
 			if (ctx.lastRenderData.lastTextareaPosition) {
-				return request.fulfill(MouseTargetType.CONTENT_TEXT, ctx.lastRenderData.lastTextareaPosition, null, { mightBeForeignElement: false });
+				return request.fulfill(MouseTargetType.CONTENT_TEXT, ctx.lastRenderData.lastTextareaPosition, null, { mightBeForeignElement: false, injectedText: null });
 			}
 			return request.fulfill(MouseTargetType.TEXTAREA, ctx.lastRenderData.lastTextareaPosition);
 		}
@@ -782,7 +783,7 @@ export class MouseTargetFactory {
 		const columnHorizontalOffset = visibleRange.left;
 
 		if (request.mouseContentHorizontalOffset === columnHorizontalOffset) {
-			return request.fulfill(MouseTargetType.CONTENT_TEXT, pos, null, { mightBeForeignElement: !!injectedText });
+			return request.fulfill(MouseTargetType.CONTENT_TEXT, pos, null, { mightBeForeignElement: !!injectedText, injectedText });
 		}
 
 		// Let's define a, b, c and check if the offset is in between them...
@@ -815,10 +816,10 @@ export class MouseTargetFactory {
 			const curr = points[i];
 			if (prev.offset <= request.mouseContentHorizontalOffset && request.mouseContentHorizontalOffset <= curr.offset) {
 				const rng = new EditorRange(lineNumber, prev.column, lineNumber, curr.column);
-				return request.fulfill(MouseTargetType.CONTENT_TEXT, pos, rng, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText });
+				return request.fulfill(MouseTargetType.CONTENT_TEXT, pos, rng, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
 			}
 		}
-		return request.fulfill(MouseTargetType.CONTENT_TEXT, pos, null, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText });
+		return request.fulfill(MouseTargetType.CONTENT_TEXT, pos, null, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
 	}
 
 	/**

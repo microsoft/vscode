@@ -216,18 +216,24 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 
 let onTerminate = (reason: string) => nativeClose();
 
-export function create(): void {
-	const res = new ExtensionWorker();
+export function create(): { onmessage: (message: any) => void } {
 	performance.mark(`code/extHost/willConnectToRenderer`);
-	connectToRenderer(res.protocol).then(data => {
-		performance.mark(`code/extHost/didWaitForInitData`);
-		const extHostMain = new ExtensionHostMain(
-			data.protocol,
-			data.initData,
-			hostUtil,
-			null,
-		);
+	const res = new ExtensionWorker();
 
-		onTerminate = (reason: string) => extHostMain.terminate(reason);
-	});
+	return {
+		onmessage(messagePorts: ReadonlyMap<string, MessagePort>) {
+			connectToRenderer(res.protocol).then(data => {
+				performance.mark(`code/extHost/didWaitForInitData`);
+				const extHostMain = new ExtensionHostMain(
+					data.protocol,
+					data.initData,
+					hostUtil,
+					null,
+					messagePorts
+				);
+
+				onTerminate = (reason: string) => extHostMain.terminate(reason);
+			});
+		}
+	};
 }

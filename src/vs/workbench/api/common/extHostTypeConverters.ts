@@ -1155,10 +1155,11 @@ export namespace InlayHint {
 	export function from(hint: vscode.InlayHint): modes.InlayHint {
 		return {
 			text: hint.text,
+			tooltip: hint.tooltip && MarkdownString.from(hint.tooltip),
 			position: Position.from(hint.position),
 			kind: InlayHintKind.from(hint.kind ?? types.InlayHintKind.Other),
 			whitespaceBefore: hint.whitespaceBefore,
-			whitespaceAfter: hint.whitespaceAfter
+			whitespaceAfter: hint.whitespaceAfter,
 		};
 	}
 
@@ -1168,6 +1169,7 @@ export namespace InlayHint {
 			Position.to(hint.position),
 			InlayHintKind.to(hint.kind)
 		);
+		res.tooltip = htmlContent.isMarkdownString(hint.tooltip) ? MarkdownString.to(hint.tooltip) : hint.tooltip;
 		res.whitespaceAfter = hint.whitespaceAfter;
 		res.whitespaceBefore = hint.whitespaceBefore;
 		return res;

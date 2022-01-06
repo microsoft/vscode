@@ -44,6 +44,10 @@ declare module 'vscode' {
 		// todo@API label?
 		text: string;
 		/**
+		 * The tooltip text when you hover over this item.
+		 */
+		tooltip?: string | MarkdownString | undefined;
+		/**
 		 * The position of this hint.
 		 */
 		position: Position;
