@@ -11,7 +11,7 @@ declare module 'vscode' {
 
 		/**
 		 * Creates a file system watcher to be notified on file events (create, change, delete)
-		 * depending on the configuration.
+		 * depending on the parameters provided.
 		 *
 		 * By default, all opened {@link workspace.workspaceFolders workspace folders} will be watched
 		 * for file changes recursively.
@@ -19,28 +19,31 @@ declare module 'vscode' {
 		 * Additional folders can be added for file watching by providing a {@link RelativePattern} with
 		 * a `base` that is outside of any of the currently opened workspace folders. If the `pattern` is
 		 * complex (e.g. contains `**` or path segments), the folder will be watched recursively and
-		 * otherwise will be watched non-recursively (i.e. only changes to the top level hirarchy of the
-		 * path will be reported).
+		 * otherwise will be watched non-recursively (i.e. only changes to the first level of the path
+		 * will be reported).
 		 *
 		 * Providing a `string` as `globPattern` acts as convenience method for watching file events in
 		 * all opened workspace folders. This method should be used if you only care about file events
-		 * from the workspace and not from any other folder.
+		 * from the workspace and not from any other folder. It cannot be used to add more folders for
+		 * file watching.
 		 *
 		 * Optionally, flags to ignore certain kinds of events can be provided.
 		 *
 		 * To stop listening to events the watcher must be disposed.
 		 *
-		 * *Note* that user configurable excludes (via `files.watcherExclude`) may be applied to all file
-		 * events to reduce the number of events for known folders with lots of changes (such as `node_modules`).
+		 * *Note* that file events from recursive watchers may be excluded based on user configuration.
+		 * The setting `files.watcherExclude` helps to reduce the overhead of file events from folders
+		 * that are known to produce many file changes at once (such as `node_modules` folders). As such,
+		 * it is highly recommended to watch with simple patterns that do not require recursive watchers.
 		 *
 		 * *Note* that symbolic links are not automatically followed for file watching unless the path to
 		 * watch itself is a symbolic link.
 		 *
 		 * *Note* that file changes for the path to be watched may not be delivered when the path itself
-		 * changes. For example, when watching a path `/Users/somename/Desktop` for changes and the path
-		 * itself is being deleted, the watcher may not report an event and may not work anymore from that
-		 * moment on. If you are interested in being notified when the watched path itself is being deleted,
-		 * you have to watch it's parent folder.
+		 * changes. For example, when watching a path `/Users/somename/Desktop` and the path itself is
+		 * being deleted, the watcher may not report an event and may not work anymore from that moment on.
+		 * If you are interested in being notified when the watched path itself is being deleted, you have
+		 * to watch it's parent folder.
 		 *
 		 * ### Examples
 		 *
@@ -49,9 +52,9 @@ declare module 'vscode' {
 		 * ```ts
 		 * const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(<folder>, <pattern>));
 		 *
-		 * watcher.onDidChange(uri => { ...handle change... });
-		 * watcher.onDidCreate(uri => { ...handle create... });
-		 * watcher.onDidDelete(uri => { ...handle delete... });
+		 * watcher.onDidChange(uri => { ... }); // listen to files being changed
+		 * watcher.onDidCreate(uri => { ... }); // listen to files/folders being created
+		 * watcher.onDidDelete(uri => { ... }); // listen to files/folders getting deleted
 		 *
 		 * watcher.dispose(); // dispose after usage
 		 * ```
