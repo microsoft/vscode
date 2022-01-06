@@ -1845,6 +1845,8 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 				'editor.hover.delay': {
 					type: 'number',
 					default: defaults.delay,
+					minimum: 0,
+					maximum: 10000,
 					description: nls.localize('hover.delay', "Controls the delay in milliseconds after which the hover is shown.")
 				},
 				'editor.hover.sticky': {
