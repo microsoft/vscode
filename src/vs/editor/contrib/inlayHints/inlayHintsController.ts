@@ -103,8 +103,12 @@ class InlayHintsCache {
 	}
 }
 
-class InlayHintLink {
-	constructor(readonly href: string, readonly index: number, readonly hint: InlayHint) { }
+export class InlayHintLink {
+	constructor(readonly href: string, readonly index: number) { }
+}
+
+export class InlayHintData {
+	constructor(readonly hint: InlayHint, readonly link: InlayHintLink | undefined) { }
 }
 
 export class InlayHintsController implements IEditorContribution {
@@ -121,7 +125,7 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _cache = new InlayHintsCache();
 	private readonly _decorationsMetadata = new Map<string, { hint: InlayHint, classNameRef: IDisposable }>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
-	private _activeInlayHintLink?: InlayHintLink;
+	private _activeInlayHintLink?: InlayHintData;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -213,7 +217,7 @@ export class InlayHintsController implements IEditorContribution {
 			}
 			const model = this._editor.getModel()!;
 			const options = mouseEvent.target.detail?.injectedText?.options;
-			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLink) {
+			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintData && options.attachedData.link) {
 				this._activeInlayHintLink = options.attachedData;
 
 				const lineNumber = this._activeInlayHintLink.hint.position.lineNumber;
@@ -237,8 +241,8 @@ export class InlayHintsController implements IEditorContribution {
 				return;
 			}
 			const options = e.target.detail?.injectedText?.options;
-			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLink) {
-				this._openerService.open(options.attachedData.href, { allowCommands: true, openToSide: e.hasSideBySideModifier });
+			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintData && options.attachedData.link) {
+				this._openerService.open(options.attachedData.link.href, { allowCommands: true, openToSide: e.hasSideBySideModifier });
 			}
 		}));
 	}
@@ -312,7 +316,7 @@ export class InlayHintsController implements IEditorContribution {
 				if (isLink) {
 					cssProperties.textDecoration = 'underline';
 
-					if (this._activeInlayHintLink?.hint === hint && this._activeInlayHintLink.index === i && this._activeInlayHintLink.href === node.href) {
+					if (this._activeInlayHintLink?.hint === hint && this._activeInlayHintLink.link?.index === i && this._activeInlayHintLink.link.href === node.href) {
 						// active link!
 						cssProperties.cursor = 'pointer';
 						cssProperties.color = themeColorFromId(colors.editorActiveLinkForeground);
@@ -350,7 +354,7 @@ export class InlayHintsController implements IEditorContribution {
 								content: fixSpace(isLink ? node.label : node),
 								inlineClassNameAffectsLetterSpacing: true,
 								inlineClassName: classNameRef.className,
-								attachedData: isLink ? new InlayHintLink(node.href, i, hint) : undefined
+								attachedData: new InlayHintData(hint, isLink ? new InlayHintLink(node.href, i) : undefined)
 							} as InjectedTextOptions,
 							description: 'InlayHint',
 							showIfCollapsed: !usesWordRange,
