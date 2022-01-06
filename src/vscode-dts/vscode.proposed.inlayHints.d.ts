@@ -44,6 +44,10 @@ declare module 'vscode' {
 		// todo@API label?
 		text: string;
 		/**
+		 * The tooltip text when you hover over this item.
+		 */
+		tooltip?: string | MarkdownString | undefined;
+		/**
 		 * The position of this hint.
 		 */
 		position: Position;
@@ -68,7 +72,7 @@ declare module 'vscode' {
 	 * The inlay hints provider interface defines the contract between extensions and
 	 * the inlay hints feature.
 	 */
-	export interface InlayHintsProvider {
+	export interface InlayHintsProvider<T extends InlayHint = InlayHint> {
 
 		/**
 		 * An optional event to signal that inlay hints have changed.
@@ -84,6 +88,8 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A list of inlay hints or a thenable that resolves to such.
 		 */
-		provideInlayHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
+		provideInlayHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<T[]>;
+
+		resolveInlayHint?(hint: T, token: CancellationToken): ProviderResult<T>
 	}
 }

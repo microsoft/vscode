@@ -845,6 +845,7 @@ export interface IXtermTerminal {
 	 * viewport.
 	 */
 	clearBuffer(): void;
+<<<<<<< HEAD
 
 	/*
 	 * Enables the webgl renderer
@@ -855,6 +856,8 @@ export interface IXtermTerminal {
 	 * When process capabilites are updated, update the command tracker
 	 */
 	upgradeCommandTracker(): void;
+=======
+>>>>>>> main
 }
 
 export interface IRequestAddInstanceToGroupEvent {

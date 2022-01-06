@@ -5043,6 +5043,10 @@ declare namespace monaco.editor {
 		 */
 		getLineDecorations(lineNumber: number): IModelDecoration[] | null;
 		/**
+		 * Get all the decorations for a range (filtering out decorations from other editors).
+		 */
+		getDecorationsInRange(range: Range): IModelDecoration[] | null;
+		/**
 		 * All decorations added through this call will get the ownerId of this editor.
 		 * @see {@link ITextModel.deltaDecorations}
 		 */
@@ -6753,16 +6757,23 @@ declare namespace monaco.languages {
 	}
 
 	export interface InlayHint {
-		text: string;
+		label: string;
+		tooltip?: string | IMarkdownString;
 		position: IPosition;
 		kind: InlayHintKind;
 		whitespaceBefore?: boolean;
 		whitespaceAfter?: boolean;
 	}
 
+	export interface InlayHintList {
+		hints: InlayHint[];
+		dispose(): void;
+	}
+
 	export interface InlayHintsProvider {
 		onDidChangeInlayHints?: IEvent<void>;
-		provideInlayHints(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
+		provideInlayHints(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHintList>;
+		resolveInlayHint?(hint: InlayHint, token: CancellationToken): ProviderResult<InlayHint>;
 	}
 
 	export interface SemanticTokensLegend {

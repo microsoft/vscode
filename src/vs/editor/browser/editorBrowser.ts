@@ -747,6 +747,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getLineDecorations(lineNumber: number): IModelDecoration[] | null;
 
 	/**
+	 * Get all the decorations for a range (filtering out decorations from other editors).
+	 */
+	getDecorationsInRange(range: Range): IModelDecoration[] | null
+
+	/**
 	 * All decorations added through this call will get the ownerId of this editor.
 	 * @see {@link ITextModel.deltaDecorations}
 	 */

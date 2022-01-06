@@ -33,6 +33,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { UnicodeHighlighterHoverParticipant } from 'vs/editor/contrib/unicodeHighlighter/unicodeHighlighter';
 import { AsyncIterableObject } from 'vs/base/common/async';
+import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/inlayHintsHover';
 
 const $ = dom.$;
 
@@ -228,6 +229,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			instantiationService.createInstance(InlineCompletionsHoverParticipant, editor, this),
 			instantiationService.createInstance(UnicodeHighlighterHoverParticipant, editor, this),
 			instantiationService.createInstance(MarkerHoverParticipant, editor, this),
+			instantiationService.createInstance(InlayHintsHover, editor, this),
 		];
 
 		this._editor = editor;

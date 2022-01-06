@@ -2136,7 +2136,7 @@ export class CommandCenter {
 				}
 
 				const branchName = repository.HEAD.name;
-				const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
+				const message = localize('confirm publish branch', "The branch '{0}' has no remote branch. Would you like to publish this branch?", branchName);
 				const yes = localize('ok', "OK");
 				const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -2286,7 +2286,7 @@ export class CommandCenter {
 			return;
 		} else if (!HEAD.upstream) {
 			const branchName = HEAD.name;
-			const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
+			const message = localize('confirm publish branch', "The branch '{0}' has no remote branch. Would you like to publish this branch?", branchName);
 			const yes = localize('ok', "OK");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
