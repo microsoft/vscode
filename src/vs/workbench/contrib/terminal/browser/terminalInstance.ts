@@ -68,7 +68,6 @@ import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnviro
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isFirefox } from 'vs/base/browser/browser';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
-import { CognisantCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { fromNow } from 'vs/base/common/date';
 
 const enum Constants {
@@ -1211,10 +1210,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				case ProcessPropertyType.HasChildProcesses:
 					this._onDidChangeHasChildProcesses.fire(value);
 					break;
-				case ProcessPropertyType.Capability:
-					if (value === ProcessCapability.CommandCognisant && !(this.xterm?.commandTracker instanceof CognisantCommandTrackerAddon)) {
-						this.xterm?.upgradeCommandTracker();
-					}
 			}
 		});
 

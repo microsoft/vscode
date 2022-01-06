@@ -379,11 +379,10 @@ export interface TerminalCommand {
 	exitCode?: number;
 }
 
-export enum ShellIntegrationInfo {
+export const enum ShellIntegrationInfo {
 	CurrentDir = 'CurrentDir',
 }
-
-export enum ShellIntegrationInteraction {
+export const enum ShellIntegrationInteraction {
 	PromptStart = 'PROMPT_START',
 	CommandStart = 'COMMAND_START',
 	CommandExecuted = 'COMMAND_EXECUTED',
