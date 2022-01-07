@@ -17,7 +17,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ITerminalBackend, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ProcessCapability, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TerminalCapability, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -310,7 +310,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		if (capabilities?.length) {
 			shellIntegrationString += `\n\n---\n\n$(plug) ${localize('shellIntegration.enabled', "Shell integration is enabled")}`;
 			for (const capability of capabilities) {
-				shellIntegrationString += `\n- ${this._getCapabilityName(capability)}`;
+				shellIntegrationString += `\n- ${this._getShellIntegrationCapabilityName(capability)}`;
 			}
 		}
 
@@ -504,10 +504,15 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		this._listService.lastFocusedList?.focusNext();
 	}
 
-	private _getCapabilityName(capability: ProcessCapability): string {
+	private _getShellIntegrationCapabilityName(capability: TerminalCapability): string | undefined {
 		switch (capability) {
-			case ProcessCapability.CommandCognisant: return localize('capability.commandDetection', "Command detection");
-			case ProcessCapability.CwdDetection: return localize('capability.cwdDetection', "Current working directory detection");
+			case TerminalCapability.CwdDetection:
+			case TerminalCapability.NaiveCwdDetection:
+				return localize('capability.cwdDetection', "Current working directory detection");
+			case TerminalCapability.CommandDetection:
+				return localize('capability.commandDetection', "Command detection");
+			case TerminalCapability.PartialCommandDetection:
+				return localize('capability.partialCommandDetection', "Command detection (partial)");
 		}
 	}
 }

@@ -556,8 +556,34 @@ export interface IProcessReadyEvent {
 }
 
 export const enum ProcessCapability {
-	CwdDetection = 'cwdDetection',
-	CommandCognisant = 'commandCognisant'
+	// TODO: Migrate this to use TerminalCapability.NaiveCwdDetection
+	CwdDetection = 'cwdDetection'
+}
+
+/**
+ * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
+ * progressively enhancing various features that may not be supported in all terminals/shells.
+ */
+export const enum TerminalCapability {
+	/**
+	 * The terminal can reliably detect the current working directory as soon as the change happens
+	 * within the buffer.
+	 */
+	CwdDetection,
+	/**
+	 * The terminal can reliably detect the current working directory when requested.
+	 */
+	NaiveCwdDetection,
+	/**
+	 * The terminal can reliably identify prompts, commands and command outputs within the buffer.
+	 */
+	CommandDetection,
+	/**
+	 * The terminal can often identify prompts, commands and command outputs within the buffer. It
+	 * may not be so good at remembering the position of commands that ran in the past. This state
+	 * may be enabled when something goes wrong or when using conpty for example.
+	 */
+	PartialCommandDetection
 }
 
 /**

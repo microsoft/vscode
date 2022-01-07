@@ -7,7 +7,7 @@ import { ITerminalAddon, Terminal } from 'xterm';
 import { IShellIntegration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -72,12 +72,11 @@ export const enum ShellIntegrationInteraction {
 
 export class ShellIntegrationAddon extends Disposable implements IShellIntegration, ITerminalAddon {
 	private _terminal?: Terminal;
-	readonly capabilities: ProcessCapability[] = [];
+	readonly capabilities: TerminalCapability[] = [];
 
-	// TODO: Rename ProcessCapability to TerminalCapability, move naive CwdDetection to renderer
-	private readonly _onCapabilityDisabled = new Emitter<ProcessCapability>();
+	private readonly _onCapabilityDisabled = new Emitter<TerminalCapability>();
 	readonly onCapabilityDisabled = this._onCapabilityDisabled.event;
-	private readonly _onCapabilityEnabled = new Emitter<ProcessCapability>();
+	private readonly _onCapabilityEnabled = new Emitter<TerminalCapability>();
 	readonly onCapabilityEnabled = this._onCapabilityEnabled.event;
 	private readonly _onIntegratedShellChange = new Emitter<{ type: string, value: string }>();
 	readonly onIntegratedShellChange = this._onIntegratedShellChange.event;
@@ -108,8 +107,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				type = ShellIntegrationInteraction.CommandFinished;
 				break;
 			case ShellIntegrationOscPt.EnableShellIntegration:
-				this.capabilities.push(ProcessCapability.CommandCognisant);
-				this._onCapabilityEnabled.fire(ProcessCapability.CommandCognisant);
+				this.capabilities.push(TerminalCapability.CommandDetection);
+				this._onCapabilityEnabled.fire(TerminalCapability.CommandDetection);
 				return true;
 			default:
 				return false;
