@@ -625,7 +625,7 @@ suite('Notebook API tests', function () {
 		});
 	});
 
-	test('multiple tabs: dirty + clean', async function () {
+	test.skip('multiple tabs: dirty + clean', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/140285
 		const notebook = await openRandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
