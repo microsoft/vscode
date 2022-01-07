@@ -707,8 +707,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const items: Item[] = [];
 		if (type === 'command') {
 			for (const { command, timestamp, cwd, exitCode } of commands) {
-				// trim off /r
-				const label = command.substring(0, command.length - 1);
+				// trim off any whitespace and/or line endings
+				const label = command.trim();
 				if (label.length === 0) {
 					continue;
 				}
