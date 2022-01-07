@@ -11,7 +11,6 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import * as types from 'vs/base/common/types';
 import 'vs/css!./folding';
-import { IEmptyContentData, IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution, registerInstantiatedEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -397,7 +396,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		let iconClicked = false;
 		switch (e.target.type) {
 			case MouseTargetType.GUTTER_LINE_DECORATIONS: {
-				const data = e.target.detail as IMarginData;
+				const data = e.target.detail;
 				const offsetLeftInGutter = (e.target.element as HTMLElement).offsetLeft;
 				const gutterOffsetX = data.offsetX - offsetLeftInGutter;
 
@@ -413,7 +412,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 			}
 			case MouseTargetType.CONTENT_EMPTY: {
 				if (this._unfoldOnClickAfterEndOfLine && this.hiddenRangeModel.hasRanges()) {
-					const data = e.target.detail as IEmptyContentData;
+					const data = e.target.detail;
 					if (!data.isAfterLines) {
 						break;
 					}

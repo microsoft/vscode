@@ -10,7 +10,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Constants } from 'vs/base/common/uint';
-import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
@@ -94,14 +93,14 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _shouldShowAt(mouseEvent: IEditorMouseEvent): boolean {
-		const targetType = mouseEvent.target.type;
-		if (targetType === MouseTargetType.CONTENT_TEXT) {
+		const target = mouseEvent.target;
+		if (target.type === MouseTargetType.CONTENT_TEXT) {
 			return true;
 		}
 
-		if (targetType === MouseTargetType.CONTENT_EMPTY) {
+		if (target.type === MouseTargetType.CONTENT_EMPTY) {
 			const epsilon = this._editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
-			const data = <IEmptyContentData>mouseEvent.target.detail;
+			const data = target.detail;
 			if (data && !data.isAfterLines && typeof data.horizontalDistanceToText === 'number' && data.horizontalDistanceToText < epsilon) {
 				// Let hover kick in even when the mouse is technically in the empty area after a line, given the distance is small enough
 				return true;

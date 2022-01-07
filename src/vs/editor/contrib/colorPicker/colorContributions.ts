@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ITextContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
@@ -30,22 +29,21 @@ export class ColorContribution extends Disposable implements IEditorContribution
 	}
 
 	private onMouseDown(mouseEvent: IEditorMouseEvent) {
-		const targetType = mouseEvent.target.type;
+		const target = mouseEvent.target;
 
-		if (targetType !== MouseTargetType.CONTENT_TEXT) {
+		if (target.type !== MouseTargetType.CONTENT_TEXT) {
 			return;
 		}
 
-		const detail = (<ITextContentData | null>mouseEvent.target.detail);
-		if (!detail || !detail.injectedText) {
+		if (!target.detail.injectedText) {
 			return;
 		}
 
-		if (detail.injectedText.options.attachedData !== ColorDecorationInjectedTextMarker) {
+		if (target.detail.injectedText.options.attachedData !== ColorDecorationInjectedTextMarker) {
 			return;
 		}
 
-		if (!mouseEvent.target.range) {
+		if (!target.range) {
 			return;
 		}
 
@@ -54,7 +52,7 @@ export class ColorContribution extends Disposable implements IEditorContribution
 			return;
 		}
 		if (!hoverController.isColorPickerVisible()) {
-			const range = new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1);
+			const range = new Range(target.range.startLineNumber, target.range.startColumn + 1, target.range.endLineNumber, target.range.endColumn + 1);
 			hoverController.showContentHover(range, HoverStartMode.Immediate, false);
 		}
 	}

@@ -100,20 +100,20 @@ export class ModesHoverController implements IEditorContribution {
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
 		this._isMouseDown = true;
 
-		const targetType = mouseEvent.target.type;
+		const target = mouseEvent.target;
 
-		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ContentHoverWidget.ID) {
+		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID) {
 			this._hoverClicked = true;
 			// mouse down on top of content hover widget
 			return;
 		}
 
-		if (targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === MarginHoverWidget.ID) {
+		if (target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID) {
 			// mouse down on top of overlay hover widget
 			return;
 		}
 
-		if (targetType !== MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail !== MarginHoverWidget.ID) {
+		if (target.type !== MouseTargetType.OVERLAY_WIDGET) {
 			this._hoverClicked = false;
 		}
 
@@ -125,13 +125,13 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		let targetType = mouseEvent.target.type;
+		const target = mouseEvent.target;
 
 		if (this._isMouseDown && this._hoverClicked) {
 			return;
 		}
 
-		if (this._isHoverSticky && targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ContentHoverWidget.ID) {
+		if (this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID) {
 			// mouse moved on top of content hover widget
 			return;
 		}
@@ -142,14 +142,14 @@ export class ModesHoverController implements IEditorContribution {
 		}
 
 		if (
-			!this._isHoverSticky && targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ContentHoverWidget.ID
+			!this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID
 			&& this._contentWidget?.isColorPickerVisible()
 		) {
 			// though the hover is not sticky, the color picker needs to.
 			return;
 		}
 
-		if (this._isHoverSticky && targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === MarginHoverWidget.ID) {
+		if (this._isHoverSticky && target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID) {
 			// mouse moved on top of overlay hover widget
 			return;
 		}
@@ -165,12 +165,12 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN && mouseEvent.target.position) {
+		if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && target.position) {
 			this._contentWidget?.hide();
 			if (!this._glyphWidget) {
 				this._glyphWidget = new MarginHoverWidget(this._editor, this._languageService, this._openerService);
 			}
-			this._glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
+			this._glyphWidget.startShowingAt(target.position.lineNumber);
 			return;
 		}
 

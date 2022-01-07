@@ -6,7 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ITextContentData, IViewZoneData } from 'vs/editor/browser/controller/mouseTarget';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
@@ -57,24 +56,25 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		if (!controller) {
 			return null;
 		}
-		if (mouseEvent.target.type === MouseTargetType.CONTENT_VIEW_ZONE) {
+		const target = mouseEvent.target;
+		if (target.type === MouseTargetType.CONTENT_VIEW_ZONE) {
 			// handle the case where the mouse is over the view zone
-			const viewZoneData = <IViewZoneData>mouseEvent.target.detail;
+			const viewZoneData = target.detail;
 			if (controller.shouldShowHoverAtViewZone(viewZoneData.viewZoneId)) {
 				return new HoverForeignElementAnchor(1000, this, Range.fromPositions(viewZoneData.positionBefore || viewZoneData.position, viewZoneData.positionBefore || viewZoneData.position));
 			}
 		}
-		if (mouseEvent.target.type === MouseTargetType.CONTENT_EMPTY && mouseEvent.target.range) {
+		if (target.type === MouseTargetType.CONTENT_EMPTY) {
 			// handle the case where the mouse is over the empty portion of a line following ghost text
-			if (controller.shouldShowHoverAt(mouseEvent.target.range)) {
-				return new HoverForeignElementAnchor(1000, this, mouseEvent.target.range);
+			if (controller.shouldShowHoverAt(target.range)) {
+				return new HoverForeignElementAnchor(1000, this, target.range);
 			}
 		}
-		if (mouseEvent.target.type === MouseTargetType.CONTENT_TEXT && mouseEvent.target.range && mouseEvent.target.detail) {
+		if (target.type === MouseTargetType.CONTENT_TEXT) {
 			// handle the case where the mouse is directly over ghost text
-			const mightBeForeignElement = (<ITextContentData>mouseEvent.target.detail).mightBeForeignElement;
-			if (mightBeForeignElement && controller.shouldShowHoverAt(mouseEvent.target.range)) {
-				return new HoverForeignElementAnchor(1000, this, mouseEvent.target.range);
+			const mightBeForeignElement = target.detail.mightBeForeignElement;
+			if (mightBeForeignElement && controller.shouldShowHoverAt(target.range)) {
+				return new HoverForeignElementAnchor(1000, this, target.range);
 			}
 		}
 		return null;

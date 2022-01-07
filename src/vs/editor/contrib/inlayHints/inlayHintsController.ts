@@ -150,12 +150,12 @@ export class InlayHintsController implements IEditorContribution {
 
 		gesture.onMouseMoveOrRelevantKeyDown(e => {
 			const [mouseEvent] = e;
-			if (mouseEvent.target.type !== MouseTargetType.CONTENT_TEXT || typeof mouseEvent.target.detail !== 'object' || !mouseEvent.hasTriggerModifier) {
+			if (mouseEvent.target.type !== MouseTargetType.CONTENT_TEXT || !mouseEvent.hasTriggerModifier) {
 				removeHighlight();
 				return;
 			}
 			const model = this._editor.getModel()!;
-			const options = mouseEvent.target.detail?.injectedText?.options;
+			const options = mouseEvent.target.detail.injectedText?.options;
 			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLabelPart && options.attachedData.href) {
 				this._activeInlayHintPart = options.attachedData;
 
@@ -176,10 +176,10 @@ export class InlayHintsController implements IEditorContribution {
 		});
 		gesture.onCancel(removeHighlight);
 		gesture.onExecute(e => {
-			if (e.target.type !== MouseTargetType.CONTENT_TEXT || typeof e.target.detail !== 'object' || !e.hasTriggerModifier) {
+			if (e.target.type !== MouseTargetType.CONTENT_TEXT || !e.hasTriggerModifier) {
 				return;
 			}
-			const options = e.target.detail?.injectedText?.options;
+			const options = e.target.detail.injectedText?.options;
 			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLabelPart && options.attachedData.href) {
 				this._openerService.open(options.attachedData.href, { allowCommands: true, openToSide: e.hasSideBySideModifier });
 			}
