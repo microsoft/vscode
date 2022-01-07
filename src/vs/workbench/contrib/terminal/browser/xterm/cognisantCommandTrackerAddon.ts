@@ -69,6 +69,8 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 			case ShellIntegrationInteraction.CommandExecuted:
 				this._currentCommand.commandExecutedY = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
 
+				// TODO: Leverage key events on Windows between CommandStart and Executed to ensure we have the correct line
+
 				// TODO: Only do on this on Windows backends
 				// Check if the command line is the same as the previous command line or if the
 				// start Y differs from the executed Y. This is to catch the conpty case where the
@@ -110,15 +112,13 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 				if (this._currentCommand.command && !this._currentCommand.command.startsWith('\\') && this._currentCommand.command !== '') {
 					this._commands.push({
 						command: this._currentCommand.command,
-						// TODO: Date.now() is equivalent?
-						timestamp: new Date().getTime(),
+						timestamp: Date.now(),
 						cwd: this._cwd,
 						exitCode: this._exitCode
 					});
 				}
 
-				// TODO: Dispose
-				// this._currentCommand.previousCommandMarker?.dispose();
+				this._currentCommand.previousCommandMarker?.dispose();
 				this._currentCommand.previousCommandMarker = this._currentCommand.marker;
 				this._currentCommand.marker = undefined;
 				break;
