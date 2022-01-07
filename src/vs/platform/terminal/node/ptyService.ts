@@ -501,7 +501,6 @@ export class PersistentTerminalProcess extends Disposable {
 			unicodeVersion,
 			reviveBuffer
 		);
-
 		this._fixedDimensions = fixedDimensions;
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
@@ -737,11 +736,11 @@ class XtermSerializer implements ITerminalSerializer {
 		this._xterm = new XtermTerminal({ cols, rows, scrollback });
 		if (reviveBuffer) {
 			this._xterm.writeln(reviveBuffer);
+			if (this._isShellIntegrationEnabled) {
+				this._xterm.write('\x1b033]133;E\x1b007');
+			}
 		}
 		this._xterm.parser.registerOscHandler(133, (data => this._handleShellIntegration(data)));
-		if (this._isShellIntegrationEnabled) {
-			this._xterm.write('\x1b033]133;E\x1b007');
-		}
 		this.setUnicodeVersion(unicodeVersion);
 	}
 
