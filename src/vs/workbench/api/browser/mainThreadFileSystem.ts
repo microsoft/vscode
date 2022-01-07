@@ -11,7 +11,6 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -163,17 +162,17 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		return this._fileService.activateProvider(scheme);
 	}
 
-	$watch(extension: IExtensionDescription, session: number, resource: UriComponents, opts: IWatchOptions): void {
+	$watch(extensionId: string, session: number, resource: UriComponents, opts: IWatchOptions): void {
 		const uri = URI.revive(resource);
 
 		// refuse to watch anything that is already watched via
 		// our workspace watchers
 		if (this._contextService.isInsideWorkspace(uri)) {
-			this._logService.trace(`MainThreadFileSystem#$watch(): ignoring request to start watching because path is inside workspace (extension: ${extension.identifier.value}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
+			this._logService.trace(`MainThreadFileSystem#$watch(): ignoring request to start watching because path is inside workspace (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
 			return;
 		}
 
-		this._logService.trace(`MainThreadFileSystem#$watch(): request to start watching (extension: ${extension.identifier.value}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
+		this._logService.trace(`MainThreadFileSystem#$watch(): request to start watching (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
 
 		// automatically add `files.watcherExclude` patterns when watching
 		// recursively to give users a chance to configure exclude rules

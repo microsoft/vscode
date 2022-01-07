@@ -110,7 +110,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		}
 
 		const session = Math.random();
-		proxy.$watch(extension, session, globPattern.baseFolder, { recursive, excludes: [] /* excludes are not yet surfaced in the API */ });
+		proxy.$watch(extension.identifier.value, session, globPattern.baseFolder, { recursive, excludes: [] /* excludes are not yet surfaced in the API */ });
 
 		return Disposable.from({ dispose: () => proxy.$unwatch(session) });
 	}
