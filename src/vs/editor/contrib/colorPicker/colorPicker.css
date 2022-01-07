@@ -20,6 +20,7 @@
 	height: 0.8em;
 	line-height: 0.8em;
 	display: inline-block;
+	cursor: pointer;
 }
 
 .hc-black .colorpicker-color-decoration,

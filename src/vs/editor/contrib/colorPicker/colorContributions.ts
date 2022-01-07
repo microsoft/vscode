@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// import color detector contribution
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ITextContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import 'vs/editor/contrib/colorPicker/colorDetector';
+import { ColorDecorationInjectedTextMarker } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
-
 
 export class ColorContribution extends Disposable implements IEditorContribution {
 
@@ -37,8 +36,12 @@ export class ColorContribution extends Disposable implements IEditorContribution
 			return;
 		}
 
-		const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'));
-		if (!hoverOnColorDecorator) {
+		const detail = (<ITextContentData | null>mouseEvent.target.detail);
+		if (!detail || !detail.injectedText) {
+			return;
+		}
+
+		if (detail.injectedText.options.attachedData !== ColorDecorationInjectedTextMarker) {
 			return;
 		}
 
@@ -52,7 +55,7 @@ export class ColorContribution extends Disposable implements IEditorContribution
 		}
 		if (!hoverController.isColorPickerVisible()) {
 			const range = new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1);
-			hoverController.showContentHover(range, HoverStartMode.Delayed, false);
+			hoverController.showContentHover(range, HoverStartMode.Immediate, false);
 		}
 	}
 }
