@@ -740,7 +740,7 @@ class XtermSerializer implements ITerminalSerializer {
 		}
 		this._xterm.parser.registerOscHandler(133, (data => this._handleShellIntegration(data)));
 		if (this._isShellIntegrationEnabled) {
-			this._xterm.writeln('\x1b033]133;E\x1b007');
+			this._xterm.write('\x1b033]133;E\x1b007');
 		}
 		this.setUnicodeVersion(unicodeVersion);
 	}
