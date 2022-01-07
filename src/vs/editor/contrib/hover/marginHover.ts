@@ -120,13 +120,10 @@ export class MarginHoverWidget extends Widget implements IOverlayWidget {
 
 		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this._editor }, languageService, openerService));
 		this._computer = new MarginHoverComputer(this._editor);
-		this._hoverOperation = new HoverOperation(
-			this._computer,
-			(result: IHoverMessage[]) => this._withResult(result),
-			undefined,
-			(result: any) => this._withResult(result),
-			300
-		);
+		this._hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
+		this._register(this._hoverOperation.onResult((result) => {
+			this._withResult(result.value);
+		}));
 
 		this._register(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
@@ -139,7 +136,6 @@ export class MarginHoverWidget extends Widget implements IOverlayWidget {
 	}
 
 	public override dispose(): void {
-		this._hoverOperation.cancel();
 		this._editor.removeOverlayWidget(this);
 		super.dispose();
 	}

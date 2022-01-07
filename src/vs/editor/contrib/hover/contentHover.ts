@@ -75,18 +75,12 @@ export class ContentHoverController extends Disposable {
 		this._shouldFocus = false;
 		this._renderDisposable = null;
 
-		this._hoverOperation = new HoverOperation(
-			this._computer,
-			result => this._withResult(result, true),
-			null,
-			result => this._withResult(result, false),
-			this._editor.getOption(EditorOption.hover).delay
-		);
+		this._hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
+		this._register(this._hoverOperation.onResult((result) => {
+			this._withResult(result.value, result.isComplete);
+		}));
 
 		this._register(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
-		this._register(this._editor.onDidChangeConfiguration(() => {
-			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
-		}));
 		this._register(dom.addStandardDisposableListener(this._widget.getDomNode(), 'keydown', (e) => {
 			if (e.equals(KeyCode.Escape)) {
 				this.hide();
@@ -98,11 +92,6 @@ export class ContentHoverController extends Disposable {
 				this._renderMessages(this._computer.anchor, this._messages);
 			}
 		}));
-	}
-
-	public override dispose(): void {
-		this._hoverOperation.cancel();
-		super.dispose();
 	}
 
 	private _shouldShowAt(mouseEvent: IEditorMouseEvent): boolean {

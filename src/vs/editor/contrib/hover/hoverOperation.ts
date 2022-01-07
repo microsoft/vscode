@@ -6,6 +6,10 @@
 import { AsyncIterableObject, CancelableAsyncIterableObject, createCancelableAsyncIterable, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export interface IHoverComputer<T> {
 
@@ -46,41 +50,54 @@ export const enum HoverStartMode {
 	Immediate = 1
 }
 
-export class HoverOperation<Result> {
+export class HoverResult<T> {
+	constructor(
+		public readonly value: T[],
+		public readonly isComplete: boolean,
+		public readonly hasLoadingMessage: boolean,
+	) { }
+}
 
-	private readonly _computer: IHoverComputer<Result>;
-	private _state: ComputeHoverOperationState;
-	private _hoverTime: number;
+/**
+ * Computing the hover is very fine tuned.
+ *
+ * Suppose the hover delay is 300ms (the default). Then, when resting the mouse at an anchor:
+ * - at 150ms, the async computation is triggered (i.e. semantic hover)
+ *   - if async results already come in, they are not rendered yet.
+ * - at 300ms, the sync computation is triggered (i.e. decorations, markers)
+ *   - if there are sync or async results, they are rendered.
+ * - at 900ms, if the async computation hasn't finished, a "Loading..." result is added.
+ */
+export class HoverOperation<T> extends Disposable {
 
-	private readonly _firstWaitScheduler: RunOnceScheduler;
-	private readonly _secondWaitScheduler: RunOnceScheduler;
-	private readonly _loadingMessageScheduler: RunOnceScheduler;
-	private _asyncIterable: CancelableAsyncIterableObject<Result> | null;
-	private _asyncIterableDone: boolean;
+	private readonly _onResult = this._register(new Emitter<HoverResult<T>>());
+	public readonly onResult = this._onResult.event;
 
-	private readonly _completeCallback: (r: Result[]) => void;
-	private readonly _errorCallback: ((err: any) => void) | null | undefined;
-	private readonly _progressCallback: (progress: any) => void;
+	private readonly _firstWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerAsyncComputation(), 0));
+	private readonly _secondWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerSyncComputation(), 0));
+	private readonly _loadingMessageScheduler = this._register(new RunOnceScheduler(() => this._showLoadingMessage(), 0));
 
-	constructor(computer: IHoverComputer<Result>, success: (r: Result[]) => void, error: ((err: any) => void) | null | undefined, progress: (progress: any) => void, hoverTime: number) {
-		this._computer = computer;
-		this._state = ComputeHoverOperationState.IDLE;
-		this._hoverTime = hoverTime;
+	private _state = ComputeHoverOperationState.IDLE;
+	private _asyncIterable: CancelableAsyncIterableObject<T> | null = null;
+	private _asyncIterableDone: boolean = false;
 
-		this._firstWaitScheduler = new RunOnceScheduler(() => this._triggerAsyncComputation(), 0);
-		this._secondWaitScheduler = new RunOnceScheduler(() => this._triggerSyncComputation(), 0);
-		this._loadingMessageScheduler = new RunOnceScheduler(() => this._showLoadingMessage(), 0);
-
-		this._asyncIterable = null;
-		this._asyncIterableDone = false;
-
-		this._completeCallback = success;
-		this._errorCallback = error;
-		this._progressCallback = progress;
+	constructor(
+		private readonly _editor: ICodeEditor,
+		private readonly _computer: IHoverComputer<T>
+	) {
+		super();
 	}
 
-	public setHoverTime(hoverTime: number): void {
-		this._hoverTime = hoverTime;
+	public override dispose(): void {
+		if (this._asyncIterable) {
+			this._asyncIterable.cancel();
+			this._asyncIterable = null;
+		}
+		super.dispose();
+	}
+
+	private get _hoverTime(): number {
+		return this._editor.getOption(EditorOption.hover).delay;
 	}
 
 	private _firstWaitTime(): number {
@@ -114,7 +131,7 @@ export class HoverOperation<Result> {
 					this._asyncIterableDone = true;
 					this._withAsyncResult();
 				} catch (e) {
-					this._onError(e);
+					onUnexpectedError(e);
 				}
 			})();
 
@@ -152,22 +169,14 @@ export class HoverOperation<Result> {
 	}
 
 	private _onComplete(): void {
-		this._completeCallback(this._computer.getResult());
-	}
-
-	private _onError(error: any): void {
-		if (this._errorCallback) {
-			this._errorCallback(error);
-		} else {
-			onUnexpectedError(error);
-		}
+		this._onResult.fire(new HoverResult(this._computer.getResult(), true, false));
 	}
 
 	private _onProgress(): void {
 		if (this._state === ComputeHoverOperationState.WAITING_FOR_ASYNC_COMPUTATION_SHOWING_LOADING) {
-			this._progressCallback(this._computer.getResultWithLoadingMessage());
+			this._onResult.fire(new HoverResult(this._computer.getResultWithLoadingMessage(), false, true));
 		} else {
-			this._progressCallback(this._computer.getResult());
+			this._onResult.fire(new HoverResult(this._computer.getResult(), false, false));
 		}
 	}
 
