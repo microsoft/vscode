@@ -901,6 +901,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		document.designMode = 'Off';
+		document.getSelection()?.collapseToStart();
 
 		_findingMatches = matches as IFindMatch[];
 		postNotebookMessage('didFind', {
