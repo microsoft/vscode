@@ -192,6 +192,11 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 		console.warn(err.message);
 		outputChannel.appendLine(`${logTimestamp()} ${err.message}`);
 
+		/* __GDPR__
+			"git.missing" : {}
+		*/
+		telemetryReporter.sendTelemetryEvent('git.missing');
+
 		commands.executeCommand('setContext', 'git.missing', true);
 		warnAboutMissingGit();
 
