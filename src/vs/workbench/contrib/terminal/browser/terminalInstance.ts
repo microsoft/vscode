@@ -68,6 +68,7 @@ import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnviro
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isFirefox } from 'vs/base/browser/browser';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
+import { fromNow } from 'vs/base/common/date';
 
 const enum Constants {
 	/**
@@ -695,6 +696,52 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 		return { wordLinks: wordResults, webLinks: webResults, fileLinks: fileResults };
+	}
+
+	async runRecent(type: 'command' | 'cwd'): Promise<void> {
+		const commands = this.xterm?.commandTracker.commands;
+		if (!commands || !this.xterm) {
+			return;
+		}
+		type Item = IQuickPickItem;
+		const items: Item[] = [];
+		if (type === 'command') {
+			for (const { command, timestamp, cwd, exitCode } of commands) {
+				// trim off any whitespace and/or line endings
+				const label = command.trim();
+				if (label.length === 0) {
+					continue;
+				}
+				let description = '';
+				if (cwd) {
+					description += `cwd: ${cwd} `;
+				}
+				if (exitCode) {
+					// Since you cannot get the last command's exit code on pwsh, just whether it failed
+					// or not, -1 is treated specially as simply failed
+					if (exitCode === -1) {
+						description += 'failed';
+					} else {
+						description += `exitCode: ${exitCode}`;
+					}
+				}
+				items.push({
+					label,
+					description: description.trim(),
+					detail: fromNow(timestamp, true),
+					id: timestamp.toString()
+				});
+			}
+		} else {
+			const cwds = this.xterm.commandTracker.cwds;
+			for (const label of cwds) {
+				items.push({ label });
+			}
+		}
+		const result = await this._quickInputService.pick(items.reverse(), {});
+		if (result) {
+			this.sendText(type === 'cwd' ? `cd ${result.label}` : result.label, true);
+		}
 	}
 
 	detachFromElement(): void {

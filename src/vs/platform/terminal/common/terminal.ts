@@ -370,6 +370,13 @@ export interface IHeartbeatService {
 	readonly onBeat: Event<void>;
 }
 
+export interface TerminalCommand {
+	command: string;
+	timestamp: number;
+	cwd?: string;
+	exitCode?: number;
+}
+
 export interface IShellLaunchConfig {
 	/**
 	 * The name of the terminal, if this is not set the name of the process will be used.
@@ -548,7 +555,8 @@ export interface IProcessReadyEvent {
 }
 
 export const enum ProcessCapability {
-	CwdDetection = 'cwdDetection'
+	CwdDetection = 'cwdDetection',
+	CommandCognisant = 'commandCognisant'
 }
 
 /**

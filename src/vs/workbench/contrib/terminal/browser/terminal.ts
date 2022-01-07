@@ -793,6 +793,12 @@ export interface ITerminalInstance {
 	 * clipboard.
 	 */
 	showLinkQuickpick(): Promise<void>;
+
+	/**
+	 * Triggers a quick pick that displays recent commands or cwds. Selecting one will
+	 * re-run it in the active terminal.
+	 */
+	runRecent(type: 'command' | 'cwd'): Promise<void>;
 }
 
 export interface IXtermTerminal {
@@ -839,6 +845,11 @@ export interface IXtermTerminal {
 	 * viewport.
 	 */
 	clearBuffer(): void;
+
+	/*
+	 * When process capabilites are updated, update the command tracker
+	 */
+	upgradeCommandTracker(): void;
 }
 
 export interface IRequestAddInstanceToGroupEvent {
