@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { KeymapInfo, IRawMixedKeyboardMapping, IKeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
@@ -511,7 +511,6 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 
 	private _userKeyboardLayout: UserKeyboardLayout;
 
-	private readonly layoutChangeListener = this._register(new MutableDisposable());
 	private readonly _factory: BrowserKeyboardMapperFactory;
 	private _keyboardLayoutMode: string;
 
@@ -529,7 +528,9 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 		this._keyboardLayoutMode = layout ?? 'autodetect';
 		this._factory = new BrowserKeyboardMapperFactory(notificationService, storageService, commandService);
 
-		this.registerKeyboardListener();
+		this._register(this._factory.onDidChangeKeyboardMapper(() => {
+			this._onDidChangeKeyboardLayout.fire();
+		}));
 
 		if (layout && layout !== 'autodetect') {
 			// set keyboard layout
@@ -543,11 +544,9 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 				this._keyboardLayoutMode = layout;
 
 				if (layout === 'autodetect') {
-					this.registerKeyboardListener();
 					this._factory.onKeyboardLayoutChanged();
 				} else {
 					this._factory.setKeyboardLayout(layout);
-					this.layoutChangeListener.clear();
 				}
 			}
 		}));
@@ -592,12 +591,6 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 				}
 			}
 		}
-	}
-
-	registerKeyboardListener() {
-		this.layoutChangeListener.value = this._factory.onDidChangeKeyboardMapper(() => {
-			this._onDidChangeKeyboardLayout.fire();
-		});
 	}
 
 	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {
