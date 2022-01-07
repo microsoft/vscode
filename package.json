@@ -112,7 +112,6 @@
     "@types/sinon": "^10.0.2",
     "@types/sinon-test": "^2.4.2",
     "@types/trusted-types": "^1.0.6",
-    "@types/vscode-windows-registry": "^1.0.0",
     "@types/webpack": "^4.41.25",
     "@types/wicg-file-system-access": "^2020.9.2",
     "@types/windows-foreground-love": "^0.3.0",
@@ -221,7 +220,7 @@
     "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
-    "vscode-windows-registry": "1.0.4",
+    "@vscode/windows-registry": "1.0.5",
     "windows-foreground-love": "0.4.0",
     "windows-mutex": "0.4.1",
     "windows-process-tree": "^0.3.2"
