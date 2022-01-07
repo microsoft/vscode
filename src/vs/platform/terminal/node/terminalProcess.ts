@@ -426,7 +426,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (type === ProcessPropertyType.FixedDimensions) {
 			this._properties.fixedDimensions = value as IProcessPropertyMap[ProcessPropertyType.FixedDimensions];
 		}
-		this._onDidChangeProperty.fire({ type, value });
 	}
 
 	private _startWrite(): void {
