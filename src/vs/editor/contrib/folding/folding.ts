@@ -11,7 +11,6 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import * as types from 'vs/base/common/types';
 import 'vs/css!./folding';
-import { IEmptyContentData, IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution, registerInstantiatedEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -22,8 +21,8 @@ import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { FoldingRangeKind, FoldingRangeProviderRegistry } from 'vs/editor/common/modes';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { FoldingRangeKind, FoldingRangeProviderRegistry } from 'vs/editor/common/languages';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { CollapseMemento, FoldingModel, getNextFoldLine, getParentFoldLine as getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateForType, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp, toggleCollapseState } from 'vs/editor/contrib/folding/foldingModel';
 import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
 import { IndentRangeProvider } from 'vs/editor/contrib/folding/indentRangeProvider';
@@ -397,7 +396,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		let iconClicked = false;
 		switch (e.target.type) {
 			case MouseTargetType.GUTTER_LINE_DECORATIONS: {
-				const data = e.target.detail as IMarginData;
+				const data = e.target.detail;
 				const offsetLeftInGutter = (e.target.element as HTMLElement).offsetLeft;
 				const gutterOffsetX = data.offsetX - offsetLeftInGutter;
 
@@ -413,7 +412,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 			}
 			case MouseTargetType.CONTENT_EMPTY: {
 				if (this._unfoldOnClickAfterEndOfLine && this.hiddenRangeModel.hasRanges()) {
-					const data = e.target.detail as IEmptyContentData;
+					const data = e.target.detail;
 					if (!data.isAfterLines) {
 						break;
 					}

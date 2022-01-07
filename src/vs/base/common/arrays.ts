@@ -339,17 +339,17 @@ export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => any = 
 	});
 }
 
-export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
-	const seen: { [key: string]: boolean; } = Object.create(null);
+export function uniqueFilter<T, R>(keyFn: (t: T) => R): (t: T) => boolean {
+	const seen = new Set<R>();
 
 	return element => {
 		const key = keyFn(element);
 
-		if (seen[key]) {
+		if (seen.has(key)) {
 			return false;
 		}
 
-		seen[key] = true;
+		seen.add(key);
 		return true;
 	};
 }

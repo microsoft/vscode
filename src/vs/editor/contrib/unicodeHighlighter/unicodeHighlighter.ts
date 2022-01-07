@@ -18,11 +18,11 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecoration, IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { UnicodeHighlighterOptions, UnicodeHighlighterReason, UnicodeHighlighterReasonKind, UnicodeTextModelHighlighter } from 'vs/editor/common/modes/unicodeTextModelHighlighter';
-import { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorkerService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { UnicodeHighlighterOptions, UnicodeHighlighterReason, UnicodeHighlighterReasonKind, UnicodeTextModelHighlighter } from 'vs/editor/common/languages/unicodeTextModelHighlighter';
+import { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { isModelDecorationInComment, isModelDecorationInString, isModelDecorationVisible } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
+import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 import { MarkdownHover, renderMarkdownHovers } from 'vs/editor/contrib/hover/markdownHoverParticipant';
 import { BannerController } from 'vs/editor/contrib/unicodeHighlighter/bannerController';
 import * as nls from 'vs/nls';
@@ -414,7 +414,6 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _hover: IEditorHover,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
@@ -444,16 +443,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 			// text refers to a single character.
 			const codePoint = char.codePointAt(0)!;
 
-			function formatCodePoint(codePoint: number) {
-				let value = `\`U+${codePoint.toString(16).padStart(4, '0')}\``;
-				if (!InvisibleCharacters.isInvisibleCharacter(codePoint)) {
-					// Don't render any control characters or any invisible characters, as they cannot be seen anyways.
-					value += ` "${`${renderCodePointAsInlineCode(codePoint)}`}"`;
-				}
-				return value;
-			}
-
-			const codePointStr = formatCodePoint(codePoint);
+			const codePointStr = formatCodePointMarkdown(codePoint);
 
 			let reason: string;
 			switch (highlightInfo.reason.kind) {
@@ -462,7 +452,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 						'unicodeHighlight.characterIsAmbiguous',
 						'The character {0} could be confused with the character {1}, which is more common in source code.',
 						codePointStr,
-						formatCodePoint(highlightInfo.reason.confusableWith.codePointAt(0)!)
+						formatCodePointMarkdown(highlightInfo.reason.confusableWith.codePointAt(0)!)
 					);
 					break;
 
@@ -501,9 +491,22 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 		return result;
 	}
 
-	public renderHoverParts(hoverParts: MarkdownHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
-		return renderMarkdownHovers(hoverParts, fragment, this._editor, this._hover, this._languageService, this._openerService);
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IDisposable {
+		return renderMarkdownHovers(context, hoverParts, this._editor, this._languageService, this._openerService);
 	}
+}
+
+function codePointToHex(codePoint: number): string {
+	return `U+${codePoint.toString(16).padStart(4, '0')}`;
+}
+
+function formatCodePointMarkdown(codePoint: number) {
+	let value = `\`${codePointToHex(codePoint)}\``;
+	if (!InvisibleCharacters.isInvisibleCharacter(codePoint)) {
+		// Don't render any control characters or any invisible characters, as they cannot be seen anyways.
+		value += ` "${`${renderCodePointAsInlineCode(codePoint)}`}"`;
+	}
+	return value;
 }
 
 function renderCodePointAsInlineCode(codePoint: number): string {
@@ -704,9 +707,9 @@ export class ShowExcludeOptions extends EditorAction {
 
 		function getExcludeCharFromBeingHighlightedLabel(codePoint: number) {
 			if (InvisibleCharacters.isInvisibleCharacter(codePoint)) {
-				return nls.localize('unicodeHighlight.excludeInvisibleCharFromBeingHighlighted', 'Exclude {0} (invisible character) from being highlighted', `U+${codePoint.toString(16)}`);
+				return nls.localize('unicodeHighlight.excludeInvisibleCharFromBeingHighlighted', 'Exclude {0} (invisible character) from being highlighted', codePointToHex(codePoint));
 			}
-			return nls.localize('unicodeHighlight.excludeCharFromBeingHighlighted', 'Exclude {0} from being highlighted', `U+${codePoint.toString(16)} "${char}"`);
+			return nls.localize('unicodeHighlight.excludeCharFromBeingHighlighted', 'Exclude {0} from being highlighted', `${codePointToHex(codePoint)} "${char}"`);
 		}
 
 		const options: ExtendedOptions[] = [];

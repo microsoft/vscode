@@ -338,7 +338,7 @@ export interface CssProperties {
 	backgroundColor?: string | ThemeColor;
 	opacity?: string;
 	verticalAlign?: string;
-
+	cursor?: string;
 	margin?: string;
 	padding?: string;
 	width?: string;

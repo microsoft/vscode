@@ -11,8 +11,21 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 
-export class NativeHostService extends Disposable implements IHostService {
+class WorkbenchNativeHostService extends NativeHostService {
+
+	constructor(
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
+		@IMainProcessService mainProcessService: IMainProcessService
+	) {
+		super(environmentService.configuration.windowId, mainProcessService);
+	}
+}
+
+class WorkbenchHostService extends Disposable implements IHostService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -125,4 +138,5 @@ export class NativeHostService extends Disposable implements IHostService {
 	//#endregion
 }
 
-registerSingleton(IHostService, NativeHostService, true);
+registerSingleton(IHostService, WorkbenchHostService, true);
+registerSingleton(INativeHostService, WorkbenchNativeHostService, true);

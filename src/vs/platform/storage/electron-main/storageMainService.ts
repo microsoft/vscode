@@ -5,12 +5,17 @@
 
 import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IStorage } from 'vs/base/parts/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { AbstractStorageService, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { GlobalStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+
+//#region Storage Main Service (intent: make global and workspace storage accessible to windows from main process)
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
 
@@ -20,11 +25,17 @@ export interface IStorageMainService {
 
 	/**
 	 * Provides access to the global storage shared across all windows.
+	 *
+	 * Note: DO NOT use this for reading/writing from the main process!
+	 *       Rather use `IGlobalStorageMainService` for that purpose.
 	 */
 	readonly globalStorage: IStorageMain;
 
 	/**
 	 * Provides access to the workspace storage specific to a single window.
+	 *
+	 * Note: DO NOT use this for reading/writing from the main process!
+	 *       This is currently not supported.
 	 */
 	workspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain;
 }
@@ -130,4 +141,93 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	}
 
 	//#endregion
+}
+
+//#endregion
+
+
+//#region Global Main Storage Service (intent: use global storage from main process)
+
+export const IGlobalStorageMainService = createDecorator<IStorageMainService>('globalStorageMainService');
+
+/**
+ * A specialized `IStorageService` interface that only allows
+ * access to the `StorageScope.GLOBAL` scope.
+ */
+export interface IGlobalStorageMainService extends IStorageService {
+
+	/**
+	 * Important: unlike other storage services in the renderer, the
+	 * main process does not await the storage to be ready, rather
+	 * storage is being initialized while a window opens to reduce
+	 * pressure on startup.
+	 *
+	 * As such, any client wanting to access global storage from the
+	 * main process needs to wait for `whenReady`, otherwise there is
+	 * a chance that the service operates on an in-memory store that
+	 * is not backed by any persistent DB.
+	 */
+	readonly whenReady: Promise<void>;
+
+	get(key: string, scope: StorageScope.GLOBAL, fallbackValue: string): string;
+	get(key: string, scope: StorageScope.GLOBAL, fallbackValue?: string): string | undefined;
+
+	getBoolean(key: string, scope: StorageScope.GLOBAL, fallbackValue: boolean): boolean;
+	getBoolean(key: string, scope: StorageScope.GLOBAL, fallbackValue?: boolean): boolean | undefined;
+
+	getNumber(key: string, scope: StorageScope.GLOBAL, fallbackValue: number): number;
+	getNumber(key: string, scope: StorageScope.GLOBAL, fallbackValue?: number): number | undefined;
+
+	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope.GLOBAL, target: StorageTarget): void;
+
+	remove(key: string, scope: StorageScope.GLOBAL): void;
+
+	keys(scope: StorageScope.GLOBAL, target: StorageTarget): string[];
+
+	migrate(toWorkspace: IWorkspaceInitializationPayload): never;
+
+	isNew(scope: StorageScope.GLOBAL): boolean;
+}
+
+export class GlobalStorageMainService extends AbstractStorageService implements IGlobalStorageMainService {
+
+	declare readonly _serviceBrand: undefined;
+
+	readonly whenReady = this.storageMainService.globalStorage.whenInit;
+
+	constructor(
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@IStorageMainService private readonly storageMainService: IStorageMainService
+	) {
+		super();
+	}
+
+	protected doInitialize(): Promise<void> {
+
+		// global storage is being initialized as part
+		// of the first window opening, so we do not
+		// trigger it here but can join it
+		return this.storageMainService.globalStorage.whenInit;
+	}
+
+	protected getStorage(scope: StorageScope): IStorage | undefined {
+		switch (scope) {
+			case StorageScope.GLOBAL:
+				return this.storageMainService.globalStorage.storage;
+			case StorageScope.WORKSPACE:
+				return undefined; // unsupported from main process
+		}
+	}
+
+	protected getLogDetails(scope: StorageScope): string | undefined {
+		return scope === StorageScope.GLOBAL ? this.environmentMainService.globalStorageHome.fsPath : undefined;
+	}
+
+	protected override shouldFlushWhenIdle(): boolean {
+		return false; // not needed here, will be triggered from any window that is opened
+	}
+
+	migrate(): never {
+		throw new Error('Migrating storage is unsupported from main process');
+	}
 }

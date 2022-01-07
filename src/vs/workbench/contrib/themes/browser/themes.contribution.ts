@@ -571,7 +571,7 @@ registerAction2(class extends Action2 {
 		contents = contents.replace(/\"__/g, '//"');
 
 		const editorService = accessor.get(IEditorService);
-		return editorService.openEditor({ resource: undefined, contents, mode: 'jsonc', options: { pinned: true } });
+		return editorService.openEditor({ resource: undefined, contents, languageId: 'jsonc', options: { pinned: true } });
 	}
 });
 

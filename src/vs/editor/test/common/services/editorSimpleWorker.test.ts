@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorSimpleWorker, ICommonModel } from 'vs/editor/common/services/editorSimpleWorker';
-import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerService';
 
 suite('EditorSimpleWorker', () => {
 

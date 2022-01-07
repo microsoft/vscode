@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, IExtensionTerminalProfile, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
-import { ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalFont, ITerminalBackend, ITerminalProcessExtHostProxy, IRegisterContributedProfileArgs } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalFont, ITerminalBackend, ITerminalProcessExtHostProxy, IRegisterContributedProfileArgs, IShellIntegration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IEditableData } from 'vs/workbench/common/views';
@@ -197,7 +197,9 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	toggleDevTools(open?: boolean): Promise<void>;
 	handleNewRegisteredBackend(backend: ITerminalBackend): void;
 }
+export class TerminalLinkQuickPickEvent extends MouseEvent {
 
+}
 export interface ITerminalServiceNativeDelegate {
 	getWindowCount(): Promise<number>;
 	openDevTools(): Promise<void>;
@@ -784,6 +786,19 @@ export interface ITerminalInstance {
 	 * Triggers a quick pick to change the color of the associated terminal tab icon.
 	 */
 	changeColor(): Promise<void>;
+
+	/**
+	 * Triggers a quick pick that displays links from the viewport of the active terminal.
+	 * Selecting a file or web link will open it. Selecting a word link will copy it to the
+	 * clipboard.
+	 */
+	showLinkQuickpick(): Promise<void>;
+
+	/**
+	 * Triggers a quick pick that displays recent commands or cwds. Selecting one will
+	 * re-run it in the active terminal.
+	 */
+	runRecent(type: 'command' | 'cwd'): Promise<void>;
 }
 
 export interface IXtermTerminal {
@@ -794,6 +809,11 @@ export interface IXtermTerminal {
 	readonly commandTracker: ICommandTracker;
 
 	/**
+	 * Reports the status of shell integration and fires events relating to it.
+	 */
+	readonly shellIntegration: IShellIntegration;
+
+	/**
 	 * The position of the terminal.
 	 */
 	target?: TerminalLocation;
@@ -801,12 +821,12 @@ export interface IXtermTerminal {
 	/**
 	 * Find the next instance of the term
 	*/
-	findNext(term: string, searchOptions: ISearchOptions): boolean;
+	findNext(term: string, searchOptions: ISearchOptions): Promise<boolean>;
 
 	/**
 	 * Find the previous instance of the term
 	 */
-	findPrevious(term: string, searchOptions: ISearchOptions): boolean;
+	findPrevious(term: string, searchOptions: ISearchOptions): Promise<boolean>;
 
 	/**
 	 * Forces the terminal to redraw its viewport.
@@ -830,6 +850,11 @@ export interface IXtermTerminal {
 	 * viewport.
 	 */
 	clearBuffer(): void;
+
+	/*
+	 * When process capabilites are updated, update the command tracker
+	 */
+	upgradeCommandTracker(): void;
 }
 
 export interface IRequestAddInstanceToGroupEvent {

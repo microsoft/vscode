@@ -10,7 +10,7 @@ import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithMe
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { VIEW_ID } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, UndoEnablement, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Limiter, Promises, RunOnceWorker } from 'vs/base/common/async';
 import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
@@ -32,6 +32,7 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { once } from 'vs/base/common/functional';
 import { coalesce } from 'vs/base/common/arrays';
 import { canceled } from 'vs/base/common/errors';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 //#region Browser File Upload (drag and drop, input element)
 
@@ -387,6 +388,7 @@ export class ExternalFileImport {
 		@IFileService private readonly fileService: IFileService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IExplorerService private readonly explorerService: IExplorerService,
@@ -530,12 +532,13 @@ export class ExternalFileImport {
 
 			await this.explorerService.applyBulkEdit(resourceFileEdits, {
 				undoLabel: resourcesFiltered.length === 1 ?
-					localize('copyFile', "Copy {0}", basename(resourcesFiltered[0])) :
-					localize('copynFile', "Copy {0} resources", resourcesFiltered.length),
+					localize('importFile', "Import {0}", basename(resourcesFiltered[0])) :
+					localize('importnFile', "Import {0} resources", resourcesFiltered.length),
 				progressLabel: resourcesFiltered.length === 1 ?
 					localize('copyingFile', "Copying {0}", basename(resourcesFiltered[0])) :
 					localize('copyingnFile', "Copying {0} resources", resourcesFiltered.length),
-				progressLocation: ProgressLocation.Window
+				progressLocation: ProgressLocation.Window,
+				confirmBeforeUndo: this.configurationService.getValue<IFilesConfiguration>().explorer.enableUndo === UndoEnablement.Warn,
 			});
 
 			// if we only add one file, just open it directly

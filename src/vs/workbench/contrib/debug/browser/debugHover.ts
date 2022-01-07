@@ -30,7 +30,7 @@ import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { coalesce } from 'vs/base/common/arrays';
 import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
-import { EvaluatableExpressionProviderRegistry } from 'vs/editor/common/modes';
+import { EvaluatableExpressionProviderRegistry } from 'vs/editor/common/languages';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isMacintosh } from 'vs/base/common/platform';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, ITextModel, PositionAffinity } from 'vs/editor/common/model';
@@ -198,8 +198,13 @@ class ModelLineProjection implements IModelLineProjection {
 						}
 					}
 
-					totalInjectedTextLengthBefore += length;
-					currentInjectedOffset++;
+					if (injectedTextEndOffsetInInputWithInjections <= lineEndOffsetInInputWithInjections) {
+						totalInjectedTextLengthBefore += length;
+						currentInjectedOffset++;
+					} else {
+						// injected text breaks into next line, process it again
+						break;
+					}
 				}
 			}
 		}
@@ -216,7 +221,7 @@ class ModelLineProjection implements IModelLineProjection {
 		}
 
 		for (let outputLineIndex = outputLineIdx; outputLineIndex < outputLineIdx + lineCount; outputLineIndex++) {
-			let globalIndex = globalStartIndex + outputLineIndex - outputLineIdx;
+			const globalIndex = globalStartIndex + outputLineIndex - outputLineIdx;
 			if (!needed[globalIndex]) {
 				result[globalIndex] = null;
 				continue;
@@ -262,7 +267,7 @@ class ModelLineProjection implements IModelLineProjection {
 
 	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number, affinity: PositionAffinity = PositionAffinity.None): Position {
 		this._assertVisible();
-		let r = this._projectionData.translateToOutputPosition(inputColumn - 1, affinity);
+		const r = this._projectionData.translateToOutputPosition(inputColumn - 1, affinity);
 		return r.toPosition(deltaLineNumber);
 	}
 
@@ -334,8 +339,8 @@ class IdentityModelLineProjection implements IModelLineProjection {
 	}
 
 	public getViewLineData(model: ISimpleModel, modelLineNumber: number, _outputLineIndex: number): ViewLineData {
-		let lineTokens = model.getLineTokens(modelLineNumber);
-		let lineContent = lineTokens.getLineContent();
+		const lineTokens = model.getLineTokens(modelLineNumber);
+		const lineContent = lineTokens.getLineContent();
 		return new ViewLineData(
 			lineContent,
 			false,

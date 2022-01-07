@@ -273,9 +273,9 @@ export interface ITextFileEditorModelResolveOrCreateOptions {
 	readonly reason?: TextFileResolveReason;
 
 	/**
-	 * The language mode to use for the model text content.
+	 * The language id to use for the model text content.
 	 */
-	readonly mode?: string;
+	readonly languageId?: string;
 
 	/**
 	 * The encoding to use when resolving the model text content.
@@ -468,15 +468,15 @@ export interface IEncodingSupport {
 	setEncoding(encoding: string, mode: EncodingMode): Promise<void>;
 }
 
-export interface IModeSupport {
+export interface ILanguageSupport {
 
 	/**
-	 * Sets the language mode of the object.
+	 * Sets the language id of the object.
 	 */
-	setMode(mode: string, setExplicitly?: boolean): void;
+	setLanguageId(languageId: string, setExplicitly?: boolean): void;
 }
 
-export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, IModeSupport, IWorkingCopy {
+export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, ILanguageSupport, IWorkingCopy {
 
 	readonly onDidChangeContent: Event<void>;
 	readonly onDidSaveError: Event<void>;
@@ -496,7 +496,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	isDirty(): this is IResolvedTextFileEditorModel;
 
-	getMode(): string | undefined;
+	getLanguageId(): string | undefined;
 
 	isResolved(): this is IResolvedTextFileEditorModel;
 }
@@ -504,7 +504,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 export function isTextFileEditorModel(model: ITextEditorModel): model is ITextFileEditorModel {
 	const candidate = model as ITextFileEditorModel;
 
-	return areFunctions(candidate.setEncoding, candidate.getEncoding, candidate.save, candidate.revert, candidate.isDirty, candidate.getMode);
+	return areFunctions(candidate.setEncoding, candidate.getEncoding, candidate.save, candidate.revert, candidate.isDirty, candidate.getLanguageId);
 }
 
 export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {

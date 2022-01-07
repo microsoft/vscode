@@ -604,6 +604,22 @@ suite('StoredFileWorkingCopy', function () {
 		assert.ok(error);
 	});
 
+	test('save - returns false when save fails', async function () {
+		await workingCopy.resolve();
+
+		try {
+			accessor.fileService.writeShouldThrowError = new FileOperationError('write error', FileOperationResult.FILE_PERMISSION_DENIED);
+
+			const res = await workingCopy.save({ force: true });
+			assert.strictEqual(res, false);
+		} finally {
+			accessor.fileService.writeShouldThrowError = undefined;
+		}
+
+		const res = await workingCopy.save({ force: true });
+		assert.strictEqual(res, true);
+	});
+
 	test('save participant', async () => {
 		await workingCopy.resolve();
 

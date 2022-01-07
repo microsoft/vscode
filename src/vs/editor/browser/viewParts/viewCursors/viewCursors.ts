@@ -344,7 +344,8 @@ export class ViewCursors extends ViewPart {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		let renderData: IViewCursorRenderData[] = [], renderDataLen = 0;
+		const renderData: IViewCursorRenderData[] = [];
+		let renderDataLen = 0;
 
 		const primaryRenderData = this._primaryCursor.render(ctx);
 		if (primaryRenderData) {

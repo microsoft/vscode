@@ -217,6 +217,10 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				this.messagePort = e.ports[0];
 				this.messagePort.onmessage = (e) => {
 					const handlers = this._messageHandlers.get(e.data.channel);
+					if (!handlers) {
+						console.log(`No handlers found for '${e.data.channel}'`);
+						return;
+					}
 					handlers?.forEach(handler => handler(e.data.data, e));
 				};
 
@@ -364,6 +368,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 								});
 							}
 						}
+					default:
+						console.log('Unknown message received in renderer process from service worker port');
+						return;
 				}
 			};
 

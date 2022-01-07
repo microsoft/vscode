@@ -101,10 +101,11 @@ export function getThemeTypeSelector(type: ColorScheme): string {
 }
 
 export interface ITokenStyle {
-	readonly foreground?: number;
-	readonly bold?: boolean;
-	readonly underline?: boolean;
-	readonly italic?: boolean;
+	readonly foreground: number | undefined;
+	readonly bold: boolean | undefined;
+	readonly underline: boolean | undefined;
+	readonly strikethrough: boolean | undefined;
+	readonly italic: boolean | undefined;
 }
 
 export interface IColorTheme {

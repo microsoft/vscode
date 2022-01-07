@@ -5,7 +5,7 @@
 
 import { join } from 'path';
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
-import { getRandomUserDataDir, startApp, timeout, installDiagnosticsHandler, installAppAfterHandler } from '../../utils';
+import { createApp, timeout, installDiagnosticsHandler, installAppAfterHandler, getRandomUserDataDir } from '../../utils';
 
 export function setup(ensureStableCode: () => string | undefined, logger: Logger) {
 	describe('Data Loss (insiders -> insiders)', () => {
@@ -17,7 +17,8 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		installAppAfterHandler(() => app);
 
 		it('verifies opened editors are restored', async function () {
-			app = await startApp(this.defaultOptions);
+			app = createApp(this.defaultOptions);
+			await app.start();
 
 			// Open 3 editors
 			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'bin', 'www'));
@@ -38,7 +39,8 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		});
 
 		it('verifies editors can save and restore', async function () {
-			app = await startApp(this.defaultOptions);
+			app = createApp(this.defaultOptions);
+			await app.start();
 
 			const textToType = 'Hello, Code';
 
@@ -74,7 +76,8 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		});
 
 		async function testHotExit(restartDelay: number | undefined, autoSave: boolean | undefined) {
-			app = await startApp(this.defaultOptions);
+			app = createApp(this.defaultOptions);
+			await app.start();
 
 			if (autoSave) {
 				await app.workbench.settingsEditor.addUserSetting('files.autoSave', '"afterDelay"');
@@ -92,7 +95,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			await app.workbench.editors.waitForTab('readme.md', !autoSave);
 
 			if (typeof restartDelay === 'number') {
-				// this is an OK use of a timeout in a smoke test
+				// this is an OK use of a timeout in a smoke test:
 				// we want to simulate a user having typed into
 				// the editor and pausing for a moment before
 				// terminating
@@ -102,10 +105,11 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			await app.restart();
 
 			await app.workbench.editors.waitForTab('readme.md', !autoSave);
-			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'readme.md'));
+			await app.workbench.editors.waitForTab('Untitled-1', true);
+
+			await app.workbench.editors.selectTab('readme.md');
 			await app.workbench.editor.waitForEditorContents('readme.md', contents => contents.indexOf(textToType) > -1);
 
-			await app.workbench.editors.waitForTab('Untitled-1', true);
 			await app.workbench.editors.selectTab('Untitled-1');
 			await app.workbench.editor.waitForEditorContents('Untitled-1', contents => contents.indexOf(textToTypeInUntitled) > -1);
 
@@ -129,10 +133,13 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 				this.skip();
 			}
 
-			// On macOS, the stable app fails to launch on first try,
-			// so let's retry this once
-			// https://github.com/microsoft/vscode/pull/127799
+			// macOS: the first launch of stable Code will trigger
+			// additional checks in the OS (notarization validation)
+			// so it can take a very long time. as such we increase
+			// the timeout and install a retry handler to make sure
+			// we do not fail as a consequence.
 			if (process.platform === 'darwin') {
+				this.timeout(2 * 60 * 1000);
 				this.retries(2);
 			}
 
@@ -224,10 +231,11 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			await insidersApp.start();
 
 			await insidersApp.workbench.editors.waitForTab('readme.md', true);
-			await insidersApp.workbench.quickaccess.openFile(join(insidersApp.workspacePathOrFolder, 'readme.md'));
+			await insidersApp.workbench.editors.waitForTab('Untitled-1', true);
+
+			await insidersApp.workbench.editors.selectTab('readme.md');
 			await insidersApp.workbench.editor.waitForEditorContents('readme.md', contents => contents.indexOf(textToType) > -1);
 
-			await insidersApp.workbench.editors.waitForTab('Untitled-1', true);
 			await insidersApp.workbench.editors.selectTab('Untitled-1');
 			await insidersApp.workbench.editor.waitForEditorContents('Untitled-1', contents => contents.indexOf(textToTypeInUntitled) > -1);
 

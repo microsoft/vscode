@@ -19,6 +19,11 @@ export interface ILayoutService {
 	readonly dimension: IDimension;
 
 	/**
+	 * Does the application have a single container?
+	 */
+	readonly hasContainer: boolean;
+
+	/**
 	 * Container of the application.
 	 */
 	readonly container: HTMLElement;

@@ -237,7 +237,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 	private async getUntitledDocumentData(resource: URI): Promise<VSBuffer | undefined> {
 		// If it's an untitled file we must populate the untitledDocumentData
 		const untitledString = this.untitledTextEditorService.getValue(resource);
-		let untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
+		const untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
 		return untitledDocumentData;
 	}
 

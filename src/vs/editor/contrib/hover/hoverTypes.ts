@@ -26,14 +26,10 @@ export interface IHoverPart {
 	 * even in the case of multiple hover parts.
 	 */
 	readonly forceShowAtRange?: boolean;
-
+	/**
+	 * Is this hover part still valid for this new anchor?
+	 */
 	isValidForHoverAnchor(anchor: HoverAnchor): boolean;
-}
-
-export interface IEditorHover {
-	hide(): void;
-	onContentsChanged(): void;
-	setColorPicker(widget: ColorPickerWidget): void;
 }
 
 export const enum HoverAnchorType {
@@ -83,10 +79,33 @@ export interface IEditorHoverAction {
 	setEnabled(enabled: boolean): void;
 }
 
+export interface IEditorHoverRenderContext {
+	/**
+	 * The fragment where dom elements should be attached.
+	 */
+	readonly fragment: DocumentFragment;
+	/**
+	 * The status bar for actions for this hover.
+	 */
+	readonly statusBar: IEditorHoverStatusBar;
+	/**
+	 * Set if the hover will render a color picker widget.
+	 */
+	setColorPicker(widget: ColorPickerWidget): void;
+	/**
+	 * The contents rendered inside the fragment have been changed, which means that the hover should relayout.
+	 */
+	onContentsChanged(): void;
+	/**
+	 * Hide the hover.
+	 */
+	hide(): void;
+}
+
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	suggestHoverAnchor?(mouseEvent: IEditorMouseEvent): HoverAnchor | null;
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): T[];
 	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
-	renderHoverParts(hoverParts: T[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable;
+	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IDisposable;
 }

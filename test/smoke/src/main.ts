@@ -311,6 +311,7 @@ async function setup(): Promise<void> {
 	logger.log('Smoketest setup done!\n');
 }
 
+// Before main suite (before all tests)
 before(async function () {
 	this.timeout(2 * 60 * 1000); // allow two minutes for setup
 
@@ -333,6 +334,7 @@ before(async function () {
 	await setup();
 });
 
+// After main suite (after all tests)
 after(async function () {
 	try {
 		let deleted = false;
