@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.64.0",
-  "distro": "553bb9d3803948fcccf1a35374942d8aba9c9c73",
+  "distro": "3840fb71930c0410ea53305aef2f3d2af8e9b621",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -103,6 +103,7 @@
     "@types/debug": "4.1.5",
     "@types/graceful-fs": "4.1.2",
     "@types/gulp-postcss": "^8.0.0",
+    "@types/gulp-svgmin": "^1.2.1",
     "@types/http-proxy-agent": "^2.0.1",
     "@types/keytar": "^4.4.0",
     "@types/minimist": "^1.2.1",
@@ -159,6 +160,7 @@
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.6.5",
     "gulp-sourcemaps": "^3.0.0",
+    "gulp-svgmin": "^4.1.0",
     "gulp-tsb": "4.0.6",
     "gulp-untar": "^0.0.7",
     "gulp-vinyl-zip": "^2.1.2",

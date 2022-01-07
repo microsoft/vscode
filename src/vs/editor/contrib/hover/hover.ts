@@ -15,11 +15,11 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/link/goToDefinitionAtPosition';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
-import { ModesContentHoverWidget } from 'vs/editor/contrib/hover/modesContentHover';
-import { ModesGlyphHoverWidget } from 'vs/editor/contrib/hover/modesGlyphHover';
+import { ContentHoverWidget, ContentHoverController } from 'vs/editor/contrib/hover/contentHover';
+import { MarginHoverWidget } from 'vs/editor/contrib/hover/marginHover';
 import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -33,15 +33,13 @@ export class ModesHoverController implements IEditorContribution {
 	private readonly _toUnhook = new DisposableStore();
 	private readonly _didChangeConfigurationHandler: IDisposable;
 
-	private _contentWidget: ModesContentHoverWidget | null;
-	private _glyphWidget: ModesGlyphHoverWidget | null;
+	private _contentWidget: ContentHoverController | null;
+	private _glyphWidget: MarginHoverWidget | null;
 
 	private _isMouseDown: boolean;
 	private _hoverClicked: boolean;
 	private _isHoverEnabled!: boolean;
 	private _isHoverSticky!: boolean;
-
-	private _hoverVisibleKey: IContextKey<boolean>;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -66,8 +64,6 @@ export class ModesHoverController implements IEditorContribution {
 				this._hookEvents();
 			}
 		});
-
-		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(_contextKeyService);
 	}
 
 	private _hookEvents(): void {
@@ -81,7 +77,6 @@ export class ModesHoverController implements IEditorContribution {
 			this._toUnhook.add(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
 			this._toUnhook.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._toUnhook.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
-			this._toUnhook.add(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
 		} else {
 			this._toUnhook.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._toUnhook.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
@@ -96,11 +91,6 @@ export class ModesHoverController implements IEditorContribution {
 		this._toUnhook.clear();
 	}
 
-	private _onModelDecorationsChanged(): void {
-		this._contentWidget?.onModelDecorationsChanged();
-		this._glyphWidget?.onModelDecorationsChanged();
-	}
-
 	private _onEditorScrollChanged(e: IScrollEvent): void {
 		if (e.scrollTopChanged || e.scrollLeftChanged) {
 			this._hideWidgets();
@@ -110,20 +100,20 @@ export class ModesHoverController implements IEditorContribution {
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
 		this._isMouseDown = true;
 
-		const targetType = mouseEvent.target.type;
+		const target = mouseEvent.target;
 
-		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID) {
+		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID) {
 			this._hoverClicked = true;
 			// mouse down on top of content hover widget
 			return;
 		}
 
-		if (targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID) {
+		if (target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID) {
 			// mouse down on top of overlay hover widget
 			return;
 		}
 
-		if (targetType !== MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail !== ModesGlyphHoverWidget.ID) {
+		if (target.type !== MouseTargetType.OVERLAY_WIDGET) {
 			this._hoverClicked = false;
 		}
 
@@ -135,13 +125,13 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		let targetType = mouseEvent.target.type;
+		const target = mouseEvent.target;
 
 		if (this._isMouseDown && this._hoverClicked) {
 			return;
 		}
 
-		if (this._isHoverSticky && targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID) {
+		if (this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID) {
 			// mouse moved on top of content hover widget
 			return;
 		}
@@ -152,14 +142,14 @@ export class ModesHoverController implements IEditorContribution {
 		}
 
 		if (
-			!this._isHoverSticky && targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID
+			!this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID
 			&& this._contentWidget?.isColorPickerVisible()
 		) {
 			// though the hover is not sticky, the color picker needs to.
 			return;
 		}
 
-		if (this._isHoverSticky && targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID) {
+		if (this._isHoverSticky && target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID) {
 			// mouse moved on top of overlay hover widget
 			return;
 		}
@@ -175,12 +165,12 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN && mouseEvent.target.position) {
+		if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && target.position) {
 			this._contentWidget?.hide();
 			if (!this._glyphWidget) {
-				this._glyphWidget = new ModesGlyphHoverWidget(this._editor, this._languageService, this._openerService);
+				this._glyphWidget = new MarginHoverWidget(this._editor, this._languageService, this._openerService);
 			}
-			this._glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
+			this._glyphWidget.startShowingAt(target.position.lineNumber);
 			return;
 		}
 
@@ -204,9 +194,9 @@ export class ModesHoverController implements IEditorContribution {
 		this._contentWidget?.hide();
 	}
 
-	private _getOrCreateContentWidget(): ModesContentHoverWidget {
+	private _getOrCreateContentWidget(): ContentHoverController {
 		if (!this._contentWidget) {
-			this._contentWidget = this._instantiationService.createInstance(ModesContentHoverWidget, this._editor, this._hoverVisibleKey);
+			this._contentWidget = this._instantiationService.createInstance(ContentHoverController, this._editor);
 		}
 		return this._contentWidget;
 	}

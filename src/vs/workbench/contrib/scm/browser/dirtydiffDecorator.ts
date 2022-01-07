@@ -42,7 +42,6 @@ import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/men
 import { IChange, IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { OverviewRulerLane, ITextModel, IModelDecorationOptions, MinimapPosition } from 'vs/editor/common/model';
 import { sortedDiff } from 'vs/base/common/arrays';
-import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISplice } from 'vs/base/common/sequence';
 import { createStyleSheet } from 'vs/base/browser/dom';
@@ -766,7 +765,7 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 			return;
 		}
 
-		const data = e.target.detail as IMarginData;
+		const data = e.target.detail;
 		const offsetLeftInGutter = (e.target.element as HTMLElement).offsetLeft;
 		const gutterOffsetX = data.offsetX - offsetLeftInGutter;
 

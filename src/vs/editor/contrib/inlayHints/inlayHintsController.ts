@@ -23,7 +23,7 @@ import { IModelDeltaDecoration, InjectedTextOptions, ITextModel, TrackedRangeSti
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
-import { InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/inlayHints';
+import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/inlayHints';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
@@ -150,12 +150,12 @@ export class InlayHintsController implements IEditorContribution {
 
 		gesture.onMouseMoveOrRelevantKeyDown(e => {
 			const [mouseEvent] = e;
-			if (mouseEvent.target.type !== MouseTargetType.CONTENT_TEXT || typeof mouseEvent.target.detail !== 'object' || !mouseEvent.hasTriggerModifier) {
+			if (mouseEvent.target.type !== MouseTargetType.CONTENT_TEXT || !mouseEvent.hasTriggerModifier) {
 				removeHighlight();
 				return;
 			}
 			const model = this._editor.getModel()!;
-			const options = mouseEvent.target.detail?.injectedText?.options;
+			const options = mouseEvent.target.detail.injectedText?.options;
 			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLabelPart && options.attachedData.href) {
 				this._activeInlayHintPart = options.attachedData;
 
@@ -163,7 +163,7 @@ export class InlayHintsController implements IEditorContribution {
 				const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
 				const lineHints = new Set<InlayHintItem>();
 				for (let data of this._decorationsMetadata.values()) {
-					if (range.containsPosition(data.item.hint.position)) {
+					if (range.containsRange(data.item.anchor.range)) {
 						lineHints.add(data.item);
 					}
 				}
@@ -176,10 +176,10 @@ export class InlayHintsController implements IEditorContribution {
 		});
 		gesture.onCancel(removeHighlight);
 		gesture.onExecute(e => {
-			if (e.target.type !== MouseTargetType.CONTENT_TEXT || typeof e.target.detail !== 'object' || !e.hasTriggerModifier) {
+			if (e.target.type !== MouseTargetType.CONTENT_TEXT || !e.hasTriggerModifier) {
 				return;
 			}
-			const options = e.target.detail?.injectedText?.options;
+			const options = e.target.detail.injectedText?.options;
 			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLabelPart && options.attachedData.href) {
 				this._openerService.open(options.attachedData.href, { allowCommands: true, openToSide: e.hasSideBySideModifier });
 			}
@@ -188,21 +188,23 @@ export class InlayHintsController implements IEditorContribution {
 	}
 
 	private _cacheHintsForFastRestore(model: ITextModel): void {
-		const items = new Set<InlayHintItem>();
+		const items = new Map<InlayHintItem, InlayHintItem>();
 		for (const [id, obj] of this._decorationsMetadata) {
 			if (items.has(obj.item)) {
 				// an inlay item can be rendered as multiple decorations
 				// but they will all uses the same range
 				continue;
 			}
-			items.add(obj.item);
+			let value = obj.item;
 			const range = model.getDecorationRange(id);
 			if (range) {
 				// update range with whatever the editor has tweaked it to
-				obj.item.anchor.range = range;
+				const anchor = new InlayHintAnchor(range, obj.item.anchor.direction, obj.item.anchor.usesWordRange);
+				value = obj.item.with({ anchor });
 			}
+			items.set(obj.item, value);
 		}
-		this._cache.set(model, Array.from(items));
+		this._cache.set(model, Array.from(items.values()));
 	}
 
 	private _getHintsRanges(): Range[] {

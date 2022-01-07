@@ -4,58 +4,77 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { OPTIONS, OptionDescriptions } from 'vs/platform/environment/node/argv';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
-	'port': { type: 'string' },
+
+	/* ----- server setup ----- */
+
+	'host': { type: 'string', cat: 'o', description: nls.localize('host', 'The IP address the server should listen to. To use in combination with port.') },
+	'port': { type: 'string', cat: 'o', description: nls.localize('port', 'The port the server should listen to. If 0 is passed a random free port is picked. If a range in the format num-num is passed, a free port from the range is selected.') },
 	'pick-port': { type: 'string' },
-	'connection-token': { type: 'string', cat: 'o', deprecates: 'connectionToken', description: nls.localize('connection-token', "A secret that must be included by the web client with all requests.") },
-	'connection-secret': { type: 'string', cat: 'o', description: nls.localize('connection-secret', "Path to file that contains the connection token. This will require that all incoming connections know the secret.") },
-	'host': { type: 'string' },
-	'socket-path': { type: 'string' },
-	'driver': { type: 'string' },
-	'start-server': { type: 'boolean' },
+	'socket-path': { type: 'string', cat: 'o', description: nls.localize('socket-path', 'The path to a socket file for the server to listen to.') },
+	'connection-token': { type: 'string', cat: 'o', deprecates: ['connectionToken'], description: nls.localize('connection-token', "A secret that must be included with all requests.") },
+	'connection-token-file': { type: 'string', cat: 'o', deprecates: ['connection-secret', 'connectionTokenFile'], description: nls.localize('connection-token-file', "Path to a file that contains the connection token. This will require that all incoming connections know the secret.") },
+	'disable-websocket-compression': { type: 'boolean' },
 	'print-startup-performance': { type: 'boolean' },
 	'print-ip-address': { type: 'boolean' },
-	'disable-websocket-compression': { type: 'boolean' },
+	'accept-server-license-terms': { type: 'boolean', cat: 'o', description: nls.localize('acceptLicenseTerms', 'If set, the user accepts the server license terms and the server will be started without a user prompt.') },
 
-	'fileWatcherPolling': { type: 'string' },
+	/* ----- vs code options ----- */
+
+	'user-data-dir': OPTIONS['user-data-dir'],
+	'driver': OPTIONS['driver'],
+	'disable-telemetry': OPTIONS['disable-telemetry'],
+	'file-watcher-polling': { type: 'string', deprecates: ['fileWatcherPolling']},
+	'log': OPTIONS['log'],
+	'logsPath': OPTIONS['logsPath'],
+	'force-disable-user-env': OPTIONS['force-disable-user-env'],
+
+	/* ----- vs code web options ----- */
+
+	'folder': { type: 'string' },
+	'workspace': { type: 'string' },
+
+	'enable-sync': { type: 'boolean' },
+	'github-auth': { type: 'string' },
+
+	/* ----- extension management ----- */
+
+	'extensions-dir': OPTIONS['extensions-dir'],
+	'extensions-download-dir': OPTIONS['extensions-download-dir'],
+	'builtin-extensions-dir': OPTIONS['builtin-extensions-dir'],
+	'install-extension': OPTIONS['install-extension'],
+	'install-builtin-extension': OPTIONS['install-builtin-extension'],
+	'uninstall-extension': OPTIONS['uninstall-extension'],
+	'list-extensions': OPTIONS['list-extensions'],
+	'locate-extension': OPTIONS['locate-extension'],
+
+	'show-versions': OPTIONS['show-versions'],
+	'category': OPTIONS['category'],
+	'force': OPTIONS['force'],
+	'do-not-sync': OPTIONS['do-not-sync'],
+	'pre-release': OPTIONS['pre-release'],
+	'start-server': { type: 'boolean' },
+
+
+	/* ----- remote development options ----- */
 
 	'enable-remote-auto-shutdown': { type: 'boolean' },
 	'remote-auto-shutdown-without-delay': { type: 'boolean' },
 
+	'use-host-proxy': { type: 'string' },
 	'without-browser-env-var': { type: 'boolean' },
 
-	'disable-telemetry': OPTIONS['disable-telemetry'],
-
-	'extensions-dir': OPTIONS['extensions-dir'],
-	'extensions-download-dir': OPTIONS['extensions-download-dir'],
-	'install-extension': OPTIONS['install-extension'],
-	'install-builtin-extension': OPTIONS['install-builtin-extension'],
-	'uninstall-extension': OPTIONS['uninstall-extension'],
-	'locate-extension': OPTIONS['locate-extension'],
-	'list-extensions': OPTIONS['list-extensions'],
-	'force': OPTIONS['force'],
-	'show-versions': OPTIONS['show-versions'],
-	'category': OPTIONS['category'],
-	'do-not-sync': OPTIONS['do-not-sync'],
-
-	'force-disable-user-env': OPTIONS['force-disable-user-env'],
-
-	'folder': { type: 'string' },
-	'workspace': { type: 'string' },
-	'use-host-proxy': { type: 'string' },
-	'enable-sync': { type: 'boolean' },
-	'github-auth': { type: 'string' },
-	'log': { type: 'string' },
-	'logsPath': { type: 'string' },
+	/* ----- server cli ----- */
 
 	'help': OPTIONS['help'],
 	'version': OPTIONS['version'],
-	'accept-server-license-terms': { type: 'boolean' },
+
 
 	_: OPTIONS['_']
 };
@@ -76,7 +95,7 @@ export interface ServerParsedArgs {
 	 * By default, a UUID will be generated every time the server starts up.
 	 *
 	 * If the server is running on a multi-user system, then consider
-	 * using `--connection-secret` which has the advantage that the token cannot
+	 * using `--connection-token-file` which has the advantage that the token cannot
 	 * be seen by other users using `ps` or similar commands.
 	 */
 	'connection-token'?: string;
@@ -84,12 +103,12 @@ export interface ServerParsedArgs {
 	 * A path to a filename which will be read on startup.
 	 * Consider placing this file in a folder readable only by the same user (a `chmod 0700` directory).
 	 *
-	 * The contents of the file will be used as the connectionToken. Use only `[0-9A-Z\-]` as contents in the file.
+	 * The contents of the file will be used as the connection token. Use only `[0-9A-Z\-]` as contents in the file.
 	 * The file can optionally end in a `\n` which will be ignored.
 	 *
 	 * This secret must be communicated to any vscode instance via the resolver or embedder API.
 	 */
-	'connection-secret'?: string;
+	'connection-token-file'?: string;
 
 	'disable-websocket-compression'?: boolean;
 
@@ -105,7 +124,7 @@ export interface ServerParsedArgs {
 	driver?: string;
 
 	'disable-telemetry'?: boolean;
-	fileWatcherPolling?: string;
+	'file-watcher-polling'?: string;
 
 	'log'?: string;
 	'logsPath'?: string;

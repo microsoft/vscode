@@ -342,7 +342,6 @@ class CellExecution implements ICellExecutionEntry {
 				lastRunSuccess: completionData.lastRunSuccess,
 				runStartTime: this._didPause ? null : cellModel.internalMetadata.runStartTime,
 				runEndTime: this._didPause ? null : completionData.runEndTime,
-				isPaused: false
 			}
 		};
 		this._applyExecutionEdits([edit]);

@@ -104,7 +104,6 @@ export interface NotebookCellInternalMetadata {
 	runStartTime?: number;
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
-	isPaused?: boolean;
 }
 
 export interface NotebookCellCollapseState {

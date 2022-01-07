@@ -9,6 +9,7 @@ const perf = require('../base/common/performance');
 const performance = require('perf_hooks').performance;
 const product = require('../../../product.json');
 const readline = require('readline');
+const http = require('http');
 
 perf.mark('code/server/start');
 // @ts-ignore
@@ -159,67 +160,76 @@ async function start() {
  * @throws
  */
 async function parsePort(strPort, strPickPort) {
-	let specificPort = -1;
-
+	let specificPort;
 	if (strPort) {
-		const port = parseInt(strPort, 10);
-		if (!isNaN(port)) {
-			specificPort = port;
+		let range;
+		if (strPort.match(/^\d+$/)) {
+			specificPort = parseInt(strPort, 10);
+			if (specificPort === 0 || !strPickPort) {
+				return specificPort;
+			}
+		} else if (range = parseRange(strPort)) {
+			return await findFreePort(range.start, range.end, 8000);
 		} else {
-			console.log('Port is not a number, will default to 8000 if no pick-port is given.');
+			console.log('--port "${strPort}" is not a valid number or range.');
 		}
 	}
-
 	if (strPickPort) {
-		if (strPickPort.match(/^\d+-\d+$/)) {
-			const [start, end] = strPickPort.split('-').map(numStr => { return parseInt(numStr, 10); });
-
-			if (!isNaN(start) && !isNaN(end)) {
-				if (specificPort !== -1 && specificPort >= start && specificPort <= end) {
-					return specificPort;
-				} else {
-					return await findFreePort(start, start, end);
-				}
+		const range = parseRange(strPickPort);
+		if (range) {
+			if (range.start <= specificPort && specificPort <= range.end) {
+				return specificPort;
 			} else {
-				console.log('Port range are not numbers, using 8000 instead.');
+				return await findFreePort(range.start, range.end, 8000);
 			}
 		} else {
-			console.log(`Port range: "${strPickPort}" is not properly formatted, using 8000 instead.`);
+			console.log(`--pick-port "${strPickPort}" is not properly formatted.`);
 		}
 	}
-
-	if (specificPort !== -1) {
-		return specificPort;
-	}
-
 	return 8000;
 }
 
 /**
+ * @param {string} strRange
+ * @returns {{ start: number; end: number } | undefined}
+ */
+function parseRange(strRange) {
+	const match = strRange.match(/^(\d+)-(\d+)$/);
+	if (match) {
+		return { start: parseInt(match[1], 10), end: parseInt(match[2], 10) };
+	}
+	return undefined;
+}
+
+/**
  * Starting at the `start` port, look for a free port incrementing
- * by 1 until `end` inclusive. If no port is found error is thrown.
+ * by 1 until `end` inclusive. If no free port is found, the fallback is returned.
  *
  * @param {number} start
- * @param {number} port
  * @param {number} end
+ * @param {number} fallback
  * @returns {Promise<number>}
  * @throws
  */
-async function findFreePort(start, port, end) {
-	const http = require('http');
-	return new Promise((resolve, reject) => {
-		if (port > end) {
-			throw new Error(`Could not find free port in range: ${start}-${end}`);
-		}
-
-		const server = http.createServer();
-		server.listen(port, () => {
-			server.close();
-			resolve(port);
-		}).on('error', () => {
-			resolve(findFreePort(start, port + 1, end));
+async function findFreePort(start, end, fallback) {
+	const testPort = (port) => {
+		return new Promise((resolve) => {
+			const server = http.createServer();
+			server.listen(port, '127.0.0.1', () => {
+				server.close();
+				resolve(true);
+			}).on('error', () => {
+				resolve(false);
+			});
 		});
-	});
+	};
+	for (let port = start; port < end; port++) {
+		if (await testPort(port)) {
+			return port;
+		}
+	}
+	console.log(`Could not find free port in range: ${start}-${end}. Using ${fallback} instead.`);
+	return fallback;
 }
 
 /** @returns { Promise<typeof import('./remoteExtensionHostAgent')> } */

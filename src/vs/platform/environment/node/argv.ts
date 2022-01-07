@@ -20,7 +20,7 @@ const helpCategories = {
 export interface Option<OptionType> {
 	type: OptionType;
 	alias?: string;
-	deprecates?: string; // old deprecated id
+	deprecates?: string[]; // old deprecated ids
 	args?: string | string[];
 	description?: string;
 	cat?: keyof typeof helpCategories;
@@ -49,7 +49,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'user-data-dir': { type: 'string', cat: 'o', args: 'dir', description: localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.") },
 	'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") },
 
-	'extensions-dir': { type: 'string', deprecates: 'extensionHomePath', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
+	'extensions-dir': { type: 'string', deprecates: ['extensionHomePath'], cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
 	'extensions-download-dir': { type: 'string' },
 	'builtin-extensions-dir': { type: 'string' },
 	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
@@ -69,12 +69,12 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'no-cached-data': { type: 'boolean' },
 	'prof-startup-prefix': { type: 'string' },
 	'prof-v8-extensions': { type: 'boolean' },
-	'disable-extensions': { type: 'boolean', deprecates: 'disableExtensions', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
+	'disable-extensions': { type: 'boolean', deprecates: ['disableExtensions'], cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
 	'disable-extension': { type: 'string[]', cat: 't', args: 'extension-id', description: localize('disableExtension', "Disable an extension.") },
 	'sync': { type: 'string', cat: 't', description: localize('turn sync', "Turn sync on or off."), args: ['on', 'off'] },
 
-	'inspect-extensions': { type: 'string', deprecates: 'debugPluginHost', args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
-	'inspect-brk-extensions': { type: 'string', deprecates: 'debugBrkPluginHost', args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
+	'inspect-extensions': { type: 'string', deprecates: ['debugPluginHost'], args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
+	'inspect-brk-extensions': { type: 'string', deprecates: ['debugBrkPluginHost'], args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
 	'disable-gpu': { type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
 	'ms-enable-electron-run-as-node': { type: 'boolean' },
 	'max-memory': { type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes)."), args: 'memory' },
@@ -93,8 +93,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'debugRenderer': { type: 'boolean' },
 	'inspect-ptyhost': { type: 'string' },
 	'inspect-brk-ptyhost': { type: 'string' },
-	'inspect-search': { type: 'string', deprecates: 'debugSearch' },
-	'inspect-brk-search': { type: 'string', deprecates: 'debugBrkSearch' },
+	'inspect-search': { type: 'string', deprecates: ['debugSearch'] },
+	'inspect-brk-search': { type: 'string', deprecates: ['debugBrkSearch'] },
 	'export-default-configuration': { type: 'string' },
 	'install-source': { type: 'string' },
 	'driver': { type: 'string' },
@@ -177,12 +177,12 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		if (o.type === 'string' || o.type === 'string[]') {
 			string.push(optionId);
 			if (o.deprecates) {
-				string.push(o.deprecates);
+				string.push(...o.deprecates);
 			}
 		} else if (o.type === 'boolean') {
 			boolean.push(optionId);
 			if (o.deprecates) {
-				boolean.push(o.deprecates);
+				boolean.push(...o.deprecates);
 			}
 		}
 	}
@@ -204,14 +204,18 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		}
 
 		let val = remainingArgs[optionId];
-		if (o.deprecates && remainingArgs.hasOwnProperty(o.deprecates)) {
-			if (!val) {
-				val = remainingArgs[o.deprecates];
-				if (val) {
-					errorReporter.onDeprecatedOption(o.deprecates, optionId);
+		if (o.deprecates) {
+			for (const deprecatedId of o.deprecates) {
+				if (remainingArgs.hasOwnProperty(deprecatedId)) {
+					if (!val) {
+						val = remainingArgs[deprecatedId];
+						if (val) {
+							errorReporter.onDeprecatedOption(deprecatedId, optionId);
+						}
+					}
+					delete remainingArgs[deprecatedId];
 				}
 			}
-			delete remainingArgs[o.deprecates];
 		}
 
 		if (typeof val !== 'undefined') {

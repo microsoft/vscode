@@ -29,10 +29,10 @@ export class InlayHintsHover extends MarkdownHoverParticipant {
 		if (!controller) {
 			return null;
 		}
-		if (mouseEvent.target.type !== MouseTargetType.CONTENT_TEXT || typeof mouseEvent.target.detail !== 'object') {
+		if (mouseEvent.target.type !== MouseTargetType.CONTENT_TEXT) {
 			return null;
 		}
-		const options = mouseEvent.target.detail?.injectedText?.options;
+		const options = mouseEvent.target.detail.injectedText?.options;
 		if (!(options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLabelPart)) {
 			return null;
 		}
