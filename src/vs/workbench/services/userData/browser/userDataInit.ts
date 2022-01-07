@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { AbstractExtensionsInitializer, getExtensionStorageState, IExtensionsInitializerPreviewResult, storeExtensionStorageState } from 'vs/platform/userDataSync/common/extensionsSync';
+import { AbstractExtensionsInitializer, IExtensionsInitializerPreviewResult } from 'vs/platform/userDataSync/common/extensionsSync';
 import { GlobalStateInitializer, UserDataSyncStoreTypeSynchronizer } from 'vs/platform/userDataSync/common/globalStateSync';
 import { KeybindingsInitializer } from 'vs/platform/userDataSync/common/keybindingsSync';
 import { SettingsInitializer } from 'vs/platform/userDataSync/common/settingsSync';
@@ -34,6 +34,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 
 export const IUserDataInitializationService = createDecorator<IUserDataInitializationService>('IUserDataInitializationService');
 export interface IUserDataInitializationService {
@@ -325,7 +326,7 @@ class InstalledExtensionsInitializer implements IUserDataInitializer {
 	constructor(
 		private readonly extensionsPreviewInitializer: ExtensionsPreviewInitializer,
 		@IGlobalExtensionEnablementService private readonly extensionEnablementService: IGlobalExtensionEnablementService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionStorageService private readonly extensionStorageService: IExtensionStorageService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 	) {
 	}
@@ -340,9 +341,9 @@ class InstalledExtensionsInitializer implements IUserDataInitializer {
 		for (const installedExtension of preview.installedExtensions) {
 			const syncExtension = preview.remoteExtensions.find(({ identifier }) => areSameExtensions(identifier, installedExtension.identifier));
 			if (syncExtension?.state) {
-				const extensionState = getExtensionStorageState(installedExtension.manifest.publisher, installedExtension.manifest.name, this.storageService);
+				const extensionState = this.extensionStorageService.getExtensionState(installedExtension, true) || {};
 				Object.keys(syncExtension.state).forEach(key => extensionState[key] = syncExtension.state![key]);
-				storeExtensionStorageState(installedExtension.manifest.publisher, installedExtension.manifest.name, extensionState, this.storageService);
+				this.extensionStorageService.setExtensionState(installedExtension, extensionState, true);
 			}
 		}
 
@@ -362,7 +363,7 @@ class NewExtensionsInitializer implements IUserDataInitializer {
 	constructor(
 		private readonly extensionsPreviewInitializer: ExtensionsPreviewInitializer,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionStorageService private readonly extensionStorageService: IExtensionStorageService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
@@ -392,7 +393,7 @@ class NewExtensionsInitializer implements IUserDataInitializer {
 					continue;
 				}
 				if (extensionToSync.state) {
-					storeExtensionStorageState(galleryExtension.publisher, galleryExtension.name, extensionToSync.state, this.storageService);
+					this.extensionStorageService.setExtensionState(galleryExtension, extensionToSync.state, true);
 				}
 				this.logService.trace(`Installing extension...`, galleryExtension.identifier.id);
 				const local = await this.extensionManagementService.installFromGallery(galleryExtension, { isMachineScoped: false, donotIncludePackAndDependencies: true, installPreReleaseVersion: extensionToSync.preRelease } /* set isMachineScoped to prevent install and sync dialog in web */);

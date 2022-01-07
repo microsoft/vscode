@@ -27,7 +27,7 @@ export class ExtensionMemento implements vscode.Memento {
 		this._shared = global;
 		this._storage = storage;
 
-		this._init = this._storage.getValue(this._shared, this._id, Object.create(null)).then(value => {
+		this._init = this._storage.initializeExtensionStorage(this._shared, this._id, Object.create(null)).then(value => {
 			this._value = value;
 			return this;
 		});
