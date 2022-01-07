@@ -893,8 +893,6 @@ onDomReady(() => {
 				});
 				pendingMessages = [];
 			}
-
-			hostMessaging.postMessage('did-load');
 		};
 
 		/**
@@ -941,8 +939,6 @@ onDomReady(() => {
 
 			unloadMonitor.onIframeLoaded(newFrame);
 		}
-
-		hostMessaging.postMessage('did-set-content', undefined);
 	});
 
 	// Forward message to the embedded iframe
