@@ -375,6 +375,7 @@ export interface TerminalCommand {
 	timestamp: number;
 	cwd?: string;
 	exitCode?: number;
+	output?: string;
 }
 
 export interface IShellLaunchConfig {

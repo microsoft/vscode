@@ -9,6 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ShellIntegrationInfo, ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
+import { isWindows } from 'vs/base/common/platform';
 
 interface ICurrentPartialCommand {
 	marker?: IMarker;
@@ -64,6 +65,10 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 				this._currentCommand.marker = this._terminal.registerMarker(0);
 				break;
 			case ShellIntegrationInteraction.CommandExecuted:
+				if (!isWindows && this._currentCommand.marker && this._currentCommand.commandStartX) {
+					this._currentCommand.command = this._terminal.buffer.active.getLine(this._currentCommand.marker.line)?.translateToString().substring(this._currentCommand.commandStartX);
+					break;
+				}
 				this._currentCommand.commandExecutedY = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
 
 				// TODO: Leverage key events on Windows between CommandStart and Executed to ensure we have the correct line
@@ -100,18 +105,23 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 					}
 				}
 				break;
-			case ShellIntegrationInteraction.CommandFinished:
+			case ShellIntegrationInteraction.CommandFinished: {
 				this._logService.trace('Terminal Command Finished', this._currentCommand.command);
 				this._exitCode = Number.parseInt(event.value);
 				if (!this._currentCommand.marker?.line || !this._terminal.buffer.active) {
 					break;
+				}
+				let output = '';
+				for (let i = this._currentCommand.marker.line + 1; i <= this._terminal.buffer.active.cursorY; i++) {
+					output += this._terminal.buffer.active.getLine(i)?.translateToString() + '\n';
 				}
 				if (this._currentCommand.command && !this._currentCommand.command.startsWith('\\') && this._currentCommand.command !== '') {
 					this._commands.push({
 						command: this._currentCommand.command,
 						timestamp: Date.now(),
 						cwd: this._cwd,
-						exitCode: this._exitCode
+						exitCode: this._exitCode,
+						output
 					});
 				}
 
@@ -119,7 +129,7 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 				this._currentCommand.previousCommandMarker = this._currentCommand.marker;
 				this._currentCommand.marker = undefined;
 				break;
-			default:
+			} default:
 				return;
 		}
 	}
