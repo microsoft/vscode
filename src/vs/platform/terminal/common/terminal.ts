@@ -373,9 +373,9 @@ export interface IHeartbeatService {
 export interface TerminalCommand {
 	command: string;
 	timestamp: number;
+	getOutput: () => string | undefined;
 	cwd?: string;
 	exitCode?: number;
-	output?: string;
 }
 
 export interface IShellLaunchConfig {

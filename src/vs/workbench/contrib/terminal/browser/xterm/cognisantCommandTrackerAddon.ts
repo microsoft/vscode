@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal, IMarker } from 'xterm';
+import type { Terminal, IMarker, IBuffer } from 'xterm';
 import { TerminalCommand } from 'vs/platform/terminal/common/terminal';
 import { Emitter } from 'vs/base/common/event';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
@@ -106,22 +106,20 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 				}
 				break;
 			case ShellIntegrationInteraction.CommandFinished: {
-				this._logService.trace('Terminal Command Finished', this._currentCommand.command);
+				const command = this._currentCommand.command;
+				this._logService.trace('Terminal Command Finished', command);
 				this._exitCode = Number.parseInt(event.value);
 				if (!this._currentCommand.marker?.line || !this._terminal.buffer.active) {
 					break;
 				}
-				let output = '';
-				for (let i = this._currentCommand.marker.line + 1; i <= this._terminal.buffer.active.cursorY; i++) {
-					output += this._terminal.buffer.active.getLine(i)?.translateToString() + '\n';
-				}
-				if (this._currentCommand.command && !this._currentCommand.command.startsWith('\\') && this._currentCommand.command !== '') {
+				if (command && !command.startsWith('\\') && command !== '') {
+					const buffer = this._terminal.buffer.active;
 					this._commands.push({
-						command: this._currentCommand.command,
+						command,
 						timestamp: Date.now(),
 						cwd: this._cwd,
 						exitCode: this._exitCode,
-						output
+						getOutput: () => getOutputForCommand(this._currentCommand.previousCommandMarker!.line! + 1, this._currentCommand.marker!.line!, buffer)
 					});
 				}
 
@@ -146,4 +144,12 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 		}
 		return cwds;
 	}
+}
+
+function getOutputForCommand(startLine: number, endLine: number, buffer: IBuffer): string | undefined {
+	let output = '';
+	for (let i = startLine; i < endLine; i++) {
+		output += buffer.getLine(i)?.translateToString() + '\n';
+	}
+	return output === '' ? undefined : output;
 }

@@ -38,7 +38,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap, WindowsShellType, TerminalCommand } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AutoOpenBarrier, Promises } from 'vs/base/common/async';
@@ -705,10 +705,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!commands || !this.xterm) {
 			return;
 		}
-		type Item = IQuickPickItem;
+		type Item = IQuickPickItem & { command?: TerminalCommand };
 		const items: Item[] = [];
 		if (type === 'command') {
-			for (const { command, timestamp, cwd, exitCode, output } of commands) {
+			for (const { command, timestamp, cwd, exitCode, getOutput } of commands) {
 				// trim off any whitespace and/or line endings
 				const label = command.trim();
 				if (label.length === 0) {
@@ -737,7 +737,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					description: description.trim(),
 					detail: fromNow(timestamp, true),
 					id: timestamp.toString(),
-					meta: output,
+					command: { command, timestamp, cwd, exitCode, getOutput },
 					buttons
 				});
 			}
@@ -749,8 +749,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		const result = await this._quickInputService.pick(items.reverse(), {
 			onDidTriggerItemButton: (async e => {
-				if (e.item.meta) {
-					await this._clipboardService.writeText(e.item.meta);
+				const output = e.item.command?.getOutput();
+				if (output) {
+					await this._clipboardService.writeText(output);
 					await this._commandService.executeCommand('workbench.action.files.newUntitledFile');
 					await this._commandService.executeCommand('editor.action.clipboardPasteAction');
 				}
