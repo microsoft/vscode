@@ -80,7 +80,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		cols: number,
 		rows: number,
 		location: TerminalLocation,
-		capabilities: ProcessCapability[],
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,

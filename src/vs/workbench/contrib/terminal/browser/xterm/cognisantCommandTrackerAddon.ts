@@ -67,7 +67,7 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 
 				// TODO: Leverage key events on Windows between CommandStart and Executed to ensure we have the correct line
 
-				// TODO: Only do on this on Windows backends
+				// TODO: Only do this on Windows backends
 				// Check if the command line is the same as the previous command line or if the
 				// start Y differs from the executed Y. This is to catch the conpty case where the
 				// "rendering" of the shell integration sequences doesn't occur on the correct cell
@@ -81,7 +81,7 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 				// TODO: This does not yet work when the prompt line is wrapped
 				this._currentCommand.command = this._terminal!.buffer.active.getLine(this._currentCommand.commandExecutedY)?.translateToString(true, this._currentCommand.commandStartX || 0);
 
-				// TODO: Only do on this on Windows backends
+				// TODO: Only do this on Windows backends
 				// Something went wrong, try predict the prompt based on the shell.
 				if (this._currentCommand.commandStartX === 0) {
 					// TODO: Only do this on pwsh
