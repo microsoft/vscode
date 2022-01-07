@@ -873,7 +873,7 @@ export enum DiagnosticSeverity {
 @es5ClassCompat
 export class Location {
 
-	static isLocation(thing: any): thing is Location {
+	static isLocation(thing: any): thing is vscode.Location {
 		if (thing instanceof Location) {
 			return true;
 		}
@@ -1421,16 +1421,29 @@ export enum InlayHintKind {
 }
 
 @es5ClassCompat
-export class InlayHint {
-	text: string;
+export class InlayHintLabelPart {
+	label: string;
+	collapsible?: boolean;
+	action?: vscode.Command | Location; // invokes provider
+	constructor(label: string) {
+		this.label = label;
+	}
+	toString(): string {
+		return this.label;
+	}
+}
+
+@es5ClassCompat
+export class InlayHint implements vscode.InlayHint {
+	label: string | InlayHintLabelPart[];
 	tooltip?: string | vscode.MarkdownString;
 	position: Position;
 	kind?: vscode.InlayHintKind;
 	whitespaceBefore?: boolean;
 	whitespaceAfter?: boolean;
 
-	constructor(text: string, position: Position, kind?: vscode.InlayHintKind) {
-		this.text = text;
+	constructor(label: string | InlayHintLabelPart[], position: Position, kind?: vscode.InlayHintKind) {
+		this.label = label;
 		this.position = position;
 		this.kind = kind;
 	}

@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
 import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit } from 'vs/workbench/api/common/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, InlayHintKind, Location } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/languages';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -1173,9 +1173,11 @@ class SignatureHelpAdapter {
 class InlayHintsAdapter {
 
 	private _cache = new Cache<vscode.InlayHint>('InlayHints');
+	private readonly _disposables = new Map<number, DisposableStore>();
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
+		private readonly _commands: CommandsConverter,
 		private readonly _provider: vscode.InlayHintsProvider,
 	) { }
 
@@ -1192,21 +1194,13 @@ class InlayHintsAdapter {
 			// of results as they will leak
 			return undefined;
 		}
-		if (typeof this._provider.resolveInlayHint !== 'function') {
-			// no resolve -> no caching
-			return { hints: hints.map(typeConvert.InlayHint.from) };
-
-		} else {
-			// cache links for future resolving
-			const pid = this._cache.add(hints);
-			const result: extHostProtocol.IInlayHintsDto = { hints: [], cacheId: pid };
-			for (let i = 0; i < hints.length; i++) {
-				const dto: extHostProtocol.IInlayHintDto = typeConvert.InlayHint.from(hints[i]);
-				dto.cacheId = [pid, i];
-				result.hints.push(dto);
-			}
-			return result;
+		const pid = this._cache.add(hints);
+		this._disposables.set(pid, new DisposableStore());
+		const result: extHostProtocol.IInlayHintsDto = { hints: [], cacheId: pid };
+		for (let i = 0; i < hints.length; i++) {
+			result.hints.push(this._convertInlayHint(hints[i], [pid, i]));
 		}
+		return result;
 	}
 
 	async resolveInlayHint(id: extHostProtocol.ChainedCacheId, token: CancellationToken) {
@@ -1221,11 +1215,50 @@ class InlayHintsAdapter {
 		if (!hint) {
 			return undefined;
 		}
-		return typeConvert.InlayHint.from(hint);
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		return this._convertInlayHint(hint, id);
 	}
 
 	releaseHints(id: number): any {
+		this._disposables.get(id)?.dispose();
+		this._disposables.delete(id);
 		this._cache.delete(id);
+	}
+
+	private _convertInlayHint(hint: vscode.InlayHint, id: extHostProtocol.ChainedCacheId): extHostProtocol.IInlayHintDto {
+
+		const disposables = this._disposables.get(id[0]);
+		if (!disposables) {
+			throw Error('DisposableStore is missing...');
+		}
+
+		const result: extHostProtocol.IInlayHintDto = {
+			label: '', // fill-in below
+			cacheId: id,
+			tooltip: hint.tooltip && typeConvert.MarkdownString.from(hint.tooltip),
+			position: typeConvert.Position.from(hint.position),
+			kind: typeConvert.InlayHintKind.from(hint.kind ?? InlayHintKind.Other),
+			whitespaceBefore: hint.whitespaceBefore,
+			whitespaceAfter: hint.whitespaceAfter,
+		};
+
+		if (typeof hint.label === 'string') {
+			result.label = hint.label;
+		} else {
+			result.label = hint.label.map(part => {
+				let r: modes.InlayHintLabelPart = { label: part.label };
+				r.collapsible = part.collapsible;
+				if (Location.isLocation(part.action)) {
+					r.action = typeConvert.location.from(part.action);
+				} else if (part.action) {
+					r.action = this._commands.toInternal(part.action, disposables);
+				}
+				return r;
+			});
+		}
+		return result;
 	}
 }
 
@@ -2030,7 +2063,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	registerInlayHintsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlayHintsProvider): vscode.Disposable {
 
 		const eventHandle = typeof provider.onDidChangeInlayHints === 'function' ? this._nextHandle() : undefined;
-		const handle = this._addNewAdapter(new InlayHintsAdapter(this._documents, provider), extension);
+		const handle = this._addNewAdapter(new InlayHintsAdapter(this._documents, this._commands.converter, provider), extension);
 
 		this._proxy.$registerInlayHintsProvider(handle, this._transformDocumentSelector(selector), typeof provider.resolveInlayHint === 'function', eventHandle);
 		let result = this._createDisposable(handle);

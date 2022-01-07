@@ -1544,6 +1544,23 @@ export interface Command {
 /**
  * @internal
  */
+export namespace Command {
+
+	/**
+	 * @internal
+	 */
+	export function is(obj: any): obj is Command {
+		if (!obj || typeof obj !== 'object') {
+			return false;
+		}
+		return typeof (<Command>obj).id === 'string' &&
+			typeof (<Command>obj).title === 'string';
+	}
+}
+
+/**
+ * @internal
+ */
 export interface CommentThreadTemplate {
 	controllerHandle: number;
 	label: string;
@@ -1721,8 +1738,14 @@ export enum InlayHintKind {
 	Parameter = 2,
 }
 
-export interface InlayHint {
+export interface InlayHintLabelPart {
 	label: string;
+	collapsible?: boolean;
+	action?: Command | Location
+}
+
+export interface InlayHint {
+	label: string | InlayHintLabelPart[];
 	tooltip?: string | IMarkdownString
 	position: IPosition;
 	kind: InlayHintKind;

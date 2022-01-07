@@ -23,6 +23,7 @@ import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy'
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { mixin } from 'vs/base/common/objects';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
+import { revive } from 'vs/base/common/marshalling';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -557,7 +558,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					return;
 				}
 				return {
-					hints: result.hints,
+					hints: revive(result.hints),
 					dispose: () => {
 						if (result.cacheId) {
 							this._proxy.$releaseInlayHints(handle, result.cacheId);
@@ -579,7 +580,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				return {
 					...hint,
 					tooltip: result.tooltip,
-					label: result.label
+					label: revive<string | modes.InlayHintLabelPart[]>(result.label)
 				};
 			};
 		}

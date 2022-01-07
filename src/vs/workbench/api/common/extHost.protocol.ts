@@ -1504,7 +1504,7 @@ export interface ISignatureHelpContextDto {
 
 export interface IInlayHintDto {
 	cacheId?: ChainedCacheId;
-	label: string;
+	label: string | modes.InlayHintLabelPart[];
 	tooltip?: string | IMarkdownString;
 	position: IPosition;
 	kind: modes.InlayHintKind;

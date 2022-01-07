@@ -34,15 +34,22 @@ declare module 'vscode' {
 		Parameter = 2,
 	}
 
+	export class InlayHintLabelPart {
+		label: string;
+		collapsible?: boolean;
+		// todo@api better name!
+		action?: Command | Location; // invokes provider
+		constructor(label: string);
+	}
+
 	/**
 	 * Inlay hint information.
 	 */
 	export class InlayHint {
 		/**
-		 * The text of the hint.
+		 *
 		 */
-		// todo@API label?
-		text: string;
+		label: string | InlayHintLabelPart[];
 		/**
 		 * The tooltip text when you hover over this item.
 		 */
@@ -65,7 +72,7 @@ declare module 'vscode' {
 		whitespaceAfter?: boolean;
 
 		// todo@API make range first argument
-		constructor(text: string, position: Position, kind?: InlayHintKind);
+		constructor(label: string | InlayHintLabelPart[], position: Position, kind?: InlayHintKind);
 	}
 
 	/**
