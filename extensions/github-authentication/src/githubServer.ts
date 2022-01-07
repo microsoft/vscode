@@ -92,13 +92,13 @@ async function getUserInfo(token: string, serverUri: vscode.Uri, logger: Log): P
 		throw new Error(NETWORK_ERROR);
 	}
 
+	const json = await result.json();
 	if (result.ok) {
-		const json = await result.json();
 		logger.info('Got account info!');
 		return { id: json.id, accountName: json.login };
 	} else {
-		logger.error(`Getting account info failed: ${result.statusText}`);
-		throw new Error(result.statusText);
+		logger.error(`Getting account info failed: ${json.message}`);
+		throw new Error(json.message);
 	}
 }
 
