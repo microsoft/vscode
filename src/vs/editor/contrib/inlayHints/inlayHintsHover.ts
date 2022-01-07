@@ -10,7 +10,7 @@ import { IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrow
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
-import { HoverAnchor, HoverForeignElementAnchor } from 'vs/editor/contrib/hover/hoverTypes';
+import { HoverAnchor, HoverForeignElementAnchor, IEditorHoverParticipant } from 'vs/editor/contrib/hover/hoverTypes';
 import { MarkdownHover, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
 import { InlayHintItem } from 'vs/editor/contrib/inlayHints/inlayHints';
 import { InlayHintLabelPart, InlayHintsController } from 'vs/editor/contrib/inlayHints/inlayHintsController';
@@ -22,7 +22,7 @@ class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 	}
 }
 
-export class InlayHintsHover extends MarkdownHoverParticipant {
+export class InlayHintsHover extends MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
 	suggestHoverAnchor(mouseEvent: IEditorMouseEvent): HoverAnchor | null {
 		const controller = InlayHintsController.get(this._editor);
