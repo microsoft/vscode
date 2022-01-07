@@ -595,7 +595,7 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 	}
 
 	public refresh() {
-		this.preview.refresh();
+		this.preview.refresh(true);
 	}
 
 	public updateConfiguration() {
@@ -748,7 +748,7 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 	}
 
 	public refresh() {
-		this._preview.refresh();
+		this._preview.refresh(true);
 	}
 
 	public updateConfiguration() {
