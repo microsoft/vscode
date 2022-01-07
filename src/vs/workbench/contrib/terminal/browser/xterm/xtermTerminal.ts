@@ -13,7 +13,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ProcessCapability, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ICommandTracker, ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ICommandTracker, IShellIntegration, ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
 import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -55,14 +55,15 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	// Always on addons
 	private _commandTrackerAddon: CommandTrackerAddon;
+	private _shellIntegrationAddon: ShellIntegrationAddon;
 
 	// Optional addons
 	private _searchAddon?: SearchAddonType;
-	private _shellIntegrationAddon?: ShellIntegrationAddon;
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
 
 	get commandTracker(): ICommandTracker { return this._commandTrackerAddon; }
+	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
 
 	private _target: TerminalLocation | undefined;
 	set target(location: TerminalLocation | undefined) {

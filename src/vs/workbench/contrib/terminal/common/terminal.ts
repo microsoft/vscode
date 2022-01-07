@@ -332,6 +332,7 @@ export interface ICommandTracker {
 }
 
 export interface IShellIntegration {
+	readonly capabilities: readonly ProcessCapability[];
 	readonly onCapabilityEnabled: Event<ProcessCapability>;
 	readonly onCapabilityDisabled: Event<ProcessCapability>;
 	// TODO: Fire more fine-grained and stronger typed events

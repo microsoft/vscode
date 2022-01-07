@@ -72,6 +72,7 @@ export const enum ShellIntegrationInteraction {
 
 export class ShellIntegrationAddon extends Disposable implements IShellIntegration, ITerminalAddon {
 	private _terminal?: Terminal;
+	readonly capabilities: ProcessCapability[] = [];
 
 	// TODO: Rename ProcessCapability to TerminalCapability, move naive CwdDetection to renderer
 	private readonly _onCapabilityDisabled = new Emitter<ProcessCapability>();
@@ -107,6 +108,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				type = ShellIntegrationInteraction.CommandFinished;
 				break;
 			case ShellIntegrationOscPt.EnableShellIntegration:
+				this.capabilities.push(ProcessCapability.CommandCognisant);
 				this._onCapabilityEnabled.fire(ProcessCapability.CommandCognisant);
 				return true;
 			default:
