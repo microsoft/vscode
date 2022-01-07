@@ -23,7 +23,7 @@ import { IModelDeltaDecoration, InjectedTextOptions, ITextModel, TrackedRangeSti
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
-import { InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/inlayHints';
+import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/inlayHints';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
@@ -163,7 +163,7 @@ export class InlayHintsController implements IEditorContribution {
 				const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
 				const lineHints = new Set<InlayHintItem>();
 				for (let data of this._decorationsMetadata.values()) {
-					if (range.containsPosition(data.item.hint.position)) {
+					if (range.containsRange(data.item.anchor.range)) {
 						lineHints.add(data.item);
 					}
 				}
@@ -188,21 +188,23 @@ export class InlayHintsController implements IEditorContribution {
 	}
 
 	private _cacheHintsForFastRestore(model: ITextModel): void {
-		const items = new Set<InlayHintItem>();
+		const items = new Map<InlayHintItem, InlayHintItem>();
 		for (const [id, obj] of this._decorationsMetadata) {
 			if (items.has(obj.item)) {
 				// an inlay item can be rendered as multiple decorations
 				// but they will all uses the same range
 				continue;
 			}
-			items.add(obj.item);
+			let value = obj.item;
 			const range = model.getDecorationRange(id);
 			if (range) {
 				// update range with whatever the editor has tweaked it to
-				obj.item.anchor.range = range;
+				const anchor = new InlayHintAnchor(range, obj.item.anchor.direction, obj.item.anchor.usesWordRange);
+				value = obj.item.with({ anchor });
 			}
+			items.set(obj.item, value);
 		}
-		this._cache.set(model, Array.from(items));
+		this._cache.set(model, Array.from(items.values()));
 	}
 
 	private _getHintsRanges(): Range[] {

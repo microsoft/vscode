@@ -13,21 +13,21 @@ import { InlayHint, InlayHintList, InlayHintsProvider, InlayHintsProviderRegistr
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 
 export class InlayHintAnchor {
-	constructor(public range: Range, readonly direction: 'before' | 'after', readonly usesWordRange: boolean) { }
+	constructor(readonly range: Range, readonly direction: 'before' | 'after', readonly usesWordRange: boolean) { }
 }
 
 export class InlayHintItem {
 
 	readonly resolve: (token: CancellationToken) => Promise<void>;
 
-	constructor(readonly hint: InlayHint, readonly anchor: InlayHintAnchor, provider: InlayHintsProvider) {
+	constructor(readonly hint: InlayHint, readonly anchor: InlayHintAnchor, private readonly _provider: InlayHintsProvider) {
 		let resolve: Promise<any> | undefined;
-		if (!provider.resolveInlayHint) {
+		if (!_provider.resolveInlayHint) {
 			resolve = Promise.resolve();
 		}
 		this.resolve = async token => {
 			if (!resolve) {
-				resolve = Promise.resolve(provider.resolveInlayHint!(this.hint, token)).then(newHint => {
+				resolve = Promise.resolve(_provider.resolveInlayHint!(this.hint, token)).then(newHint => {
 					this.hint.tooltip = newHint?.tooltip ?? this.hint.tooltip;
 					this.hint.label = newHint?.label ?? this.hint.label;
 				}).catch(err => {
@@ -37,6 +37,10 @@ export class InlayHintItem {
 			}
 			return resolve;
 		};
+	}
+
+	with(delta: { anchor: InlayHintAnchor }): InlayHintItem {
+		return new InlayHintItem(this.hint, delta.anchor, this._provider);
 	}
 }
 
