@@ -106,7 +106,7 @@ export class TerminalLinkManager extends DisposableStore {
 		if (unfilteredWordLinks) {
 			wordLinks = [];
 			for (const link of unfilteredWordLinks) {
-				if (!words.has(link.text)) {
+				if (!words.has(link.text) && link.text.length > 1) {
 					wordLinks.push(link);
 					words.add(link.text);
 				}
