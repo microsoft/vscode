@@ -25,6 +25,9 @@ import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IProductService } from 'vs/platform/product/common/productService';
 
+export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
+export type RestoreWalkthroughsConfigurationValue = { folder: string, category?: string, step?: string, };
+
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
 const telemetryOptOutStorageKey = 'workbench.telemetryOptOutShown';
@@ -63,6 +66,10 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 			return;
 		}
 
+		if (this.tryOpenWalkthroughForFolder()) {
+			return;
+		}
+
 		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService, this.environmentService);
 		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			const hasBackups = await this.workingCopyBackupService.hasBackups();
@@ -84,6 +91,27 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 				}
 			}
 		}
+	}
+
+	private tryOpenWalkthroughForFolder(): boolean {
+		const toRestore = this.storageService.get(restoreWalkthroughsConfigurationKey, StorageScope.GLOBAL);
+		if (!toRestore) {
+			return false;
+		}
+		else {
+			const restoreData: RestoreWalkthroughsConfigurationValue = JSON.parse(toRestore);
+			const currentWorkspace = this.contextService.getWorkspace();
+			if (restoreData.folder === currentWorkspace.folders[0].uri.toString()) {
+				this.editorService.openEditor(
+					this.instantiationService.createInstance(
+						GettingStartedInput,
+						{ selectedCategory: restoreData.category, selectedStep: restoreData.step }),
+					{ pinned: false });
+				this.storageService.remove(restoreWalkthroughsConfigurationKey, StorageScope.GLOBAL);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private async openReadme() {

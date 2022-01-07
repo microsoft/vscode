@@ -2136,7 +2136,7 @@ export class CommandCenter {
 				}
 
 				const branchName = repository.HEAD.name;
-				const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
+				const message = localize('confirm publish branch', "The branch '{0}' has no remote branch. Would you like to publish this branch?", branchName);
 				const yes = localize('ok', "OK");
 				const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -2286,7 +2286,7 @@ export class CommandCenter {
 			return;
 		} else if (!HEAD.upstream) {
 			const branchName = HEAD.name;
-			const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
+			const message = localize('confirm publish branch', "The branch '{0}' has no remote branch. Would you like to publish this branch?", branchName);
 			const yes = localize('ok', "OK");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -2602,6 +2602,29 @@ export class CommandCenter {
 		}
 
 		await repository.dropStash(stash.index);
+	}
+
+	@command('git.stashDropAll', { repository: true })
+	async stashDropAll(repository: Repository): Promise<void> {
+		const stashes = await repository.getStashes();
+
+		if (stashes.length === 0) {
+			window.showInformationMessage(localize('no stashes', "There are no stashes in the repository."));
+			return;
+		}
+
+		// request confirmation for the operation
+		const yes = localize('yes', "Yes");
+		const question = stashes.length === 1 ?
+			localize('drop one stash', "Are you sure you want to drop ALL stashes? There is 1 stash that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.") :
+			localize('drop all stashes', "Are you sure you want to drop ALL stashes? There are {0} stashes that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.", stashes.length);
+
+		const result = await window.showWarningMessage(question, yes);
+		if (result !== yes) {
+			return;
+		}
+
+		await repository.dropStash();
 	}
 
 	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {

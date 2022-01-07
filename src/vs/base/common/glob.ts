@@ -27,8 +27,8 @@ export interface SiblingClause {
 	when: string;
 }
 
-const GLOBSTAR = '**';
-const GLOB_SPLIT = '/';
+export const GLOBSTAR = '**';
+export const GLOB_SPLIT = '/';
 const PATH_REGEX = '[/\\\\]';		// any slash or backslash
 const NO_PATH_REGEX = '[^/\\\\]';	// any non-slash and non-backslash
 const ALL_FORWARD_SLASHES = /\//g;

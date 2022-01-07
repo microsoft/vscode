@@ -332,8 +332,8 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.executeInlayHintProvider', '_executeInlayHintProvider', 'Execute inlay hints provider',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Range],
-		new ApiCommandResult<modes.InlayHint[], vscode.InlayHint[]>('A promise that resolves to an array of Inlay objects', result => {
-			return result.map(typeConverters.InlayHint.to);
+		new ApiCommandResult<modes.InlayHint[], vscode.InlayHint[]>('A promise that resolves to an array of Inlay objects', (result, args, converter) => {
+			return result.map(typeConverters.InlayHint.to.bind(undefined, converter));
 		})
 	),
 	// --- notebooks

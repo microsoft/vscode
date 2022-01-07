@@ -111,11 +111,11 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 	 *	Returns undefined if there should be no change, and an empty array if all items should be removed.
 	 */
 	private _getItemsForCell(): INotebookCellStatusBarItem[] | undefined {
-		if (this._currentExecutingStateTimer && !this._cell.internalMetadata.isPaused) {
+		const runState = this._executionStateService.getCellExecutionState(this._cell.uri);
+		if (this._currentExecutingStateTimer && !runState?.didPause) {
 			return;
 		}
 
-		const runState = this._executionStateService.getCellExecutionState(this._cell.uri);
 		const item = this._getItemForState(runState, this._cell.internalMetadata);
 
 		// Show the execution spinner for a minimum time
@@ -134,7 +134,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 
 	private _getItemForState(runState: ICellExecutionEntry | undefined, internalMetadata: NotebookCellInternalMetadata): INotebookCellStatusBarItem | undefined {
 		const state = runState?.state;
-		const { lastRunSuccess, isPaused } = internalMetadata;
+		const { lastRunSuccess } = internalMetadata;
 		if (!state && lastRunSuccess) {
 			return <INotebookCellStatusBarItem>{
 				text: `$(${successStateIcon.id})`,
@@ -159,7 +159,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 				priority: Number.MAX_SAFE_INTEGER
 			};
 		} else if (state === NotebookCellExecutionState.Executing) {
-			const icon = isPaused ?
+			const icon = runState?.didPause ?
 				executingStateIcon :
 				ThemeIcon.modify(executingStateIcon, 'spin');
 			return <INotebookCellStatusBarItem>{
@@ -214,7 +214,7 @@ class TimerCellStatusBarItem extends Disposable {
 		let item: INotebookCellStatusBarItem | undefined;
 		const runState = this._executionStateService.getCellExecutionState(this._cell.uri);
 		const state = runState?.state;
-		if (this._cell.internalMetadata.isPaused) {
+		if (runState?.didPause) {
 			item = undefined;
 		} else if (state === NotebookCellExecutionState.Executing) {
 			const startTime = this._cell.internalMetadata.runStartTime;

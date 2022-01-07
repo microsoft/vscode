@@ -135,14 +135,16 @@
         "url": "http://json-schema.org/draft-07/schema#"
       }
     ],
-    "commands": [{
-      "command": "json.clearCache",
-      "title": "%json.command.clearCache%",
-      "category": "JSON"
-    }]
+    "commands": [
+      {
+        "command": "json.clearCache",
+        "title": "%json.command.clearCache%",
+        "category": "JSON"
+      }
+    ]
   },
   "dependencies": {
-    "request-light": "^0.5.5",
+    "request-light": "^0.5.7",
     "vscode-extension-telemetry": "0.4.4",
     "vscode-languageclient": "^7.0.0",
     "vscode-nls": "^5.0.0"

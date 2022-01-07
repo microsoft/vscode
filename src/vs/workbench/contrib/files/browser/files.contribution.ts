@@ -10,7 +10,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IFileEditorInput, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID, BINARY_TEXT_FILE_MODE } from 'vs/workbench/contrib/files/common/files';
+import { SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID, BINARY_TEXT_FILE_MODE, UndoEnablement, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
@@ -34,6 +34,7 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { FileEditorInputSerializer, FileEditorWorkingCopyEditorHandler } from 'vs/workbench/contrib/files/browser/editors/fileEditorHandler';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
@@ -369,6 +370,17 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('confirmDelete', "Controls whether the explorer should ask for confirmation when deleting a file via the trash."),
 			'default': true
 		},
+		'explorer.enableUndo': {
+			'type': 'string',
+			'enum': [UndoEnablement.Warn, UndoEnablement.Allow, UndoEnablement.Disable],
+			'description': nls.localize('confirmUndo', "Controls how the explorer participates in undoing file and folder edits."),
+			'default': UndoEnablement.Warn,
+			'enumDescriptions': [
+				nls.localize('enableUndo.warn', 'Explorer will prompt before undoing all file and folder creation events.'),
+				nls.localize('enableUndo.allow', 'Explorer will undo file and folder creation events without prompting.'),
+				nls.localize('enableUndo.disable', 'Explorer does not participte in undo events.'),
+			],
+		},
 		'explorer.expandSingleFolderWorkspaces': {
 			'type': 'boolean',
 			'description': nls.localize('expandSingleFolderWorkspaces', "Controls whether the explorer should expand multi-root workspaces containing only one folder during initilization"),
@@ -445,7 +457,10 @@ configurationRegistry.registerConfiguration({
 UndoCommand.addImplementation(110, 'explorer', (accessor: ServicesAccessor) => {
 	const undoRedoService = accessor.get(IUndoRedoService);
 	const explorerService = accessor.get(IExplorerService);
-	if (explorerService.hasViewFocus() && undoRedoService.canUndo(UNDO_REDO_SOURCE)) {
+	const configurationService = accessor.get(IConfigurationService);
+
+	const explorerCanUndo = configurationService.getValue<IFilesConfiguration>().explorer.enableUndo !== UndoEnablement.Disable;
+	if (explorerService.hasViewFocus() && undoRedoService.canUndo(UNDO_REDO_SOURCE) && explorerCanUndo) {
 		undoRedoService.undo(UNDO_REDO_SOURCE);
 		return true;
 	}
@@ -456,7 +471,10 @@ UndoCommand.addImplementation(110, 'explorer', (accessor: ServicesAccessor) => {
 RedoCommand.addImplementation(110, 'explorer', (accessor: ServicesAccessor) => {
 	const undoRedoService = accessor.get(IUndoRedoService);
 	const explorerService = accessor.get(IExplorerService);
-	if (explorerService.hasViewFocus() && undoRedoService.canRedo(UNDO_REDO_SOURCE)) {
+	const configurationService = accessor.get(IConfigurationService);
+
+	const explorerCanUndo = configurationService.getValue<IFilesConfiguration>().explorer.enableUndo !== UndoEnablement.Disable;
+	if (explorerService.hasViewFocus() && undoRedoService.canRedo(UNDO_REDO_SOURCE) && explorerCanUndo) {
 		undoRedoService.redo(UNDO_REDO_SOURCE);
 		return true;
 	}

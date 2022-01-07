@@ -15,7 +15,7 @@ import { IBreakpoint, IDebugService } from 'vs/workbench/contrib/debug/common/de
 import { Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellUri, NotebookCellsChangeType, NullablePartialNotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -135,7 +135,6 @@ class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IDebugService private readonly _debugService: IDebugService,
-		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super();
@@ -175,24 +174,13 @@ class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 
 	private editIsPaused(cellUri: URI, isPaused: boolean) {
 		const parsed = CellUri.parse(cellUri);
-		if (parsed) {
-			const notebookModel = this._notebookService.getNotebookTextModel(parsed.notebook);
-			const internalMetadata: NullablePartialNotebookCellInternalMetadata = {
-				isPaused
-			};
-			if (isPaused) {
+		if (parsed && isPaused) {
+			const exeState = this._notebookExecutionStateService.getCellExecutionState(cellUri);
+			if (exeState) {
 				this._notebookExecutionStateService.updateNotebookCellExecution(parsed.notebook, parsed.handle, [{
 					editType: CellExecutionUpdateType.ExecutionState,
 					didPause: true
 				}]);
-			}
-
-			if (notebookModel?.checkCellExistence(parsed.handle)) {
-				notebookModel?.applyEdits([{
-					editType: CellEditType.PartialInternalMetadata,
-					handle: parsed.handle,
-					internalMetadata,
-				}], true, undefined, () => undefined, undefined);
 			}
 		}
 	}

@@ -206,26 +206,27 @@ const workerReady = new Promise((resolve, reject) => {
 
 	const swPath = `service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}`;
 
-	navigator.serviceWorker.register(swPath).then(
-		async registration => {
-			await navigator.serviceWorker.ready;
-			/**
-			 * @param {MessageEvent} event
-			 */
-			const versionHandler = async (event) => {
-				if (event.data.channel !== 'init') {
-					return;
-				}
-				navigator.serviceWorker.removeEventListener('message', versionHandler);
+	/**
+	 * @param {MessageEvent} event
+	 */
+	const swMessageHandler = async (event) => {
+		if (event.data.channel !== 'init') {
+			console.log('Unknown message received in webview from service worker');
+			return;
+		}
+		navigator.serviceWorker.removeEventListener('message', swMessageHandler);
 
-				// Forward the port back to VS Code
-				hostMessaging.onMessage('did-init-service-worker', () => resolve());
-				hostMessaging.postMessage('init-service-worker', {}, event.ports);
-			};
-			navigator.serviceWorker.addEventListener('message', versionHandler);
+		// Forward the port back to VS Code
+		hostMessaging.onMessage('did-init-service-worker', () => resolve());
+		hostMessaging.postMessage('init-service-worker', {}, event.ports);
+	};
+	navigator.serviceWorker.addEventListener('message', swMessageHandler);
 
-			const postVersionMessage = () => {
-				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'init' });
+	navigator.serviceWorker.register(swPath)
+		.then(() => navigator.serviceWorker.ready)
+		.then(() => {
+			const initServiceWorker = (/** @type {ServiceWorker} */ worker) => {
+				worker.postMessage({ channel: 'init' });
 			};
 
 			// At this point, either the service worker is ready and
@@ -233,20 +234,19 @@ const workerReady = new Promise((resolve, reject) => {
 			// Note that navigator.serviceWorker.controller could be a
 			// controller from a previously loaded service worker.
 			const currentController = navigator.serviceWorker.controller;
-			if (currentController && currentController.scriptURL.endsWith(swPath)) {
+			if (currentController?.scriptURL.endsWith(swPath)) {
 				// service worker already loaded & ready to receive messages
-				postVersionMessage();
+				initServiceWorker(currentController);
 			} else {
 				// either there's no controlling service worker, or it's an old one:
 				// wait for it to change before posting the message
 				const onControllerChange = () => {
 					navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-					postVersionMessage();
+					initServiceWorker(navigator.serviceWorker.controller);
 				};
 				navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 			}
-		},
-		error => {
+		}).catch(error => {
 			reject(new Error(`Could not register service workers: ${error}.`));
 		});
 });
@@ -893,8 +893,6 @@ onDomReady(() => {
 				});
 				pendingMessages = [];
 			}
-
-			hostMessaging.postMessage('did-load');
 		};
 
 		/**
@@ -941,8 +939,6 @@ onDomReady(() => {
 
 			unloadMonitor.onIframeLoaded(newFrame);
 		}
-
-		hostMessaging.postMessage('did-set-content', undefined);
 	});
 
 	// Forward message to the embedded iframe

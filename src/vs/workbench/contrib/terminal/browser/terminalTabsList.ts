@@ -17,7 +17,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ITerminalBackend, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TerminalCapability, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -304,6 +304,16 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				template.context.hoverActions.push(...status.hoverActions);
 			}
 		}
+
+		let shellIntegrationString = '';
+		const capabilities = instance.xterm?.shellIntegration.capabilities;
+		if (capabilities?.length) {
+			shellIntegrationString += `\n\n---\n\n$(plug) ${localize('shellIntegration.enabled', "Shell integration is enabled")}`;
+			for (const capability of capabilities) {
+				shellIntegrationString += `\n- ${this._getShellIntegrationCapabilityName(capability)}`;
+			}
+		}
+
 		const iconId = getIconId(instance);
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
@@ -361,7 +371,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				badges: hasText
 			},
 			title: {
-				markdown: new MarkdownString(instance.title + statusString, { supportThemeIcons: true }),
+				markdown: new MarkdownString(instance.title + shellIntegrationString + statusString, { supportThemeIcons: true }),
 				markdownNotSupportedFallback: undefined
 			},
 			extraClasses
@@ -492,6 +502,18 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}
 		this._terminalGroupService.focusTabs();
 		this._listService.lastFocusedList?.focusNext();
+	}
+
+	private _getShellIntegrationCapabilityName(capability: TerminalCapability): string | undefined {
+		switch (capability) {
+			case TerminalCapability.CwdDetection:
+			case TerminalCapability.NaiveCwdDetection:
+				return localize('capability.cwdDetection', "Current working directory detection");
+			case TerminalCapability.CommandDetection:
+				return localize('capability.commandDetection', "Command detection");
+			case TerminalCapability.PartialCommandDetection:
+				return localize('capability.partialCommandDetection', "Command detection (partial)");
+		}
 	}
 }
 
