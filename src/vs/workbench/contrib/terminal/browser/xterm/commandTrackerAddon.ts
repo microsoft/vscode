@@ -5,8 +5,7 @@
 
 import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
 import { ICommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ShellIntegrationInfo, ShellIntegrationInteraction, TerminalCommand } from 'vs/platform/terminal/common/terminal';
-import { Emitter } from 'vs/base/common/event';
+import { TerminalCommand } from 'vs/platform/terminal/common/terminal';
 
 /**
  * The minimum size of the prompt in which to assume the line is a command.
@@ -27,7 +26,7 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 	private _currentMarker: IMarker | Boundary = Boundary.Bottom;
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
-	abstract _terminal: Terminal | undefined;
+	protected abstract _terminal: Terminal | undefined;
 
 	abstract get commands(): TerminalCommand[];
 	abstract get cwds(): string[];
@@ -344,79 +343,5 @@ export class NaiveCommandTrackerAddon extends CommandTrackerAddon {
 	}
 
 	handleIntegratedShellChange(event: { type: string; value: string; }): void {
-	}
-}
-
-export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
-	_terminal: Terminal | undefined;
-	private _commands: TerminalCommand[] = [];
-	private _cwds = new Map<string, number>();
-	private _exitCode: number | undefined;
-	private _cwd: string | undefined;
-	private _commandMarker: IMarker | undefined;
-	private _commandCharStart: number | undefined;
-	private readonly _onCwdChanged = new Emitter<string>();
-	readonly onCwdChanged = this._onCwdChanged.event;
-
-	activate(terminal: Terminal): void {
-		this._terminal = terminal;
-	}
-
-	handleIntegratedShellChange(event: { type: string, value: string }): void {
-		if (!this._terminal) {
-			return;
-		}
-		switch (event.type) {
-			case ShellIntegrationInfo.CurrentDir: {
-				this._cwd = event.value;
-				const freq = this._cwds.get(this._cwd);
-				if (freq) {
-					this._cwds.set(this._cwd, freq + 1);
-				} else {
-					this._cwds.set(this._cwd, 1);
-				}
-				this._onCwdChanged.fire(this._cwd);
-				break;
-			} case ShellIntegrationInteraction.PromptStart:
-				break;
-			case ShellIntegrationInteraction.CommandStart:
-				this._commandMarker = this._terminal.registerMarker(0);
-				this._commandCharStart = this._terminal.buffer.active.cursorX;
-				break;
-			case ShellIntegrationInteraction.CommandExecuted:
-				break;
-			case ShellIntegrationInteraction.CommandFinished: {
-				this._exitCode = Number.parseInt(event.value);
-				if (!this._commandMarker?.line || !this._terminal.buffer.active) {
-					break;
-				}
-				const command = this._terminal.buffer.active.getLine(this._commandMarker.line)?.translateToString().substring(this._commandCharStart || 0);
-				if (command && !command.startsWith('\\') && command !== '') {
-					this._commands.push(
-						{
-							command,
-							timestamp: new Date().getTime(),
-							cwd: this._cwd,
-							exitCode: this._exitCode
-						});
-				}
-				break;
-			}
-			default:
-				return;
-		}
-	}
-
-	get commands(): TerminalCommand[] {
-		return this._commands;
-	}
-
-	get cwds(): string[] {
-		const cwds = [];
-		const sorted = new Map([...this._cwds.entries()].sort((a, b) => b[1] - a[1]));
-		for (const [key,] of sorted.entries()) {
-			cwds.push(key);
-		}
-		return cwds;
 	}
 }

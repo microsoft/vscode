@@ -20,7 +20,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { CognisantCommandTrackerAddon, CommandTrackerAddon, NaiveCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
+import { CommandTrackerAddon, NaiveCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { localize } from 'vs/nls';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -29,6 +29,8 @@ import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme
 import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { ShellIntegrationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
+import { CognisantCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/cognisantCommandTrackerAddon';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -80,6 +82,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		location: TerminalLocation,
 		capabilities: ProcessCapability[],
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -171,7 +174,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			return;
 		}
 		this._commandTrackerAddon.dispose();
-		this._commandTrackerAddon = new CognisantCommandTrackerAddon();
+		this._commandTrackerAddon = this._instantiationService.createInstance(CognisantCommandTrackerAddon);
 		this._commandTrackerAddon.activate(this.raw);
 	}
 
