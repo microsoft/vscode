@@ -4,58 +4,77 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { OPTIONS, OptionDescriptions } from 'vs/platform/environment/node/argv';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
-	'port': { type: 'string' },
+
+	/* ----- server setup ----- */
+
+	'host': { type: 'string', cat: 'o', description: nls.localize('host', 'The IP address the server should listen to. To use in combination with port.') },
+	'port': { type: 'string', cat: 'o', description: nls.localize('port', 'The port the server should listen to. If 0 is passed a random free port is picked. If a range in the format num-num is passed, a free port from the range is selected.') },
 	'pick-port': { type: 'string' },
+	'socket-path': { type: 'string', cat: 'o', description: nls.localize('socket-path', 'The path to a socket file for the server to listen to.') },
 	'connection-token': { type: 'string', cat: 'o', deprecates: 'connectionToken', description: nls.localize('connection-token', "A secret that must be included by the web client with all requests.") },
 	'connection-secret': { type: 'string', cat: 'o', description: nls.localize('connection-secret', "Path to file that contains the connection token. This will require that all incoming connections know the secret.") },
-	'host': { type: 'string' },
-	'socket-path': { type: 'string' },
-	'driver': { type: 'string' },
-	'start-server': { type: 'boolean' },
+	'disable-websocket-compression': { type: 'boolean' },
 	'print-startup-performance': { type: 'boolean' },
 	'print-ip-address': { type: 'boolean' },
-	'disable-websocket-compression': { type: 'boolean' },
+	'accept-server-license-terms': { type: 'boolean', cat: 'o', description: nls.localize('acceptLicenseTerms', 'If set, the user accepts the server license terms and the server will be started without a user prompt.') },
 
+	/* ----- vs code options ----- */
+
+	'user-data-dir': OPTIONS['user-data-dir'],
+	'driver': OPTIONS['driver'],
+	'disable-telemetry': OPTIONS['disable-telemetry'],
 	'fileWatcherPolling': { type: 'string' },
+	'log': OPTIONS['log'],
+	'logsPath': OPTIONS['logsPath'],
+	'force-disable-user-env': OPTIONS['force-disable-user-env'],
+
+	/* ----- vs code web options ----- */
+
+	'folder': { type: 'string' },
+	'workspace': { type: 'string' },
+
+	'enable-sync': { type: 'boolean' },
+	'github-auth': { type: 'string' },
+
+	/* ----- extension management ----- */
+
+	'extensions-dir': OPTIONS['extensions-dir'],
+	'extensions-download-dir': OPTIONS['extensions-download-dir'],
+	'builtin-extensions-dir': OPTIONS['builtin-extensions-dir'],
+	'install-extension': OPTIONS['install-extension'],
+	'install-builtin-extension': OPTIONS['install-builtin-extension'],
+	'uninstall-extension': OPTIONS['uninstall-extension'],
+	'list-extensions': OPTIONS['list-extensions'],
+	'locate-extension': OPTIONS['locate-extension'],
+
+	'show-versions': OPTIONS['show-versions'],
+	'category': OPTIONS['category'],
+	'force': OPTIONS['force'],
+	'do-not-sync': OPTIONS['do-not-sync'],
+	'pre-release': OPTIONS['pre-release'],
+	'start-server': { type: 'boolean' },
+
+
+	/* ----- remote development options ----- */
 
 	'enable-remote-auto-shutdown': { type: 'boolean' },
 	'remote-auto-shutdown-without-delay': { type: 'boolean' },
 
+	'use-host-proxy': { type: 'string' },
 	'without-browser-env-var': { type: 'boolean' },
 
-	'disable-telemetry': OPTIONS['disable-telemetry'],
-
-	'extensions-dir': OPTIONS['extensions-dir'],
-	'extensions-download-dir': OPTIONS['extensions-download-dir'],
-	'install-extension': OPTIONS['install-extension'],
-	'install-builtin-extension': OPTIONS['install-builtin-extension'],
-	'uninstall-extension': OPTIONS['uninstall-extension'],
-	'locate-extension': OPTIONS['locate-extension'],
-	'list-extensions': OPTIONS['list-extensions'],
-	'force': OPTIONS['force'],
-	'show-versions': OPTIONS['show-versions'],
-	'category': OPTIONS['category'],
-	'do-not-sync': OPTIONS['do-not-sync'],
-
-	'force-disable-user-env': OPTIONS['force-disable-user-env'],
-
-	'folder': { type: 'string' },
-	'workspace': { type: 'string' },
-	'use-host-proxy': { type: 'string' },
-	'enable-sync': { type: 'boolean' },
-	'github-auth': { type: 'string' },
-	'log': { type: 'string' },
-	'logsPath': { type: 'string' },
+	/* ----- server cli ----- */
 
 	'help': OPTIONS['help'],
 	'version': OPTIONS['version'],
-	'accept-server-license-terms': { type: 'boolean' },
+
 
 	_: OPTIONS['_']
 };
