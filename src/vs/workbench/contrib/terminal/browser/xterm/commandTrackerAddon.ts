@@ -29,7 +29,8 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 	private _isDisposable: boolean = false;
 	abstract _terminal: Terminal | undefined;
 
-	abstract getCommands(): TerminalCommand[];
+	abstract get commands(): TerminalCommand[];
+	abstract get cwds(): string[];
 	abstract activate(terminal: Terminal): void;
 	abstract handleIntegratedShellChange(event: { type: string, value: string }): void;
 
@@ -313,7 +314,10 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 
 export class NaiveCommandTrackerAddon extends CommandTrackerAddon {
 	_terminal: Terminal | undefined;
-	getCommands(): TerminalCommand[] {
+	get commands(): TerminalCommand[] {
+		return [];
+	}
+	get cwds(): string[] {
 		return [];
 	}
 
@@ -346,6 +350,7 @@ export class NaiveCommandTrackerAddon extends CommandTrackerAddon {
 export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 	_terminal: Terminal | undefined;
 	private _commands: TerminalCommand[] = [];
+	private _cwds = new Map<string, number>();
 	private _exitCode: number | undefined;
 	private _cwd: string | undefined;
 	private _commandMarker: IMarker | undefined;
@@ -362,11 +367,17 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 			return;
 		}
 		switch (event.type) {
-			case ShellIntegrationInfo.CurrentDir:
+			case ShellIntegrationInfo.CurrentDir: {
 				this._cwd = event.value;
+				const freq = this._cwds.get(this._cwd);
+				if (freq) {
+					this._cwds.set(this._cwd, freq + 1);
+				} else {
+					this._cwds.set(this._cwd, 1);
+				}
 				this._onCwdChanged.fire(this._cwd);
 				break;
-			case ShellIntegrationInteraction.PromptStart:
+			} case ShellIntegrationInteraction.PromptStart:
 				break;
 			case ShellIntegrationInteraction.CommandStart:
 				this._commandMarker = this._terminal.registerMarker(0);
@@ -396,7 +407,16 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 		}
 	}
 
-	getCommands(): TerminalCommand[] {
+	get commands(): TerminalCommand[] {
 		return this._commands;
+	}
+
+	get cwds(): string[] {
+		const cwds = [];
+		const sorted = new Map([...this._cwds.entries()].sort((a, b) => b[1] - a[1]));
+		for (const [key,] of sorted.entries()) {
+			cwds.push(key);
+		}
+		return cwds;
 	}
 }

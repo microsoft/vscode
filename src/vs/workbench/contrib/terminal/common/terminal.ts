@@ -326,7 +326,8 @@ export interface ICommandTracker {
 	selectToNextCommand(): void;
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
-	getCommands(): TerminalCommand[];
+	get commands(): TerminalCommand[];
+	get cwds(): string[];
 	clearMarker(): void;
 }
 

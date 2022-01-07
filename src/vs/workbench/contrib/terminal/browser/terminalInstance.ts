@@ -699,7 +699,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async runRecent(type: 'command' | 'cwd'): Promise<void> {
-		const commands = this.xterm?.commandTracker.getCommands();
+		const commands = this.xterm?.commandTracker.commands;
 		if (!commands || !this.xterm) {
 			return;
 		}
@@ -722,22 +722,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				});
 			}
 		} else {
-			const cwds = this.xterm.commandTracker.getCommands().map(c => c.cwd).filter(c => c !== undefined && c !== this.cwd);
-			const map = new Map<string, number>();
-			if (!cwds) {
-				return;
-			}
-			for (const cwd of cwds) {
-				const entry = map.get(cwd!);
-				if (entry) {
-					map.set(cwd!, entry + 1);
-				} else {
-					map.set(cwd!, 1);
-				}
-			}
-			const sorted = [...map.entries()].sort((a, b) => b[1] - a[1]);
-			for (const entry of sorted) {
-				items.push({ label: entry[0] });
+			const cwds = this.xterm.commandTracker.cwds;
+			for (const label of cwds) {
+				items.push({ label });
 			}
 		}
 		const result = await this._quickInputService.pick(items.reverse(), {});
