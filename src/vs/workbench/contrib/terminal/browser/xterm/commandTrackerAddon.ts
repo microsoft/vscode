@@ -371,12 +371,11 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 				break;
 			case ShellIntegrationInteraction.CommandExecuted:
 				break;
-			case ShellIntegrationInteraction.CommandFinished:
+			case ShellIntegrationInteraction.CommandFinished: {
 				this._exitCode = Number.parseInt(event.value);
 				if (!this._commandMarker?.line || !this._terminal?.buffer.active) {
 					break;
 				}
-				// eslint-disable-next-line no-case-declarations
 				const command = this._terminal.buffer.active.getLine(this._commandMarker.line)?.translateToString().substring(this._commandCharStart || 0);
 				if (command && !command.startsWith('\\') && command !== '') {
 					this._commands.push(
@@ -388,6 +387,7 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 						});
 				}
 				break;
+			}
 			default:
 				return;
 		}
