@@ -24,9 +24,14 @@ export interface IHoverComputer<T> {
 	computeSync?: () => T[];
 
 	/**
+	 * Clear the stored result.
+	 */
+	clearResult(): void;
+
+	/**
 	 * This is called whenever one of the compute* methods returns a truey value
 	 */
-	onResult: (result: T[], isFromSynchronousComputation: boolean) => void;
+	onResult: (result: T[]) => void;
 
 	/**
 	 * This is what will be sent as progress/complete to the computation promise
@@ -96,6 +101,10 @@ export class HoverOperation<T> extends Disposable {
 		super.dispose();
 	}
 
+	public clearResult(): void {
+		this._computer.clearResult();
+	}
+
 	private get _hoverTime(): number {
 		return this._editor.getOption(EditorOption.hover).delay;
 	}
@@ -124,7 +133,7 @@ export class HoverOperation<T> extends Disposable {
 				try {
 					for await (const item of this._asyncIterable!) {
 						if (item) {
-							this._computer.onResult([item], false);
+							this._computer.onResult([item]);
 							this._onProgress();
 						}
 					}
@@ -142,7 +151,7 @@ export class HoverOperation<T> extends Disposable {
 
 	private _triggerSyncComputation(): void {
 		if (this._computer.computeSync) {
-			this._computer.onResult(this._computer.computeSync(), true);
+			this._computer.onResult(this._computer.computeSync());
 		}
 
 		if (this._asyncIterableDone) {
@@ -203,6 +212,7 @@ export class HoverOperation<T> extends Disposable {
 	}
 
 	public cancel(): void {
+		this.clearResult();
 		this._firstWaitScheduler.cancel();
 		this._secondWaitScheduler.cancel();
 		this._loadingMessageScheduler.cancel();

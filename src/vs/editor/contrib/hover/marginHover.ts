@@ -22,71 +22,6 @@ export interface IHoverMessage {
 	value: IMarkdownString;
 }
 
-class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
-
-	private readonly _editor: ICodeEditor;
-	private _lineNumber: number;
-	private _result: IHoverMessage[];
-
-	constructor(editor: ICodeEditor) {
-		this._editor = editor;
-		this._lineNumber = -1;
-		this._result = [];
-	}
-
-	public setLineNumber(lineNumber: number): void {
-		this._lineNumber = lineNumber;
-		this._result = [];
-	}
-
-	public clearResult(): void {
-		this._result = [];
-	}
-
-	public computeSync(): IHoverMessage[] {
-
-		const toHoverMessage = (contents: IMarkdownString): IHoverMessage => {
-			return {
-				value: contents
-			};
-		};
-
-		const lineDecorations = this._editor.getLineDecorations(this._lineNumber);
-
-		const result: IHoverMessage[] = [];
-		if (!lineDecorations) {
-			return result;
-		}
-
-		for (const d of lineDecorations) {
-			if (!d.options.glyphMarginClassName) {
-				continue;
-			}
-
-			const hoverMessage = d.options.glyphMarginHoverMessage;
-			if (!hoverMessage || isEmptyMarkdownString(hoverMessage)) {
-				continue;
-			}
-
-			result.push(...asArray(hoverMessage).map(toHoverMessage));
-		}
-
-		return result;
-	}
-
-	public onResult(result: IHoverMessage[], isFromSynchronousComputation: boolean): void {
-		this._result = this._result.concat(result);
-	}
-
-	public getResult(): IHoverMessage[] {
-		return this._result;
-	}
-
-	public getResultWithLoadingMessage(): IHoverMessage[] {
-		return this.getResult();
-	}
-}
-
 export class MarginHoverWidget extends Widget implements IOverlayWidget {
 
 	public static readonly ID = 'editor.contrib.modesGlyphHoverWidget';
@@ -162,7 +97,6 @@ export class MarginHoverWidget extends Widget implements IOverlayWidget {
 			// The decorations have changed and the hover is visible,
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
-			this._computer.clearResult();
 			this._hoverOperation.start(HoverStartMode.Delayed);
 		}
 	}
@@ -240,5 +174,70 @@ export class MarginHoverWidget extends Widget implements IOverlayWidget {
 
 		this._hover.containerDomNode.style.left = `${editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth}px`;
 		this._hover.containerDomNode.style.top = `${Math.max(Math.round(top), 0)}px`;
+	}
+}
+
+class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
+
+	private readonly _editor: ICodeEditor;
+	private _lineNumber: number;
+	private _result: IHoverMessage[];
+
+	constructor(editor: ICodeEditor) {
+		this._editor = editor;
+		this._lineNumber = -1;
+		this._result = [];
+	}
+
+	public setLineNumber(lineNumber: number): void {
+		this._lineNumber = lineNumber;
+		this._result = [];
+	}
+
+	public clearResult(): void {
+		this._result = [];
+	}
+
+	public computeSync(): IHoverMessage[] {
+
+		const toHoverMessage = (contents: IMarkdownString): IHoverMessage => {
+			return {
+				value: contents
+			};
+		};
+
+		const lineDecorations = this._editor.getLineDecorations(this._lineNumber);
+
+		const result: IHoverMessage[] = [];
+		if (!lineDecorations) {
+			return result;
+		}
+
+		for (const d of lineDecorations) {
+			if (!d.options.glyphMarginClassName) {
+				continue;
+			}
+
+			const hoverMessage = d.options.glyphMarginHoverMessage;
+			if (!hoverMessage || isEmptyMarkdownString(hoverMessage)) {
+				continue;
+			}
+
+			result.push(...asArray(hoverMessage).map(toHoverMessage));
+		}
+
+		return result;
+	}
+
+	public onResult(result: IHoverMessage[]): void {
+		this._result = this._result.concat(result);
+	}
+
+	public getResult(): IHoverMessage[] {
+		return this._result;
+	}
+
+	public getResultWithLoadingMessage(): IHoverMessage[] {
+		return this.getResult();
 	}
 }

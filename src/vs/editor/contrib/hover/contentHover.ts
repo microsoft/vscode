@@ -155,7 +155,6 @@ export class ContentHoverController extends Disposable {
 			// The decorations have changed and the hover is visible,
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
-			this._computer.clearResult();
 
 			if (!this._widget.colorPicker) { // TODO@Michel ensure that displayed text for other decorations is computed even if color picker is in place
 				this._hoverOperation.start(HoverStartMode.Delayed);
@@ -498,7 +497,6 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 
 	public set anchor(value: HoverAnchor | null) {
 		this._anchor = value;
-		this._result = [];
 	}
 
 	constructor(
@@ -577,13 +575,8 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 		return coalesce(result);
 	}
 
-	public onResult(result: IHoverPart[], isFromSynchronousComputation: boolean): void {
-		// Always put synchronous messages before asynchronous ones
-		if (isFromSynchronousComputation) {
-			this._result = result.concat(this._result);
-		} else {
-			this._result = this._result.concat(result);
-		}
+	public onResult(result: IHoverPart[]): void {
+		this._result = this._result.concat(result);
 	}
 
 	public getResult(): IHoverPart[] {
