@@ -1794,10 +1794,13 @@ export class Repository {
 	}
 
 	async dropStash(index?: number): Promise<void> {
-		const args = ['stash', 'drop'];
+		const args = ['stash'];
 
 		if (typeof index === 'number') {
+			args.push('drop');
 			args.push(`stash@{${index}}`);
+		} else {
+			args.push('clear');
 		}
 
 		try {

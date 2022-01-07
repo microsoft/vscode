@@ -2604,6 +2604,29 @@ export class CommandCenter {
 		await repository.dropStash(stash.index);
 	}
 
+	@command('git.stashDropAll', { repository: true })
+	async stashDropAll(repository: Repository): Promise<void> {
+		const stashes = await repository.getStashes();
+
+		if (stashes.length === 0) {
+			window.showInformationMessage(localize('no stashes', "There are no stashes in the repository."));
+			return;
+		}
+
+		// request confirmation for the operation
+		const yes = localize('yes', "Yes");
+		const question = stashes.length === 1 ?
+			localize('drop one stash', "Are you sure you want to drop ALL stashes? There is 1 stash that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.") :
+			localize('drop all stashes', "Are you sure you want to drop ALL stashes? There are {0} stashes that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.", stashes.length);
+
+		const result = await window.showWarningMessage(question, yes);
+		if (result !== yes) {
+			return;
+		}
+
+		await repository.dropStash();
+	}
+
 	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
 		const stashes = await repository.getStashes();
 
