@@ -25,6 +25,7 @@ import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platf
 import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/replacePattern';
 import { Codicon } from 'vs/base/common/codicons';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -48,7 +49,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private readonly _findInputFocusTracker: dom.IFocusTracker;
 	private readonly _updateHistoryDelayer: Delayer<void>;
 	protected readonly _matchesCount!: HTMLElement;
-	protected readonly filterBtn: Checkbox;
+	protected readonly filterBtn?: Checkbox;
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
 
@@ -71,6 +72,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		protected readonly _state: FindReplaceState<boolean> = new FindReplaceState<boolean>(),
 		showOptionButtons?: boolean
 	) {
@@ -157,17 +159,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._matchesCount.className = 'matchesCount';
 		this._updateMatchesCount();
 
-		// Toggle filter button
-		this.filterBtn = this._register(new Checkbox({
-			title: NLS_FILTER_BTN_LABEL,
-			icon: findFilterButton,
-			isChecked: false
-		}));
-
-		this._register(this.filterBtn.onChange(() => {
-			this._state.change({ filters: this.filterBtn.checked }, true);
-		}));
-
 		this.prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL,
 			icon: findPreviousMatchIcon,
@@ -194,7 +185,22 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this._innerFindDomNode.appendChild(this._findInput.domNode);
 		this._innerFindDomNode.appendChild(this._matchesCount);
-		this._innerFindDomNode.appendChild(this.filterBtn.domNode);
+
+
+		// Toggle filter button
+		const experimental = this._configurationService.getValue<boolean>('notebook.find.experimental');
+		if (experimental) {
+			this.filterBtn = this._register(new Checkbox({
+				title: NLS_FILTER_BTN_LABEL,
+				icon: findFilterButton,
+				isChecked: false
+			}));
+
+			this._register(this.filterBtn.onChange(() => {
+				this._state.change({ filters: this.filterBtn!.checked }, true);
+			}));
+			this._innerFindDomNode.appendChild(this.filterBtn.domNode);
+		}
 		this._innerFindDomNode.appendChild(this.prevBtn.domNode);
 		this._innerFindDomNode.appendChild(this.nextBtn.domNode);
 		this._innerFindDomNode.appendChild(closeBtn.domNode);
@@ -335,7 +341,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		};
 		this._replaceInput.style(replaceStyles);
-		this.filterBtn.style(inputStyles);
+		this.filterBtn?.style(inputStyles);
 	}
 
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {

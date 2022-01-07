@@ -13,7 +13,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { MATCHES_LIMIT } from 'vs/editor/contrib/find/findModel';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindReplaceWidget';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import * as DOM from 'vs/base/browser/dom';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
@@ -30,6 +29,7 @@ import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from 'vs/editor/contrib/find/fin
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { FindMatch } from 'vs/editor/common/model';
+import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/simpleFindReplaceWidget';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
@@ -43,16 +43,17 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 	private _hideTimeout: number | null = null;
 	private _previousFocusElement?: HTMLElement;
 	private _findModel: FindModel;
+	private _styleElement!: HTMLStyleElement;
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 
 	) {
-		super(contextViewService, contextKeyService, themeService, new FindReplaceState(), true);
+		super(contextViewService, contextKeyService, themeService, configurationService, new FindReplaceState(), true);
 		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
@@ -79,6 +80,21 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		this._register(DOM.addDisposableListener(this.getDomNode(), DOM.EventType.FOCUS, e => {
 			this._previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
 		}, true));
+
+		this._createLayoutStyles();
+	}
+
+	private _createLayoutStyles(): void {
+		this._styleElement = DOM.createStyleSheet(this.getDomNode());
+		const experimental = this._configurationService.getValue<boolean>('notebook.find.experimental');
+		const styleSheets: string[] = [];
+		if (experimental) {
+			styleSheets.push('.monaco-workbench .simple-fr-find-part-wrapper { width: 341px; }');
+		} else {
+			styleSheets.push('.monaco-workbench .simple-fr-find-part-wrapper { width: 318px; }');
+		}
+
+		this._styleElement.textContent = styleSheets.join('\n');
 	}
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {

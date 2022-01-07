@@ -226,11 +226,21 @@ async function webviewPreloads(ctx: PreloadContext) {
 					this.updateImmediately();
 				}, 0);
 			}
-			this.pending.set(id, {
-				id,
-				height,
-				...options,
-			});
+			const update = this.pending.get(id);
+			if (update && update.isOutput) {
+				this.pending.set(id, {
+					id,
+					height,
+					init: update.init,
+					isOutput: update.isOutput,
+				});
+			} else {
+				this.pending.set(id, {
+					id,
+					height,
+					...options,
+				});
+			}
 		}
 
 		updateImmediately() {

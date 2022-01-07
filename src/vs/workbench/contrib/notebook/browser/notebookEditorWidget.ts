@@ -55,7 +55,7 @@ import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/v
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, INotebookSearchOptions, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BUILTIN_RENDERER_ID, CellKind, INotebookSearchOptions, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
@@ -72,6 +72,7 @@ import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/no
 import { notebookDebug } from 'vs/workbench/contrib/notebook/browser/notebookLogger';
 import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookTopCellToolbar';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 const $ = DOM.$;
 
@@ -295,6 +296,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	readonly onMouseDown: Event<INotebookEditorMouseEvent> = this._onMouseDown.event;
 	private readonly _onDidReceiveMessage = this._register(new Emitter<INotebookWebviewMessage>());
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage> = this._onDidReceiveMessage.event;
+	private readonly _onDidRenderOutput = this._register(new Emitter<ICellOutputViewModel>());
+	private readonly onDidRenderOutput = this._onDidRenderOutput.event;
+
 
 	//#endregion
 	private _overlayContainer!: HTMLElement;
@@ -398,6 +402,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@INotebookRendererMessagingService private readonly notebookRendererMessaging: INotebookRendererMessagingService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService,
+		@INotebookService private readonly _notebookService: INotebookService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILayoutService private readonly layoutService: ILayoutService,
@@ -2261,7 +2266,86 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	//#endregion
 
 	//#region Find
-	async find(query: string, options: INotebookSearchOptions, token: CancellationToken): Promise<CellFindMatchWithIndex[]> {
+
+	private async _renderCell(viewCell: CodeCellViewModel) {
+		if (viewCell.isOutputCollapsed) {
+			return;
+		}
+
+		const outputs = viewCell.outputsViewModels;
+		for (let output of outputs) {
+			const [mimeTypes, pick] = output.resolveMimeTypes(this.textModel!, undefined);
+			if (!mimeTypes.find(mimeType => mimeType.isTrusted) || mimeTypes.length === 0) {
+				continue;
+			}
+
+			const pickedMimeTypeRenderer = mimeTypes[pick];
+
+			if (!pickedMimeTypeRenderer) {
+				return;
+			}
+
+			if (pickedMimeTypeRenderer.rendererId === BUILTIN_RENDERER_ID) {
+				const renderer = this.getOutputRenderer().getContribution(pickedMimeTypeRenderer.mimeType);
+				if (renderer?.getType() === RenderOutputType.Html) {
+					const renderResult = renderer.render(output, output.model.outputs.filter(op => op.mime === pickedMimeTypeRenderer.mimeType)[0], DOM.$(''), this.textModel!.uri) as IInsetRenderOutput;
+					if (!this._webview?.insetMapping.has(renderResult.source)) {
+						const p = new Promise<void>(resolve => {
+							this.onDidRenderOutput(e => {
+								if (e.model === renderResult.source.model) {
+									resolve();
+								}
+							});
+						});
+						this.createOutput(viewCell, renderResult, 0);
+						await p;
+						return;
+					}
+				}
+				return;
+			}
+			const renderer = this._notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
+
+			if (!renderer) {
+				return;
+			}
+
+			const result: IInsetRenderOutput = { type: RenderOutputType.Extension, renderer, source: output, mimeType: pickedMimeTypeRenderer.mimeType };
+			if (!this._webview?.insetMapping.has(result.source)) {
+				const p = new Promise<void>(resolve => {
+					this.onDidRenderOutput(e => {
+						if (e.model === result.source.model) {
+							resolve();
+						}
+					});
+				});
+				this.createOutput(viewCell, result, 0);
+				await p;
+
+			}
+
+			return;
+		}
+
+	}
+	private async _warmupAll() {
+		if (!this.hasModel()) {
+			return;
+		}
+
+		const renderPromises = [];
+		for (let i = 0; i < this.getLength(); i++) {
+			const cell = this.cellAt(i);
+
+			if (cell?.cellKind === CellKind.Code) {
+				renderPromises.push(this._renderCell((cell as CodeCellViewModel)));
+			}
+		}
+
+		return Promise.all(renderPromises);
+	}
+
+	async find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup: boolean = false): Promise<CellFindMatchWithIndex[]> {
 		if (!this._notebookViewModel) {
 			return [];
 		}
@@ -2279,6 +2363,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		});
 
 		if (this._webview) {
+			// request all outputs to be rendered
+			await this._warmupAll();
 			const webviewMatches = await this._webview.find(query);
 			// attach webview matches to model find matches
 			webviewMatches.forEach(match => {
@@ -2634,6 +2720,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._debug('update cell output', cell.handle, outputHeight);
 			cell.updateOutputHeight(outputIndex, outputHeight, source);
 			this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
+
+			if (isInit) {
+				this._onDidRenderOutput.fire(output);
+			}
 		}
 	}
 
