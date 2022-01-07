@@ -358,6 +358,9 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 	}
 
 	handleIntegratedShellChange(event: { type: string, value: string }): void {
+		if (!this._terminal) {
+			return;
+		}
 		switch (event.type) {
 			case ShellIntegrationInfo.CurrentDir:
 				this._cwd = event.value;
@@ -366,14 +369,14 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 			case ShellIntegrationInteraction.PromptStart:
 				break;
 			case ShellIntegrationInteraction.CommandStart:
-				this._commandMarker = this._terminal?.registerMarker(0);
-				this._commandCharStart = this._terminal?.buffer.active.cursorX;
+				this._commandMarker = this._terminal.registerMarker(0);
+				this._commandCharStart = this._terminal.buffer.active.cursorX;
 				break;
 			case ShellIntegrationInteraction.CommandExecuted:
 				break;
 			case ShellIntegrationInteraction.CommandFinished: {
 				this._exitCode = Number.parseInt(event.value);
-				if (!this._commandMarker?.line || !this._terminal?.buffer.active) {
+				if (!this._commandMarker?.line || !this._terminal.buffer.active) {
 					break;
 				}
 				const command = this._terminal.buffer.active.getLine(this._commandMarker.line)?.translateToString().substring(this._commandCharStart || 0);
