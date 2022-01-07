@@ -191,8 +191,7 @@ export const enum ProcessPropertyType {
 	ShellType = 'shellType',
 	HasChildProcesses = 'hasChildProcesses',
 	ResolvedShellLaunchConfig = 'resolvedShellLaunchConfig',
-	OverrideDimensions = 'overrideDimensions',
-	Capability = 'capability'
+	OverrideDimensions = 'overrideDimensions'
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -209,7 +208,6 @@ export interface IProcessPropertyMap {
 	[ProcessPropertyType.HasChildProcesses]: boolean,
 	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig,
 	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined
-	[ProcessPropertyType.Capability]: ProcessCapability | undefined
 }
 
 export interface IFixedTerminalDimensions {
@@ -378,19 +376,6 @@ export interface TerminalCommand {
 	cwd?: string;
 	exitCode?: number;
 }
-
-export const enum ShellIntegrationInfo {
-	CurrentDir = 'CurrentDir',
-}
-export const enum ShellIntegrationInteraction {
-	PromptStart = 'PROMPT_START',
-	CommandStart = 'COMMAND_START',
-	CommandExecuted = 'COMMAND_EXECUTED',
-	CommandFinished = 'COMMAND_FINISHED'
-}
-
-
-export interface IShellChangeEvent { type: ShellIntegrationInfo | ShellIntegrationInteraction, value: string }
 
 export interface IShellLaunchConfig {
 	/**

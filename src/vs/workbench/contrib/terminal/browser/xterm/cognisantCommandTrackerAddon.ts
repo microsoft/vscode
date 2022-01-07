@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal, IMarker } from 'xterm';
-import { ShellIntegrationInfo, ShellIntegrationInteraction, TerminalCommand } from 'vs/platform/terminal/common/terminal';
+import { TerminalCommand } from 'vs/platform/terminal/common/terminal';
 import { Emitter } from 'vs/base/common/event';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ShellIntegrationInfo, ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
 
 interface ICurrentPartialCommand {
 	marker?: IMarker;

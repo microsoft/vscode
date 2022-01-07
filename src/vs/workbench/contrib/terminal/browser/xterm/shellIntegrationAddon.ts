@@ -7,7 +7,7 @@ import { ITerminalAddon, Terminal } from 'xterm';
 import { IShellIntegration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ProcessCapability, ShellIntegrationInfo, ShellIntegrationInteraction } from 'vs/platform/terminal/common/terminal';
+import { ProcessCapability } from 'vs/platform/terminal/common/terminal';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -57,6 +57,17 @@ const enum ShellIntegrationOscPt {
 	CommandFinished = 'D',
 	// TODO: This is a VS Code-specific sequence? Do we need this? Should it have a version?
 	EnableShellIntegration = 'E',
+}
+
+export const enum ShellIntegrationInfo {
+	CurrentDir = 'CurrentDir',
+}
+
+export const enum ShellIntegrationInteraction {
+	PromptStart = 'PROMPT_START',
+	CommandStart = 'COMMAND_START',
+	CommandExecuted = 'COMMAND_EXECUTED',
+	CommandFinished = 'COMMAND_FINISHED'
 }
 
 export class ShellIntegrationAddon extends Disposable implements IShellIntegration, ITerminalAddon {

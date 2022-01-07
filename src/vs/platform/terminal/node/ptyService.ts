@@ -201,7 +201,6 @@ export class PtyService extends Disposable implements IPtyService {
 				persistentProcess.installAutoReply(e[0], e[1]);
 			}
 		});
-
 		this._ptys.set(id, persistentProcess);
 		return id;
 	}
@@ -502,9 +501,6 @@ export class PersistentTerminalProcess extends Disposable {
 			unicodeVersion,
 			reviveBuffer
 		);
-		this._serializer.onDidStartShellIntegration(() => {
-			this._terminalProcess.updateProperty(ProcessPropertyType.Capability, ProcessCapability.CommandCognisant);
-		});
 
 		this._fixedDimensions = fixedDimensions;
 		this._orphanQuestionBarrier = null;
@@ -729,9 +725,7 @@ export class PersistentTerminalProcess extends Disposable {
 class XtermSerializer implements ITerminalSerializer {
 	private _xterm: XtermTerminal;
 	private _unicodeAddon?: XtermUnicode11Addon;
-	private readonly _onDidStartShellIntegration = new Emitter<void>();
-	readonly onDidStartShellIntegration = this._onDidStartShellIntegration.event;
-	private _shellIntegration: boolean | undefined;
+	private _isShellIntegrationEnabled: boolean = false;
 
 	constructor(
 		cols: number,
@@ -745,7 +739,7 @@ class XtermSerializer implements ITerminalSerializer {
 			this._xterm.writeln(reviveBuffer);
 		}
 		this._xterm.parser.registerOscHandler(133, (data => this._handleShellIntegration(data)));
-		if (this._shellIntegration) {
+		if (this._isShellIntegrationEnabled) {
 			this._xterm.writeln('\x1b033]133;E\x1b007');
 		}
 		this.setUnicodeVersion(unicodeVersion);
@@ -753,13 +747,11 @@ class XtermSerializer implements ITerminalSerializer {
 
 	private _handleShellIntegration(data: string): boolean {
 		const [command,] = data.split(';');
-		switch (command) {
-			case 'E':
-				this._shellIntegration = true;
-				this._onDidStartShellIntegration.fire();
-			default:
-				return false;
+		if (command === 'E') {
+			this._isShellIntegrationEnabled = true;
+			return true;
 		}
+		return false;
 	}
 
 	handleData(data: string): void {
@@ -847,5 +839,4 @@ export interface ITerminalSerializer {
 	handleResize(cols: number, rows: number): void;
 	generateReplayEvent(normalBufferOnly?: boolean): Promise<IPtyHostProcessReplayEvent>;
 	setUnicodeVersion?(version: '6' | '11'): void;
-	onDidStartShellIntegration: Event<void>;
 }

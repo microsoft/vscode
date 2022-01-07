@@ -35,8 +35,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		shellType: undefined,
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
-		overrideDimensions: undefined,
-		capability: undefined
+		overrideDimensions: undefined
 	};
 
 	private _capabilities: ProcessCapability[] = [];
