@@ -18,8 +18,8 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'port': { type: 'string', cat: 'o', description: nls.localize('port', 'The port the server should listen to. If 0 is passed a random free port is picked. If a range in the format num-num is passed, a free port from the range is selected.') },
 	'pick-port': { type: 'string' },
 	'socket-path': { type: 'string', cat: 'o', description: nls.localize('socket-path', 'The path to a socket file for the server to listen to.') },
-	'connection-token': { type: 'string', cat: 'o', deprecates: 'connectionToken', description: nls.localize('connection-token', "A secret that must be included by the web client with all requests.") },
-	'connection-secret': { type: 'string', cat: 'o', description: nls.localize('connection-secret', "Path to file that contains the connection token. This will require that all incoming connections know the secret.") },
+	'connection-token': { type: 'string', cat: 'o', deprecates: ['connectionToken'], description: nls.localize('connection-token', "A secret that must be included with all requests.") },
+	'connection-token-file': { type: 'string', cat: 'o', deprecates: ['connection-secret', 'connectionTokenFile'], description: nls.localize('connection-token-file', "Path to a file that contains the connection token. This will require that all incoming connections know the secret.") },
 	'disable-websocket-compression': { type: 'boolean' },
 	'print-startup-performance': { type: 'boolean' },
 	'print-ip-address': { type: 'boolean' },
@@ -30,7 +30,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'user-data-dir': OPTIONS['user-data-dir'],
 	'driver': OPTIONS['driver'],
 	'disable-telemetry': OPTIONS['disable-telemetry'],
-	'fileWatcherPolling': { type: 'string' },
+	'file-watcher-polling': { type: 'string', deprecates: ['fileWatcherPolling']},
 	'log': OPTIONS['log'],
 	'logsPath': OPTIONS['logsPath'],
 	'force-disable-user-env': OPTIONS['force-disable-user-env'],
@@ -95,7 +95,7 @@ export interface ServerParsedArgs {
 	 * By default, a UUID will be generated every time the server starts up.
 	 *
 	 * If the server is running on a multi-user system, then consider
-	 * using `--connection-secret` which has the advantage that the token cannot
+	 * using `--connection-token-file` which has the advantage that the token cannot
 	 * be seen by other users using `ps` or similar commands.
 	 */
 	'connection-token'?: string;
@@ -103,12 +103,12 @@ export interface ServerParsedArgs {
 	 * A path to a filename which will be read on startup.
 	 * Consider placing this file in a folder readable only by the same user (a `chmod 0700` directory).
 	 *
-	 * The contents of the file will be used as the connectionToken. Use only `[0-9A-Z\-]` as contents in the file.
+	 * The contents of the file will be used as the connection token. Use only `[0-9A-Z\-]` as contents in the file.
 	 * The file can optionally end in a `\n` which will be ignored.
 	 *
 	 * This secret must be communicated to any vscode instance via the resolver or embedder API.
 	 */
-	'connection-secret'?: string;
+	'connection-token-file'?: string;
 
 	'disable-websocket-compression'?: boolean;
 
@@ -124,7 +124,7 @@ export interface ServerParsedArgs {
 	driver?: string;
 
 	'disable-telemetry'?: boolean;
-	fileWatcherPolling?: string;
+	'file-watcher-polling'?: string;
 
 	'log'?: string;
 	'logsPath'?: string;
