@@ -21,24 +21,22 @@ export class InlayHintItem {
 	readonly resolve: (token: CancellationToken) => Promise<void>;
 
 	constructor(readonly hint: InlayHint, readonly anchor: InlayHintAnchor, provider: InlayHintsProvider) {
+		let resolve: Promise<any> | undefined;
 		if (!provider.resolveInlayHint) {
-			this.resolve = async () => { };
-		} else {
-			let isResolved = false;
-			this.resolve = async token => {
-				if (isResolved) {
-					return;
-				}
-				try {
-					const newHint = await provider.resolveInlayHint!(this.hint, token);
+			resolve = Promise.resolve();
+		}
+		this.resolve = async token => {
+			if (!resolve) {
+				resolve = Promise.resolve(provider.resolveInlayHint!(this.hint, token)).then(newHint => {
 					this.hint.tooltip = newHint?.tooltip ?? this.hint.tooltip;
 					this.hint.label = newHint?.label ?? this.hint.label;
-					isResolved = true;
-				} catch (err) {
+				}).catch(err => {
 					onUnexpectedExternalError(err);
-				}
-			};
-		}
+					resolve = undefined;
+				});
+			}
+			return resolve;
+		};
 	}
 }
 
