@@ -65,6 +65,7 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 				this._currentCommand.marker = this._terminal.registerMarker(0);
 				break;
 			case ShellIntegrationInteraction.CommandExecuted:
+				// TODO: Make sure this only runs on Windows backends (not frontends)
 				if (!isWindows && this._currentCommand.marker && this._currentCommand.commandStartX) {
 					this._currentCommand.command = this._terminal.buffer.active.getLine(this._currentCommand.marker.line)?.translateToString().substring(this._currentCommand.commandStartX);
 					break;
