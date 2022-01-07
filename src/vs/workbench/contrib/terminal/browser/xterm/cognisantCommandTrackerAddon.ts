@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal, IMarker } from 'xterm';
+import type { Terminal, IMarker, IBuffer } from 'xterm';
 import { TerminalCommand } from 'vs/platform/terminal/common/terminal';
 import { Emitter } from 'vs/base/common/event';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ShellIntegrationInfo, ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
+import { isWindows } from 'vs/base/common/platform';
 
 interface ICurrentPartialCommand {
 	marker?: IMarker;
@@ -64,6 +65,11 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 				this._currentCommand.marker = this._terminal.registerMarker(0);
 				break;
 			case ShellIntegrationInteraction.CommandExecuted:
+				// TODO: Make sure this only runs on Windows backends (not frontends)
+				if (!isWindows && this._currentCommand.marker && this._currentCommand.commandStartX) {
+					this._currentCommand.command = this._terminal.buffer.active.getLine(this._currentCommand.marker.line)?.translateToString().substring(this._currentCommand.commandStartX);
+					break;
+				}
 				this._currentCommand.commandExecutedY = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
 
 				// TODO: Leverage key events on Windows between CommandStart and Executed to ensure we have the correct line
@@ -100,18 +106,21 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 					}
 				}
 				break;
-			case ShellIntegrationInteraction.CommandFinished:
-				this._logService.trace('Terminal Command Finished', this._currentCommand.command);
+			case ShellIntegrationInteraction.CommandFinished: {
+				const command = this._currentCommand.command;
+				this._logService.trace('Terminal Command Finished', command);
 				this._exitCode = Number.parseInt(event.value);
 				if (!this._currentCommand.marker?.line || !this._terminal.buffer.active) {
 					break;
 				}
-				if (this._currentCommand.command && !this._currentCommand.command.startsWith('\\') && this._currentCommand.command !== '') {
+				if (command && !command.startsWith('\\') && command !== '') {
+					const buffer = this._terminal.buffer.active;
 					this._commands.push({
-						command: this._currentCommand.command,
+						command,
 						timestamp: Date.now(),
 						cwd: this._cwd,
-						exitCode: this._exitCode
+						exitCode: this._exitCode,
+						getOutput: () => getOutputForCommand(this._currentCommand.previousCommandMarker!.line! + 1, this._currentCommand.marker!.line!, buffer)
 					});
 				}
 
@@ -119,7 +128,7 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 				this._currentCommand.previousCommandMarker = this._currentCommand.marker;
 				this._currentCommand.marker = undefined;
 				break;
-			default:
+			} default:
 				return;
 		}
 	}
@@ -136,4 +145,12 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 		}
 		return cwds;
 	}
+}
+
+function getOutputForCommand(startLine: number, endLine: number, buffer: IBuffer): string | undefined {
+	let output = '';
+	for (let i = startLine; i < endLine; i++) {
+		output += buffer.getLine(i)?.translateToString() + '\n';
+	}
+	return output === '' ? undefined : output;
 }
