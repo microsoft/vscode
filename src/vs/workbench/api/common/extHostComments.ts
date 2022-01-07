@@ -18,7 +18,7 @@ import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConver
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
-import { ExtHostCommentsShape, IMainContext, MainContext, CommentThreadChanges } from './extHost.protocol';
+import { ExtHostCommentsShape, IMainContext, MainContext, CommentThreadChanges, CommentChanges } from './extHost.protocol';
 import { ExtHostCommands } from './extHostCommands';
 
 type ProviderHandle = number;
@@ -434,7 +434,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			}
 			if (modified('comments')) {
 				formattedModifications.comments =
-					this._comments.map(cmt => convertToModeComment(this, cmt, this._commentsMap));
+					this._comments.map(cmt => convertToDTOComment(this, cmt, this._commentsMap));
 			}
 			if (modified('collapsibleState')) {
 				formattedModifications.collapseState = convertToCollapsibleState(this._collapseState);
@@ -609,7 +609,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 	}
 
-	function convertToModeComment(thread: ExtHostCommentThread, vscodeComment: vscode.Comment, commentsMap: Map<vscode.Comment, number>): modes.Comment {
+	function convertToDTOComment(thread: ExtHostCommentThread, vscodeComment: vscode.Comment, commentsMap: Map<vscode.Comment, number>): CommentChanges {
 		let commentUniqueId = commentsMap.get(vscodeComment)!;
 		if (!commentUniqueId) {
 			commentUniqueId = ++thread.commentHandle;
@@ -618,8 +618,18 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 		const iconPath = vscodeComment.author && vscodeComment.author.iconPath ? vscodeComment.author.iconPath.toString() : undefined;
 
-		if (vscodeComment.timestamp) {
+		if (vscodeComment.detail) {
 			checkProposedApiEnabled(thread.extensionDescription, 'commentTimestamp');
+		}
+
+		let detail: { $mid: MarshalledId.Date, source: any } | string | undefined;
+		if (vscodeComment.detail && (typeof vscodeComment.detail !== 'string')) {
+			detail = {
+				source: vscodeComment.detail,
+				$mid: MarshalledId.Date
+			};
+		} else {
+			detail = vscodeComment.detail;
 		}
 
 		return {
@@ -631,7 +641,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			userIconPath: iconPath,
 			label: vscodeComment.label,
 			commentReactions: vscodeComment.reactions ? vscodeComment.reactions.map(reaction => convertToReaction(reaction)) : undefined,
-			timestamp: vscodeComment.timestamp
+			detail: detail
 		};
 	}
 

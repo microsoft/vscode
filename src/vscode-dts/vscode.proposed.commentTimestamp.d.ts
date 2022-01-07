@@ -5,10 +5,6 @@
 
 declare module 'vscode' {
 	export interface Comment {
-		timestamp?: {
-			date: Date,
-			label?: string,
-			useRelativeTime?: boolean
-		}
+		detail?: Date | string
 	}
 }

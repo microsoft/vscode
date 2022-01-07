@@ -1666,15 +1666,6 @@ export enum CommentMode {
 /**
  * @internal
  */
-export interface Timestamp {
-	date: Date;
-	useRelativeTime?: boolean;
-	label?: string;
-}
-
-/**
- * @internal
- */
 export interface Comment {
 	readonly uniqueIdInThread: number;
 	readonly body: IMarkdownString;
@@ -1684,7 +1675,7 @@ export interface Comment {
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
 	readonly mode?: CommentMode;
-	readonly timestamp?: Timestamp;
+	readonly detail?: Date | string;
 }
 
 /**

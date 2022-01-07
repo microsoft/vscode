@@ -5,11 +5,13 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Timestamp } from 'vs/editor/common/modes';
 import * as dayjs from 'dayjs';
 import * as relativeTime from 'dayjs/plugin/relativeTime';
 import * as updateLocale from 'dayjs/plugin/updateLocale';
 import * as localizedFormat from 'dayjs/plugin/localizedFormat';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
+const USE_RELATIVE_TIME_CONFIGURATION = 'comments.useRelativeTime';
 
 dayjs.extend(relativeTime, {
 	thresholds: [
@@ -52,34 +54,41 @@ dayjs.extend(localizedFormat);
 
 export class TimestampWidget extends Disposable {
 	private _date: HTMLElement;
-	private _timestamp: Timestamp | undefined;
+	private _timestamp: Date | undefined;
+	private _useRelativeTime: boolean;
 
-	constructor(container: HTMLElement, timeStamp?: Timestamp) {
+	constructor(private configurationService: IConfigurationService, container: HTMLElement, timeStamp?: Date) {
 		super();
 		this._date = dom.append(container, dom.$('span.timestamp'));
+		this._useRelativeTime = this.useRelativeTimeSetting;
 		this.setTimestamp(timeStamp);
 	}
 
-	public async setTimestamp(timestamp: Timestamp | undefined) {
-		if ((timestamp?.date !== this._timestamp?.date) || (timestamp?.useRelativeTime !== this._timestamp?.useRelativeTime)) {
+	private get useRelativeTimeSetting(): boolean {
+		return this.configurationService.getValue<boolean>(USE_RELATIVE_TIME_CONFIGURATION);
+	}
+
+	public async setTimestamp(timestamp: Date | undefined) {
+		if ((timestamp !== this._timestamp) || (this.useRelativeTimeSetting !== this._useRelativeTime)) {
 			this.updateDate(timestamp);
 		}
 		this._timestamp = timestamp;
+		this._useRelativeTime = this.useRelativeTimeSetting;
 	}
 
-	private updateDate(timestamp?: Timestamp) {
+	private updateDate(timestamp?: Date) {
 		if (!timestamp) {
 			this._date.textContent = '';
-		} else if ((timestamp.date !== this._timestamp?.date)
-			|| (timestamp.useRelativeTime !== this._timestamp.useRelativeTime)) {
+		} else if ((timestamp !== this._timestamp)
+			|| (this.useRelativeTimeSetting !== this._useRelativeTime)) {
 
 			let textContent: string;
 			let tooltip: string | undefined;
-			if (timestamp.useRelativeTime) {
-				textContent = this.getRelative(timestamp.date);
-				tooltip = timestamp.label ?? this.getDateString(timestamp.date);
+			if (this.useRelativeTimeSetting) {
+				textContent = this.getRelative(timestamp);
+				tooltip = this.getDateString(timestamp);
 			} else {
-				textContent = timestamp.label ?? this.getDateString(timestamp.date);
+				textContent = this.getDateString(timestamp);
 			}
 
 			this._date.textContent = textContent;
