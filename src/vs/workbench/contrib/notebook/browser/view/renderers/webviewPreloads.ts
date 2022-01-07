@@ -789,7 +789,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		sel?.addRange(range);
 		document.designMode = 'On';
 
-		while (find && matches.length < 200) {
+		while (find && matches.length < 500) {
 			find = (window as any).find(query, /* caseSensitive*/ false,
 			/* backwards*/ false,
 			/* wrapAround*/ false,
@@ -806,7 +806,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 				if (selection.getRangeAt(0).startContainer.nodeType === 1
 					&& (selection.getRangeAt(0).startContainer as Element).classList.contains('widgetarea')) {
-					// markdown preview container'
+					// markdown preview container
 					const preview = (selection.anchorNode?.firstChild as Element);
 					const root = preview.shadowRoot as ShadowRoot & { getSelection: () => Selection };
 					const shadowSelection = root?.getSelection ? root?.getSelection() : null;
