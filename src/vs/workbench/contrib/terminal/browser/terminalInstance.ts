@@ -712,11 +712,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if (label.length === 0) {
 					continue;
 				}
-				const cwdDescription = cwd ? `cwd: ${cwd} ` : '';
-				const exitCodeDescription = exitCode ? `exitCode: ${exitCode} ` : '';
+				let description = '';
+				if (cwd) {
+					description += `cwd: ${cwd} `;
+				}
+				if (exitCode) {
+					// Since you cannot get the last command's exit code on pwsh, just whether it failed
+					// or not, -1 is treated specially as simply failed
+					if (exitCode === -1) {
+						description += 'failed';
+					} else {
+						description += `exitCode: ${exitCode}`;
+					}
+				}
 				items.push({
 					label,
-					description: exitCodeDescription + cwdDescription,
+					description: description.trim(),
 					detail: fromNow(timestamp, true),
 					id: timestamp.toString()
 				});
