@@ -77,10 +77,8 @@ export class ContentHoverController extends Disposable {
 
 		this._hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
 		this._register(this._hoverOperation.onResult((result) => {
-			const actualResult = (result.hasLoadingMessage ? this._addLoadingMessage(result.value) : result.value);
-			this._withResult(actualResult, result.isComplete);
+			this._withResult(result.value, result.isComplete, result.hasLoadingMessage);
 		}));
-
 		this._register(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
 		this._register(dom.addStandardDisposableListener(this._widget.getDomNode(), 'keydown', (e) => {
 			if (e.equals(KeyCode.Escape)) {
@@ -93,20 +91,6 @@ export class ContentHoverController extends Disposable {
 				this._renderMessages(this._computer.anchor, this._messages);
 			}
 		}));
-	}
-
-	private _addLoadingMessage(result: IHoverPart[]): IHoverPart[] {
-		if (this._computer.anchor) {
-			for (const participant of this._participants) {
-				if (participant.createLoadingMessage) {
-					const loadingMessage = participant.createLoadingMessage(this._computer.anchor);
-					if (loadingMessage) {
-						return result.slice(0).concat([loadingMessage]);
-					}
-				}
-			}
-		}
-		return result;
 	}
 
 	private _shouldShowAt(mouseEvent: IEditorMouseEvent): boolean {
@@ -232,13 +216,27 @@ export class ContentHoverController extends Disposable {
 		return !!this._widget.colorPicker;
 	}
 
-	private _withResult(result: IHoverPart[], complete: boolean): void {
-		this._messages = result;
-		this._messagesAreComplete = complete;
+	private _addLoadingMessage(result: IHoverPart[]): IHoverPart[] {
+		if (this._computer.anchor) {
+			for (const participant of this._participants) {
+				if (participant.createLoadingMessage) {
+					const loadingMessage = participant.createLoadingMessage(this._computer.anchor);
+					if (loadingMessage) {
+						return result.slice(0).concat([loadingMessage]);
+					}
+				}
+			}
+		}
+		return result;
+	}
+
+	private _withResult(result: IHoverPart[], isComplete: boolean, hasLoadingMessage: boolean): void {
+		this._messages = (hasLoadingMessage ? this._addLoadingMessage(result) : result);
+		this._messagesAreComplete = isComplete;
 
 		if (this._computer.anchor && this._messages.length > 0) {
 			this._renderMessages(this._computer.anchor, this._messages);
-		} else if (complete) {
+		} else if (isComplete) {
 			this.hide();
 		}
 	}
