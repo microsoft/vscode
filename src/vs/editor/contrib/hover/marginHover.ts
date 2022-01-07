@@ -6,13 +6,12 @@
 import * as dom from 'vs/base/browser/dom';
 import { asArray } from 'vs/base/common/arrays';
 import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
-import { Widget } from 'vs/base/browser/ui/widget';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 
@@ -22,7 +21,7 @@ export interface IHoverMessage {
 	value: IMarkdownString;
 }
 
-export class MarginHoverWidget extends Widget implements IOverlayWidget {
+export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 
 	public static readonly ID = 'editor.contrib.modesGlyphHoverWidget';
 
@@ -31,7 +30,6 @@ export class MarginHoverWidget extends Widget implements IOverlayWidget {
 
 	private _isVisible: boolean;
 	private _messages: IHoverMessage[];
-	private _lastLineNumber: number;
 
 	private readonly _markdownRenderer: MarkdownRenderer;
 	private readonly _computer: MarginHoverComputer;
@@ -48,7 +46,6 @@ export class MarginHoverWidget extends Widget implements IOverlayWidget {
 
 		this._isVisible = false;
 		this._messages = [];
-		this._lastLineNumber = -1;
 
 		this._hover = this._register(new HoverWidget());
 		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
@@ -102,7 +99,7 @@ export class MarginHoverWidget extends Widget implements IOverlayWidget {
 	}
 
 	public startShowingAt(lineNumber: number): void {
-		if (this._lastLineNumber === lineNumber) {
+		if (this._computer.lineNumber === lineNumber) {
 			// We have to show the widget at the exact same line number as before, so no work is needed
 			return;
 		}
@@ -111,13 +108,12 @@ export class MarginHoverWidget extends Widget implements IOverlayWidget {
 
 		this.hide();
 
-		this._lastLineNumber = lineNumber;
-		this._computer.setLineNumber(lineNumber);
+		this._computer.lineNumber = lineNumber;
 		this._hoverOperation.start(HoverStartMode.Delayed);
 	}
 
 	public hide(): void {
-		this._lastLineNumber = -1;
+		this._computer.lineNumber = -1;
 		this._hoverOperation.cancel();
 		if (!this._isVisible) {
 			return;
@@ -130,7 +126,7 @@ export class MarginHoverWidget extends Widget implements IOverlayWidget {
 		this._messages = result;
 
 		if (this._messages.length > 0) {
-			this._renderMessages(this._lastLineNumber, this._messages);
+			this._renderMessages(this._computer.lineNumber, this._messages);
 		} else {
 			this.hide();
 		}
@@ -179,23 +175,19 @@ export class MarginHoverWidget extends Widget implements IOverlayWidget {
 
 class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
 
-	private readonly _editor: ICodeEditor;
-	private _lineNumber: number;
-	private _result: IHoverMessage[];
+	private _lineNumber: number = -1;
 
-	constructor(editor: ICodeEditor) {
-		this._editor = editor;
-		this._lineNumber = -1;
-		this._result = [];
+	public get lineNumber(): number {
+		return this._lineNumber;
 	}
 
-	public setLineNumber(lineNumber: number): void {
-		this._lineNumber = lineNumber;
-		this._result = [];
+	public set lineNumber(value: number) {
+		this._lineNumber = value;
 	}
 
-	public clearResult(): void {
-		this._result = [];
+	constructor(
+		private readonly _editor: ICodeEditor
+	) {
 	}
 
 	public computeSync(): IHoverMessage[] {
@@ -227,17 +219,5 @@ class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
 		}
 
 		return result;
-	}
-
-	public onResult(result: IHoverMessage[]): void {
-		this._result = this._result.concat(result);
-	}
-
-	public getResult(): IHoverMessage[] {
-		return this._result;
-	}
-
-	public getResultWithLoadingMessage(): IHoverMessage[] {
-		return this.getResult();
 	}
 }

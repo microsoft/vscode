@@ -12,34 +12,14 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export interface IHoverComputer<T> {
-
 	/**
 	 * This is called after half the hover time
 	 */
 	computeAsync?: (token: CancellationToken) => AsyncIterableObject<T>;
-
 	/**
 	 * This is called after all the hover time
 	 */
 	computeSync?: () => T[];
-
-	/**
-	 * Clear the stored result.
-	 */
-	clearResult(): void;
-
-	/**
-	 * This is called whenever one of the compute* methods returns a truey value
-	 */
-	onResult: (result: T[]) => void;
-
-	/**
-	 * This is what will be sent as progress/complete to the computation promise
-	 */
-	getResult: () => T[];
-
-	getResultWithLoadingMessage: () => T[];
-
 }
 
 const enum ComputeHoverOperationState {
@@ -85,6 +65,7 @@ export class HoverOperation<T> extends Disposable {
 	private _state = ComputeHoverOperationState.IDLE;
 	private _asyncIterable: CancelableAsyncIterableObject<T> | null = null;
 	private _asyncIterableDone: boolean = false;
+	private _result: T[] = [];
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -99,10 +80,6 @@ export class HoverOperation<T> extends Disposable {
 			this._asyncIterable = null;
 		}
 		super.dispose();
-	}
-
-	public clearResult(): void {
-		this._computer.clearResult();
 	}
 
 	private get _hoverTime(): number {
@@ -133,7 +110,7 @@ export class HoverOperation<T> extends Disposable {
 				try {
 					for await (const item of this._asyncIterable!) {
 						if (item) {
-							this._computer.onResult([item]);
+							this._result.push(item);
 							this._onProgress();
 						}
 					}
@@ -151,7 +128,7 @@ export class HoverOperation<T> extends Disposable {
 
 	private _triggerSyncComputation(): void {
 		if (this._computer.computeSync) {
-			this._computer.onResult(this._computer.computeSync());
+			this._result = this._result.concat(this._computer.computeSync());
 		}
 
 		if (this._asyncIterableDone) {
@@ -178,14 +155,14 @@ export class HoverOperation<T> extends Disposable {
 	}
 
 	private _onComplete(): void {
-		this._onResult.fire(new HoverResult(this._computer.getResult(), true, false));
+		this._onResult.fire(new HoverResult(this._result.slice(0), true, false));
 	}
 
 	private _onProgress(): void {
 		if (this._state === ComputeHoverOperationState.WAITING_FOR_ASYNC_COMPUTATION_SHOWING_LOADING) {
-			this._onResult.fire(new HoverResult(this._computer.getResultWithLoadingMessage(), false, true));
+			this._onResult.fire(new HoverResult(this._result.slice(0), false, true));
 		} else {
-			this._onResult.fire(new HoverResult(this._computer.getResult(), false, false));
+			this._onResult.fire(new HoverResult(this._result.slice(0), false, false));
 		}
 	}
 
@@ -212,7 +189,7 @@ export class HoverOperation<T> extends Disposable {
 	}
 
 	public cancel(): void {
-		this.clearResult();
+		this._result = [];
 		this._firstWaitScheduler.cancel();
 		this._secondWaitScheduler.cancel();
 		this._loadingMessageScheduler.cancel();

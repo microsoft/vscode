@@ -77,7 +77,8 @@ export class ContentHoverController extends Disposable {
 
 		this._hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
 		this._register(this._hoverOperation.onResult((result) => {
-			this._withResult(result.value, result.isComplete);
+			const actualResult = (result.hasLoadingMessage ? this._addLoadingMessage(result.value) : result.value);
+			this._withResult(actualResult, result.isComplete);
 		}));
 
 		this._register(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
@@ -92,6 +93,20 @@ export class ContentHoverController extends Disposable {
 				this._renderMessages(this._computer.anchor, this._messages);
 			}
 		}));
+	}
+
+	private _addLoadingMessage(result: IHoverPart[]): IHoverPart[] {
+		if (this._computer.anchor) {
+			for (const participant of this._participants) {
+				if (participant.createLoadingMessage) {
+					const loadingMessage = participant.createLoadingMessage(this._computer.anchor);
+					if (loadingMessage) {
+						return result.slice(0).concat([loadingMessage]);
+					}
+				}
+			}
+		}
+		return result;
 	}
 
 	private _shouldShowAt(mouseEvent: IEditorMouseEvent): boolean {
@@ -487,9 +502,7 @@ class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
 
 class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 
-	private readonly _editor: ICodeEditor;
-	private _result: IHoverPart[];
-	private _anchor: HoverAnchor | null;
+	private _anchor: HoverAnchor | null = null;
 
 	public get anchor(): HoverAnchor | null {
 		return this._anchor;
@@ -500,16 +513,9 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 	}
 
 	constructor(
-		editor: ICodeEditor,
+		private readonly _editor: ICodeEditor,
 		private readonly _participants: readonly IEditorHoverParticipant[]
 	) {
-		this._editor = editor;
-		this._result = [];
-		this._anchor = null;
-	}
-
-	public clearResult(): void {
-		this._result = [];
 	}
 
 	private static _getLineDecorations(editor: IActiveCodeEditor, anchor: HoverAnchor): IModelDecoration[] {
@@ -573,27 +579,5 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 		}
 
 		return coalesce(result);
-	}
-
-	public onResult(result: IHoverPart[]): void {
-		this._result = this._result.concat(result);
-	}
-
-	public getResult(): IHoverPart[] {
-		return this._result.slice(0);
-	}
-
-	public getResultWithLoadingMessage(): IHoverPart[] {
-		if (this._anchor) {
-			for (const participant of this._participants) {
-				if (participant.createLoadingMessage) {
-					const loadingMessage = participant.createLoadingMessage(this._anchor);
-					if (loadingMessage) {
-						return this._result.slice(0).concat([loadingMessage]);
-					}
-				}
-			}
-		}
-		return this._result.slice(0);
 	}
 }
