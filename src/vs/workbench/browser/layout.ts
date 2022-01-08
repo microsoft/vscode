@@ -428,6 +428,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.setSideBarPosition(change.value as Position);
 			}
 
+			if (change.key === LayoutStateKeys.PANEL_POSITION) {
+				this.setPanelPosition(change.value as Position);
+			}
+
 			if (change.key === LayoutStateKeys.PANEL_ALIGNMENT) {
 				this.setPanelAlignment(change.value as PanelAlignment);
 			}
