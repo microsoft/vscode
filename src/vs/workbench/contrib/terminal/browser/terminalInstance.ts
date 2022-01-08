@@ -714,28 +714,30 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if (label.length === 0) {
 					continue;
 				}
-				let description = '';
+				let detail = '';
 				if (cwd) {
-					description += `cwd: ${cwd} `;
+					detail += `cwd: ${cwd} `;
 				}
 				if (exitCode) {
 					// Since you cannot get the last command's exit code on pwsh, just whether it failed
 					// or not, -1 is treated specially as simply failed
 					if (exitCode === -1) {
-						description += 'failed';
+						detail += 'failed';
 					} else {
-						description += `exitCode: ${exitCode}`;
+						detail += `exitCode: ${exitCode}`;
 					}
 				}
+				detail = detail.trim();
+				const iconClass = exitCode ? `${ThemeIcon.asClassName(Codicon.x)}` : `${ThemeIcon.asClassName(Codicon.more)}`;
 				const buttons: IQuickInputButton[] = [{
-					iconClass: ThemeIcon.asClassName(Codicon.output),
+					iconClass,
 					tooltip: nls.localize('viewCommandOutput', "View Command Output"),
 					alwaysVisible: true
 				}];
 				items.push({
 					label,
-					description: description.trim(),
-					detail: fromNow(timestamp, true),
+					description: fromNow(timestamp, true),
+					detail,
 					id: timestamp.toString(),
 					command: { command, timestamp, cwd, exitCode, getOutput },
 					buttons
