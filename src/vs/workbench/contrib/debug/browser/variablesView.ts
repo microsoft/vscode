@@ -40,7 +40,7 @@ import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions,
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_CAN_VIEW_MEMORY, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, CONTEXT_VARIABLES_FOCUSED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, CONTEXT_VARIABLE_IS_READONLY, IDataBreakpointInfoResponse, IDebugService, IExpression, IScope, IStackFrame, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { ErrorScope, Expression, getUriForDebugMemory, Scope, StackFrame, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const $ = dom.$;
@@ -546,7 +546,7 @@ CommandsRegistry.registerCommand({
 					revealIfOpened: true,
 					override: HEX_EDITOR_EDITOR_ID,
 				},
-			});
+			}, SIDE_GROUP);
 		}
 	}
 });
