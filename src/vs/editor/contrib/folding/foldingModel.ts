@@ -190,7 +190,7 @@ export class FoldingModel {
 			return;
 		}
 		let hiddenRanges: FoldRange[] = [];
-		const maxLineNumber = this._textModel.getLineCount()
+		const maxLineNumber = this._textModel.getLineCount();
 		for (let range of state) {
 			if (range.startLineNumber >= range.endLineNumber || range.startLineNumber < 1 || range.endLineNumber > maxLineNumber) {
 				continue;
