@@ -2345,20 +2345,29 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	}
 	private async _warmupAll() {
-		if (!this.hasModel()) {
+		if (!this.hasModel() || !this.viewModel) {
 			return;
 		}
 
-		const renderPromises = [];
+		const cells = this.viewModel.viewCells;
+		const markupRequests = [];
+
+		for (let i = 0; i < cells.length; i++) {
+			if (cells[i].cellKind === CellKind.Markup && !this._webview!.markupPreviewMapping.has(cells[i].id)) {
+				markupRequests.push(this.createMarkupPreview(cells[i]));
+			}
+		}
+
+		const renderOutputPromises = [];
 		for (let i = 0; i < this.getLength(); i++) {
 			const cell = this.cellAt(i);
 
 			if (cell?.cellKind === CellKind.Code) {
-				renderPromises.push(this._renderCell((cell as CodeCellViewModel)));
+				renderOutputPromises.push(this._renderCell((cell as CodeCellViewModel)));
 			}
 		}
 
-		return Promise.all(renderPromises);
+		return Promise.all([...markupRequests, ...renderOutputPromises]);
 	}
 
 	async find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup: boolean = false): Promise<CellFindMatchWithIndex[]> {
@@ -2367,7 +2376,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		const findMatches = this._notebookViewModel.find(query, options).filter(match => match.matches.length > 0);
-		if (!options.includeOutputs) {
+		if (!options.includePreview) {
 			// clear output matches
 			await this._webview?.findStop();
 			return findMatches;
@@ -2375,7 +2384,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		const matchMap: { [key: string]: CellFindMatchWithIndex } = {};
 		findMatches.forEach(match => {
-			matchMap[match.cell.id] = match;
+			if (match.cell.cellKind === CellKind.Code) {
+				matchMap[match.cell.id] = match;
+			}
 		});
 
 		if (this._webview) {

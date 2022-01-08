@@ -182,11 +182,6 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				const defaultStyles = document.getElementById('_defaultStyles') as HTMLStyleElement;
 				previewRoot.appendChild(defaultStyles.cloneNode(true));
 
-				const findAnchor = document.createElement('div');
-				findAnchor.id = '_defaultFindAnchor';
-				findAnchor.tabIndex = -1;
-				previewRoot.appendChild(findAnchor);
-
 				// And then contributed styles
 				for (const element of document.getElementsByClassName('markdown-style')) {
 					if (element instanceof HTMLTemplateElement) {

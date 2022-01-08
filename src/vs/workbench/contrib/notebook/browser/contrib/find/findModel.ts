@@ -122,7 +122,6 @@ export class FindModel extends Disposable {
 		const findMatch = this._findMatches[cellIndex];
 		if (matchIndex >= findMatch.modelMatchCount) {
 			// reveal output range
-			findMatch.cell.updateEditState(CellEditState.Editing, 'find');
 			this._notebookEditor.focusElement(findMatch.cell);
 			const index = this._notebookEditor.getCellIndex(findMatch.cell);
 			if (index !== undefined) {
@@ -308,7 +307,7 @@ export class FindModel extends Disposable {
 		const val = this._state.searchString;
 		const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
 
-		const options: INotebookSearchOptions = { regex: this._state.isRegex, wholeWord: this._state.wholeWord, caseSensitive: this._state.matchCase, wordSeparators: wordSeparators, includeOutputs: !!this._state.filters };
+		const options: INotebookSearchOptions = { regex: this._state.isRegex, wholeWord: this._state.wholeWord, caseSensitive: this._state.matchCase, wordSeparators: wordSeparators, includePreview: !!this._state.filters };
 		if (!val) {
 			ret = null;
 		} else if (!this._notebookEditor.hasModel()) {

@@ -771,7 +771,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	window.addEventListener('wheel', handleWheel);
 
 	interface IFindMatch {
-		type: 'input' | 'output',
+		type: 'preview' | 'output',
 		id: string,
 		cellId: string,
 		container: Node,
@@ -787,7 +787,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const find = (query: string) => {
 		let find = true;
 		let matches: {
-			type: 'input' | 'output',
+			type: 'preview' | 'output',
 			id: string,
 			cellId: string,
 			container: Node,
@@ -819,14 +819,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 
 				if (selection.getRangeAt(0).startContainer.nodeType === 1
-					&& (selection.getRangeAt(0).startContainer as Element).classList.contains('widgetarea')) {
+					&& (selection.getRangeAt(0).startContainer as Element).classList.contains('markup')) {
 					// markdown preview container
 					const preview = (selection.anchorNode?.firstChild as Element);
 					const root = preview.shadowRoot as ShadowRoot & { getSelection: () => Selection };
 					const shadowSelection = root?.getSelection ? root?.getSelection() : null;
 					if (shadowSelection && shadowSelection.anchorNode) {
 						matches.push({
-							type: 'input',
+							type: 'preview',
 							id: preview.id,
 							cellId: preview.id,
 							container: preview,
@@ -1580,6 +1580,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.ready = new Promise<void>(r => resolveReady = r);
 
 			const root = document.getElementById('container')!;
+			const markupCell = document.createElement('div');
+			markupCell.className = 'markup';
+			markupCell.style.position = 'absolute';
+			markupCell.style.width = '100%';
 
 			this.element = document.createElement('div');
 			this.element.id = this.id;
@@ -1587,7 +1591,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.style.position = 'absolute';
 			this.element.style.top = top + 'px';
 			this.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
-			root.appendChild(this.element);
+			markupCell.appendChild(this.element);
+			root.appendChild(markupCell);
 
 			this.addEventListeners();
 

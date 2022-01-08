@@ -264,7 +264,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					/* markdown */
-					#container > div.preview {
+					#container div.preview {
 						width: 100%;
 						padding-right: var(--notebook-preview-node-padding);
 						padding-left: var(--notebook-markdown-left-margin);
@@ -280,18 +280,18 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						color: var(--theme-ui-foreground);
 					}
 
-					#container > div.preview.draggable {
+					#container div.preview.draggable {
 						user-select: none;
 						-webkit-user-select: none;
 						-ms-user-select: none;
 						cursor: grab;
 					}
 
-					#container > div.preview.selected {
+					#container div.preview.selected {
 						background: var(--theme-notebook-cell-selected-background);
 					}
 
-					#container > div.preview.dragging {
+					#container div.preview.dragging {
 						background-color: var(--theme-background);
 						opacity: 0.5 !important;
 					}
