@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isStandalone } from 'vs/base/browser/browser';
-import { streamToBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { request } from 'vs/base/parts/request/browser/request';
 import product from 'vs/platform/product/common/product';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
@@ -171,83 +169,111 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 	}
 }
 
-class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvider {
+class LocalStorageURLCallbackProvider extends Disposable implements IURLCallbackProvider {
 
-	static readonly FETCH_INTERVAL = 500; 			// fetch every 500ms
-	static readonly FETCH_TIMEOUT = 5 * 60 * 1000; 	// ...but stop after 5min
+	private static REQUEST_ID = 0;
 
-	static readonly QUERY_KEYS = {
-		REQUEST_ID: 'vscode-requestId',
-		SCHEME: 'vscode-scheme',
-		AUTHORITY: 'vscode-authority',
-		PATH: 'vscode-path',
-		QUERY: 'vscode-query',
-		FRAGMENT: 'vscode-fragment'
-	};
+	private static QUERY_KEYS: ('scheme' | 'authority' | 'path' | 'query' | 'fragment')[] = [
+		'scheme',
+		'authority',
+		'path',
+		'query',
+		'fragment'
+	];
 
 	private readonly _onCallback = this._register(new Emitter<URI>());
 	readonly onCallback = this._onCallback.event;
 
-	create(options?: Partial<UriComponents>): URI {
-		const queryValues: Map<string, string> = new Map();
+	private pendingCallbacks = new Set<number>();
+	private lastTimeChecked = Date.now();
+	private checkCallbacksTimeout: unknown | undefined = undefined;
+	private onDidChangeLocalStorageDisposable: IDisposable | undefined;
 
-		const requestId = generateUuid();
-		queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.REQUEST_ID, requestId);
+	create(options: Partial<UriComponents> = {}): URI {
+		const id = ++LocalStorageURLCallbackProvider.REQUEST_ID;
+		const queryParams: string[] = [`vscode-requestId=${id}`];
 
-		const { scheme, authority, path, query, fragment } = options ? options : { scheme: undefined, authority: undefined, path: undefined, query: undefined, fragment: undefined };
+		for (const key of LocalStorageURLCallbackProvider.QUERY_KEYS) {
+			const value = options[key];
 
-		if (scheme) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.SCHEME, scheme);
+			if (value) {
+				queryParams.push(`vscode-${key}=${encodeURIComponent(value)}`);
+			}
 		}
 
-		if (authority) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.AUTHORITY, authority);
+		// TODO@joao remove eventually
+		// https://github.com/microsoft/vscode-dev/issues/62
+		// https://github.com/microsoft/vscode/blob/159479eb5ae451a66b5dac3c12d564f32f454796/extensions/github-authentication/src/githubServer.ts#L50-L50
+		if (!(options.authority === 'vscode.github-authentication' && options.path === '/dummy')) {
+			const key = `vscode-web.url-callbacks[${id}]`;
+			window.localStorage.removeItem(key);
+
+			this.pendingCallbacks.add(id);
+			this.startListening();
 		}
 
-		if (path) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.PATH, path);
-		}
-
-		if (query) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.QUERY, query);
-		}
-
-		if (fragment) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.FRAGMENT, fragment);
-		}
-
-		// Start to poll on the callback being fired
-		this.periodicFetchCallback(requestId, Date.now());
-
-		return doCreateUri('/callback', queryValues);
+		return URI.parse(window.location.href).with({ path: '/callback', query: queryParams.join('&') });
 	}
 
-	private async periodicFetchCallback(requestId: string, startTime: number): Promise<void> {
+	private startListening(): void {
+		if (this.onDidChangeLocalStorageDisposable) {
+			return;
+		}
 
-		// Ask server for callback results
-		const queryValues: Map<string, string> = new Map();
-		queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.REQUEST_ID, requestId);
+		const fn = () => this.onDidChangeLocalStorage();
+		window.addEventListener('storage', fn);
+		this.onDidChangeLocalStorageDisposable = { dispose: () => window.removeEventListener('storage', fn) };
+	}
 
-		const result = await request({
-			url: doCreateUri('/fetch-callback', queryValues).toString(true)
-		}, CancellationToken.None);
+	private stopListening(): void {
+		this.onDidChangeLocalStorageDisposable?.dispose();
+		this.onDidChangeLocalStorageDisposable = undefined;
+	}
 
-		// Check for callback results
-		const content = await streamToBuffer(result.stream);
-		if (content.byteLength > 0) {
-			try {
-				this._onCallback.fire(URI.revive(JSON.parse(content.toString())));
-			} catch (error) {
-				console.error(error);
+	// this fires every time local storage changes, but we
+	// don't want to check more often than once a second
+	private async onDidChangeLocalStorage(): Promise<void> {
+		const ellapsed = Date.now() - this.lastTimeChecked;
+
+		if (ellapsed > 1000) {
+			this.checkCallbacks();
+		} else if (this.checkCallbacksTimeout === undefined) {
+			this.checkCallbacksTimeout = setTimeout(() => {
+				this.checkCallbacksTimeout = undefined;
+				this.checkCallbacks();
+			}, 1000 - ellapsed);
+		}
+	}
+
+	private checkCallbacks(): void {
+		let pendingCallbacks: Set<number> | undefined;
+
+		for (const id of this.pendingCallbacks) {
+			const key = `vscode-web.url-callbacks[${id}]`;
+			const result = window.localStorage.getItem(key);
+
+			if (result !== null) {
+				try {
+					this._onCallback.fire(URI.revive(JSON.parse(result)));
+				} catch (error) {
+					console.error(error);
+				}
+
+				pendingCallbacks = pendingCallbacks ?? new Set(this.pendingCallbacks);
+				pendingCallbacks.delete(id);
+				window.localStorage.removeItem(key);
 			}
-
-			return; // done
 		}
 
-		// Continue fetching unless we hit the timeout
-		if (Date.now() - startTime < PollingURLCallbackProvider.FETCH_TIMEOUT) {
-			setTimeout(() => this.periodicFetchCallback(requestId, startTime), PollingURLCallbackProvider.FETCH_INTERVAL);
+		if (pendingCallbacks) {
+			this.pendingCallbacks = pendingCallbacks;
+
+			if (this.pendingCallbacks.size === 0) {
+				this.stopListening();
+			}
 		}
+
+		this.lastTimeChecked = Date.now();
 	}
 }
 
@@ -435,7 +461,7 @@ function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 			enabled: config.settingsSyncOptions.enabled,
 		} : undefined,
 		workspaceProvider: WorkspaceProvider.create(config),
-		urlCallbackProvider: new PollingURLCallbackProvider(),
+		urlCallbackProvider: new LocalStorageURLCallbackProvider(),
 		credentialsProvider: new LocalStorageCredentialsProvider()
 	});
 })();
