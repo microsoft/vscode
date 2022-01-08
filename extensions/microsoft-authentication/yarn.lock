@@ -15,10 +15,10 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-14.0.23.tgz#676fa0883450ed9da0bb24156213636290892806"
   integrity sha512-Z4U8yDAl5TFkmYsZdFPdjeMa57NOvnaf1tljHzhouaPEp7LCj2JKkejpI1ODviIAQuW4CcQmxkQ77rnLsOOoKw==
 
-"@types/node@^12.19.9":
-  version "12.19.9"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-12.19.9.tgz#990ad687ad8b26ef6dcc34a4f69c33d40c95b679"
-  integrity sha512-yj0DOaQeUrk3nJ0bd3Y5PeDRJ6W0r+kilosLA+dzF3dola/o9hxhMSg2sFvVcA2UHS5JSOsZp4S0c1OEXc4m1Q==
+"@types/node@14.x":
+  version "14.14.43"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-14.14.43.tgz#26bcbb0595b305400e8ceaf9a127a7f905ae49c8"
+  integrity sha512-3pwDJjp1PWacPTpH0LcfhgjvurQvrZFBrC6xxjaUEZ7ifUtT32jtjPxEMMblpqd2Mvx+k8haqQJLQxolyGN/cQ==
 
 "@types/randombytes@^2.0.0":
   version "2.0.0"
@@ -38,15 +38,6 @@
   version "8.0.0"
   resolved "https://registry.yarnpkg.com/@types/uuid/-/uuid-8.0.0.tgz#165aae4819ad2174a17476dbe66feebd549556c0"
   integrity sha512-xSQfNcvOiE5f9dyd4Kzxbof1aTrLobL278pGLKOZI6esGfZ7ts9Ka16CzIN6Y8hFHE1C7jIBZokULhK1bOgjRw==
-
-applicationinsights@1.0.8:
-  version "1.0.8"
-  resolved "https://registry.yarnpkg.com/applicationinsights/-/applicationinsights-1.0.8.tgz#db6e3d983cf9f9405fe1ee5ba30ac6e1914537b5"
-  integrity sha512-KzOOGdphOS/lXWMFZe5440LUdFbrLpMvh2SaRxn7BmiI550KAoSb2gIhiq6kJZ9Ir3AxRRztjhzif+e5P5IXIg==
-  dependencies:
-    diagnostic-channel "0.2.0"
-    diagnostic-channel-publishers "0.2.1"
-    zone.js "0.7.6"
 
 asynckit@^0.4.0:
   version "0.4.0"
@@ -77,18 +68,6 @@ delayed-stream@~1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/delayed-stream/-/delayed-stream-1.0.0.tgz#df3ae199acadfb7d440aaae0b29e2272b24ec619"
   integrity sha1-3zrhmayt+31ECqrgsp4icrJOxhk=
-
-diagnostic-channel-publishers@0.2.1:
-  version "0.2.1"
-  resolved "https://registry.yarnpkg.com/diagnostic-channel-publishers/-/diagnostic-channel-publishers-0.2.1.tgz#8e2d607a8b6d79fe880b548bc58cc6beb288c4f3"
-  integrity sha1-ji1geottef6IC1SLxYzGvrKIxPM=
-
-diagnostic-channel@0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/diagnostic-channel/-/diagnostic-channel-0.2.0.tgz#cc99af9612c23fb1fff13612c72f2cbfaa8d5a17"
-  integrity sha1-zJmvlhLCP7H/8TYSxy8sv6qNWhc=
-  dependencies:
-    semver "^5.3.0"
 
 emitter-component@^1.1.1:
   version "1.1.1"
@@ -126,14 +105,15 @@ mime-types@^2.1.12:
   dependencies:
     mime-db "1.44.0"
 
-node-fetch@^2.6.0:
-  version "2.6.0"
-  resolved "https://registry.yarnpkg.com/node-fetch/-/node-fetch-2.6.0.tgz#e633456386d4aa55863f676a7ab0daa8fdecb0fd"
-  integrity sha512-8dG4H5ujfvFiqDmVu9fQ5bOHUC15JMjMY/Zumv26oOvvVJjM67KF8koCWIabKQ1GJIa9r2mMZscBq/TbdOcmNA==
+node-fetch@2.6.1:
+  version "2.6.1"
+  resolved "https://registry.yarnpkg.com/node-fetch/-/node-fetch-2.6.1.tgz#045bd323631f76ed2e2b55573394416b639a0052"
+  integrity sha512-V4aYg89jEoVRxRb2fJdAg8FHvI7cEyYdVAh94HH0UIK8oJxUfkjlDQN9RbMx+bEjP7+ggMiFRprSti032Oipxw==
 
-"randombytes@github:rmacfarlane/randombytes#b28d4ecee46262801ea09f15fa1f1513a05c5971":
+randombytes@~2.1.0:
   version "2.1.0"
-  resolved "https://codeload.github.com/rmacfarlane/randombytes/tar.gz/b28d4ecee46262801ea09f15fa1f1513a05c5971"
+  resolved "https://registry.yarnpkg.com/randombytes/-/randombytes-2.1.0.tgz#df6f84372f0270dc65cdf6291349ab7a473d4f2a"
+  integrity sha512-vYl3iOX+4CKUWuxGi9Ukhie6fsqXqS9FE2Zaic4tNFD2N2QQaXOMFbuKK4QmDHC0JO6B1Zp41J0LpT0oR68amQ==
   dependencies:
     safe-buffer "^5.1.0"
 
@@ -146,11 +126,6 @@ safe-buffer@^5.1.0:
   version "5.2.1"
   resolved "https://registry.yarnpkg.com/safe-buffer/-/safe-buffer-5.2.1.tgz#1eaf9fa9bdb1fdd4ec75f58f9cdb4e6b7827eec6"
   integrity sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==
-
-semver@^5.3.0:
-  version "5.7.1"
-  resolved "https://registry.yarnpkg.com/semver/-/semver-5.7.1.tgz#a954f931aeba508d307bbf069eff0c01c96116f7"
-  integrity sha512-sauaDf/PZdVgrLTNYHRtpXa1iRiKcaebiKQ1BJdpQlWH2lCvexQdX55snPFyK7QzpudqbCI0qXFfOasHdyNDGQ==
 
 sha.js@2.4.11:
   version "2.4.11"
@@ -172,19 +147,12 @@ uuid@^8.2.0:
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-8.2.0.tgz#cb10dd6b118e2dada7d0cd9730ba7417c93d920e"
   integrity sha512-CYpGiFTUrmI6OBMkAdjSDM0k5h8SkkiTP4WAjQgDgNB1S3Ou9VBEvr6q0Kv2H1mMk7IWfxYGpMH5sd5AvcIV2Q==
 
-vscode-extension-telemetry@0.1.1:
-  version "0.1.1"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.1.1.tgz#91387e06b33400c57abd48979b0e790415ae110b"
-  integrity sha512-TkKKG/B/J94DP5qf6xWB4YaqlhWDg6zbbqVx7Bz//stLQNnfE9XS1xm3f6fl24c5+bnEK0/wHgMgZYKIKxPeUA==
-  dependencies:
-    applicationinsights "1.0.8"
+vscode-extension-telemetry@0.4.4:
+  version "0.4.4"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.4.4.tgz#e5d5ac90ea7d07ec054f5310893d95d43d5984b0"
+  integrity sha512-LzirNf2GnykXCAqqWrvj+snYqgkPVyjwM72tYOHgcZiG/ZRuNjmqlgvs+SomEJdmD8cutduitPmhoyIuzOrVfA==
 
-vscode-nls@^4.1.1:
-  version "4.1.1"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-4.1.1.tgz#f9916b64e4947b20322defb1e676a495861f133c"
-  integrity sha512-4R+2UoUUU/LdnMnFjePxfLqNhBS8lrAFyX7pjb2ud/lqDkrUavFUTcG7wR0HBZFakae0Q6KLBFjMS6W93F403A==
-
-zone.js@0.7.6:
-  version "0.7.6"
-  resolved "https://registry.yarnpkg.com/zone.js/-/zone.js-0.7.6.tgz#fbbc39d3e0261d0986f1ba06306eb3aeb0d22009"
-  integrity sha1-+7w50+AmHQmG8boGMG6zrrDSIAk=
+vscode-nls@^5.0.0:
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-5.0.0.tgz#99f0da0bd9ea7cda44e565a74c54b1f2bc257840"
+  integrity sha512-u0Lw+IYlgbEJFF6/qAqG2d1jQmJl0eyAGJHoAJqr2HT4M2BNuQYSEiSE75f52pXHSJm8AlTjnLLbBFPrdz2hpA==

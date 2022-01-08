@@ -3,39 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IWindowIndicator, IHomeIndicator, IProductQualityChangeHandler, ISettingsSyncOptions } from 'vs/workbench/workbench.web.api';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { generateUuid } from 'vs/base/common/uuid';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { streamToBuffer } from 'vs/base/common/buffer';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { request } from 'vs/base/parts/request/browser/request';
-import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
-import { isEqual } from 'vs/base/common/resources';
 import { isStandalone } from 'vs/base/browser/browser';
-import { localize } from 'vs/nls';
+import { streamToBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { isEqual } from 'vs/base/common/resources';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { request } from 'vs/base/parts/request/browser/request';
 import product from 'vs/platform/product/common/product';
-import { parseLogLevel } from 'vs/platform/log/common/log';
-
-function doCreateUri(path: string, queryValues: Map<string, string>): URI {
-	let query: string | undefined = undefined;
-
-	if (queryValues) {
-		let index = 0;
-		queryValues.forEach((value, key) => {
-			if (!query) {
-				query = '';
-			}
-
-			const prefix = (index++ === 0) ? '' : '&';
-			query += `${prefix}${key}=${encodeURIComponent(value)}`;
-		});
-	}
-
-	return URI.parse(window.location.href).with({ path, query });
-}
+import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { create, ICredentialsProvider, IURLCallbackProvider, IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.api';
 
 interface ICredential {
 	service: string;
@@ -185,6 +165,10 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 			url: doCreateUri('/auth/logout', queryValues).toString(true)
 		}, CancellationToken.None);
 	}
+
+	async clear(): Promise<void> {
+		window.localStorage.removeItem(LocalStorageCredentialsProvider.CREDENTIALS_OPENED_KEY);
+	}
 }
 
 class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvider {
@@ -275,28 +259,88 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 	static QUERY_PARAM_PAYLOAD = 'payload';
 
-	constructor(
-		public readonly workspace: IWorkspace,
-		public readonly payload: object
-	) { }
+	static create(config: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents }) {
+		let foundWorkspace = false;
+		let workspace: IWorkspace;
+		let payload = Object.create(null);
 
-	async open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
+		const query = new URL(document.location.href).searchParams;
+		query.forEach((value, key) => {
+			switch (key) {
+
+				// Folder
+				case WorkspaceProvider.QUERY_PARAM_FOLDER:
+					workspace = { folderUri: URI.parse(value) };
+					foundWorkspace = true;
+					break;
+
+				// Workspace
+				case WorkspaceProvider.QUERY_PARAM_WORKSPACE:
+					workspace = { workspaceUri: URI.parse(value) };
+					foundWorkspace = true;
+					break;
+
+				// Empty
+				case WorkspaceProvider.QUERY_PARAM_EMPTY_WINDOW:
+					workspace = undefined;
+					foundWorkspace = true;
+					break;
+
+				// Payload
+				case WorkspaceProvider.QUERY_PARAM_PAYLOAD:
+					try {
+						payload = JSON.parse(value);
+					} catch (error) {
+						console.error(error); // possible invalid JSON
+					}
+					break;
+			}
+		});
+
+		// If no workspace is provided through the URL, check for config attribute from server
+		if (!foundWorkspace) {
+			if (config.folderUri) {
+				workspace = { folderUri: URI.revive(config.folderUri) };
+			} else if (config.workspaceUri) {
+				workspace = { workspaceUri: URI.revive(config.workspaceUri) };
+			} else {
+				workspace = undefined;
+			}
+		}
+
+		return new WorkspaceProvider(workspace, payload);
+	}
+
+	readonly trusted = true;
+
+	private constructor(
+		readonly workspace: IWorkspace,
+		readonly payload: object
+	) {
+	}
+
+	async open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<boolean> {
 		if (options?.reuse && !options.payload && this.isSame(this.workspace, workspace)) {
-			return; // return early if workspace and environment is not changing and we are reusing window
+			return true; // return early if workspace and environment is not changing and we are reusing window
 		}
 
 		const targetHref = this.createTargetUrl(workspace, options);
 		if (targetHref) {
 			if (options?.reuse) {
 				window.location.href = targetHref;
+				return true;
 			} else {
+				let result;
 				if (isStandalone) {
-					window.open(targetHref, '_blank', 'toolbar=no'); // ensures to open another 'standalone' window!
+					result = window.open(targetHref, '_blank', 'toolbar=no'); // ensures to open another 'standalone' window!
 				} else {
-					window.open(targetHref);
+					result = window.open(targetHref);
 				}
+
+				return !!result;
 			}
 		}
+		return false;
 	}
 
 	private createTargetUrl(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): string | undefined {
@@ -356,43 +400,22 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	}
 }
 
-class WindowIndicator implements IWindowIndicator {
+function doCreateUri(path: string, queryValues: Map<string, string>): URI {
+	let query: string | undefined = undefined;
 
-	readonly onDidChange = Event.None;
-
-	readonly label: string;
-	readonly tooltip: string;
-	readonly command: string | undefined;
-
-	constructor(workspace: IWorkspace) {
-		let repositoryOwner: string | undefined = undefined;
-		let repositoryName: string | undefined = undefined;
-
-		if (workspace) {
-			let uri: URI | undefined = undefined;
-			if (isFolderToOpen(workspace)) {
-				uri = workspace.folderUri;
-			} else if (isWorkspaceToOpen(workspace)) {
-				uri = workspace.workspaceUri;
+	if (queryValues) {
+		let index = 0;
+		queryValues.forEach((value, key) => {
+			if (!query) {
+				query = '';
 			}
 
-			if (uri?.scheme === 'github' || uri?.scheme === 'codespace') {
-				[repositoryOwner, repositoryName] = uri.authority.split('+');
-			}
-		}
-
-		// Repo
-		if (repositoryName && repositoryOwner) {
-			this.label = localize('playgroundLabelRepository', "$(remote) VS Code Web Playground: {0}/{1}", repositoryOwner, repositoryName);
-			this.tooltip = localize('playgroundRepositoryTooltip', "VS Code Web Playground: {0}/{1}", repositoryOwner, repositoryName);
-		}
-
-		// No Repo
-		else {
-			this.label = localize('playgroundLabel', "$(remote) VS Code Web Playground");
-			this.tooltip = localize('playgroundTooltip', "VS Code Web Playground");
-		}
+			const prefix = (index++ === 0) ? '' : '&';
+			query += `${prefix}${key}=${encodeURIComponent(value)}`;
+		});
 	}
+
+	return URI.parse(window.location.href).with({ path, query });
 }
 
 (function () {
@@ -403,129 +426,15 @@ class WindowIndicator implements IWindowIndicator {
 	if (!configElement || !configElementAttribute) {
 		throw new Error('Missing web configuration element');
 	}
-
 	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents } = JSON.parse(configElementAttribute);
 
-	// Revive static extension locations
-	if (Array.isArray(config.staticExtensions)) {
-		config.staticExtensions.forEach(extension => {
-			extension.extensionLocation = URI.revive(extension.extensionLocation);
-		});
-	}
-
-	// Find workspace to open and payload
-	let foundWorkspace = false;
-	let workspace: IWorkspace;
-	let payload = Object.create(null);
-	let logLevel: string | undefined = undefined;
-
-	const query = new URL(document.location.href).searchParams;
-	query.forEach((value, key) => {
-		switch (key) {
-
-			// Folder
-			case WorkspaceProvider.QUERY_PARAM_FOLDER:
-				workspace = { folderUri: URI.parse(value) };
-				foundWorkspace = true;
-				break;
-
-			// Workspace
-			case WorkspaceProvider.QUERY_PARAM_WORKSPACE:
-				workspace = { workspaceUri: URI.parse(value) };
-				foundWorkspace = true;
-				break;
-
-			// Empty
-			case WorkspaceProvider.QUERY_PARAM_EMPTY_WINDOW:
-				workspace = undefined;
-				foundWorkspace = true;
-				break;
-
-			// Payload
-			case WorkspaceProvider.QUERY_PARAM_PAYLOAD:
-				try {
-					payload = JSON.parse(value);
-				} catch (error) {
-					console.error(error); // possible invalid JSON
-				}
-				break;
-
-			// Log level
-			case 'logLevel':
-				logLevel = value;
-				break;
-		}
-	});
-
-	// If no workspace is provided through the URL, check for config attribute from server
-	if (!foundWorkspace) {
-		if (config.folderUri) {
-			workspace = { folderUri: URI.revive(config.folderUri) };
-		} else if (config.workspaceUri) {
-			workspace = { workspaceUri: URI.revive(config.workspaceUri) };
-		} else {
-			workspace = undefined;
-		}
-	}
-
-	// Workspace Provider
-	const workspaceProvider = new WorkspaceProvider(workspace, payload);
-
-	// Home Indicator
-	const homeIndicator: IHomeIndicator = {
-		href: 'https://github.com/microsoft/vscode',
-		icon: 'code',
-		title: localize('home', "Home")
-	};
-
-	// Window indicator (unless connected to a remote)
-	let windowIndicator: WindowIndicator | undefined = undefined;
-	if (!workspaceProvider.hasRemote()) {
-		windowIndicator = new WindowIndicator(workspace);
-	}
-
-	// Product Quality Change Handler
-	const productQualityChangeHandler: IProductQualityChangeHandler = (quality) => {
-		let queryString = `quality=${quality}`;
-
-		// Save all other query params we might have
-		const query = new URL(document.location.href).searchParams;
-		query.forEach((value, key) => {
-			if (key !== 'quality') {
-				queryString += `&${key}=${value}`;
-			}
-		});
-
-		window.location.href = `${window.location.origin}?${queryString}`;
-	};
-
-	// settings sync options
-	const settingsSyncOptions: ISettingsSyncOptions | undefined = config.settingsSyncOptions ? {
-		enabled: config.settingsSyncOptions.enabled,
-		enablementHandler: (enablement) => {
-			let queryString = `settingsSync=${enablement ? 'true' : 'false'}`;
-
-			// Save all other query params we might have
-			const query = new URL(document.location.href).searchParams;
-			query.forEach((value, key) => {
-				if (key !== 'settingsSync') {
-					queryString += `&${key}=${value}`;
-				}
-			});
-
-			window.location.href = `${window.location.origin}?${queryString}`;
-		}
-	} : undefined;
-
-	// Finally create workbench
+	// Create workbench
 	create(document.body, {
 		...config,
-		logLevel: logLevel ? parseLogLevel(logLevel) : undefined,
-		settingsSyncOptions,
-		homeIndicator,
-		windowIndicator,
-		productQualityChangeHandler,
-		workspaceProvider,
+		settingsSyncOptions: config.settingsSyncOptions ? {
+			enabled: config.settingsSyncOptions.enabled,
+		} : undefined,
+		workspaceProvider: WorkspaceProvider.create(config),
 		urlCallbackProvider: new PollingURLCallbackProvider(),
 		credentialsProvider: new LocalStorageCredentialsProvider()
 	});

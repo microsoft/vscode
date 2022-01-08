@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Codicon } from 'vs/base/common/codicons';
+import { IMatch } from 'vs/base/common/filters';
+import { IPreparedQuery, pieceToQuery, prepareQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { format, trim } from 'vs/base/common/strings';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions, IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
-import { DocumentSymbol, SymbolKinds, SymbolTag, DocumentSymbolProviderRegistry, SymbolKind } from 'vs/editor/common/modes';
+import { DocumentSymbol, DocumentSymbolProviderRegistry, SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/common/languages';
 import { OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { trim, format } from 'vs/base/common/strings';
-import { prepareQuery, IPreparedQuery, pieceToQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
-import { IMatch } from 'vs/base/common/filters';
-import { Codicon } from 'vs/base/common/codicons';
+import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions, IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
+import { localize } from 'vs/nls';
+import { IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind,
@@ -35,10 +36,13 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 	static SCOPE_PREFIX = ':';
 	static PREFIX_BY_CATEGORY = `${AbstractGotoSymbolQuickAccessProvider.PREFIX}${AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX}`;
 
-	constructor(protected options: IGotoSymbolQuickAccessProviderOptions = Object.create(null)) {
+	protected override readonly options: IGotoSymbolQuickAccessProviderOptions;
+
+	constructor(options: IGotoSymbolQuickAccessProviderOptions = Object.create(null)) {
 		super(options);
 
-		options.canAcceptInBackground = true;
+		this.options = options;
+		this.options.canAcceptInBackground = true;
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
@@ -98,22 +102,21 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			return true;
 		}
 
-		let symbolProviderRegistryPromiseResolve: (res: boolean) => void;
-		const symbolProviderRegistryPromise = new Promise<boolean>(resolve => symbolProviderRegistryPromiseResolve = resolve);
+		const symbolProviderRegistryPromise = new DeferredPromise<boolean>();
 
 		// Resolve promise when registry knows model
 		const symbolProviderListener = disposables.add(DocumentSymbolProviderRegistry.onDidChange(() => {
 			if (DocumentSymbolProviderRegistry.has(model)) {
 				symbolProviderListener.dispose();
 
-				symbolProviderRegistryPromiseResolve(true);
+				symbolProviderRegistryPromise.complete(true);
 			}
 		}));
 
 		// Resolve promise when we get disposed too
-		disposables.add(toDisposable(() => symbolProviderRegistryPromiseResolve(false)));
+		disposables.add(toDisposable(() => symbolProviderRegistryPromise.complete(false)));
 
-		return symbolProviderRegistryPromise;
+		return symbolProviderRegistryPromise.p;
 	}
 
 	private doProvideWithEditorSymbols(context: IQuickAccessTextEditorContext, model: ITextModel, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
@@ -232,7 +235,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			const symbol = symbols[index];
 
 			const symbolLabel = trim(symbol.name);
-			const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
+			const symbolLabelWithIcon = `$(${SymbolKinds.toIcon(symbol.kind).id}) ${symbolLabel}`;
 			const symbolLabelIconOffset = symbolLabelWithIcon.length - symbolLabel.length;
 
 			let containerLabel = symbol.containerName;

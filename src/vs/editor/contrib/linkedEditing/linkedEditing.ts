@@ -3,32 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { registerEditorContribution, registerModelAndPositionCommand, EditorAction, EditorCommand, ServicesAccessor, registerEditorAction, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import * as arrays from 'vs/base/common/arrays';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { CancelablePromise, createCancelablePromise, Delayer, first } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { LinkedEditingRangeProviderRegistry, LinkedEditingRanges } from 'vs/editor/common/modes';
-import { first, createCancelablePromise, CancelablePromise, Delayer } from 'vs/base/common/async';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { Color } from 'vs/base/common/color';
 import { isPromiseCanceledError, onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { Event } from 'vs/base/common/event';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, registerModelAndPositionCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { IIdentifiedSingleEditOperation, IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { LinkedEditingRangeProviderRegistry, LinkedEditingRanges } from 'vs/editor/common/languages';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import * as nls from 'vs/nls';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export const CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('LinkedEditingInputVisible', false);
 
@@ -39,11 +40,12 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 	public static readonly ID = 'editor.contrib.linkedEditing';
 
 	private static readonly DECORATION = ModelDecorationOptions.register({
+		description: 'linked-editing',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		className: DECORATION_CLASS_NAME
 	});
 
-	static get(editor: ICodeEditor): LinkedEditingContribution {
+	static get(editor: ICodeEditor): LinkedEditingContribution | null {
 		return editor.getContribution<LinkedEditingContribution>(LinkedEditingContribution.ID);
 	}
 
@@ -70,7 +72,8 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
 		this._editor = editor;
@@ -90,23 +93,23 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 		this._currentRequestPosition = null;
 		this._currentRequestModelVersion = null;
 
-		this._register(this._editor.onDidChangeModel(() => this.reinitialize()));
+		this._register(this._editor.onDidChangeModel(() => this.reinitialize(true)));
 
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.linkedEditing) || e.hasChanged(EditorOption.renameOnType)) {
-				this.reinitialize();
+				this.reinitialize(false);
 			}
 		}));
-		this._register(LinkedEditingRangeProviderRegistry.onDidChange(() => this.reinitialize()));
-		this._register(this._editor.onDidChangeModelLanguage(() => this.reinitialize()));
+		this._register(LinkedEditingRangeProviderRegistry.onDidChange(() => this.reinitialize(false)));
+		this._register(this._editor.onDidChangeModelLanguage(() => this.reinitialize(true)));
 
-		this.reinitialize();
+		this.reinitialize(true);
 	}
 
-	private reinitialize() {
+	private reinitialize(forceRefresh: boolean) {
 		const model = this._editor.getModel();
 		const isEnabled = model !== null && (this._editor.getOption(EditorOption.linkedEditing) || this._editor.getOption(EditorOption.renameOnType)) && LinkedEditingRangeProviderRegistry.has(model);
-		if (isEnabled === this._enabled) {
+		if (isEnabled === this._enabled && !forceRefresh) {
 			return;
 		}
 
@@ -119,10 +122,14 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 			return;
 		}
 
-		this._languageWordPattern = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
-		this._localToDispose.add(model.onDidChangeLanguageConfiguration(() => {
-			this._languageWordPattern = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
-		}));
+		this._localToDispose.add(
+			Event.runAndSubscribe(
+				model.onDidChangeLanguageConfiguration,
+				() => {
+					this._languageWordPattern = this.languageConfigurationService.getLanguageConfiguration(model.getLanguageId()).getWordDefinition();
+				}
+			)
+		);
 
 		const rangeUpdateScheduler = new Delayer(this._debounceDuration);
 		const triggerRangeUpdate = () => {
@@ -230,7 +237,7 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 		}
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this.clearRanges();
 		super.dispose();
 	}
@@ -378,7 +385,7 @@ export class LinkedEditingAction extends EditorAction {
 		});
 	}
 
-	runCommand(accessor: ServicesAccessor, args: [URI, IPosition]): void | Promise<void> {
+	override runCommand(accessor: ServicesAccessor, args: [URI, IPosition]): void | Promise<void> {
 		const editorService = accessor.get(ICodeEditorService);
 		const [uri, pos] = Array.isArray(args) && args || [undefined, undefined];
 

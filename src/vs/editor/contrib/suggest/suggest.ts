@@ -3,34 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedExternalError, canceled, isPromiseCanceledError } from 'vs/base/common/errors';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Range } from 'vs/editor/common/core/range';
+import { canceled, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { FuzzyScore } from 'vs/base/common/filters';
-import { isDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
+import { DisposableStore, IDisposable, isDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
+import * as modes from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
+import { localize } from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const Context = {
-	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
-	DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false),
-	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false),
-	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true),
-	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true),
-	HasInsertAndReplaceRange: new RawContextKey('suggestionHasInsertAndReplaceRange', false),
-	InsertMode: new RawContextKey<'insert' | 'replace'>('suggestionInsertMode', undefined),
-	CanResolve: new RawContextKey('suggestionCanResolve', false),
+	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false, localize('suggestWidgetVisible', "Whether suggestion are visible")),
+	DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false, localize('suggestWidgetDetailsVisible', "Whether suggestion details are visible")),
+	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false, localize('suggestWidgetMultipleSuggestions', "Whether there are multiple suggestions to pick from")),
+	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true, localize('suggestionMakesTextEdit', "Whether inserting the current suggestion yields in a change or has everything already been typed")),
+	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true, localize('acceptSuggestionOnEnter', "Whether suggestions are inserted when pressing Enter")),
+	HasInsertAndReplaceRange: new RawContextKey('suggestionHasInsertAndReplaceRange', false, localize('suggestionHasInsertAndReplaceRange', "Whether the current suggestion has insert and replace behaviour")),
+	InsertMode: new RawContextKey<'insert' | 'replace'>('suggestionInsertMode', undefined, { type: 'string', description: localize('suggestionInsertMode', "Whether the default behaviour is to insert or replace") }),
+	CanResolve: new RawContextKey('suggestionCanResolve', false, localize('suggestionCanResolve', "Whether the current suggestion supports to resolve further details")),
 };
 
 export const suggestWidgetStatusbarMenu = new MenuId('suggestWidgetStatusBar');
@@ -73,7 +74,7 @@ export class CompletionItem {
 	) {
 		this.textLabel = typeof completion.label === 'string'
 			? completion.label
-			: completion.label.name;
+			: completion.label.label;
 
 		// ensure lower-variants (perf)
 		this.labelLow = this.textLabel.toLowerCase();
@@ -154,6 +155,7 @@ export class CompletionOptions {
 		readonly snippetSortOrder = SnippetSortOrder.Bottom,
 		readonly kindFilter = new Set<modes.CompletionItemKind>(),
 		readonly providerFilter = new Set<modes.CompletionItemProvider>(),
+		readonly showDeprecated = true
 	) { }
 }
 
@@ -209,24 +211,30 @@ export async function provideSuggestionItems(
 	const durations: CompletionDurationEntry[] = [];
 	let needsClipboard = false;
 
-	const onCompletionList = (provider: modes.CompletionItemProvider, container: modes.CompletionList | null | undefined, sw: StopWatch) => {
+	const onCompletionList = (provider: modes.CompletionItemProvider, container: modes.CompletionList | null | undefined, sw: StopWatch): boolean => {
+		let didAddResult = false;
 		if (!container) {
-			return;
+			return didAddResult;
 		}
 		for (let suggestion of container.suggestions) {
 			if (!options.kindFilter.has(suggestion.kind)) {
+				// skip if not showing deprecated suggestions
+				if (!options.showDeprecated && suggestion?.tags?.includes(modes.CompletionItemTag.Deprecated)) {
+					continue;
+				}
 				// fill in default range when missing
 				if (!suggestion.range) {
 					suggestion.range = defaultRange;
 				}
 				// fill in default sortText when missing
 				if (!suggestion.sortText) {
-					suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
+					suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.label;
 				}
 				if (!needsClipboard && suggestion.insertTextRules && suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
 					needsClipboard = SnippetParser.guessNeedsClipboard(suggestion.insertText);
 				}
 				result.push(new CompletionItem(position, suggestion, container, provider));
+				didAddResult = true;
 			}
 		}
 		if (isDisposable(container)) {
@@ -235,6 +243,7 @@ export async function provideSuggestionItems(
 		durations.push({
 			providerName: provider._debugDisplayName ?? 'unkown_provider', elapsedProvider: container.duration ?? -1, elapsedOverall: sw.elapsed()
 		});
+		return didAddResult;
 	};
 
 	// ask for snippets in parallel to asking "real" providers. Only do something if configured to
@@ -257,8 +266,7 @@ export async function provideSuggestionItems(
 	for (let providerGroup of modes.CompletionProviderRegistry.orderedGroups(model)) {
 
 		// for each support in the group ask for suggestions
-		let lenBefore = result.length;
-
+		let didAddResult = false;
 		await Promise.all(providerGroup.map(async provider => {
 			if (options.providerFilter.size > 0 && !options.providerFilter.has(provider)) {
 				return;
@@ -266,13 +274,13 @@ export async function provideSuggestionItems(
 			try {
 				const sw = new StopWatch(true);
 				const list = await provider.provideCompletionItems(model, position, context, token);
-				onCompletionList(provider, list, sw);
+				didAddResult = onCompletionList(provider, list, sw) || didAddResult;
 			} catch (err) {
 				onUnexpectedExternalError(err);
 			}
 		}));
 
-		if (lenBefore !== result.length || token.isCancellationRequested) {
+		if (didAddResult || token.isCancellationRequested) {
 			break;
 		}
 	}
@@ -403,6 +411,19 @@ modes.CompletionProviderRegistry.register('*', _provider);
 export function showSimpleSuggestions(editor: ICodeEditor, suggestions: modes.CompletionItem[]) {
 	setTimeout(() => {
 		_provider.onlyOnceSuggestions.push(...suggestions);
-		editor.getContribution<SuggestController>('editor.contrib.suggestController').triggerSuggest(new Set<modes.CompletionItemProvider>().add(_provider));
+		editor.getContribution<SuggestController>('editor.contrib.suggestController')?.triggerSuggest(new Set<modes.CompletionItemProvider>().add(_provider));
 	}, 0);
+}
+
+export interface ISuggestItemPreselector {
+	/**
+	 * The preselector with highest priority is asked first.
+	*/
+	readonly priority: number;
+
+	/**
+	 * Is called to preselect a suggest item.
+	 * When -1 is returned, item preselectors with lower priority are asked.
+	*/
+	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number | -1;
 }

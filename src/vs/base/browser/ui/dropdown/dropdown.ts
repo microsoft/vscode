@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./dropdown';
-import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IContextViewProvider, IAnchor, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { EventHelper, EventType, append, $, addDisposableListener, DOMEvent } from 'vs/base/browser/dom';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
+import { $, addDisposableListener, append, DOMEvent, EventHelper, EventType } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
+import { AnchorAlignment, IAnchor, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
+import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import 'vs/css!./dropdown';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable | null;
@@ -31,7 +31,7 @@ export class BaseDropdown extends ActionRunner {
 	private contents?: HTMLElement;
 
 	private visible: boolean | undefined;
-	private _onDidChangeVisibility = new Emitter<boolean>();
+	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	constructor(container: HTMLElement, options: IBaseDropdownOptions) {
@@ -125,7 +125,7 @@ export class BaseDropdown extends ActionRunner {
 		this.hide();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.hide();
 
@@ -159,7 +159,7 @@ export class Dropdown extends BaseDropdown {
 		this.contextViewProvider = options.contextViewProvider;
 	}
 
-	show(): void {
+	override show(): void {
 		super.show();
 
 		this.element.classList.add('active');
@@ -187,7 +187,7 @@ export class Dropdown extends BaseDropdown {
 		this.element.classList.remove('active');
 	}
 
-	hide(): void {
+	override hide(): void {
 		super.hide();
 
 		if (this.contextViewProvider) {
@@ -250,7 +250,7 @@ export class DropdownMenu extends BaseDropdown {
 		this._actions = actions;
 	}
 
-	show(): void {
+	override show(): void {
 		super.show();
 
 		this.element.classList.add('active');
@@ -269,7 +269,7 @@ export class DropdownMenu extends BaseDropdown {
 		});
 	}
 
-	hide(): void {
+	override hide(): void {
 		super.hide();
 	}
 

@@ -241,6 +241,55 @@ function nodeOrChildIsBlack(node) {
     }
     return false;
 }
+function isSymbolWithDeclarations(symbol) {
+    return !!(symbol && symbol.declarations);
+}
+function isVariableStatementWithSideEffects(ts, node) {
+    if (!ts.isVariableStatement(node)) {
+        return false;
+    }
+    let hasSideEffects = false;
+    const visitNode = (node) => {
+        if (hasSideEffects) {
+            // no need to go on
+            return;
+        }
+        if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+            // TODO: assuming `createDecorator` and `refineServiceDecorator` calls are side-effect free
+            const isSideEffectFree = /(createDecorator|refineServiceDecorator)/.test(node.getText());
+            if (!isSideEffectFree) {
+                hasSideEffects = true;
+            }
+        }
+        node.forEachChild(visitNode);
+    };
+    node.forEachChild(visitNode);
+    return hasSideEffects;
+}
+function isStaticMemberWithSideEffects(ts, node) {
+    if (!ts.isPropertyDeclaration(node)) {
+        return false;
+    }
+    if (!node.modifiers) {
+        return false;
+    }
+    if (!node.modifiers.some(mod => mod.kind === ts.SyntaxKind.StaticKeyword)) {
+        return false;
+    }
+    let hasSideEffects = false;
+    const visitNode = (node) => {
+        if (hasSideEffects) {
+            // no need to go on
+            return;
+        }
+        if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+            hasSideEffects = true;
+        }
+        node.forEachChild(visitNode);
+    };
+    node.forEachChild(visitNode);
+    return hasSideEffects;
+}
 function markNodes(ts, languageService, options) {
     const program = languageService.getProgram();
     if (!program) {
@@ -279,6 +328,9 @@ function markNodes(ts, languageService, options) {
                 }
                 return;
             }
+            if (isVariableStatementWithSideEffects(ts, node)) {
+                enqueue_black(node);
+            }
             if (ts.isExpressionStatement(node)
                 || ts.isIfStatement(node)
                 || ts.isIterationStatement(node, true)
@@ -311,7 +363,7 @@ function markNodes(ts, languageService, options) {
             setColor(node, 0 /* White */);
             // add to black queue
             enqueue_black(node);
-            // // move from one queue to the other
+            // move from one queue to the other
             // black_queue.push(node);
             // setColor(node, NodeColor.Black);
             return;
@@ -413,7 +465,7 @@ function markNodes(ts, languageService, options) {
             if (symbolImportNode) {
                 setColor(symbolImportNode, 2 /* Black */);
             }
-            if (symbol && !nodeIsInItsOwnDeclaration(nodeSourceFile, node, symbol)) {
+            if (isSymbolWithDeclarations(symbol) && !nodeIsInItsOwnDeclaration(nodeSourceFile, node, symbol)) {
                 for (let i = 0, len = symbol.declarations.length; i < len; i++) {
                     const declaration = symbol.declarations[i];
                     if (ts.isSourceFile(declaration)) {
@@ -437,6 +489,9 @@ function markNodes(ts, languageService, options) {
                                 || memberName === 'dispose' // TODO: keeping all `dispose` methods
                                 || /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
                             ) {
+                                enqueue_black(member);
+                            }
+                            if (isStaticMemberWithSideEffects(ts, member)) {
                                 enqueue_black(member);
                             }
                         }
@@ -686,7 +741,7 @@ function getRealNodeSymbol(ts, checker, node) {
     // get the aliased symbol instead. This allows for goto def on an import e.g.
     //   import {A, B} from "mod";
     // to jump to the implementation directly.
-    if (symbol && symbol.flags & ts.SymbolFlags.Alias && shouldSkipAlias(node, symbol.declarations[0])) {
+    if (symbol && symbol.flags & ts.SymbolFlags.Alias && symbol.declarations && shouldSkipAlias(node, symbol.declarations[0])) {
         const aliased = checker.getAliasedSymbol(symbol);
         if (aliased.declarations) {
             // We should mark the import as visited

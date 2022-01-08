@@ -3,31 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { Widget } from 'vs/base/browser/ui/widget';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IInputValidator, HistoryInputBox, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
-import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import type { IThemable } from 'vs/base/common/styler';
+import { HistoryInputBox, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Widget } from 'vs/base/browser/ui/widget';
 import { Codicon } from 'vs/base/common/codicons';
+import { Emitter, Event as CommonEvent } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import type { IThemable } from 'vs/base/common/styler';
+import * as nls from 'vs/nls';
+import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { showHistoryKeybindingHint } from 'vs/platform/browser/historyWidgetKeybindingHint';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ISearchConfiguration } from 'vs/workbench/services/search/common/search';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { attachCheckboxStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+
 export interface IOptions {
 	placeholder?: string;
+	showPlaceholderOnFocus?: boolean;
+	tooltip?: string;
 	width?: number;
-	validation?: IInputValidator;
 	ariaLabel?: string;
 	history?: string[];
-	submitOnType?: boolean;
-	submitOnTypeDelay?: number;
 }
 
 export class PatternInputWidget extends Widget implements IThemable {
@@ -37,8 +38,6 @@ export class PatternInputWidget extends Widget implements IThemable {
 	inputFocusTracker!: dom.IFocusTracker;
 
 	private width: number;
-	private placeholder: string;
-	private ariaLabel: string;
 
 	private domNode!: HTMLElement;
 	protected inputBox!: HistoryInputBox;
@@ -52,19 +51,24 @@ export class PatternInputWidget extends Widget implements IThemable {
 	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
 		@IThemeService protected themeService: IThemeService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
-		this.width = options.width || 100;
-		this.placeholder = options.placeholder || '';
-		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
+		options = {
+			...{
+				ariaLabel: nls.localize('defaultLabel', "input")
+			},
+			...options,
+		};
+		this.width = options.width ?? 100;
 
 		this.render(options);
 
 		parent.appendChild(this.domNode);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		if (this.inputFocusTracker) {
 			this.inputFocusTracker.dispose();
@@ -143,12 +147,15 @@ export class PatternInputWidget extends Widget implements IThemable {
 		this.domNode.classList.add('monaco-findInput');
 
 		this.inputBox = new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {
-			placeholder: this.placeholder || '',
-			ariaLabel: this.ariaLabel || '',
+			placeholder: options.placeholder,
+			showPlaceholderOnFocus: options.showPlaceholderOnFocus,
+			tooltip: options.tooltip,
+			ariaLabel: options.ariaLabel,
 			validationOptions: {
 				validation: undefined
 			},
-			history: options.history || []
+			history: options.history || [],
+			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService)
 		}, this.contextKeyService);
 		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
 		this._register(this.inputBox.onDidChange(() => this._onSubmit.fire(true)));
@@ -189,13 +196,14 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService);
+		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService, keybindingService);
 	}
 
 	private useSearchInEditorsBox!: Checkbox;
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.useSearchInEditorsBox.dispose();
 	}
@@ -206,24 +214,19 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 
 	setOnlySearchInOpenEditors(value: boolean) {
 		this.useSearchInEditorsBox.checked = value;
+		this._onChangeSearchInEditorsBoxEmitter.fire();
 	}
 
-	protected getSubcontrolsWidth(): number {
-		if (this.configurationService.getValue<ISearchConfiguration>().search?.experimental?.searchInOpenEditors) {
-			return super.getSubcontrolsWidth() + this.useSearchInEditorsBox.width();
-		}
-		return super.getSubcontrolsWidth();
+	protected override getSubcontrolsWidth(): number {
+		return super.getSubcontrolsWidth() + this.useSearchInEditorsBox.width();
 	}
 
-	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
+	protected override renderSubcontrols(controlsDiv: HTMLDivElement): void {
 		this.useSearchInEditorsBox = this._register(new Checkbox({
 			icon: Codicon.book,
 			title: nls.localize('onlySearchInOpenEditors', "Search only in Open Editors"),
 			isChecked: false,
 		}));
-		if (!this.configurationService.getValue<ISearchConfiguration>().search?.experimental?.searchInOpenEditors) {
-			return;
-		}
 		this._register(this.useSearchInEditorsBox.onChange(viaKeyboard => {
 			this._onChangeSearchInEditorsBoxEmitter.fire();
 			if (!viaKeyboard) {
@@ -245,13 +248,14 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService);
+		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService, keybindingService);
 	}
 
 	private useExcludesAndIgnoreFilesBox!: Checkbox;
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.useExcludesAndIgnoreFilesBox.dispose();
 	}
@@ -262,13 +266,14 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 
 	setUseExcludesAndIgnoreFiles(value: boolean) {
 		this.useExcludesAndIgnoreFilesBox.checked = value;
+		this._onChangeIgnoreBoxEmitter.fire();
 	}
 
-	protected getSubcontrolsWidth(): number {
+	protected override getSubcontrolsWidth(): number {
 		return super.getSubcontrolsWidth() + this.useExcludesAndIgnoreFilesBox.width();
 	}
 
-	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
+	protected override renderSubcontrols(controlsDiv: HTMLDivElement): void {
 		this.useExcludesAndIgnoreFilesBox = this._register(new Checkbox({
 			icon: Codicon.exclude,
 			actionClassName: 'useExcludesAndIgnoreFiles',

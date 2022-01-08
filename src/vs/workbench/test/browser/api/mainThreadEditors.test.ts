@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from './testRPCProtocol';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { ModelService } from 'vs/editor/common/services/modelService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape, IWorkspaceTextEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
@@ -17,17 +17,16 @@ import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditor
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { BulkEditService } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IReference, ImmortalReference, DisposableStore } from 'vs/base/common/lifecycle';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -48,14 +47,18 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { extUri } from 'vs/base/common/resources';
 import { ITextSnapshot } from 'vs/editor/common/model';
-import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { LanguageService } from 'vs/editor/common/services/languageService';
 
 suite('MainThreadEditors', () => {
 
+	let disposables: DisposableStore;
 	const resource = URI.parse('foo:bar');
 
 	let modelService: IModelService;
@@ -67,6 +70,7 @@ suite('MainThreadEditors', () => {
 	const deletedResources = new Set<URI>();
 
 	setup(() => {
+		disposables = new DisposableStore();
 
 		movedResources.clear();
 		copiedResources.clear();
@@ -78,7 +82,16 @@ suite('MainThreadEditors', () => {
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), undoRedoService);
+		const themeService = new TestThemeService();
+		modelService = new ModelService(
+			configService,
+			new TestTextResourcePropertiesService(configService),
+			themeService,
+			new NullLogService(),
+			undoRedoService,
+			disposables.add(new LanguageService()),
+			new TestLanguageConfigurationService()
+		);
 
 
 		const services = new ServiceCollection();
@@ -86,56 +99,57 @@ suite('MainThreadEditors', () => {
 		services.set(ILabelService, new SyncDescriptor(LabelService));
 		services.set(ILogService, new NullLogService());
 		services.set(IWorkspaceContextService, new TestContextService());
+		services.set(IEnvironmentService, TestEnvironmentService);
 		services.set(IWorkbenchEnvironmentService, TestEnvironmentService);
 		services.set(IConfigurationService, configService);
 		services.set(IDialogService, dialogService);
 		services.set(INotificationService, notificationService);
 		services.set(IUndoRedoService, undoRedoService);
 		services.set(IModelService, modelService);
-		services.set(ICodeEditorService, new TestCodeEditorService());
+		services.set(ICodeEditorService, new TestCodeEditorService(null, themeService));
 		services.set(IFileService, new TestFileService());
 		services.set(IEditorService, new TestEditorService());
 		services.set(ILifecycleService, new TestLifecycleService());
 		services.set(IEditorGroupsService, new TestEditorGroupsService());
 		services.set(ITextFileService, new class extends mock<ITextFileService>() {
-			isDirty() { return false; }
-			files = <any>{
+			override isDirty() { return false; }
+			override files = <any>{
 				onDidSave: Event.None,
 				onDidRevert: Event.None,
 				onDidChangeDirty: Event.None
 			};
-			create(operations: { resource: URI }[]) {
+			override create(operations: { resource: URI }[]) {
 				for (const o of operations) {
 					createdResources.add(o.resource);
 				}
 				return Promise.resolve(Object.create(null));
 			}
-			async getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<VSBuffer | VSBufferReadable | undefined> {
+			override async getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<any> {
 				return undefined;
 			}
 		});
 		services.set(IWorkingCopyFileService, new class extends mock<IWorkingCopyFileService>() {
-			onDidRunWorkingCopyFileOperation = Event.None;
-			createFolder(operations: ICreateOperation[]): any {
+			override onDidRunWorkingCopyFileOperation = Event.None;
+			override createFolder(operations: ICreateOperation[]): any {
 				this.create(operations);
 			}
-			create(operations: ICreateFileOperation[]) {
+			override create(operations: ICreateFileOperation[]) {
 				for (const operation of operations) {
 					createdResources.add(operation.resource);
 				}
 				return Promise.resolve(Object.create(null));
 			}
-			move(operations: IMoveOperation[]) {
+			override move(operations: IMoveOperation[]) {
 				const { source, target } = operations[0].file;
 				movedResources.set(source, target);
 				return Promise.resolve(Object.create(null));
 			}
-			copy(operations: ICopyOperation[]) {
+			override copy(operations: ICopyOperation[]) {
 				const { source, target } = operations[0].file;
 				copiedResources.set(source, target);
 				return Promise.resolve(Object.create(null));
 			}
-			delete(operations: IDeleteOperation[]) {
+			override delete(operations: IDeleteOperation[]) {
 				for (const operation of operations) {
 					deletedResources.add(operation.resource);
 				}
@@ -143,9 +157,9 @@ suite('MainThreadEditors', () => {
 			}
 		});
 		services.set(ITextModelService, new class extends mock<ITextModelService>() {
-			createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+			override createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 				const textEditorModel = new class extends mock<IResolvedTextEditorModel>() {
-					textEditorModel = modelService.getModel(resource)!;
+					override textEditorModel = modelService.getModel(resource)!;
 				};
 				textEditorModel.isReadonly = () => false;
 				return Promise.resolve(new ImmortalReference(textEditorModel));
@@ -154,33 +168,36 @@ suite('MainThreadEditors', () => {
 		services.set(IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
 
 		});
-		services.set(IPanelService, new class extends mock<IPanelService>() implements IPanelService {
-			declare readonly _serviceBrand: undefined;
-			onDidPanelOpen = Event.None;
-			onDidPanelClose = Event.None;
-			getActivePanel() {
+		services.set(IPaneCompositePartService, new class extends mock<IPaneCompositePartService>() implements IPaneCompositePartService {
+			override onDidPaneCompositeOpen = Event.None;
+			override onDidPaneCompositeClose = Event.None;
+			override getActivePaneComposite() {
 				return undefined;
 			}
 		});
 		services.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
-			get extUri() { return extUri; }
+			override get extUri() { return extUri; }
 		});
 
 		const instaService = new InstantiationService(services);
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
-			$acceptModelChanged(): void {
+			override $acceptModelChanged(): void {
 			}
 		});
 		rpcProtocol.set(ExtHostContext.ExtHostDocumentsAndEditors, new class extends mock<ExtHostDocumentsAndEditorsShape>() {
-			$acceptDocumentsAndEditorsDelta(): void {
+			override $acceptDocumentsAndEditorsDelta(): void {
 			}
 		});
 
 		const documentAndEditor = instaService.createInstance(MainThreadDocumentsAndEditors, rpcProtocol);
 
 		editors = instaService.createInstance(MainThreadTextEditors, documentAndEditor, SingleProxyRPCProtocol(null));
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test(`applyWorkspaceEdit returns false if model is changed by user`, () => {

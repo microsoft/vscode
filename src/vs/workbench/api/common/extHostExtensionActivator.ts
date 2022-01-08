@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import type * as vscode from 'vscode';
+import * as errors from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ExtensionActivationError, MissingDependencyError } from 'vs/workbench/services/extensions/common/extensions';
+import { MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -158,7 +158,7 @@ export class FailedExtension extends ActivatedExtension {
 }
 
 export interface IExtensionsActivatorHost {
-	onExtensionActivationError(extensionId: ExtensionIdentifier, error: ExtensionActivationError): void;
+	onExtensionActivationError(extensionId: ExtensionIdentifier, error: Error | null, missingExtensionDependency: MissingExtensionDependency | null): void;
 	actualActivateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension>;
 }
 
@@ -170,7 +170,9 @@ export interface ExtensionActivationReason {
 
 type ActivationIdAndReason = { id: ExtensionIdentifier, reason: ExtensionActivationReason };
 
-export class ExtensionsActivator {
+export class ExtensionsActivator implements IDisposable {
+
+	private _isDisposed: boolean;
 
 	private readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _resolvedExtensionsSet: Set<string>;
@@ -190,6 +192,7 @@ export class ExtensionsActivator {
 		host: IExtensionsActivatorHost,
 		@ILogService private readonly _logService: ILogService
 	) {
+		this._isDisposed = false;
 		this._registry = registry;
 		this._resolvedExtensionsSet = new Set<string>();
 		resolvedExtensions.forEach((extensionId) => this._resolvedExtensionsSet.add(ExtensionIdentifier.toKey(extensionId)));
@@ -199,6 +202,10 @@ export class ExtensionsActivator {
 		this._activatingExtensions = new Map<string, Promise<void>>();
 		this._activatedExtensions = new Map<string, ActivatedExtension>();
 		this._alreadyActivatedEvents = Object.create(null);
+	}
+
+	public dispose(): void {
+		this._isDisposed = true;
 	}
 
 	public isActivated(extensionId: ExtensionIdentifier): boolean {
@@ -255,8 +262,12 @@ export class ExtensionsActivator {
 		const currentExtension = this._registry.getExtensionDescription(currentActivation.id);
 		if (!currentExtension) {
 			// Error condition 0: unknown extension
-			this._host.onExtensionActivationError(currentActivation.id, new MissingDependencyError(currentActivation.id.value));
-			const error = new Error(`Unknown dependency '${currentActivation.id.value}'`);
+			const error = new Error(`Cannot activate unknown extension '${currentActivation.id.value}'`);
+			this._host.onExtensionActivationError(
+				currentActivation.id,
+				error,
+				new MissingExtensionDependency(currentActivation.id.value)
+			);
 			this._activatedExtensions.set(ExtensionIdentifier.toKey(currentActivation.id), new FailedExtension(error));
 			return;
 		}
@@ -280,9 +291,16 @@ export class ExtensionsActivator {
 
 			if (dep && dep.activationFailed) {
 				// Error condition 2: a dependency has already failed activation
-				this._host.onExtensionActivationError(currentExtension.identifier, nls.localize('failedDep1', "Cannot activate extension '{0}' because it depends on extension '{1}', which failed to activate.", currentExtension.displayName || currentExtension.identifier.value, depId));
-				const error = new Error(`Dependency ${depId} failed to activate`);
+				const currentExtensionFriendlyName = currentExtension.displayName || currentExtension.identifier.value;
+				const depDesc = this._registry.getExtensionDescription(depId);
+				const depFriendlyName = (depDesc ? depDesc.displayName || depId : depId);
+				const error = new Error(`Cannot activate the '${currentExtensionFriendlyName}' extension because its dependency '${depFriendlyName}' failed to activate`);
 				(<any>error).detail = dep.activationFailedError;
+				this._host.onExtensionActivationError(
+					currentExtension.identifier,
+					error,
+					null
+				);
 				this._activatedExtensions.set(ExtensionIdentifier.toKey(currentExtension.identifier), new FailedExtension(error));
 				return;
 			}
@@ -299,6 +317,11 @@ export class ExtensionsActivator {
 
 			const depDesc = this._registry.getExtensionDescription(depId);
 			if (depDesc) {
+				if (!depDesc.main && !depDesc.browser) {
+					// this dependency does not need to activate because it is descriptive only
+					continue;
+				}
+
 				// must first wait for the dependency to activate
 				currentExtensionGetsGreenLight = false;
 				greenExtensions[ExtensionIdentifier.toKey(depId)] = {
@@ -309,8 +332,13 @@ export class ExtensionsActivator {
 			}
 
 			// Error condition 1: unknown dependency
-			this._host.onExtensionActivationError(currentExtension.identifier, new MissingDependencyError(depId));
-			const error = new Error(`Unknown dependency '${depId}'`);
+			const currentExtensionFriendlyName = currentExtension.displayName || currentExtension.identifier.value;
+			const error = new Error(`Cannot activate the '${currentExtensionFriendlyName}' extension because it depends on unknown extension '${depId}'`);
+			this._host.onExtensionActivationError(
+				currentExtension.identifier,
+				error,
+				new MissingExtensionDependency(depId)
+			);
 			this._activatedExtensions.set(ExtensionIdentifier.toKey(currentExtension.identifier), new FailedExtension(error));
 			return;
 		}
@@ -372,7 +400,31 @@ export class ExtensionsActivator {
 		}
 
 		const newlyActivatingExtension = this._host.actualActivateExtension(extensionId, reason).then(undefined, (err) => {
-			this._host.onExtensionActivationError(extensionId, nls.localize('activationError', "Activating extension '{0}' failed: {1}.", extensionId.value, err.message));
+
+			const error = new Error();
+			if (err && err.name) {
+				error.name = err.name;
+			}
+			if (err && err.message) {
+				error.message = `Activating extension '${extensionId.value}' failed: ${err.message}.`;
+			} else {
+				error.message = `Activating extension '${extensionId.value}' failed: ${err}.`;
+			}
+			if (err && err.stack) {
+				error.stack = err.stack;
+			}
+
+			if (this._isDisposed && errors.isPromiseCanceledError(err)) {
+				// It is expected for ongoing activations to fail if the extension host is going down
+				// So simply ignore and don't log canceled errors in this case
+				return new FailedExtension(err);
+			}
+
+			this._host.onExtensionActivationError(
+				extensionId,
+				error,
+				null
+			);
 			this._logService.error(`Activating extension ${extensionId.value} failed due to an error:`);
 			this._logService.error(err);
 			// Treat the extension as being empty

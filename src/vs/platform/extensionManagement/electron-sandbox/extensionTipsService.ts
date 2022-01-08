@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { basename, join, } from 'vs/base/common/path';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { IFileService } from 'vs/platform/files/common/files';
-import { isWindows } from 'vs/base/common/platform';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IExecutableBasedExtensionTip, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { forEach, IStringDictionary } from 'vs/base/common/collections';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtensionTipsService as BaseExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
 import { disposableTimeout, timeout } from 'vs/base/common/async';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { localize } from 'vs/nls';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { forEach, IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
+import { join } from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
+import { env } from 'vs/base/common/process';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IExecutableBasedExtensionTip, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionTipsService as BaseExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
+import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 type ExeExtensionRecommendationsClassification = {
 	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
@@ -40,7 +40,7 @@ const lastPromptedMediumImpExeTimeStorageKey = 'extensionTips/lastPromptedMedium
 
 export class ExtensionTipsService extends BaseExtensionTipsService {
 
-	_serviceBrand: any;
+	override _serviceBrand: any;
 
 	private readonly highImportanceExecutableTips: Map<string, IExeBasedExtensionTips> = new Map<string, IExeBasedExtensionTips>();
 	private readonly mediumImportanceExecutableTips: Map<string, IExeBasedExtensionTips> = new Map<string, IExeBasedExtensionTips>();
@@ -101,13 +101,13 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		});
 	}
 
-	async getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
+	override async getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
 		const highImportanceExeTips = await this.getValidExecutableBasedExtensionTips(this.highImportanceExecutableTips);
 		const mediumImportanceExeTips = await this.getValidExecutableBasedExtensionTips(this.mediumImportanceExecutableTips);
 		return [...highImportanceExeTips, ...mediumImportanceExeTips];
 	}
 
-	getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
+	override getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
 		return this.getValidExecutableBasedExtensionTips(this.allOtherExecutableTips);
 	}
 
@@ -130,13 +130,13 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		for (const extensionId of installed) {
 			const tip = importantExeBasedRecommendations.get(extensionId);
 			if (tip) {
-				this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:alreadyInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
+				this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:alreadyInstalled', { extensionId, exeName: tip.exeName });
 			}
 		}
 		for (const extensionId of recommendations) {
 			const tip = importantExeBasedRecommendations.get(extensionId);
 			if (tip) {
-				this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:notInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
+				this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:notInstalled', { extensionId, exeName: tip.exeName });
 			}
 		}
 
@@ -175,15 +175,17 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 					case RecommendationsNotificationResult.Ignored:
 						this.highImportanceTipsByExe.delete(exeName);
 						break;
-					case RecommendationsNotificationResult.IncompatibleWindow:
+					case RecommendationsNotificationResult.IncompatibleWindow: {
 						// Recommended in incompatible window. Schedule the prompt after active window change
 						const onActiveWindowChange = Event.once(Event.latch(Event.any(this.nativeHostService.onDidOpenWindow, this.nativeHostService.onDidFocusWindow)));
 						this._register(onActiveWindowChange(() => this.promptHighImportanceExeBasedTip()));
 						break;
-					case RecommendationsNotificationResult.TooMany:
+					}
+					case RecommendationsNotificationResult.TooMany: {
 						// Too many notifications. Schedule the prompt after one hour
 						const disposable = this._register(disposableTimeout(() => { disposable.dispose(); this.promptHighImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */));
 						break;
+					}
 				}
 			});
 	}
@@ -209,7 +211,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		this.promptExeRecommendations(tips)
 			.then(result => {
 				switch (result) {
-					case RecommendationsNotificationResult.Accepted:
+					case RecommendationsNotificationResult.Accepted: {
 						// Accepted: Update the last prompted time and caches.
 						this.updateLastPromptedMediumExeTime(Date.now());
 						this.mediumImportanceTipsByExe.delete(exeName);
@@ -218,23 +220,24 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 						// Schedule the next recommendation for next internval
 						const disposable1 = this._register(disposableTimeout(() => { disposable1.dispose(); this.promptMediumImportanceExeBasedTip(); }, promptInterval));
 						break;
-
+					}
 					case RecommendationsNotificationResult.Ignored:
 						// Ignored: Remove from the cache and prompt next recommendation
 						this.mediumImportanceTipsByExe.delete(exeName);
 						this.promptMediumImportanceExeBasedTip();
 						break;
 
-					case RecommendationsNotificationResult.IncompatibleWindow:
+					case RecommendationsNotificationResult.IncompatibleWindow: {
 						// Recommended in incompatible window. Schedule the prompt after active window change
 						const onActiveWindowChange = Event.once(Event.latch(Event.any(this.nativeHostService.onDidOpenWindow, this.nativeHostService.onDidFocusWindow)));
 						this._register(onActiveWindowChange(() => this.promptMediumImportanceExeBasedTip()));
 						break;
-
-					case RecommendationsNotificationResult.TooMany:
+					}
+					case RecommendationsNotificationResult.TooMany: {
 						// Too many notifications. Schedule the prompt after one hour
 						const disposable2 = this._register(disposableTimeout(() => { disposable2.dispose(); this.promptMediumImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */));
 						break;
+					}
 				}
 			});
 	}
@@ -294,11 +297,11 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 			const exePaths: string[] = [];
 			if (isWindows) {
 				if (extensionTip.windowsPath) {
-					exePaths.push(extensionTip.windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE']!)
-						.replace('%ProgramFiles(x86)%', process.env['ProgramFiles(x86)']!)
-						.replace('%ProgramFiles%', process.env['ProgramFiles']!)
-						.replace('%APPDATA%', process.env['APPDATA']!)
-						.replace('%WINDIR%', process.env['WINDIR']!));
+					exePaths.push(extensionTip.windowsPath.replace('%USERPROFILE%', env['USERPROFILE']!)
+						.replace('%ProgramFiles(x86)%', env['ProgramFiles(x86)']!)
+						.replace('%ProgramFiles%', env['ProgramFiles']!)
+						.replace('%APPDATA%', env['APPDATA']!)
+						.replace('%WINDIR%', env['WINDIR']!));
 				}
 			} else {
 				exePaths.push(join('/usr/local/bin', exeName));

@@ -9,7 +9,7 @@ import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensio
 import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
+import { IDiffComputationResult } from 'vs/editor/common/services/editorWorker';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -21,7 +21,7 @@ const enum WidgetState {
 
 class DiffEditorHelperContribution extends Disposable implements IDiffEditorContribution {
 
-	public static ID = 'editor.contrib.diffEditorHelper';
+	public static readonly ID = 'editor.contrib.diffEditorHelper';
 
 	private _helperWidget: FloatingClickWidget | null;
 	private _helperWidgetListener: IDisposable | null;
@@ -98,7 +98,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 	}
 }

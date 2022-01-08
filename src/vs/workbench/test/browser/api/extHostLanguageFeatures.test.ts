@@ -8,7 +8,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { Position as EditorPosition, Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { TestRPCProtocol } from './testRPCProtocol';
@@ -21,10 +21,10 @@ import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands'
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { getDocumentSymbols } from 'vs/editor/contrib/documentSymbols/documentSymbols';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import { getCodeLensModel } from 'vs/editor/contrib/codelens/codelens';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from 'vs/editor/contrib/gotoSymbol/goToSymbol';
-import { getHover } from 'vs/editor/contrib/hover/getHover';
+import { getHoverPromise } from 'vs/editor/contrib/hover/getHover';
 import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/wordHighlighter';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
@@ -44,34 +44,35 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { nullExtensionDescription as defaultExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
 import { mock } from 'vs/base/test/common/mock';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { dispose } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { Progress } from 'vs/platform/progress/common/progress';
-
-const defaultSelector = { scheme: 'far' };
-const model: ITextModel = createTextModel(
-	[
-		'This is the first line',
-		'This is the second line',
-		'This is the third line',
-	].join('\n'),
-	undefined,
-	undefined,
-	URI.parse('far://testing/file.a'));
-
-let extHost: ExtHostLanguageFeatures;
-let mainThread: MainThreadLanguageFeatures;
-let disposables: vscode.Disposable[] = [];
-let rpcProtocol: TestRPCProtocol;
-let originalErrorHandler: (e: any) => any;
-
-
+import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 
 suite('ExtHostLanguageFeatures', function () {
 
+	const defaultSelector = { scheme: 'far' };
+	let model: ITextModel;
+	let extHost: ExtHostLanguageFeatures;
+	let mainThread: MainThreadLanguageFeatures;
+	let disposables: vscode.Disposable[] = [];
+	let rpcProtocol: TestRPCProtocol;
+	let originalErrorHandler: (e: any) => any;
+
 	suiteSetup(() => {
+
+		model = createTextModel(
+			[
+				'This is the first line',
+				'This is the second line',
+				'This is the third line',
+			].join('\n'),
+			undefined,
+			undefined,
+			URI.parse('far://testing/file.a'));
 
 		rpcProtocol = new TestRPCProtocol();
 
@@ -91,7 +92,7 @@ suite('ExtHostLanguageFeatures', function () {
 			addedDocuments: [{
 				isDirty: false,
 				versionId: model.getVersionId(),
-				modeId: model.getLanguageIdentifier().language,
+				languageId: model.getLanguageId(),
 				uri: model.uri,
 				lines: model.getValue().split(model.getEOL()),
 				EOL: model.getEOL(),
@@ -104,10 +105,10 @@ suite('ExtHostLanguageFeatures', function () {
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 
-		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService());
+		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { });
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -171,6 +172,36 @@ suite('ExtHostLanguageFeatures', function () {
 		let entry = value[0];
 		assert.strictEqual(entry.name, 'test');
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+	});
+
+	test('Quick Outline uses a not ideal sorting, #138502', async function () {
+		const symbols = [
+			{ name: 'containers', range: { startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 26 } },
+			{ name: 'container 0', range: { startLineNumber: 2, startColumn: 5, endLineNumber: 5, endColumn: 1 } },
+			{ name: 'name', range: { startLineNumber: 2, startColumn: 5, endLineNumber: 2, endColumn: 16 } },
+			{ name: 'ports', range: { startLineNumber: 3, startColumn: 5, endLineNumber: 5, endColumn: 1 } },
+			{ name: 'ports 0', range: { startLineNumber: 4, startColumn: 9, endLineNumber: 4, endColumn: 26 } },
+			{ name: 'containerPort', range: { startLineNumber: 4, startColumn: 9, endLineNumber: 4, endColumn: 26 } }
+		];
+
+		extHost.registerDocumentSymbolProvider(defaultExtension, defaultSelector, {
+			provideDocumentSymbols: (doc, token): any => {
+				return symbols.map(s => {
+					return new types.SymbolInformation(
+						s.name,
+						types.SymbolKind.Object,
+						new types.Range(s.range.startLineNumber - 1, s.range.startColumn - 1, s.range.endLineNumber - 1, s.range.endColumn - 1)
+					);
+				});
+			}
+		});
+
+		await rpcProtocol.sync();
+
+		const value = await getDocumentSymbols(model, true, CancellationToken.None);
+
+		assert.strictEqual(value.length, 6);
+		assert.deepStrictEqual(value.map(s => s.name), ['containers', 'container 0', 'name', 'ports', 'ports 0', 'containerPort']);
 	});
 
 	// --- code lens
@@ -259,7 +290,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, new class implements vscode.DefinitionProvider {
 			provideDefinition(): any {
-				return new types.Location(model.uri, new types.Range(1, 1, 1, 1));
+				return new types.Location(model.uri, new types.Range(2, 1, 1, 1));
 			}
 		}));
 
@@ -373,7 +404,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHover(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+		getHoverPromise(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 			assert.strictEqual(value.length, 1);
 			let [entry] = value;
 			assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
@@ -390,7 +421,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHover(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+		getHoverPromise(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 			assert.strictEqual(value.length, 1);
 			let [entry] = value;
 			assert.deepStrictEqual(entry.range, { startLineNumber: 4, startColumn: 1, endLineNumber: 9, endColumn: 8 });
@@ -413,7 +444,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getHover(model, new EditorPosition(1, 1), CancellationToken.None);
+		const value = await getHoverPromise(model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 2);
 		let [first, second] = (value as modes.Hover[]);
 		assert.strictEqual(first.contents[0].value, 'registered second');
@@ -435,7 +466,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHover(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+		getHoverPromise(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 			assert.strictEqual(value.length, 1);
 		});
 	});
@@ -591,7 +622,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Manual }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 2);
 		const [first, second] = actions;
 		assert.strictEqual(first.action.title, 'Testing1');
@@ -615,7 +646,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Manual }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 1);
 		const [first] = actions;
 		assert.strictEqual(first.action.title, 'Testing1');
@@ -638,7 +669,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Manual }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 1);
 	});
 
@@ -656,7 +687,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Manual }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 1);
 	});
 
@@ -680,9 +711,41 @@ suite('ExtHostLanguageFeatures', function () {
 		let value = await getWorkspaceSymbols('');
 		assert.strictEqual(value.length, 1);
 		const [first] = value;
-		const [, symbols] = first;
-		assert.strictEqual(symbols.length, 1);
-		assert.strictEqual(symbols[0].name, 'testing');
+		assert.strictEqual(first.symbol.name, 'testing');
+	});
+
+	test('Navigate types, de-duplicate results', async () => {
+		const uri = URI.from({ scheme: 'foo', path: '/some/path' });
+		disposables.push(extHost.registerWorkspaceSymbolProvider(defaultExtension, new class implements vscode.WorkspaceSymbolProvider {
+			provideWorkspaceSymbols(): any {
+				return [new types.SymbolInformation('ONE', types.SymbolKind.Array, undefined, new types.Location(uri, new types.Range(0, 0, 1, 1)))];
+			}
+		}));
+
+		disposables.push(extHost.registerWorkspaceSymbolProvider(defaultExtension, new class implements vscode.WorkspaceSymbolProvider {
+			provideWorkspaceSymbols(): any {
+				return [new types.SymbolInformation('ONE', types.SymbolKind.Array, undefined, new types.Location(uri, new types.Range(0, 0, 1, 1)))]; // get de-duped
+			}
+		}));
+
+		disposables.push(extHost.registerWorkspaceSymbolProvider(defaultExtension, new class implements vscode.WorkspaceSymbolProvider {
+			provideWorkspaceSymbols(): any {
+				return [new types.SymbolInformation('ONE', types.SymbolKind.Array, undefined, new types.Location(uri, undefined!))]; // NO dedupe because of resolve
+			}
+			resolveWorkspaceSymbol(a: vscode.SymbolInformation) {
+				return a;
+			}
+		}));
+
+		disposables.push(extHost.registerWorkspaceSymbolProvider(defaultExtension, new class implements vscode.WorkspaceSymbolProvider {
+			provideWorkspaceSymbols(): any {
+				return [new types.SymbolInformation('ONE', types.SymbolKind.Struct, undefined, new types.Location(uri, new types.Range(0, 0, 1, 1)))]; // NO dedupe because of kind
+			}
+		}));
+
+		await rpcProtocol.sync();
+		let value = await getWorkspaceSymbols('');
+		assert.strictEqual(value.length, 3);
 	});
 
 	// --- rename
@@ -966,7 +1029,7 @@ suite('ExtHostLanguageFeatures', function () {
 	// --- format
 
 	const NullWorkerService = new class extends mock<IEditorWorkerService>() {
-		computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[] | null | undefined): Promise<modes.TextEdit[] | undefined> {
+		override computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[] | null | undefined): Promise<modes.TextEdit[] | undefined> {
 			return Promise.resolve(withNullAsUndefined(edits));
 		}
 	};

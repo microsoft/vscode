@@ -3,18 +3,18 @@ name: CI
 on:
   push:
     branches:
-      - master
+      - main
       - release/*
   pull_request:
     branches:
-      - master
+      - main
       - release/*
 
 jobs:
   windows:
     name: Windows
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       CHILD_CONCURRENCY: "1"
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -23,7 +23,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 12
+          node-version: 14
 
       - uses: actions/setup-python@v2
         with:
@@ -72,16 +72,30 @@ jobs:
       - name: Run Unit Tests (Electron)
         run: .\scripts\test.bat
 
-      - name: Run Unit Tests (Browser)
+      - name: Run Unit Tests (node.js)
+        run: yarn test-node
+
+      - name: Run Unit Tests (Browser, Chromium)
         run: yarn test-browser --browser chromium
+
+      - name: Compile Integration Tests
+        run: yarn --cwd test/integration/browser compile
 
       - name: Run Integration Tests (Electron)
         run: .\scripts\test-integration.bat
 
+      - name: Run Integration Tests (Browser, Firefox)
+        timeout-minutes: 10
+        run: .\resources\server\test\test-web-integration.bat --browser firefox
+
+      - name: Run Integration Tests (Remote)
+        timeout-minutes: 10
+        run: .\resources\server\test\test-remote-integration.bat
+
   linux:
     name: Linux
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -99,7 +113,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 12
+          node-version: 14
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -109,8 +123,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules11-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules11-
+          key: ${{ runner.os }}-cacheNodeModules14-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules14-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -136,18 +150,34 @@ jobs:
         id: electron-unit-tests
         run: DISPLAY=:10 ./scripts/test.sh
 
-      - name: Run Unit Tests (Browser)
+      - name: Run Unit Tests (node.js)
+        id: nodejs-unit-tests
+        run: yarn test-node
+
+      - name: Run Unit Tests (Browser, Chromium)
         id: browser-unit-tests
         run: DISPLAY=:10 yarn test-browser --browser chromium
+
+      - name: Compile Integration Tests
+        run: yarn --cwd test/integration/browser compile
 
       - name: Run Integration Tests (Electron)
         id: electron-integration-tests
         run: DISPLAY=:10 ./scripts/test-integration.sh
 
+      - name: Run Integration Tests (Browser, Chromium)
+        id: browser-integration-tests
+        run: DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser chromium
+
+      - name: Run Integration Tests (Remote)
+        id: electron-remote-integration-tests
+        timeout-minutes: 7
+        run: DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
+
   darwin:
     name: macOS
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -155,7 +185,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 12
+          node-version: 14
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -165,8 +195,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules11-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules11-
+          key: ${{ runner.os }}-cacheNodeModules14-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules14-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -188,19 +218,40 @@ jobs:
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
+      # This is required for keytar unittests, otherwise we hit
+      # https://github.com/atom/node-keytar/issues/76
+      - name: Create temporary keychain
+        run: |
+          security create-keychain -p pwd $RUNNER_TEMP/buildagent.keychain
+          security default-keychain -s $RUNNER_TEMP/buildagent.keychain
+          security unlock-keychain -p pwd $RUNNER_TEMP/buildagent.keychain
+
       - name: Run Unit Tests (Electron)
         run: DISPLAY=:10 ./scripts/test.sh
 
-      - name: Run Unit Tests (Browser)
+      - name: Run Unit Tests (node.js)
+        run: yarn test-node
+
+      - name: Run Unit Tests (Browser, Chromium)
         run: DISPLAY=:10 yarn test-browser --browser chromium
+
+      - name: Compile Integration Tests
+        run: yarn --cwd test/integration/browser compile
 
       - name: Run Integration Tests (Electron)
         run: DISPLAY=:10 ./scripts/test-integration.sh
 
+      - name: Run Integration Tests (Browser, Webkit)
+        run: DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser webkit
+
+      - name: Run Integration Tests (Remote)
+        timeout-minutes: 7
+        run: DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
+
   hygiene:
     name: Hygiene, Layering and Monaco Editor
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -208,7 +259,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 12
+          node-version: 14
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -218,8 +269,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules11-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules11-
+          key: ${{ runner.os }}-cacheNodeModules14-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules14-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -244,8 +295,17 @@ jobs:
       - name: Run Valid Layers Checks
         run: yarn valid-layers-check
 
+      - name: Run eslint
+        run: yarn eslint
+
       - name: Run Monaco Editor Checks
         run: yarn monaco-compile-check
+
+      - name: Run vscode-dts Compile Checks
+        run: yarn vscode-dts-compile-check
+
+      - name: Run Trusted Types Checks
+        run: yarn tsec-compile-check
 
       - name: Editor Distro & ESM Bundle
         run: yarn gulp editor-esm-bundle

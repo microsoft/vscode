@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./button';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Color } from 'vs/base/common/color';
-import { mixin } from 'vs/base/common/objects';
-import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { addDisposableListener, IFocusTracker, EventType, EventHelper, trackFocus, reset, removeTabIndexAndUpdateFocus } from 'vs/base/browser/dom';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
+import { addDisposableListener, EventHelper, EventType, IFocusTracker, reset, trackFocus } from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Color } from 'vs/base/common/color';
+import { Emitter, Event as BaseEvent } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { mixin } from 'vs/base/common/objects';
+import 'vs/css!./button';
 
 export interface IButtonOptions extends IButtonStyles {
 	readonly title?: boolean | string;
@@ -50,10 +50,14 @@ export interface IButton extends IDisposable {
 	hasFocus(): boolean;
 }
 
+export interface IButtonWithDescription extends IButton {
+	description: string;
+}
+
 export class Button extends Disposable implements IButton {
 
-	private _element: HTMLElement;
-	private options: IButtonOptions;
+	protected _element: HTMLElement;
+	protected options: IButtonOptions;
 
 	private buttonBackground: Color | undefined;
 	private buttonHoverBackground: Color | undefined;
@@ -214,7 +218,6 @@ export class Button extends Disposable implements IButton {
 		} else {
 			this._element.classList.add('disabled');
 			this._element.setAttribute('aria-disabled', String(true));
-			removeTabIndexAndUpdateFocus(this._element);
 		}
 	}
 
@@ -304,6 +307,50 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 	}
 }
 
+export class ButtonWithDescription extends Button implements IButtonWithDescription {
+
+	private _labelElement: HTMLElement;
+	private _descriptionElement: HTMLElement;
+
+	constructor(container: HTMLElement, options?: IButtonOptions) {
+		super(container, options);
+
+		this._element.classList.add('monaco-description-button');
+
+		this._labelElement = document.createElement('div');
+		this._labelElement.classList.add('monaco-button-label');
+		this._labelElement.tabIndex = -1;
+		this._element.appendChild(this._labelElement);
+
+		this._descriptionElement = document.createElement('div');
+		this._descriptionElement.classList.add('monaco-button-description');
+		this._descriptionElement.tabIndex = -1;
+		this._element.appendChild(this._descriptionElement);
+	}
+
+	override set label(value: string) {
+		this._element.classList.add('monaco-text-button');
+		if (this.options.supportIcons) {
+			reset(this._labelElement, ...renderLabelWithIcons(value));
+		} else {
+			this._labelElement.textContent = value;
+		}
+		if (typeof this.options.title === 'string') {
+			this._element.title = this.options.title;
+		} else if (this.options.title) {
+			this._element.title = value;
+		}
+	}
+
+	set description(value: string) {
+		if (this.options.supportIcons) {
+			reset(this._descriptionElement, ...renderLabelWithIcons(value));
+		} else {
+			this._descriptionElement.textContent = value;
+		}
+	}
+}
+
 export class ButtonBar extends Disposable {
 
 	private _buttons: IButton[] = [];
@@ -318,6 +365,12 @@ export class ButtonBar extends Disposable {
 
 	addButton(options?: IButtonOptions): IButton {
 		const button = this._register(new Button(this.container, options));
+		this.pushButton(button);
+		return button;
+	}
+
+	addButtonWithDescription(options?: IButtonOptions): IButtonWithDescription {
+		const button = this._register(new ButtonWithDescription(this.container, options));
 		this.pushButton(button);
 		return button;
 	}

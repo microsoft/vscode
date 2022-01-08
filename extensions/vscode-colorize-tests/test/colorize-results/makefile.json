@@ -748,8 +748,8 @@
 		}
 	},
 	{
-		"c": "\t",
-		"t": "source.makefile punctuation.whitespace.comment.leading.makefile",
+		"c": "\t# \"",
+		"t": "source.makefile meta.scope.recipe.makefile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -759,25 +759,25 @@
 		}
 	},
 	{
-		"c": "#",
-		"t": "source.makefile comment.line.number-sign.makefile punctuation.definition.comment.makefile",
+		"c": "$$",
+		"t": "source.makefile meta.scope.recipe.makefile variable.language.makefile",
 		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+			"dark_plus": "variable.language: #569CD6",
+			"light_plus": "variable.language: #0000FF",
+			"dark_vs": "variable.language: #569CD6",
+			"light_vs": "variable.language: #0000FF",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
-		"c": " \"$$\" in a shell means to escape makefile's variable substitution.",
-		"t": "source.makefile comment.line.number-sign.makefile",
+		"c": "\" in a shell means to escape makefile's variable substitution.",
+		"t": "source.makefile meta.scope.recipe.makefile",
 		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -968,36 +968,14 @@
 		}
 	},
 	{
-		"c": "\t",
-		"t": "source.makefile punctuation.whitespace.comment.leading.makefile",
+		"c": "\t# And we can see variables are highlited as supposed to be:",
+		"t": "source.makefile meta.scope.recipe.makefile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "#",
-		"t": "source.makefile comment.line.number-sign.makefile punctuation.definition.comment.makefile",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": " And we can see variables are highlited as supposed to be:",
-		"t": "source.makefile comment.line.number-sign.makefile",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
 		}
 	},
 	{

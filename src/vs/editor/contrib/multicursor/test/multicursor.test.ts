@@ -16,6 +16,31 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 
 suite('Multicursor', () => {
 
+
+	test('issue #26393: Multiple cursors + Word wrap', () => {
+		withTestCodeEditor([
+			'a'.repeat(20),
+			'a'.repeat(20),
+		], { wordWrap: 'wordWrapColumn', wordWrapColumn: 10 }, (editor, viewModel) => {
+			let addCursorDownAction = new InsertCursorBelow();
+			addCursorDownAction.run(null!, editor, {});
+
+			assert.strictEqual(viewModel.getCursorStates().length, 2);
+
+			assert.strictEqual(viewModel.getCursorStates()[0].viewState.position.lineNumber, 1);
+			assert.strictEqual(viewModel.getCursorStates()[1].viewState.position.lineNumber, 3);
+
+			editor.setPosition({ lineNumber: 4, column: 1 });
+			let addCursorUpAction = new InsertCursorAbove();
+			addCursorUpAction.run(null!, editor, {});
+
+			assert.strictEqual(viewModel.getCursorStates().length, 2);
+
+			assert.strictEqual(viewModel.getCursorStates()[0].viewState.position.lineNumber, 4);
+			assert.strictEqual(viewModel.getCursorStates()[1].viewState.position.lineNumber, 2);
+		});
+	});
+
 	test('issue #2205: Multi-cursor pastes in reverse order', () => {
 		withTestCodeEditor([
 			'abc',

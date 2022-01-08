@@ -28,6 +28,7 @@ export const ViewIdentifierMap: { [key: string]: string } = {
 	'explorer': 'workbench.explorer.emptyView',
 	'debug': 'workbench.debug.welcome',
 	'scm': 'workbench.scm',
+	'testing': 'workbench.view.testing'
 };
 
 const viewsWelcomeExtensionPointSchema = Object.freeze<IConfigurationPropertySchema>({
@@ -64,7 +65,7 @@ const viewsWelcomeExtensionPointSchema = Object.freeze<IConfigurationPropertySch
 			},
 			[ViewsWelcomeExtensionPointFields.group]: {
 				type: 'string',
-				description: nls.localize('contributes.viewsWelcome.view.group', "Group to which this welcome content belongs."),
+				description: nls.localize('contributes.viewsWelcome.view.group', "Group to which this welcome content belongs. Proposed API."),
 			},
 			[ViewsWelcomeExtensionPointFields.enablement]: {
 				type: 'string',

@@ -14,7 +14,7 @@ header="// Type definitions for Visual Studio Code ${1}
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License.
- *  See https://github.com/microsoft/vscode/blob/master/LICENSE.txt for license information.
+ *  See https://github.com/microsoft/vscode/blob/main/LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
 /**
@@ -22,10 +22,10 @@ header="// Type definitions for Visual Studio Code ${1}
  * See https://code.visualstudio.com/api for more information
  */"
 
-if [ -f ./src/vs/vscode.d.ts ]; then
+if [ -f ./src/vscode-dts/vscode.d.ts ]; then
 	echo "$header" > index.d.ts
-	sed "1,4d" ./src/vs/vscode.d.ts >> index.d.ts
+	sed "1,4d" ./src/vscode-dts/vscode.d.ts >> index.d.ts
 	echo "Generated index.d.ts for version ${1}."
 else
-	echo "Can't find ./src/vs/vscode.d.ts. Run this script at vscode root."
+	echo "Can't find ./src/vscode-dts/vscode.d.ts. Run this script at vscode root."
 fi

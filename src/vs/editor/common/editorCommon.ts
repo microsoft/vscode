@@ -7,7 +7,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ConfigurationChangedEvent, IComputedEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -144,24 +144,6 @@ export interface ICharChange extends IChange {
  */
 export interface ILineChange extends IChange {
 	readonly charChanges: ICharChange[] | undefined;
-}
-
-/**
- * @internal
- */
-export interface IConfiguration extends IDisposable {
-	onDidChangeFast(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
-	onDidChange(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
-
-	readonly options: IComputedEditorOptions;
-
-	setMaxLineNumber(maxLineNumber: number): void;
-	setViewLineCount(viewLineCount: number): void;
-	updateOptions(newOptions: Readonly<IEditorOptions>): void;
-	getRawOptions(): IEditorOptions;
-	observeReferenceElement(dimension?: IDimension): void;
-	updatePixelRatio(): void;
-	setIsDominatedByLongLines(isDominatedByLongLines: boolean): void;
 }
 
 // --- view
@@ -503,7 +485,7 @@ export interface IEditor {
 	 * Change the decorations. All decorations added through this changeAccessor
 	 * will get the ownerId of the editor (meaning they will not show up in other
 	 * editors).
-	 * @see `ITextModel.changeDecorations`
+	 * @see {@link ITextModel.changeDecorations}
 	 * @internal
 	 */
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;
@@ -618,8 +600,23 @@ export interface IThemeDecorationRenderOptions {
 
 	overviewRulerColor?: string | ThemeColor;
 
+	/**
+	 * @deprecated
+	 */
 	before?: IContentDecorationRenderOptions;
+	/**
+	 * @deprecated
+	 */
 	after?: IContentDecorationRenderOptions;
+
+	/**
+	 * @deprecated
+	 */
+	beforeInjectedText?: IContentDecorationRenderOptions & { affectsLetterSpacing?: boolean };
+	/**
+	 * @deprecated
+	 */
+	afterInjectedText?: IContentDecorationRenderOptions & { affectsLetterSpacing?: boolean };
 }
 
 /**
@@ -639,6 +636,8 @@ export interface IContentDecorationRenderOptions {
 	textDecoration?: string;
 	color?: string | ThemeColor;
 	backgroundColor?: string | ThemeColor;
+	opacity?: string;
+	verticalAlign?: string;
 
 	margin?: string;
 	padding?: string;
@@ -662,7 +661,13 @@ export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions 
  * @internal
  */
 export interface IThemeDecorationInstanceRenderOptions {
+	/**
+	 * @deprecated
+	 */
 	before?: IContentDecorationRenderOptions;
+	/**
+	 * @deprecated
+	 */
 	after?: IContentDecorationRenderOptions;
 }
 
@@ -700,6 +705,7 @@ export const enum Handler {
 	CompositionEnd = 'compositionEnd',
 	Type = 'type',
 	ReplacePreviousChar = 'replacePreviousChar',
+	CompositionType = 'compositionType',
 	Paste = 'paste',
 	Cut = 'cut',
 }
@@ -717,6 +723,16 @@ export interface TypePayload {
 export interface ReplacePreviousCharPayload {
 	text: string;
 	replaceCharCnt: number;
+}
+
+/**
+ * @internal
+ */
+export interface CompositionTypePayload {
+	text: string;
+	replacePrevCharCnt: number;
+	replaceNextCharCnt: number;
+	positionDelta: number;
 }
 
 /**

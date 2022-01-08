@@ -142,6 +142,9 @@
       "include": "#java"
     },
     {
+      "include": "#jl"
+    },
+    {
       "include": "#js"
     },
     {
@@ -2071,6 +2074,92 @@
           "patterns": [
             {
               "include": "source.java"
+            }
+          ]
+        }
+      ]
+    },
+    "jl": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.jl)(:)$",
+      "end": "^(?!\\s)",
+      "beginCaptures": {
+        "0": {
+          "name": "string meta.path.search"
+        },
+        "1": {
+          "name": "meta.path.dirname.search"
+        },
+        "2": {
+          "name": "meta.path.basename.search"
+        },
+        "3": {
+          "name": "punctuation.separator"
+        }
+      },
+      "patterns": [
+        {
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "patterns": [
+            {
+              "include": "source.julia"
+            }
+          ]
+        },
+        {
+          "begin": "^  (?:\\s*)((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            }
+          },
+          "patterns": [
+            {
+              "include": "source.julia"
             }
           ]
         }

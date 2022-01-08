@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterable } from 'vs/base/common/iterator';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { AbstractTree, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
-import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer, ITreeSorter, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
-import { ObjectTreeModel, IObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { IListVirtualDelegate, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { Event } from 'vs/base/common/event';
-import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { memoize } from 'vs/base/common/decorators';
+import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { IObjectTreeModel, ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
+import { ICollapseStateChangeEvent, ITreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { memoize } from 'vs/base/common/decorators';
+import { Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 
 export interface IObjectTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
 	readonly sorter?: ITreeSorter<T>;
@@ -38,9 +38,9 @@ export interface IObjectTreeSetChildrenOptions<T> {
 
 export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
 
-	protected model!: IObjectTreeModel<T, TFilterData>;
+	protected override model!: IObjectTreeModel<T, TFilterData>;
 
-	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T | null, TFilterData>> { return this.model.onDidChangeCollapseState; }
+	override get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T | null, TFilterData>> { return this.model.onDidChangeCollapseState; }
 
 	constructor(
 		user: string,
@@ -65,11 +65,11 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		this.model.rerender(element);
 	}
 
-	updateElementHeight(element: T, height: number): void {
+	updateElementHeight(element: T, height: number | undefined): void {
 		this.model.updateElementHeight(element, height);
 	}
 
-	resort(element: T, recursive = true): void {
+	resort(element: T | null, recursive = true): void {
 		this.model.resort(element, recursive);
 	}
 
@@ -194,7 +194,7 @@ export interface ICompressibleObjectTreeOptionsUpdate extends IAbstractTreeOptio
 
 export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> implements ICompressedTreeNodeProvider<T, TFilterData> {
 
-	protected model!: CompressibleObjectTreeModel<T, TFilterData>;
+	protected override model!: CompressibleObjectTreeModel<T, TFilterData>;
 
 	constructor(
 		user: string,
@@ -208,15 +208,15 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 		super(user, container, delegate, compressibleRenderers, asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider, options));
 	}
 
-	setChildren(element: T | null, children: Iterable<ICompressedTreeElement<T>> = Iterable.empty(), options?: IObjectTreeSetChildrenOptions<T>): void {
+	override setChildren(element: T | null, children: Iterable<ICompressedTreeElement<T>> = Iterable.empty(), options?: IObjectTreeSetChildrenOptions<T>): void {
 		this.model.setChildren(element, children, options);
 	}
 
-	protected createModel(user: string, view: IList<ITreeNode<T, TFilterData>>, options: ICompressibleObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
+	protected override createModel(user: string, view: IList<ITreeNode<T, TFilterData>>, options: ICompressibleObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
 		return new CompressibleObjectTreeModel(user, view, options);
 	}
 
-	updateOptions(optionsUpdate: ICompressibleObjectTreeOptionsUpdate = {}): void {
+	override updateOptions(optionsUpdate: ICompressibleObjectTreeOptionsUpdate = {}): void {
 		super.updateOptions(optionsUpdate);
 
 		if (typeof optionsUpdate.compressionEnabled !== 'undefined') {

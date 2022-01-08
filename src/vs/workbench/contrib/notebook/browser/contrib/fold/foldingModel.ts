@@ -4,35 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { FoldingRegion, FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { IFoldingRangeData, sanitizeRanges } from 'vs/editor/contrib/folding/syntaxRangeProvider';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 type RegionFilter = (r: FoldingRegion) => boolean;
 type RegionFilterWithLevel = (r: FoldingRegion, level: number) => boolean;
 
 
-export class FoldingModel extends Disposable {
+export class FoldingModel implements IDisposable {
 	private _viewModel: NotebookViewModel | null = null;
-	private _viewModelStore = new DisposableStore();
+	private readonly _viewModelStore = new DisposableStore();
 	private _regions: FoldingRegions;
 	get regions() {
 		return this._regions;
 	}
 
-	private _onDidFoldingRegionChanges = new Emitter<void>();
-	onDidFoldingRegionChanged: Event<void> = this._onDidFoldingRegionChanges.event;
+	private readonly _onDidFoldingRegionChanges = new Emitter<void>();
+	readonly onDidFoldingRegionChanged: Event<void> = this._onDidFoldingRegionChanges.event;
 
 	private _foldingRangeDecorationIds: string[] = [];
 
-	constructor(
-		// private readonly _notebookEditor: INotebookEditor
-	) {
-		super();
+	constructor() {
 		this._regions = new FoldingRegions(new Uint32Array(0), new Uint32Array(0));
+	}
+
+	dispose() {
+		this._onDidFoldingRegionChanges.dispose();
+		this._viewModelStore.dispose();
 	}
 
 	detachViewModel() {
@@ -52,10 +55,7 @@ export class FoldingModel extends Disposable {
 				return;
 			}
 
-			const selectionHandles = this._viewModel.selectionHandles;
-			const indexes = selectionHandles.map(handle =>
-				this._viewModel!.getCellIndex(this._viewModel!.getCellByHandle(handle)!)
-			);
+			const indexes = cellRangesToIndexes(this._viewModel.getSelections());
 
 			let changed = false;
 
@@ -82,7 +82,7 @@ export class FoldingModel extends Disposable {
 
 	getRegionAtLine(lineNumber: number): FoldingRegion | null {
 		if (this._regions) {
-			let index = this._regions.findRange(lineNumber);
+			const index = this._regions.findRange(lineNumber);
 			if (index >= 0) {
 				return this._regions.toRegion(index);
 			}
@@ -91,14 +91,14 @@ export class FoldingModel extends Disposable {
 	}
 
 	getRegionsInside(region: FoldingRegion | null, filter?: RegionFilter | RegionFilterWithLevel): FoldingRegion[] {
-		let result: FoldingRegion[] = [];
-		let index = region ? region.regionIndex + 1 : 0;
-		let endLineNumber = region ? region.endLineNumber : Number.MAX_VALUE;
+		const result: FoldingRegion[] = [];
+		const index = region ? region.regionIndex + 1 : 0;
+		const endLineNumber = region ? region.endLineNumber : Number.MAX_VALUE;
 
 		if (filter && filter.length === 2) {
 			const levelStack: FoldingRegion[] = [];
 			for (let i = index, len = this._regions.length; i < len; i++) {
-				let current = this._regions.toRegion(i);
+				const current = this._regions.toRegion(i);
 				if (this._regions.getStartLineNumber(i) < endLineNumber) {
 					while (levelStack.length > 0 && !current.containedBy(levelStack[levelStack.length - 1])) {
 						levelStack.pop();
@@ -113,7 +113,7 @@ export class FoldingModel extends Disposable {
 			}
 		} else {
 			for (let i = index, len = this._regions.length; i < len; i++) {
-				let current = this._regions.toRegion(i);
+				const current = this._regions.toRegion(i);
 				if (this._regions.getStartLineNumber(i) < endLineNumber) {
 					if (!filter || (filter as RegionFilter)(current)) {
 						result.push(current);
@@ -127,12 +127,12 @@ export class FoldingModel extends Disposable {
 	}
 
 	getAllRegionsAtLine(lineNumber: number, filter?: (r: FoldingRegion, level: number) => boolean): FoldingRegion[] {
-		let result: FoldingRegion[] = [];
+		const result: FoldingRegion[] = [];
 		if (this._regions) {
 			let index = this._regions.findRange(lineNumber);
 			let level = 1;
 			while (index >= 0) {
-				let current = this._regions.toRegion(index);
+				const current = this._regions.toRegion(index);
 				if (!filter || filter(current, level)) {
 					result.push(current);
 				}
@@ -148,7 +148,12 @@ export class FoldingModel extends Disposable {
 	}
 
 	recompute() {
-		const cells = this._viewModel!.viewCells;
+		if (!this._viewModel) {
+			return;
+		}
+
+		const viewModel = this._viewModel;
+		const cells = viewModel.viewCells;
 		const stack: { index: number, level: number, endIndex: number }[] = [];
 
 		for (let i = 0; i < cells.length; i++) {
@@ -160,7 +165,7 @@ export class FoldingModel extends Disposable {
 
 			const content = cell.getText();
 
-			const matches = content.match(/^[ \t]*(\#+)/gm);
+			const matches = content.match(/^[ \t]*(\#+) /gm);
 
 			let min = 7;
 			if (matches && matches.length) {
@@ -215,7 +220,7 @@ export class FoldingModel extends Disposable {
 
 		while (collapsedIndex !== -1 && k < newRegions.length) {
 			// get the latest range
-			const decRange = this._viewModel!.getTrackedRange(this._foldingRangeDecorationIds[collapsedIndex]);
+			const decRange = viewModel.getTrackedRange(this._foldingRangeDecorationIds[collapsedIndex]);
 			if (decRange) {
 				const collasedStartIndex = decRange.start;
 
@@ -245,8 +250,8 @@ export class FoldingModel extends Disposable {
 
 		// remove old tracked ranges and add new ones
 		// TODO@rebornix, implement delta
-		this._foldingRangeDecorationIds.forEach(id => this._viewModel!.setTrackedRange(id, null, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter));
-		this._foldingRangeDecorationIds = cellRanges.map(region => this._viewModel!.setTrackedRange(null, region, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter)).filter(str => str !== null) as string[];
+		this._foldingRangeDecorationIds.forEach(id => viewModel.setTrackedRange(id, null, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter));
+		this._foldingRangeDecorationIds = cellRanges.map(region => viewModel.setTrackedRange(null, region, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter)).filter(str => str !== null) as string[];
 
 		this._regions = newRegions;
 		this._onDidFoldingRegionChanges.fire();
@@ -270,12 +275,16 @@ export class FoldingModel extends Disposable {
 	}
 
 	public applyMemento(state: ICellRange[]): boolean {
+		if (!this._viewModel) {
+			return false;
+		}
+
 		let i = 0;
 		let k = 0;
 
 		while (k < state.length && i < this._regions.length) {
 			// get the latest range
-			const decRange = this._viewModel!.getTrackedRange(this._foldingRangeDecorationIds[i]);
+			const decRange = this._viewModel.getTrackedRange(this._foldingRangeDecorationIds[i]);
 			if (decRange) {
 				const collasedStartIndex = state[k].start;
 
@@ -310,4 +319,9 @@ export enum CellFoldingState {
 export interface EditorFoldingStateDelegate {
 	getCellIndex(cell: CellViewModel): number;
 	getFoldingState(index: number): CellFoldingState;
+}
+
+export function updateFoldingStateAtIndex(foldingModel: FoldingModel, index: number, collapsed: boolean) {
+	const range = foldingModel.regions.findRange(index + 1);
+	foldingModel.setCollapsed(range, collapsed);
 }

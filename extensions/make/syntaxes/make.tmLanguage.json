@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/fadeevab/make.tmbundle/commit/e36e02becd20730259b0115d9ca5c419f65023a9",
+	"version": "https://github.com/fadeevab/make.tmbundle/commit/91b724d1ad86fa65e4b240a960311a280b92f971",
 	"name": "Makefile",
 	"scopeName": "source.makefile",
 	"patterns": [
@@ -29,7 +29,7 @@
 	],
 	"repository": {
 		"comment": {
-			"begin": "(^[ \\t]+)?(?=#)",
+			"begin": "(^[ ]+)?(?=#)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.whitespace.comment.leading.makefile"
@@ -131,9 +131,6 @@
 							"include": "#variables"
 						},
 						{
-							"include": "#comment"
-						},
-						{
 							"include": "#directives"
 						}
 					]
@@ -195,37 +192,7 @@
 					]
 				},
 				{
-					"begin": "^\\s*(ifdef|ifndef)\\s*([^\\s]+)(?=\\s)",
-					"captures": {
-						"1": {
-							"name": "keyword.control.$1.makefile"
-						},
-						"2": {
-							"name": "variable.other.makefile"
-						},
-						"3": {
-							"name": "punctuation.separator.key-value.makefile"
-						}
-					},
-					"end": "^\\s*(endif)\\b",
-					"name": "meta.scope.conditional.makefile",
-					"patterns": [
-						{
-							"begin": "\\G(?!\\n)",
-							"end": "^",
-							"patterns": [
-								{
-									"include": "#comment"
-								}
-							]
-						},
-						{
-							"include": "$self"
-						}
-					]
-				},
-				{
-					"begin": "^\\s*(ifeq|ifneq)(?=\\s)",
+					"begin": "^\\s*(ifeq|ifneq|ifdef|ifndef)(?=\\s)",
 					"captures": {
 						"1": {
 							"name": "keyword.control.$1.makefile"
@@ -254,7 +221,15 @@
 									"name": "keyword.control.else.makefile"
 								}
 							},
-							"end": "^"
+							"end": "^",
+							"patterns": [
+								{
+									"include": "#variables"
+								},
+								{
+									"include": "#comment"
+								}
+							]
 						},
 						{
 							"include": "$self"

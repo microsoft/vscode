@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/base/common/platform';
-import { EditorOptions, ValidatedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOptions, EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 
 /**
@@ -18,13 +18,20 @@ const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.35;
  */
 const MINIMUM_LINE_HEIGHT = 8;
 
+/**
+ * @internal
+ */
+export interface IValidatedEditorOptions {
+	get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
+}
+
 export class BareFontInfo {
-	readonly _bareFontInfoBrand: void;
+	readonly _bareFontInfoBrand: void = undefined;
 
 	/**
 	 * @internal
 	 */
-	public static createFromValidatedSettings(options: ValidatedEditorOptions, zoomLevel: number, pixelRatio: number, ignoreEditorZoom: boolean): BareFontInfo {
+	public static createFromValidatedSettings(options: IValidatedEditorOptions, zoomLevel: number, pixelRatio: number, ignoreEditorZoom: boolean): BareFontInfo {
 		const fontFamily = options.get(EditorOption.fontFamily);
 		const fontWeight = options.get(EditorOption.fontWeight);
 		const fontSize = options.get(EditorOption.fontSize);
@@ -52,8 +59,15 @@ export class BareFontInfo {
 	 */
 	private static _create(fontFamily: string, fontWeight: string, fontSize: number, fontFeatureSettings: string, lineHeight: number, letterSpacing: number, zoomLevel: number, pixelRatio: number, ignoreEditorZoom: boolean): BareFontInfo {
 		if (lineHeight === 0) {
-			lineHeight = Math.round(GOLDEN_LINE_HEIGHT_RATIO * fontSize);
+			lineHeight = GOLDEN_LINE_HEIGHT_RATIO * fontSize;
 		} else if (lineHeight < MINIMUM_LINE_HEIGHT) {
+			// Values too small to be line heights in pixels are in ems.
+			lineHeight = lineHeight * fontSize;
+		}
+
+		// Enforce integer, minimum constraints
+		lineHeight = Math.round(lineHeight);
+		if (lineHeight < MINIMUM_LINE_HEIGHT) {
 			lineHeight = MINIMUM_LINE_HEIGHT;
 		}
 
@@ -109,23 +123,30 @@ export class BareFontInfo {
 	 * @internal
 	 */
 	public getId(): string {
-		return this.zoomLevel + '-' + this.pixelRatio + '-' + this.fontFamily + '-' + this.fontWeight + '-' + this.fontSize + '-' + this.fontFeatureSettings + '-' + this.lineHeight + '-' + this.letterSpacing;
+		return `${this.zoomLevel}-${this.pixelRatio}-${this.fontFamily}-${this.fontWeight}-${this.fontSize}-${this.fontFeatureSettings}-${this.lineHeight}-${this.letterSpacing}`;
 	}
 
 	/**
 	 * @internal
 	 */
-	public getMassagedFontFamily(): string {
-		if (/[,"']/.test(this.fontFamily)) {
-			// Looks like the font family might be already escaped
-			return this.fontFamily;
+	public getMassagedFontFamily(fallbackFontFamily: string | null): string {
+		const fontFamily = BareFontInfo._wrapInQuotes(this.fontFamily);
+		if (fallbackFontFamily && this.fontFamily !== fallbackFontFamily) {
+			return `${fontFamily}, ${fallbackFontFamily}`;
 		}
-		if (/[+ ]/.test(this.fontFamily)) {
-			// Wrap a font family using + or <space> with quotes
-			return `"${this.fontFamily}"`;
-		}
+		return fontFamily;
+	}
 
-		return this.fontFamily;
+	private static _wrapInQuotes(fontFamily: string): string {
+		if (/[,"']/.test(fontFamily)) {
+			// Looks like the font family might be already escaped
+			return fontFamily;
+		}
+		if (/[+ ]/.test(fontFamily)) {
+			// Wrap a font family using + or <space> with quotes
+			return `"${fontFamily}"`;
+		}
+		return fontFamily;
 	}
 }
 
@@ -133,7 +154,7 @@ export class BareFontInfo {
 export const SERIALIZED_FONT_INFO_VERSION = 1;
 
 export class FontInfo extends BareFontInfo {
-	readonly _editorStylingBrand: void;
+	readonly _editorStylingBrand: void = undefined;
 
 	readonly version: number = SERIALIZED_FONT_INFO_VERSION;
 	readonly isTrusted: boolean;

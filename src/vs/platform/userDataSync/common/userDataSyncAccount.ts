@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IUserDataSyncLogService, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 
 export interface IUserDataSyncAccount {
 	readonly authenticationProviderId: string;
@@ -39,10 +39,12 @@ export class UserDataSyncAccountService extends Disposable implements IUserDataS
 	private wasTokenFailed: boolean = false;
 
 	constructor(
-		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService
+		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 	) {
 		super();
 		this._register(userDataSyncStoreService.onTokenFailed(() => {
+			this.logService.info('Settings Sync auth token failed', this.account?.authenticationProviderId, this.wasTokenFailed);
 			this.updateAccount(undefined);
 			this._onTokenFailed.fire(this.wasTokenFailed);
 			this.wasTokenFailed = true;

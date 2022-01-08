@@ -67,6 +67,7 @@ export class BreadcrumbsModel {
 		if (editor) {
 			this._bindToEditor(editor);
 			this._disposables.add(_outlineService.onDidChange(() => this._bindToEditor(editor)));
+			this._disposables.add(editor.onDidChangeControl(() => this._bindToEditor(editor)));
 		}
 		this._onDidUpdate.fire(this);
 	}
@@ -104,7 +105,7 @@ export class BreadcrumbsModel {
 		}
 
 		const breadcrumbsElements = this._currentOutline.value.config.breadcrumbsDataSource.getBreadcrumbElements();
-		for (let i = this._cfgSymbolPath.getValue() === 'last' ? breadcrumbsElements.length - 1 : 0; i < breadcrumbsElements.length; i++) {
+		for (let i = this._cfgSymbolPath.getValue() === 'last' && breadcrumbsElements.length > 0 ? breadcrumbsElements.length - 1 : 0; i < breadcrumbsElements.length; i++) {
 			result.push(new OutlineElement2(breadcrumbsElements[i], this._currentOutline.value));
 		}
 

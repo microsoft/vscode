@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/titlecontrol';
+import { localize } from 'vs/nls';
 import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, IActionViewItem } from 'vs/base/common/actions';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, SubmenuAction, ActionRunner } from 'vs/base/common/actions';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -26,18 +25,20 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
-import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDataTransfers, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
-import { IEditorGroupsAccessor, IEditorGroupTitleDimensions, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, ActiveEditorPinnedContext, ActiveEditorStickyContext } from 'vs/workbench/common/editor';
+import { IEditorGroupsAccessor, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, ActiveEditorPinnedContext, ActiveEditorStickyContext, EditorsOrder, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, EditorInputCapabilities, SideBySideEditorActiveContext } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
 import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
 import { isFirefox } from 'vs/base/browser/browser';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -58,6 +59,19 @@ export interface ITitleControlDimensions {
 	available: Dimension;
 }
 
+export class EditorCommandsContextActionRunner extends ActionRunner {
+
+	constructor(
+		private context: IEditorCommandsContext
+	) {
+		super();
+	}
+
+	override run(action: IAction): Promise<void> {
+		return super.run(action, this.context);
+	}
+}
+
 export abstract class TitleControl extends Themable {
 
 	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
@@ -68,12 +82,19 @@ export abstract class TitleControl extends Themable {
 	private editorActionsToolbar: ToolBar | undefined;
 
 	private resourceContext: ResourceContextKey;
+
 	private editorPinnedContext: IContextKey<boolean>;
 	private editorStickyContext: IContextKey<boolean>;
+
+	private editorCanSplitInGroupContext: IContextKey<boolean>;
+	private sideBySideEditorContext: IContextKey<boolean>;
+
+	private groupLockedContext: IContextKey<boolean>;
 
 	private readonly editorToolBarMenuDisposables = this._register(new DisposableStore());
 
 	private contextMenu: IMenu;
+	private renderDropdownAsChildElement: boolean;
 
 	constructor(
 		parent: HTMLElement,
@@ -94,10 +115,17 @@ export abstract class TitleControl extends Themable {
 		super(themeService);
 
 		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
+
 		this.editorPinnedContext = ActiveEditorPinnedContext.bindTo(contextKeyService);
 		this.editorStickyContext = ActiveEditorStickyContext.bindTo(contextKeyService);
 
+		this.editorCanSplitInGroupContext = ActiveEditorCanSplitInGroupContext.bindTo(contextKeyService);
+		this.sideBySideEditorContext = SideBySideEditorActiveContext.bindTo(contextKeyService);
+
+		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(contextKeyService);
+
 		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
+		this.renderDropdownAsChildElement = false;
 
 		this.create(parent);
 	}
@@ -124,7 +152,7 @@ export abstract class TitleControl extends Themable {
 		}
 
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => {
-			if (this.breadcrumbsControl && this.breadcrumbsControl.update()) {
+			if (this.breadcrumbsControl?.update()) {
 				this.handleBreadcrumbsEnablementChange();
 			}
 		}));
@@ -135,13 +163,15 @@ export abstract class TitleControl extends Themable {
 	protected createEditorActionsToolBar(container: HTMLElement): void {
 		const context: IEditorCommandsContext = { groupId: this.group.id };
 
+		// Toolbar Widget
 		this.editorActionsToolbar = this._register(new ToolBar(container, this.contextMenuService, {
 			actionViewItemProvider: action => this.actionViewItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('ariaLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
 			actionRunner: this._register(new EditorCommandsContextActionRunner(context)),
-			anchorAlignmentProvider: () => AnchorAlignment.RIGHT
+			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
+			renderDropdownAsChildElement: this.renderDropdownAsChildElement
 		}));
 
 		// Context
@@ -151,12 +181,12 @@ export abstract class TitleControl extends Themable {
 		this._register(this.editorActionsToolbar.actionRunner.onDidRun(e => {
 
 			// Notify for Error
-			this.notificationService.error(e.error);
+			if (e.error && !isPromiseCanceledError(e.error)) {
+				this.notificationService.error(e.error);
+			}
 
 			// Log in telemetry
-			if (this.telemetryService) {
-				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'editorPart' });
-			}
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'editorPart' });
 		}));
 	}
 
@@ -173,32 +203,17 @@ export abstract class TitleControl extends Themable {
 		}
 
 		// Check extensions
-		return createActionViewItem(this.instantiationService, action);
+		return createActionViewItem(this.instantiationService, action, { menuAsChild: this.renderDropdownAsChildElement });
 	}
 
 	protected updateEditorActionsToolbar(): void {
-		const { primaryEditorActions, secondaryEditorActions } = this.prepareEditorActions(this.getEditorActions());
+		const { primary, secondary } = this.prepareEditorActions(this.getEditorActions());
 
 		const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
-		editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions);
+		editorActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
 	}
 
-	protected prepareEditorActions(editorActions: IToolbarActions): { primaryEditorActions: IAction[]; secondaryEditorActions: IAction[]; } {
-		let primaryEditorActions: IAction[];
-		let secondaryEditorActions: IAction[];
-
-		// Primary actions only for the active group
-		if (this.accessor.activeGroup === this.group) {
-			primaryEditorActions = prepareActions(editorActions.primary);
-		} else {
-			primaryEditorActions = [];
-		}
-
-		// Secondary actions for all groups
-		secondaryEditorActions = prepareActions(editorActions.secondary);
-
-		return { primaryEditorActions, secondaryEditorActions };
-	}
+	protected abstract prepareEditorActions(editorActions: IToolbarActions): IToolbarActions;
 
 	private getEditorActions(): IToolbarActions {
 		const primary: IAction[] = [];
@@ -210,21 +225,36 @@ export abstract class TitleControl extends Themable {
 		// Update contexts
 		this.contextKeyService.bufferChangeEvents(() => {
 			this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(this.group.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+
 			this.editorPinnedContext.set(this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false);
 			this.editorStickyContext.set(this.group.activeEditor ? this.group.isSticky(this.group.activeEditor) : false);
+
+			this.editorCanSplitInGroupContext.set(this.group.activeEditor ? this.group.activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
+			this.sideBySideEditorContext.set(this.group.activeEditor?.typeId === SideBySideEditorInput.ID);
+
+			this.groupLockedContext.set(this.group.isLocked);
 		});
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeEditorPane = this.group.activeEditorPane;
 		if (activeEditorPane instanceof EditorPane) {
 			const scopedContextKeyService = activeEditorPane.scopedContextKeyService ?? this.contextKeyService;
-			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
+			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 });
 			this.editorToolBarMenuDisposables.add(titleBarMenu);
 			this.editorToolBarMenuDisposables.add(titleBarMenu.onDidChange(() => {
 				this.updateEditorActionsToolbar(); // Update editor toolbar whenever contributed actions change
 			}));
 
-			this.editorToolBarMenuDisposables.add(createAndFillInActionBarActions(titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary }, (group: string) => group === 'navigation' || group === '1_run'));
+			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
+
+			this.editorToolBarMenuDisposables.add(createAndFillInActionBarActions(
+				titleBarMenu,
+				{ arg: this.resourceContext.get(), shouldForwardArgs: true },
+				{ primary, secondary },
+				'navigation',
+				9,
+				shouldInlineGroup
+			));
 		}
 
 		return { primary, secondary };
@@ -248,11 +278,16 @@ export abstract class TitleControl extends Themable {
 				e.dataTransfer.effectAllowed = 'copyMove';
 			}
 
-			// If tabs are disabled, treat dragging as if an editor tab was dragged
+			// Drag all tabs of the group if tabs are enabled
 			let hasDataTransfer = false;
-			if (!this.accessor.partOptions.showTabs) {
+			if (this.accessor.partOptions.showTabs) {
+				hasDataTransfer = this.doFillResourceDataTransfers(this.group.getEditors(EditorsOrder.SEQUENTIAL), e);
+			}
+
+			// Otherwise only drag the active editor
+			else {
 				if (this.group.activeEditor) {
-					hasDataTransfer = this.doFillResourceDataTransfers(this.group.activeEditor, e);
+					hasDataTransfer = this.doFillResourceDataTransfers([this.group.activeEditor], e);
 				}
 			}
 
@@ -278,32 +313,17 @@ export abstract class TitleControl extends Themable {
 		}));
 	}
 
-	protected doFillResourceDataTransfers(editor: IEditorInput, e: DragEvent): boolean {
-		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (!resource) {
-			return false;
+	protected doFillResourceDataTransfers(editors: readonly EditorInput[], e: DragEvent): boolean {
+		if (editors.length) {
+			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.group.id })), e);
+
+			return true;
 		}
 
-		const editorOptions: ITextEditorOptions = {
-			viewState: (() => {
-				if (this.group.activeEditor === editor) {
-					const activeControl = this.group.activeEditorPane?.getControl();
-					if (isCodeEditor(activeControl)) {
-						return withNullAsUndefined(activeControl.saveViewState());
-					}
-				}
-
-				return undefined;
-			})(),
-			sticky: this.group.isSticky(editor)
-		};
-
-		this.instantiationService.invokeFunction(fillResourceDataTransfers, [resource], () => editorOptions, e);
-
-		return true;
+		return false;
 	}
 
-	protected onContextMenu(editor: IEditorInput, e: Event, node: HTMLElement): void {
+	protected onContextMenu(editor: EditorInput, e: Event, node: HTMLElement): void {
 
 		// Update contexts based on editor picked and remember previous to restore
 		const currentResourceContext = this.resourceContext.get();
@@ -312,6 +332,12 @@ export abstract class TitleControl extends Themable {
 		this.editorPinnedContext.set(this.group.isPinned(editor));
 		const currentStickyContext = !!this.editorStickyContext.get();
 		this.editorStickyContext.set(this.group.isSticky(editor));
+		const currentGroupLockedContext = !!this.groupLockedContext.get();
+		this.groupLockedContext.set(this.group.isLocked);
+		const currentEditorCanSplitContext = !!this.editorCanSplitInGroupContext.get();
+		this.editorCanSplitInGroupContext.set(editor.hasCapability(EditorInputCapabilities.CanSplitInGroup));
+		const currentSideBySideEditorContext = !!this.sideBySideEditorContext.get();
+		this.sideBySideEditorContext.set(editor.typeId === SideBySideEditorInput.ID);
 
 		// Find target anchor
 		let anchor: HTMLElement | { x: number, y: number } = node;
@@ -336,6 +362,9 @@ export abstract class TitleControl extends Themable {
 				this.resourceContext.set(currentResourceContext || null);
 				this.editorPinnedContext.set(currentPinnedContext);
 				this.editorStickyContext.set(currentStickyContext);
+				this.groupLockedContext.set(currentGroupLockedContext);
+				this.editorCanSplitInGroupContext.set(currentEditorCanSplitContext);
+				this.sideBySideEditorContext.set(currentSideBySideEditorContext);
 
 				// restore focus to active group
 				this.accessor.activeGroup.focus();
@@ -356,37 +385,35 @@ export abstract class TitleControl extends Themable {
 		return keybinding ? withNullAsUndefined(keybinding.getLabel()) : undefined;
 	}
 
-	abstract openEditor(editor: IEditorInput): void;
+	abstract openEditor(editor: EditorInput): void;
 
-	abstract closeEditor(editor: IEditorInput): void;
+	abstract openEditors(editors: EditorInput[]): void;
 
-	abstract closeEditors(editors: IEditorInput[]): void;
+	abstract closeEditor(editor: EditorInput, index: number | undefined): void;
 
-	abstract moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void;
+	abstract closeEditors(editors: EditorInput[]): void;
 
-	abstract pinEditor(editor: IEditorInput): void;
+	abstract moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number): void;
 
-	abstract stickEditor(editor: IEditorInput): void;
+	abstract pinEditor(editor: EditorInput): void;
 
-	abstract unstickEditor(editor: IEditorInput): void;
+	abstract stickEditor(editor: EditorInput): void;
+
+	abstract unstickEditor(editor: EditorInput): void;
 
 	abstract setActive(isActive: boolean): void;
 
-	abstract updateEditorLabel(editor: IEditorInput): void;
+	abstract updateEditorLabel(editor: EditorInput): void;
 
-	abstract updateEditorLabels(): void;
-
-	abstract updateEditorDirty(editor: IEditorInput): void;
+	abstract updateEditorDirty(editor: EditorInput): void;
 
 	abstract updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void;
 
-	abstract updateStyles(): void;
-
 	abstract layout(dimensions: ITitleControlDimensions): Dimension;
 
-	abstract getDimensions(): IEditorGroupTitleDimensions;
+	abstract getHeight(): IEditorGroupTitleHeight;
 
-	dispose(): void {
+	override dispose(): void {
 		dispose(this.breadcrumbsControl);
 		this.breadcrumbsControl = undefined;
 

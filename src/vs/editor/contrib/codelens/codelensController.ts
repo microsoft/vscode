@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, RunOnceScheduler, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
+import * as dom from 'vs/base/browser/dom';
+import { CancelablePromise, createCancelablePromise, disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { hash } from 'vs/base/common/hash';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
-import { ICodeEditor, MouseTargetType, IViewZoneChangeAccessor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution, ServicesAccessor, registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
+import { IActiveCodeEditor, ICodeEditor, IViewZoneChangeAccessor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { CodeLensProviderRegistry, CodeLens, Command } from 'vs/editor/common/modes';
-import { CodeLensModel, getCodeLensModel, CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
-import { CodeLensWidget, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
+import { CodeLens, CodeLensProviderRegistry, Command } from 'vs/editor/common/languages';
+import { LanguageFeatureRequestDelays } from 'vs/editor/common/languages/languageFeatureRegistry';
+import { CodeLensItem, CodeLensModel, getCodeLensModel } from 'vs/editor/contrib/codelens/codelens';
+import { ICodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
+import { CodeLensHelper, CodeLensWidget } from 'vs/editor/contrib/codelens/codelensWidget';
+import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ICodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as dom from 'vs/base/browser/dom';
-import { hash } from 'vs/base/common/hash';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { localize } from 'vs/nls';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
 
 export class CodeLensContribution implements IEditorContribution {
 
@@ -99,16 +99,18 @@ export class CodeLensContribution implements IEditorContribution {
 		const editorFontInfo = this._editor.getOption(EditorOption.fontInfo);
 
 		const fontFamilyVar = `--codelens-font-family${this._styleClassName}`;
+		const fontFeaturesVar = `--codelens-font-features${this._styleClassName}`;
 
 		let newStyle = `
-		.monaco-editor .codelens-decoration.${this._styleClassName} { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; padding-right: ${Math.round(fontSize * 0.5)}px; font-feature-settings: ${editorFontInfo.fontFeatureSettings} }
+		.monaco-editor .codelens-decoration.${this._styleClassName} { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; padding-right: ${Math.round(fontSize * 0.5)}px; font-feature-settings: var(${fontFeaturesVar}) }
 		.monaco-editor .codelens-decoration.${this._styleClassName} span.codicon { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; }
 		`;
 		if (fontFamily) {
-			newStyle += `.monaco-editor .codelens-decoration.${this._styleClassName} { font-family: var(${fontFamilyVar})}`;
+			newStyle += `.monaco-editor .codelens-decoration.${this._styleClassName} { font-family: var(${fontFamilyVar}), ${EDITOR_FONT_DEFAULTS.fontFamily}}`;
 		}
 		this._styleElement.textContent = newStyle;
-		this._editor.getDomNode()?.style.setProperty(fontFamilyVar, fontFamily ?? 'inherit');
+		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily ?? 'inherit');
+		this._editor.getContainerDomNode().style.setProperty(fontFeaturesVar, editorFontInfo.fontFeatureSettings);
 
 		//
 		this._editor.changeViewZones(accessor => {
@@ -189,7 +191,8 @@ export class CodeLensContribution implements IEditorContribution {
 
 				// render lenses
 				this._renderCodeLensSymbols(result);
-				this._resolveCodeLensesInViewport();
+				// dom.scheduleAtNextAnimationFrame(() => this._resolveCodeLensesInViewport());
+				this._resolveCodeLensesInViewportSoon();
 			}, onUnexpectedError);
 
 		}, this._getCodeLensModelDelays.get(model));
@@ -436,8 +439,8 @@ export class CodeLensContribution implements IEditorContribution {
 		});
 	}
 
-	getLenses(): readonly CodeLensWidget[] {
-		return this._lenses;
+	getModel(): CodeLensModel | undefined {
+		return this._currentCodeLensModel;
 	}
 }
 
@@ -466,19 +469,23 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 
 		const lineNumber = editor.getSelection().positionLineNumber;
 		const codelensController = editor.getContribution<CodeLensContribution>(CodeLensContribution.ID);
-		const items: { label: string, command: Command }[] = [];
+		if (!codelensController) {
+			return;
+		}
 
-		for (let lens of codelensController.getLenses()) {
-			if (lens.getLineNumber() === lineNumber) {
-				for (let item of lens.getItems()) {
-					const { command } = item.symbol;
-					if (command) {
-						items.push({
-							label: command.title,
-							command: command
-						});
-					}
-				}
+		const model = codelensController.getModel();
+		if (!model) {
+			// nothing
+			return;
+		}
+
+		const items: { label: string, command: Command }[] = [];
+		for (const lens of model.lenses) {
+			if (lens.symbol.command && lens.symbol.range.startLineNumber === lineNumber) {
+				items.push({
+					label: lens.symbol.command.title,
+					command: lens.symbol.command
+				});
 			}
 		}
 
@@ -491,6 +498,11 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 		if (!item) {
 			// Nothing picked
 			return;
+		}
+
+		if (model.isDisposed) {
+			// retry whenever the model has been disposed
+			return await commandService.executeCommand(this.id);
 		}
 
 		try {

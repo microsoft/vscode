@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ViewContainerLocation, IViewDescriptorService, ViewContainer, IViewsRegistry, IViewContainersRegistry, IViewDescriptor, Extensions as ViewExtensions, ViewVisibilityState, defaultViewIcon, ViewContainerLocationToString } from 'vs/workbench/common/views';
-import { IContextKey, RawContextKey, IContextKeyService, ContextKeyExpr, ContextKeyEqualsExpr, ContextKeyFalseExpr, ContextKeyOrExpr, ContextKeyTrueExpr, ContextKeyAndExpr, ContextKeyDefinedExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -19,6 +19,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { getViewsStateStorageId, ViewContainerModel } from 'vs/workbench/services/views/common/viewContainerModel';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface ICachedViewContainerInfo {
 	containerId: string;
@@ -94,6 +95,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -116,6 +118,11 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		// Register all containers that were registered before this ctor
 		this.viewContainers.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer));
+
+		// TODO@sbatten remove with setting for side panel/auxiliary bar
+		if (!this.configurationService.getValue<boolean>('workbench.experimental.sidePanel.enabled')) {
+			this.fallbackDisabledAuxiliaryBar();
+		}
 
 		this._register(this.viewsRegistry.onViewsRegistered(views => this.onDidRegisterViews(views)));
 		this._register(this.viewsRegistry.onViewsDeregistered(({ views, viewContainer }) => this.onDidDeregisterViews(views, viewContainer)));
@@ -181,6 +188,35 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			}
 
 			this.removeViews(viewContainer, groupedViews.get(viewContainerId)!.views);
+		}
+	}
+
+	private fallbackDisabledAuxiliaryBar(): void {
+		for (const [containerId, containerLocation] of this.cachedViewContainerInfo.entries()) {
+			if (containerLocation === ViewContainerLocation.AuxiliaryBar) {
+				const container = this.getViewContainerById(containerId);
+				if (!container || this.isGeneratedContainerId(containerId)) {
+					continue;
+				}
+
+				this.moveViewContainerToLocation(container, this.getDefaultViewContainerLocation(container));
+			}
+		}
+
+
+		for (const [viewId, containerInfo] of this.cachedViewInfo.entries()) {
+			const containerId = containerInfo.containerId;
+
+			if (!this.isGeneratedContainerId(containerId) || this.cachedViewContainerInfo.get(containerId) !== ViewContainerLocation.AuxiliaryBar) {
+				continue;
+			}
+
+			// check if view has been registered to default location
+			const viewContainer = this.viewsRegistry.getViewContainer(viewId);
+			const viewDescriptor = this.getViewDescriptorById(viewId);
+			if (viewContainer && viewDescriptor) {
+				this.addViews(viewContainer, [viewDescriptor]);
+			}
 		}
 	}
 
@@ -463,11 +499,11 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const container = this.viewContainersRegistry.registerViewContainer({
 			id,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
-			name: 'Custom Views', // we don't want to see this, so no need to localize
+			title: id, // we don't want to see this so using id
 			icon: location === ViewContainerLocation.Sidebar ? defaultViewIcon : undefined,
 			storageId: getViewContainerStorageId(id),
 			hideIfEmpty: true
-		}, location);
+		}, location, { donotRegisterOpenCommand: true });
 
 		const cachedInfo = this.cachedViewContainerInfo.get(container.id);
 		if (cachedInfo !== location) {
@@ -592,7 +628,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	// Old Format (deprecated)
 	// {Common Prefix}.{Uniqueness Id}.{Source View Id}
 	private generateContainerId(location: ViewContainerLocation): string {
-		return `${ViewDescriptorService.COMMON_CONTAINER_ID_PREFIX}.${location === ViewContainerLocation.Panel ? 'panel' : 'sidebar'}.${generateUuid()}`;
+		return `${ViewDescriptorService.COMMON_CONTAINER_ID_PREFIX}.${ViewContainerLocationToString(location)}.${generateUuid()}`;
 	}
 
 	private getStoredCachedViewPositionsValue(): string {
@@ -759,28 +795,29 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 						super({
 							id: `${viewDescriptor.id}.toggleVisibility`,
 							viewPaneContainerId: viewContainerModel.viewContainer.id,
-							precondition: viewDescriptor.canToggleVisibility && (!viewContainerModel.isVisible(viewDescriptor.id) || viewContainerModel.visibleViewDescriptors.length > 1) ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE,
-							toggled: ContextKeyDefinedExpr.create(`${viewDescriptor.id}.visible`),
+							precondition: viewDescriptor.canToggleVisibility && (!viewContainerModel.isVisible(viewDescriptor.id) || viewContainerModel.visibleViewDescriptors.length > 1) ? ContextKeyExpr.true() : ContextKeyExpr.false(),
+							toggled: ContextKeyExpr.has(`${viewDescriptor.id}.visible`),
 							title: viewDescriptor.name,
 							menu: [{
 								id: ViewsSubMenu,
-								when: ContextKeyAndExpr.create([
-									ContextKeyEqualsExpr.create('viewContainer', viewContainerModel.viewContainer.id),
-									ContextKeyEqualsExpr.create('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
-								]),
+								group: '1_toggleViews',
+								when: ContextKeyExpr.and(
+									ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
+									ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
+								),
 								order: index,
 							}, {
 								id: MenuId.ViewContainerTitleContext,
-								when: ContextKeyAndExpr.create([
-									ContextKeyEqualsExpr.create('viewContainer', viewContainerModel.viewContainer.id),
-								]),
+								when: ContextKeyExpr.and(
+									ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
+								),
 								order: index,
 								group: '1_toggleVisibility'
 							}, {
 								id: MenuId.ViewTitleContext,
-								when: ContextKeyAndExpr.create([
-									viewContainerModel.visibleViewDescriptors.length > 1 ? ContextKeyOrExpr.create(viewContainerModel.visibleViewDescriptors.map(v => ContextKeyEqualsExpr.create('view', v.id))) : ContextKeyFalseExpr.INSTANCE
-								]),
+								when: ContextKeyExpr.and(
+									viewContainerModel.visibleViewDescriptors.length > 1 ? ContextKeyExpr.or(...viewContainerModel.visibleViewDescriptors.map(v => ContextKeyExpr.equals('view', v.id))) : ContextKeyExpr.false()
+								),
 								order: index,
 								group: '2_toggleVisibility'
 							}]
@@ -796,13 +833,13 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 							id: `${viewDescriptor.id}.removeView`,
 							viewPaneContainerId: viewContainerModel.viewContainer.id,
 							title: localize('hideView', "Hide '{0}'", viewDescriptor.name),
-							precondition: viewDescriptor.canToggleVisibility && (!viewContainerModel.isVisible(viewDescriptor.id) || viewContainerModel.visibleViewDescriptors.length > 1) ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE,
+							precondition: viewDescriptor.canToggleVisibility && (!viewContainerModel.isVisible(viewDescriptor.id) || viewContainerModel.visibleViewDescriptors.length > 1) ? ContextKeyExpr.true() : ContextKeyExpr.false(),
 							menu: [{
 								id: MenuId.ViewTitleContext,
-								when: ContextKeyAndExpr.create([
-									ContextKeyEqualsExpr.create('view', viewDescriptor.id),
-									ContextKeyDefinedExpr.create(`${viewDescriptor.id}.visible`),
-								]),
+								when: ContextKeyExpr.and(
+									ContextKeyExpr.equals('view', viewDescriptor.id),
+									ContextKeyExpr.has(`${viewDescriptor.id}.visible`),
+								),
 								group: '1_hide',
 								order: 1
 							}]

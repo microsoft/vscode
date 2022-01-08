@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import * as nls from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class CursorState {
@@ -47,7 +47,7 @@ export class CursorUndoRedoController extends Disposable implements IEditorContr
 
 	public static readonly ID = 'editor.contrib.cursorUndoRedoController';
 
-	public static get(editor: ICodeEditor): CursorUndoRedoController {
+	public static get(editor: ICodeEditor): CursorUndoRedoController | null {
 		return editor.getContribution<CursorUndoRedoController>(CursorUndoRedoController.ID);
 	}
 
@@ -134,14 +134,14 @@ export class CursorUndo extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_U,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyU,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		CursorUndoRedoController.get(editor).cursorUndo();
+		CursorUndoRedoController.get(editor)?.cursorUndo();
 	}
 }
 
@@ -156,7 +156,7 @@ export class CursorRedo extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		CursorUndoRedoController.get(editor).cursorRedo();
+		CursorUndoRedoController.get(editor)?.cursorRedo();
 	}
 }
 

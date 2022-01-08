@@ -6,12 +6,12 @@
 import { Schemas } from 'vs/base/common/network';
 import { DataUri, basenameOrAuthority } from 'vs/base/common/resources';
 import { URI as uri } from 'vs/base/common/uri';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { IModelService } from 'vs/editor/common/services/model';
 import { FileKind } from 'vs/platform/files/common/files';
 
-export function getIconClasses(modelService: IModelService, modeService: IModeService, resource: uri | undefined, fileKind?: FileKind): string[] {
+export function getIconClasses(modelService: IModelService, languageService: ILanguageService, resource: uri | undefined, fileKind?: FileKind): string[] {
 
 	// we always set these base classes even if we do not have a path
 	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
@@ -37,17 +37,22 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 			// Name & Extension(s)
 			if (name) {
 				classes.push(`${name}-name-file-icon`);
-				const dotSegments = name.split('.');
-				for (let i = 1; i < dotSegments.length; i++) {
-					classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+				// Avoid doing an explosive combination of extensions for very long filenames
+				// (most file systems do not allow files > 255 length) with lots of `.` characters
+				// https://github.com/microsoft/vscode/issues/116199
+				if (name.length <= 255) {
+					const dotSegments = name.split('.');
+					for (let i = 1; i < dotSegments.length; i++) {
+						classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+					}
 				}
 				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
 			}
 
 			// Detected Mode
-			const detectedModeId = detectModeId(modelService, modeService, resource);
-			if (detectedModeId) {
-				classes.push(`${cssEscape(detectedModeId)}-lang-file-icon`);
+			const detectedLanguageId = detectLanguageId(modelService, languageService, resource);
+			if (detectedLanguageId) {
+				classes.push(`${cssEscape(detectedLanguageId)}-lang-file-icon`);
 			}
 		}
 	}
@@ -55,16 +60,16 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 }
 
 
-export function getIconClassesForModeId(modeId: string): string[] {
-	return ['file-icon', `${cssEscape(modeId)}-lang-file-icon`];
+export function getIconClassesForLanguageId(languageId: string): string[] {
+	return ['file-icon', `${cssEscape(languageId)}-lang-file-icon`];
 }
 
-export function detectModeId(modelService: IModelService, modeService: IModeService, resource: uri): string | null {
+function detectLanguageId(modelService: IModelService, languageService: ILanguageService, resource: uri): string | null {
 	if (!resource) {
 		return null; // we need a resource at least
 	}
 
-	let modeId: string | null = null;
+	let languageId: string | null = null;
 
 	// Data URI: check for encoded metadata
 	if (resource.scheme === Schemas.data) {
@@ -72,7 +77,7 @@ export function detectModeId(modelService: IModelService, modeService: IModeServ
 		const mime = metadata.get(DataUri.META_DATA_MIME);
 
 		if (mime) {
-			modeId = modeService.getModeId(mime);
+			languageId = languageService.getLanguageIdByMimeType(mime);
 		}
 	}
 
@@ -80,17 +85,17 @@ export function detectModeId(modelService: IModelService, modeService: IModeServ
 	else {
 		const model = modelService.getModel(resource);
 		if (model) {
-			modeId = model.getModeId();
+			languageId = model.getLanguageId();
 		}
 	}
 
-	// only take if the mode is specific (aka no just plain text)
-	if (modeId && modeId !== PLAINTEXT_MODE_ID) {
-		return modeId;
+	// only take if the language id is specific (aka no just plain text)
+	if (languageId && languageId !== PLAINTEXT_LANGUAGE_ID) {
+		return languageId;
 	}
 
 	// otherwise fallback to path based detection
-	return modeService.getModeIdByFilepathOrFirstLine(resource);
+	return languageService.guessLanguageIdByFilepathOrFirstLine(resource);
 }
 
 export function cssEscape(str: string): string {

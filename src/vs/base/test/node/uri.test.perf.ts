@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
 import { readFileSync } from 'fs';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { URI } from 'vs/base/common/uri';
+import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 
 suite('URI - perf', function () {
 

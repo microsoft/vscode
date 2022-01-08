@@ -11,8 +11,21 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 
-export class NativeHostService extends Disposable implements IHostService {
+class WorkbenchNativeHostService extends NativeHostService {
+
+	constructor(
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
+		@IMainProcessService mainProcessService: IMainProcessService
+	) {
+		super(environmentService.configuration.windowId, mainProcessService);
+	}
+}
+
+class WorkbenchHostService extends Disposable implements IHostService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -62,8 +75,15 @@ export class NativeHostService extends Disposable implements IHostService {
 	}
 
 	private doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
-		if (!!this.environmentService.remoteAuthority) {
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		if (!!remoteAuthority) {
 			toOpen.forEach(openable => openable.label = openable.label || this.getRecentLabel(openable));
+
+			if (options?.remoteAuthority === undefined) {
+				// set the remoteAuthority of the window the request came from.
+				// It will be used when the input is neither file nor vscode-remote.
+				options = options ? { ...options, remoteAuthority } : { remoteAuthority };
+			}
 		}
 
 		return this.nativeHostService.openWindow(toOpen, options);
@@ -82,6 +102,11 @@ export class NativeHostService extends Disposable implements IHostService {
 	}
 
 	private doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		if (!!remoteAuthority && options?.remoteAuthority === undefined) {
+			// set the remoteAuthority of the window the request came from
+			options = options ? { ...options, remoteAuthority } : { remoteAuthority };
+		}
 		return this.nativeHostService.openWindow(options);
 	}
 
@@ -113,4 +138,5 @@ export class NativeHostService extends Disposable implements IHostService {
 	//#endregion
 }
 
-registerSingleton(IHostService, NativeHostService, true);
+registerSingleton(IHostService, WorkbenchHostService, true);
+registerSingleton(INativeHostService, WorkbenchNativeHostService, true);

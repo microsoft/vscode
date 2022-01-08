@@ -51,7 +51,7 @@ export class MainThreadFileSystemEventService {
 			changed: [],
 			deleted: []
 		};
-		this._listener.add(fileService.onDidFilesChange(event => {
+		this._listener.add(fileService.onDidChangeFilesRaw(event => {
 			for (let change of event.changes) {
 				switch (change.type) {
 					case FileChangeType.ADDED:
@@ -89,7 +89,7 @@ export class MainThreadFileSystemEventService {
 					delay: Math.min(timeout / 2, 3000)
 				}, () => {
 					// race extension host event delivery against timeout AND user-cancel
-					const onWillEvent = proxy.$onWillRunFileOperation(operation, files, timeout, token);
+					const onWillEvent = proxy.$onWillRunFileOperation(operation, files, timeout, cts.token);
 					return raceCancellation(onWillEvent, cts.token);
 				}, () => {
 					// user-cancel
@@ -100,8 +100,8 @@ export class MainThreadFileSystemEventService {
 					clearTimeout(timer);
 				});
 
-				if (!data) {
-					// cancelled or no reply
+				if (!data || data.edit.edits.length === 0) {
+					// cancelled, no reply, or no edits
 					return;
 				}
 
@@ -129,13 +129,13 @@ export class MainThreadFileSystemEventService {
 						}
 					} else {
 						if (operation === FileOperation.CREATE) {
-							message = localize('ask.N.create', "{0} extensions want to make refactoring changes with this file creation", data.extensionNames.length);
+							message = localize({ key: 'ask.N.create', comment: ['{0} is a number, e.g "3 extensions want..."'] }, "{0} extensions want to make refactoring changes with this file creation", data.extensionNames.length);
 						} else if (operation === FileOperation.COPY) {
-							message = localize('ask.N.copy', "{0} extensions want to make refactoring changes with this file copy", data.extensionNames.length);
+							message = localize({ key: 'ask.N.copy', comment: ['{0} is a number, e.g "3 extensions want..."'] }, "{0} extensions want to make refactoring changes with this file copy", data.extensionNames.length);
 						} else if (operation === FileOperation.MOVE) {
-							message = localize('ask.N.move', "{0} extensions want to make refactoring changes with this file move", data.extensionNames.length);
+							message = localize({ key: 'ask.N.move', comment: ['{0} is a number, e.g "3 extensions want..."'] }, "{0} extensions want to make refactoring changes with this file move", data.extensionNames.length);
 						} else /* if (operation === FileOperation.DELETE) */ {
-							message = localize('ask.N.delete', "{0} extensions want to make refactoring changes with this file deletion", data.extensionNames.length);
+							message = localize({ key: 'ask.N.delete', comment: ['{0} is a number, e.g "3 extensions want..."'] }, "{0} extensions want to make refactoring changes with this file deletion", data.extensionNames.length);
 						}
 					}
 

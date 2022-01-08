@@ -4,29 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
+import { timeout } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { mock } from 'vs/base/test/common/mock';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CompletionProviderRegistry, CompletionItemKind, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
-import { Event } from 'vs/base/common/event';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { IMenuService, IMenu } from 'vs/platform/actions/common/actions';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { Range } from 'vs/editor/common/core/range';
-import { timeout } from 'vs/base/common/async';
-import { NullLogService, ILogService } from 'vs/platform/log/common/log';
+import { Selection } from 'vs/editor/common/core/selection';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { CompletionItemInsertTextRule, CompletionItemKind, CompletionProviderRegistry } from 'vs/editor/common/languages';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
+import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 suite('SuggestController', function () {
 
@@ -36,8 +38,11 @@ suite('SuggestController', function () {
 	let editor: ITestCodeEditor;
 	let model: TextModel;
 
-	setup(function () {
+	teardown(function () {
 		disposables.clear();
+	});
+
+	setup(function () {
 
 		const serviceCollection = new ServiceCollection(
 			[ITelemetryService, NullTelemetryService],
@@ -45,29 +50,28 @@ suite('SuggestController', function () {
 			[IStorageService, new InMemoryStorageService()],
 			[IKeybindingService, new MockKeybindingService()],
 			[IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
-				computeWordRanges() {
+				override computeWordRanges() {
 					return Promise.resolve({});
 				}
 			}],
 			[ISuggestMemoryService, new class extends mock<ISuggestMemoryService>() {
-				memorize(): void { }
-				select(): number { return 0; }
+				override memorize(): void { }
+				override select(): number { return 0; }
 			}],
 			[IMenuService, new class extends mock<IMenuService>() {
-				createMenu() {
+				override createMenu() {
 					return new class extends mock<IMenu>() {
-						onDidChange = Event.None;
-						dispose() { }
+						override onDidChange = Event.None;
+						override dispose() { }
 					};
 				}
-			}]
+			}],
+			[ILabelService, new class extends mock<ILabelService>() { }],
+			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
 		);
 
-		model = createTextModel('', undefined, undefined, URI.from({ scheme: 'test-ctrl', path: '/path.tst' }));
-		editor = createTestCodeEditor({
-			model,
-			serviceCollection,
-		});
+		model = disposables.add(createTextModel('', undefined, undefined, URI.from({ scheme: 'test-ctrl', path: '/path.tst' })));
+		editor = disposables.add(createTestCodeEditor(model, { serviceCollection }));
 
 		editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 		controller = editor.registerAndInstantiateContribution(SuggestController.ID, SuggestController);
@@ -105,7 +109,7 @@ suite('SuggestController', function () {
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
-		assert.equal(editor.getValue(), '    let name = foo');
+		assert.strictEqual(editor.getValue(), '    let name = foo');
 	});
 
 	test('use additionalTextEdits sync when possible', async function () {
@@ -144,7 +148,7 @@ suite('SuggestController', function () {
 		await p2;
 
 		// insertText happens sync!
-		assert.equal(editor.getValue(), 'I came synchello\nhallohello');
+		assert.strictEqual(editor.getValue(), 'I came synchello\nhallohello');
 	});
 
 	test('resolve additionalTextEdits async when needed', async function () {
@@ -187,16 +191,16 @@ suite('SuggestController', function () {
 		await p2;
 
 		// insertText happens sync!
-		assert.equal(editor.getValue(), 'hello\nhallohello');
-		assert.equal(resolveCallCount, 1);
+		assert.strictEqual(editor.getValue(), 'hello\nhallohello');
+		assert.strictEqual(resolveCallCount, 1);
 
 		// additional edits happened after a litte wait
 		await timeout(20);
-		assert.equal(editor.getValue(), 'I came latehello\nhallohello');
+		assert.strictEqual(editor.getValue(), 'I came latehello\nhallohello');
 
 		// single undo stop
 		editor.getModel()?.undo();
-		assert.equal(editor.getValue(), 'hello\nhallo');
+		assert.strictEqual(editor.getValue(), 'hello\nhallo');
 	});
 
 	test('resolve additionalTextEdits async when needed (typing)', async function () {
@@ -239,18 +243,18 @@ suite('SuggestController', function () {
 		await p2;
 
 		// insertText happens sync!
-		assert.equal(editor.getValue(), 'hello\nhallohello');
-		assert.equal(resolveCallCount, 1);
+		assert.strictEqual(editor.getValue(), 'hello\nhallohello');
+		assert.strictEqual(resolveCallCount, 1);
 
 		// additional edits happened after a litte wait
 		assert.ok(editor.getSelection()?.equalsSelection(new Selection(2, 11, 2, 11)));
 		editor.trigger('test', 'type', { text: 'TYPING' });
 
-		assert.equal(editor.getValue(), 'hello\nhallohelloTYPING');
+		assert.strictEqual(editor.getValue(), 'hello\nhallohelloTYPING');
 
 		resolve();
 		await timeout(10);
-		assert.equal(editor.getValue(), 'I came latehello\nhallohelloTYPING');
+		assert.strictEqual(editor.getValue(), 'I came latehello\nhallohelloTYPING');
 		assert.ok(editor.getSelection()?.equalsSelection(new Selection(2, 17, 2, 17)));
 	});
 
@@ -295,12 +299,12 @@ suite('SuggestController', function () {
 		await p2;
 
 		// insertText happens sync!
-		assert.equal(editor.getValue(), 'hello');
-		assert.equal(resolveCallCount, 1);
+		assert.strictEqual(editor.getValue(), 'hello');
+		assert.strictEqual(resolveCallCount, 1);
 
 		resolve();
 		await timeout(10);
-		assert.equal(editor.getValue(), 'hello');
+		assert.strictEqual(editor.getValue(), 'hello');
 	});
 
 	// additional edit come late and are AFTER the position at which the user typed -> cancelled
@@ -344,18 +348,18 @@ suite('SuggestController', function () {
 		await p2;
 
 		// insertText happens sync!
-		assert.equal(editor.getValue(), 'hello\nhallohello');
-		assert.equal(resolveCallCount, 1);
+		assert.strictEqual(editor.getValue(), 'hello\nhallohello');
+		assert.strictEqual(resolveCallCount, 1);
 
 		// additional edits happened after a litte wait
 		editor.setSelection(new Selection(1, 1, 1, 1));
 		editor.trigger('test', 'type', { text: 'TYPING' });
 
-		assert.equal(editor.getValue(), 'TYPINGhello\nhallohello');
+		assert.strictEqual(editor.getValue(), 'TYPINGhello\nhallohello');
 
 		resolve();
 		await timeout(10);
-		assert.equal(editor.getValue(), 'TYPINGhello\nhallohello');
+		assert.strictEqual(editor.getValue(), 'TYPINGhello\nhallohello');
 		assert.ok(editor.getSelection()?.equalsSelection(new Selection(1, 7, 1, 7)));
 	});
 
@@ -402,7 +406,7 @@ suite('SuggestController', function () {
 		await p2;
 
 		// insertText happens sync!
-		assert.equal(editor.getValue(), 'helloabc');
+		assert.strictEqual(editor.getValue(), 'helloabc');
 
 		// next
 		controller.acceptNextSuggestion();
@@ -413,6 +417,6 @@ suite('SuggestController', function () {
 		await timeout(10);
 
 		// next suggestion used
-		assert.equal(editor.getValue(), 'halloabc');
+		assert.strictEqual(editor.getValue(), 'halloabc');
 	});
 });

@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/jeff-hykin/cpp-textmate-grammar/blob/master//syntaxes/objc.tmLanguage.json",
+		"This file has been converted from https://github.com/jeff-hykin/cpp-textmate-grammar/blob/master/syntaxes/objc.tmLanguage.json",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/bc7dedd28eebe52b374744d3fb34d77ff441569e",
+	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/0ef79f098ed80ce5a86be4ed40f99ebcdbac4895",
 	"name": "Objective-C",
 	"scopeName": "source.objc",
 	"patterns": [
@@ -283,10 +283,10 @@
 			"name": "support.constant.cocoa.objc"
 		},
 		{
-			"include": "#c_lang"
+			"include": "#bracketed_content"
 		},
 		{
-			"include": "#bracketed_content"
+			"include": "#c_lang"
 		}
 	],
 	"repository": {
@@ -499,7 +499,11 @@
 					"name": "keyword.other.typedef.objc"
 				},
 				{
-					"match": "\\b(const|extern|register|restrict|static|volatile|inline)\\b",
+					"match": "\\bin\\b",
+					"name": "keyword.other.in.objc"
+				},
+				{
+					"match": "\\b(const|extern|register|restrict|static|volatile|inline|__block)\\b",
 					"name": "storage.modifier.objc"
 				},
 				{
@@ -526,6 +530,9 @@
 				},
 				{
 					"include": "#strings"
+				},
+				{
+					"include": "#special_variables"
 				},
 				{
 					"begin": "(?x)\n^\\s* ((\\#)\\s*define) \\s+\t# define\n((?<id>[a-zA-Z_$][\\w$]*))\t  # macro name\n(?:\n  (\\()\n\t(\n\t  \\s* \\g<id> \\s*\t\t # first argument\n\t  ((,) \\s* \\g<id> \\s*)*  # additional arguments\n\t  (?:\\.\\.\\.)?\t\t\t# varargs ellipsis?\n\t)\n  (\\))\n)?",
@@ -3122,9 +3129,6 @@
 					"include": "#property_directive"
 				},
 				{
-					"include": "#special_variables"
-				},
-				{
 					"include": "#method_super"
 				},
 				{
@@ -3509,7 +3513,7 @@
 					"name": "meta.property-with-attributes.objc",
 					"patterns": [
 						{
-							"match": "\\b(getter|setter|readonly|readwrite|assign|retain|copy|nonatomic|strong|weak)\\b",
+							"match": "\\b(getter|setter|readonly|readwrite|assign|retain|copy|nonatomic|atomic|strong|weak|nonnull|nullable|null_resettable|null_unspecified|class|direct)\\b",
 							"name": "keyword.other.property.attribute.objc"
 						}
 					]
@@ -3559,7 +3563,7 @@
 			]
 		},
 		"protocol_type_qualifier": {
-			"match": "\\b(in|out|inout|oneway|bycopy|byref)\\b",
+			"match": "\\b(in|out|inout|oneway|bycopy|byref|nonnull|nullable|_Nonnull|_Nullable|_Null_unspecified)\\b",
 			"name": "storage.modifier.protocol.objc"
 		},
 		"special_variables": {

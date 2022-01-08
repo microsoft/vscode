@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
-import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { isWindows, OS } from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -28,10 +28,9 @@ import { OpenEditorCommandId } from 'vs/workbench/contrib/searchEditor/browser/c
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
 import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ISearchConfiguration, VIEWLET_ID, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { ISearchConfiguration, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);
@@ -103,7 +102,7 @@ export class FocusNextInputAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<any> {
+	override async run(): Promise<any> {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
@@ -128,7 +127,7 @@ export class FocusPreviousInputAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<any> {
+	override async run(): Promise<any> {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
@@ -150,7 +149,7 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		return openSearchView(this.viewsService, false).then(openedView => {
 			if (openedView) {
 				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
@@ -173,6 +172,7 @@ export interface IFindInFilesArgs {
 	isCaseSensitive?: boolean;
 	matchWholeWord?: boolean;
 	useExcludeSettingsAndIgnoreFiles?: boolean;
+	onlyOpenEditors?: boolean;
 }
 export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFilesArgs = {}) => {
 	const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
@@ -202,40 +202,12 @@ export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFiles
 			isCaseSensitive: args.isCaseSensitive,
 			isRegexp: args.isRegex,
 			useExcludeSettingsAndIgnoreFiles: args.useExcludeSettingsAndIgnoreFiles,
+			onlyOpenEditors: args.onlyOpenEditors,
 			showIncludesExcludes: !!(args.filesToExclude || args.filesToExclude || !args.useExcludeSettingsAndIgnoreFiles),
 		});
 		accessor.get(ICommandService).executeCommand(OpenEditorCommandId, convertArgs(args));
 	}
 };
-
-export class OpenSearchViewletAction extends FindOrReplaceInFilesAction {
-
-	static readonly ID = VIEWLET_ID;
-	static readonly LABEL = nls.localize('showSearch', "Show Search");
-
-	constructor(id: string, label: string,
-		@IViewsService viewsService: IViewsService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService) {
-		super(id, label, viewsService, /*expandSearchReplaceWidget=*/false);
-	}
-
-	run(): Promise<any> {
-
-		// Pass focus to viewlet if not open or focused
-		if (this.otherViewletShowing() || !isSearchViewFocused(this.viewsService)) {
-			return super.run();
-		}
-
-		// Otherwise pass focus to editor group
-		this.editorGroupService.activeGroup.focus();
-
-		return Promise.resolve(true);
-	}
-
-	private otherViewletShowing(): boolean {
-		return !getSearchView(this.viewsService);
-	}
-}
 
 export class ReplaceInFilesAction extends FindOrReplaceInFilesAction {
 
@@ -256,7 +228,7 @@ export class CloseReplaceAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		const searchView = getSearchView(this.viewsService);
 		if (searchView) {
 			searchView.searchAndReplaceWidget.toggleReplace(false);
@@ -283,7 +255,7 @@ export class ToggleSearchOnTypeAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		const searchOnType = this.configurationService.getValue<boolean>(ToggleSearchOnTypeAction.searchOnTypeKey);
 		return this.configurationService.updateValue(ToggleSearchOnTypeAction.searchOnTypeKey, !searchOnType);
 	}
@@ -374,7 +346,7 @@ export class FocusNextSearchResultAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<any> {
+	override async run(): Promise<any> {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
@@ -400,7 +372,7 @@ export class FocusPreviousSearchResultAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<any> {
+	override async run(): Promise<any> {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
@@ -477,12 +449,13 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 
 	constructor(
 		private viewer: WorkbenchObjectTree<RenderableMatch>,
-		private element: RenderableMatch
+		private element: RenderableMatch,
+		@IKeybindingService keyBindingService: IKeybindingService
 	) {
-		super('remove', RemoveAction.LABEL, ThemeIcon.asClassName(searchRemoveIcon));
+		super(Constants.RemoveActionId, appendKeyBindingLabel(RemoveAction.LABEL, keyBindingService.lookupKeybinding(Constants.RemoveActionId), keyBindingService), ThemeIcon.asClassName(searchRemoveIcon));
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		const currentFocusElement = this.viewer.getFocus()[0];
 		const nextFocusElement = !currentFocusElement || currentFocusElement instanceof SearchResult || elementIsEqualOrParent(currentFocusElement, this.element) ?
 			this.getElementToFocusAfterRemoved(this.viewer, this.element) :
@@ -491,6 +464,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		if (nextFocusElement) {
 			this.viewer.reveal(nextFocusElement);
 			this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
+			this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 		}
 
 		this.element.parent().remove(<any>this.element);
@@ -522,12 +496,13 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceAllIcon));
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		const tree = this.viewlet.getControl();
 		const nextFocusElement = this.getElementToFocusAfterRemoved(tree, this.fileMatch);
 		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
 			if (nextFocusElement) {
 				tree.setFocus([nextFocusElement], getSelectionKeyboardEvent());
+				tree.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 			}
 
 			tree.domFocus();
@@ -546,11 +521,12 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceAllIcon));
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		const nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
 		return this.folderMatch.replaceAll().then(() => {
 			if (nextFocusElement) {
 				this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
+				this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 			}
 			this.viewer.domFocus();
 		});
@@ -573,13 +549,14 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceIcon));
 	}
 
-	async run(): Promise<any> {
+	override async run(): Promise<any> {
 		this.enabled = false;
 
 		await this.element.parent().replace(this.element);
 		const elementToFocus = this.getElementToFocusAfterReplace();
 		if (elementToFocus) {
 			this.viewer.setFocus([elementToFocus], getSelectionKeyboardEvent());
+			this.viewer.setSelection([elementToFocus], getSelectionKeyboardEvent());
 		}
 
 		const elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
@@ -690,10 +667,9 @@ function matchToString(match: Match, indent = 0): string {
 }
 
 const lineDelimiter = isWindows ? '\r\n' : '\n';
-function fileMatchToString(fileMatch: FileMatch, maxMatches: number, labelService: ILabelService): { text: string, count: number } {
+function fileMatchToString(fileMatch: FileMatch, labelService: ILabelService): { text: string, count: number } {
 	const matchTextRows = fileMatch.matches()
 		.sort(searchMatchComparer)
-		.slice(0, maxMatches)
 		.map(match => matchToString(match, 2));
 	const uriString = labelService.getUriLabel(fileMatch.resource, { noPrefix: true });
 	return {
@@ -702,17 +678,17 @@ function fileMatchToString(fileMatch: FileMatch, maxMatches: number, labelServic
 	};
 }
 
-function folderMatchToString(folderMatch: FolderMatchWithResource | FolderMatch, maxMatches: number, labelService: ILabelService): { text: string, count: number } {
+function folderMatchToString(folderMatch: FolderMatchWithResource | FolderMatch, labelService: ILabelService): { text: string, count: number } {
 	const fileResults: string[] = [];
 	let numMatches = 0;
 
 	const matches = folderMatch.matches().sort(searchMatchComparer);
 
-	for (let i = 0; i < folderMatch.fileCount() && numMatches < maxMatches; i++) {
-		const fileResult = fileMatchToString(matches[i], maxMatches - numMatches, labelService);
+	matches.forEach(match => {
+		const fileResult = fileMatchToString(match, labelService);
 		numMatches += fileResult.count;
 		fileResults.push(fileResult.text);
-	}
+	});
 
 	return {
 		text: fileResults.join(lineDelimiter + lineDelimiter),
@@ -720,7 +696,6 @@ function folderMatchToString(folderMatch: FolderMatchWithResource | FolderMatch,
 	};
 }
 
-const maxClipboardMatches = 1e4;
 export const copyMatchCommand: ICommandHandler = async (accessor, match: RenderableMatch | undefined) => {
 	if (!match) {
 		const selection = getSelectedRow(accessor);
@@ -738,9 +713,9 @@ export const copyMatchCommand: ICommandHandler = async (accessor, match: Rendera
 	if (match instanceof Match) {
 		text = matchToString(match);
 	} else if (match instanceof FileMatch) {
-		text = fileMatchToString(match, maxClipboardMatches, labelService).text;
+		text = fileMatchToString(match, labelService).text;
 	} else if (match instanceof FolderMatch) {
-		text = folderMatchToString(match, maxClipboardMatches, labelService).text;
+		text = folderMatchToString(match, labelService).text;
 	}
 
 	if (text) {
@@ -748,14 +723,12 @@ export const copyMatchCommand: ICommandHandler = async (accessor, match: Rendera
 	}
 };
 
-function allFolderMatchesToString(folderMatches: Array<FolderMatchWithResource | FolderMatch>, maxMatches: number, labelService: ILabelService): string {
+function allFolderMatchesToString(folderMatches: Array<FolderMatchWithResource | FolderMatch>, labelService: ILabelService): string {
 	const folderResults: string[] = [];
-	let numMatches = 0;
 	folderMatches = folderMatches.sort(searchMatchComparer);
-	for (let i = 0; i < folderMatches.length && numMatches < maxMatches; i++) {
-		const folderResult = folderMatchToString(folderMatches[i], maxMatches - numMatches, labelService);
+	for (let i = 0; i < folderMatches.length; i++) {
+		const folderResult = folderMatchToString(folderMatches[i], labelService);
 		if (folderResult.count) {
-			numMatches += folderResult.count;
 			folderResults.push(folderResult.text);
 		}
 	}
@@ -778,7 +751,7 @@ export const copyAllCommand: ICommandHandler = async (accessor) => {
 	if (searchView) {
 		const root = searchView.searchResult;
 
-		const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches, labelService);
+		const text = allFolderMatchesToString(root.folderMatches(), labelService);
 		await clipboardService.writeText(text);
 	}
 };

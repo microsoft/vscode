@@ -45,8 +45,8 @@ export class GotoLineAction extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G },
+				primary: KeyMod.CtrlCmd | KeyCode.KeyG,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyG },
 				weight: KeybindingWeight.EditorContrib
 			}
 		});

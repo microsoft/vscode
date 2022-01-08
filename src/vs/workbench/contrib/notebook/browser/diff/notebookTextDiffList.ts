@@ -24,21 +24,24 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
+import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<DiffElementViewModelBase> {
-	// private readonly lineHeight: number;
+	private readonly lineHeight: number;
 
 	constructor(
 		@IConfigurationService readonly configurationService: IConfigurationService
 	) {
-		// const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		// this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
+		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
+		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()).lineHeight;
 	}
 
 	getHeight(element: DiffElementViewModelBase): number {
-		return 100;
+		return element.getHeight(this.lineHeight);
 	}
 
 	hasDynamicHeight(element: DiffElementViewModelBase): boolean {
@@ -183,7 +186,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		const toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextKeyService);
 					return item;
 				}
 
@@ -229,6 +232,10 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 
 		const editor = this.instantiationService.createInstance(DiffEditorWidget, editorContainer, {
 			...fixedDiffEditorOptions,
+			padding: {
+				top: 24,
+				bottom: 12
+			},
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 			originalEditable: false,
 			ignoreTrimWhitespace: false,
@@ -321,7 +328,7 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		this.view.updateElementHeight(viewIndex, size, focused.length ? focused[0] : null);
 	}
 
-	style(styles: IListStyles) {
+	override style(styles: IListStyles) {
 		const selectorSuffix = this.view.domId;
 		if (!this.styleElement) {
 			this.styleElement = DOM.createStyleSheet(this.view.domNode);

@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
+import { ActionBar, ActionsOrientation, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
+import { Action, IAction, IActionRunner, SubmenuAction } from 'vs/base/common/actions';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { EventMultiplexer } from 'vs/base/common/event';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./toolbar';
 import * as nls from 'vs/nls';
-import { Action, IActionRunner, IAction, IActionViewItemProvider, SubmenuAction } from 'vs/base/common/actions';
-import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { Codicon, CSSIcon, registerCodicon } from 'vs/base/common/codicons';
-import { EventMultiplexer } from 'vs/base/common/event';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 
-const toolBarMoreIcon = registerCodicon('toolbar-more', Codicon.more);
+
 
 export interface IToolBarOptions {
 	orientation?: ActionsOrientation;
@@ -73,7 +73,7 @@ export class ToolBar extends Disposable {
 							actionViewItemProvider: this.options.actionViewItemProvider,
 							actionRunner: this.actionRunner,
 							keybindingProvider: this.options.getKeyBinding,
-							classNames: CSSIcon.asClassNameArray(options.moreIcon ?? toolBarMoreIcon),
+							classNames: CSSIcon.asClassNameArray(options.moreIcon ?? Codicon.toolBarMore),
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
 							menuAsChild: !!this.options.renderDropdownAsChildElement
 						}
@@ -103,7 +103,7 @@ export class ToolBar extends Disposable {
 							keybindingProvider: this.options.getKeyBinding,
 							classNames: action.class,
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
-							menuAsChild: true
+							menuAsChild: !!this.options.renderDropdownAsChildElement
 						}
 					);
 					result.setActionContext(this.actionBar.context);
@@ -148,6 +148,18 @@ export class ToolBar extends Disposable {
 		return itemsWidth;
 	}
 
+	getItemAction(index: number) {
+		return this.actionBar.getAction(index);
+	}
+
+	getItemWidth(index: number): number {
+		return this.actionBar.getWidth(index);
+	}
+
+	getItemsLength(): number {
+		return this.actionBar.length();
+	}
+
 	setAriaLabel(label: string): void {
 		this.actionBar.setAriaLabel(label);
 	}
@@ -181,13 +193,13 @@ export class ToolBar extends Disposable {
 		this.actionBar.clear();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.clear();
 		super.dispose();
 	}
 }
 
-class ToggleMenuAction extends Action {
+export class ToggleMenuAction extends Action {
 
 	static readonly ID = 'toolbar.toggle.more';
 
@@ -202,7 +214,7 @@ class ToggleMenuAction extends Action {
 		this.toggleDropdownMenu = toggleDropdownMenu;
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.toggleDropdownMenu();
 	}
 

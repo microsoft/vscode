@@ -7,7 +7,7 @@ import 'vs/css!./viewLines';
 import * as platform from 'vs/base/common/platform';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { IVisibleLinesHost, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { DomReadingContext, ViewLine, ViewLineOptions } from 'vs/editor/browser/viewParts/lines/viewLine';
@@ -15,7 +15,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IViewLines, LineVisibleRanges, VisibleRanges, HorizontalPosition } from 'vs/editor/common/view/renderingContext';
+import { IViewLines, LineVisibleRanges, VisibleRanges, HorizontalPosition, HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
@@ -136,7 +136,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
 		this.domNode.setClassName(`view-lines ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-		Configuration.applyFontInfo(this.domNode, fontInfo);
+		applyFontInfo(this.domNode, fontInfo);
 
 		// --- width & height
 		this._maxLineWidth = 0;
@@ -152,7 +152,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._horizontalRevealRequest = null;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._asyncUpdateLineWidths.dispose();
 		this._asyncCheckMonospaceFontAssumptions.dispose();
 		super.dispose();
@@ -172,7 +172,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 	// ---- begin view event handlers
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this._visibleLines.onConfigurationChanged(e);
 		if (e.hasChanged(EditorOption.wrappingInfo)) {
 			this._maxLineWidth = 0;
@@ -189,7 +189,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._cursorSurroundingLines = options.get(EditorOption.cursorSurroundingLines);
 		this._cursorSurroundingLinesStyle = options.get(EditorOption.cursorSurroundingLinesStyle);
 		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
-		Configuration.applyFontInfo(this.domNode, fontInfo);
+		applyFontInfo(this.domNode, fontInfo);
 
 		this._onOptionsMaybeChanged();
 
@@ -217,7 +217,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		return false;
 	}
-	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
 		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
 		let r = false;
@@ -226,7 +226,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		}
 		return r;
 	}
-	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		if (true/*e.inlineDecorationsChanged*/) {
 			const rendStartLineNumber = this._visibleLines.getStartLineNumber();
 			const rendEndLineNumber = this._visibleLines.getEndLineNumber();
@@ -236,21 +236,21 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		}
 		return true;
 	}
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		const shouldRender = this._visibleLines.onFlushed(e);
 		this._maxLineWidth = 0;
 		return shouldRender;
 	}
-	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return this._visibleLines.onLinesChanged(e);
 	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return this._visibleLines.onLinesDeleted(e);
 	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return this._visibleLines.onLinesInserted(e);
 	}
-	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
+	public override onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
 		// Using the future viewport here in order to handle multiple
 		// incoming reveal range requests that might all desire to be animated
 		const desiredScrollTop = this._computeScrollTopToRevealRange(this._context.viewLayout.getFutureViewport(), e.source, e.range, e.selections, e.verticalType);
@@ -286,7 +286,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		return true;
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		if (this._horizontalRevealRequest && e.scrollLeftChanged) {
 			// cancel any outstanding horizontal reveal request if someone else scrolls horizontally.
 			this._horizontalRevealRequest = null;
@@ -303,14 +303,14 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		return this._visibleLines.onScrollChanged(e) || true;
 	}
 
-	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+	public override onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		return this._visibleLines.onTokensChanged(e);
 	}
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		this._context.model.setMaxLineWidth(this._maxLineWidth);
 		return this._visibleLines.onZonesChanged(e);
 	}
-	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		return this._onOptionsMaybeChanged();
 	}
 
@@ -423,7 +423,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 			const startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
 			const endColumn = lineNumber === range.endLineNumber ? range.endColumn : this._context.model.getLineMaxColumn(lineNumber);
-			const visibleRangesForLine = this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(startColumn, endColumn, domReadingContext);
+			const visibleRangesForLine = this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(lineNumber, startColumn, endColumn, domReadingContext);
 
 			if (!visibleRangesForLine) {
 				continue;
@@ -438,7 +438,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 				}
 			}
 
-			visibleRanges[visibleRangesLen++] = new LineVisibleRanges(visibleRangesForLine.outsideRenderedLine, lineNumber, visibleRangesForLine.ranges);
+			visibleRanges[visibleRangesLen++] = new LineVisibleRanges(visibleRangesForLine.outsideRenderedLine, lineNumber, HorizontalRange.from(visibleRangesForLine.ranges));
 		}
 
 		if (visibleRangesLen === 0) {
@@ -459,7 +459,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			return null;
 		}
 
-		return this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(startColumn, endColumn, new DomReadingContext(this.domNode.domNode, this._textRangeRestingSpot));
+		return this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(lineNumber, startColumn, endColumn, new DomReadingContext(this.domNode.domNode, this._textRangeRestingSpot));
 	}
 
 	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
@@ -723,8 +723,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 				return null;
 			}
 			for (const visibleRange of visibleRanges.ranges) {
-				boxStartX = Math.min(boxStartX, visibleRange.left);
-				boxEndX = Math.max(boxEndX, visibleRange.left + visibleRange.width);
+				boxStartX = Math.min(boxStartX, Math.round(visibleRange.left));
+				boxEndX = Math.max(boxEndX, Math.round(visibleRange.left + visibleRange.width));
 			}
 		} else {
 			for (const selection of horizontalRevealRequest.selections) {
@@ -736,8 +736,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 					return null;
 				}
 				for (const visibleRange of visibleRanges.ranges) {
-					boxStartX = Math.min(boxStartX, visibleRange.left);
-					boxEndX = Math.max(boxEndX, visibleRange.left + visibleRange.width);
+					boxStartX = Math.min(boxStartX, Math.round(visibleRange.left));
+					boxEndX = Math.max(boxEndX, Math.round(visibleRange.left + visibleRange.width));
 				}
 			}
 		}

@@ -7,18 +7,18 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands } from 'vscode';
 import * as nls from 'vscode-nls';
-import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery } from './api/git';
+import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
 import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, logTimestamp, onceEvent } from './util';
 import { IFileWatcher, watch } from './watch';
 import { Log, LogLevel } from './log';
-import { IRemoteSourceProviderRegistry } from './remoteProvider';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
+import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -55,13 +55,13 @@ export class Resource implements SourceControlResourceState {
 			case Status.UNTRACKED: return localize('untracked', "Untracked");
 			case Status.IGNORED: return localize('ignored', "Ignored");
 			case Status.INTENT_TO_ADD: return localize('intent to add', "Intent to Add");
-			case Status.BOTH_DELETED: return localize('both deleted', "Both Deleted");
-			case Status.ADDED_BY_US: return localize('added by us', "Added By Us");
-			case Status.DELETED_BY_THEM: return localize('deleted by them', "Deleted By Them");
-			case Status.ADDED_BY_THEM: return localize('added by them', "Added By Them");
-			case Status.DELETED_BY_US: return localize('deleted by us', "Deleted By Us");
-			case Status.BOTH_ADDED: return localize('both added', "Both Added");
-			case Status.BOTH_MODIFIED: return localize('both modified', "Both Modified");
+			case Status.BOTH_DELETED: return localize('both deleted', "Conflict: Both Deleted");
+			case Status.ADDED_BY_US: return localize('added by us', "Conflict: Added By Us");
+			case Status.DELETED_BY_THEM: return localize('deleted by them', "Conflict: Deleted By Them");
+			case Status.ADDED_BY_THEM: return localize('added by them', "Conflict: Added By Them");
+			case Status.DELETED_BY_US: return localize('deleted by us', "Conflict: Deleted By Us");
+			case Status.BOTH_ADDED: return localize('both added', "Conflict: Both Added");
+			case Status.BOTH_MODIFIED: return localize('both modified', "Conflict: Both Modified");
 			default: return '';
 		}
 	}
@@ -199,12 +199,13 @@ export class Resource implements SourceControlResourceState {
 			case Status.DELETED_BY_US:
 				return 'D';
 			case Status.INDEX_COPIED:
+				return 'C';
 			case Status.BOTH_DELETED:
 			case Status.ADDED_BY_US:
 			case Status.ADDED_BY_THEM:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
-				return 'C';
+				return '!'; // Using ! instead of ⚠, because the latter looks really bad on windows
 			default:
 				throw new Error('Unknown git status: ' + this.type);
 		}
@@ -223,12 +224,13 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_ADDED:
 			case Status.INTENT_TO_ADD:
 				return new ThemeColor('gitDecoration.addedResourceForeground');
+			case Status.INDEX_COPIED:
 			case Status.INDEX_RENAMED:
+				return new ThemeColor('gitDecoration.renamedResourceForeground');
 			case Status.UNTRACKED:
 				return new ThemeColor('gitDecoration.untrackedResourceForeground');
 			case Status.IGNORED:
 				return new ThemeColor('gitDecoration.ignoredResourceForeground');
-			case Status.INDEX_COPIED:
 			case Status.BOTH_DELETED:
 			case Status.ADDED_BY_US:
 			case Status.DELETED_BY_THEM:
@@ -246,10 +248,10 @@ export class Resource implements SourceControlResourceState {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.MODIFIED:
+			case Status.INDEX_COPIED:
 				return 2;
 			case Status.IGNORED:
 				return 3;
-			case Status.INDEX_COPIED:
 			case Status.BOTH_DELETED:
 			case Status.ADDED_BY_US:
 			case Status.DELETED_BY_THEM:
@@ -514,8 +516,8 @@ class FileEventLogger {
 		}
 
 		this.eventDisposable = combinedDisposable([
-			this.onWorkspaceWorkingTreeFileChange(uri => this.outputChannel.appendLine(`[debug] [wt] Change: ${uri.fsPath}`)),
-			this.onDotGitFileChange(uri => this.outputChannel.appendLine(`[debug] [.git] Change: ${uri.fsPath}`))
+			this.onWorkspaceWorkingTreeFileChange(uri => this.outputChannel.appendLine(`${logTimestamp()} [debug] [wt] Change: ${uri.fsPath}`)),
+			this.onDotGitFileChange(uri => this.outputChannel.appendLine(`${logTimestamp()} [debug] [.git] Change: ${uri.fsPath}`))
 		]);
 	}
 
@@ -565,7 +567,7 @@ class DotGitWatcher implements IFileWatcher {
 			upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
 		} catch (err) {
 			if (Log.logLevel <= LogLevel.Error) {
-				this.outputChannel.appendLine(`Warning: Failed to watch ref '${upstreamPath}', is most likely packed.`);
+				this.outputChannel.appendLine(`${logTimestamp()} Warning: Failed to watch ref '${upstreamPath}', is most likely packed.`);
 			}
 		}
 	}
@@ -662,7 +664,7 @@ class ResourceCommandResolver {
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
 			case Status.IGNORED:
-			case Status.INTENT_TO_ADD:
+			case Status.INTENT_TO_ADD: {
 				const uriString = resource.resourceUri.toString();
 				const [indexStatus] = this.repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 
@@ -671,7 +673,7 @@ class ResourceCommandResolver {
 				}
 
 				return resource.resourceUri;
-
+			}
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return resource.resourceUri;
@@ -840,7 +842,7 @@ export class Repository implements Disposable {
 		return this.repository.dotGit;
 	}
 
-	private isRepositoryHuge = false;
+	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
 	private resourceCommandResolver = new ResourceCommandResolver(this);
@@ -848,8 +850,8 @@ export class Repository implements Disposable {
 
 	constructor(
 		private readonly repository: BaseRepository,
-		remoteSourceProviderRegistry: IRemoteSourceProviderRegistry,
 		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
+		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		globalState: Memento,
 		outputChannel: OutputChannel
 	) {
@@ -868,7 +870,7 @@ export class Repository implements Disposable {
 			this.disposables.push(dotGitFileWatcher);
 		} catch (err) {
 			if (Log.logLevel <= LogLevel.Error) {
-				outputChannel.appendLine(`Failed to watch '${this.dotGit}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
+				outputChannel.appendLine(`${logTimestamp()} Failed to watch '${this.dotGit}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
 			}
 
 			onDotGitFileChange = filterEvent(onWorkspaceRepositoryFileChange, uri => /\/\.git($|\/)/.test(uri.path));
@@ -915,6 +917,8 @@ export class Repository implements Disposable {
 			|| e.affectsConfiguration('git.untrackedChanges', root)
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
+			|| e.affectsConfiguration('git.rebaseWhenSync', root)
+			|| e.affectsConfiguration('git.showUnpublishedCommitsButton', root)
 		)(this.updateModelState, this, this.disposables);
 
 		const updateInputBoxVisibility = () => {
@@ -934,7 +938,16 @@ export class Repository implements Disposable {
 		this.disposables.push(this.workingTreeGroup);
 		this.disposables.push(this.untrackedGroup);
 
-		this.disposables.push(new AutoFetcher(this, globalState));
+		// Don't allow auto-fetch in untrusted workspaces
+		if (workspace.isTrusted) {
+			this.disposables.push(new AutoFetcher(this, globalState));
+		} else {
+			const trustDisposable = workspace.onDidGrantWorkspaceTrust(() => {
+				trustDisposable.dispose();
+				this.disposables.push(new AutoFetcher(this, globalState));
+			});
+			this.disposables.push(trustDisposable);
+		}
 
 		// https://github.com/microsoft/vscode/issues/39039
 		const onSuccessfulPush = filterEvent(this.onDidRunOperation, e => e.operation === Operation.Push && !e.error);
@@ -946,7 +959,7 @@ export class Repository implements Disposable {
 			}
 		}, null, this.disposables);
 
-		const statusBar = new StatusBarCommands(this, remoteSourceProviderRegistry);
+		const statusBar = new StatusBarCommands(this, remoteSourcePublisherRegistry);
 		this.disposables.push(statusBar);
 		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
 		this._sourceControl.statusBarCommands = statusBar.commands;
@@ -960,6 +973,14 @@ export class Repository implements Disposable {
 	}
 
 	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {
+		let tooManyChangesWarning: SourceControlInputBoxValidation | undefined;
+		if (this.isRepositoryHuge) {
+			tooManyChangesWarning = {
+				message: localize('tooManyChangesWarning', "Too many changes were detected. Only the first {0} changes will be shown below.", this.isRepositoryHuge.limit),
+				type: SourceControlInputBoxValidationType.Warning
+			};
+		}
+
 		if (this.rebaseCommit) {
 			if (this.rebaseCommit.message !== text) {
 				return {
@@ -973,7 +994,7 @@ export class Repository implements Disposable {
 		const setting = config.get<'always' | 'warn' | 'off'>('inputValidation');
 
 		if (setting === 'off') {
-			return;
+			return tooManyChangesWarning;
 		}
 
 		if (/^\s+$/.test(text)) {
@@ -1009,7 +1030,7 @@ export class Repository implements Disposable {
 
 		if (line.length <= threshold) {
 			if (setting !== 'always') {
-				return;
+				return tooManyChangesWarning;
 			}
 
 			return {
@@ -1317,8 +1338,8 @@ export class Repository implements Disposable {
 		await this._fetch({ all: true });
 	}
 
-	async fetch(remote?: string, ref?: string, depth?: number): Promise<void> {
-		await this._fetch({ remote, ref, depth });
+	async fetch(options: FetchOptions): Promise<void> {
+		await this._fetch(options);
 	}
 
 	private async _fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean; } = {}): Promise<void> {
@@ -1482,7 +1503,7 @@ export class Repository implements Disposable {
 
 		const maybeRebased = await this.run(Operation.Log, async () => {
 			try {
-				const result = await this.repository.run(['log', '--oneline', '--cherry', `${currentBranch ?? ''}...${currentBranch ?? ''}@{upstream}`, '--']);
+				const result = await this.repository.exec(['log', '--oneline', '--cherry', `${currentBranch ?? ''}...${currentBranch ?? ''}@{upstream}`, '--']);
 				if (result.exitCode) {
 					return false;
 				}
@@ -1779,12 +1800,16 @@ export class Repository implements Disposable {
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
 
-		const { status, didHitLimit } = await this.repository.getStatus({ ignoreSubmodules });
+		const limit = scopedConfig.get<number>('statusLimit', 5000);
+
+		const { status, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules });
 
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
 		const useIcons = !config.get<boolean>('decorations.enabled', true);
-		this.isRepositoryHuge = didHitLimit;
+		this.isRepositoryHuge = didHitLimit ? { limit } : false;
+		// Triggers or clears any validation warning
+		this._sourceControl.inputBox.validateInput = this._sourceControl.inputBox.validateInput;
 
 		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
 			const knownHugeFolderPaths = await this.findKnownHugeFolderPathsToIgnore();
@@ -1797,18 +1822,21 @@ export class Repository implements Disposable {
 
 				const addKnown = localize('add known', "Would you like to add '{0}' to .gitignore?", folderName);
 				const yes = { title: localize('yes', "Yes") };
+				const no = { title: localize('no', "No") };
 
-				const result = await window.showWarningMessage(`${gitWarn} ${addKnown}`, yes, neverAgain);
-
-				if (result === neverAgain) {
-					config.update('ignoreLimitWarning', true, false);
-					this.didWarnAboutLimit = true;
-				} else if (result === yes) {
+				const result = await window.showWarningMessage(`${gitWarn} ${addKnown}`, yes, no, neverAgain);
+				if (result === yes) {
 					this.ignore([Uri.file(folderPath)]);
+				} else {
+					if (result === neverAgain) {
+						config.update('ignoreLimitWarning', true, false);
+					}
+
+					this.didWarnAboutLimit = true;
 				}
 			} else {
-				const result = await window.showWarningMessage(gitWarn, neverAgain);
-
+				const ok = { title: localize('ok', "OK") };
+				const result = await window.showWarningMessage(gitWarn, ok, neverAgain);
 				if (result === neverAgain) {
 					config.update('ignoreLimitWarning', true, false);
 				}
@@ -1833,7 +1861,10 @@ export class Repository implements Disposable {
 			// noop
 		}
 
-		const sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
+		let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
+		if (sort !== 'alphabetically' && sort !== 'committerdate') {
+			sort = 'alphabetically';
+		}
 		const [refs, remotes, submodules, rebaseCommit] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit()]);
 
 		this._HEAD = HEAD;
@@ -1890,6 +1921,38 @@ export class Repository implements Disposable {
 
 			return undefined;
 		});
+
+		let actionButton: SourceControl['actionButton'];
+		if (HEAD !== undefined) {
+			const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+			const showActionButton = config.get<string>('showUnpublishedCommitsButton', 'whenEmpty');
+			const postCommitCommand = config.get<string>('postCommitCommand');
+
+			if (showActionButton === 'always' || (showActionButton === 'whenEmpty' && workingTree.length === 0 && index.length === 0 && untracked.length === 0 && merge.length === 0 && postCommitCommand !== 'sync' && postCommitCommand !== 'push')) {
+				if (HEAD.name && HEAD.commit) {
+					if (HEAD.upstream) {
+						if (HEAD.ahead) {
+							const rebaseWhenSync = config.get<string>('rebaseWhenSync');
+
+							actionButton = {
+								command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
+								title: localize('scm button sync title', '$(sync) Sync Changes {0}{1}', HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
+								tooltip: this.syncTooltip,
+								arguments: [this._sourceControl],
+							};
+						}
+					} else {
+						actionButton = {
+							command: 'git.publish',
+							title: localize('scm button publish title', "$(cloud-upload) Publish Branch"),
+							tooltip: localize('scm button publish tooltip', "Publish Branch"),
+							arguments: [this._sourceControl],
+						};
+					}
+				}
+			}
+		}
+		this._sourceControl.actionButton = actionButton;
 
 		// set resource groups
 		this.mergeGroup.resourceStates = merge;

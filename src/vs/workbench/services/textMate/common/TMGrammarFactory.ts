@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { LanguageId } from 'vs/editor/common/modes';
 import type { IGrammar, Registry, StackElement, IRawTheme, IOnigLib } from 'vscode-textmate';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TMScopeRegistry, IValidGrammarDefinition, IValidEmbeddedLanguagesMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
@@ -17,7 +16,7 @@ interface ITMGrammarFactoryHost {
 }
 
 export interface ICreateGrammarResult {
-	languageId: LanguageId;
+	languageId: string;
 	grammar: IGrammar | null;
 	initialState: StackElement;
 	containsEmbeddedLanguages: boolean;
@@ -30,7 +29,7 @@ export class TMGrammarFactory extends Disposable {
 	private readonly _scopeRegistry: TMScopeRegistry;
 	private readonly _injections: { [scopeName: string]: string[]; };
 	private readonly _injectedEmbeddedLanguages: { [scopeName: string]: IValidEmbeddedLanguagesMap[]; };
-	private readonly _languageToScope2: string[];
+	private readonly _languageToScope: Map<string, string>;
 	private readonly _grammarRegistry: Registry;
 
 	constructor(host: ITMGrammarFactoryHost, grammarDefinitions: IValidGrammarDefinition[], vscodeTextmate: typeof import('vscode-textmate'), onigLib: Promise<IOnigLib>) {
@@ -40,7 +39,7 @@ export class TMGrammarFactory extends Disposable {
 		this._scopeRegistry = this._register(new TMScopeRegistry());
 		this._injections = {};
 		this._injectedEmbeddedLanguages = {};
-		this._languageToScope2 = [];
+		this._languageToScope = new Map<string, string>();
 		this._grammarRegistry = this._register(new vscodeTextmate.Registry({
 			onigLib: onigLib,
 			loadGrammar: async (scopeName: string) => {
@@ -93,13 +92,13 @@ export class TMGrammarFactory extends Disposable {
 			}
 
 			if (validGrammar.language) {
-				this._languageToScope2[validGrammar.language] = validGrammar.scopeName;
+				this._languageToScope.set(validGrammar.language, validGrammar.scopeName);
 			}
 		}
 	}
 
-	public has(languageId: LanguageId): boolean {
-		return this._languageToScope2[languageId] ? true : false;
+	public has(languageId: string): boolean {
+		return this._languageToScope.has(languageId);
 	}
 
 	public setTheme(theme: IRawTheme, colorMap: string[]): void {
@@ -110,8 +109,8 @@ export class TMGrammarFactory extends Disposable {
 		return this._grammarRegistry.getColorMap();
 	}
 
-	public async createGrammar(languageId: LanguageId): Promise<ICreateGrammarResult> {
-		const scopeName = this._languageToScope2[languageId];
+	public async createGrammar(languageId: string, encodedLanguageId: number): Promise<ICreateGrammarResult> {
+		const scopeName = this._languageToScope.get(languageId);
 		if (typeof scopeName !== 'string') {
 			// No TM grammar defined
 			return Promise.reject(new Error(nls.localize('no-tm-grammar', "No TM Grammar registered for this language.")));
@@ -135,7 +134,7 @@ export class TMGrammarFactory extends Disposable {
 
 		const containsEmbeddedLanguages = (Object.keys(embeddedLanguages).length > 0);
 
-		const grammar = await this._grammarRegistry.loadGrammarWithConfiguration(scopeName, languageId, { embeddedLanguages, tokenTypes: <any>grammarDefinition.tokenTypes });
+		const grammar = await this._grammarRegistry.loadGrammarWithConfiguration(scopeName, encodedLanguageId, { embeddedLanguages, tokenTypes: <any>grammarDefinition.tokenTypes });
 
 		return {
 			languageId: languageId,

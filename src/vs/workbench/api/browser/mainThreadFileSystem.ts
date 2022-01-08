@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability } from 'vs/platform/files/common/files';
+import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -27,10 +27,10 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		const infoProxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemInfo);
 
 		for (let entry of _fileService.listCapabilities()) {
-			infoProxy.$acceptProviderInfos(entry.scheme, entry.capabilities);
+			infoProxy.$acceptProviderInfos(URI.from({ scheme: entry.scheme, path: '/dummy' }), entry.capabilities);
 		}
-		this._disposables.add(_fileService.onDidChangeFileSystemProviderRegistrations(e => infoProxy.$acceptProviderInfos(e.scheme, e.provider?.capabilities ?? null)));
-		this._disposables.add(_fileService.onDidChangeFileSystemProviderCapabilities(e => infoProxy.$acceptProviderInfos(e.scheme, e.provider.capabilities)));
+		this._disposables.add(_fileService.onDidChangeFileSystemProviderRegistrations(e => infoProxy.$acceptProviderInfos(URI.from({ scheme: e.scheme, path: '/dummy' }), e.provider?.capabilities ?? null)));
+		this._disposables.add(_fileService.onDidChangeFileSystemProviderCapabilities(e => infoProxy.$acceptProviderInfos(URI.from({ scheme: e.scheme, path: '/dummy' }), e.provider.capabilities)));
 	}
 
 	dispose(): void {
@@ -65,6 +65,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 				ctime: stat.ctime,
 				mtime: stat.mtime,
 				size: stat.size,
+				permissions: stat.readonly ? FilePermission.Readonly : undefined,
 				type: MainThreadFileSystem._asFileType(stat)
 			};
 		}).catch(MainThreadFileSystem._handleError);
@@ -139,9 +140,18 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 					err.name = FileSystemProviderErrorCode.FileExists;
 					break;
 			}
+		} else if (err instanceof Error) {
+			const code = toFileSystemProviderErrorCode(err);
+			if (code !== FileSystemProviderErrorCode.Unknown) {
+				err.name = code;
+			}
 		}
 
 		throw err;
+	}
+
+	$ensureActivation(scheme: string): Promise<void> {
+		return this._fileService.activateProvider(scheme);
 	}
 }
 

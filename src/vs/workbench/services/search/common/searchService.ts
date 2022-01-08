@@ -11,22 +11,23 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI as uri } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { URI, URI as uri } from 'vs/base/common/uri';
+import { IModelService } from 'vs/editor/common/services/model';
 import { IFileService } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { isNumber } from 'vs/base/common/types';
 
 export class SearchService extends Disposable implements ISearchService {
 
 	declare readonly _serviceBrand: undefined;
 
-	protected diskSearch: ISearchResultProvider | null = null;
 	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();
 	private readonly textSearchProviders = new Map<string, ISearchResultProvider>();
 
@@ -34,12 +35,13 @@ export class SearchService extends Disposable implements ISearchService {
 	private deferredTextSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
 
 	constructor(
-		private readonly modelService: IModelService,
-		private readonly editorService: IEditorService,
-		private readonly telemetryService: ITelemetryService,
-		private readonly logService: ILogService,
-		private readonly extensionService: IExtensionService,
-		private readonly fileService: IFileService
+		@IModelService private readonly modelService: IModelService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IFileService private readonly fileService: IFileService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 	}
@@ -143,13 +145,15 @@ export class SearchService extends Disposable implements ISearchService {
 			if (!completes.length) {
 				return {
 					limitHit: false,
-					results: []
+					results: [],
+					messages: [],
 				};
 			}
 
-			return <ISearchComplete>{
+			return {
 				limitHit: completes[0] && completes[0].limitHit,
 				stats: completes[0].stats,
+				messages: arrays.coalesce(arrays.flatten(completes.map(i => i.messages))).filter(arrays.uniqueFilter(message => message.type + message.text + message.trusted)),
 				results: arrays.flatten(completes.map((c: ISearchComplete) => c.results))
 			};
 		})();
@@ -195,7 +199,6 @@ export class SearchService extends Disposable implements ISearchService {
 	private async searchWithProviders(query: ISearchQuery, onProviderProgress: (progress: ISearchProgressItem) => void, token?: CancellationToken) {
 		const e2eSW = StopWatch.create(false);
 
-		const diskSearchQueries: IFolderQuery[] = [];
 		const searchPs: Promise<ISearchComplete>[] = [];
 
 		const fqs = this.groupFolderQueriesByScheme(query);
@@ -205,50 +208,22 @@ export class SearchService extends Disposable implements ISearchService {
 				this.fileSearchProviders.get(scheme) :
 				this.textSearchProviders.get(scheme);
 
-			if (!provider && scheme === Schemas.file) {
-				diskSearchQueries.push(...schemeFQs);
-			} else {
-				if (!provider) {
-					if (scheme !== Schemas.vscodeRemote) {
-						console.warn(`No search provider registered for scheme: ${scheme}`);
-						return;
-					}
-
-					console.warn(`No search provider registered for scheme: ${scheme}, waiting`);
-					provider = await this.waitForProvider(query.type, scheme);
-				}
-
-				const oneSchemeQuery: ISearchQuery = {
-					...query,
-					...{
-						folderQueries: schemeFQs
-					}
-				};
-
-				searchPs.push(query.type === QueryType.File ?
-					provider.fileSearch(<IFileQuery>oneSchemeQuery, token) :
-					provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token));
+			if (!provider) {
+				console.warn(`No search provider registered for scheme: ${scheme}, waiting`);
+				provider = await this.waitForProvider(query.type, scheme);
 			}
-		}));
 
-		const diskSearchExtraFileResources = query.extraFileResources && query.extraFileResources.filter(res => res.scheme === Schemas.file);
-
-		if (diskSearchQueries.length || diskSearchExtraFileResources) {
-			const diskSearchQuery: ISearchQuery = {
+			const oneSchemeQuery: ISearchQuery = {
 				...query,
 				...{
-					folderQueries: diskSearchQueries
-				},
-				extraFileResources: diskSearchExtraFileResources
+					folderQueries: schemeFQs
+				}
 			};
 
-
-			if (this.diskSearch) {
-				searchPs.push(diskSearchQuery.type === QueryType.File ?
-					this.diskSearch.fileSearch(diskSearchQuery, token) :
-					this.diskSearch.textSearch(diskSearchQuery, onProviderProgress, token));
-			}
-		}
+			searchPs.push(query.type === QueryType.File ?
+				provider.fileSearch(<IFileQuery>oneSchemeQuery, token) :
+				provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token));
+		}));
 
 		return Promise.all(searchPs).then(completes => {
 			const endToEndTime = e2eSW.elapsed();
@@ -420,10 +395,20 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private getLocalResults(query: ITextQuery): { results: ResourceMap<IFileMatch | null>; limitHit: boolean } {
-		const localResults = new ResourceMap<IFileMatch | null>();
+		const localResults = new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		let limitHit = false;
 
 		if (query.type === QueryType.Text) {
+			const canonicalToOriginalResources = new ResourceMap<URI>();
+			for (let editorInput of this.editorService.editors) {
+				const canonical = EditorResourceAccessor.getCanonicalUri(editorInput, { supportSideBySide: SideBySideEditor.PRIMARY });
+				const original = EditorResourceAccessor.getOriginalUri(editorInput, { supportSideBySide: SideBySideEditor.PRIMARY });
+
+				if (canonical) {
+					canonicalToOriginalResources.set(canonical, original ?? canonical);
+				}
+			}
+
 			const models = this.modelService.getModels();
 			models.forEach((model) => {
 				const resource = model.uri;
@@ -435,33 +420,33 @@ export class SearchService extends Disposable implements ISearchService {
 					return;
 				}
 
-				// Skip files that are not opened as text file
-				if (!this.editorService.isOpen({ resource })) {
+				const originalResource = canonicalToOriginalResources.get(resource);
+				if (!originalResource) {
 					return;
 				}
 
 				// Skip search results
-				if (model.getModeId() === 'search-result' && !(query.includePattern && query.includePattern['**/*.code-search'])) {
+				if (model.getLanguageId() === 'search-result' && !(query.includePattern && query.includePattern['**/*.code-search'])) {
 					// TODO: untitled search editors will be excluded from search even when include *.code-search is specified
 					return;
 				}
 
 				// Block walkthrough, webview, etc.
-				if (resource.scheme !== Schemas.untitled && !this.fileService.canHandleResource(resource)) {
+				if (originalResource.scheme !== Schemas.untitled && !this.fileService.hasProvider(originalResource)) {
 					return;
 				}
 
 				// Exclude files from the git FileSystemProvider, e.g. to prevent open staged files from showing in search results
-				if (resource.scheme === 'git') {
+				if (originalResource.scheme === 'git') {
 					return;
 				}
 
-				if (!this.matches(resource, query)) {
+				if (!this.matches(originalResource, query)) {
 					return; // respect user filters
 				}
 
 				// Use editor API to find matches
-				const askMax = typeof query.maxResults === 'number' ? query.maxResults + 1 : undefined;
+				const askMax = isNumber(query.maxResults) ? query.maxResults + 1 : Number.MAX_SAFE_INTEGER;
 				let matches = model.findMatches(query.contentPattern.pattern, false, !!query.contentPattern.isRegExp, !!query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators! : null, false, askMax);
 				if (matches.length) {
 					if (askMax && matches.length >= askMax) {
@@ -469,13 +454,13 @@ export class SearchService extends Disposable implements ISearchService {
 						matches = matches.slice(0, askMax - 1);
 					}
 
-					const fileMatch = new FileMatch(resource);
-					localResults.set(resource, fileMatch);
+					const fileMatch = new FileMatch(originalResource);
+					localResults.set(originalResource, fileMatch);
 
 					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
 					fileMatch.results = addContextToEditorMatches(textSearchResults, model, query);
 				} else {
-					localResults.set(resource, null);
+					localResults.set(originalResource, null);
 				}
 			});
 		}
@@ -490,28 +475,9 @@ export class SearchService extends Disposable implements ISearchService {
 		return pathIncludedInQuery(query, resource.fsPath);
 	}
 
-	clearCache(cacheKey: string): Promise<void> {
-		const clearPs = [
-			this.diskSearch,
-			...Array.from(this.fileSearchProviders.values())
-		].map(provider => provider && provider.clearCache(cacheKey));
-
-		return Promise.all(clearPs)
-			.then(() => { });
+	async clearCache(cacheKey: string): Promise<void> {
+		const clearPs = Array.from(this.fileSearchProviders.values())
+			.map(provider => provider && provider.clearCache(cacheKey));
+		await Promise.all(clearPs);
 	}
 }
-
-export class RemoteSearchService extends SearchService {
-	constructor(
-		@IModelService modelService: IModelService,
-		@IEditorService editorService: IEditorService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ILogService logService: ILogService,
-		@IExtensionService extensionService: IExtensionService,
-		@IFileService fileService: IFileService
-	) {
-		super(modelService, editorService, telemetryService, logService, extensionService, fileService);
-	}
-}
-
-registerSingleton(ISearchService, RemoteSearchService, true);

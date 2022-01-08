@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
-import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as platform from 'vs/platform/registry/common/platform';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IconContribution, IconDefinition } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
@@ -40,18 +41,19 @@ export namespace ThemeIcon {
 		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string' && (typeof (<ThemeIcon>obj).color === 'undefined' || ThemeColor.isThemeColor((<ThemeIcon>obj).color));
 	}
 
-	const _regexFromString = /^\$\(([a-z.]+\/)?([a-z-~]+)\)$/i;
+	const _regexFromString = new RegExp(`^\\$\\((${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?)\\)$`);
 
 	export function fromString(str: string): ThemeIcon | undefined {
 		const match = _regexFromString.exec(str);
 		if (!match) {
 			return undefined;
 		}
-		let [, owner, name] = match;
-		if (!owner || owner === 'codicon/') {
-			return { id: name };
-		}
-		return { id: owner + name };
+		let [, name] = match;
+		return { id: name };
+	}
+
+	export function fromId(id: string): ThemeIcon {
+		return { id };
 	}
 
 	export function modify(icon: ThemeIcon, modifier: 'disabled' | 'spin' | undefined): ThemeIcon {
@@ -66,8 +68,20 @@ export namespace ThemeIcon {
 		return { id };
 	}
 
+	export function getModifier(icon: ThemeIcon): string | undefined {
+		const tildeIndex = icon.id.lastIndexOf('~');
+		if (tildeIndex !== -1) {
+			return icon.id.substring(tildeIndex + 1);
+		}
+		return undefined;
+	}
+
 	export function isEqual(ti1: ThemeIcon, ti2: ThemeIcon): boolean {
 		return ti1.id === ti2.id && ti1.color?.id === ti2.color?.id;
+	}
+
+	export function asThemeIcon(codicon: Codicon, color?: string): ThemeIcon {
+		return { id: codicon.id, color: color ? themeColorFromId(color) : undefined };
 	}
 
 	export const asClassNameArray: (icon: ThemeIcon) => string[] = CSSIcon.asClassNameArray;
@@ -87,10 +101,11 @@ export function getThemeTypeSelector(type: ColorScheme): string {
 }
 
 export interface ITokenStyle {
-	readonly foreground?: number;
-	readonly bold?: boolean;
-	readonly underline?: boolean;
-	readonly italic?: boolean;
+	readonly foreground: number | undefined;
+	readonly bold: boolean | undefined;
+	readonly underline: boolean | undefined;
+	readonly strikethrough: boolean | undefined;
+	readonly italic: boolean | undefined;
 }
 
 export interface IColorTheme {
@@ -135,6 +150,16 @@ export interface IFileIconTheme {
 	readonly hidesExplorerArrows: boolean;
 }
 
+export interface IProductIconTheme {
+	/**
+	 * Resolves the definition for the given icon as defined by the theme.
+	 *
+	 * @param iconContribution The icon
+	 */
+	getIcon(iconContribution: IconContribution): IconDefinition | undefined;
+}
+
+
 export interface ICssStyleCollector {
 	addRule(rule: string): void;
 }
@@ -153,6 +178,10 @@ export interface IThemeService {
 	getFileIconTheme(): IFileIconTheme;
 
 	readonly onDidFileIconThemeChange: Event<IFileIconTheme>;
+
+	getProductIconTheme(): IProductIconTheme;
+
+	readonly onDidProductIconThemeChange: Event<IProductIconTheme>;
 
 }
 

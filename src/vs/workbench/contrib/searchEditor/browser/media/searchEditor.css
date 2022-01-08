@@ -74,11 +74,6 @@
 }
 
 .search-editor .search-widget .context-lines-input {
-	display: none;
-}
-
-.search-editor .search-widget.show-context .context-lines-input {
-	display: inherit;
 	margin-left: 5px;
 	margin-right: 2px;
 	max-width: 50px;

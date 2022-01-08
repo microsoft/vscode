@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./bracketMatching';
-import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
+import 'vs/css!./bracketMatching';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -18,11 +18,11 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
+import * as nls from 'vs/nls';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
 
@@ -35,18 +35,14 @@ class JumpToBracketAction extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backslash,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = BracketMatchingController.get(editor);
-		if (!controller) {
-			return;
-		}
-		controller.jumpToBracket();
+		BracketMatchingController.get(editor)?.jumpToBracket();
 	}
 }
 
@@ -76,16 +72,11 @@ class SelectToBracketAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		const controller = BracketMatchingController.get(editor);
-		if (!controller) {
-			return;
-		}
-
 		let selectBrackets = true;
 		if (args && args.selectBrackets === false) {
 			selectBrackets = false;
 		}
-		controller.selectToBracket(selectBrackets);
+		BracketMatchingController.get(editor)?.selectToBracket(selectBrackets);
 	}
 }
 
@@ -106,7 +97,7 @@ class BracketsData {
 export class BracketMatchingController extends Disposable implements IEditorContribution {
 	public static readonly ID = 'editor.contrib.bracketMatchingController';
 
-	public static get(editor: ICodeEditor): BracketMatchingController {
+	public static get(editor: ICodeEditor): BracketMatchingController | null {
 		return editor.getContribution<BracketMatchingController>(BracketMatchingController.ID);
 	}
 
@@ -161,6 +152,14 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 				this._updateBracketsSoon.schedule();
 			}
 		}));
+
+		this._register(editor.onDidBlurEditorWidget(() => {
+			this._updateBracketsSoon.schedule();
+		}));
+
+		this._register(editor.onDidFocusEditorWidget(() => {
+			this._updateBracketsSoon.schedule();
+		}));
 	}
 
 	public jumpToBracket(): void {
@@ -173,7 +172,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			const position = selection.getStartPosition();
 
 			// find matching brackets if position is on a bracket
-			const brackets = model.matchBracket(position);
+			const brackets = model.bracketPairs.matchBracket(position);
 			let newCursorPosition: Position | null = null;
 			if (brackets) {
 				if (brackets[0].containsPosition(position)) {
@@ -183,12 +182,12 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 				}
 			} else {
 				// find the enclosing brackets if the position isn't on a matching bracket
-				const enclosingBrackets = model.findEnclosingBrackets(position);
+				const enclosingBrackets = model.bracketPairs.findEnclosingBrackets(position);
 				if (enclosingBrackets) {
 					newCursorPosition = enclosingBrackets[0].getStartPosition();
 				} else {
 					// no enclosing brackets, try the very first next bracket
-					const nextBracket = model.findNextBracket(position);
+					const nextBracket = model.bracketPairs.findNextBracket(position);
 					if (nextBracket && nextBracket.range) {
 						newCursorPosition = nextBracket.range.getStartPosition();
 					}
@@ -215,14 +214,14 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 
 		this._editor.getSelections().forEach(selection => {
 			const position = selection.getStartPosition();
-			let brackets = model.matchBracket(position);
+			let brackets = model.bracketPairs.matchBracket(position);
 
 			if (!brackets) {
-				brackets = model.findEnclosingBrackets(position);
+				brackets = model.bracketPairs.findEnclosingBrackets(position);
 				if (!brackets) {
-					const nextBracket = model.findNextBracket(position);
+					const nextBracket = model.bracketPairs.findNextBracket(position);
 					if (nextBracket && nextBracket.range) {
-						brackets = model.matchBracket(nextBracket.range.getStartPosition());
+						brackets = model.bracketPairs.matchBracket(nextBracket.range.getStartPosition());
 					}
 				}
 			}
@@ -235,6 +234,13 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 				const [open, close] = brackets;
 				selectFrom = selectBrackets ? open.getStartPosition() : open.getEndPosition();
 				selectTo = selectBrackets ? close.getEndPosition() : close.getStartPosition();
+
+				if (close.containsPosition(position)) {
+					// select backwards if the cursor was on the closing bracket
+					const tmp = selectFrom;
+					selectFrom = selectTo;
+					selectTo = tmp;
+				}
 			}
 
 			if (selectFrom && selectTo) {
@@ -249,6 +255,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 	}
 
 	private static readonly _DECORATION_OPTIONS_WITH_OVERVIEW_RULER = ModelDecorationOptions.register({
+		description: 'bracket-match-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'bracket-match',
 		overviewRuler: {
@@ -258,6 +265,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 	});
 
 	private static readonly _DECORATION_OPTIONS_WITHOUT_OVERVIEW_RULER = ModelDecorationOptions.register({
+		description: 'bracket-match-no-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'bracket-match'
 	});
@@ -281,8 +289,8 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 	}
 
 	private _recomputeBrackets(): void {
-		if (!this._editor.hasModel()) {
-			// no model => no brackets!
+		if (!this._editor.hasModel() || !this._editor.hasWidgetFocus()) {
+			// no model or no focus => no brackets!
 			this._lastBracketsData = [];
 			this._lastVersionId = 0;
 			return;
@@ -331,10 +339,10 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			if (previousIndex < previousLen && previousData[previousIndex].position.equals(position)) {
 				newData[newDataLen++] = previousData[previousIndex];
 			} else {
-				let brackets = model.matchBracket(position);
+				let brackets = model.bracketPairs.matchBracket(position);
 				let options = BracketMatchingController._DECORATION_OPTIONS_WITH_OVERVIEW_RULER;
 				if (!brackets && this._matchBrackets === 'always') {
-					brackets = model.findEnclosingBrackets(position, 20 /* give at most 20ms to compute */);
+					brackets = model.bracketPairs.findEnclosingBrackets(position, 20 /* give at most 20ms to compute */);
 					options = BracketMatchingController._DECORATION_OPTIONS_WITHOUT_OVERVIEW_RULER;
 				}
 				newData[newDataLen++] = new BracketsData(position, brackets, options);

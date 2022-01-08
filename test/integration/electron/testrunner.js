@@ -17,7 +17,7 @@ const Mocha = require('mocha');
 
 let mocha = new Mocha({
 	ui: 'tdd',
-	useColors: true
+	color: true
 });
 
 exports.configure = function configure(opts) {

@@ -7,9 +7,8 @@ import { INotification, INotificationHandle, INotificationActions, INotification
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isErrorWithActions, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Action } from 'vs/base/common/actions';
-import { isErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { equals } from 'vs/base/common/arrays';
 import { parseLinkedText, LinkedText } from 'vs/base/common/linkedText';
 
@@ -276,15 +275,18 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 }
 
 export interface INotificationViewItem {
+	readonly id: string | undefined;
 	readonly severity: Severity;
 	readonly sticky: boolean;
 	readonly silent: boolean;
 	readonly message: INotificationMessage;
 	readonly source: string | undefined;
+	readonly sourceId: string | undefined;
 	readonly actions: INotificationActions | undefined;
 	readonly progress: INotificationViewItemProgress;
 
 	readonly expanded: boolean;
+	readonly visible: boolean;
 	readonly canCollapse: boolean;
 	readonly hasProgress: boolean;
 
@@ -467,7 +469,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			actions = { primary: notification.message.actions };
 		}
 
-		return new NotificationViewItem(severity, notification.sticky, notification.silent || filter === NotificationsFilter.SILENT || (filter === NotificationsFilter.ERROR && notification.severity !== Severity.Error), message, notification.source, notification.progress, actions);
+		return new NotificationViewItem(notification.id, severity, notification.sticky, notification.silent || filter === NotificationsFilter.SILENT || (filter === NotificationsFilter.ERROR && notification.severity !== Severity.Error), message, notification.source, notification.progress, actions);
 	}
 
 	private static parseNotificationMessage(input: NotificationMessage): INotificationMessage | undefined {
@@ -499,11 +501,12 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	}
 
 	private constructor(
+		readonly id: string | undefined,
 		private _severity: Severity,
 		private _sticky: boolean | undefined,
 		private _silent: boolean | undefined,
 		private _message: INotificationMessage,
-		private _source: string | undefined,
+		private _source: string | { label: string, id: string } | undefined,
 		progress: INotificationProgressProperties | undefined,
 		actions?: INotificationActions
 	) {
@@ -600,21 +603,33 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	}
 
 	get source(): string | undefined {
-		return this._source;
+		return typeof this._source === 'string' ? this._source : (this._source ? this._source.label : undefined);
+	}
+
+	get sourceId(): string | undefined {
+		return (this._source && typeof this._source !== 'string' && 'id' in this._source) ? this._source.id : undefined;
 	}
 
 	get actions(): INotificationActions | undefined {
 		return this._actions;
 	}
 
+	get visible(): boolean {
+		return this._visible;
+	}
+
 	updateSeverity(severity: Severity): void {
+		if (severity === this._severity) {
+			return;
+		}
+
 		this._severity = severity;
 		this._onDidChangeContent.fire({ kind: NotificationViewItemContentChangeKind.SEVERITY });
 	}
 
 	updateMessage(input: NotificationMessage): void {
 		const message = NotificationViewItem.parseNotificationMessage(input);
-		if (!message) {
+		if (!message || message.raw === this._message.raw) {
 			return;
 		}
 
@@ -675,7 +690,15 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return false;
 		}
 
-		if (this._source !== other.source) {
+		if (typeof this.id === 'string' || typeof other.id === 'string') {
+			return this.id === other.id;
+		}
+
+		if (typeof this._source === 'object') {
+			if (this._source.label !== other.source || this._source.id !== other.sourceId) {
+				return false;
+			}
+		} else if (this._source !== other.source) {
 			return false;
 		}
 
@@ -685,7 +708,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 
 		const primaryActions = (this._actions && this._actions.primary) || [];
 		const otherPrimaryActions = (other.actions && other.actions.primary) || [];
-		return equals(primaryActions, otherPrimaryActions, (a, b) => (a.id + a.label) === (b.id + b.label));
+		return equals(primaryActions, otherPrimaryActions, (action, otherAction) => (action.id + action.label) === (otherAction.id + otherAction.label));
 	}
 }
 

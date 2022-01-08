@@ -10,12 +10,14 @@ import { Event } from 'vs/base/common/event';
 import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { stripIcons } from 'vs/base/common/iconLabels';
+import { Schemas } from 'vs/base/common/network';
 
 function getCount(repository: ISCMRepository): number {
 	if (typeof repository.provider.count === 'number') {
@@ -30,7 +32,6 @@ export class SCMStatusController implements IWorkbenchContribution {
 	private statusBarDisposable: IDisposable = Disposable.None;
 	private focusDisposable: IDisposable = Disposable.None;
 	private focusedRepository: ISCMRepository | undefined = undefined;
-	private focusedProviderContextKey: IContextKey<string | undefined>;
 	private readonly badgeDisposable = new MutableDisposable<IDisposable>();
 	private disposables = new DisposableStore();
 	private repositoryDisposables = new Set<IDisposable>();
@@ -45,7 +46,6 @@ export class SCMStatusController implements IWorkbenchContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
-		this.focusedProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', undefined);
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
 
@@ -126,7 +126,6 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 		this.focusDisposable.dispose();
 		this.focusedRepository = repository;
-		this.focusedProviderContextKey.set(repository && repository.provider.id);
 
 		if (repository && repository.provider.onDidChangeStatusBarCommands) {
 			this.focusDisposable = repository.provider.onDidChangeStatusBarCommands(() => this.renderStatusBar(repository));
@@ -150,14 +149,18 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 		const disposables = new DisposableStore();
 		for (const command of commands) {
-			const tooltip = `${label} - ${command.tooltip}`;
+			const tooltip = `${label}${command.tooltip ? ` - ${command.tooltip}` : ''}`;
+
+			let ariaLabel = stripIcons(command.title).trim();
+			ariaLabel = ariaLabel ? `${ariaLabel}, ${label}` : label;
 
 			disposables.add(this.statusbarService.addEntry({
+				name: localize('status.scm', "Source Control"),
 				text: command.title,
-				ariaLabel: command.tooltip || label,
+				ariaLabel: `${ariaLabel}${command.tooltip ? ` - ${command.tooltip}` : ''}`,
 				tooltip,
 				command: command.id ? command : undefined
-			}, 'status.scm', localize('status.scm', "Source Control"), MainThreadStatusBarAlignment.LEFT, 10000));
+			}, 'status.scm', MainThreadStatusBarAlignment.LEFT, 10000));
 		}
 
 		this.statusBarDisposable = disposables;
@@ -186,6 +189,70 @@ export class SCMStatusController implements IWorkbenchContribution {
 		this.focusDisposable.dispose();
 		this.statusBarDisposable.dispose();
 		this.badgeDisposable.dispose();
+		this.disposables = dispose(this.disposables);
+		dispose(this.repositoryDisposables.values());
+		this.repositoryDisposables.clear();
+	}
+}
+
+export class SCMActiveResourceContextKeyController implements IWorkbenchContribution {
+
+	private contextKey: IContextKey<boolean>;
+	private disposables = new DisposableStore();
+	private repositoryDisposables = new Set<IDisposable>();
+
+	constructor(
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ISCMService private readonly scmService: ISCMService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	) {
+		this.contextKey = contextKeyService.createKey('scmActiveResourceHasChanges', false);
+
+		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
+
+		for (const repository of this.scmService.repositories) {
+			this.onDidAddRepository(repository);
+		}
+
+		editorService.onDidActiveEditorChange(this.updateContextKey, this, this.disposables);
+	}
+
+	private onDidAddRepository(repository: ISCMRepository): void {
+		const onDidChange = Event.any(repository.provider.onDidChange, repository.provider.onDidChangeResources);
+		const changeDisposable = onDidChange(() => this.updateContextKey());
+
+		const onDidRemove = Event.filter(this.scmService.onDidRemoveRepository, e => e === repository);
+		const removeDisposable = onDidRemove(() => {
+			disposable.dispose();
+			this.repositoryDisposables.delete(disposable);
+			this.updateContextKey();
+		});
+
+		const disposable = combinedDisposable(changeDisposable, removeDisposable);
+		this.repositoryDisposables.add(disposable);
+	}
+
+	private updateContextKey(): void {
+		const activeResource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
+
+		if (activeResource && activeResource.scheme === Schemas.file) {
+			for (const repository of this.scmService.repositories) {
+				for (const resourceGroup of repository.provider.groups.elements) {
+					if (resourceGroup.elements.find(scmResource => {
+						return this.uriIdentityService.extUri.isEqual(activeResource, scmResource.sourceUri);
+					})) {
+						this.contextKey.set(true);
+						return;
+					}
+				}
+			}
+		}
+
+		this.contextKey.set(false);
+	}
+
+	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		dispose(this.repositoryDisposables.values());
 		this.repositoryDisposables.clear();

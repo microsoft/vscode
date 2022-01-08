@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./selectBoxCustom';
-
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as dom from 'vs/base/browser/dom';
-import * as arrays from 'vs/base/common/arrays';
-import { IContextViewProvider, AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate, IListRenderer, IListEvent } from 'vs/base/browser/ui/list/list';
-import { domEvent } from 'vs/base/browser/event';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { ISelectBoxDelegate, ISelectOptionItem, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
-import { isMacintosh } from 'vs/base/common/platform';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { DomEmitter } from 'vs/base/browser/event';
 import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { AnchorPosition, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { IListEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { List } from 'vs/base/browser/ui/list/listWidget';
+import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
+import * as arrays from 'vs/base/common/arrays';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { isMacintosh } from 'vs/base/common/platform';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import 'vs/css!./selectBoxCustom';
 import { localize } from 'vs/nls';
+
 
 const $ = dom.$;
 
@@ -175,6 +175,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// Inline stylesheet for themes
 		this.styleElement = dom.createStyleSheet(this.selectDropDownContainer);
+
+		// Prevent dragging of dropdown #114329
+		this.selectDropDownContainer.setAttribute('draggable', 'true');
+		this._register(dom.addDisposableListener(this.selectDropDownContainer, dom.EventType.DRAG_START, (e) => {
+			dom.EventHelper.stop(e, true);
+		}));
 	}
 
 	private registerListeners() {
@@ -207,6 +213,23 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		this._register(dom.addDisposableListener(this.selectElement, dom.EventType.MOUSE_DOWN, (e) => {
 			dom.EventHelper.stop(e);
+		}));
+
+		// Intercept touch events
+		// The following implementation is slightly different from the mouse event handlers above.
+		// Use the following helper variable, otherwise the list flickers.
+		let listIsVisibleOnTouchStart: boolean;
+		this._register(dom.addDisposableListener(this.selectElement, 'touchstart', (e) => {
+			listIsVisibleOnTouchStart = this._isVisible;
+		}));
+		this._register(dom.addDisposableListener(this.selectElement, 'touchend', (e) => {
+			dom.EventHelper.stop(e);
+
+			if (listIsVisibleOnTouchStart) {
+				this.hideSelectDropDown(true);
+			} else {
+				this.showSelectDropDown();
+			}
 		}));
 
 		// Intercept keyboard handling
@@ -293,14 +316,20 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	public focus(): void {
 		if (this.selectElement) {
+			this.selectElement.tabIndex = 0;
 			this.selectElement.focus();
 		}
 	}
 
 	public blur(): void {
 		if (this.selectElement) {
+			this.selectElement.tabIndex = -1;
 			this.selectElement.blur();
 		}
+	}
+
+	public setFocusable(focusable: boolean): void {
+		this.selectElement.tabIndex = focusable ? 0 : -1;
 	}
 
 	public render(container: HTMLElement): void {
@@ -323,11 +352,11 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 
 		if (this.styles.listFocusForeground) {
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused:not(:hover) { color: ${this.styles.listFocusForeground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { color: ${this.styles.listFocusForeground} !important; }`);
 		}
 
 		if (this.styles.decoratorRightForeground) {
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row .option-decorator-right { color: ${this.styles.decoratorRightForeground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.focused) .option-decorator-right { color: ${this.styles.decoratorRightForeground}; }`);
 		}
 
 		if (this.styles.selectBackground && this.styles.selectBorder && !this.styles.selectBorder.equals(this.styles.selectBackground)) {
@@ -343,14 +372,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// Hover foreground - ignore for disabled options
 		if (this.styles.listHoverForeground) {
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:hover { color: ${this.styles.listHoverForeground} !important; }`);
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: ${this.styles.listActiveSelectionForeground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { color: ${this.styles.listHoverForeground} !important; }`);
 		}
 
 		// Hover background - ignore for disabled options
 		if (this.styles.listHoverBackground) {
 			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { background-color: ${this.styles.listHoverBackground} !important; }`);
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: ${this.styles.selectBackground} !important; }`);
 		}
 
 		// Match quick input outline styles - ignore for disabled options
@@ -359,9 +386,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 
 		if (this.styles.listHoverOutline) {
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:hover:not(.focused) { outline: 1.6px dashed ${this.styles.listHoverOutline} !important; outline-offset: -1.6px !important; }`);
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { outline: none !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { outline: 1.6px dashed ${this.styles.listHoverOutline} !important; outline-offset: -1.6px !important; }`);
 		}
+
+		// Clear list styles on focus and on hover for disabled options
+		content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled.focused { background-color: transparent !important; color: inherit !important; outline: none !important; }`);
+		content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: transparent !important; color: inherit !important; outline: none !important; }`);
 
 		this.styleElement.textContent = content.join('\n');
 
@@ -730,25 +760,25 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 
 		// SetUp list keyboard controller - control navigation, disabled items, focus
-		const onSelectDropDownKeyDown = Event.chain(domEvent(this.selectDropDownListContainer, 'keydown'))
+		const onKeyDown = this._register(new DomEmitter(this.selectDropDownListContainer, 'keydown'));
+		const onSelectDropDownKeyDown = Event.chain(onKeyDown.event)
 			.filter(() => this.selectList.length > 0)
 			.map(e => new StandardKeyboardEvent(e));
 
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(e => this.onEnter(e), this));
+		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Tab).on(e => this.onEnter(e), this)); // Tab should behave the same as enter, #79339
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(e => this.onEscape(e), this));
-		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this));
-		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this));
+		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(e => this.onUpArrow(e), this));
+		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(e => this.onDownArrow(e), this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDown, this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUp, this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Home).on(this.onHome, this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.End).on(this.onEnd, this));
-		this._register(onSelectDropDownKeyDown.filter(e => (e.keyCode >= KeyCode.KEY_0 && e.keyCode <= KeyCode.KEY_Z) || (e.keyCode >= KeyCode.US_SEMICOLON && e.keyCode <= KeyCode.NUMPAD_DIVIDE)).on(this.onCharacter, this));
+		this._register(onSelectDropDownKeyDown.filter(e => (e.keyCode >= KeyCode.Digit0 && e.keyCode <= KeyCode.KeyZ) || (e.keyCode >= KeyCode.Semicolon && e.keyCode <= KeyCode.NumpadDivide)).on(this.onCharacter, this));
 
 		// SetUp list mouse controller - control navigation, disabled items, focus
 
-		this._register(Event.chain(domEvent(this.selectList.getHTMLElement(), 'mouseup'))
-			.filter(() => this.selectList.length > 0)
-			.on(e => this.onMouseUp(e), this));
+		this._register(dom.addDisposableListener(this.selectList.getHTMLElement(), dom.EventType.POINTER_DOWN, e => this.onPointerDown(e)));
 
 		this._register(this.selectList.onMouseOver(e => typeof e.index !== 'undefined' && this.selectList.setFocus([e.index])));
 		this._register(this.selectList.onDidChangeFocus(e => this.onListFocus(e)));
@@ -769,7 +799,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	// List methods
 
 	// List mouse controller - active exit, select option, fire onDidSelect if change, return focus to parent select
-	private onMouseUp(e: MouseEvent): void {
+	// Also takes in touchend events
+	private onPointerDown(e: PointerEvent): void {
+
+		if (!this.selectList.length) {
+			return;
+		}
 
 		dom.EventHelper.stop(e);
 
@@ -844,12 +879,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			}
 		};
 
-		const renderedMarkdown = renderMarkdown({ value: text }, { actionHandler });
+		const rendered = renderMarkdown({ value: text }, { actionHandler });
 
-		renderedMarkdown.classList.add('select-box-description-markdown');
-		cleanRenderedMarkdown(renderedMarkdown);
+		rendered.element.classList.add('select-box-description-markdown');
+		cleanRenderedMarkdown(rendered.element);
 
-		return renderedMarkdown;
+		return rendered.element;
 	}
 
 	// List Focus Change - passive - update details pane with newly focused element's data
@@ -864,12 +899,13 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	private updateDetail(selectedIndex: number): void {
 		this.selectionDetailsPane.innerText = '';
-		const description = this.options[selectedIndex].description;
-		const descriptionIsMarkdown = this.options[selectedIndex].descriptionIsMarkdown;
+		const option = this.options[selectedIndex];
+		const description = option?.description ?? '';
+		const descriptionIsMarkdown = option?.descriptionIsMarkdown ?? false;
 
 		if (description) {
 			if (descriptionIsMarkdown) {
-				const actionHandler = this.options[selectedIndex].descriptionMarkdownActionHandler;
+				const actionHandler = option.descriptionMarkdownActionHandler;
 				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description, actionHandler));
 			} else {
 				this.selectionDetailsPane.innerText = description;
@@ -916,8 +952,9 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	}
 
 	// List navigation - have to handle a disabled option (jump over)
-	private onDownArrow(): void {
+	private onDownArrow(e: StandardKeyboardEvent): void {
 		if (this.selected < this.options.length - 1) {
+			dom.EventHelper.stop(e, true);
 
 			// Skip disabled options
 			const nextOptionDisabled = this.options[this.selected + 1].isDisabled;
@@ -937,8 +974,9 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 	}
 
-	private onUpArrow(): void {
+	private onUpArrow(e: StandardKeyboardEvent): void {
 		if (this.selected > 0) {
+			dom.EventHelper.stop(e, true);
 			// Skip disabled options
 			const previousOptionDisabled = this.options[this.selected - 1].isDisabled;
 			if (previousOptionDisabled && this.selected > 1) {
@@ -1038,7 +1076,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this.hideSelectDropDown(false);
 		super.dispose();
 	}

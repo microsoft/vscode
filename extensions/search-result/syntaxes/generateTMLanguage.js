@@ -22,6 +22,7 @@ const mappings = [
 	['html', 'text.html.basic'],
 	['ini', 'source.ini'],
 	['java', 'source.java'],
+	['jl', 'source.julia'],
 	['js', 'source.js'],
 	['json', 'source.json.comments'],
 	['jsx', 'source.js.jsx'],

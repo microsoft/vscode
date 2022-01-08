@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { CURSOR, withRandomFileEditor, wait, joinLines } from '../testUtils';
+import { CURSOR, joinLines, wait, withRandomFileEditor } from '../testUtils';
 
 const onDocumentChange = (doc: vscode.TextDocument): Promise<vscode.TextDocument> => {
 	return new Promise<vscode.TextDocument>(resolve => {
@@ -64,6 +64,60 @@ suite.skip('OnEnter', () => {
 				document.getText(),
 				joinLines(
 					`const a = <div onclick={bla}>`,
+					`    x`));
+		});
+	});
+
+	test('should not indent after a multi-line comment block 1', () => {
+		return withRandomFileEditor(`/*-----\n * line 1\n * line 2\n *-----*/\n${CURSOR}`, 'js', async (_editor, document) => {
+			await type(document, '\nx');
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`/*-----`,
+					` * line 1`,
+					` * line 2`,
+					` *-----*/`,
+					``,
+					`x`));
+		});
+	});
+
+	test('should not indent after a multi-line comment block 2', () => {
+		return withRandomFileEditor(`/*-----\n * line 1\n * line 2\n */\n${CURSOR}`, 'js', async (_editor, document) => {
+			await type(document, '\nx');
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`/*-----`,
+					` * line 1`,
+					` * line 2`,
+					` */`,
+					``,
+					`x`));
+		});
+	});
+
+	test('should indent within a multi-line comment block', () => {
+		return withRandomFileEditor(`/*-----\n * line 1\n * line 2${CURSOR}`, 'js', async (_editor, document) => {
+			await type(document, '\nx');
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`/*-----`,
+					` * line 1`,
+					` * line 2`,
+					` * x`));
+		});
+	});
+
+	test('should indent after if block followed by comment with quote', () => {
+		return withRandomFileEditor(`if (true) { // '${CURSOR}`, 'js', async (_editor, document) => {
+			await type(document, '\nx');
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`if (true) { // '`,
 					`    x`));
 		});
 	});

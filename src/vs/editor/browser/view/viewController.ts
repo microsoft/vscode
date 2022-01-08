@@ -9,7 +9,7 @@ import { IEditorMouseEvent, IPartialEditorMouseEvent } from 'vs/editor/browser/e
 import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IConfiguration } from 'vs/editor/common/editorCommon';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -37,7 +37,7 @@ export interface IMouseDispatchData {
 export interface ICommandDelegate {
 	paste(text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void;
 	type(text: string): void;
-	replacePreviousChar(text: string, replaceCharCnt: number): void;
+	compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void;
 	startComposition(): void;
 	endComposition(): void;
 	cut(): void;
@@ -45,13 +45,13 @@ export interface ICommandDelegate {
 
 export class ViewController {
 
-	private readonly configuration: IConfiguration;
+	private readonly configuration: IEditorConfiguration;
 	private readonly viewModel: IViewModel;
 	private readonly userInputEvents: ViewUserInputEvents;
 	private readonly commandDelegate: ICommandDelegate;
 
 	constructor(
-		configuration: IConfiguration,
+		configuration: IEditorConfiguration,
 		viewModel: IViewModel,
 		userInputEvents: ViewUserInputEvents,
 		commandDelegate: ICommandDelegate
@@ -70,8 +70,8 @@ export class ViewController {
 		this.commandDelegate.type(text);
 	}
 
-	public replacePreviousChar(text: string, replaceCharCnt: number): void {
-		this.commandDelegate.replacePreviousChar(text, replaceCharCnt);
+	public compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void {
+		this.commandDelegate.compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta);
 	}
 
 	public compositionStart(): void {

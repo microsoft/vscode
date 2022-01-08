@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { LcsDiff, IDiffChange, StringDiffSequence } from 'vs/base/common/diff/diff';
+import { IDiffChange, LcsDiff, StringDiffSequence } from 'vs/base/common/diff/diff';
 
 function createArray<T>(length: number, value: T): T[] {
 	const r: T[] = [];

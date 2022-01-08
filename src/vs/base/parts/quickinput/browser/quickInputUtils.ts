@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/quickInput';
 import * as dom from 'vs/base/browser/dom';
-import { URI } from 'vs/base/common/uri';
 import { IdGenerator } from 'vs/base/common/idGenerator';
+import { URI } from 'vs/base/common/uri';
+import 'vs/css!./media/quickInput';
 
 const iconPathToClass: Record<string, string> = {};
 const iconClassGenerator = new IdGenerator('quick-input-button-icon-');

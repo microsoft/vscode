@@ -35,7 +35,7 @@ function loaderConfig() {
 }
 exports.loaderConfig = loaderConfig;
 const IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
-function loader(src, bundledFileHeader, bundleLoader) {
+function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
     let sources = [
         `${src}/vs/loader.js`
     ];
@@ -61,6 +61,15 @@ function loader(src, bundledFileHeader, bundleLoader) {
         else {
             this.emit('data', data);
         }
+    }, function () {
+        if (externalLoaderInfo !== undefined) {
+            this.emit('data', new VinylFile({
+                path: 'fake2',
+                base: '.',
+                contents: Buffer.from(`require.config(${JSON.stringify(externalLoaderInfo, undefined, 2)});`)
+            }));
+        }
+        this.emit('end');
     }))
         .pipe(concat('vs/loader.js')));
 }
@@ -96,7 +105,7 @@ function toConcatStream(src, bundledFileHeader, sources, dest, fileContentMapper
     return es.readArray(treatedSources)
         .pipe(useSourcemaps ? util.loadSourcemaps() : es.through())
         .pipe(concat(dest))
-        .pipe(stats_1.createStatsStream(dest));
+        .pipe((0, stats_1.createStatsStream)(dest));
 }
 function toBundleStream(src, bundledFileHeader, bundles, fileContentMapper) {
     return es.merge(bundles.map(function (bundle) {
@@ -146,14 +155,14 @@ function optimizeTask(opts) {
             }
             es.readArray(bundleInfoArray).pipe(bundleInfoStream);
         });
-        const result = es.merge(loader(src, bundledFileHeader, bundleLoader), bundlesStream, resourcesStream, bundleInfoStream);
+        const result = es.merge(loader(src, bundledFileHeader, bundleLoader, opts.externalLoaderInfo), bundlesStream, resourcesStream, bundleInfoStream);
         return result
             .pipe(sourcemaps.write('./', {
             sourceRoot: undefined,
             addComment: true,
             includeContent: true
         }))
-            .pipe(opts.languages && opts.languages.length ? i18n_1.processNlsFiles({
+            .pipe(opts.languages && opts.languages.length ? (0, i18n_1.processNlsFiles)({
             fileHeader: bundledFileHeader,
             languages: opts.languages
         }) : es.through())
@@ -168,8 +177,10 @@ function minifyTask(src, sourceMapBaseUrl) {
         const cssnano = require('cssnano');
         const postcss = require('gulp-postcss');
         const sourcemaps = require('gulp-sourcemaps');
+        const svgmin = require('gulp-svgmin');
         const jsFilter = filter('**/*.js', { restore: true });
         const cssFilter = filter('**/*.css', { restore: true });
+        const svgFilter = filter('**/*.svg', { restore: true });
         pump(gulp.src([src + '/**', '!' + src + '/**/*.map']), jsFilter, sourcemaps.init({ loadMaps: true }), es.map((f, cb) => {
             esbuild.build({
                 entryPoints: [f.path],
@@ -177,7 +188,7 @@ function minifyTask(src, sourceMapBaseUrl) {
                 sourcemap: 'external',
                 outdir: '.',
                 platform: 'node',
-                target: ['node12.18'],
+                target: ['esnext'],
                 write: false
             }).then(res => {
                 const jsFile = res.outputFiles.find(f => /\.js$/.test(f.path));
@@ -186,7 +197,7 @@ function minifyTask(src, sourceMapBaseUrl) {
                 f.sourceMap = JSON.parse(sourceMapFile.text);
                 cb(undefined, f);
             }, cb);
-        }), jsFilter.restore, cssFilter, postcss([cssnano({ preset: 'default' })]), cssFilter.restore, sourcemaps.mapSources((sourcePath) => {
+        }), jsFilter.restore, cssFilter, postcss([cssnano({ preset: 'default' })]), cssFilter.restore, svgFilter, svgmin(), svgFilter.restore, sourcemaps.mapSources((sourcePath) => {
             if (sourcePath === 'bootstrap-fork.js') {
                 return 'bootstrap-fork.orig.js';
             }

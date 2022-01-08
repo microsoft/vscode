@@ -5,25 +5,26 @@
 
 import 'vs/css!./media/feedback';
 import * as nls from 'vs/nls';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
+import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, textLinkForeground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, textLinkForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Codicon } from 'vs/base/common/codicons';
+import { Emitter } from 'vs/base/common/event';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 export interface IFeedback {
 	feedback: string;
@@ -35,36 +36,38 @@ export interface IFeedbackDelegate {
 	getCharacterLimit(sentiment: number): number;
 }
 
-export interface IFeedbackDropdownOptions {
-	contextViewProvider: IContextViewService;
+export interface IFeedbackWidgetOptions {
 	feedbackService: IFeedbackDelegate;
-	onFeedbackVisibilityChange?: (visible: boolean) => void;
 }
 
-export class FeedbackDropdown extends Dropdown {
+export class FeedbackWidget extends Disposable {
+	private visible: boolean | undefined;
+	private _onDidChangeVisibility = new Emitter<boolean>();
+	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+
 	private maxFeedbackCharacters: number;
 
 	private feedback: string = '';
 	private sentiment: number = 1;
-	private autoHideTimeout?: number;
 
 	private readonly feedbackDelegate: IFeedbackDelegate;
 
-	private feedbackForm: HTMLFormElement | null = null;
-	private feedbackDescriptionInput: HTMLTextAreaElement | null = null;
-	private smileyInput: HTMLElement | null = null;
-	private frownyInput: HTMLElement | null = null;
-	private sendButton: Button | null = null;
-	private hideButton: HTMLInputElement | null = null;
-	private remainingCharacterCount: HTMLElement | null = null;
+	private feedbackForm: HTMLFormElement | undefined = undefined;
+	private feedbackDescriptionInput: HTMLTextAreaElement | undefined = undefined;
+	private smileyInput: HTMLElement | undefined = undefined;
+	private frownyInput: HTMLElement | undefined = undefined;
+	private sendButton: Button | undefined = undefined;
+	private hideButton: HTMLInputElement | undefined = undefined;
+	private remainingCharacterCount: HTMLElement | undefined = undefined;
 
 	private requestFeatureLink: string | undefined;
 
 	private isPure: boolean = true;
 
 	constructor(
-		container: HTMLElement,
-		private options: IFeedbackDropdownOptions,
+		options: IFeedbackWidgetOptions,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
@@ -73,7 +76,7 @@ export class FeedbackDropdown extends Dropdown {
 		@IProductService productService: IProductService,
 		@IOpenerService private readonly openerService: IOpenerService
 	) {
-		super(container, options);
+		super();
 
 		this.feedbackDelegate = options.feedbackService;
 		this.maxFeedbackCharacters = this.feedbackDelegate.getCharacterLimit(this.sentiment);
@@ -88,22 +91,24 @@ export class FeedbackDropdown extends Dropdown {
 			}
 		});
 
-		this.element.classList.add('send-feedback');
-		this.element.title = nls.localize('sendFeedback', "Tweet Feedback");
+		// Hide feedback widget whenever notifications appear
+		this._register(this.layoutService.onDidChangeNotificationsVisibility(visible => {
+			if (visible) {
+				this.hide();
+			}
+		}));
 	}
 
-	protected getAnchor(): HTMLElement | IAnchor {
-		const position = dom.getDomNodePagePosition(this.element);
+	private getAnchor(): HTMLElement | IAnchor {
+		const dimension = this.layoutService.dimension;
 
 		return {
-			x: position.left + position.width, // center above the container
-			y: position.top - 26, // above status bar and beak
-			width: position.width,
-			height: position.height
+			x: dimension.width - 8,
+			y: dimension.height - 31
 		};
 	}
 
-	protected renderContents(container: HTMLElement): IDisposable {
+	private renderContents(container: HTMLElement): IDisposable {
 		const disposables = new DisposableStore();
 
 		container.classList.add('monaco-menu-container');
@@ -142,7 +147,7 @@ export class FeedbackDropdown extends Dropdown {
 			if (darkenFactor) {
 				const backgroundBaseColor = theme.getColor(editorWidgetBackground);
 				if (backgroundBaseColor) {
-					const backgroundColor = darken(backgroundBaseColor, darkenFactor)(theme);
+					const backgroundColor = backgroundBaseColor.darken(darkenFactor);
 					if (backgroundColor) {
 						closeBtn.style.backgroundColor = backgroundColor.toString();
 					}
@@ -302,10 +307,10 @@ export class FeedbackDropdown extends Dropdown {
 
 		return {
 			dispose: () => {
-				this.feedbackForm = null;
-				this.feedbackDescriptionInput = null;
-				this.smileyInput = null;
-				this.frownyInput = null;
+				this.feedbackForm = undefined;
+				this.feedbackDescriptionInput = undefined;
+				this.smileyInput = undefined;
+				this.frownyInput = undefined;
 
 				disposables.dispose();
 			}
@@ -380,39 +385,52 @@ export class FeedbackDropdown extends Dropdown {
 	}
 
 	show(): void {
-		super.show();
-
-		if (this.options.onFeedbackVisibilityChange) {
-			this.options.onFeedbackVisibilityChange(true);
+		if (this.visible) {
+			return;
 		}
+
+		this.visible = true;
+		this.contextViewService.showContextView({
+			getAnchor: () => this.getAnchor(),
+
+			render: (container) => {
+				return this.renderContents(container);
+			},
+
+			onDOMEvent: (e, activeElement) => {
+				this.onEvent(e, activeElement);
+			},
+
+			onHide: () => this._onDidChangeVisibility.fire(false)
+		});
+
+		this._onDidChangeVisibility.fire(true);
 
 		this.updateCharCountText();
 	}
 
-	protected onHide(): void {
-		if (this.options.onFeedbackVisibilityChange) {
-			this.options.onFeedbackVisibilityChange(false);
-		}
-	}
-
 	hide(): void {
+		if (!this.visible) {
+			return;
+		}
+
 		if (this.feedbackDescriptionInput) {
 			this.feedback = this.feedbackDescriptionInput.value;
-		}
-
-		if (this.autoHideTimeout) {
-			clearTimeout(this.autoHideTimeout);
-			this.autoHideTimeout = undefined;
 		}
 
 		if (this.hideButton && !this.hideButton.checked) {
 			this.statusbarService.updateEntryVisibility('status.feedback', false);
 		}
 
-		super.hide();
+		this.visible = false;
+		this.contextViewService.hideContextView();
 	}
 
-	onEvent(e: Event, activeElement: HTMLElement): void {
+	isVisible(): boolean {
+		return !!this.visible;
+	}
+
+	private onEvent(e: Event, activeElement: HTMLElement): void {
 		if (e instanceof KeyboardEvent) {
 			const keyboardEvent = <KeyboardEvent>e;
 			if (keyboardEvent.keyCode === 27) { // Escape

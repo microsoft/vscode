@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { VSBuffer } from 'vs/base/common/buffer';
 
@@ -210,5 +210,32 @@ suite('RPCProtocol', () => {
 		assert.throws(() => {
 			bProxy.$m(badObject, '2');
 		});
+	});
+
+	test('SerializableObjectWithBuffers is correctly transfered', function (done) {
+		delegate = (a1: SerializableObjectWithBuffers<{ string: string, buff: VSBuffer }>, a2: number) => {
+			return new SerializableObjectWithBuffers({ string: a1.value.string + ' world', buff: a1.value.buff });
+		};
+
+		const b = VSBuffer.alloc(4);
+		b.buffer[0] = 1;
+		b.buffer[1] = 2;
+		b.buffer[2] = 3;
+		b.buffer[3] = 4;
+
+		bProxy.$m(new SerializableObjectWithBuffers({ string: 'hello', buff: b }), undefined).then((res: SerializableObjectWithBuffers<any>) => {
+			assert.ok(res instanceof SerializableObjectWithBuffers);
+			assert.strictEqual(res.value.string, 'hello world');
+
+			assert.ok(res.value.buff instanceof VSBuffer);
+
+			const bufferValues = Array.from(res.value.buff.buffer);
+
+			assert.strictEqual(bufferValues[0], 1);
+			assert.strictEqual(bufferValues[1], 2);
+			assert.strictEqual(bufferValues[2], 3);
+			assert.strictEqual(bufferValues[3], 4);
+			done(null);
+		}, done);
 	});
 });

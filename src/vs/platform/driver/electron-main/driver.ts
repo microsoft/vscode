@@ -3,26 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DriverChannel, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IDriverOptions } from 'vs/platform/driver/node/driver';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPCServer, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
-import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { OS } from 'vs/base/common/platform';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ScanCodeBinding } from 'vs/base/common/scanCode';
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { timeout } from 'vs/base/common/async';
-import { IDriver, IElement, IWindowDriver } from 'vs/platform/driver/common/driver';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
+import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { OS } from 'vs/base/common/platform';
+import { IPCServer, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
+import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
+import { IDriver, IDriverOptions, IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
+import { WindowDriverChannelClient } from 'vs/platform/driver/common/driverIpc';
+import { DriverChannel, WindowDriverRegistryChannel } from 'vs/platform/driver/node/driver';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { IFileService } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
+import { join } from 'vs/base/common/path';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 function isSilentKeyCode(keyCode: KeyCode) {
-	return keyCode < KeyCode.KEY_0;
+	return keyCode < KeyCode.Digit0;
 }
 
 export class Driver implements IDriver, IWindowDriverRegistry {
@@ -38,7 +42,8 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		private options: IDriverOptions,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
+		@IFileService private readonly fileService: IFileService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
 	) { }
 
 	async registerWindowDriver(windowId: number): Promise<IDriverOptions> {
@@ -61,13 +66,28 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	async capturePage(windowId: number): Promise<string> {
 		await this.whenUnfrozen(windowId);
 
-		const window = this.windowsMainService.getWindowById(windowId);
-		if (!window) {
+		const window = this.windowsMainService.getWindowById(windowId) ?? this.windowsMainService.getLastActiveWindow(); // fallback to active window to ensure we capture window
+		if (!window?.win) {
 			throw new Error('Invalid window');
 		}
 		const webContents = window.win.webContents;
 		const image = await webContents.capturePage();
 		return image.toPNG().toString('base64');
+	}
+
+	async startTracing(windowId: number, name: string): Promise<void> {
+		// ignore - tracing is not implemented yet
+	}
+
+	async stopTracing(windowId: number, name: string, persist: boolean): Promise<void> {
+		if (!persist) {
+			return;
+		}
+
+		const raw = await this.capturePage(windowId);
+		const buffer = Buffer.from(raw, 'base64');
+
+		await this.fileService.writeFile(URI.file(join(this.environmentMainService.logsPath, `${name}.png`)), VSBuffer.wrap(buffer));
 	}
 
 	async reloadWindow(windowId: number): Promise<void> {
@@ -81,8 +101,8 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		this.lifecycleMainService.reload(window);
 	}
 
-	async exitApplication(): Promise<void> {
-		return this.nativeHostMainService.quit(undefined);
+	exitApplication(): Promise<boolean> {
+		return this.lifecycleMainService.quit();
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {
@@ -101,7 +121,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		}
 
 		const window = this.windowsMainService.getWindowById(windowId);
-		if (!window) {
+		if (!window?.win) {
 			throw new Error('Invalid window');
 		}
 		const webContents = window.win.webContents;
@@ -188,6 +208,16 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		await windowDriver.writeInTerminal(selector, text);
 	}
 
+	async getLocaleInfo(windowId: number): Promise<ILocaleInfo> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		return await windowDriver.getLocaleInfo();
+	}
+
+	async getLocalizedStrings(windowId: number): Promise<ILocalizedStrings> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		return await windowDriver.getLocalizedStrings();
+	}
+
 	private async getWindowDriver(windowId: number): Promise<IWindowDriver> {
 		await this.whenUnfrozen(windowId);
 
@@ -207,10 +237,10 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 export async function serve(
 	windowServer: IPCServer,
 	handle: string,
-	environmentService: IEnvironmentMainService,
+	environmentMainService: IEnvironmentMainService,
 	instantiationService: IInstantiationService
 ): Promise<IDisposable> {
-	const verbose = environmentService.driverVerbose;
+	const verbose = environmentMainService.driverVerbose;
 	const driver = instantiationService.createInstance(Driver, windowServer, { verbose });
 
 	const windowDriverRegistryChannel = new WindowDriverRegistryChannel(driver);

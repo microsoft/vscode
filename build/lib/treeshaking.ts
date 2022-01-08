@@ -323,6 +323,58 @@ function nodeOrChildIsBlack(node: ts.Node): boolean {
 	return false;
 }
 
+function isSymbolWithDeclarations(symbol: ts.Symbol | undefined | null): symbol is ts.Symbol & { declarations: ts.Declaration[] } {
+	return !!(symbol && symbol.declarations);
+}
+
+function isVariableStatementWithSideEffects(ts: typeof import('typescript'), node: ts.Node): boolean {
+	if (!ts.isVariableStatement(node)) {
+		return false;
+	}
+	let hasSideEffects = false;
+	const visitNode = (node: ts.Node) => {
+		if (hasSideEffects) {
+			// no need to go on
+			return;
+		}
+		if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+			// TODO: assuming `createDecorator` and `refineServiceDecorator` calls are side-effect free
+			const isSideEffectFree = /(createDecorator|refineServiceDecorator)/.test(node.getText());
+			if (!isSideEffectFree) {
+				hasSideEffects = true;
+			}
+		}
+		node.forEachChild(visitNode);
+	};
+	node.forEachChild(visitNode);
+	return hasSideEffects;
+}
+
+function isStaticMemberWithSideEffects(ts: typeof import('typescript'), node: ts.ClassElement | ts.TypeElement): boolean {
+	if (!ts.isPropertyDeclaration(node)) {
+		return false;
+	}
+	if (!node.modifiers) {
+		return false;
+	}
+	if (!node.modifiers.some(mod => mod.kind === ts.SyntaxKind.StaticKeyword)) {
+		return false;
+	}
+	let hasSideEffects = false;
+	const visitNode = (node: ts.Node) => {
+		if (hasSideEffects) {
+			// no need to go on
+			return;
+		}
+		if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+			hasSideEffects = true;
+		}
+		node.forEachChild(visitNode);
+	};
+	node.forEachChild(visitNode);
+	return hasSideEffects;
+}
+
 function markNodes(ts: typeof import('typescript'), languageService: ts.LanguageService, options: ITreeShakingOptions) {
 	const program = languageService.getProgram();
 	if (!program) {
@@ -368,6 +420,10 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 				return;
 			}
 
+			if (isVariableStatementWithSideEffects(ts, node)) {
+				enqueue_black(node);
+			}
+
 			if (
 				ts.isExpressionStatement(node)
 				|| ts.isIfStatement(node)
@@ -410,7 +466,7 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 			// add to black queue
 			enqueue_black(node);
 
-			// // move from one queue to the other
+			// move from one queue to the other
 			// black_queue.push(node);
 			// setColor(node, NodeColor.Black);
 			return;
@@ -530,7 +586,7 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 				setColor(symbolImportNode, NodeColor.Black);
 			}
 
-			if (symbol && !nodeIsInItsOwnDeclaration(nodeSourceFile, node, symbol)) {
+			if (isSymbolWithDeclarations(symbol) && !nodeIsInItsOwnDeclaration(nodeSourceFile, node, symbol)) {
 				for (let i = 0, len = symbol.declarations.length; i < len; i++) {
 					const declaration = symbol.declarations[i];
 					if (ts.isSourceFile(declaration)) {
@@ -557,6 +613,10 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 								|| memberName === 'dispose'// TODO: keeping all `dispose` methods
 								|| /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
 							) {
+								enqueue_black(member);
+							}
+
+							if (isStaticMemberWithSideEffects(ts, member)) {
 								enqueue_black(member);
 							}
 						}
@@ -595,7 +655,7 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 	}
 }
 
-function nodeIsInItsOwnDeclaration(nodeSourceFile: ts.SourceFile, node: ts.Node, symbol: ts.Symbol): boolean {
+function nodeIsInItsOwnDeclaration(nodeSourceFile: ts.SourceFile, node: ts.Node, symbol: ts.Symbol & { declarations: ts.Declaration[] }): boolean {
 	for (let i = 0, len = symbol.declarations.length; i < len; i++) {
 		const declaration = symbol.declarations[i];
 		const declarationSourceFile = declaration.getSourceFile();
@@ -838,7 +898,7 @@ function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChec
 	// get the aliased symbol instead. This allows for goto def on an import e.g.
 	//   import {A, B} from "mod";
 	// to jump to the implementation directly.
-	if (symbol && symbol.flags & ts.SymbolFlags.Alias && shouldSkipAlias(node, symbol.declarations[0])) {
+	if (symbol && symbol.flags & ts.SymbolFlags.Alias && symbol.declarations && shouldSkipAlias(node, symbol.declarations[0])) {
 		const aliased = checker.getAliasedSymbol(symbol);
 		if (aliased.declarations) {
 			// We should mark the import as visited

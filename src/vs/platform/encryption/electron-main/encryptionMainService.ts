@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICommonEncryptionService } from 'vs/platform/encryption/common/encryptionService';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IEncryptionMainService = createDecorator<IEncryptionMainService>('encryptionMainService');
 

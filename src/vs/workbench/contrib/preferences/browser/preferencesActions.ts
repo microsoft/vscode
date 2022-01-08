@@ -6,8 +6,8 @@
 import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import * as nls from 'vs/nls';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -21,41 +21,41 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 		id: string,
 		label: string,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
-		const languages = this.modeService.getRegisteredLanguageNames();
-		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
-			const description: string = nls.localize('languageDescriptionConfigured', "({0})", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));
+	override async run(): Promise<void> {
+		const languages = this.languageService.getSortedRegisteredLanguageNames();
+		const picks: IQuickPickItem[] = languages.map(({ languageName, languageId }) => {
+			const description: string = nls.localize('languageDescriptionConfigured', "({0})", languageId);
 			// construct a fake resource to be able to show nice icons if any
 			let fakeResource: URI | undefined;
-			const extensions = this.modeService.getExtensions(lang);
-			if (extensions && extensions.length) {
+			const extensions = this.languageService.getExtensions(languageId);
+			if (extensions.length) {
 				fakeResource = URI.file(extensions[0]);
 			} else {
-				const filenames = this.modeService.getFilenames(lang);
-				if (filenames && filenames.length) {
+				const filenames = this.languageService.getFilenames(languageId);
+				if (filenames.length) {
 					fakeResource = URI.file(filenames[0]);
 				}
 			}
 			return {
-				label: lang,
-				iconClasses: getIconClasses(this.modelService, this.modeService, fakeResource),
+				label: languageName,
+				iconClasses: getIconClasses(this.modelService, this.languageService, fakeResource),
 				description
 			} as IQuickPickItem;
 		});
 
-		return this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language") })
+		await this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language") })
 			.then(pick => {
 				if (pick) {
-					const modeId = this.modeService.getModeIdForLanguageName(pick.label.toLowerCase());
-					if (typeof modeId === 'string') {
-						return this.preferencesService.openGlobalSettings(true, { revealSetting: { key: `[${modeId}]`, edit: true } });
+					const languageId = this.languageService.getLanguageIdByLanguageName(pick.label);
+					if (typeof languageId === 'string') {
+						return this.preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${languageId}]`, edit: true } });
 					}
 				}
 				return undefined;

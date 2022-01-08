@@ -18,6 +18,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewDescriptorService';
 import { CustomTreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('MainThreadHostTreeView', function () {
 	const testTreeViewId = 'testTreeView';
@@ -29,26 +30,28 @@ suite('MainThreadHostTreeView', function () {
 	}
 
 	class MockExtHostTreeViewsShape extends mock<ExtHostTreeViewsShape>() {
-		async $getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[]> {
+		override async $getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[]> {
 			return [<CustomTreeItem>{ handle: 'testItem1', collapsibleState: TreeItemCollapsibleState.Expanded, customProp: customValue }];
 		}
 
-		async $hasResolve(): Promise<boolean> {
+		override async $hasResolve(): Promise<boolean> {
 			return false;
 		}
 
-		$setVisible(): void { }
+		override $setVisible(): void { }
 	}
 
 	let container: ViewContainer;
 	let mainThreadTreeViews: MainThreadTreeViews;
 	let extHostTreeViewsShape: MockExtHostTreeViewsShape;
+	let disposables: DisposableStore;
 
 	setup(async () => {
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
+		disposables = new DisposableStore();
+		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		const viewDescriptorService = instantiationService.createInstance(ViewDescriptorService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
-		container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({ id: 'testContainer', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({ id: 'testContainer', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const viewDescriptor: ITreeViewDescriptor = {
 			id: testTreeViewId,
 			ctorDescriptor: null!,
@@ -70,12 +73,13 @@ suite('MainThreadHostTreeView', function () {
 				}
 				drain(): any { return null; }
 			}, new TestViewsService(), new TestNotificationService(), testExtensionService, new NullLogService());
-		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, canSelectMany: false });
+		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, canSelectMany: false, dragAndDropMimeTypes: [], hasWillDrop: false });
 		await testExtensionService.whenInstalledExtensionsRegistered();
 	});
 
 	teardown(() => {
 		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(container), container);
+		disposables.dispose();
 	});
 
 	test('getChildren keeps custom properties', async () => {

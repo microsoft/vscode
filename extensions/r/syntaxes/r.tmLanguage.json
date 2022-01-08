@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Ikuyadeu/vscode-R/commit/e03ba9cb9b19412f48c73ea73deb6746d50bbf23",
+	"version": "https://github.com/Ikuyadeu/vscode-R/commit/f99fdd79533b62b0b6eb6142190963349aa621d7",
 	"name": "R",
 	"scopeName": "source.r",
 	"patterns": [
@@ -110,7 +110,7 @@
 					"name": "constant.numeric.integer.hexadecimal.r"
 				},
 				{
-					"match": "\\b(?:[0-9]+\\.?[0-9]*)L\\b",
+					"match": "\\b(?:[0-9]+\\.?[0-9]*)(?:(e|E)(\\+|-)?[0-9]+)?L\\b",
 					"name": "constant.numeric.integer.decimal.r"
 				},
 				{
@@ -181,6 +181,10 @@
 					"name": "keyword.operator.logical.r"
 				},
 				{
+					"match": "(\\|>)",
+					"name": "keyword.operator.pipe.r"
+				},
+				{
 					"match": "(%between%|%chin%|%like%|%\\+%|%\\+replace%|%:%|%do%|%dopar%|%>%|%<>%|%T>%|%\\$%)",
 					"name": "keyword.operator.other.r"
 				},
@@ -239,6 +243,27 @@
 						{
 							"match": "\\\\.",
 							"name": "constant.character.escape.r"
+						}
+					]
+				},
+				{
+					"begin": "`",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.r"
+						}
+					},
+					"end": "`",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.end.r"
+						}
+					},
+					"name": "variable.parameter.r",
+					"patterns": [
+						{
+							"match": "\\\\.",
+							"name": "variable.parameter.r"
 						}
 					]
 				}
@@ -328,8 +353,8 @@
 		"function-declarations": {
 			"patterns": [
 				{
-					"begin": "^\\s*([a-zA-Z._][\\w.:]*)\\s*(<<?-|=)\\s*(?=function\\s*\\()",
-					"beginCaptures": {
+					"match": "((?:`[^`\\\\]*(?:\\\\.[^`\\\\]*)*`)|(?:[[:alpha:].][[:alnum:]._]*))\\s*(<?<-|=(?!=))\\s*(function)",
+					"captures": {
 						"1": {
 							"name": "entity.name.function.r"
 						},
@@ -340,7 +365,6 @@
 							"name": "keyword.control.r"
 						}
 					},
-					"end": "(?<=\\))",
 					"name": "meta.function.r",
 					"patterns": [
 						{
@@ -456,7 +480,7 @@
 		"roxygen": {
 			"patterns": [
 				{
-					"begin": "^(#')\\s*",
+					"begin": "^\\s*(#')\\s*",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.comment.r"

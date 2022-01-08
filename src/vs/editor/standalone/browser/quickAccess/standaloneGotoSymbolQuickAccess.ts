@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
+import 'vs/editor/contrib/symbolIcons/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { AbstractGotoSymbolQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoSymbolQuickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
@@ -49,7 +51,7 @@ export class GotoLineAction extends EditorAction {
 			precondition: EditorContextKeys.hasDocumentSymbolProvider,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
 				weight: KeybindingWeight.EditorContrib
 			},
 			contextMenuOpts: {

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDimension } from 'vs/base/browser/dom';
 
 export const ILayoutService = createDecorator<ILayoutService>('layoutService');
 
@@ -17,6 +17,11 @@ export interface ILayoutService {
 	 * The dimensions of the container.
 	 */
 	readonly dimension: IDimension;
+
+	/**
+	 * Does the application have a single container?
+	 */
+	readonly hasContainer: boolean;
 
 	/**
 	 * Container of the application.
@@ -32,7 +37,7 @@ export interface ILayoutService {
 	 * An event that is emitted when the container is layed out. The
 	 * event carries the dimensions of the container as part of it.
 	 */
-	readonly onLayout: Event<IDimension>;
+	readonly onDidLayout: Event<IDimension>;
 
 	/**
 	 * Focus the primary component of the container.

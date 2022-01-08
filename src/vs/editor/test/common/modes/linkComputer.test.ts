@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { ILink } from 'vs/editor/common/modes';
-import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/modes/linkComputer';
+import { ILink } from 'vs/editor/common/languages';
+import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/linkComputer';
 
 class SimpleLinkComputerTarget implements ILinkComputerTarget {
 
@@ -228,6 +228,27 @@ suite('Editor Modes - Link Computer', () => {
 		assertLink(
 			'aa  http://tree-mark.chips.jp/レーズン＆ベリーミックス  aa',
 			'    http://tree-mark.chips.jp/レーズン＆ベリーミックス    '
+		);
+	});
+
+	test('issue #121438: Link detection stops at【...】', () => {
+		assertLink(
+			'aa  https://zh.wikipedia.org/wiki/【我推的孩子】 aa',
+			'    https://zh.wikipedia.org/wiki/【我推的孩子】   '
+		);
+	});
+
+	test('issue #121438: Link detection stops at《...》', () => {
+		assertLink(
+			'aa  https://zh.wikipedia.org/wiki/《新青年》编辑部旧址 aa',
+			'    https://zh.wikipedia.org/wiki/《新青年》编辑部旧址   '
+		);
+	});
+
+	test('issue #121438: Link detection stops at “...”', () => {
+		assertLink(
+			'aa  https://zh.wikipedia.org/wiki/“常凯申”误译事件 aa',
+			'    https://zh.wikipedia.org/wiki/“常凯申”误译事件   '
 		);
 	});
 });

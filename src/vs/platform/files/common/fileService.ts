@@ -3,29 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { mark } from 'vs/base/common/performance';
-import { Disposable, IDisposable, toDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent, ETAG_DISABLED, hasFileReadStreamCapability, IFileSystemProviderWithFileReadStreamCapability, ensureFileSystemProviderError, IFileSystemProviderCapabilitiesChangeEvent } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IExtUri, extUri, extUriIgnorePathCase, isAbsolutePath } from 'vs/base/common/resources';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
-import { ILogService } from 'vs/platform/log/common/log';
-import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamToBuffer, VSBufferReadableStream, VSBufferReadableBufferedStream, bufferedStreamToBuffer, newWriteableBufferStream } from 'vs/base/common/buffer';
-import { isReadableStream, transform, peekReadable, peekStream, isReadableBufferedStream, newWriteableStream, IReadableStreamObservable, observe } from 'vs/base/common/stream';
-import { Queue } from 'vs/base/common/async';
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { Schemas } from 'vs/base/common/network';
-import { readFileIntoStream } from 'vs/platform/files/common/io';
+import { coalesce } from 'vs/base/common/arrays';
+import { Promises, ResourceQueue, ThrottledWorker } from 'vs/base/common/async';
+import { bufferedStreamToBuffer, bufferToReadable, newWriteableBufferStream, readableToBuffer, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableBufferedStream, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { TernarySearchTree } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
+import { mark } from 'vs/base/common/performance';
+import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from 'vs/base/common/resources';
+import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from 'vs/base/common/stream';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, FileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileChange, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IRawFileChangesEvent, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IResolveFileResult, IResolveFileResultWithMetadata, IResolveMetadataFileOptions, IStat, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
+import { readFileIntoStream } from 'vs/platform/files/common/io';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class FileService extends Disposable implements IFileService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly BUFFER_SIZE = 64 * 1024;
+	// Choose a buffer size that is a balance between memory needs and
+	// manageable IPC overhead. The larger the buffer size, the less
+	// roundtrips we have to do for reading/writing data.
+	private readonly BUFFER_SIZE = 256 * 1024;
 
 	constructor(@ILogService private readonly logService: ILogService) {
 		super();
@@ -57,10 +60,10 @@ export class FileService extends Disposable implements IFileService {
 
 		// Forward events from provider
 		const providerDisposables = new DisposableStore();
-		providerDisposables.add(provider.onDidChangeFile(changes => this._onDidFilesChange.fire(new FileChangesEvent(changes, !this.isPathCaseSensitive(provider)))));
+		providerDisposables.add(provider.onDidChangeFile(changes => this.onDidChangeFile(changes, this.isPathCaseSensitive(provider))));
 		providerDisposables.add(provider.onDidChangeCapabilities(() => this._onDidChangeFileSystemProviderCapabilities.fire({ provider, scheme })));
-		if (typeof provider.onDidErrorOccur === 'function') {
-			providerDisposables.add(provider.onDidErrorOccur(error => this._onError.fire(new Error(error))));
+		if (typeof provider.onDidWatchError === 'function') {
+			providerDisposables.add(provider.onDidWatchError(error => this._onDidWatchError.fire(new Error(error))));
 		}
 
 		return toDisposable(() => {
@@ -71,6 +74,10 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
+	getProvider(scheme: string): IFileSystemProvider | undefined {
+		return this.provider.get(scheme);
+	}
+
 	async activateProvider(scheme: string): Promise<void> {
 
 		// Emit an event that we are about to activate a provider with the given scheme.
@@ -79,9 +86,7 @@ export class FileService extends Disposable implements IFileService {
 		this._onWillActivateFileSystemProvider.fire({
 			scheme,
 			join(promise) {
-				if (promise) {
-					joiners.push(promise);
-				}
+				joiners.push(promise);
 			},
 		});
 
@@ -91,10 +96,18 @@ export class FileService extends Disposable implements IFileService {
 
 		// If the provider is not yet there, make sure to join on the listeners assuming
 		// that it takes a bit longer to register the file system provider.
-		await Promise.all(joiners);
+		await Promises.settled(joiners);
 	}
 
-	canHandleResource(resource: URI): boolean {
+	async canHandleResource(resource: URI): Promise<boolean> {
+
+		// Await activation of potentially extension contributed providers
+		await this.activateProvider(resource.scheme);
+
+		return this.hasProvider(resource);
+	}
+
+	hasProvider(resource: URI): boolean {
 		return this.provider.has(resource.scheme);
 	}
 
@@ -153,11 +166,12 @@ export class FileService extends Disposable implements IFileService {
 
 	//#endregion
 
+	//#region Operation events
+
 	private readonly _onDidRunOperation = this._register(new Emitter<FileOperationEvent>());
 	readonly onDidRunOperation = this._onDidRunOperation.event;
 
-	private readonly _onError = this._register(new Emitter<Error>());
-	readonly onError = this._onError.event;
+	//#endregion
 
 	//#region File Metadata Resolving
 
@@ -170,7 +184,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// Specially handle file not found case as file operation result
 			if (toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileNotFound) {
-				throw new FileOperationError(localize('fileNotFoundError', "Unable to resolve non-existing file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_NOT_FOUND);
+				throw new FileOperationError(localize('fileNotFoundError', "Unable to resolve nonexistent file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_NOT_FOUND);
 			}
 
 			// Bubble up any other error as is
@@ -198,13 +212,13 @@ export class FileService extends Disposable implements IFileService {
 			if (!trie) {
 				trie = TernarySearchTree.forUris<true>(() => !isPathCaseSensitive);
 				trie.set(resource, true);
-				if (isNonEmptyArray(resolveTo)) {
-					resolveTo.forEach(uri => trie!.set(uri, true));
+				if (resolveTo) {
+					trie.fill(true, resolveTo);
 				}
 			}
 
 			// check for recursive resolving
-			if (Boolean(trie.findSuperstr(stat.resource) || trie.get(stat.resource))) {
+			if (trie.get(stat.resource) || trie.findSuperstr(stat.resource.with({ query: null, fragment: null } /* required for https://github.com/microsoft/vscode/issues/128151 */))) {
 				return true;
 			}
 
@@ -232,6 +246,7 @@ export class FileService extends Disposable implements IFileService {
 			mtime: stat.mtime,
 			ctime: stat.ctime,
 			size: stat.size,
+			readonly: Boolean((stat.permissions ?? 0) & FilePermission.Readonly) || Boolean(provider.capabilities & FileSystemProviderCapabilities.Readonly),
 			etag: etag({ mtime: stat.mtime, size: stat.size })
 		};
 
@@ -239,7 +254,7 @@ export class FileService extends Disposable implements IFileService {
 		if (fileStat.isDirectory && recurse(fileStat, siblings)) {
 			try {
 				const entries = await provider.readdir(resource);
-				const resolvedEntries = await Promise.all(entries.map(async ([name, type]) => {
+				const resolvedEntries = await Promises.settled(entries.map(async ([name, type]) => {
 					try {
 						const childResource = providerExtUri.joinPath(resource, name);
 						const childStat = resolveMetadata ? await provider.stat(childResource) : { type };
@@ -269,7 +284,7 @@ export class FileService extends Disposable implements IFileService {
 	async resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]>;
 	async resolveAll(toResolve: { resource: URI, options: IResolveMetadataFileOptions; }[]): Promise<IResolveFileResultWithMetadata[]>;
 	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
-		return Promise.all(toResolve.map(async entry => {
+		return Promises.settled(toResolve.map(async entry => {
 			try {
 				return { stat: await this.doResolveFile(entry.resource, entry.options), success: true };
 			} catch (error) {
@@ -364,12 +379,12 @@ export class FileService extends Disposable implements IFileService {
 
 			// write file: unbuffered (only if data to write is a buffer, or the provider has no buffered write capability)
 			if (!hasOpenReadWriteCloseCapability(provider) || (hasReadWriteCapability(provider) && bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer)) {
-				await this.doWriteUnbuffered(provider, resource, bufferOrReadableOrStreamOrBufferedStream);
+				await this.doWriteUnbuffered(provider, resource, options, bufferOrReadableOrStreamOrBufferedStream);
 			}
 
 			// write file: buffered
 			else {
-				await this.doWriteBuffered(provider, resource, bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer ? bufferToReadable(bufferOrReadableOrStreamOrBufferedStream) : bufferOrReadableOrStreamOrBufferedStream);
+				await this.doWriteBuffered(provider, resource, options, bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer ? bufferToReadable(bufferOrReadableOrStreamOrBufferedStream) : bufferOrReadableOrStreamOrBufferedStream);
 			}
 		} catch (error) {
 			throw new FileOperationError(localize('err.write', "Unable to write file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options);
@@ -379,6 +394,14 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private async validateWriteFile(provider: IFileSystemProvider, resource: URI, options?: IWriteFileOptions): Promise<IStat | undefined> {
+
+		// Validate unlock support
+		const unlock = !!options?.unlock;
+		if (unlock && !(provider.capabilities & FileSystemProviderCapabilities.FileWriteUnlock)) {
+			throw new Error(localize('writeFailedUnlockUnsupported', "Unable to unlock file '{0}' because provider does not support it.", this.resourceForError(resource)));
+		}
+
+		// Validate via file stat meta data
 		let stat: IStat | undefined = undefined;
 		try {
 			stat = await provider.stat(resource);
@@ -386,10 +409,13 @@ export class FileService extends Disposable implements IFileService {
 			return undefined; // file might not exist
 		}
 
-		// file cannot be directory
+		// File cannot be directory
 		if ((stat.type & FileType.Directory) !== 0) {
 			throw new FileOperationError(localize('fileIsDirectoryWriteError', "Unable to write file '{0}' that is actually a directory", this.resourceForError(resource)), FileOperationResult.FILE_IS_DIRECTORY, options);
 		}
+
+		// File cannot be readonly
+		this.throwIfFileIsReadonly(resource, stat);
 
 		// Dirty write prevention: if the file on disk has been changed and does not match our expected
 		// mtime and etag, we bail out to prevent dirty writing.
@@ -404,7 +430,7 @@ export class FileService extends Disposable implements IFileService {
 		// but to the same length. This is a compromise we take to avoid having to produce checksums of
 		// the file content for comparison which would be much slower to compute.
 		if (
-			options && typeof options.mtime === 'number' && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED &&
+			typeof options?.mtime === 'number' && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED &&
 			typeof stat.mtime === 'number' && typeof stat.size === 'number' &&
 			options.mtime < stat.mtime && options.etag !== etag({ mtime: options.mtime /* not using stat.mtime for a reason, see above */, size: stat.size })
 		) {
@@ -414,10 +440,31 @@ export class FileService extends Disposable implements IFileService {
 		return stat;
 	}
 
-	async readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent> {
+	async readFile(resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> {
 		const provider = await this.withReadProvider(resource);
 
-		const stream = await this.doReadAsFileStream(provider, resource, {
+		if (options?.atomic) {
+			return this.doReadFileAtomic(provider, resource, options, token);
+		}
+
+		return this.doReadFile(provider, resource, options, token);
+	}
+
+	private async doReadFileAtomic(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability, resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> {
+		return new Promise<IFileContent>((resolve, reject) => {
+			this.writeQueue.queueFor(resource, this.getExtUri(provider).providerExtUri).queue(async () => {
+				try {
+					const content = await this.doReadFile(provider, resource, options, token);
+					resolve(content);
+				} catch (error) {
+					reject(error);
+				}
+			});
+		});
+	}
+
+	private async doReadFile(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability, resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> {
+		const stream = await this.doReadFileStream(provider, resource, {
 			...options,
 			// optimization: since we know that the caller does not
 			// care about buffering, we indicate this to the reader.
@@ -425,7 +472,7 @@ export class FileService extends Disposable implements IFileService {
 			// has (open, read, close) if the provider supports
 			// unbuffered reading.
 			preferUnbuffered: true
-		});
+		}, token);
 
 		return {
 			...stream,
@@ -433,19 +480,23 @@ export class FileService extends Disposable implements IFileService {
 		};
 	}
 
-	async readFileStream(resource: URI, options?: IReadFileOptions): Promise<IFileStreamContent> {
+	async readFileStream(resource: URI, options?: IReadFileStreamOptions, token?: CancellationToken): Promise<IFileStreamContent> {
 		const provider = await this.withReadProvider(resource);
 
-		return this.doReadAsFileStream(provider, resource, options);
+		return this.doReadFileStream(provider, resource, options, token);
 	}
 
-	private async doReadAsFileStream(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability, resource: URI, options?: IReadFileOptions & { preferUnbuffered?: boolean; }): Promise<IFileStreamContent> {
+	private async doReadFileStream(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability, resource: URI, options?: IReadFileOptions & IReadFileStreamOptions & { preferUnbuffered?: boolean; }, token?: CancellationToken): Promise<IFileStreamContent> {
 
 		// install a cancellation token that gets cancelled
 		// when any error occurs. this allows us to resolve
 		// the content of the file while resolving metadata
 		// but still cancel the operation in certain cases.
-		const cancellableSource = new CancellationTokenSource();
+		//
+		// in addition, we pass the optional token in that
+		// we got from the outside to even allow for external
+		// cancellation of the read operation.
+		const cancellableSource = new CancellationTokenSource(token);
 
 		// validate read operation
 		const statPromise = this.validateReadFile(resource, options).then(stat => stat, error => {
@@ -454,22 +505,23 @@ export class FileService extends Disposable implements IFileService {
 			throw error;
 		});
 
-		let fileStreamObserver: IReadableStreamObservable | undefined = undefined;
-
+		let fileStream: VSBufferReadableStream | undefined = undefined;
 		try {
 
 			// if the etag is provided, we await the result of the validation
-			// due to the likelyhood of hitting a NOT_MODIFIED_SINCE result.
+			// due to the likelihood of hitting a NOT_MODIFIED_SINCE result.
 			// otherwise, we let it run in parallel to the file reading for
 			// optimal startup performance.
-			if (options && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED) {
+			if (typeof options?.etag === 'string' && options.etag !== ETAG_DISABLED) {
 				await statPromise;
 			}
 
-			let fileStream: VSBufferReadableStream | undefined = undefined;
-
-			// read unbuffered (only if either preferred, or the provider has no buffered read capability)
-			if (!(hasOpenReadWriteCloseCapability(provider) || hasFileReadStreamCapability(provider)) || (hasReadWriteCapability(provider) && options?.preferUnbuffered)) {
+			// read unbuffered
+			if (
+				(options?.atomic && hasFileAtomicReadCapability(provider)) ||								// atomic reads are always unbuffered
+				!(hasOpenReadWriteCloseCapability(provider) || hasFileReadStreamCapability(provider)) ||	// provider has no buffered capability
+				(hasReadWriteCapability(provider) && options?.preferUnbuffered)								// unbuffered read is preferred
+			) {
 				fileStream = this.readFileUnbuffered(provider, resource, options);
 			}
 
@@ -483,9 +535,6 @@ export class FileService extends Disposable implements IFileService {
 				fileStream = this.readFileBuffered(provider, resource, cancellableSource.token, options);
 			}
 
-			// observe the stream for the error case below
-			fileStreamObserver = observe(fileStream);
-
 			const fileStat = await statPromise;
 
 			return {
@@ -497,15 +546,22 @@ export class FileService extends Disposable implements IFileService {
 			// Await the stream to finish so that we exit this method
 			// in a consistent state with file handles closed
 			// (https://github.com/microsoft/vscode/issues/114024)
-			if (fileStreamObserver) {
-				await fileStreamObserver.errorOrEnd();
+			if (fileStream) {
+				await consumeStream(fileStream);
 			}
 
-			throw new FileOperationError(localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options);
+			// Re-throw errors as file operation errors but preserve
+			// specific errors (such as not modified since)
+			const message = localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString());
+			if (error instanceof NotModifiedSinceFileOperationError) {
+				throw new NotModifiedSinceFileOperationError(message, error.stat, options);
+			} else {
+				throw new FileOperationError(message, toFileOperationResult(error), options);
+			}
 		}
 	}
 
-	private readFileStreamed(provider: IFileSystemProviderWithFileReadStreamCapability, resource: URI, token: CancellationToken, options: IReadFileOptions = Object.create(null)): VSBufferReadableStream {
+	private readFileStreamed(provider: IFileSystemProviderWithFileReadStreamCapability, resource: URI, token: CancellationToken, options: IReadFileStreamOptions = Object.create(null)): VSBufferReadableStream {
 		const fileStream = provider.readFileStream(resource, options, token);
 
 		return transform(fileStream, {
@@ -514,7 +570,7 @@ export class FileService extends Disposable implements IFileService {
 		}, data => VSBuffer.concat(data));
 	}
 
-	private readFileBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, token: CancellationToken, options: IReadFileOptions = Object.create(null)): VSBufferReadableStream {
+	private readFileBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, token: CancellationToken, options: IReadFileStreamOptions = Object.create(null)): VSBufferReadableStream {
 		const stream = newWriteableBufferStream();
 
 		readFileIntoStream(provider, resource, stream, data => data, {
@@ -526,22 +582,27 @@ export class FileService extends Disposable implements IFileService {
 		return stream;
 	}
 
-	private readFileUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, options?: IReadFileOptions): VSBufferReadableStream {
+	private readFileUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithFileAtomicReadCapability, resource: URI, options?: IReadFileOptions & IReadFileStreamOptions): VSBufferReadableStream {
 		const stream = newWriteableStream<VSBuffer>(data => VSBuffer.concat(data));
 
 		// Read the file into the stream async but do not wait for
 		// this to complete because streams work via events
 		(async () => {
 			try {
-				let buffer = await provider.readFile(resource);
+				let buffer: Uint8Array;
+				if (options?.atomic && hasFileAtomicReadCapability(provider)) {
+					buffer = await provider.readFile(resource, { atomic: true });
+				} else {
+					buffer = await provider.readFile(resource);
+				}
 
 				// respect position option
-				if (options && typeof options.position === 'number') {
+				if (typeof options?.position === 'number') {
 					buffer = buffer.slice(options.position);
 				}
 
 				// respect length option
-				if (options && typeof options.length === 'number') {
+				if (typeof options?.length === 'number') {
 					buffer = buffer.slice(0, options.length);
 				}
 
@@ -552,13 +613,14 @@ export class FileService extends Disposable implements IFileService {
 				stream.end(VSBuffer.wrap(buffer));
 			} catch (err) {
 				stream.error(err);
+				stream.end();
 			}
 		})();
 
 		return stream;
 	}
 
-	private async validateReadFile(resource: URI, options?: IReadFileOptions): Promise<IFileStatWithMetadata> {
+	private async validateReadFile(resource: URI, options?: IReadFileStreamOptions): Promise<IFileStatWithMetadata> {
 		const stat = await this.resolve(resource, { resolveMetadata: true });
 
 		// Throw if resource is a directory
@@ -567,8 +629,8 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		// Throw if file not modified since (unless disabled)
-		if (options && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED && options.etag === stat.etag) {
-			throw new FileOperationError(localize('fileNotModifiedError', "File not modified since"), FileOperationResult.FILE_NOT_MODIFIED_SINCE, options);
+		if (typeof options?.etag === 'string' && options.etag !== ETAG_DISABLED && options.etag === stat.etag) {
+			throw new NotModifiedSinceFileOperationError(localize('fileNotModifiedError', "File not modified since"), stat, options);
 		}
 
 		// Throw if file is too large to load
@@ -577,7 +639,7 @@ export class FileService extends Disposable implements IFileService {
 		return stat;
 	}
 
-	private validateReadFileLimits(resource: URI, size: number, options?: IReadFileOptions): void {
+	private validateReadFileLimits(resource: URI, size: number, options?: IReadFileStreamOptions): void {
 		if (options?.limits) {
 			let tooLargeErrorResult: FileOperationResult | undefined = undefined;
 
@@ -738,7 +800,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// create children in target
 		if (Array.isArray(sourceFolder.children)) {
-			await Promise.all(sourceFolder.children.map(async sourceChild => {
+			await Promises.settled(sourceFolder.children.map(async sourceChild => {
 				const targetChild = this.getExtUri(targetProvider).providerExtUri.joinPath(targetFolder, sourceChild.name);
 				if (sourceChild.isDirectory) {
 					return this.doCopyFolder(sourceProvider, await this.resolve(sourceChild.resource), targetProvider, targetChild);
@@ -866,7 +928,7 @@ export class FileService extends Disposable implements IFileService {
 		}
 	}
 
-	async canDelete(resource: URI, options?: { useTrash?: boolean; recursive?: boolean; }): Promise<Error | true> {
+	async canDelete(resource: URI, options?: Partial<FileDeleteOptions>): Promise<Error | true> {
 		try {
 			await this.doValidateDelete(resource, options);
 		} catch (error) {
@@ -876,7 +938,7 @@ export class FileService extends Disposable implements IFileService {
 		return true;
 	}
 
-	private async doValidateDelete(resource: URI, options?: { useTrash?: boolean; recursive?: boolean; }): Promise<IFileSystemProvider> {
+	private async doValidateDelete(resource: URI, options?: Partial<FileDeleteOptions>): Promise<IFileSystemProvider> {
 		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource), resource);
 
 		// Validate trash support
@@ -886,14 +948,22 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		// Validate delete
-		const exists = await this.exists(resource);
-		if (!exists) {
-			throw new FileOperationError(localize('deleteFailedNotFound', "Unable to delete non-existing file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_NOT_FOUND);
+		let stat: IStat | undefined = undefined;
+		try {
+			stat = await provider.stat(resource);
+		} catch (error) {
+			// Handled later
+		}
+
+		if (stat) {
+			this.throwIfFileIsReadonly(resource, stat);
+		} else {
+			throw new FileOperationError(localize('deleteFailedNotFound', "Unable to delete nonexistent file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_NOT_FOUND);
 		}
 
 		// Validate recursive
 		const recursive = !!options?.recursive;
-		if (!recursive && exists) {
+		if (!recursive) {
 			const stat = await this.resolve(resource);
 			if (stat.isDirectory && Array.isArray(stat.children) && stat.children.length > 0) {
 				throw new Error(localize('deleteFailedNonEmptyFolder', "Unable to delete non-empty folder '{0}'.", this.resourceForError(resource)));
@@ -903,7 +973,7 @@ export class FileService extends Disposable implements IFileService {
 		return provider;
 	}
 
-	async del(resource: URI, options?: { useTrash?: boolean; recursive?: boolean; }): Promise<void> {
+	async del(resource: URI, options?: Partial<FileDeleteOptions>): Promise<void> {
 		const provider = await this.doValidateDelete(resource, options);
 
 		const useTrash = !!options?.useTrash;
@@ -920,35 +990,168 @@ export class FileService extends Disposable implements IFileService {
 
 	//#region File Watching
 
+	/**
+	 * Providers can send unlimited amount of `IFileChange` events
+	 * and we want to protect against this to reduce CPU pressure.
+	 * The following settings limit the amount of file changes we
+	 * process at once.
+	 * (https://github.com/microsoft/vscode/issues/124723)
+	 */
+	private static readonly FILE_EVENTS_THROTTLING = {
+		maxChangesChunkSize: 500 as const,		// number of changes we process per interval
+		maxChangesBufferSize: 30000 as const,  	// total number of changes we are willing to buffer in memory
+		coolDownDelay: 200 as const,	  		// rest for 200ms before processing next events
+		warningscounter: 0						// keep track how many warnings we showed to reduce log spam
+	};
+
 	private readonly _onDidFilesChange = this._register(new Emitter<FileChangesEvent>());
 	readonly onDidFilesChange = this._onDidFilesChange.event;
 
+	private readonly _onDidWatchError = this._register(new Emitter<Error>());
+	readonly onDidWatchError = this._onDidWatchError.event;
+
+	private readonly _onDidChangeFilesRaw = this._register(new Emitter<IRawFileChangesEvent>());
+	readonly onDidChangeFilesRaw = this._onDidChangeFilesRaw.event;
+
 	private readonly activeWatchers = new Map<string, { disposable: IDisposable, count: number; }>();
 
+	private readonly caseSensitiveFileEventsWorker = this._register(
+		new ThrottledWorker<IFileChange>(
+			FileService.FILE_EVENTS_THROTTLING.maxChangesChunkSize,
+			FileService.FILE_EVENTS_THROTTLING.maxChangesBufferSize,
+			FileService.FILE_EVENTS_THROTTLING.coolDownDelay,
+			chunks => this._onDidFilesChange.fire(new FileChangesEvent(chunks, false))
+		)
+	);
+
+	private readonly caseInsensitiveFileEventsWorker = this._register(
+		new ThrottledWorker<IFileChange>(
+			FileService.FILE_EVENTS_THROTTLING.maxChangesChunkSize,
+			FileService.FILE_EVENTS_THROTTLING.maxChangesBufferSize,
+			FileService.FILE_EVENTS_THROTTLING.coolDownDelay,
+			chunks => this._onDidFilesChange.fire(new FileChangesEvent(chunks, true))
+		)
+	);
+
+	private readonly nonRecursiveWatchedResources = TernarySearchTree.forUris<number>(uri => {
+		const provider = this.getProvider(uri.scheme);
+		if (provider) {
+			return !this.isPathCaseSensitive(provider);
+		}
+
+		return false;
+	});
+
+	private onDidChangeFile(changes: readonly IFileChange[], caseSensitive: boolean): void {
+
+		// Event #1: access to raw events goes out instantly
+		{
+			this._onDidChangeFilesRaw.fire({ changes });
+		}
+
+		// Event #2: immediately send out events for
+		// non-recursive watched resources by splitting
+		// changes up into 2 buckets
+		let nonRecursiveFileChanges: IFileChange[] | undefined = undefined;
+		let recursiveFileChanges: IFileChange[] | undefined = undefined;
+		{
+			for (const change of changes) {
+				if (this.nonRecursiveWatchedResources.has(change.resource)) {
+					if (!nonRecursiveFileChanges) {
+						nonRecursiveFileChanges = [];
+					}
+					nonRecursiveFileChanges.push(change);
+				} else {
+					if (!recursiveFileChanges) {
+						recursiveFileChanges = [];
+					}
+					recursiveFileChanges.push(change);
+				}
+			}
+
+			if (nonRecursiveFileChanges) {
+				this._onDidFilesChange.fire(new FileChangesEvent(nonRecursiveFileChanges, !caseSensitive));
+			}
+		}
+
+		// Event #3: recursively watched resources get
+		// throttled due to performance reasons because
+		// there is a higher likelyhood of many events
+		// being emitted at once
+		if (recursiveFileChanges) {
+			const worker = caseSensitive ? this.caseSensitiveFileEventsWorker : this.caseInsensitiveFileEventsWorker;
+			const worked = worker.work(recursiveFileChanges);
+
+			if (!worked && FileService.FILE_EVENTS_THROTTLING.warningscounter++ < 10) {
+				this.logService.warn(`[File watcher]: started ignoring events due to too many file change events at once (incoming: ${recursiveFileChanges.length}, most recent change: ${recursiveFileChanges[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+			}
+
+			if (worker.pending > 0) {
+				this.logService.trace(`[File watcher]: started throttling events due to large amount of file change events at once (pending: ${worker.pending}, most recent change: ${recursiveFileChanges[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+			}
+		}
+	}
+
 	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
+		const disposables = new DisposableStore();
+
+		// Forward watch request to provider and
+		// wire in disposables.
 		let watchDisposed = false;
 		let disposeWatch = () => { watchDisposed = true; };
+		disposables.add(toDisposable(() => disposeWatch()));
 
 		// Watch and wire in disposable which is async but
 		// check if we got disposed meanwhile and forward
-		this.doWatch(resource, options).then(disposable => {
-			if (watchDisposed) {
-				dispose(disposable);
-			} else {
-				disposeWatch = () => dispose(disposable);
+		(async () => {
+			try {
+				const disposable = await this.doWatch(resource, options);
+				if (watchDisposed) {
+					dispose(disposable);
+				} else {
+					disposeWatch = () => dispose(disposable);
+				}
+			} catch (error) {
+				this.logService.error(error);
 			}
-		}, error => this.logService.error(error));
+		})();
 
-		return toDisposable(() => disposeWatch());
+		// Explicitly keep track of non-recursively watched
+		// resources which will bypass our spam protection
+		if (!options.recursive) {
+
+			// Increment counter for resource
+			this.nonRecursiveWatchedResources.set(resource, (this.nonRecursiveWatchedResources.get(resource) ?? 0) + 1);
+
+			// Decrement counter for resource on dispose
+			// and remove from map when last one is gone
+			disposables.add(toDisposable(() => {
+				const nonRecursiveWatchedResourceCounter = this.nonRecursiveWatchedResources.get(resource);
+				if (typeof nonRecursiveWatchedResourceCounter === 'number') {
+					if (nonRecursiveWatchedResourceCounter <= 1) {
+						this.nonRecursiveWatchedResources.delete(resource);
+					} else {
+						this.nonRecursiveWatchedResources.set(resource, nonRecursiveWatchedResourceCounter - 1);
+					}
+				}
+			}));
+		}
+
+		return disposables;
 	}
 
-	async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable> {
+	private async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable> {
 		const provider = await this.withProvider(resource);
 		const key = this.toWatchKey(provider, resource, options);
 
 		// Only start watching if we are the first for the given key
-		const watcher = this.activeWatchers.get(key) || { count: 0, disposable: provider.watch(resource, options) };
-		if (!this.activeWatchers.has(key)) {
+		let watcher = this.activeWatchers.get(key);
+		if (!watcher) {
+			watcher = {
+				count: 0,
+				disposable: provider.watch(resource, options)
+			};
+
 			this.activeWatchers.set(key, watcher);
 		}
 
@@ -956,14 +1159,16 @@ export class FileService extends Disposable implements IFileService {
 		watcher.count += 1;
 
 		return toDisposable(() => {
+			if (watcher) {
 
-			// Unref
-			watcher.count--;
+				// Unref
+				watcher.count--;
 
-			// Dispose only when last user is reached
-			if (watcher.count === 0) {
-				dispose(watcher.disposable);
-				this.activeWatchers.delete(key);
+				// Dispose only when last user is reached
+				if (watcher.count === 0) {
+					dispose(watcher.disposable);
+					this.activeWatchers.delete(key);
+				}
 			}
 		});
 	}
@@ -978,10 +1183,13 @@ export class FileService extends Disposable implements IFileService {
 		].join();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
-		this.activeWatchers.forEach(watcher => dispose(watcher.disposable));
+		for (const [, watcher] of this.activeWatchers) {
+			dispose(watcher.disposable);
+		}
+
 		this.activeWatchers.clear();
 	}
 
@@ -989,35 +1197,13 @@ export class FileService extends Disposable implements IFileService {
 
 	//#region Helpers
 
-	private readonly writeQueues: Map<string, Queue<void>> = new Map();
+	private readonly writeQueue = this._register(new ResourceQueue());
 
-	private ensureWriteQueue(provider: IFileSystemProvider, resource: URI): Queue<void> {
-		const { providerExtUri } = this.getExtUri(provider);
-		const queueKey = providerExtUri.getComparisonKey(resource);
-
-		// ensure to never write to the same resource without finishing
-		// the one write. this ensures a write finishes consistently
-		// (even with error) before another write is done.
-		let writeQueue = this.writeQueues.get(queueKey);
-		if (!writeQueue) {
-			writeQueue = new Queue<void>();
-			this.writeQueues.set(queueKey, writeQueue);
-
-			const onFinish = Event.once(writeQueue.onFinished);
-			onFinish(() => {
-				this.writeQueues.delete(queueKey);
-				dispose(writeQueue);
-			});
-		}
-
-		return writeQueue;
-	}
-
-	private async doWriteBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, readableOrStreamOrBufferedStream: VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
-		return this.ensureWriteQueue(provider, resource).queue(async () => {
+	private async doWriteBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, options: IWriteFileOptions | undefined, readableOrStreamOrBufferedStream: VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
+		return this.writeQueue.queueFor(resource, this.getExtUri(provider).providerExtUri).queue(async () => {
 
 			// open handle
-			const handle = await provider.open(resource, { create: true });
+			const handle = await provider.open(resource, { create: true, unlock: options?.unlock ?? false });
 
 			// write into handle until all bytes from buffer have been written
 			try {
@@ -1063,30 +1249,30 @@ export class FileService extends Disposable implements IFileService {
 			stream = streamOrBufferedStream;
 		}
 
-		return new Promise(async (resolve, reject) => {
+		return new Promise((resolve, reject) => {
+			listenStream(stream, {
+				onData: async chunk => {
 
-			stream.on('data', async chunk => {
+					// pause stream to perform async write operation
+					stream.pause();
 
-				// pause stream to perform async write operation
-				stream.pause();
+					try {
+						await this.doWriteBuffer(provider, handle, chunk, chunk.byteLength, posInFile, 0);
+					} catch (error) {
+						return reject(error);
+					}
 
-				try {
-					await this.doWriteBuffer(provider, handle, chunk, chunk.byteLength, posInFile, 0);
-				} catch (error) {
-					return reject(error);
-				}
+					posInFile += chunk.byteLength;
 
-				posInFile += chunk.byteLength;
-
-				// resume stream now that we have successfully written
-				// run this on the next tick to prevent increasing the
-				// execution stack because resume() may call the event
-				// handler again before finishing.
-				setTimeout(() => stream.resume());
+					// resume stream now that we have successfully written
+					// run this on the next tick to prevent increasing the
+					// execution stack because resume() may call the event
+					// handler again before finishing.
+					setTimeout(() => stream.resume());
+				},
+				onError: error => reject(error),
+				onEnd: () => resolve()
 			});
-
-			stream.on('error', error => reject(error));
-			stream.on('end', () => resolve());
 		});
 	}
 
@@ -1111,11 +1297,11 @@ export class FileService extends Disposable implements IFileService {
 		}
 	}
 
-	private async doWriteUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, bufferOrReadableOrStreamOrBufferedStream: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
-		return this.ensureWriteQueue(provider, resource).queue(() => this.doWriteUnbufferedQueued(provider, resource, bufferOrReadableOrStreamOrBufferedStream));
+	private async doWriteUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, options: IWriteFileOptions | undefined, bufferOrReadableOrStreamOrBufferedStream: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
+		return this.writeQueue.queueFor(resource, this.getExtUri(provider).providerExtUri).queue(() => this.doWriteUnbufferedQueued(provider, resource, options, bufferOrReadableOrStreamOrBufferedStream));
 	}
 
-	private async doWriteUnbufferedQueued(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, bufferOrReadableOrStreamOrBufferedStream: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
+	private async doWriteUnbufferedQueued(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, options: IWriteFileOptions | undefined, bufferOrReadableOrStreamOrBufferedStream: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
 		let buffer: VSBuffer;
 		if (bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer) {
 			buffer = bufferOrReadableOrStreamOrBufferedStream;
@@ -1128,11 +1314,11 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		// Write through the provider
-		await provider.writeFile(resource, buffer.buffer, { create: true, overwrite: true });
+		await provider.writeFile(resource, buffer.buffer, { create: true, overwrite: true, unlock: options?.unlock ?? false });
 	}
 
 	private async doPipeBuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
-		return this.ensureWriteQueue(targetProvider, target).queue(() => this.doPipeBufferedQueued(sourceProvider, source, targetProvider, target));
+		return this.writeQueue.queueFor(target, this.getExtUri(targetProvider).providerExtUri).queue(() => this.doPipeBufferedQueued(sourceProvider, source, targetProvider, target));
 	}
 
 	private async doPipeBufferedQueued(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
@@ -1143,7 +1329,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// Open handles
 			sourceHandle = await sourceProvider.open(source, { create: false });
-			targetHandle = await targetProvider.open(target, { create: true });
+			targetHandle = await targetProvider.open(target, { create: true, unlock: false });
 
 			const buffer = VSBuffer.alloc(this.BUFFER_SIZE);
 
@@ -1170,7 +1356,7 @@ export class FileService extends Disposable implements IFileService {
 		} catch (error) {
 			throw ensureFileSystemProviderError(error);
 		} finally {
-			await Promise.all([
+			await Promises.settled([
 				typeof sourceHandle === 'number' ? sourceProvider.close(sourceHandle) : Promise.resolve(),
 				typeof targetHandle === 'number' ? targetProvider.close(targetHandle) : Promise.resolve(),
 			]);
@@ -1178,21 +1364,21 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private async doPipeUnbuffered(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI): Promise<void> {
-		return this.ensureWriteQueue(targetProvider, target).queue(() => this.doPipeUnbufferedQueued(sourceProvider, source, targetProvider, target));
+		return this.writeQueue.queueFor(target, this.getExtUri(targetProvider).providerExtUri).queue(() => this.doPipeUnbufferedQueued(sourceProvider, source, targetProvider, target));
 	}
 
 	private async doPipeUnbufferedQueued(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI): Promise<void> {
-		return targetProvider.writeFile(target, await sourceProvider.readFile(source), { create: true, overwrite: true });
+		return targetProvider.writeFile(target, await sourceProvider.readFile(source), { create: true, overwrite: true, unlock: false });
 	}
 
 	private async doPipeUnbufferedToBuffered(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
-		return this.ensureWriteQueue(targetProvider, target).queue(() => this.doPipeUnbufferedToBufferedQueued(sourceProvider, source, targetProvider, target));
+		return this.writeQueue.queueFor(target, this.getExtUri(targetProvider).providerExtUri).queue(() => this.doPipeUnbufferedToBufferedQueued(sourceProvider, source, targetProvider, target));
 	}
 
 	private async doPipeUnbufferedToBufferedQueued(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
 
 		// Open handle
-		const targetHandle = await targetProvider.open(target, { create: true });
+		const targetHandle = await targetProvider.open(target, { create: true, unlock: false });
 
 		// Read entire buffer from source and write buffered
 		try {
@@ -1211,7 +1397,7 @@ export class FileService extends Disposable implements IFileService {
 		const buffer = await streamToBuffer(this.readFileBuffered(sourceProvider, source, CancellationToken.None));
 
 		// Write buffer into target at once
-		await this.doWriteUnbuffered(targetProvider, target, buffer);
+		await this.doWriteUnbuffered(targetProvider, target, undefined, buffer);
 	}
 
 	protected throwIfFileSystemIsReadonly<T extends IFileSystemProvider>(provider: T, resource: URI): T {
@@ -1220,6 +1406,12 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		return provider;
+	}
+
+	private throwIfFileIsReadonly(resource: URI, stat: IStat): void {
+		if ((stat.permissions ?? 0) & FilePermission.Readonly) {
+			throw new FileOperationError(localize('err.readonly', "Unable to modify readonly file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_PERMISSION_DENIED);
+		}
 	}
 
 	private resourceForError(resource: URI): string {

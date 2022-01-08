@@ -5,6 +5,10 @@
 
 declare let MonacoEnvironment: monaco.Environment | undefined;
 
+interface Window {
+	MonacoEnvironment?: monaco.Environment | undefined;
+}
+
 declare namespace monaco {
 
 	export type Thenable<T> = PromiseLike<T>;
@@ -52,10 +56,10 @@ declare namespace monaco {
 declare namespace monaco.editor {
 #include(vs/editor/browser/widget/diffNavigator): IDiffNavigator
 #includeAll(vs/editor/standalone/browser/standaloneEditor;modes.=>languages.;editorCommon.=>):
-#include(vs/editor/standalone/common/standaloneThemeService): BuiltinTheme, IStandaloneThemeData, IColors
-#include(vs/editor/common/modes/supports/tokenization): ITokenThemeRule
+#include(vs/editor/standalone/common/standaloneTheme): BuiltinTheme, IStandaloneThemeData, IColors
+#include(vs/editor/common/languages/supports/tokenization): ITokenThemeRule
 #include(vs/editor/common/services/webWorker): MonacoWebWorker, IWebWorkerOptions
-#include(vs/editor/standalone/browser/standaloneCodeEditor): IActionDescriptor, IGlobalEditorOptions, IStandaloneEditorConstructionOptions, IDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
+#include(vs/editor/standalone/browser/standaloneCodeEditor): IActionDescriptor, IGlobalEditorOptions, IStandaloneEditorConstructionOptions, IStandaloneDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
 export interface ICommandHandler {
 	(...args: any[]): void;
 }
@@ -65,7 +69,7 @@ export interface ICommandHandler {
 #include(vs/editor/standalone/browser/colorizer): IColorizerOptions, IColorizerElementOptions
 #include(vs/base/common/scrollable): ScrollbarVisibility
 #include(vs/platform/theme/common/themeService): ThemeColor
-#includeAll(vs/editor/common/model;LanguageIdentifier=>languages.LanguageIdentifier): IScrollEvent
+#includeAll(vs/editor/common/model): IScrollEvent
 #includeAll(vs/editor/common/editorCommon;editorOptions.=>): IScrollEvent
 #includeAll(vs/editor/common/model/textModelEvents):
 #includeAll(vs/editor/common/controller/cursorEvents):
@@ -82,15 +86,16 @@ export type IModel = ITextModel;
 declare namespace monaco.languages {
 
 #includeAll(vs/editor/standalone/browser/standaloneLanguages;modes.=>;editorCommon.=>editor.;model.=>editor.;IMarkerData=>editor.IMarkerData):
-#includeAll(vs/editor/common/modes/languageConfiguration):
-#includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IMarkerData=>editor.IMarkerData;model.=>editor.):
-#include(vs/editor/common/services/modeService): ILanguageExtensionPoint
+#includeAll(vs/editor/common/languages/languageConfiguration):
+#includeAll(vs/editor/common/languages;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IMarkerData=>editor.IMarkerData;model.=>editor.):
+#include(vs/editor/common/services/language): ILanguageExtensionPoint
 #includeAll(vs/editor/standalone/common/monarch/monarchTypes):
 
 }
 
 declare namespace monaco.worker {
 
+#include(vs/editor/common/model/mirrorTextModel): IMirrorTextModel
 #includeAll(vs/editor/common/services/editorSimpleWorker;):
 
 }

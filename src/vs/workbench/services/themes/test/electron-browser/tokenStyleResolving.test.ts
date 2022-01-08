@@ -15,13 +15,18 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { ExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
 import { ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { mock, TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const undefinedStyle = { bold: undefined, underline: undefined, italic: undefined };
 const unsetStyle = { bold: false, underline: false, italic: false };
 
-function ts(foreground: string | undefined, styleFlags: { bold?: boolean; underline?: boolean; italic?: boolean; } | undefined): TokenStyle {
+function ts(foreground: string | undefined, styleFlags: { bold?: boolean; underline?: boolean; strikethrough?: boolean; italic?: boolean; } | undefined): TokenStyle {
 	const foregroundColor = isString(foreground) ? Color.fromHex(foreground) : undefined;
-	return new TokenStyle(foregroundColor, styleFlags && styleFlags.bold, styleFlags && styleFlags.underline, styleFlags && styleFlags.italic);
+	return new TokenStyle(foregroundColor, styleFlags?.bold, styleFlags?.underline, styleFlags?.strikethrough, styleFlags?.italic);
 }
 
 function tokenStyleAsString(ts: TokenStyle | undefined | null) {
@@ -42,12 +47,12 @@ function tokenStyleAsString(ts: TokenStyle | undefined | null) {
 }
 
 function assertTokenStyle(actual: TokenStyle | undefined | null, expected: TokenStyle | undefined | null, message?: string) {
-	assert.equal(tokenStyleAsString(actual), tokenStyleAsString(expected), message);
+	assert.strictEqual(tokenStyleAsString(actual), tokenStyleAsString(expected), message);
 }
 
 function assertTokenStyleMetaData(colorIndex: string[], actual: ITokenStyle | undefined, expected: TokenStyle | undefined | null, message = '') {
 	if (expected === undefined || expected === null || actual === undefined) {
-		assert.equal(actual, expected, message);
+		assert.strictEqual(actual, expected, message);
 		return;
 	}
 	assert.strictEqual(actual.bold, expected.bold, 'bold ' + message);
@@ -56,9 +61,9 @@ function assertTokenStyleMetaData(colorIndex: string[], actual: ITokenStyle | un
 
 	const actualForegroundIndex = actual.foreground;
 	if (actualForegroundIndex && expected.foreground) {
-		assert.equal(colorIndex[actualForegroundIndex], Color.Format.CSS.formatHexA(expected.foreground, true).toUpperCase(), 'foreground ' + message);
+		assert.strictEqual(colorIndex[actualForegroundIndex], Color.Format.CSS.formatHexA(expected.foreground, true).toUpperCase(), 'foreground ' + message);
 	} else {
-		assert.equal(actualForegroundIndex, expected.foreground || 0, 'foreground ' + message);
+		assert.strictEqual(actualForegroundIndex, expected.foreground || 0, 'foreground ' + message);
 	}
 }
 
@@ -77,21 +82,27 @@ function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClas
 }
 
 suite('Themes - TokenStyleResolving', () => {
-
-
 	const fileService = new FileService(new NullLogService());
-	const extensionResourceLoaderService = new ExtensionResourceLoaderService(fileService);
+	const requestService = new (mock<IRequestService>())();
+	const storageService = new (mock<IStorageService>())();
+	const environmentService = new (mock<IEnvironmentService>())();
+	const configurationService = new (mock<IConfigurationService>())();
+
+	const extensionResourceLoaderService = new ExtensionResourceLoaderService(fileService, storageService, TestProductService, environmentService, configurationService, requestService);
 
 	const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+	teardown(() => {
+		diskFileSystemProvider.dispose();
+	});
 
 	test('color defaults', async () => {
 		const themeData = ColorThemeData.createUnloadedTheme('foo');
 		themeData.location = FileAccess.asFileUri('./color-theme.json', require);
 		await themeData.ensureLoaded(extensionResourceLoaderService);
 
-		assert.equal(themeData.isLoaded, true);
+		assert.strictEqual(themeData.isLoaded, true);
 
 		assertTokenStyles(themeData, {
 			'comment': ts('#000000', undefinedStyle),
@@ -335,7 +346,7 @@ suite('Themes - TokenStyleResolving', () => {
 			registry.deregisterTokenStyleDefault(registry.parseTokenSelector('type', 'typescript1'));
 			registry.deregisterTokenStyleDefault(registry.parseTokenSelector('type:javascript1'));
 
-			assert.equal(registry.getTokenStylingDefaultRules().length, numberOfDefaultRules);
+			assert.strictEqual(registry.getTokenStylingDefaultRules().length, numberOfDefaultRules);
 		}
 	});
 });

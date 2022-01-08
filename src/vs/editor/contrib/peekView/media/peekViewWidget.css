@@ -6,6 +6,8 @@
 .monaco-editor .peekview-widget .head {
 	box-sizing: border-box;
 	display: flex;
+	justify-content: space-between;
+	flex-wrap: nowrap;
 }
 
 .monaco-editor .peekview-widget .head .peekview-title {
@@ -13,17 +15,26 @@
 	align-items: center;
 	font-size: 13px;
 	margin-left: 20px;
-	cursor: pointer;
 	min-width: 0;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.monaco-editor .peekview-widget .head .peekview-title.clickable {
+	cursor: pointer;
 }
 
 .monaco-editor .peekview-widget .head .peekview-title .dirname:not(:empty) {
 	font-size: 0.9em;
 	margin-left: 0.5em;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }
 
 .monaco-editor .peekview-widget .head .peekview-title .meta {
 	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .monaco-editor .peekview-widget .head .peekview-title .dirname {
@@ -33,6 +44,7 @@
 .monaco-editor .peekview-widget .head .peekview-title .filename {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .monaco-editor .peekview-widget .head .peekview-title .meta:not(:empty)::before {
@@ -55,23 +67,6 @@
 	height: 100%;
 }
 
-.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-item {
-	margin-left: 4px;
-}
-
-.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label {
-	width: 16px;
-	height: 100%;
-	margin: 0;
-	line-height: inherit;
-	background-repeat: no-repeat;
-	background-position: center center;
-}
-
-.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label.codicon {
-	margin: 0;
-}
-
 .monaco-editor .peekview-widget > .body {
 	border-top: 1px solid;
 	position: relative;
@@ -79,4 +74,8 @@
 
 .monaco-editor .peekview-widget .head .peekview-title .codicon {
 	margin-right: 4px;
+}
+
+.monaco-editor .peekview-widget .monaco-list .monaco-list-row.focused .codicon {
+	color: inherit !important;
 }

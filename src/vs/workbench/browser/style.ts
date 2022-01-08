@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/style';
-
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { iconForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { iconForeground, foreground, selectionBackground, focusBorder, listHighlightForeground, inputPlaceholderForeground, toolbarHoverBackground, toolbarActiveBackground, toolbarHoverOutline, listFocusHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { isWeb, isIOS, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { createMetaElement } from 'vs/base/browser/dom';
@@ -62,47 +61,12 @@ registerThemingParticipant((theme, collector) => {
 		`);
 	}
 
-	// Scrollbars
-	const scrollbarShadowColor = theme.getColor(scrollbarShadow);
-	if (scrollbarShadowColor) {
+	// List highlight w/ focus
+	const listHighlightFocusForegroundColor = theme.getColor(listFocusHighlightForeground);
+	if (listHighlightFocusForegroundColor) {
 		collector.addRule(`
-			.monaco-workbench .monaco-scrollable-element > .shadow.top {
-				box-shadow: ${scrollbarShadowColor} 0 6px 6px -6px inset;
-			}
-
-			.monaco-workbench .monaco-scrollable-element > .shadow.left {
-				box-shadow: ${scrollbarShadowColor} 6px 0 6px -6px inset;
-			}
-
-			.monaco-workbench .monaco-scrollable-element > .shadow.top.left {
-				box-shadow: ${scrollbarShadowColor} 6px 6px 6px -6px inset;
-			}
-		`);
-	}
-
-	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
-	if (scrollbarSliderBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .monaco-scrollable-element > .scrollbar > .slider {
-				background: ${scrollbarSliderBackgroundColor};
-			}
-		`);
-	}
-
-	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
-	if (scrollbarSliderHoverBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .monaco-scrollable-element > .scrollbar > .slider:hover {
-				background: ${scrollbarSliderHoverBackgroundColor};
-			}
-		`);
-	}
-
-	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
-	if (scrollbarSliderActiveBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .monaco-scrollable-element > .scrollbar > .slider.active {
-				background: ${scrollbarSliderActiveBackgroundColor};
+			.monaco-workbench .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight {
+				color: ${listHighlightFocusForegroundColor};
 			}
 		`);
 	}
@@ -182,6 +146,39 @@ registerThemingParticipant((theme, collector) => {
 	// Update body background color to ensure the home indicator area looks similar to the workbench
 	if (isIOS && isStandalone) {
 		collector.addRule(`body { background-color: ${workbenchBackground}; }`);
+	}
+
+	// Action bars
+	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
+	if (toolbarHoverBackgroundColor) {
+		collector.addRule(`
+		.monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
+			background-color: ${toolbarHoverBackgroundColor};
+		}
+		.monaco-action-bar:not(.vertical) .monaco-dropdown-with-primary:not(.disabled):hover {
+			background-color: ${toolbarHoverBackgroundColor};
+		}
+	`);
+	}
+
+	const toolbarActiveBackgroundColor = theme.getColor(toolbarActiveBackground);
+	if (toolbarActiveBackgroundColor) {
+		collector.addRule(`
+		.monaco-action-bar:not(.vertical) .action-item.active .action-label:not(.disabled),
+		.monaco-action-bar:not(.vertical) .monaco-dropdown.active .action-label:not(.disabled) {
+			background-color: ${toolbarActiveBackgroundColor};
+		}
+	`);
+	}
+
+	const toolbarHoverOutlineColor = theme.getColor(toolbarHoverOutline);
+	if (toolbarHoverOutlineColor) {
+		collector.addRule(`
+			.monaco-action-bar:not(.vertical) .action-item .action-label:hover:not(.disabled) {
+				outline: 1px dashed ${toolbarHoverOutlineColor};
+				outline-offset: -1px;
+			}
+		`);
 	}
 });
 

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { window, commands } from 'vscode';
-import { closeAllEditors } from '../utils';
+import { commands, Disposable, QuickPick, QuickPickItem, window } from 'vscode';
+import { assertNoRpc, closeAllEditors } from '../utils';
 
 interface QuickPickExpected {
 	events: string[];
@@ -20,7 +20,10 @@ interface QuickPickExpected {
 
 suite('vscode API - quick input', function () {
 
-	teardown(closeAllEditors);
+	teardown(async function () {
+		assertNoRpc();
+		await closeAllEditors();
+	});
 
 	test('createQuickPick, select second', function (_done) {
 		let done = (err?: any) => {
@@ -201,6 +204,50 @@ suite('vscode API - quick input', function () {
 		quickPick.hide();
 		quickPick.dispose();
 	});
+
+	test('createQuickPick, hide and hide', function (_done) {
+		let done = (err?: any) => {
+			done = () => { };
+			_done(err);
+		};
+
+		let hidden = false;
+		const quickPick = window.createQuickPick();
+		quickPick.onDidHide(() => {
+			if (hidden) {
+				done(new Error('Already hidden'));
+			} else {
+				hidden = true;
+				setTimeout(done, 0);
+			}
+		});
+		quickPick.show();
+		quickPick.hide();
+		quickPick.hide();
+	});
+
+	test('createQuickPick, hide show hide', async function () {
+		async function waitForHide(quickPick: QuickPick<QuickPickItem>) {
+			let disposable: Disposable | undefined;
+			try {
+				await Promise.race([
+					new Promise(resolve => disposable = quickPick.onDidHide(() => resolve(true))),
+					new Promise((_, reject) => setTimeout(() => reject(), 4000))
+				]);
+			} finally {
+				disposable?.dispose();
+			}
+		}
+
+		const quickPick = window.createQuickPick();
+		quickPick.show();
+		const promise = waitForHide(quickPick);
+		quickPick.hide();
+		quickPick.show();
+		await promise;
+		quickPick.hide();
+		await waitForHide(quickPick);
+	});
 });
 
 function createQuickPick(expected: QuickPickExpected, done: (err?: any) => void, record = false) {
@@ -213,10 +260,10 @@ function createQuickPick(expected: QuickPickExpected, done: (err?: any) => void,
 		}
 		try {
 			eventIndex++;
-			assert.equal('active', expected.events.shift(), `onDidChangeActive (event ${eventIndex})`);
+			assert.strictEqual('active', expected.events.shift(), `onDidChangeActive (event ${eventIndex})`);
 			const expectedItems = expected.activeItems.shift();
-			assert.deepEqual(items.map(item => item.label), expectedItems, `onDidChangeActive event items (event ${eventIndex})`);
-			assert.deepEqual(quickPick.activeItems.map(item => item.label), expectedItems, `onDidChangeActive active items (event ${eventIndex})`);
+			assert.deepStrictEqual(items.map(item => item.label), expectedItems, `onDidChangeActive event items (event ${eventIndex})`);
+			assert.deepStrictEqual(quickPick.activeItems.map(item => item.label), expectedItems, `onDidChangeActive active items (event ${eventIndex})`);
 		} catch (err) {
 			done(err);
 		}
@@ -228,10 +275,10 @@ function createQuickPick(expected: QuickPickExpected, done: (err?: any) => void,
 		}
 		try {
 			eventIndex++;
-			assert.equal('selection', expected.events.shift(), `onDidChangeSelection (event ${eventIndex})`);
+			assert.strictEqual('selection', expected.events.shift(), `onDidChangeSelection (event ${eventIndex})`);
 			const expectedItems = expected.selectionItems.shift();
-			assert.deepEqual(items.map(item => item.label), expectedItems, `onDidChangeSelection event items (event ${eventIndex})`);
-			assert.deepEqual(quickPick.selectedItems.map(item => item.label), expectedItems, `onDidChangeSelection selected items (event ${eventIndex})`);
+			assert.deepStrictEqual(items.map(item => item.label), expectedItems, `onDidChangeSelection event items (event ${eventIndex})`);
+			assert.deepStrictEqual(quickPick.selectedItems.map(item => item.label), expectedItems, `onDidChangeSelection selected items (event ${eventIndex})`);
 		} catch (err) {
 			done(err);
 		}
@@ -243,11 +290,11 @@ function createQuickPick(expected: QuickPickExpected, done: (err?: any) => void,
 		}
 		try {
 			eventIndex++;
-			assert.equal('accept', expected.events.shift(), `onDidAccept (event ${eventIndex})`);
+			assert.strictEqual('accept', expected.events.shift(), `onDidAccept (event ${eventIndex})`);
 			const expectedActive = expected.acceptedItems.active.shift();
-			assert.deepEqual(quickPick.activeItems.map(item => item.label), expectedActive, `onDidAccept active items (event ${eventIndex})`);
+			assert.deepStrictEqual(quickPick.activeItems.map(item => item.label), expectedActive, `onDidAccept active items (event ${eventIndex})`);
 			const expectedSelection = expected.acceptedItems.selection.shift();
-			assert.deepEqual(quickPick.selectedItems.map(item => item.label), expectedSelection, `onDidAccept selected items (event ${eventIndex})`);
+			assert.deepStrictEqual(quickPick.selectedItems.map(item => item.label), expectedSelection, `onDidAccept selected items (event ${eventIndex})`);
 			if (expected.acceptedItems.dispose.shift()) {
 				quickPick.dispose();
 			}
@@ -262,7 +309,7 @@ function createQuickPick(expected: QuickPickExpected, done: (err?: any) => void,
 			return;
 		}
 		try {
-			assert.equal('hide', expected.events.shift());
+			assert.strictEqual('hide', expected.events.shift());
 			done();
 		} catch (err) {
 			done(err);

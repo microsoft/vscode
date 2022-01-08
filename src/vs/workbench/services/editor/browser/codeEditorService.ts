@@ -4,25 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICodeEditor, isCodeEditor, isDiffEditor, isCompositeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkbenchEditorConfiguration, TextEditorOptions } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { isEqual } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 
-export class CodeEditorService extends CodeEditorServiceImpl {
+export class CodeEditorService extends AbstractCodeEditorService {
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		super(themeService);
+		super(null, themeService);
 	}
 
 	getActiveCodeEditor(): ICodeEditor | null {
@@ -50,18 +51,17 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 		// side as separate editor.
 		const activeTextEditorControl = this.editorService.activeTextEditorControl;
 		if (
-			!sideBySide &&																// we need the current active group to be the taret
+			!sideBySide &&																// we need the current active group to be the target
 			isDiffEditor(activeTextEditorControl) && 									// we only support this for active text diff editors
 			input.options &&															// we need options to apply
 			input.resource &&															// we need a request resource to compare with
-			activeTextEditorControl.getModel() &&										// we need a target model to compare with
 			source === activeTextEditorControl.getModifiedEditor() && 					// we need the source of this request to be the modified side of the diff editor
+			activeTextEditorControl.getModel() &&										// we need a target model to compare with
 			isEqual(input.resource, activeTextEditorControl.getModel()!.modified.uri) 	// we need the input resources to match with modified side
 		) {
 			const targetEditor = activeTextEditorControl.getModifiedEditor();
 
-			const textOptions = TextEditorOptions.create(input.options);
-			textOptions.apply(targetEditor, ScrollType.Smooth);
+			applyTextEditorOptions(input.options, targetEditor, ScrollType.Smooth);
 
 			return targetEditor;
 		}

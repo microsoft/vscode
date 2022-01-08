@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterable } from 'vs/base/common/iterator';
-import { IndexTreeModel, IIndexTreeModelOptions, IList, IIndexTreeModelSpliceOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { Event } from 'vs/base/common/event';
-import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent, ITreeModelSpliceEvent, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { mergeSort } from 'vs/base/common/arrays';
+import { IIndexTreeModelOptions, IIndexTreeModelSpliceOptions, IList, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { ICollapseStateChangeEvent, ITreeElement, ITreeModel, ITreeModelSpliceEvent, ITreeNode, ITreeSorter, TreeError } from 'vs/base/browser/ui/tree/tree';
+import { Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 
 export type ITreeNodeCallback<T, TFilterData> = (node: ITreeNode<T, TFilterData>) => void;
 
 export interface IObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> extends ITreeModel<T | null, TFilterData, T | null> {
 	setChildren(element: T | null, children: Iterable<ITreeElement<T>> | undefined, options?: IObjectTreeModelSetChildrenOptions<T, TFilterData>): void;
 	resort(element?: T | null, recursive?: boolean): void;
-	updateElementHeight(element: T, height: number): void;
+	updateElementHeight(element: T, height: number | undefined): void;
 }
 
 export interface IObjectTreeModelSetChildrenOptions<T, TFilterData> extends IIndexTreeModelSpliceOptions<T, TFilterData> {
@@ -130,7 +129,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 
 	private preserveCollapseState(elements: Iterable<ITreeElement<T>> = Iterable.empty()): Iterable<ITreeElement<T>> {
 		if (this.sorter) {
-			elements = mergeSort([...elements], this.sorter.compare.bind(this.sorter));
+			elements = [...elements].sort(this.sorter.compare.bind(this.sorter));
 		}
 
 		return Iterable.map(elements, treeElement => {
@@ -165,7 +164,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		this.model.rerender(location);
 	}
 
-	updateElementHeight(element: T, height: number): void {
+	updateElementHeight(element: T, height: number | undefined): void {
 		const location = this.getElementLocation(element);
 		this.model.updateElementHeight(location, height);
 	}
@@ -185,7 +184,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		let childrenNodes = [...node.children] as ITreeNode<T, TFilterData>[];
 
 		if (recursive || first) {
-			childrenNodes = mergeSort(childrenNodes, this.sorter!.compare.bind(this.sorter));
+			childrenNodes = childrenNodes.sort(this.sorter!.compare.bind(this.sorter));
 		}
 
 		return Iterable.map<ITreeNode<T | null, TFilterData>, ITreeElement<T>>(childrenNodes, node => ({

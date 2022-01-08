@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ITextAreaWrapper, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
@@ -134,148 +134,15 @@ suite('TextAreaState', () => {
 		let newState = TextAreaState.readFromTextArea(textArea);
 		let actual = TextAreaState.deduceInput(prevState, newState, couldBeEmojiInput);
 
-		assert.strictEqual(actual.text, expected);
-		assert.strictEqual(actual.replaceCharCnt, expectedCharReplaceCnt);
+		assert.deepStrictEqual(actual, {
+			text: expected,
+			replacePrevCharCnt: expectedCharReplaceCnt,
+			replaceNextCharCnt: 0,
+			positionDelta: 0,
+		});
 
 		textArea.dispose();
 	}
-
-	test('deduceInput - Japanese typing sennsei and accepting', () => {
-		// manual test:
-		// - choose keyboard layout: Japanese -> Hiragama
-		// - type sennsei
-		// - accept with Enter
-		// - expected: せんせい
-
-		// s
-		// PREVIOUS STATE: [ <>, selectionStart: 0, selectionEnd: 0, selectionToken: 0]
-		// CURRENT STATE: [ <ｓ>, selectionStart: 0, selectionEnd: 1, selectionToken: 0]
-		testDeduceInput(
-			TextAreaState.EMPTY,
-			'ｓ',
-			0, 1, true,
-			'ｓ', 0
-		);
-
-		// e
-		// PREVIOUS STATE: [ <ｓ>, selectionStart: 0, selectionEnd: 1, selectionToken: 0]
-		// CURRENT STATE: [ <せ>, selectionStart: 0, selectionEnd: 1, selectionToken: 0]
-		testDeduceInput(
-			new TextAreaState('ｓ', 0, 1, null, null),
-			'せ',
-			0, 1, true,
-			'せ', 1
-		);
-
-		// n
-		// PREVIOUS STATE: [ <せ>, selectionStart: 0, selectionEnd: 1, selectionToken: 0]
-		// CURRENT STATE: [ <せｎ>, selectionStart: 0, selectionEnd: 2, selectionToken: 0]
-		testDeduceInput(
-			new TextAreaState('せ', 0, 1, null, null),
-			'せｎ',
-			0, 2, true,
-			'せｎ', 1
-		);
-
-		// n
-		// PREVIOUS STATE: [ <せｎ>, selectionStart: 0, selectionEnd: 2, selectionToken: 0]
-		// CURRENT STATE: [ <せん>, selectionStart: 0, selectionEnd: 2, selectionToken: 0]
-		testDeduceInput(
-			new TextAreaState('せｎ', 0, 2, null, null),
-			'せん',
-			0, 2, true,
-			'せん', 2
-		);
-
-		// s
-		// PREVIOUS STATE: [ <せん>, selectionStart: 0, selectionEnd: 2, selectionToken: 0]
-		// CURRENT STATE: [ <せんｓ>, selectionStart: 0, selectionEnd: 3, selectionToken: 0]
-		testDeduceInput(
-			new TextAreaState('せん', 0, 2, null, null),
-			'せんｓ',
-			0, 3, true,
-			'せんｓ', 2
-		);
-
-		// e
-		// PREVIOUS STATE: [ <せんｓ>, selectionStart: 0, selectionEnd: 3, selectionToken: 0]
-		// CURRENT STATE: [ <せんせ>, selectionStart: 0, selectionEnd: 3, selectionToken: 0]
-		testDeduceInput(
-			new TextAreaState('せんｓ', 0, 3, null, null),
-			'せんせ',
-			0, 3, true,
-			'せんせ', 3
-		);
-
-		// no-op? [was recorded]
-		// PREVIOUS STATE: [ <せんせ>, selectionStart: 0, selectionEnd: 3, selectionToken: 0]
-		// CURRENT STATE: [ <せんせ>, selectionStart: 0, selectionEnd: 3, selectionToken: 0]
-		testDeduceInput(
-			new TextAreaState('せんせ', 0, 3, null, null),
-			'せんせ',
-			0, 3, true,
-			'せんせ', 3
-		);
-
-		// i
-		// PREVIOUS STATE: [ <せんせ>, selectionStart: 0, selectionEnd: 3, selectionToken: 0]
-		// CURRENT STATE: [ <せんせい>, selectionStart: 0, selectionEnd: 4, selectionToken: 0]
-		testDeduceInput(
-			new TextAreaState('せんせ', 0, 3, null, null),
-			'せんせい',
-			0, 4, true,
-			'せんせい', 3
-		);
-
-		// ENTER (accept)
-		// PREVIOUS STATE: [ <せんせい>, selectionStart: 0, selectionEnd: 4, selectionToken: 0]
-		// CURRENT STATE: [ <せんせい>, selectionStart: 4, selectionEnd: 4, selectionToken: 0]
-		testDeduceInput(
-			new TextAreaState('せんせい', 0, 4, null, null),
-			'せんせい',
-			4, 4, true,
-			'', 0
-		);
-	});
-
-	test('deduceInput - Japanese typing sennsei and choosing different suggestion', () => {
-		// manual test:
-		// - choose keyboard layout: Japanese -> Hiragama
-		// - type sennsei
-		// - arrow down (choose next suggestion)
-		// - accept with Enter
-		// - expected: せんせい
-
-		// sennsei
-		// PREVIOUS STATE: [ <せんせい>, selectionStart: 0, selectionEnd: 4, selectionToken: 0]
-		// CURRENT STATE: [ <せんせい>, selectionStart: 0, selectionEnd: 4, selectionToken: 0]
-		testDeduceInput(
-			new TextAreaState('せんせい', 0, 4, null, null),
-			'せんせい',
-			0, 4, true,
-			'せんせい', 4
-		);
-
-		// arrow down
-		// CURRENT STATE: [ <先生>, selectionStart: 0, selectionEnd: 2, selectionToken: 0]
-		// PREVIOUS STATE: [ <せんせい>, selectionStart: 0, selectionEnd: 4, selectionToken: 0]
-		testDeduceInput(
-			new TextAreaState('せんせい', 0, 4, null, null),
-			'先生',
-			0, 2, true,
-			'先生', 4
-		);
-
-		// ENTER (accept)
-		// PREVIOUS STATE: [ <先生>, selectionStart: 0, selectionEnd: 2, selectionToken: 0]
-		// CURRENT STATE: [ <先生>, selectionStart: 2, selectionEnd: 2, selectionToken: 0]
-		testDeduceInput(
-			new TextAreaState('先生', 0, 2, null, null),
-			'先生',
-			2, 2, true,
-			'', 0
-		);
-	});
 
 	test('extractNewText - no previous state with selection', () => {
 		testDeduceInput(
@@ -430,76 +297,79 @@ suite('TextAreaState', () => {
 		);
 	});
 
-	test('issue #4271 (example 1) - When inserting an emoji on OSX, it is placed two spaces left of the cursor', () => {
-		// The OSX emoji inserter inserts emojis at random positions in the text, unrelated to where the cursor is.
-		testDeduceInput(
+	function testDeduceAndroidCompositionInput(
+		prevState: TextAreaState | null,
+		value: string, selectionStart: number, selectionEnd: number,
+		expected: string, expectedReplacePrevCharCnt: number, expectedReplaceNextCharCnt: number, expectedPositionDelta: number): void {
+		prevState = prevState || TextAreaState.EMPTY;
+
+		let textArea = new MockTextAreaWrapper();
+		textArea._value = value;
+		textArea._selectionStart = selectionStart;
+		textArea._selectionEnd = selectionEnd;
+
+		let newState = TextAreaState.readFromTextArea(textArea);
+		let actual = TextAreaState.deduceAndroidCompositionInput(prevState, newState);
+
+		assert.deepStrictEqual(actual, {
+			text: expected,
+			replacePrevCharCnt: expectedReplacePrevCharCnt,
+			replaceNextCharCnt: expectedReplaceNextCharCnt,
+			positionDelta: expectedPositionDelta,
+		});
+
+		textArea.dispose();
+	}
+
+	test('Android composition input 1', () => {
+		testDeduceAndroidCompositionInput(
 			new TextAreaState(
-				[
-					'some1  text',
-					'some2  text',
-					'some3  text',
-					'some4  text', // cursor is here in the middle of the two spaces
-					'some5  text',
-					'some6  text',
-					'some7  text'
-				].join('\n'),
-				42, 42,
+				'Microsoft',
+				4, 4,
 				null, null
 			),
-			[
-				'so📅me1  text',
-				'some2  text',
-				'some3  text',
-				'some4  text',
-				'some5  text',
-				'some6  text',
-				'some7  text'
-			].join('\n'),
-			4, 4, true,
-			'📅', 0
+			'Microsoft',
+			4, 4,
+			'', 0, 0, 0,
 		);
 	});
 
-	test('issue #4271 (example 2) - When inserting an emoji on OSX, it is placed two spaces left of the cursor', () => {
-		// The OSX emoji inserter inserts emojis at random positions in the text, unrelated to where the cursor is.
-		testDeduceInput(
+	test('Android composition input 2', () => {
+		testDeduceAndroidCompositionInput(
 			new TextAreaState(
-				'some1  text',
-				6, 6,
+				'Microsoft',
+				4, 4,
 				null, null
 			),
-			'some💊1  text',
-			6, 6, true,
-			'💊', 0
+			'Microsoft',
+			0, 9,
+			'', 0, 0, 5,
 		);
 	});
 
-	test('issue #4271 (example 3) - When inserting an emoji on OSX, it is placed two spaces left of the cursor', () => {
-		// The OSX emoji inserter inserts emojis at random positions in the text, unrelated to where the cursor is.
-		testDeduceInput(
+	test('Android composition input 3', () => {
+		testDeduceAndroidCompositionInput(
 			new TextAreaState(
-				'qwertyu\nasdfghj\nzxcvbnm',
-				12, 12,
+				'Microsoft',
+				0, 9,
 				null, null
 			),
-			'qwertyu\nasdfghj\nzxcvbnm🎈',
-			25, 25, true,
-			'🎈', 0
+			'Microsoft\'s',
+			11, 11,
+			'\'s', 0, 0, 0,
 		);
 	});
 
-	// an example of an emoji missed by the regex but which has the FE0F variant 16 hint
-	test('issue #4271 (example 4) - When inserting an emoji on OSX, it is placed two spaces left of the cursor', () => {
-		// The OSX emoji inserter inserts emojis at random positions in the text, unrelated to where the cursor is.
-		testDeduceInput(
+	test('Android backspace', () => {
+		testDeduceAndroidCompositionInput(
 			new TextAreaState(
-				'some1  text',
-				6, 6,
+				'undefinedVariable',
+				2, 2,
 				null, null
 			),
-			'some⌨️1  text',
-			6, 6, true,
-			'⌨️', 0
+			'udefinedVariable',
+			1, 1,
+			'', 1, 0, 0,
 		);
 	});
 

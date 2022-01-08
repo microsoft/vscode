@@ -26,73 +26,45 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.51.tgz#b31d716fb8d58eeb95c068a039b9b6292817d5fb"
   integrity sha512-El3+WJk2D/ppWNd2X05aiP5l2k4EwF7KwheknQZls+I26eSICoWRhRIJ56jGgw2dqNGQ5LtNajmBU2ajS28EvQ==
 
-"@types/node@^12.19.9":
-  version "12.19.9"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-12.19.9.tgz#990ad687ad8b26ef6dcc34a4f69c33d40c95b679"
-  integrity sha512-yj0DOaQeUrk3nJ0bd3Y5PeDRJ6W0r+kilosLA+dzF3dola/o9hxhMSg2sFvVcA2UHS5JSOsZp4S0c1OEXc4m1Q==
+"@types/node@14.x":
+  version "14.14.43"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-14.14.43.tgz#26bcbb0595b305400e8ceaf9a127a7f905ae49c8"
+  integrity sha512-3pwDJjp1PWacPTpH0LcfhgjvurQvrZFBrC6xxjaUEZ7ifUtT32jtjPxEMMblpqd2Mvx+k8haqQJLQxolyGN/cQ==
 
 "@types/which@^1.0.28":
   version "1.0.28"
   resolved "https://registry.yarnpkg.com/@types/which/-/which-1.0.28.tgz#016e387629b8817bed653fe32eab5d11279c8df6"
   integrity sha1-AW44dim4gXvtZT/jLqtdESecjfY=
 
-applicationinsights@1.0.8:
-  version "1.0.8"
-  resolved "https://registry.yarnpkg.com/applicationinsights/-/applicationinsights-1.0.8.tgz#db6e3d983cf9f9405fe1ee5ba30ac6e1914537b5"
-  integrity sha512-KzOOGdphOS/lXWMFZe5440LUdFbrLpMvh2SaRxn7BmiI550KAoSb2gIhiq6kJZ9Ir3AxRRztjhzif+e5P5IXIg==
-  dependencies:
-    diagnostic-channel "0.2.0"
-    diagnostic-channel-publishers "0.2.1"
-    zone.js "0.7.6"
-
 byline@^5.0.0:
   version "5.0.0"
   resolved "https://registry.yarnpkg.com/byline/-/byline-5.0.0.tgz#741c5216468eadc457b03410118ad77de8c1ddb1"
   integrity sha1-dBxSFkaOrcRXsDQQEYrXfejB3bE=
-
-diagnostic-channel-publishers@0.2.1:
-  version "0.2.1"
-  resolved "https://registry.yarnpkg.com/diagnostic-channel-publishers/-/diagnostic-channel-publishers-0.2.1.tgz#8e2d607a8b6d79fe880b548bc58cc6beb288c4f3"
-  integrity sha1-ji1geottef6IC1SLxYzGvrKIxPM=
-
-diagnostic-channel@0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/diagnostic-channel/-/diagnostic-channel-0.2.0.tgz#cc99af9612c23fb1fff13612c72f2cbfaa8d5a17"
-  integrity sha1-zJmvlhLCP7H/8TYSxy8sv6qNWhc=
-  dependencies:
-    semver "^5.3.0"
 
 file-type@^7.2.0:
   version "7.2.0"
   resolved "https://registry.yarnpkg.com/file-type/-/file-type-7.2.0.tgz#113cfed52e1d6959ab80248906e2f25a8cdccb74"
   integrity sha1-ETz+1S4daVmrgCSJBuLyWozcy3Q=
 
-iconv-lite-umd@0.6.8:
-  version "0.6.8"
-  resolved "https://registry.yarnpkg.com/iconv-lite-umd/-/iconv-lite-umd-0.6.8.tgz#5ad310ec126b260621471a2d586f7f37b9958ec0"
-  integrity sha512-zvXJ5gSwMC9JD3wDzH8CoZGc1pbiJn12Tqjk8BXYCnYz3hYL5GRjHW8LEykjXhV9WgNGI4rgpgHcbIiBfrRq6A==
+iconv-lite-umd@0.6.10:
+  version "0.6.10"
+  resolved "https://registry.yarnpkg.com/iconv-lite-umd/-/iconv-lite-umd-0.6.10.tgz#faec47521e095b8e3a7175ae08e1b4ae0359a735"
+  integrity sha512-8NtgTa/m1jVq7vdywmD5+SqIlZsB59wtsjaylQuExyCojMq1tHVQxmHjeqVSYwKwnmQbH4mZ1Dxx1eqDkPgaqA==
 
 isexe@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/isexe/-/isexe-2.0.0.tgz#e8fbf374dc556ff8947a10dcb0572d633f2cfa10"
   integrity sha1-6PvzdNxVb/iUehDcsFctYz8s+hA=
 
-jschardet@2.2.1:
-  version "2.2.1"
-  resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-2.2.1.tgz#03b0264669a90c7a5c436a68c5a7d4e4cb0c9823"
-  integrity sha512-Ks2JNuUJoc7PGaZ7bVFtSEvOcr0rBq6Q1J5/7+zKWLT+g+4zziL63O0jg7y2jxhzIa1LVsHUbPXrbaWmz9iwDw==
+jschardet@3.0.0:
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-3.0.0.tgz#898d2332e45ebabbdb6bf2feece9feea9a99e882"
+  integrity sha512-lJH6tJ77V8Nzd5QWRkFYCLc13a3vADkh3r/Fi8HupZGWk2OVVDfnZP8V/VgQgZ+lzW0kG2UGb5hFgt3V3ndotQ==
 
-semver@^5.3.0:
-  version "5.5.0"
-  resolved "https://registry.yarnpkg.com/semver/-/semver-5.5.0.tgz#dc4bbc7a6ca9d916dee5d43516f0092b58f7b8ab"
-  integrity sha512-4SJ3dm0WAwWy/NVeioZh5AntkdJoWKxHxcmyP622fOkgHa4z3R0TdBJICINyaSDE6uNwVc8gZr+ZinwZAH4xIA==
-
-vscode-extension-telemetry@0.1.1:
-  version "0.1.1"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.1.1.tgz#91387e06b33400c57abd48979b0e790415ae110b"
-  integrity sha512-TkKKG/B/J94DP5qf6xWB4YaqlhWDg6zbbqVx7Bz//stLQNnfE9XS1xm3f6fl24c5+bnEK0/wHgMgZYKIKxPeUA==
-  dependencies:
-    applicationinsights "1.0.8"
+vscode-extension-telemetry@0.4.4:
+  version "0.4.4"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.4.4.tgz#e5d5ac90ea7d07ec054f5310893d95d43d5984b0"
+  integrity sha512-LzirNf2GnykXCAqqWrvj+snYqgkPVyjwM72tYOHgcZiG/ZRuNjmqlgvs+SomEJdmD8cutduitPmhoyIuzOrVfA==
 
 vscode-nls@^4.0.0:
   version "4.0.0"
@@ -110,8 +82,3 @@ which@^1.3.0:
   integrity sha512-xcJpopdamTuY5duC/KnTTNBraPK54YwpenP4lzxU8H91GudWpFv38u0CKjclE1Wi2EH2EDz5LRcHcKbCIzqGyg==
   dependencies:
     isexe "^2.0.0"
-
-zone.js@0.7.6:
-  version "0.7.6"
-  resolved "https://registry.yarnpkg.com/zone.js/-/zone.js-0.7.6.tgz#fbbc39d3e0261d0986f1ba06306eb3aeb0d22009"
-  integrity sha1-+7w50+AmHQmG8boGMG6zrrDSIAk=

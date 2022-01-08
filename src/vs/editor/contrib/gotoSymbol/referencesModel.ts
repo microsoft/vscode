@@ -3,36 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { basename, extUri } from 'vs/base/common/resources';
-import { IDisposable, dispose, IReference, DisposableStore } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { Location, LocationLink } from 'vs/editor/common/modes';
-import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { Position } from 'vs/editor/common/core/position';
-import { IMatch } from 'vs/base/common/filters';
-import { Constants } from 'vs/base/common/uint';
-import { ResourceMap } from 'vs/base/common/map';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IMatch } from 'vs/base/common/filters';
+import { defaultGenerator } from 'vs/base/common/idGenerator';
+import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
+import { basename, extUri } from 'vs/base/common/resources';
+import * as strings from 'vs/base/common/strings';
+import { Constants } from 'vs/base/common/uint';
+import { URI } from 'vs/base/common/uri';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { Location, LocationLink } from 'vs/editor/common/languages';
+import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { localize } from 'vs/nls';
 
 export class OneReference {
 
 	readonly id: string = defaultGenerator.nextId();
 
+	private _range?: IRange;
+
 	constructor(
 		readonly isProviderFirst: boolean,
 		readonly parent: FileReferences,
-		readonly uri: URI,
-		private _range: IRange,
+		readonly link: LocationLink,
 		private _rangeCallback: (ref: OneReference) => void
 	) { }
 
+	get uri() {
+		return this.link.uri;
+	}
+
 	get range(): IRange {
-		return this._range;
+		return this._range ?? this.link.targetSelectionRange ?? this.link.range;
 	}
 
 	set range(value: IRange) {
@@ -141,7 +146,6 @@ export class FileReferences implements IDisposable {
 
 export class ReferencesModel implements IDisposable {
 
-	private readonly _disposables = new DisposableStore();
 	private readonly _links: LocationLink[];
 	private readonly _title: string;
 
@@ -173,8 +177,7 @@ export class ReferencesModel implements IDisposable {
 				const oneRef = new OneReference(
 					providersFirst === link,
 					current,
-					link.uri,
-					link.targetSelectionRange || link.range,
+					link,
 					ref => this._onDidChangeReferenceRange.fire(ref)
 				);
 				this.references.push(oneRef);
@@ -185,7 +188,6 @@ export class ReferencesModel implements IDisposable {
 
 	dispose(): void {
 		dispose(this.groups);
-		this._disposables.dispose();
 		this._onDidChangeReferenceRange.dispose();
 		this.groups.length = 0;
 	}

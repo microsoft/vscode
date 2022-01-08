@@ -8,7 +8,6 @@ import { VSBuffer } from 'vs/base/common/buffer';
 export const enum ExtensionHostExitCode {
 	// nodejs uses codes 1-13 and exit codes >128 are signal exits
 	VersionMismatch = 55,
-	StartTimeout60s = 56,
 	UnexpectedError = 81,
 }
 

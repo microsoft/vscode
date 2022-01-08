@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dustypomerleau/rust-syntax/commit/7b924664814131ae4509a537bb07960fe65dcaac",
+	"version": "https://github.com/dustypomerleau/rust-syntax/commit/20462d50ff97338f42c6b64c3f421c634fd60734",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"patterns": [
@@ -657,8 +657,33 @@
 				},
 				{
 					"comment": "storage keywords",
-					"name": "storage.type.rust",
-					"match": "\\b(const|enum|extern|let|macro|mod|struct|trait|type)\\b"
+					"name": "keyword.other.rust storage.type.rust",
+					"match": "\\b(extern|let|macro|mod)\\b"
+				},
+				{
+					"comment": "const keyword",
+					"name": "storage.modifier.rust",
+					"match": "\\b(const)\\b"
+				},
+				{
+					"comment": "type keyword",
+					"name": "keyword.declaration.type.rust storage.type.rust",
+					"match": "\\b(type)\\b"
+				},
+				{
+					"comment": "enum keyword",
+					"name": "keyword.declaration.enum.rust storage.type.rust",
+					"match": "\\b(enum)\\b"
+				},
+				{
+					"comment": "trait keyword",
+					"name": "keyword.declaration.trait.rust storage.type.rust",
+					"match": "\\b(trait)\\b"
+				},
+				{
+					"comment": "struct keyword",
+					"name": "keyword.declaration.struct.rust storage.type.rust",
+					"match": "\\b(struct)\\b"
 				},
 				{
 					"comment": "storage modifiers",
@@ -940,7 +965,7 @@
 					"match": "\\b(trait)\\s+([A-Z][A-Za-z0-9]*)\\b",
 					"captures": {
 						"1": {
-							"name": "storage.type.rust"
+							"name": "keyword.declaration.trait.rust storage.type.rust"
 						},
 						"2": {
 							"name": "entity.name.type.trait.rust"
@@ -952,7 +977,7 @@
 					"match": "\\b(struct)\\s+([A-Z][A-Za-z0-9]*)\\b",
 					"captures": {
 						"1": {
-							"name": "storage.type.rust"
+							"name": "keyword.declaration.struct.rust storage.type.rust"
 						},
 						"2": {
 							"name": "entity.name.type.struct.rust"
@@ -964,7 +989,7 @@
 					"match": "\\b(enum)\\s+([A-Z][A-Za-z0-9_]*)\\b",
 					"captures": {
 						"1": {
-							"name": "storage.type.rust"
+							"name": "keyword.declaration.enum.rust storage.type.rust"
 						},
 						"2": {
 							"name": "entity.name.type.enum.rust"
@@ -976,7 +1001,7 @@
 					"match": "\\b(type)\\s+([A-Z][A-Za-z0-9_]*)\\b",
 					"captures": {
 						"1": {
-							"name": "storage.type.rust"
+							"name": "keyword.declaration.type.rust storage.type.rust"
 						},
 						"2": {
 							"name": "entity.name.type.declaration.rust"

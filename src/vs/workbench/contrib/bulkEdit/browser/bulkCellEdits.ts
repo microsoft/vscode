@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
-import { WorkspaceEditMetadata } from 'vs/editor/common/modes';
+import { WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -20,7 +20,7 @@ export class ResourceNotebookCellEdit extends ResourceEdit {
 		readonly resource: URI,
 		readonly cellEdit: ICellEditOperation,
 		readonly versionId?: number,
-		readonly metadata?: WorkspaceEditMetadata
+		metadata?: WorkspaceEditMetadata
 	) {
 		super(metadata);
 	}
@@ -49,14 +49,14 @@ export class BulkCellEdits {
 			const ref = await this._notebookModelService.resolve(first.resource);
 
 			// check state
-			// if (typeof first.versionId === 'number' && ref.object.notebook.versionId !== first.versionId) {
-			// 	ref.dispose();
-			// 	throw new Error(`Notebook '${first.resource}' has changed in the meantime`);
-			// }
+			if (typeof first.versionId === 'number' && ref.object.notebook.versionId !== first.versionId) {
+				ref.dispose();
+				throw new Error(`Notebook '${first.resource}' has changed in the meantime`);
+			}
 
 			// apply edits
 			const edits = group.map(entry => entry.cellEdit);
-			ref.object.notebook.applyEdits(ref.object.notebook.versionId, edits, true, undefined, () => undefined, this._undoRedoGroup);
+			ref.object.notebook.applyEdits(edits, true, undefined, () => undefined, this._undoRedoGroup);
 			ref.dispose();
 
 			this._progress.report(undefined);

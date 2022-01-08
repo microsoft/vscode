@@ -49,8 +49,13 @@ const CORE_TYPES = [
 	'encode',
 	'decode',
 	'self',
+	'trimStart',
+	'trimEnd',
 	'trimLeft',
-	'trimRight'
+	'trimRight',
+	'queueMicrotask',
+	'MessageChannel',
+	'MessagePort'
 ];
 
 // Types that are defined in a common layer but are known to be only
@@ -58,6 +63,7 @@ const CORE_TYPES = [
 const NATIVE_TYPES = [
 	'NativeParsedArgs',
 	'INativeEnvironmentService',
+	'AbstractNativeEnvironmentService',
 	'INativeWindowConfiguration',
 	'ICommonNativeHostService'
 ];
@@ -87,20 +93,9 @@ const RULES = [
 		]
 	},
 
-	// Common: vs/platform/environment/common/argv.ts
+	// Common: vs/platform/environment/common/*
 	{
-		target: '**/vs/platform/environment/common/argv.ts',
-		disallowedTypes: [/* Ignore native types that are defined from here */],
-		allowedTypes: CORE_TYPES,
-		disallowedDefinitions: [
-			'lib.dom.d.ts', // no DOM
-			'@types/node'	// no node.js
-		]
-	},
-
-	// Common: vs/platform/environment/common/environment.ts
-	{
-		target: '**/vs/platform/environment/common/environment.ts',
+		target: '**/vs/platform/environment/common/*.ts',
 		disallowedTypes: [/* Ignore native types that are defined from here */],
 		allowedTypes: CORE_TYPES,
 		disallowedDefinitions: [

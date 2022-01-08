@@ -16,9 +16,9 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
-import { LoggerChannel } from 'vs/platform/log/common/logIpc';
+import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -29,18 +29,21 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand, RemoteFileDialogContext } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { TelemetryLevel, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 
 class RemoteChannelsContribution implements IWorkbenchContribution {
 
 	constructor(
 		@ILogService logService: ILogService,
+		@ILogService loggerService: ILoggerService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IDownloadService downloadService: IDownloadService
 	) {
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
-			connection.registerChannel('logger', new LoggerChannel(logService));
+			connection.registerChannel('logger', new LogLevelChannel(logService));
 		}
 	}
 }
@@ -63,7 +66,7 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 						ipcRenderer.send(request.replyChannel, info);
 					})
 					.catch(e => {
-						const errorMessage = e && e.message ? `Fetching remote diagnostics for '${hostName}' failed: ${e.message}` : `Fetching remote diagnostics for '${hostName}' failed.`;
+						const errorMessage = e && e.message ? `Connection to '${hostName}' could not be established  ${e.message}` : `Connection to '${hostName}' could not be established `;
 						ipcRenderer.send(request.replyChannel, { hostName, errorMessage });
 					});
 			} else {
@@ -103,14 +106,14 @@ class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchC
 		this.updateRemoteTelemetryEnablement();
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('telemetry.enableTelemetry')) {
+			if (e.affectsConfiguration(TELEMETRY_SETTING_ID)) {
 				this.updateRemoteTelemetryEnablement();
 			}
 		}));
 	}
 
 	private updateRemoteTelemetryEnablement(): Promise<void> {
-		if (!this.configurationService.getValue('telemetry.enableTelemetry')) {
+		if (getTelemetryLevel(this.configurationService) === TelemetryLevel.NONE) {
 			return this.remoteAgentService.disableTelemetry();
 		}
 
@@ -177,7 +180,7 @@ if (isMacintosh) {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: OpenLocalFileFolderCommand.ID,
 		weight: KeybindingWeight.WorkbenchContrib,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_O,
+		primary: KeyMod.CtrlCmd | KeyCode.KeyO,
 		when: RemoteFileDialogContext,
 		description: { description: OpenLocalFileFolderCommand.LABEL, args: [] },
 		handler: OpenLocalFileFolderCommand.handler()
@@ -186,7 +189,7 @@ if (isMacintosh) {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: OpenLocalFileCommand.ID,
 		weight: KeybindingWeight.WorkbenchContrib,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_O,
+		primary: KeyMod.CtrlCmd | KeyCode.KeyO,
 		when: RemoteFileDialogContext,
 		description: { description: OpenLocalFileCommand.LABEL, args: [] },
 		handler: OpenLocalFileCommand.handler()
@@ -194,7 +197,7 @@ if (isMacintosh) {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: OpenLocalFolderCommand.ID,
 		weight: KeybindingWeight.WorkbenchContrib,
-		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O),
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyO),
 		when: RemoteFileDialogContext,
 		description: { description: OpenLocalFolderCommand.LABEL, args: [] },
 		handler: OpenLocalFolderCommand.handler()
@@ -204,7 +207,7 @@ if (isMacintosh) {
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: SaveLocalFileCommand.ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS,
 	when: RemoteFileDialogContext,
 	description: { description: SaveLocalFileCommand.LABEL, args: [] },
 	handler: SaveLocalFileCommand.handler()

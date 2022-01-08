@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { StandardTokenType } from 'vs/editor/common/modes';
-import { StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
+import { StandardTokenType } from 'vs/editor/common/languages';
+import { StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 suite('StandardAutoClosingPairConditional', () => {
 
@@ -87,5 +88,14 @@ suite('StandardAutoClosingPairConditional', () => {
 		assert.strictEqual(v.isOK(StandardTokenType.Comment), false);
 		assert.strictEqual(v.isOK(StandardTokenType.String), false);
 		assert.strictEqual(v.isOK(StandardTokenType.RegEx), false);
+	});
+
+	test('language configurations priorities', () => {
+		const id = 'testLang1';
+		const d1 = LanguageConfigurationRegistry.register(id, { comments: { lineComment: '1' } }, 100);
+		const d2 = LanguageConfigurationRegistry.register(id, { comments: { lineComment: '2' } }, 10);
+		assert.strictEqual(LanguageConfigurationRegistry.getComments(id)?.lineCommentToken, '1');
+		d1.dispose();
+		d2.dispose();
 	});
 });

@@ -1,0 +1,11 @@
+{
+  "name": "leaks",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "devDependencies": {
+    "koa": "^2.13.1",
+    "koa-mount": "^4.0.0",
+    "koa-static": "^5.0.0"
+  }
+}

@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem } from 'vs/workbench/common/views';
+import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, ITreeDataTransfer } from 'vs/workbench/common/views';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -13,6 +13,7 @@ import { isUndefinedOrNull, isNumber } from 'vs/base/common/types';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
+import { TreeDataTransferConverter } from 'vs/workbench/api/common/shared/treeDataTransfer';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
@@ -31,18 +32,21 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
 	}
 
-	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean }): void {
+	async $registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean, dragAndDropMimeTypes: string[] | undefined, hasWillDrop: boolean }): Promise<void> {
 		this.logService.trace('MainThreadTreeViews#$registerTreeViewDataProvider', treeViewId, options);
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			const dataProvider = new TreeViewDataProvider(treeViewId, this._proxy, this.notificationService);
 			this._dataProviders.set(treeViewId, dataProvider);
+			const dndController = options.dragAndDropMimeTypes
+				? new TreeViewDragAndDropController(treeViewId, options.dragAndDropMimeTypes, options.hasWillDrop, this._proxy) : undefined;
 			const viewer = this.getTreeView(treeViewId);
 			if (viewer) {
 				// Order is important here. The internal tree isn't created until the dataProvider is set.
 				// Set all other properties first!
 				viewer.showCollapseAllAction = !!options.showCollapseAll;
 				viewer.canSelectMany = !!options.canSelectMany;
+				viewer.dragAndDropController = dndController;
 				viewer.dataProvider = dataProvider;
 				this.registerListeners(treeViewId, viewer);
 				this._proxy.$setVisible(treeViewId, viewer.visible);
@@ -147,7 +151,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		return viewDescriptor ? viewDescriptor.treeView : null;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._dataProviders.forEach((dataProvider, treeViewId) => {
 			const treeView = this.getTreeView(treeViewId);
 			if (treeView) {
@@ -161,6 +165,29 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 
 type TreeItemHandle = string;
 
+class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
+
+	constructor(private readonly treeViewId: string,
+		readonly supportedMimeTypes: string[],
+		readonly hasWillDrop: boolean,
+		private readonly _proxy: ExtHostTreeViewsShape) { }
+
+	async onDrop(dataTransfer: ITreeDataTransfer, targetTreeItem: ITreeItem, operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
+		return this._proxy.$onDrop(this.treeViewId, await TreeDataTransferConverter.toTreeDataTransferDTO(dataTransfer), targetTreeItem.handle, operationUuid, sourceTreeId, sourceTreeItemHandles);
+	}
+
+	async onWillDrop(sourceTreeItemHandles: string[], operationUuid: string): Promise<ITreeDataTransfer | undefined> {
+		if (!this.hasWillDrop) {
+			return;
+		}
+		const additionalTransferItems = await this._proxy.$onWillDrop(this.treeViewId, sourceTreeItemHandles, operationUuid);
+		if (!additionalTransferItems) {
+			return;
+		}
+		return TreeDataTransferConverter.toITreeDataTransfer(additionalTransferItems);
+	}
+}
+
 class TreeViewDataProvider implements ITreeViewDataProvider {
 
 	private readonly itemsMap: Map<TreeItemHandle, ITreeItem> = new Map<TreeItemHandle, ITreeItem>();
@@ -173,14 +200,14 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		this.hasResolve = this._proxy.$hasResolve(this.treeViewId);
 	}
 
-	getChildren(treeItem?: ITreeItem): Promise<ITreeItem[]> {
-		return Promise.resolve(this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : undefined)
+	getChildren(treeItem?: ITreeItem): Promise<ITreeItem[] | undefined> {
+		return this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : undefined)
 			.then(
 				children => this.postGetChildren(children),
 				err => {
 					this.notificationService.error(err);
 					return [];
-				}));
+				});
 	}
 
 	getItemsToRefresh(itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }): ITreeItem[] {
@@ -217,7 +244,10 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		return this.itemsMap.size === 0;
 	}
 
-	private async postGetChildren(elements: ITreeItem[]): Promise<ResolvableTreeItem[]> {
+	private async postGetChildren(elements: ITreeItem[] | undefined): Promise<ResolvableTreeItem[] | undefined> {
+		if (elements === undefined) {
+			return undefined;
+		}
 		const result: ResolvableTreeItem[] = [];
 		const hasResolve = await this.hasResolve;
 		if (elements) {

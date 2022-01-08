@@ -5,7 +5,7 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI as uri, UriComponents } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
 	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration
@@ -75,8 +75,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.resolve(this._proxy.$substituteVariables(folder ? folder.uri : undefined, config));
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
-		return this._proxy.$runInTerminal(args);
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
+		return this._proxy.$runInTerminal(args, sessionId);
 	}
 
 	// RPC methods (MainThreadDebugServiceShape)
@@ -142,7 +142,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			} else if (dto.type === 'function') {
 				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
 			} else if (dto.type === 'data') {
-				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes);
+				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes, dto.accessType);
 			}
 		}
 		return Promise.resolve();
@@ -219,22 +219,25 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return undefined;
 	}
 
-	public $startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, options: IStartDebuggingOptions): Promise<boolean> {
+	public async $startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, options: IStartDebuggingOptions): Promise<boolean> {
 		const folderUri = folder ? uri.revive(folder) : undefined;
 		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
 		const parentSession = this.getSession(options.parentSessionID);
 		const debugOptions: IDebugSessionOptions = {
 			noDebug: options.noDebug,
 			parentSession,
+			lifecycleManagedByParent: options.lifecycleManagedByParent,
 			repl: options.repl,
 			compact: options.compact,
+			debugUI: options.debugUI,
 			compoundRoot: parentSession?.compoundRoot
 		};
-		return this.debugService.startDebugging(launch, nameOrConfig, debugOptions).then(success => {
-			return success;
-		}, err => {
-			return Promise.reject(new Error(err && err.message ? err.message : 'cannot start debugging'));
-		});
+		try {
+			const saveBeforeStart = typeof options.suppressSaveBeforeStart === 'boolean' ? !options.suppressSaveBeforeStart : undefined;
+			return this.debugService.startDebugging(launch, nameOrConfig, debugOptions, saveBeforeStart);
+		} catch (err) {
+			throw new Error(err && err.message ? err.message : 'cannot start debugging');
+		}
 	}
 
 	public $setDebugSessionName(sessionId: DebugSessionUUID, name: string): void {
@@ -329,14 +332,15 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					type: session.configuration.type,
 					name: session.name,
 					folderUri: session.root ? session.root.uri : undefined,
-					configuration: session.configuration
+					configuration: session.configuration,
+					parent: session.parentSession?.getId(),
 				};
 			}
 		}
 		return undefined;
 	}
 
-	private convertToDto(bps: (ReadonlyArray<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint>)): Array<ISourceBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto> {
+	private convertToDto(bps: (ReadonlyArray<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IInstructionBreakpoint>)): Array<ISourceBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto> {
 		return bps.map(bp => {
 			if ('name' in bp) {
 				const fbp = <IFunctionBreakpoint>bp;

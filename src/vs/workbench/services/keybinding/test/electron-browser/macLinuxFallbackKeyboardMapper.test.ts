@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyChord, KeyCode, KeyMod, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod, ScanCode } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding, createKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { ScanCode, ScanCodeBinding } from 'vs/base/common/scanCode';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 import { IResolvedKeybinding, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/electron-browser/keyboardMapperTestUtils';
 
@@ -19,7 +19,7 @@ suite('keyboardMapper - MAC fallback', () => {
 
 	test('resolveKeybinding Cmd+Z', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.KEY_Z,
+			KeyMod.CtrlCmd | KeyCode.KeyZ,
 			[{
 				label: '⌘Z',
 				ariaLabel: 'Command+Z',
@@ -28,13 +28,14 @@ suite('keyboardMapper - MAC fallback', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['meta+Z'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
 
 	test('resolveKeybinding Cmd+K Cmd+=', () => {
 		_assertResolveKeybinding(
-			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_EQUAL),
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Equal),
 			[{
 				label: '⌘K ⌘=',
 				ariaLabel: 'Command+K Command+=',
@@ -43,6 +44,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['meta+K', 'meta+='],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
@@ -56,7 +58,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
-				keyCode: KeyCode.KEY_Z,
+				keyCode: KeyCode.KeyZ,
 				code: null!
 			},
 			{
@@ -67,6 +69,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['meta+Z'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -79,7 +82,7 @@ suite('keyboardMapper - MAC fallback', () => {
 		assertResolveUserBinding(
 			mapper, [
 			new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
-			new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+			new SimpleKeybinding(false, false, false, true, KeyCode.Slash),
 		],
 			[{
 				label: '⌘, ⌘/',
@@ -89,11 +92,12 @@ suite('keyboardMapper - MAC fallback', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['meta+,', 'meta+/'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only Meta+', () => {
+	test('resolveKeyboardEvent Single Modifier Meta+', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -113,6 +117,107 @@ suite('keyboardMapper - MAC fallback', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
+				singleModifierDispatchParts: ['meta'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Single Modifier Shift+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: true,
+				altKey: false,
+				metaKey: false,
+				keyCode: KeyCode.Shift,
+				code: null!
+			},
+			{
+				label: '⇧',
+				ariaLabel: 'Shift',
+				electronAccelerator: null,
+				userSettingsLabel: 'shift',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: ['shift'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Single Modifier Alt+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: true,
+				metaKey: false,
+				keyCode: KeyCode.Alt,
+				code: null!
+			},
+			{
+				label: '⌥',
+				ariaLabel: 'Option',
+				electronAccelerator: null,
+				userSettingsLabel: 'alt',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: ['alt'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Single Modifier Meta+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: true,
+				keyCode: KeyCode.Meta,
+				code: null!
+			},
+			{
+				label: '⌘',
+				ariaLabel: 'Command',
+				electronAccelerator: null,
+				userSettingsLabel: 'cmd',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: ['meta'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Only Modifiers Ctrl+Shift+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: true,
+				shiftKey: true,
+				altKey: false,
+				metaKey: false,
+				keyCode: KeyCode.Shift,
+				code: null!
+			},
+			{
+				label: '⌃⇧',
+				ariaLabel: 'Control+Shift',
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+shift',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -128,7 +233,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 
 	test('resolveKeybinding Ctrl+Z', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.KEY_Z,
+			KeyMod.CtrlCmd | KeyCode.KeyZ,
 			[{
 				label: 'Ctrl+Z',
 				ariaLabel: 'Control+Z',
@@ -137,13 +242,14 @@ suite('keyboardMapper - LINUX fallback', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+Z'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
 
 	test('resolveKeybinding Ctrl+K Ctrl+=', () => {
 		_assertResolveKeybinding(
-			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_EQUAL),
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Equal),
 			[{
 				label: 'Ctrl+K Ctrl+=',
 				ariaLabel: 'Control+K Control+=',
@@ -152,6 +258,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['ctrl+K', 'ctrl+='],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
@@ -165,7 +272,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
-				keyCode: KeyCode.KEY_Z,
+				keyCode: KeyCode.KeyZ,
 				code: null!
 			},
 			{
@@ -176,6 +283,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+Z'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -184,7 +292,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 		assertResolveUserBinding(
 			mapper, [
 			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			new SimpleKeybinding(true, false, false, false, KeyCode.Slash),
 		],
 			[{
 				label: 'Ctrl+, Ctrl+/',
@@ -194,6 +302,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['ctrl+,', 'ctrl+/'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
@@ -211,11 +320,12 @@ suite('keyboardMapper - LINUX fallback', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+,'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only Ctrl+', () => {
+	test('resolveKeyboardEvent Single Modifier Ctrl+', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -235,6 +345,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
+				singleModifierDispatchParts: ['ctrl'],
 			}
 		);
 	});

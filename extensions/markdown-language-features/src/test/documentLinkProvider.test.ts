@@ -139,10 +139,21 @@ suite('markdown.DocumentLinkProvider', () => {
 		}
 	});
 
-	// #107471
-	test('Should not consider link references starting with ^ character valid', () => {
+	test('Should not consider link references starting with ^ character valid (#107471)', () => {
 		const links = getLinksForFile('[^reference]: https://example.com');
 		assert.strictEqual(links.length, 0);
+	});
+
+	test('Should find definitions links with spaces in angle brackets (#136073)', () => {
+		const links = getLinksForFile([
+			'[a]: <b c>',
+			'[b]: <cd>',
+		].join('\n'));
+		assert.strictEqual(links.length, 2);
+
+		const [link1, link2] = links;
+		assertRangeEqual(link1.range, new vscode.Range(0, 6, 0, 9));
+		assertRangeEqual(link2.range, new vscode.Range(1, 6, 1, 8));
 	});
 });
 

@@ -23,7 +23,7 @@ suite('ExtHostDocumentsAndEditors', () => {
 			addedDocuments: [{
 				EOL: '\n',
 				isDirty: true,
-				modeId: 'fooLang',
+				languageId: 'fooLang',
 				uri: URI.parse('foo:bar'),
 				versionId: 1,
 				lines: [

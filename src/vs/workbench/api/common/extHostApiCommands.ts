@@ -4,21 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import type * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto, IIncomingCallDto, IOutgoingCallDto } from 'vs/workbench/api/common/extHost.protocol';
-import * as modes from 'vs/editor/common/modes';
+import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto, IIncomingCallDto, IOutgoingCallDto, ITypeHierarchyItemDto } from 'vs/workbench/api/common/extHost.protocol';
+import * as modes from 'vs/editor/common/languages';
 import * as search from 'vs/workbench/contrib/search/common/search';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { ICommandsExecutor, RemoveFromRecentlyOpenedAPICommand, OpenIssueReporter, OpenIssueReporterArgs } from './apiCommands';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
-import { TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { TransientCellMetadata, TransientDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
@@ -30,13 +27,13 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.executeDocumentHighlights', '_executeDocumentHighlights', 'Execute document highlight provider.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<modes.DocumentHighlight[], types.DocumentHighlight[] | undefined>('A promise that resolves to an array of SymbolInformation and DocumentSymbol instances.', tryMapWith(typeConverters.DocumentHighlight.to))
+		new ApiCommandResult<modes.DocumentHighlight[], types.DocumentHighlight[] | undefined>('A promise that resolves to an array of DocumentHighlight-instances.', tryMapWith(typeConverters.DocumentHighlight.to))
 	),
 	// -- document symbols
 	new ApiCommand(
 		'vscode.executeDocumentSymbolProvider', '_executeDocumentSymbolProvider', 'Execute document symbol provider.',
 		[ApiCommandArgument.Uri],
-		new ApiCommandResult<modes.DocumentSymbol[], vscode.SymbolInformation[] | undefined>('A promise that resolves to an array of DocumentHighlight-instances.', (value, apiArgs) => {
+		new ApiCommandResult<modes.DocumentSymbol[], vscode.SymbolInformation[] | undefined>('A promise that resolves to an array of SymbolInformation and DocumentSymbol instances.', (value, apiArgs) => {
 
 			if (isFalsyOrEmpty(value)) {
 				return undefined;
@@ -60,7 +57,7 @@ const newCommands: ApiCommand[] = [
 				range!: vscode.Range;
 				selectionRange!: vscode.Range;
 				children!: vscode.DocumentSymbol[];
-				containerName!: string;
+				override containerName!: string;
 			}
 			return value.map(MergedInfo.to);
 
@@ -117,7 +114,7 @@ const newCommands: ApiCommand[] = [
 	// -- selection range
 	new ApiCommand(
 		'vscode.executeSelectionRangeProvider', '_executeSelectionRangeProvider', 'Execute selection range provider.',
-		[ApiCommandArgument.Uri, new ApiCommandArgument<types.Position[], IPosition[]>('position', 'A positions in a text document', v => Array.isArray(v) && v.every(v => types.Position.isPosition(v)), v => v.map(typeConverters.Position.from))],
+		[ApiCommandArgument.Uri, new ApiCommandArgument<types.Position[], IPosition[]>('position', 'A position in a text document', v => Array.isArray(v) && v.every(v => types.Position.isPosition(v)), v => v.map(typeConverters.Position.from))],
 		new ApiCommandResult<IRange[][], types.SelectionRange[]>('A promise that resolves to an array of ranges.', result => {
 			return result.map(ranges => {
 				let node: types.SelectionRange | undefined;
@@ -132,14 +129,8 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.executeWorkspaceSymbolProvider', '_executeWorkspaceSymbolProvider', 'Execute all workspace symbol providers.',
 		[ApiCommandArgument.String.with('query', 'Search string')],
-		new ApiCommandResult<[search.IWorkspaceSymbolProvider, search.IWorkspaceSymbol[]][], types.SymbolInformation[]>('A promise that resolves to an array of SymbolInformation-instances.', value => {
-			const result: types.SymbolInformation[] = [];
-			if (Array.isArray(value)) {
-				for (let tuple of value) {
-					result.push(...tuple[1].map(typeConverters.WorkspaceSymbol.to));
-				}
-			}
-			return result;
+		new ApiCommandResult<search.IWorkspaceSymbol[], types.SymbolInformation[]>('A promise that resolves to an array of SymbolInformation-instances.', value => {
+			return value.map(typeConverters.WorkspaceSymbol.to);
 		})
 	),
 	// --- call hierarchy
@@ -160,9 +151,22 @@ const newCommands: ApiCommand[] = [
 	),
 	// --- rename
 	new ApiCommand(
+		'vscode.prepareRename', '_executePrepareRename', 'Execute the prepareRename of rename provider.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<modes.RenameLocation, { range: types.Range, placeholder: string } | undefined>('A promise that resolves to a range and placeholder text.', value => {
+			if (!value) {
+				return undefined;
+			}
+			return {
+				range: typeConverters.Range.to(value.range),
+				placeholder: value.text
+			};
+		})
+	),
+	new ApiCommand(
 		'vscode.executeDocumentRenameProvider', '_executeDocumentRenameProvider', 'Execute rename provider.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position, ApiCommandArgument.String.with('newName', 'The new symbol name')],
-		new ApiCommandResult<IWorkspaceEditDto, types.WorkspaceEdit | undefined>('A promise that resolves to a WorkspaceEdit.', value => {
+		new ApiCommandResult<IWorkspaceEditDto & { rejectReason?: string }, types.WorkspaceEdit | undefined>('A promise that resolves to a WorkspaceEdit.', value => {
 			if (!value) {
 				return undefined;
 			}
@@ -206,7 +210,7 @@ const newCommands: ApiCommand[] = [
 	),
 	new ApiCommand(
 		'vscode.provideDocumentRangeSemanticTokensLegend', '_provideDocumentRangeSemanticTokensLegend', 'Provide semantic tokens legend for a document range',
-		[ApiCommandArgument.Uri],
+		[ApiCommandArgument.Uri, ApiCommandArgument.Range.optional()],
 		new ApiCommandResult<modes.SemanticTokensLegend, types.SemanticTokensLegend | undefined>('A promise that resolves to SemanticTokensLegend.', value => {
 			if (!value) {
 				return undefined;
@@ -326,10 +330,10 @@ const newCommands: ApiCommand[] = [
 	),
 	// --- inline hints
 	new ApiCommand(
-		'vscode.executeInlineHintProvider', '_executeInlineHintProvider', 'Execute inline hints provider',
+		'vscode.executeInlayHintProvider', '_executeInlayHintProvider', 'Execute inlay hints provider',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Range],
-		new ApiCommandResult<modes.InlineHint[], vscode.InlineHint[]>('A promise that resolves to an array of InlineHint objects', result => {
-			return result.map(typeConverters.InlineHint.to);
+		new ApiCommandResult<modes.InlayHint[], vscode.InlayHint[]>('A promise that resolves to an array of Inlay objects', (result, args, converter) => {
+			return result.map(typeConverters.InlayHint.to.bind(undefined, converter));
 		})
 	),
 	// --- notebooks
@@ -343,30 +347,42 @@ const newCommands: ApiCommand[] = [
 		new ApiCommandResult<{
 			viewType: string;
 			displayName: string;
-			options: { transientOutputs: boolean; transientMetadata: TransientMetadata };
+			options: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; };
 			filenamePattern: (string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern })[]
 		}[], {
 			viewType: string;
 			displayName: string;
-			filenamePattern: vscode.NotebookFilenamePattern[];
+			filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern; exclude: vscode.GlobPattern; })[];
 			options: vscode.NotebookDocumentContentOptions;
 		}[] | undefined>('A promise that resolves to an array of NotebookContentProvider static info objects.', tryMapWith(item => {
 			return {
 				viewType: item.viewType,
 				displayName: item.displayName,
-				options: { transientOutputs: item.options.transientOutputs, transientMetadata: item.options.transientMetadata },
+				options: {
+					transientOutputs: item.options.transientOutputs,
+					transientCellMetadata: item.options.transientCellMetadata,
+					transientDocumentMetadata: item.options.transientDocumentMetadata
+				},
 				filenamePattern: item.filenamePattern.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.to(pattern))
 			};
 		}))
 	),
+	// --- debug support
+	new ApiCommand(
+		'vscode.executeInlineValueProvider', '_executeInlineValueProvider', 'Execute inline value provider',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Range],
+		new ApiCommandResult<modes.InlineValue[], vscode.InlineValue[]>('A promise that resolves to an array of InlineValue objects', result => {
+			return result.map(typeConverters.InlineValue.to);
+		})
+	),
 	// --- open'ish commands
 	new ApiCommand(
-		'vscode.open', '_workbench.open', 'Opens the provided resource in the editor. Can be a text or binary file, or a http(s) url. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
+		'vscode.open', '_workbench.open', 'Opens the provided resource in the editor. Can be a text or binary file, or an http(s) URL. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
 		[
 			ApiCommandArgument.Uri,
-			new ApiCommandArgument<vscode.ViewColumn | typeConverters.TextEditorOpenOptions | undefined, [number?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
+			new ApiCommandArgument<vscode.ViewColumn | typeConverters.TextEditorOpenOptions | undefined, [vscode.ViewColumn?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
 				v => v === undefined || typeof v === 'number' || typeof v === 'object',
-				v => !v ? v : typeof v === 'number' ? [v, undefined] : [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)]
+				v => !v ? v : typeof v === 'number' ? [typeConverters.ViewColumn.from(v), undefined] : [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)]
 			).optional(),
 			ApiCommandArgument.String.with('label', '').optional()
 		],
@@ -377,9 +393,9 @@ const newCommands: ApiCommand[] = [
 		[
 			ApiCommandArgument.Uri.with('resource', 'Resource to open'),
 			ApiCommandArgument.String.with('viewId', 'Custom editor view id or \'default\' to use VS Code\'s default editor'),
-			new ApiCommandArgument<vscode.ViewColumn | typeConverters.TextEditorOpenOptions | undefined, [number?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
+			new ApiCommandArgument<vscode.ViewColumn | typeConverters.TextEditorOpenOptions | undefined, [vscode.ViewColumn?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
 				v => v === undefined || typeof v === 'number' || typeof v === 'object',
-				v => !v ? v : typeof v === 'number' ? [v, undefined] : [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)],
+				v => !v ? v : typeof v === 'number' ? [typeConverters.ViewColumn.from(v), undefined] : [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)],
 			).optional()
 		],
 		ApiCommandResult.Void
@@ -388,7 +404,7 @@ const newCommands: ApiCommand[] = [
 		'vscode.diff', '_workbench.diff', 'Opens the provided resources in the diff editor to compare their contents.',
 		[
 			ApiCommandArgument.Uri.with('left', 'Left-hand side resource of the diff editor'),
-			ApiCommandArgument.Uri.with('right', 'Rigth-hand side resource of the diff editor'),
+			ApiCommandArgument.Uri.with('right', 'Right-hand side resource of the diff editor'),
 			ApiCommandArgument.String.with('title', 'Human readable title for the diff editor').optional(),
 			new ApiCommandArgument<typeConverters.TextEditorOpenOptions | undefined, [number?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
 				v => v === undefined || typeof v === 'object',
@@ -397,6 +413,28 @@ const newCommands: ApiCommand[] = [
 		],
 		ApiCommandResult.Void
 	),
+	// --- type hierarchy
+	new ApiCommand(
+		'vscode.prepareTypeHierarchy', '_executePrepareTypeHierarchy', 'Prepare type hierarchy at a position inside a document',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A TypeHierarchyItem or undefined', v => v.map(typeConverters.TypeHierarchyItem.to))
+	),
+	new ApiCommand(
+		'vscode.provideSupertypes', '_executeProvideSupertypes', 'Compute supertypes for an item',
+		[ApiCommandArgument.TypeHierarchyItem],
+		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A TypeHierarchyItem or undefined', v => v.map(typeConverters.TypeHierarchyItem.to))
+	),
+	new ApiCommand(
+		'vscode.provideSubtypes', '_executeProvideSubtypes', 'Compute subtypes for an item',
+		[ApiCommandArgument.TypeHierarchyItem],
+		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A TypeHierarchyItem or undefined', v => v.map(typeConverters.TypeHierarchyItem.to))
+	),
+	// --- testing
+	new ApiCommand(
+		'vscode.revealTestInExplorer', '_revealTestInExplorer', 'Reveals a test instance in the explorer',
+		[ApiCommandArgument.TestItem],
+		ApiCommandResult.Void
+	)
 ];
 
 //#endregion
@@ -408,62 +446,7 @@ export class ExtHostApiCommands {
 
 	static register(commands: ExtHostCommands) {
 		newCommands.forEach(commands.registerApiCommand, commands);
-		return new ExtHostApiCommands(commands).registerCommands();
 	}
-
-	private _commands: ExtHostCommands;
-	private readonly _disposables = new DisposableStore();
-
-	private constructor(commands: ExtHostCommands) {
-		this._commands = commands;
-	}
-
-	registerCommands() {
-
-
-
-
-
-		// -----------------------------------------------------------------
-		// The following commands are registered on both sides separately.
-		//
-		// We are trying to maintain backwards compatibility for cases where
-		// API commands are encoded as markdown links, for example.
-		// -----------------------------------------------------------------
-
-		type ICommandHandler = (...args: any[]) => any;
-		const adjustHandler = (handler: (executor: ICommandsExecutor, ...args: any[]) => any): ICommandHandler => {
-			return (...args: any[]) => {
-				return handler(this._commands, ...args);
-			};
-		};
-
-		this._register(RemoveFromRecentlyOpenedAPICommand.ID, adjustHandler(RemoveFromRecentlyOpenedAPICommand.execute), {
-			description: 'Removes an entry with the given path from the recently opened list.',
-			args: [
-				{ name: 'path', description: 'Path to remove from recently opened.', constraint: (value: any) => typeof value === 'string' }
-			]
-		});
-
-		this._register(OpenIssueReporter.ID, adjustHandler(OpenIssueReporter.execute), {
-			description: 'Opens the issue reporter with the provided extension id as the selected source',
-			args: [
-				{ name: 'extensionId', description: 'extensionId to report an issue on', constraint: (value: unknown) => typeof value === 'string' || (typeof value === 'object' && typeof (value as OpenIssueReporterArgs).extensionId === 'string') }
-			]
-		});
-	}
-
-	// --- command impl
-
-	/**
-	 * @deprecated use the ApiCommand instead
-	 */
-	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
-		const disposable = this._commands.registerCommand(false, id, handler, this, description);
-		this._disposables.add(disposable);
-	}
-
-
 
 }
 

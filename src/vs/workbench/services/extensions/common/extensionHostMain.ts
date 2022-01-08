@@ -36,6 +36,7 @@ export class ExtensionHostMain {
 
 	private _isTerminating: boolean;
 	private readonly _hostUtils: IHostUtils;
+	private readonly _rpcProtocol: RPCProtocol;
 	private readonly _extensionService: IExtHostExtensionService;
 	private readonly _logService: ILogService;
 	private readonly _disposables = new DisposableStore();
@@ -44,32 +45,37 @@ export class ExtensionHostMain {
 		protocol: IMessagePassingProtocol,
 		initData: IInitData,
 		hostUtils: IHostUtils,
-		uriTransformer: IURITransformer | null
+		uriTransformer: IURITransformer | null,
+		messagePorts?: ReadonlyMap<string, MessagePort>
 	) {
 		this._isTerminating = false;
 		this._hostUtils = hostUtils;
-		const rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
+		this._rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
 
 		// ensure URIs are transformed and revived
-		initData = ExtensionHostMain._transform(initData, rpcProtocol);
+		initData = ExtensionHostMain._transform(initData, this._rpcProtocol);
 
 		// bootstrap services
 		const services = new ServiceCollection(...getSingletonServiceDescriptors());
-		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData });
-		services.set(IExtHostRpcService, new ExtHostRpcService(rpcProtocol));
+		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData, messagePorts });
+		services.set(IExtHostRpcService, new ExtHostRpcService(this._rpcProtocol));
 		services.set(IURITransformerService, new URITransformerService(uriTransformer));
 		services.set(IHostUtils, hostUtils);
 
 		const instaService: IInstantiationService = new InstantiationService(services, true);
 
 		// ugly self - inject
-		const terminalService = instaService.invokeFunction(accessor => accessor.get(IExtHostTerminalService));
-		this._disposables.add(terminalService);
+		this._disposables.add(instaService.invokeFunction(accessor => accessor.get(IExtHostTerminalService)));
+		this._disposables.add(instaService.invokeFunction(accessor => accessor.get(IExtHostExtensionService)));
 
 		this._logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
 
 		performance.mark(`code/extHost/didCreateServices`);
-		this._logService.info('extension host started');
+		if (this._hostUtils.pid) {
+			this._logService.info(`Extension host with pid ${this._hostUtils.pid} started`);
+		} else {
+			this._logService.info(`Extension host started`);
+		}
 		this._logService.trace('initData', initData);
 
 		// ugly self - inject
@@ -90,7 +96,7 @@ export class ExtensionHostMain {
 					stackTraceMessage += `\n\tat ${call.toString()}`;
 					fileName = call.getFileName();
 					if (!extension && fileName) {
-						extension = map.findSubstr(fileName);
+						extension = map.findSubstr(URI.file(fileName));
 					}
 
 				}
@@ -99,8 +105,8 @@ export class ExtensionHostMain {
 			};
 		});
 
-		const mainThreadExtensions = rpcProtocol.getProxy(MainContext.MainThreadExtensionService);
-		const mainThreadErrors = rpcProtocol.getProxy(MainContext.MainThreadErrors);
+		const mainThreadExtensions = this._rpcProtocol.getProxy(MainContext.MainThreadExtensionService);
+		const mainThreadErrors = this._rpcProtocol.getProxy(MainContext.MainThreadErrors);
 		errors.setUnexpectedErrorHandler(err => {
 			const data = errors.transformErrorForSerialization(err);
 			const extension = extensionErrors.get(err);
@@ -124,20 +130,25 @@ export class ExtensionHostMain {
 		this._disposables.dispose();
 
 		errors.setUnexpectedErrorHandler((err) => {
-			// TODO: write to log once we have one
+			this._logService.error(err);
 		});
+
+		// Invalidate all proxies
+		this._rpcProtocol.dispose();
 
 		const extensionsDeactivated = this._extensionService.deactivateAll();
 
-		// Give extensions 1 second to wrap up any async dispose, then exit in at most 4 seconds
-		setTimeout(() => {
-			Promise.race([timeout(4000), extensionsDeactivated]).finally(() => {
-				this._logService.info(`exiting with code 0`);
-				this._logService.flush();
-				this._logService.dispose();
-				this._hostUtils.exit(0);
-			});
-		}, 1000);
+		// Give extensions at most 5 seconds to wrap up any async deactivate, then exit
+		Promise.race([timeout(5000), extensionsDeactivated]).finally(() => {
+			if (this._hostUtils.pid) {
+				this._logService.info(`Extension host with pid ${this._hostUtils.pid} exiting with code 0`);
+			} else {
+				this._logService.info(`Extension host exiting with code 0`);
+			}
+			this._logService.flush();
+			this._logService.dispose();
+			this._hostUtils.exit(0);
+		});
 	}
 
 	private static _transform(initData: IInitData, rpcProtocol: RPCProtocol): IInitData {

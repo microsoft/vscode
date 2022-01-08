@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./checkbox';
-import * as DOM from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Widget } from 'vs/base/browser/ui/widget';
+import { IAction } from 'vs/base/common/actions';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
-import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import 'vs/css!./checkbox';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
 	readonly actionClassName?: string;
 	readonly icon?: CSSIcon;
 	readonly title: string;
 	readonly isChecked: boolean;
+	readonly notFocusable?: boolean;
 }
 
 export interface ICheckboxStyles {
@@ -41,24 +41,25 @@ const defaultOpts = {
 
 export class CheckboxActionViewItem extends BaseActionViewItem {
 
-	protected checkbox: Checkbox | undefined;
-	protected readonly disposables = new DisposableStore();
+	protected readonly checkbox: Checkbox;
 
-	render(container: HTMLElement): void {
-		this.element = container;
-
-		this.disposables.clear();
-		this.checkbox = new Checkbox({
+	constructor(context: any, action: IAction, options: IActionViewItemOptions | undefined) {
+		super(context, action, options);
+		this.checkbox = this._register(new Checkbox({
 			actionClassName: this._action.class,
-			isChecked: this._action.checked,
-			title: this._action.label
-		});
-		this.disposables.add(this.checkbox);
-		this.disposables.add(this.checkbox.onChange(() => this._action.checked = !!this.checkbox && this.checkbox.checked, this));
+			isChecked: !!this._action.checked,
+			title: (<IActionViewItemOptions>this.options).keybinding ? `${this._action.label} (${(<IActionViewItemOptions>this.options).keybinding})` : this._action.label,
+			notFocusable: true
+		}));
+		this._register(this.checkbox.onChange(() => this._action.checked = !!this.checkbox && this.checkbox.checked));
+	}
+
+	override render(container: HTMLElement): void {
+		this.element = container;
 		this.element.appendChild(this.checkbox.domNode);
 	}
 
-	updateEnabled(): void {
+	override updateEnabled(): void {
 		if (this.checkbox) {
 			if (this.isEnabled()) {
 				this.checkbox.enable();
@@ -68,16 +69,24 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	updateChecked(): void {
-		if (this.checkbox) {
-			this.checkbox.checked = this._action.checked;
-		}
+	override updateChecked(): void {
+		this.checkbox.checked = !!this._action.checked;
 	}
 
-	dispose(): void {
-		this.disposables.dispose();
-		super.dispose();
+	override focus(): void {
+		this.checkbox.domNode.tabIndex = 0;
+		this.checkbox.focus();
 	}
+
+	override blur(): void {
+		this.checkbox.domNode.tabIndex = -1;
+		this.checkbox.domNode.blur();
+	}
+
+	override setFocusable(focusable: boolean): void {
+		this.checkbox.domNode.tabIndex = focusable ? 0 : -1;
+	}
+
 }
 
 export class Checkbox extends Widget {
@@ -113,7 +122,9 @@ export class Checkbox extends Widget {
 		this.domNode = document.createElement('div');
 		this.domNode.title = this._opts.title;
 		this.domNode.classList.add(...classes);
-		this.domNode.tabIndex = 0;
+		if (!this._opts.notFocusable) {
+			this.domNode.tabIndex = 0;
+		}
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));
 		this.domNode.setAttribute('aria-label', this._opts.title);
@@ -162,7 +173,7 @@ export class Checkbox extends Widget {
 	}
 
 	width(): number {
-		return 2 /*marginleft*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
+		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
 	style(styles: ICheckboxStyles): void {
@@ -180,20 +191,23 @@ export class Checkbox extends Widget {
 
 	protected applyStyles(): void {
 		if (this.domNode) {
-			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : 'transparent';
+			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : '';
 			this.domNode.style.color = this._checked && this._opts.inputActiveOptionForeground ? this._opts.inputActiveOptionForeground.toString() : 'inherit';
-			this.domNode.style.backgroundColor = this._checked && this._opts.inputActiveOptionBackground ? this._opts.inputActiveOptionBackground.toString() : 'transparent';
+			this.domNode.style.backgroundColor = this._checked && this._opts.inputActiveOptionBackground ? this._opts.inputActiveOptionBackground.toString() : '';
 		}
 	}
 
 	enable(): void {
-		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('aria-disabled', String(false));
 	}
 
 	disable(): void {
-		DOM.removeTabIndexAndUpdateFocus(this.domNode);
 		this.domNode.setAttribute('aria-disabled', String(true));
+	}
+
+	setTitle(newTitle: string): void {
+		this.domNode.title = newTitle;
+		this.domNode.setAttribute('aria-label', newTitle);
 	}
 }
 

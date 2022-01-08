@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { MarshalledId, MarshalledObject } from 'vs/base/common/marshalling';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { MarshalledObject } from 'vs/base/common/marshalling';
 
 export interface IURITransformer {
 	transformIncoming(uri: UriComponents): UriComponents;
@@ -17,6 +17,8 @@ export interface UriParts {
 	scheme: string;
 	authority?: string;
 	path?: string;
+	query?: string;
+	fragment?: string;
 }
 
 export interface IRawURITransformer {
@@ -118,7 +120,7 @@ function _transformIncomingURIs(obj: any, transformer: IURITransformer, revive: 
 
 	if (typeof obj === 'object') {
 
-		if ((<MarshalledObject>obj).$mid === 1) {
+		if ((<MarshalledObject>obj).$mid === MarshalledId.Uri) {
 			return revive ? URI.revive(transformer.transformIncoming(obj)) : transformer.transformIncoming(obj);
 		}
 

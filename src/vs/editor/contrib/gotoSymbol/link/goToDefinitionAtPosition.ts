@@ -3,34 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./goToDefinitionAtPosition';
-import * as nls from 'vs/nls';
-import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/modes';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import 'vs/css!./goToDefinitionAtPosition';
+import { CodeEditorStateFlag, EditorState } from 'vs/editor/browser/core/editorState';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { getDefinitionsAtPosition } from '../goToSymbol';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
-import { DefinitionAction } from '../goToCommands';
-import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
-import { IWordAtPosition, IModelDeltaDecoration, ITextModel, IFoundBracket } from 'vs/editor/common/model';
-import { Position } from 'vs/editor/common/core/position';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IModelDeltaDecoration, ITextModel, IWordAtPosition } from 'vs/editor/common/model';
+import { IFoundBracket } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
+import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
 import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
+import * as nls from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { DefinitionAction } from '../goToCommands';
+import { getDefinitionsAtPosition } from '../goToSymbol';
 
 export class GotoDefinitionAtPositionEditorContribution implements IEditorContribution {
 
@@ -47,7 +48,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	constructor(
 		editor: ICodeEditor,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IModeService private readonly modeService: IModeService
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		this.editor = editor;
 
@@ -75,7 +76,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		}));
 	}
 
-	static get(editor: ICodeEditor): GotoDefinitionAtPositionEditorContribution {
+	static get(editor: ICodeEditor): GotoDefinitionAtPositionEditorContribution | null {
 		return editor.getContribution<GotoDefinitionAtPositionEditorContribution>(GotoDefinitionAtPositionEditorContribution.ID);
 	}
 
@@ -203,10 +204,10 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 					}
 
-					const modeId = this.modeService.getModeIdByFilepathOrFirstLine(textEditorModel.uri);
+					const languageId = this.languageService.guessLanguageIdByFilepathOrFirstLine(textEditorModel.uri);
 					this.addDecoration(
 						wordRange,
-						new MarkdownString().appendCodeblock(modeId ? modeId : '', previewValue)
+						new MarkdownString().appendCodeblock(languageId ? languageId : '', previewValue)
 					);
 					ref.dispose();
 				});
@@ -260,7 +261,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		const brackets: IFoundBracket[] = [];
 
 		let ignoreFirstEmpty = true;
-		let currentBracket = textEditorModel.findNextBracket(new Position(startLineNumber, 1));
+		let currentBracket = textEditorModel.bracketPairs.findNextBracket(new Position(startLineNumber, 1));
 		while (currentBracket !== null) {
 
 			if (brackets.length === 0) {
@@ -294,7 +295,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 				return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
 			}
 
-			currentBracket = textEditorModel.findNextBracket(new Position(nextLineNumber, nextColumn));
+			currentBracket = textEditorModel.bracketPairs.findNextBracket(new Position(nextLineNumber, nextColumn));
 		}
 
 		return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
@@ -305,6 +306,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		const newDecorations: IModelDeltaDecoration = {
 			range: range,
 			options: {
+				description: 'goto-definition-link',
 				inlineClassName: 'goto-definition-link',
 				hoverMessage
 			}

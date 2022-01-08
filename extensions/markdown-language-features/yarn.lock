@@ -2,12 +2,17 @@
 # yarn lockfile v1
 
 
-"@types/highlight.js@10.1.0":
-  version "10.1.0"
-  resolved "https://registry.yarnpkg.com/@types/highlight.js/-/highlight.js-10.1.0.tgz#89bb0c202997d7a90a07bd2ec1f7d00c56bb90b4"
-  integrity sha512-77hF2dGBsOgnvZll1vymYiNUtqJ8cJfXPD6GG/2M0aLRc29PkvB7Au6sIDjIEFcSICBhCh2+Pyq6WSRS7LUm6A==
+"@types/dompurify@^2.3.1":
+  version "2.3.1"
+  resolved "https://registry.yarnpkg.com/@types/dompurify/-/dompurify-2.3.1.tgz#2934adcd31c4e6b02676f9c22f9756e5091c04dd"
+  integrity sha512-YJth9qa0V/E6/XPH1Jq4BC8uCMmO8V1fKWn8PCvuZcAhMn7q0ez9LW6naQT04UZzjFfAPhyRMZmI2a2rbMlEFA==
   dependencies:
-    highlight.js "*"
+    "@types/trusted-types" "*"
+
+"@types/linkify-it@*":
+  version "3.0.2"
+  resolved "https://registry.yarnpkg.com/@types/linkify-it/-/linkify-it-3.0.2.tgz#fd2cd2edbaa7eaac7e7f3c1748b52a19143846c9"
+  integrity sha512-HZQYqbiFVWufzCwexrvh694SOim8z2d+xJl5UNamcvQFejLY/2YUtzXHYi3cHdI7PMlS8ejH2slRAOJQ32aNbA==
 
 "@types/lodash.throttle@^4.1.3":
   version "4.1.3"
@@ -21,56 +26,58 @@
   resolved "https://registry.yarnpkg.com/@types/lodash/-/lodash-4.14.104.tgz#53ee2357fa2e6e68379341d92eb2ecea4b11bb80"
   integrity sha512-ufQcVg4daO8xQ5kopxRHanqFdL4AI7ondQkV+2f+7mz3gvp0LkBx2zBRC6hfs3T87mzQFmf5Fck7Fi145Ul6NQ==
 
-"@types/markdown-it@0.0.2":
-  version "0.0.2"
-  resolved "https://registry.yarnpkg.com/@types/markdown-it/-/markdown-it-0.0.2.tgz#5d9ad19e6e6508cdd2f2596df86fd0aade598660"
-  integrity sha1-XZrRnm5lCM3S8llt+G/Qqt5ZhmA=
-
-"@types/node@^12.19.9":
-  version "12.19.9"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-12.19.9.tgz#990ad687ad8b26ef6dcc34a4f69c33d40c95b679"
-  integrity sha512-yj0DOaQeUrk3nJ0bd3Y5PeDRJ6W0r+kilosLA+dzF3dola/o9hxhMSg2sFvVcA2UHS5JSOsZp4S0c1OEXc4m1Q==
-
-applicationinsights@1.0.8:
-  version "1.0.8"
-  resolved "https://registry.yarnpkg.com/applicationinsights/-/applicationinsights-1.0.8.tgz#db6e3d983cf9f9405fe1ee5ba30ac6e1914537b5"
-  integrity sha512-KzOOGdphOS/lXWMFZe5440LUdFbrLpMvh2SaRxn7BmiI550KAoSb2gIhiq6kJZ9Ir3AxRRztjhzif+e5P5IXIg==
+"@types/markdown-it@12.2.3":
+  version "12.2.3"
+  resolved "https://registry.yarnpkg.com/@types/markdown-it/-/markdown-it-12.2.3.tgz#0d6f6e5e413f8daaa26522904597be3d6cd93b51"
+  integrity sha512-GKMHFfv3458yYy+v/N8gjufHO6MSZKCOXpZc5GXIWWy8uldwfmPn98vp81gZ5f9SVw8YYBctgfJ22a2d7AOMeQ==
   dependencies:
-    diagnostic-channel "0.2.0"
-    diagnostic-channel-publishers "0.2.1"
-    zone.js "0.7.6"
+    "@types/linkify-it" "*"
+    "@types/mdurl" "*"
+
+"@types/mdurl@*":
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/@types/mdurl/-/mdurl-1.0.2.tgz#e2ce9d83a613bacf284c7be7d491945e39e1f8e9"
+  integrity sha512-eC4U9MlIcu2q0KQmXszyn5Akca/0jrQmwDRgpAMJai7qBWq4amIQhZyNau4VYGtCeALvW1/NtjzJJ567aZxfKA==
+
+"@types/trusted-types@*":
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/@types/trusted-types/-/trusted-types-2.0.2.tgz#fc25ad9943bcac11cceb8168db4f275e0e72e756"
+  integrity sha512-F5DIZ36YVLE+PN+Zwws4kJogq47hNgX3Nx6WyDJ3kcplxyke3XIzB8uK5n/Lpm1HBsbGzd6nmGehL8cPekP+Tg==
+
+"@types/vscode-notebook-renderer@^1.60.0":
+  version "1.60.0"
+  resolved "https://registry.yarnpkg.com/@types/vscode-notebook-renderer/-/vscode-notebook-renderer-1.60.0.tgz#8a67d561f48ddf46a95dfa9f712a79c72c7b8f7a"
+  integrity sha512-u7TD2uuEZTVuitx0iijOJdKI0JLiQP6PsSBSRy2XmHXUOXcp5p1S56NrjOEDoF+PIHd3NL3eO6KTRSf5nukDqQ==
+
+"@types/vscode-webview@^1.57.0":
+  version "1.57.0"
+  resolved "https://registry.yarnpkg.com/@types/vscode-webview/-/vscode-webview-1.57.0.tgz#bad5194d45ae8d03afc1c0f67f71ff5e7a243bbf"
+  integrity sha512-x3Cb/SMa1IwRHfSvKaZDZOTh4cNoG505c3NjTqGlMC082m++x/ETUmtYniDsw6SSmYzZXO8KBNhYxR0+VqymqA==
 
 argparse@^2.0.1:
   version "2.0.1"
   resolved "https://registry.yarnpkg.com/argparse/-/argparse-2.0.1.tgz#246f50f3ca78a3240f6c997e8a9bd1eac49e4b38"
   integrity sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==
 
-diagnostic-channel-publishers@0.2.1:
-  version "0.2.1"
-  resolved "https://registry.yarnpkg.com/diagnostic-channel-publishers/-/diagnostic-channel-publishers-0.2.1.tgz#8e2d607a8b6d79fe880b548bc58cc6beb288c4f3"
-  integrity sha1-ji1geottef6IC1SLxYzGvrKIxPM=
-
-diagnostic-channel@0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/diagnostic-channel/-/diagnostic-channel-0.2.0.tgz#cc99af9612c23fb1fff13612c72f2cbfaa8d5a17"
-  integrity sha1-zJmvlhLCP7H/8TYSxy8sv6qNWhc=
-  dependencies:
-    semver "^5.3.0"
+dompurify@^2.3.3:
+  version "2.3.3"
+  resolved "https://registry.yarnpkg.com/dompurify/-/dompurify-2.3.3.tgz#c1af3eb88be47324432964d8abc75cf4b98d634c"
+  integrity sha512-dqnqRkPMAjOZE0FogZ+ceJNM2dZ3V/yNOuFB7+39qpO93hHhfRpHw3heYQC7DPK9FqbQTfBKUJhiSfz4MvXYwg==
 
 entities@~2.1.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/entities/-/entities-2.1.0.tgz#992d3129cf7df6870b96c57858c249a120f8b8b5"
   integrity sha512-hCx1oky9PFrJ611mf0ifBLBRW8lUUVRlFolb5gWRfIELabBlbp9xZvrqZLZAs+NxFnbfQoeGd8wDkygjg7U85w==
 
-highlight.js@*, highlight.js@^10.4.1:
+highlight.js@^10.4.1:
   version "10.4.1"
   resolved "https://registry.yarnpkg.com/highlight.js/-/highlight.js-10.4.1.tgz#d48fbcf4a9971c4361b3f95f302747afe19dbad0"
   integrity sha512-yR5lWvNz7c85OhVAEAeFhVCc/GV4C30Fjzc/rCP0aCWzc1UUOPUk55dK/qdwTZHBvMZo+eZ2jpk62ndX/xMFlg==
 
 linkify-it@^3.0.1:
-  version "3.0.2"
-  resolved "https://registry.yarnpkg.com/linkify-it/-/linkify-it-3.0.2.tgz#f55eeb8bc1d3ae754049e124ab3bb56d97797fb8"
-  integrity sha512-gDBO4aHNZS6coiZCKVhSNh43F9ioIL4JwRjLZPkoLIY4yZFwg264Y5lu2x6rb1Js42Gh6Yqm2f6L2AJcnkzinQ==
+  version "3.0.3"
+  resolved "https://registry.yarnpkg.com/linkify-it/-/linkify-it-3.0.3.tgz#a98baf44ce45a550efb4d49c769d07524cc2fa2e"
+  integrity sha512-ynTsyrFSdE5oZ/O9GEf00kPngmOfVwazR5GKDq6EYfhlpFug3J2zybX56a2PRRpc9P+FuSoGNAwjlbDs9jJBPQ==
   dependencies:
     uc.micro "^1.0.1"
 
@@ -84,10 +91,10 @@ markdown-it-front-matter@^0.2.1:
   resolved "https://registry.yarnpkg.com/markdown-it-front-matter/-/markdown-it-front-matter-0.2.1.tgz#dca49a827bb3cebb0528452c1d87dff276eb28dc"
   integrity sha512-ydUIqlKfDscRpRUTRcA3maeeUKn3Cl5EaKZSA+I/f0KOGCBurW7e+bbz59sxqkC3FA9Q2S2+t4mpkH9T0BCM6A==
 
-markdown-it@^12.0.3:
-  version "12.0.3"
-  resolved "https://registry.yarnpkg.com/markdown-it/-/markdown-it-12.0.3.tgz#8d1e47daf1d716d63610495eb93f6665573e4abe"
-  integrity sha512-M57RsMv+QQmJHz1yCu0gTJRMx/LlxRPtrrw+2kb/CpDVK/graCmWO0qfNnz/SE1FCNdyq3pkMMZ+itTnyT/YGA==
+markdown-it@^12.2.0:
+  version "12.2.0"
+  resolved "https://registry.yarnpkg.com/markdown-it/-/markdown-it-12.2.0.tgz#091f720fd5db206f80de7a8d1f1a7035fd0d38db"
+  integrity sha512-Wjws+uCrVQRqOoJvze4HCqkKl1AsSh95iFAeQDwnyfxM09divCBSXlDR1uTvyUP3Grzpn4Ru8GeCxYPM8vkCQg==
   dependencies:
     argparse "^2.0.1"
     entities "~2.1.0"
@@ -100,34 +107,22 @@ mdurl@^1.0.1:
   resolved "https://registry.yarnpkg.com/mdurl/-/mdurl-1.0.1.tgz#fe85b2ec75a59037f2adfec100fd6c601761152e"
   integrity sha1-/oWy7HWlkDfyrf7BAP1sYBdhFS4=
 
-semver@^5.3.0:
-  version "5.5.0"
-  resolved "https://registry.yarnpkg.com/semver/-/semver-5.5.0.tgz#dc4bbc7a6ca9d916dee5d43516f0092b58f7b8ab"
-  integrity sha512-4SJ3dm0WAwWy/NVeioZh5AntkdJoWKxHxcmyP622fOkgHa4z3R0TdBJICINyaSDE6uNwVc8gZr+ZinwZAH4xIA==
+morphdom@^2.6.1:
+  version "2.6.1"
+  resolved "https://registry.yarnpkg.com/morphdom/-/morphdom-2.6.1.tgz#e868e24f989fa3183004b159aed643e628b4306e"
+  integrity sha512-Y8YRbAEP3eKykroIBWrjcfMw7mmwJfjhqdpSvoqinu8Y702nAwikpXcNFDiIkyvfCLxLM9Wu95RZqo4a9jFBaA==
 
-uc.micro@^1.0.1:
-  version "1.0.3"
-  resolved "https://registry.yarnpkg.com/uc.micro/-/uc.micro-1.0.3.tgz#7ed50d5e0f9a9fb0a573379259f2a77458d50192"
-  integrity sha1-ftUNXg+an7ClczeSWfKndFjVAZI=
+uc.micro@^1.0.1, uc.micro@^1.0.5:
+  version "1.0.6"
+  resolved "https://registry.yarnpkg.com/uc.micro/-/uc.micro-1.0.6.tgz#9c411a802a409a91fc6cf74081baba34b24499ac"
+  integrity sha512-8Y75pvTYkLJW2hWQHXxoqRgV7qb9B+9vFEtidML+7koHUFapnVJAZ6cKs+Qjz5Aw3aZWHMC6u0wJE3At+nSGwA==
 
-uc.micro@^1.0.5:
-  version "1.0.5"
-  resolved "https://registry.yarnpkg.com/uc.micro/-/uc.micro-1.0.5.tgz#0c65f15f815aa08b560a61ce8b4db7ffc3f45376"
-  integrity sha512-JoLI4g5zv5qNyT09f4YAvEZIIV1oOjqnewYg5D38dkQljIzpPT296dbIGvKro3digYI1bkb7W6EP1y4uDlmzLg==
+vscode-extension-telemetry@0.4.4:
+  version "0.4.4"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.4.4.tgz#e5d5ac90ea7d07ec054f5310893d95d43d5984b0"
+  integrity sha512-LzirNf2GnykXCAqqWrvj+snYqgkPVyjwM72tYOHgcZiG/ZRuNjmqlgvs+SomEJdmD8cutduitPmhoyIuzOrVfA==
 
-vscode-extension-telemetry@0.1.1:
-  version "0.1.1"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.1.1.tgz#91387e06b33400c57abd48979b0e790415ae110b"
-  integrity sha512-TkKKG/B/J94DP5qf6xWB4YaqlhWDg6zbbqVx7Bz//stLQNnfE9XS1xm3f6fl24c5+bnEK0/wHgMgZYKIKxPeUA==
-  dependencies:
-    applicationinsights "1.0.8"
-
-vscode-nls@^4.0.0:
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-4.0.0.tgz#4001c8a6caba5cedb23a9c5ce1090395c0e44002"
-  integrity sha512-qCfdzcH+0LgQnBpZA53bA32kzp9rpq/f66Som577ObeuDlFIrtbEJ+A/+CCxjIh4G8dpJYNCKIsxpRAHIfsbNw==
-
-zone.js@0.7.6:
-  version "0.7.6"
-  resolved "https://registry.yarnpkg.com/zone.js/-/zone.js-0.7.6.tgz#fbbc39d3e0261d0986f1ba06306eb3aeb0d22009"
-  integrity sha1-+7w50+AmHQmG8boGMG6zrrDSIAk=
+vscode-nls@^5.0.0:
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-5.0.0.tgz#99f0da0bd9ea7cda44e565a74c54b1f2bc257840"
+  integrity sha512-u0Lw+IYlgbEJFF6/qAqG2d1jQmJl0eyAGJHoAJqr2HT4M2BNuQYSEiSE75f52pXHSJm8AlTjnLLbBFPrdz2hpA==

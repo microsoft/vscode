@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { OutlineElement, OutlineGroup, OutlineModel } from '../outlineModel';
-import { SymbolKind, DocumentSymbol, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { Range } from 'vs/editor/common/core/range';
-import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { URI } from 'vs/base/common/uri';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
+import { Range } from 'vs/editor/common/core/range';
+import { DocumentSymbol, DocumentSymbolProviderRegistry, SymbolKind } from 'vs/editor/common/languages';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { OutlineElement, OutlineGroup, OutlineModel } from '../outlineModel';
 
 suite('OutlineModel', function () {
 
@@ -26,18 +26,19 @@ suite('OutlineModel', function () {
 		});
 
 		await OutlineModel.create(model, CancellationToken.None);
-		assert.equal(count, 1);
+		assert.strictEqual(count, 1);
 
 		// cached
 		await OutlineModel.create(model, CancellationToken.None);
-		assert.equal(count, 1);
+		assert.strictEqual(count, 1);
 
 		// new version
 		model.applyEdits([{ text: 'XXX', range: new Range(1, 1, 1, 1) }]);
 		await OutlineModel.create(model, CancellationToken.None);
-		assert.equal(count, 2);
+		assert.strictEqual(count, 2);
 
 		reg.dispose();
+		model.dispose();
 	});
 
 	test('OutlineModel#create, cached/cancel', async function () {
@@ -56,19 +57,20 @@ suite('OutlineModel', function () {
 			}
 		});
 
-		assert.equal(isCancelled, false);
+		assert.strictEqual(isCancelled, false);
 		let s1 = new CancellationTokenSource();
 		OutlineModel.create(model, s1.token);
 		let s2 = new CancellationTokenSource();
 		OutlineModel.create(model, s2.token);
 
 		s1.cancel();
-		assert.equal(isCancelled, false);
+		assert.strictEqual(isCancelled, false);
 
 		s2.cancel();
-		assert.equal(isCancelled, true);
+		assert.strictEqual(isCancelled, true);
 
 		reg.dispose();
+		model.dispose();
 	});
 
 	function fakeSymbolInformation(range: Range, name: string = 'foo'): DocumentSymbol {
@@ -101,15 +103,15 @@ suite('OutlineModel', function () {
 		data.sort(Range.compareRangesUsingStarts); // model does this
 
 		group.updateMarker(data);
-		assert.equal(data.length, 0); // all 'stolen'
-		assert.equal(e0.marker!.count, 1);
-		assert.equal(e1.marker, undefined);
-		assert.equal(e2.marker!.count, 2);
+		assert.strictEqual(data.length, 0); // all 'stolen'
+		assert.strictEqual(e0.marker!.count, 1);
+		assert.strictEqual(e1.marker, undefined);
+		assert.strictEqual(e2.marker!.count, 2);
 
 		group.updateMarker([]);
-		assert.equal(e0.marker, undefined);
-		assert.equal(e1.marker, undefined);
-		assert.equal(e2.marker, undefined);
+		assert.strictEqual(e0.marker, undefined);
+		assert.strictEqual(e1.marker, undefined);
+		assert.strictEqual(e2.marker, undefined);
 	});
 
 	test('OutlineElement - updateMarker, 2', function () {
@@ -128,9 +130,9 @@ suite('OutlineModel', function () {
 		];
 
 		group.updateMarker(data);
-		assert.equal(p.marker!.count, 0);
-		assert.equal(c1.marker!.count, 1);
-		assert.equal(c2.marker, undefined);
+		assert.strictEqual(p.marker!.count, 0);
+		assert.strictEqual(c1.marker!.count, 1);
+		assert.strictEqual(c2.marker, undefined);
 
 		data = [
 			fakeMarker(new Range(2, 4, 5, 4)),
@@ -138,18 +140,18 @@ suite('OutlineModel', function () {
 			fakeMarker(new Range(7, 6, 7, 8)),
 		];
 		group.updateMarker(data);
-		assert.equal(p.marker!.count, 0);
-		assert.equal(c1.marker!.count, 2);
-		assert.equal(c2.marker!.count, 1);
+		assert.strictEqual(p.marker!.count, 0);
+		assert.strictEqual(c1.marker!.count, 2);
+		assert.strictEqual(c2.marker!.count, 1);
 
 		data = [
 			fakeMarker(new Range(1, 4, 1, 11)),
 			fakeMarker(new Range(7, 6, 7, 8)),
 		];
 		group.updateMarker(data);
-		assert.equal(p.marker!.count, 1);
-		assert.equal(c1.marker, undefined);
-		assert.equal(c2.marker!.count, 1);
+		assert.strictEqual(p.marker!.count, 1);
+		assert.strictEqual(c1.marker, undefined);
+		assert.strictEqual(c2.marker!.count, 1);
 	});
 
 	test('OutlineElement - updateMarker/multiple groups', function () {
@@ -179,9 +181,9 @@ suite('OutlineModel', function () {
 
 		model.updateMarker(data);
 
-		assert.equal(model.children.get('g1')!.children.get('c1')!.marker!.count, 2);
-		assert.equal(model.children.get('g2')!.children.get('c2')!.children.get('c2.1')!.marker!.count, 1);
-		assert.equal(model.children.get('g2')!.children.get('c2')!.children.get('c2.2')!.marker!.count, 1);
+		assert.strictEqual(model.children.get('g1')!.children.get('c1')!.marker!.count, 2);
+		assert.strictEqual(model.children.get('g2')!.children.get('c2')!.children.get('c2.1')!.marker!.count, 1);
+		assert.strictEqual(model.children.get('g2')!.children.get('c2')!.children.get('c2.2')!.marker!.count, 1);
 	});
 
 });

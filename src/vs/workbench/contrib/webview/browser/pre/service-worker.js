@@ -2,16 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
+
+/// <reference no-default-lib="true"/>
 /// <reference lib="webworker" />
 
-const VERSION = 1;
+const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {any} */ (self));
 
-const rootPath = self.location.pathname.replace(/\/service-worker.js$/, '');
+const VERSION = 3;
+
+const resourceCacheName = `vscode-resource-cache-${VERSION}`;
+
+const rootPath = sw.location.pathname.replace(/\/service-worker.js$/, '');
+
+const searchParams = new URL(location.toString()).searchParams;
 
 /**
- * Root path for resources
+ * Origin used for resources
  */
-const resourceRoot = rootPath + '/vscode-resource';
+const resourceBaseAuthority = searchParams.get('vscode-resource-base-authority');
 
 const resolveTimeout = 30000;
 
@@ -24,80 +33,81 @@ const resolveTimeout = 30000;
  */
 
 /**
+ * Caches
  * @template T
  */
 class RequestStore {
 	constructor() {
-		/** @type {Map<string, RequestStoreEntry<T>>} */
+		/** @type {Map<number, RequestStoreEntry<T>>} */
 		this.map = new Map();
+
+		this.requestPool = 0;
 	}
 
 	/**
-	 * @param {string} webviewId
-	 * @param {string} path
+	 * @param {number} requestId
 	 * @return {Promise<T> | undefined}
 	 */
-	get(webviewId, path) {
-		const entry = this.map.get(this._key(webviewId, path));
+	get(requestId) {
+		const entry = this.map.get(requestId);
 		return entry && entry.promise;
 	}
 
 	/**
-	 * @param {string} webviewId
-	 * @param {string} path
-	 * @returns {Promise<T>}
+	 * @returns {{ requestId: number, promise: Promise<T> }}
 	 */
-	create(webviewId, path) {
-		const existing = this.get(webviewId, path);
-		if (existing) {
-			return existing;
-		}
+	create() {
+		const requestId = ++this.requestPool;
+
+		/** @type {undefined | ((x: T) => void)} */
 		let resolve;
+
+		/** @type {Promise<T>} */
 		const promise = new Promise(r => resolve = r);
-		const entry = { resolve, promise };
-		const key = this._key(webviewId, path);
-		this.map.set(key, entry);
+
+		/** @type {RequestStoreEntry<T>} */
+		const entry = { resolve: /** @type {(x: T) => void} */ (resolve), promise };
+
+		this.map.set(requestId, entry);
 
 		const dispose = () => {
 			clearTimeout(timeout);
-			const existingEntry = this.map.get(key);
+			const existingEntry = this.map.get(requestId);
 			if (existingEntry === entry) {
-				return this.map.delete(key);
+				return this.map.delete(requestId);
 			}
 		};
 		const timeout = setTimeout(dispose, resolveTimeout);
-		return promise;
+		return { requestId, promise };
 	}
 
 	/**
-	 * @param {string} webviewId
-	 * @param {string} path
+	 * @param {number} requestId
 	 * @param {T} result
 	 * @return {boolean}
 	 */
-	resolve(webviewId, path, result) {
-		const entry = this.map.get(this._key(webviewId, path));
+	resolve(requestId, result) {
+		const entry = this.map.get(requestId);
 		if (!entry) {
 			return false;
 		}
 		entry.resolve(result);
+		this.map.delete(requestId);
 		return true;
-	}
-
-	/**
-	 * @param {string} webviewId
-	 * @param {string} path
-	 * @return {string}
-	 */
-	_key(webviewId, path) {
-		return `${webviewId}@@@${path}`;
 	}
 }
 
 /**
+ * @typedef {{ readonly status: 200; id: number; path: string; mime: string; data: Uint8Array; etag: string | undefined; mtime: number | undefined; }
+ * 		| { readonly status: 304; id: number; path: string; mime: string; mtime: number | undefined }
+ *		| { readonly status: 401; id: number; path: string }
+ *		| { readonly status: 404; id: number; path: string }} ResourceResponse
+ */
+
+/**
  * Map of requested paths to responses.
  *
- * @type {RequestStore<{ body: any, mime: string } | undefined>}
+ * @type {RequestStore<ResourceResponse>}
  */
 const resourceRequestStore = new RequestStore();
 
@@ -108,129 +118,188 @@ const resourceRequestStore = new RequestStore();
  */
 const localhostRequestStore = new RequestStore();
 
+const unauthorized = () =>
+	new Response('Unauthorized', { status: 401, });
+
 const notFound = () =>
 	new Response('Not Found', { status: 404, });
 
-self.addEventListener('message', async (event) => {
+const methodNotAllowed = () =>
+	new Response('Method Not Allowed', { status: 405, });
+
+const vscodeMessageChannel = new MessageChannel();
+
+sw.addEventListener('message', event => {
 	switch (event.data.channel) {
-		case 'version':
+		case 'init':
 			{
-				self.clients.get(event.source.id).then(client => {
-					if (client) {
-						client.postMessage({
-							channel: 'version',
-							version: VERSION
-						});
-					}
+				const source = /** @type {Client} */ (event.source);
+				sw.clients.get(source.id).then(client => {
+					client?.postMessage({
+						channel: 'init',
+						version: VERSION
+					}, [vscodeMessageChannel.port2]);
 				});
 				return;
 			}
+		default:
+			console.log('Unknown message');
+			return;
+	}
+});
+
+vscodeMessageChannel.port1.onmessage = (event) => {
+	switch (event.data.channel) {
 		case 'did-load-resource':
 			{
-				const webviewId = getWebviewIdForClient(event.source);
-				const data = event.data.data;
-				const response = data.status === 200
-					? { body: data.data, mime: data.mime }
-					: undefined;
-
-				if (!resourceRequestStore.resolve(webviewId, data.path, response)) {
-					console.log('Could not resolve unknown resource', data.path);
+				/** @type {ResourceResponse} */
+				const response = event.data;
+				if (!resourceRequestStore.resolve(response.id, response)) {
+					console.log('Could not resolve unknown resource', response.path);
 				}
 				return;
 			}
-
 		case 'did-load-localhost':
 			{
-				const webviewId = getWebviewIdForClient(event.source);
-				const data = event.data.data;
-				if (!localhostRequestStore.resolve(webviewId, data.origin, data.location)) {
+				const data = event.data;
+				if (!localhostRequestStore.resolve(data.id, data.location)) {
 					console.log('Could not resolve unknown localhost', data.origin);
 				}
 				return;
 			}
+		default:
+			console.log('Unknown message');
+			return;
 	}
+};
 
-	console.log('Unknown message');
-});
-
-self.addEventListener('fetch', (event) => {
+sw.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
+	if (requestUrl.protocol === 'https:' && requestUrl.hostname.endsWith('.' + resourceBaseAuthority)) {
+		switch (event.request.method) {
+			case 'GET':
+			case 'HEAD':
+				return event.respondWith(processResourceRequest(event, requestUrl));
 
-	// See if it's a resource request
-	if (requestUrl.origin === self.origin && requestUrl.pathname.startsWith(resourceRoot + '/')) {
-		return event.respondWith(processResourceRequest(event, requestUrl));
+			default:
+				return event.respondWith(methodNotAllowed());
+		}
 	}
 
 	// See if it's a localhost request
-	if (requestUrl.origin !== self.origin && requestUrl.host.match(/^localhost:(\d+)$/)) {
+	if (requestUrl.origin !== sw.origin && requestUrl.host.match(/^(localhost|127.0.0.1|0.0.0.0):(\d+)$/)) {
 		return event.respondWith(processLocalhostRequest(event, requestUrl));
 	}
 });
 
-self.addEventListener('install', (event) => {
-	event.waitUntil(self.skipWaiting()); // Activate worker immediately
+sw.addEventListener('install', (event) => {
+	event.waitUntil(sw.skipWaiting());
 });
 
-self.addEventListener('activate', (event) => {
-	event.waitUntil(self.clients.claim()); // Become available to all pages
+sw.addEventListener('activate', (event) => {
+	event.waitUntil(sw.clients.claim()); // Become available to all pages
 });
 
+/**
+ * @param {FetchEvent} event
+ * @param {URL} requestUrl
+ */
 async function processResourceRequest(event, requestUrl) {
-	const client = await self.clients.get(event.clientId);
-	if (!client) {
-		console.log('Could not find inner client for request');
-		return notFound();
-	}
+	const shouldTryCaching = (event.request.method === 'GET');
 
-	const webviewId = getWebviewIdForClient(client);
-	const resourcePath = requestUrl.pathname.startsWith(resourceRoot + '/') ? requestUrl.pathname.slice(resourceRoot.length) :  requestUrl.pathname;
+	/**
+	 * @param {ResourceResponse} entry
+	 * @param {Response | undefined} cachedResponse
+	 */
+	const resolveResourceEntry = (entry, cachedResponse) => {
+		if (entry.status === 304) { // Not modified
+			if (cachedResponse) {
+				return cachedResponse.clone();
+			} else {
+				throw new Error('No cache found');
+			}
+		}
 
-	function resolveResourceEntry(entry) {
-		if (!entry) {
+		if (entry.status === 401) {
+			return unauthorized();
+		}
+
+		if (entry.status !== 200) {
 			return notFound();
 		}
-		return new Response(entry.body, {
+
+		/** @type {Record<string, string>} */
+		const headers = {
+			'Content-Type': entry.mime,
+			'Content-Length': entry.data.byteLength.toString(),
+			'Access-Control-Allow-Origin': '*',
+		};
+		if (entry.etag) {
+			headers['ETag'] = entry.etag;
+			headers['Cache-Control'] = 'no-cache';
+		}
+		if (entry.mtime) {
+			headers['Last-Modified'] = new Date(entry.mtime).toUTCString();
+		}
+		const response = new Response(entry.data, {
 			status: 200,
-			headers: { 'Content-Type': entry.mime }
+			headers
 		});
+
+		if (shouldTryCaching && entry.etag) {
+			caches.open(resourceCacheName).then(cache => {
+				return cache.put(event.request, response);
+			});
+		}
+		return response.clone();
+	};
+
+	/** @type {Response | undefined} */
+	let cached;
+	if (shouldTryCaching) {
+		const cache = await caches.open(resourceCacheName);
+		cached = await cache.match(event.request);
 	}
 
-	const parentClient = await getOuterIframeClient(webviewId);
-	if (!parentClient) {
-		console.log('Could not find parent client for request');
-		return notFound();
-	}
+	const { requestId, promise } = resourceRequestStore.create();
 
-	// Check if we've already resolved this request
-	const existing = resourceRequestStore.get(webviewId, resourcePath);
-	if (existing) {
-		return existing.then(resolveResourceEntry);
-	}
+	const firstHostSegment = requestUrl.hostname.slice(0, requestUrl.hostname.length - (resourceBaseAuthority.length + 1));
+	const scheme = firstHostSegment.split('+', 1)[0];
+	const authority = firstHostSegment.slice(scheme.length + 1); // may be empty
 
-	parentClient.postMessage({
+	vscodeMessageChannel.port1.postMessage({
 		channel: 'load-resource',
-		path: resourcePath
+		id: requestId,
+		path: requestUrl.pathname,
+		scheme,
+		authority,
+		query: requestUrl.search.replace(/^\?/, ''),
+		ifNoneMatch: cached?.headers.get('ETag'),
 	});
 
-	return resourceRequestStore.create(webviewId, resourcePath)
-		.then(resolveResourceEntry);
+	return promise.then(entry => resolveResourceEntry(entry, cached));
 }
 
 /**
- * @param {*} event
+ * @param {FetchEvent} event
  * @param {URL} requestUrl
+ * @return {Promise<Response>}
  */
 async function processLocalhostRequest(event, requestUrl) {
-	const client = await self.clients.get(event.clientId);
+	const client = await sw.clients.get(event.clientId);
 	if (!client) {
 		// This is expected when requesting resources on other localhost ports
 		// that are not spawned by vs code
-		return undefined;
+		return fetch(event.request);
 	}
-	const webviewId = getWebviewIdForClient(client);
+
 	const origin = requestUrl.origin;
 
-	const resolveRedirect = redirectOrigin => {
+	/**
+	 * @param {string | undefined} redirectOrigin
+	 * @return {Promise<Response>}
+	 */
+	const resolveRedirect = async (redirectOrigin) => {
 		if (!redirectOrigin) {
 			return fetch(event.request);
 		}
@@ -243,36 +312,13 @@ async function processLocalhostRequest(event, requestUrl) {
 		});
 	};
 
-	const parentClient = await getOuterIframeClient(webviewId);
-	if (!parentClient) {
-		console.log('Could not find parent client for request');
-		return notFound();
-	}
+	const { requestId, promise } = localhostRequestStore.create();
 
-	// Check if we've already resolved this request
-	const existing = localhostRequestStore.get(webviewId, origin);
-	if (existing) {
-		return existing.then(resolveRedirect);
-	}
-
-	parentClient.postMessage({
+	vscodeMessageChannel.port1.postMessage({
 		channel: 'load-localhost',
-		origin: origin
+		origin: origin,
+		id: requestId,
 	});
 
-	return localhostRequestStore.create(webviewId, origin)
-		.then(resolveRedirect);
-}
-
-function getWebviewIdForClient(client) {
-	const requesterClientUrl = new URL(client.url);
-	return requesterClientUrl.search.match(/\bid=([a-z0-9-]+)/i)[1];
-}
-
-async function getOuterIframeClient(webviewId) {
-	const allClients = await self.clients.matchAll({ includeUncontrolled: true });
-	return allClients.find(client => {
-		const clientUrl = new URL(client.url);
-		return (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html`) && clientUrl.search.match(new RegExp('\\bid=' + webviewId));
-	});
+	return promise.then(resolveRedirect);
 }

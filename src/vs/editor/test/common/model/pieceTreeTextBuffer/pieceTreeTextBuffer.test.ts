@@ -12,7 +12,7 @@ import { PieceTreeBase } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceT
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { NodeColor, SENTINEL, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
 import { splitLines } from 'vs/base/common/strings';
 
@@ -1787,6 +1787,8 @@ suite('snapshot', () => {
 		]);
 
 		assert.strictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot1));
+
+		model.dispose();
 	});
 
 	test('immutable snapshot 1', () => {
@@ -1807,6 +1809,8 @@ suite('snapshot', () => {
 		]);
 
 		assert.strictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+
+		model.dispose();
 	});
 
 	test('immutable snapshot 2', () => {
@@ -1827,6 +1831,8 @@ suite('snapshot', () => {
 		]);
 
 		assert.strictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+
+		model.dispose();
 	});
 
 	test('immutable snapshot 3', () => {
@@ -1846,6 +1852,8 @@ suite('snapshot', () => {
 		]);
 
 		assert.notStrictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+
+		model.dispose();
 	});
 });
 

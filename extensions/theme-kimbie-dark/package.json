@@ -1,19 +1,25 @@
 {
-	"name": "theme-kimbie-dark",
-	"displayName": "%displayName%",
-	"description": "%description%",
-	"version": "1.0.0",
-	"publisher": "vscode",
-	"license": "MIT",
-	"engines": { "vscode": "*" },
-	"contributes": {
-		"themes": [
-			{
-				"id": "Kimbie Dark",
-				"label": "%themeLabel%",
-				"uiTheme": "vs-dark",
-				"path": "./themes/kimbie-dark-color-theme.json"
-			}
-		]
-	}
+  "name": "theme-kimbie-dark",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "contributes": {
+    "themes": [
+      {
+        "id": "Kimbie Dark",
+        "label": "%themeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/kimbie-dark-color-theme.json"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
 }

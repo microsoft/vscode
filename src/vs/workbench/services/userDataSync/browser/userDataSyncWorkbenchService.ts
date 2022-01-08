@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, IUserDataSyncStoreManagementService, SyncStatus, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, IUserDataSyncStoreManagementService, SyncStatus, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/editor/common/modes';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/editor/common/languages';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { flatten, equals } from 'vs/base/common/arrays';
@@ -31,9 +31,13 @@ import { URI } from 'vs/base/common/uri';
 import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { UserDataSyncStoreTypeSynchronizer } from 'vs/platform/userDataSync/common/globalStateSync';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
+	providerId: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
 };
 
 type FirstTimeSyncClassification = {
@@ -42,6 +46,7 @@ type FirstTimeSyncClassification = {
 
 type UserAccountEvent = {
 	id: string;
+	providerId: string;
 };
 
 type FirstTimeSyncAction = 'pull' | 'push' | 'merge' | 'manual';
@@ -55,7 +60,7 @@ class UserDataSyncAccount implements IUserDataSyncAccount {
 	get sessionId(): string { return this.session.id; }
 	get accountName(): string { return this.session.account.label; }
 	get accountId(): string { return this.session.account.id; }
-	get token(): string { return this.session.accessToken; }
+	get token(): string { return this.session.idToken || this.session.accessToken; }
 }
 
 export class UserDataSyncWorkbenchService extends Disposable implements IUserDataSyncWorkbenchService {
@@ -94,7 +99,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
@@ -109,6 +114,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this.syncEnablementContext = CONTEXT_SYNC_ENABLEMENT.bindTo(contextKeyService);
@@ -120,8 +126,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		if (this.userDataSyncStoreManagementService.userDataSyncStore) {
 			this.syncStatusContext.set(this.userDataSyncService.status);
 			this._register(userDataSyncService.onDidChangeStatus(status => this.syncStatusContext.set(status)));
-			this.syncEnablementContext.set(userDataAutoSyncEnablementService.isEnabled());
-			this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(enabled => this.syncEnablementContext.set(enabled)));
+			this.syncEnablementContext.set(userDataSyncEnablementService.isEnabled());
+			this._register(userDataSyncEnablementService.onDidChangeEnablement(enabled => this.syncEnablementContext.set(enabled)));
 
 			this.waitAndInitialize();
 		}
@@ -144,11 +150,17 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			this.logService.trace('Settings Sync: Initializing accounts');
 			await this.initialize();
 		} catch (error) {
-			this.logService.error(error);
+			// Do not log if the current window is running extension tests
+			if (!this.environmentService.extensionTestsLocationURI) {
+				this.logService.error(error);
+			}
 		}
 
 		if (this.accountStatus === AccountStatus.Uninitialized) {
-			this.logService.warn('Settings Sync: Accounts are not initialized');
+			// Do not log if the current window is running extension tests
+			if (!this.environmentService.extensionTestsLocationURI) {
+				this.logService.warn('Settings Sync: Accounts are not initialized');
+			}
 		} else {
 			this.logService.trace('Settings Sync: Accounts are initialized');
 		}
@@ -185,9 +197,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.updateAuthenticationProviders();
 
 		const allAccounts: Map<string, UserDataSyncAccount[]> = new Map<string, UserDataSyncAccount[]>();
-		for (const { id } of this.authenticationProviders) {
+		for (const { id, scopes } of this.authenticationProviders) {
 			this.logService.trace('Settings Sync: Getting accounts for', id);
-			const accounts = await this.getAccounts(id);
+			const accounts = await this.getAccounts(id, scopes);
 			allAccounts.set(id, accounts);
 			this.logService.trace('Settings Sync: Updated accounts for', id);
 		}
@@ -198,11 +210,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.updateAccountStatus(current ? AccountStatus.Available : AccountStatus.Unavailable);
 	}
 
-	private async getAccounts(authenticationProviderId: string): Promise<UserDataSyncAccount[]> {
+	private async getAccounts(authenticationProviderId: string, scopes: string[]): Promise<UserDataSyncAccount[]> {
 		let accounts: Map<string, UserDataSyncAccount> = new Map<string, UserDataSyncAccount>();
 		let currentAccount: UserDataSyncAccount | null = null;
 
-		const sessions = await this.authenticationService.getSessions(authenticationProviderId) || [];
+		const sessions = await this.authenticationService.getSessions(authenticationProviderId, scopes) || [];
 		for (const session of sessions) {
 			const account: UserDataSyncAccount = new UserDataSyncAccount(authenticationProviderId, session);
 			accounts.set(account.accountName, account);
@@ -249,7 +261,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		if (!this.authenticationProviders.length) {
 			throw new Error(localize('no authentication providers', "Settings sync cannot be turned on because there are no authentication providers available."));
 		}
-		if (this.userDataAutoSyncEnablementService.isEnabled()) {
+		if (this.userDataSyncEnablementService.isEnabled()) {
 			return;
 		}
 		if (this.userDataSyncService.status !== SyncStatus.Idle) {
@@ -262,6 +274,22 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		// User did not pick an account or login failed
+		if (this.accountStatus !== AccountStatus.Available) {
+			throw new Error(localize('no account', "No account available"));
+		}
+
+		await this.turnOnUsingCurrentAccount();
+	}
+
+	async turnOnUsingCurrentAccount(): Promise<void> {
+		if (this.userDataSyncEnablementService.isEnabled()) {
+			return;
+		}
+
+		if (this.userDataSyncService.status !== SyncStatus.Idle) {
+			throw new Error('Cannont turn on sync while syncing');
+		}
+
 		if (this.accountStatus !== AccountStatus.Available) {
 			throw new Error(localize('no account', "No account available"));
 		}
@@ -280,11 +308,35 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		await this.userDataAutoSyncService.turnOn();
+
+		if (this.userDataSyncStoreManagementService.userDataSyncStore?.canSwitch) {
+			await this.synchroniseUserDataSyncStoreType();
+		}
+
 		this.notificationService.info(localize('sync turned on', "{0} is turned on", title));
 	}
 
 	turnoff(everywhere: boolean): Promise<void> {
 		return this.userDataAutoSyncService.turnOff(everywhere);
+	}
+
+	async synchroniseUserDataSyncStoreType(): Promise<void> {
+		if (!this.userDataSyncAccountService.account) {
+			throw new Error('Cannot update because you are signed out from settings sync. Please sign in and try again.');
+		}
+		if (!isWeb || !this.userDataSyncStoreManagementService.userDataSyncStore) {
+			// Not supported
+			return;
+		}
+
+		const userDataSyncStoreUrl = this.userDataSyncStoreManagementService.userDataSyncStore.type === 'insiders' ? this.userDataSyncStoreManagementService.userDataSyncStore.stableUrl : this.userDataSyncStoreManagementService.userDataSyncStore.insidersUrl;
+		const userDataSyncStoreClient = this.instantiationService.createInstance(UserDataSyncStoreClient, userDataSyncStoreUrl);
+		userDataSyncStoreClient.setAuthToken(this.userDataSyncAccountService.account.token, this.userDataSyncAccountService.account.authenticationProviderId);
+		await this.instantiationService.createInstance(UserDataSyncStoreTypeSynchronizer, userDataSyncStoreClient).sync(this.userDataSyncStoreManagementService.userDataSyncStore.type);
+	}
+
+	syncNow(): Promise<void> {
+		return this.userDataAutoSyncService.triggerSync(['Sync Now'], false, true);
 	}
 
 	private async onBeforeShutdown(manualSyncTask: IManualSyncTask): Promise<boolean> {
@@ -302,10 +354,6 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async syncBeforeTurningOn(title: string, manualSyncTask: IManualSyncTask): Promise<void> {
-
-		/* Make sure sync started on clean local state */
-		await this.userDataSyncService.resetLocal();
-
 		try {
 			let action: FirstTimeSyncAction = 'manual';
 
@@ -469,18 +517,20 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		if (!result) {
 			return false;
 		}
-		let sessionId: string, accountName: string, accountId: string;
+		let sessionId: string, accountName: string, accountId: string, authenticationProviderId: string;
 		if (isAuthenticationProvider(result)) {
-			const session = await this.authenticationService.login(result.id, result.scopes);
+			const session = await this.authenticationService.createSession(result.id, result.scopes);
 			sessionId = session.id;
 			accountName = session.account.label;
 			accountId = session.account.id;
+			authenticationProviderId = result.id;
 		} else {
 			sessionId = result.sessionId;
 			accountName = result.accountName;
 			accountId = result.accountId;
+			authenticationProviderId = result.authenticationProviderId;
 		}
-		await this.switch(sessionId, accountName, accountId);
+		await this.switch(sessionId, accountName, accountId, authenticationProviderId);
 		return true;
 	}
 
@@ -496,7 +546,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			return this.authenticationProviders[0];
 		}
 
-		return new Promise<UserDataSyncAccount | IAuthenticationProvider | undefined>(async (c, e) => {
+		return new Promise<UserDataSyncAccount | IAuthenticationProvider | undefined>(c => {
 			let result: UserDataSyncAccount | IAuthenticationProvider | undefined;
 			const disposables: DisposableStore = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick<AccountQuickPickItem>();
@@ -554,13 +604,13 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		return quickPickItems;
 	}
 
-	private async switch(sessionId: string, accountName: string, accountId: string): Promise<void> {
+	private async switch(sessionId: string, accountName: string, accountId: string, authenticationProviderId: string): Promise<void> {
 		const currentAccount = this.current;
-		if (this.userDataAutoSyncEnablementService.isEnabled() && (currentAccount && currentAccount.accountName !== accountName)) {
+		if (this.userDataSyncEnablementService.isEnabled() && (currentAccount && currentAccount.accountName !== accountName)) {
 			// accounts are switched while sync is enabled.
 		}
 		this.currentSessionId = sessionId;
-		this.telemetryService.publicLog2<UserAccountEvent, UserAccountClassification>('sync.userAccount', { id: accountId });
+		this.telemetryService.publicLog2<UserAccountEvent, UserAccountClassification>('sync.userAccount', { id: accountId, providerId: authenticationProviderId });
 		await this.update();
 	}
 
@@ -569,7 +619,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.currentSessionId = undefined;
 		await this.update();
 
-		if (this.userDataAutoSyncEnablementService.isEnabled()) {
+		if (this.userDataSyncEnablementService.isEnabled()) {
 			this.notificationService.notify({
 				severity: Severity.Error,
 				message: localize('successive auth failures', "Settings sync is suspended because of successive authorization failures. Please sign in again to continue synchronizing"),
@@ -581,7 +631,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
-		if (this.currentSessionId && e.removed.includes(this.currentSessionId)) {
+		if (this.currentSessionId && e.removed.find(session => session.id === this.currentSessionId)) {
 			this.currentSessionId = undefined;
 		}
 		this.update();
@@ -607,8 +657,10 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		if (this._cachedCurrentSessionId !== cachedSessionId) {
 			this._cachedCurrentSessionId = cachedSessionId;
 			if (cachedSessionId === undefined) {
+				this.logService.info('Settings Sync: Reset current session');
 				this.storageService.remove(UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
 			} else {
+				this.logService.info('Settings Sync: Updated current session', cachedSessionId);
 				this.storageService.store(UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, cachedSessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
 			}
 		}

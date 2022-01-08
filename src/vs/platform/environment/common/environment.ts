@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
-export const INativeEnvironmentService = createDecorator<INativeEnvironmentService>('nativeEnvironmentService');
+export const INativeEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeEnvironmentService>(IEnvironmentService);
 
 export interface IDebugParams {
 	port: number | null;
@@ -17,6 +18,7 @@ export interface IDebugParams {
 
 export interface IExtensionHostDebugParams extends IDebugParams {
 	debugId?: string;
+	env?: Record<string, string>;
 }
 
 /**
@@ -51,6 +53,7 @@ export interface IEnvironmentService {
 	untitledWorkspacesHome: URI;
 	globalStorageHome: URI;
 	workspaceStorageHome: URI;
+	cacheHome: URI;
 
 	// --- settings sync
 	userDataSyncHome: URI;
@@ -61,7 +64,9 @@ export interface IEnvironmentService {
 	debugExtensionHost: IExtensionHostDebugParams;
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
+	enableExtensions?: readonly string[];
 	extensionDevelopmentLocationURI?: URI[];
+	extensionDevelopmentKind?: ExtensionKind[];
 	extensionTestsLocationURI?: URI;
 
 	// --- logging
@@ -106,7 +111,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	// --- CLI Arguments
 	args: NativeParsedArgs;
 
-	// --- paths
+	// --- data paths
 	appRoot: string;
 	userHome: URI;
 	appSettingsHome: URI;
@@ -115,15 +120,12 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	machineSettingsResource: URI;
 	installSourcePath: string;
 
-	// --- IPC Handles
-	sharedIPCHandle: string;
-
-	// --- Extensions
+	// --- extensions
 	extensionsPath: string;
 	extensionsDownloadPath: string;
 	builtinExtensionsPath: string;
 
-	// --- Smoke test support
+	// --- smoke test support
 	driverHandle?: string;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

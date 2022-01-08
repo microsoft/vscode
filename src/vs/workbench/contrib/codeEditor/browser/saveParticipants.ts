@@ -13,7 +13,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeActionTriggerType, CodeActionProvider } from 'vs/editor/common/modes';
+import { CodeActionTriggerType, CodeActionProvider } from 'vs/editor/common/languages';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
@@ -46,7 +46,7 @@ export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 			return;
 		}
 
-		if (this.configurationService.getValue('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
+		if (this.configurationService.getValue('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageId(), resource: model.resource })) {
 			this.doTrimTrailingWhitespace(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
@@ -62,7 +62,7 @@ export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 			prevSelection = editor.getSelections();
 			if (isAutoSaved) {
 				cursors = prevSelection.map(s => s.getPosition());
-				const snippetsRange = SnippetController2.get(editor).getSessionEnclosingRange();
+				const snippetsRange = SnippetController2.get(editor)?.getSessionEnclosingRange();
 				if (snippetsRange) {
 					for (let lineNumber = snippetsRange.startLineNumber; lineNumber <= snippetsRange.endLineNumber; lineNumber++) {
 						cursors.push(new Position(lineNumber, model.getLineMaxColumn(lineNumber)));
@@ -112,7 +112,7 @@ export class FinalNewLineParticipant implements ITextFileSaveParticipant {
 			return;
 		}
 
-		if (this.configurationService.getValue('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
+		if (this.configurationService.getValue('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageId(), resource: model.resource })) {
 			this.doInsertFinalNewLine(model.textEditorModel);
 		}
 	}
@@ -150,18 +150,18 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 			return;
 		}
 
-		if (this.configurationService.getValue('files.trimFinalNewlines', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
+		if (this.configurationService.getValue('files.trimFinalNewlines', { overrideIdentifier: model.textEditorModel.getLanguageId(), resource: model.resource })) {
 			this.doTrimFinalNewLines(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
 
 	/**
-	 * returns 0 if the entire file is empty or whitespace only
+	 * returns 0 if the entire file is empty
 	 */
-	private findLastLineWithContent(model: ITextModel): number {
+	private findLastNonEmptyLine(model: ITextModel): number {
 		for (let lineNumber = model.getLineCount(); lineNumber >= 1; lineNumber--) {
 			const lineContent = model.getLineContent(lineNumber);
-			if (strings.lastNonWhitespaceIndex(lineContent) !== -1) {
+			if (lineContent.length > 0) {
 				// this line has content
 				return lineNumber;
 			}
@@ -193,8 +193,8 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 			}
 		}
 
-		const lastLineNumberWithContent = this.findLastLineWithContent(model);
-		const deleteFromLineNumber = Math.max(lastLineNumberWithContent + 1, cannotTouchLineNumber + 1);
+		const lastNonEmptyLine = this.findLastNonEmptyLine(model);
+		const deleteFromLineNumber = Math.max(lastNonEmptyLine + 1, cannotTouchLineNumber + 1);
 		const deletionRange = model.validateRange(new Range(deleteFromLineNumber, 1, lineCount, model.getLineMaxColumn(lineCount)));
 
 		if (deletionRange.isEmpty()) {
@@ -228,14 +228,15 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 		}
 
 		const textEditorModel = model.textEditorModel;
-		const overrides = { overrideIdentifier: textEditorModel.getLanguageIdentifier().language, resource: textEditorModel.uri };
+		const overrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: textEditorModel.uri };
 
 		const nestedProgress = new Progress<{ displayName?: string, extensionId?: ExtensionIdentifier }>(provider => {
 			progress.report({
 				message: localize(
-					'formatting',
-					"Running '{0}' Formatter ([configure](command:workbench.action.openSettings?%5B%22editor.formatOnSave%22%5D)).",
-					provider.displayName || provider.extensionId && provider.extensionId.value || '???'
+					{ key: 'formatting2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
+					"Running '{0}' Formatter ([configure]({1})).",
+					provider.displayName || provider.extensionId && provider.extensionId.value || '???',
+					'command:workbench.action.openSettings?%5B%22editor.formatOnSave%22%5D'
 				)
 			});
 		});
@@ -246,16 +247,21 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 		}
 
 		const editorOrModel = findEditor(textEditorModel, this.codeEditorService) || textEditorModel;
-		const mode = this.configurationService.getValue<'file' | 'modifications'>('editor.formatOnSaveMode', overrides);
-		if (mode === 'modifications') {
-			// format modifications
+		const mode = this.configurationService.getValue<'file' | 'modifications' | 'modificationsIfAvailable'>('editor.formatOnSaveMode', overrides);
+
+		if (mode === 'file') {
+			await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
+
+		} else {
 			const ranges = await this.instantiationService.invokeFunction(getModifiedRanges, isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel);
-			if (ranges) {
+			if (ranges === null && mode === 'modificationsIfAvailable') {
+				// no SCM, fallback to formatting the whole file iff wanted
+				await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
+
+			} else if (ranges) {
+				// formatted modified ranges
 				await this.instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, editorOrModel, ranges, FormattingMode.Silent, nestedProgress, token);
 			}
-		} else {
-			// format the whole file
-			await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
 		}
 	}
 }
@@ -272,12 +278,14 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			return;
 		}
 
-		if (env.reason === SaveReason.AUTO) {
+		// Do not run code actions on auto save
+		if (env.reason !== SaveReason.EXPLICIT) {
 			return undefined;
 		}
+
 		const textEditorModel = model.textEditorModel;
 
-		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageIdentifier().language, resource: model.resource };
+		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: model.resource };
 		const setting = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>('editor.codeActionsOnSave', settingsOverrides);
 		if (!setting) {
 			return undefined;
@@ -334,9 +342,10 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			private _report(): void {
 				progress.report({
 					message: localize(
-						'codeaction.get',
-						"Getting code actions from '{0}' ([configure](command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D)).",
-						[...this._names].map(name => `'${name}'`).join(', ')
+						{ key: 'codeaction.get2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
+						"Getting code actions from '{0}' ([configure]({1})).",
+						[...this._names].map(name => `'${name}'`).join(', '),
+						'command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D'
 					)
 				});
 			}

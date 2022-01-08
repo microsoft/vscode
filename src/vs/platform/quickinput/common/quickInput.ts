@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInputButton, IInputBox, QuickPickInput, IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
+import { Event } from 'vs/base/common/event';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 
 export * from 'vs/base/parts/quickinput/common/quickInput';

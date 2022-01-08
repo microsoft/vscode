@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export const inQuickPickContextKeyValue = 'inQuickOpen';
-export const InQuickPickContextKey = new RawContextKey<boolean>(inQuickPickContextKeyValue, false);
+export const InQuickPickContextKey = new RawContextKey<boolean>(inQuickPickContextKeyValue, false, localize('inQuickOpen', "Whether keyboard focus is inside the quick open control"));
 export const inQuickPickContext = ContextKeyExpr.has(inQuickPickContextKeyValue);
 
 export const defaultQuickAccessContextKeyValue = 'inFilesPicker';

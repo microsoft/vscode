@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/scm';
-import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { append, $ } from 'vs/base/browser/dom';
 import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IAction, IActionViewItemProvider } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { connectPrimaryMenu, isSCMRepository, StatusBarAction } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
@@ -21,6 +21,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { basename } from 'vs/base/common/resources';
+import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 
 interface RepositoryTemplate {
 	readonly label: HTMLElement;
@@ -109,7 +110,18 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			templateData.countContainer.setAttribute('data-count', String(count));
 			templateData.count.setCount(count);
 		};
-		disposables.add(repository.provider.onDidChange(onDidChangeProvider, null));
+
+		// TODO@joao TODO@lszomoru
+		let disposed = false;
+		disposables.add(toDisposable(() => disposed = true));
+		disposables.add(repository.provider.onDidChange(() => {
+			if (disposed) {
+				return;
+			}
+
+			onDidChangeProvider();
+		}));
+
 		onDidChangeProvider();
 
 		const menus = this.scmViewService.menus.getRepositoryMenus(repository.provider);

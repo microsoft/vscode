@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextModel } from 'vs/editor/common/model';
-import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
-import { FoldingRegions, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/foldingRanges';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { RangeProvider } from './folding';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ITextModel } from 'vs/editor/common/model';
+import { computeIndentLevel } from 'vs/editor/common/model/utils';
+import { FoldingMarkers } from 'vs/editor/common/languages/languageConfiguration';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { FoldingRegions, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/foldingRanges';
+import { RangeProvider } from './folding';
 
 const MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT = 5000;
 
@@ -18,14 +18,15 @@ export const ID_INDENT_PROVIDER = 'indent';
 export class IndentRangeProvider implements RangeProvider {
 	readonly id = ID_INDENT_PROVIDER;
 
-	constructor(private readonly editorModel: ITextModel) {
-	}
+	constructor(
+		private readonly editorModel: ITextModel,
+		private readonly languageConfigurationService: ILanguageConfigurationService
+	) { }
 
-	dispose() {
-	}
+	dispose() { }
 
 	compute(cancelationToken: CancellationToken): Promise<FoldingRegions> {
-		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(this.editorModel.getLanguageIdentifier().id);
+		let foldingRules = this.languageConfigurationService.getLanguageConfiguration(this.editorModel.getLanguageId()).foldingRules;
 		let offSide = foldingRules && !!foldingRules.offSide;
 		let markers = foldingRules && foldingRules.markers;
 		return Promise.resolve(computeRanges(this.editorModel, offSide, markers));
@@ -91,7 +92,7 @@ export class RangesCollector {
 			for (let i = this._length - 1, k = 0; i >= 0; i--) {
 				let startIndex = this._startIndexes[i];
 				let lineContent = model.getLineContent(startIndex);
-				let indent = TextModel.computeIndentLevel(lineContent, tabSize);
+				let indent = computeIndentLevel(lineContent, tabSize);
 				if (indent < maxIndent || (indent === maxIndent && entries++ < this._foldingRangesLimit)) {
 					startIndexes[k] = startIndex;
 					endIndexes[k] = this._endIndexes[i];
@@ -126,7 +127,7 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 
 	for (let line = model.getLineCount(); line > 0; line--) {
 		let lineContent = model.getLineContent(line);
-		let indent = TextModel.computeIndentLevel(lineContent, tabSize);
+		let indent = computeIndentLevel(lineContent, tabSize);
 		let previous = previousRegions[previousRegions.length - 1];
 		if (indent === -1) {
 			if (offSide) {

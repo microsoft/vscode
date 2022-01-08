@@ -3,21 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownIt, Token } from 'markdown-it';
-import * as path from 'path';
+import MarkdownIt = require('markdown-it');
+import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { MarkdownContributionProvider as MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
 import { SkinnyTextDocument } from './tableOfContentsProvider';
 import { hash } from './util/hash';
-import { isOfScheme, MarkdownFileExtensions, Schemes } from './util/links';
+import { isOfScheme, Schemes } from './util/links';
+import { WebviewResourceProvider } from './util/resources';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
-interface MarkdownItConfig {
-	readonly breaks: boolean;
-	readonly linkify: boolean;
-}
+/**
+ * Adds begin line index to the output via the 'data-line' data attribute.
+ */
+const pluginSourceMap: MarkdownIt.PluginSimple = (md): void => {
+	// Set the attribute on every possible token.
+	md.core.ruler.push('source_map_data_attribute', (state): void => {
+		for (const token of state.tokens) {
+			if (token.map && token.type !== 'inline') {
+				token.attrSet('data-line', String(token.map[0]));
+				token.attrJoin('class', 'code-line');
+				token.attrJoin('dir', 'auto');
+			}
+		}
+	});
+
+	// The 'html_block' renderer doesn't respect `attrs`. We need to insert a marker.
+	const originalHtmlBlockRenderer = md.renderer.rules['html_block'];
+	if (originalHtmlBlockRenderer) {
+		md.renderer.rules['html_block'] = (tokens, idx, options, env, self) => (
+			`<div ${self.renderAttrs(tokens[idx])} ></div>\n` +
+			originalHtmlBlockRenderer(tokens, idx, options, env, self)
+		);
+	}
+};
+
+/**
+ * The markdown-it options that we expose in the settings.
+ */
+type MarkdownItConfig = Readonly<Required<Pick<MarkdownIt.Options, 'breaks' | 'linkify' | 'typographer'>>>;
 
 class TokenCache {
 	private cachedDocument?: {
@@ -61,12 +87,14 @@ export interface RenderOutput {
 
 interface RenderEnv {
 	containingImages: { src: string }[];
+	currentDocument: vscode.Uri | undefined;
+	resourceProvider: WebviewResourceProvider | undefined;
 }
 
 export class MarkdownEngine {
+
 	private md?: Promise<MarkdownIt>;
 
-	private currentDocument?: vscode.Uri;
 	private _slugCount = new Map<string, number>();
 	private _tokenCache = new TokenCache();
 
@@ -82,18 +110,20 @@ export class MarkdownEngine {
 
 	private async getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
 		if (!this.md) {
-			this.md = import('markdown-it').then(async markdownIt => {
+			this.md = (async () => {
+				const markdownIt = await import('markdown-it');
 				let md: MarkdownIt = markdownIt(await getMarkdownOptions(() => md));
+				md.linkify.set({ fuzzyLink: false });
 
 				for (const plugin of this.contributionProvider.contributions.markdownItPlugins.values()) {
 					try {
 						md = (await plugin)(md);
-					} catch {
-						// noop
+					} catch (e) {
+						console.error('Could not load markdown it plugin', e);
 					}
 				}
 
-				const frontMatterPlugin = require('markdown-it-front-matter');
+				const frontMatterPlugin = await import('markdown-it-front-matter');
 				// Extract rules from front matter plugin and apply at a lower precedence
 				let fontMatterRule: any;
 				frontMatterPlugin({
@@ -108,23 +138,24 @@ export class MarkdownEngine {
 					alt: ['paragraph', 'reference', 'blockquote', 'list']
 				});
 
-				for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'fence', 'blockquote_open', 'list_item_open']) {
-					this.addLineNumberRenderer(md, renderName);
-				}
-
-				this.addImageStabilizer(md);
+				this.addImageRenderer(md);
 				this.addFencedRenderer(md);
 				this.addLinkNormalizer(md);
 				this.addLinkValidator(md);
 				this.addNamedHeaders(md);
 				this.addLinkRenderer(md);
+				md.use(pluginSourceMap);
 				return md;
-			});
+			})();
 		}
 
 		const md = await this.md!;
 		md.set(config);
 		return md;
+	}
+
+	public reloadPlugins() {
+		this.md = undefined;
 	}
 
 	private tokenizeDocument(
@@ -134,10 +165,9 @@ export class MarkdownEngine {
 	): Token[] {
 		const cached = this._tokenCache.tryGetCached(document, config);
 		if (cached) {
+			this.resetSlugCount();
 			return cached;
 		}
-
-		this.currentDocument = document.uri;
 
 		const tokens = this.tokenizeString(document.getText(), engine);
 		this._tokenCache.update(document, config, tokens);
@@ -145,12 +175,16 @@ export class MarkdownEngine {
 	}
 
 	private tokenizeString(text: string, engine: MarkdownIt) {
-		this._slugCount = new Map<string, number>();
+		this.resetSlugCount();
 
 		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
 	}
 
-	public async render(input: SkinnyTextDocument | string): Promise<RenderOutput> {
+	public resetSlugCount(): void {
+		this._slugCount = new Map<string, number>();
+	}
+
+	public async render(input: SkinnyTextDocument | string, resourceProvider?: WebviewResourceProvider): Promise<RenderOutput> {
 		const config = this.getConfig(typeof input === 'string' ? undefined : input.uri);
 		const engine = await this.getEngine(config);
 
@@ -159,11 +193,13 @@ export class MarkdownEngine {
 			: this.tokenizeDocument(input, config, engine);
 
 		const env: RenderEnv = {
-			containingImages: []
+			containingImages: [],
+			currentDocument: typeof input === 'string' ? undefined : input.uri,
+			resourceProvider,
 		};
 
 		const html = engine.renderer.render(tokens, {
-			...(engine as any).options,
+			...engine.options,
 			...config
 		}, env);
 
@@ -184,64 +220,57 @@ export class MarkdownEngine {
 	}
 
 	private getConfig(resource?: vscode.Uri): MarkdownItConfig {
-		const config = vscode.workspace.getConfiguration('markdown', resource);
+		const config = vscode.workspace.getConfiguration('markdown', resource ?? null);
 		return {
 			breaks: config.get<boolean>('preview.breaks', false),
-			linkify: config.get<boolean>('preview.linkify', true)
+			linkify: config.get<boolean>('preview.linkify', true),
+			typographer: config.get<boolean>('preview.typographer', false)
 		};
 	}
 
-	private addLineNumberRenderer(md: any, ruleName: string): void {
-		const original = md.renderer.rules[ruleName];
-		md.renderer.rules[ruleName] = (tokens: any, idx: number, options: any, env: any, self: any) => {
-			const token = tokens[idx];
-			if (token.map && token.map.length) {
-				token.attrSet('data-line', token.map[0]);
-				token.attrJoin('class', 'code-line');
-			}
-
-			if (original) {
-				return original(tokens, idx, options, env, self);
-			} else {
-				return self.renderToken(tokens, idx, options, env, self);
-			}
-		};
-	}
-
-	private addImageStabilizer(md: any): void {
+	private addImageRenderer(md: MarkdownIt): void {
 		const original = md.renderer.rules.image;
-		md.renderer.rules.image = (tokens: any, idx: number, options: any, env: RenderEnv, self: any) => {
+		md.renderer.rules.image = (tokens: Token[], idx: number, options, env: RenderEnv, self) => {
 			const token = tokens[idx];
 			token.attrJoin('class', 'loading');
 
 			const src = token.attrGet('src');
 			if (src) {
-				env.containingImages.push({ src });
+				env.containingImages?.push({ src });
 				const imgHash = hash(src);
 				token.attrSet('id', `image-hash-${imgHash}`);
+
+				if (!token.attrGet('data-src')) {
+					token.attrSet('src', this.toResourceUri(src, env.currentDocument, env.resourceProvider));
+					token.attrSet('data-src', src);
+				}
 			}
 
 			if (original) {
 				return original(tokens, idx, options, env, self);
 			} else {
-				return self.renderToken(tokens, idx, options, env, self);
+				return self.renderToken(tokens, idx, options);
 			}
 		};
 	}
 
-	private addFencedRenderer(md: any): void {
+	private addFencedRenderer(md: MarkdownIt): void {
 		const original = md.renderer.rules['fenced'];
-		md.renderer.rules['fenced'] = (tokens: any, idx: number, options: any, env: any, self: any) => {
+		md.renderer.rules['fenced'] = (tokens: Token[], idx: number, options, env, self) => {
 			const token = tokens[idx];
 			if (token.map && token.map.length) {
 				token.attrJoin('class', 'hljs');
 			}
 
-			return original(tokens, idx, options, env, self);
+			if (original) {
+				return original(tokens, idx, options, env, self);
+			} else {
+				return self.renderToken(tokens, idx, options);
+			}
 		};
 	}
 
-	private addLinkNormalizer(md: any): void {
+	private addLinkNormalizer(md: MarkdownIt): void {
 		const normalizeLink = md.normalizeLink;
 		md.normalizeLink = (link: string) => {
 			try {
@@ -250,43 +279,6 @@ export class MarkdownEngine {
 					return normalizeLink(vscode.Uri.parse(link).with({ scheme: vscode.env.uriScheme }).toString());
 				}
 
-				// Support file:// links
-				if (isOfScheme(Schemes.file, link)) {
-					// Ensure link is relative by prepending `/` so that it uses the <base> element URI
-					// when resolving the absolute URL
-					return normalizeLink('/' + link.replace(/^file:/, 'file'));
-				}
-
-				// If original link doesn't look like a url with a scheme, assume it must be a link to a file in workspace
-				if (!/^[a-z\-]+:/i.test(link)) {
-					// Use a fake scheme for parsing
-					let uri = vscode.Uri.parse('markdown-link:' + link);
-
-					// Relative paths should be resolved correctly inside the preview but we need to
-					// handle absolute paths specially (for images) to resolve them relative to the workspace root
-					if (uri.path[0] === '/') {
-						const root = vscode.workspace.getWorkspaceFolder(this.currentDocument!);
-						if (root) {
-							const fileUri = vscode.Uri.joinPath(root.uri, uri.fsPath).with({
-								fragment: uri.fragment,
-								query: uri.query,
-							});
-
-							// Ensure fileUri is relative by prepending `/` so that it uses the <base> element URI
-							// when resolving the absolute URL
-							uri = vscode.Uri.parse('markdown-link:' + '/' + fileUri.toString(true).replace(/^\S+?:/, fileUri.scheme));
-						}
-					}
-
-					const extname = path.extname(uri.fsPath);
-
-					if (uri.fragment && (extname === '' || MarkdownFileExtensions.includes(extname))) {
-						uri = uri.with({
-							fragment: this.slugifier.fromHeading(uri.fragment).value
-						});
-					}
-					return normalizeLink(uri.toString(true).replace(/^markdown-link:/, ''));
-				}
 			} catch (e) {
 				// noop
 			}
@@ -294,7 +286,7 @@ export class MarkdownEngine {
 		};
 	}
 
-	private addLinkValidator(md: any): void {
+	private addLinkValidator(md: MarkdownIt): void {
 		const validateLink = md.validateLink;
 		md.validateLink = (link: string) => {
 			return validateLink(link)
@@ -304,10 +296,10 @@ export class MarkdownEngine {
 		};
 	}
 
-	private addNamedHeaders(md: any): void {
+	private addNamedHeaders(md: MarkdownIt): void {
 		const original = md.renderer.rules.heading_open;
-		md.renderer.rules.heading_open = (tokens: any, idx: number, options: any, env: any, self: any) => {
-			const title = tokens[idx + 1].children.reduce((acc: string, t: any) => acc + t.content, '');
+		md.renderer.rules.heading_open = (tokens: Token[], idx: number, options, env, self) => {
+			const title = tokens[idx + 1].children!.reduce<string>((acc, t) => acc + t.content, '');
 			let slug = this.slugifier.fromHeading(title);
 
 			if (this._slugCount.has(slug.value)) {
@@ -318,35 +310,80 @@ export class MarkdownEngine {
 				this._slugCount.set(slug.value, 0);
 			}
 
-			tokens[idx].attrs = tokens[idx].attrs || [];
-			tokens[idx].attrs.push(['id', slug.value]);
+			tokens[idx].attrSet('id', slug.value);
 
 			if (original) {
 				return original(tokens, idx, options, env, self);
 			} else {
-				return self.renderToken(tokens, idx, options, env, self);
+				return self.renderToken(tokens, idx, options);
 			}
 		};
 	}
 
-	private addLinkRenderer(md: any): void {
-		const old_render = md.renderer.rules.link_open || ((tokens: any, idx: number, options: any, _env: any, self: any) => {
-			return self.renderToken(tokens, idx, options);
-		});
+	private addLinkRenderer(md: MarkdownIt): void {
+		const original = md.renderer.rules.link_open;
 
-		md.renderer.rules.link_open = (tokens: any, idx: number, options: any, env: any, self: any) => {
+		md.renderer.rules.link_open = (tokens: Token[], idx: number, options, env, self) => {
 			const token = tokens[idx];
-			const hrefIndex = token.attrIndex('href');
-			if (hrefIndex >= 0) {
-				const href = token.attrs[hrefIndex][1];
-				token.attrPush(['data-href', href]);
+			const href = token.attrGet('href');
+			// A string, including empty string, may be `href`.
+			if (typeof href === 'string') {
+				token.attrSet('data-href', href);
 			}
-			return old_render(tokens, idx, options, env, self);
+			if (original) {
+				return original(tokens, idx, options, env, self);
+			} else {
+				return self.renderToken(tokens, idx, options);
+			}
 		};
+	}
+
+	private toResourceUri(href: string, currentDocument: vscode.Uri | undefined, resourceProvider: WebviewResourceProvider | undefined): string {
+		try {
+			// Support file:// links
+			if (isOfScheme(Schemes.file, href)) {
+				const uri = vscode.Uri.parse(href);
+				if (resourceProvider) {
+					return resourceProvider.asWebviewUri(uri).toString(true);
+				}
+				// Not sure how to resolve this
+				return href;
+			}
+
+			// If original link doesn't look like a url with a scheme, assume it must be a link to a file in workspace
+			if (!/^[a-z\-]+:/i.test(href)) {
+				// Use a fake scheme for parsing
+				let uri = vscode.Uri.parse('markdown-link:' + href);
+
+				// Relative paths should be resolved correctly inside the preview but we need to
+				// handle absolute paths specially to resolve them relative to the workspace root
+				if (uri.path[0] === '/' && currentDocument) {
+					const root = vscode.workspace.getWorkspaceFolder(currentDocument);
+					if (root) {
+						uri = vscode.Uri.joinPath(root.uri, uri.fsPath).with({
+							fragment: uri.fragment,
+							query: uri.query,
+						});
+
+						if (resourceProvider) {
+							return resourceProvider.asWebviewUri(uri).toString(true);
+						} else {
+							uri = uri.with({ scheme: 'markdown-link' });
+						}
+					}
+				}
+
+				return uri.toString(true).replace(/^markdown-link:/, '');
+			}
+
+			return href;
+		} catch {
+			return href;
+		}
 	}
 }
 
-async function getMarkdownOptions(md: () => MarkdownIt) {
+async function getMarkdownOptions(md: () => MarkdownIt): Promise<MarkdownIt.Options> {
 	const hljs = await import('highlight.js');
 	return {
 		html: true,

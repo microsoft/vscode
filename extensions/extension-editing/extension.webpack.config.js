@@ -19,6 +19,5 @@ module.exports = withDefaults({
 	},
 	externals: {
 		'../../../product.json': 'commonjs ../../../product.json',
-		'typescript': 'commonjs typescript'
 	}
 });

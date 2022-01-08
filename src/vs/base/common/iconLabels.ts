@@ -3,28 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { matchesFuzzy, IMatch } from 'vs/base/common/filters';
+import { CSSIcon } from 'vs/base/common/codicons';
+import { IMatch, matchesFuzzy } from 'vs/base/common/filters';
 import { ltrim } from 'vs/base/common/strings';
 
 export const iconStartMarker = '$(';
 
-const escapeIconsRegex = /(\\)?\$\([a-z0-9\-]+?(?:~[a-z0-9\-]*?)?\)/gi;
+const iconsRegex = new RegExp(`\\$\\(${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?\\)`, 'g'); // no capturing groups
+const iconNameCharacterRegexp = new RegExp(CSSIcon.iconNameCharacter);
+
+const escapeIconsRegex = new RegExp(`(\\\\)?${iconsRegex.source}`, 'g');
 export function escapeIcons(text: string): string {
 	return text.replace(escapeIconsRegex, (match, escaped) => escaped ? match : `\\${match}`);
 }
 
-const markdownEscapedIconsRegex = /\\\$\([a-z0-9\-]+?(?:~[a-z0-9\-]*?)?\)/gi;
+const markdownEscapedIconsRegex = new RegExp(`\\\\${iconsRegex.source}`, 'g');
 export function markdownEscapeEscapedIcons(text: string): string {
 	// Need to add an extra \ for escaping in markdown
 	return text.replace(markdownEscapedIconsRegex, match => `\\${match}`);
 }
 
-const markdownUnescapeIconsRegex = /(\\)?\$\\\(([a-z0-9\-]+?(?:~[a-z0-9\-]*?)?)\\\)/gi;
-export function markdownUnescapeIcons(text: string): string {
-	return text.replace(markdownUnescapeIconsRegex, (match, escaped, iconId) => escaped ? match : `$(${iconId})`);
-}
-
-const stripIconsRegex = /(\s)?(\\)?\$\([a-z0-9\-]+?(?:~[a-z0-9\-]*?)?\)(\s)?/gi;
+const stripIconsRegex = new RegExp(`(\\s)?(\\\\)?${iconsRegex.source}(\\s)?`, 'g');
 export function stripIcons(text: string): string {
 	if (text.indexOf(iconStartMarker) === -1) {
 		return text;
@@ -105,7 +104,7 @@ function doParseLabelWithIcons(text: string, firstIconIndex: number): IParsedLab
 		// within icon
 		else if (currentIconStart !== -1) {
 			// Make sure this is a real icon name
-			if (/^[a-z0-9\-]$/i.test(char)) {
+			if (iconNameCharacterRegexp.test(char)) {
 				currentIconValue += char;
 			} else {
 				// This is not a real icon, treat it as text

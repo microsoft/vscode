@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import * as strings from 'vs/base/common/strings';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { TextEditorCursorStyle, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -68,7 +68,7 @@ export class ViewCursor {
 		this._domNode.setHeight(this._lineHeight);
 		this._domNode.setTop(0);
 		this._domNode.setLeft(0);
-		Configuration.applyFontInfo(this._domNode, fontInfo);
+		applyFontInfo(this._domNode, fontInfo);
 		this._domNode.setDisplay('none');
 
 		this._position = new Position(1, 1);
@@ -107,7 +107,7 @@ export class ViewCursor {
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
-		Configuration.applyFontInfo(this._domNode, fontInfo);
+		applyFontInfo(this._domNode, fontInfo);
 
 		return true;
 	}

@@ -27,19 +27,8 @@
 	margin-left: 0;
 }
 
-/* TODO @misolori make this a color token */
-.extension-ratings .codicon-extensions-star-full,
-.extension-ratings .codicon-extensions-star-half {
-	color: #FF8E00 !important;
-}
-
-.extension-install-count .codicon,
-.extension-action.codicon-extensions-manage {
-	color: inherit;
-}
-
 .extension-ratings .codicon-extensions-star-empty {
-	opacity: .4;
+	opacity: .75;
 }
 
 .extension-bookmark {
@@ -48,17 +37,29 @@
 	width: 20px;
 }
 
-.extension-bookmark > .recommendation {
+.extension-bookmark > .recommendation,
+.extension-bookmark > .pre-release {
 	border-right: 20px solid transparent;
 	border-top: 20px solid;
 	box-sizing: border-box;
 	position: relative;
 }
 
-.extension-bookmark > .recommendation > .codicon {
+.extension-bookmark > .pre-release {
+	border-top-color: var(--vscode-extensionIcon-preReleaseForeground);
+	color: #ffffff;
+}
+
+.extension-bookmark > .recommendation > .codicon,
+.extension-bookmark > .pre-release > .codicon {
 	position: absolute;
 	bottom: 9px;
 	left: 1px;
 	color: inherit;
 	font-size: 80%;
+}
+
+/* codicon colors */
+.codicon.codicon-extensions-pre-release {
+	color: var(--vscode-extensionIcon-preReleaseForeground);
 }

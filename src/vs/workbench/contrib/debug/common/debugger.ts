@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as objects from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
-import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
+import { IJSONSchema, IJSONSchemaMap, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IDebugAdapter, IDebugger, IDebugSession, IDebugHelperService, IAdapterManager, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IConfig, IDebuggerContribution, IDebugAdapter, IDebugger, IDebugSession, IAdapterManager, IDebugService, debuggerDisabledMessage } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
-import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { memoize } from 'vs/base/common/decorators';
-import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { presentationSchema } from 'vs/workbench/contrib/debug/common/debugSchemas';
+import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
+import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class Debugger implements IDebugger {
 
 	private debuggerContribution: IDebuggerContribution;
 	private mergedExtensionDescriptions: IExtensionDescription[] = [];
 	private mainExtensionDescription: IExtensionDescription | undefined;
+
+	private debuggerWhen: ContextKeyExpression | undefined;
 
 	constructor(
 		private adapterManager: IAdapterManager,
@@ -36,12 +36,14 @@ export class Debugger implements IDebugger {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly resourcePropertiesService: ITextResourcePropertiesService,
 		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IDebugHelperService private readonly debugHelperService: IDebugHelperService,
-		@IDebugService private readonly debugService: IDebugService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IDebugService private readonly debugService: IDebugService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		this.debuggerContribution = { type: dbgContribution.type };
 		this.merge(dbgContribution, extensionDescription);
+
+		this.debuggerWhen = typeof this.debuggerContribution.when === 'string' ? ContextKeyExpr.deserialize(this.debuggerContribution.when) : undefined;
 	}
 
 	merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
@@ -113,8 +115,8 @@ export class Debugger implements IDebugger {
 		});
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
-		return this.adapterManager.runInTerminal(this.type, args);
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
+		return this.adapterManager.runInTerminal(this.type, args, sessionId);
 	}
 
 	get label(): string {
@@ -135,6 +137,14 @@ export class Debugger implements IDebugger {
 
 	get languages(): string[] | undefined {
 		return this.debuggerContribution.languages;
+	}
+
+	get when(): ContextKeyExpression | undefined {
+		return this.debuggerWhen;
+	}
+
+	get enabled() {
+		return !this.debuggerWhen || this.contextKeyService.contextMatchesRules(this.debuggerWhen);
 	}
 
 	hasInitialConfiguration(): boolean {
@@ -181,39 +191,32 @@ export class Debugger implements IDebugger {
 		return this.mainExtensionDescription || this.mergedExtensionDescriptions[0];
 	}
 
-	@memoize
-	getCustomTelemetryService(): Promise<TelemetryService | undefined> {
-
+	getCustomTelemetryEndpoint(): ITelemetryEndpoint | undefined {
 		const aiKey = this.debuggerContribution.aiKey;
-
 		if (!aiKey) {
-			return Promise.resolve(undefined);
+			return undefined;
 		}
 
-		return this.telemetryService.getTelemetryInfo().then(info => {
-			const telemetryInfo: { [key: string]: string } = Object.create(null);
-			telemetryInfo['common.vscodemachineid'] = info.machineId;
-			telemetryInfo['common.vscodesessionid'] = info.sessionId;
-			return telemetryInfo;
-		}).then(data => {
-			const args = [`${this.getMainExtensionDescriptor().publisher}.${this.type}`, JSON.stringify(data), aiKey];
-			return this.debugHelperService.createTelemetryService(this.configurationService, args);
-		});
+		const sendErrorTelemtry = cleanRemoteAuthority(this.environmentService.remoteAuthority) !== 'other';
+		return {
+			id: `${this.getMainExtensionDescriptor().publisher}.${this.type}`,
+			aiKey,
+			sendErrorTelemetry: sendErrorTelemtry
+		};
 	}
 
-	getSchemaAttributes(): IJSONSchema[] | null {
+	getSchemaAttributes(definitions: IJSONSchemaMap): IJSONSchema[] | null {
 
 		if (!this.debuggerContribution.configurationAttributes) {
 			return null;
 		}
 
 		// fill in the default configuration attributes shared by all adapters.
-		const taskSchema = TaskDefinitionRegistry.getJsonSchema();
 		return Object.keys(this.debuggerContribution.configurationAttributes).map(request => {
+			const definitionId = `${this.type}:${request}`;
 			const attributes: IJSONSchema = this.debuggerContribution.configurationAttributes[request];
 			const defaultRequired = ['name', 'type', 'request'];
 			attributes.required = attributes.required && attributes.required.length ? defaultRequired.concat(attributes.required) : defaultRequired;
-			attributes.additionalProperties = false;
 			attributes.type = 'object';
 			if (!attributes.properties) {
 				attributes.properties = {};
@@ -223,67 +226,51 @@ export class Debugger implements IDebugger {
 				enum: [this.type],
 				description: nls.localize('debugType', "Type of configuration."),
 				pattern: '^(?!node2)',
+				deprecationMessage: this.enabled ? undefined : debuggerDisabledMessage(this.type),
 				errorMessage: nls.localize('debugTypeNotRecognised', "The debug type is not recognized. Make sure that you have a corresponding debug extension installed and that it is enabled."),
 				patternErrorMessage: nls.localize('node2NotSupported', "\"node2\" is no longer supported, use \"node\" instead and set the \"protocol\" attribute to \"inspector\".")
-			};
-			properties['name'] = {
-				type: 'string',
-				description: nls.localize('debugName', "Name of configuration; appears in the launch configuration dropdown menu."),
-				default: 'Launch'
 			};
 			properties['request'] = {
 				enum: [request],
 				description: nls.localize('debugRequest', "Request type of configuration. Can be \"launch\" or \"attach\"."),
 			};
-			properties['debugServer'] = {
-				type: 'number',
-				description: nls.localize('debugServer', "For debug extension development only: if a port is specified VS Code tries to connect to a debug adapter running in server mode"),
-				default: 4711
-			};
-			properties['preLaunchTask'] = {
-				anyOf: [taskSchema, {
-					type: ['string']
-				}],
-				default: '',
-				defaultSnippets: [{ body: { task: '', type: '' } }],
-				description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
-			};
-			properties['postDebugTask'] = {
-				anyOf: [taskSchema, {
-					type: ['string'],
-				}],
-				default: '',
-				defaultSnippets: [{ body: { task: '', type: '' } }],
-				description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
-			};
-			properties['presentation'] = presentationSchema;
-			properties['internalConsoleOptions'] = INTERNAL_CONSOLE_OPTIONS_SCHEMA;
-			// Clear out windows, linux and osx fields to not have cycles inside the properties object
-			delete properties['windows'];
-			delete properties['osx'];
-			delete properties['linux'];
+			for (const prop in definitions['common'].properties) {
+				properties[prop] = {
+					$ref: `#/definitions/common/properties/${prop}`
+				};
+			}
+			definitions[definitionId] = attributes;
 
-			const osProperties = objects.deepClone(properties);
-			properties['windows'] = {
-				type: 'object',
-				description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes."),
-				properties: osProperties
-			};
-			properties['osx'] = {
-				type: 'object',
-				description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes."),
-				properties: osProperties
-			};
-			properties['linux'] = {
-				type: 'object',
-				description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
-				properties: osProperties
-			};
 			Object.keys(properties).forEach(name => {
 				// Use schema allOf property to get independent error reporting #21113
 				ConfigurationResolverUtils.applyDeprecatedVariableMessage(properties[name]);
 			});
-			return attributes;
+
+			const result = {
+				allOf: [{
+					$ref: `#/definitions/${definitionId}`
+				}, {
+					properties: {
+						windows: {
+							$ref: `#/definitions/${definitionId}`,
+							description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes."),
+							required: [],
+						},
+						osx: {
+							$ref: `#/definitions/${definitionId}`,
+							description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes."),
+							required: [],
+						},
+						linux: {
+							$ref: `#/definitions/${definitionId}`,
+							description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
+							required: [],
+						}
+					}
+				}]
+			};
+
+			return result;
 		});
 	}
 }

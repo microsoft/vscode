@@ -15,15 +15,20 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorOpenContext } from 'vs/platform/editor/common/editor';
-import { IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
+import { IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, matchesSomeScheme, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
 
 class CommandOpener implements IOpener {
 
 	constructor(@ICommandService private readonly _commandService: ICommandService) { }
 
-	async open(target: URI | string) {
+	async open(target: URI | string, options?: OpenOptions): Promise<boolean> {
 		if (!matchesScheme(target, Schemas.command)) {
 			return false;
+		}
+		if (!options?.allowCommands) {
+			// silently ignore commands when command-links are disabled, also
+			// surpress other openers by returning TRUE
+			return true;
 		}
 		// run command or bail out if command isn't known
 		if (typeof target === 'string') {
@@ -105,7 +110,7 @@ export class OpenerService implements IOpenerService {
 
 	constructor(
 		@ICodeEditorService editorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService,
+		@ICommandService commandService: ICommandService
 	) {
 		// Default external opener is going through window.open()
 		this._defaultExternalOpener = {
@@ -114,7 +119,7 @@ export class OpenerService implements IOpenerService {
 				// to not trigger a navigation. Any other link is
 				// safe to be set as HREF to prevent a blank window
 				// from opening.
-				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
+				if (matchesSomeScheme(href, Schemas.http, Schemas.https)) {
 					dom.windowOpenNoOpener(href);
 				} else {
 					window.location.href = href;
@@ -126,7 +131,7 @@ export class OpenerService implements IOpenerService {
 		// Default opener: any external, maito, http(s), command, and catch-all-editors
 		this._openers.push({
 			open: async (target: URI | string, options?: OpenOptions) => {
-				if (options?.openExternal || matchesScheme(target, Schemas.mailto) || matchesScheme(target, Schemas.http) || matchesScheme(target, Schemas.https)) {
+				if (options?.openExternal || matchesSomeScheme(target, Schemas.mailto, Schemas.http, Schemas.https, Schemas.vsls)) {
 					// open externally
 					await this._doOpenExternal(target, options);
 					return true;
@@ -186,29 +191,41 @@ export class OpenerService implements IOpenerService {
 
 	async resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri> {
 		for (const resolver of this._resolvers) {
-			const result = await resolver.resolveExternalUri(resource, options);
-			if (result) {
-				this._resolvedUriTargets.set(result.resolved, resource);
-				return result;
+			try {
+				const result = await resolver.resolveExternalUri(resource, options);
+				if (result) {
+					if (!this._resolvedUriTargets.has(result.resolved)) {
+						this._resolvedUriTargets.set(result.resolved, resource);
+					}
+					return result;
+				}
+			} catch {
+				// noop
 			}
 		}
 
-		return { resolved: resource, dispose: () => { } };
+		throw new Error('Could not resolve external URI: ' + resource.toString());
 	}
 
 	private async _doOpenExternal(resource: URI | string, options: OpenOptions | undefined): Promise<boolean> {
 
 		//todo@jrieken IExternalUriResolver should support `uri: URI | string`
 		const uri = typeof resource === 'string' ? URI.parse(resource) : resource;
-		const { resolved } = await this.resolveExternalUri(uri, options);
+		let externalUri: URI;
+
+		try {
+			externalUri = (await this.resolveExternalUri(uri, options)).resolved;
+		} catch {
+			externalUri = uri;
+		}
 
 		let href: string;
-		if (typeof resource === 'string' && uri.toString() === resolved.toString()) {
+		if (typeof resource === 'string' && uri.toString() === externalUri.toString()) {
 			// open the url-string AS IS
 			href = resource;
 		} else {
 			// open URI using the toString(noEncode)+encodeURI-trick
-			href = encodeURI(resolved.toString(true));
+			href = encodeURI(externalUri.toString(true));
 		}
 
 		if (options?.allowContributedOpeners) {

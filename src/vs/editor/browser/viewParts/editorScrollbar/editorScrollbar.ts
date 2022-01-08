@@ -13,8 +13,9 @@ import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 
 export class EditorScrollbar extends ViewPart {
 
@@ -99,7 +100,7 @@ export class EditorScrollbar extends ViewPart {
 		this._register(dom.addDisposableListener(this.scrollbarDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(this.scrollbarDomNode.domNode, true, false)));
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 	}
 
@@ -133,7 +134,7 @@ export class EditorScrollbar extends ViewPart {
 
 	// --- begin event handlers
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (
 			e.hasChanged(EditorOption.scrollbar)
 			|| e.hasChanged(EditorOption.mouseWheelScrollSensitivity)
@@ -145,6 +146,11 @@ export class EditorScrollbar extends ViewPart {
 			const fastScrollSensitivity = options.get(EditorOption.fastScrollSensitivity);
 			const scrollPredominantAxis = options.get(EditorOption.scrollPredominantAxis);
 			const newOpts: ScrollableElementChangeOptions = {
+				vertical: scrollbar.vertical,
+				horizontal: scrollbar.horizontal,
+				verticalScrollbarSize: scrollbar.verticalScrollbarSize,
+				horizontalScrollbarSize: scrollbar.horizontalScrollbarSize,
+				scrollByPage: scrollbar.scrollByPage,
 				handleMouseWheel: scrollbar.handleMouseWheel,
 				mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
 				fastScrollSensitivity: fastScrollSensitivity,
@@ -157,10 +163,10 @@ export class EditorScrollbar extends ViewPart {
 		}
 		return true;
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return true;
 	}
-	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		this.scrollbar.updateClassName('editor-scrollable' + ' ' + getThemeTypeSelector(this._context.theme.type));
 		return true;
 	}
@@ -175,3 +181,51 @@ export class EditorScrollbar extends ViewPart {
 		this.scrollbar.renderNow();
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+
+	// Scrollbars
+	const scrollbarShadowColor = theme.getColor(scrollbarShadow);
+	if (scrollbarShadowColor) {
+		collector.addRule(`
+			.monaco-scrollable-element > .shadow.top {
+				box-shadow: ${scrollbarShadowColor} 0 6px 6px -6px inset;
+			}
+
+			.monaco-scrollable-element > .shadow.left {
+				box-shadow: ${scrollbarShadowColor} 6px 0 6px -6px inset;
+			}
+
+			.monaco-scrollable-element > .shadow.top.left {
+				box-shadow: ${scrollbarShadowColor} 6px 6px 6px -6px inset;
+			}
+		`);
+	}
+
+	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
+	if (scrollbarSliderBackgroundColor) {
+		collector.addRule(`
+			.monaco-scrollable-element > .scrollbar > .slider {
+				background: ${scrollbarSliderBackgroundColor};
+			}
+		`);
+	}
+
+	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
+	if (scrollbarSliderHoverBackgroundColor) {
+		collector.addRule(`
+			.monaco-scrollable-element > .scrollbar > .slider:hover {
+				background: ${scrollbarSliderHoverBackgroundColor};
+			}
+		`);
+	}
+
+	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
+	if (scrollbarSliderActiveBackgroundColor) {
+		collector.addRule(`
+			.monaco-scrollable-element > .scrollbar > .slider.active {
+				background: ${scrollbarSliderActiveBackgroundColor};
+			}
+		`);
+	}
+});

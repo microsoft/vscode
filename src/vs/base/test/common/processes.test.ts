@@ -21,13 +21,13 @@ suite('Processes', () => {
 			VSCODE_NLS_CONFIG: 'x',
 			VSCODE_PORTABLE: 'x',
 			VSCODE_PID: 'x',
-			VSCODE_NODE_CACHED_DATA_DIR: 'x',
+			VSCODE_CODE_CACHE_PATH: 'x',
 			VSCODE_NEW_VAR: 'x',
 			GDK_PIXBUF_MODULE_FILE: 'x',
 			GDK_PIXBUF_MODULEDIR: 'x',
 		};
 		processes.sanitizeProcessEnvironment(env);
-		assert.equal(env['FOO'], 'bar');
-		assert.equal(Object.keys(env).length, 1);
+		assert.strictEqual(env['FOO'], 'bar');
+		assert.strictEqual(Object.keys(env).length, 1);
 	});
 });

@@ -53,7 +53,7 @@ export async function startServer(server: http.Server): Promise<string> {
 			reject(new Error('Closed'));
 		});
 
-		server.listen(0);
+		server.listen(0, '127.0.0.1');
 	});
 
 	port.then(cancelPortTimer, cancelPortTimer);
@@ -120,7 +120,7 @@ export function createServer(nonce: string) {
 	const server = http.createServer(function (req, res) {
 		const reqUrl = url.parse(req.url!, /* parseQueryString */ true);
 		switch (reqUrl.pathname) {
-			case '/signin':
+			case '/signin': {
 				const receivedNonce = ((reqUrl.query.nonce as string) || '').replace(/ /g, '+');
 				if (receivedNonce === nonce) {
 					deferredRedirect.resolve({ req, res });
@@ -129,6 +129,7 @@ export function createServer(nonce: string) {
 					deferredRedirect.resolve({ err, res });
 				}
 				break;
+			}
 			case '/':
 				sendFile(res, path.join(__dirname, '../media/auth.html'), 'text/html; charset=utf-8');
 				break;

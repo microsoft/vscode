@@ -12,10 +12,12 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const WORKSPACE_CONTAINS_TIMEOUT = 7000;
 
 export interface IExtensionActivationHost {
+	readonly logService: ILogService;
 	readonly folders: readonly UriComponents[];
 	readonly forceUsingSearch: boolean;
 
@@ -87,7 +89,7 @@ async function _activateIfGlobPatterns(host: IExtensionActivationHost, extension
 
 	const timer = setTimeout(async () => {
 		tokenSource.cancel();
-		activate(`workspaceContainsTimeout:${globPatterns.join(',')}`);
+		host.logService.info(`Not activating extension '${extensionId.value}': Timed out while searching for 'workspaceContains' pattern ${globPatterns.join(',')}`);
 	}, WORKSPACE_CONTAINS_TIMEOUT);
 
 	let exists: boolean = false;

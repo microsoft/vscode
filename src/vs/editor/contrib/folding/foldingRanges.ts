@@ -93,6 +93,19 @@ export class FoldingRegions {
 		}
 	}
 
+	public setCollapsedAllOfType(type: string, newState: boolean) {
+		let hasChanged = false;
+		if (this._types) {
+			for (let i = 0; i < this._types.length; i++) {
+				if (this._types[i] === type) {
+					this.setCollapsed(i, newState);
+					hasChanged = true;
+				}
+			}
+		}
+		return hasChanged;
+	}
+
 	public toRegion(index: number): FoldingRegion {
 		return new FoldingRegion(this, index);
 	}

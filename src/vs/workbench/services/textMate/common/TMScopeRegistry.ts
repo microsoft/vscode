@@ -6,11 +6,11 @@
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { StandardTokenType, LanguageId } from 'vs/editor/common/modes';
+import { StandardTokenType, LanguageId } from 'vs/editor/common/languages';
 
 export interface IValidGrammarDefinition {
 	location: URI;
-	language?: LanguageId;
+	language?: string;
 	scopeName: string;
 	embeddedLanguages: IValidEmbeddedLanguagesMap;
 	tokenTypes: IValidTokenTypeMap;

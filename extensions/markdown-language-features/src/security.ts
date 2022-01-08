@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
+import * as nls from 'vscode-nls';
 import { MarkdownPreviewManager } from './features/previewManager';
 
-import * as nls from 'vscode-nls';
+
 
 const localize = nls.loadMessageBundle();
 

@@ -55,10 +55,6 @@
 	outline: 0 !important;
 }
 
-.monaco-list:focus .monaco-list-row.selected .codicon {
-	color: inherit;
-}
-
 /* Dnd */
 .monaco-drag-image {
 	display: inline-block;

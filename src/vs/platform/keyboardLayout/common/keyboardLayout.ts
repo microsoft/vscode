@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { ScanCode, ScanCodeUtils } from 'vs/base/common/scanCode';
-import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
-import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
+import { ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
+import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 
 export const IKeyboardLayoutService = createDecorator<IKeyboardLayoutService>('keyboardLayoutService');
 
@@ -73,6 +73,7 @@ export interface IWindowsKeyboardLayoutInfo {
 */
 export interface ILinuxKeyboardLayoutInfo {
 	model: string;
+	group: number;
 	layout: string;
 	variant: string;
 	options: string;

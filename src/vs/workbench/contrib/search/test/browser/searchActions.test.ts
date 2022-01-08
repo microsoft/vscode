@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybindings';
 import { OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -44,7 +44,7 @@ suite('Search Actions', () => {
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(data[4], actual);
+		assert.strictEqual(data[4], actual);
 	});
 
 	test('get next element to focus after removing a match when it does not have next sibling match', function () {
@@ -56,7 +56,7 @@ suite('Search Actions', () => {
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(data[4], actual);
+		assert.strictEqual(data[4], actual);
 	});
 
 	test('get next element to focus after removing a match when it does not have next sibling match and previous match is file match', function () {
@@ -68,7 +68,7 @@ suite('Search Actions', () => {
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(data[2], actual);
+		assert.strictEqual(data[2], actual);
 	});
 
 	test('get next element to focus after removing a match when it is the only match', function () {
@@ -79,7 +79,7 @@ suite('Search Actions', () => {
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(undefined, actual);
+		assert.strictEqual(undefined, actual);
 	});
 
 	test('get next element to focus after removing a file match when it has next sibling', function () {
@@ -92,7 +92,7 @@ suite('Search Actions', () => {
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(data[4], actual);
+		assert.strictEqual(data[4], actual);
 	});
 
 	test('get next element to focus after removing a file match when it has no next sibling', function () {
@@ -105,7 +105,7 @@ suite('Search Actions', () => {
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(data[3], actual);
+		assert.strictEqual(data[3], actual);
 	});
 
 	test('get next element to focus after removing a file match when it is only match', function () {
@@ -116,7 +116,7 @@ suite('Search Actions', () => {
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(undefined, actual);
+		assert.strictEqual(undefined, actual);
 	});
 
 	function aFileMatch(): FileMatch {
@@ -156,6 +156,6 @@ suite('Search Actions', () => {
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IThemeService, new TestThemeService());
-		return instantiationService.createInstance(ModelServiceImpl);
+		return instantiationService.createInstance(ModelService);
 	}
 });

@@ -2,7 +2,7 @@
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Light+ (default light)",
 	"include": "./light_vs.json",
-	"tokenColors": [
+	"tokenColors": [ // adds rules to the light vs rules
 		{
 			"name": "Function declarations",
 			"scope": [
@@ -91,7 +91,9 @@
 				"variable",
 				"meta.definition.variable.name",
 				"support.variable",
-				"entity.name.variable"
+				"entity.name.variable",
+				"constant.other.placeholder", // placeholders in strings
+
 			],
 			"settings": {
 				"foreground": "#001080"
@@ -191,6 +193,7 @@
 			}
 		}
 	],
+	"semanticHighlighting": true,
 	"semanticTokenColors": {
 		"newOperator": "#AF00DB",
 		"stringLiteral": "#a31515",

@@ -5,7 +5,8 @@
 
 'use strict';
 
-import { makeUniversalApp } from 'vscode-universal';
+import { makeUniversalApp } from 'vscode-universal-bundler';
+import { spawn } from '@malept/cross-spawn-promise';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as plist from 'plist';
@@ -20,8 +21,8 @@ async function main() {
 	}
 
 	const appName = product.nameLong + '.app';
-	const x64AppPath = path.join(buildDir, 'vscode-x64', appName);
-	const arm64AppPath = path.join(buildDir, 'vscode-arm64', appName);
+	const x64AppPath = path.join(buildDir, 'VSCode-darwin-x64', appName);
+	const arm64AppPath = path.join(buildDir, 'VSCode-darwin-arm64', appName);
 	const x64AsarPath = path.join(x64AppPath, 'Contents', 'Resources', 'app', 'node_modules.asar');
 	const arm64AsarPath = path.join(arm64AppPath, 'Contents', 'Resources', 'app', 'node_modules.asar');
 	const outAppPath = path.join(buildDir, `VSCode-darwin-${arch}`, appName);
@@ -38,6 +39,7 @@ async function main() {
 			'Credits.rtf',
 			'CodeResources',
 			'fsevents.node',
+			'Info.plist', // TODO@deepak1556: regressed with 11.4.2 internal builds
 			'.npmrc'
 		],
 		outAppPath,
@@ -56,6 +58,13 @@ async function main() {
 		LSRequiresNativeExecution: true
 	});
 	await fs.writeFile(infoPlistPath, plist.build(infoPlistJson), 'utf8');
+
+	// Verify if native module architecture is correct
+	const findOutput = await spawn('find', [outAppPath, '-name', 'keytar.node'])
+	const lipoOutput = await spawn('lipo', ['-archs', findOutput.replace(/\n$/, "")]);
+	if (lipoOutput.replace(/\n$/, "") !== 'x86_64 arm64') {
+		throw new Error(`Invalid arch, got : ${lipoOutput}`)
+	}
 }
 
 if (require.main === module) {

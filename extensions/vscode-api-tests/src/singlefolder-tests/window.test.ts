@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, QuickPickItem, TextEditor } from 'vscode';
 import { join } from 'path';
-import { closeAllEditors, pathEquals, createRandomFile } from '../utils';
+import { CancellationTokenSource, commands, MarkdownString, Position, QuickPickItem, Selection, StatusBarAlignment, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, Uri, ViewColumn, window, workspace } from 'vscode';
+import { assertNoRpc, closeAllEditors, createRandomFile, pathEquals } from '../utils';
 
 
 suite('vscode API - window', () => {
 
-	teardown(closeAllEditors);
+	teardown(async function () {
+		assertNoRpc();
+		await closeAllEditors();
+	});
 
 	test('editor, active text editor', async () => {
 		const doc = await workspace.openTextDocument(join(workspace.rootPath || '', './far.js'));
@@ -31,20 +34,20 @@ suite('vscode API - window', () => {
 	});
 
 	// test('editor, UN-active text editor', () => {
-	// 	assert.equal(window.visibleTextEditors.length, 0);
+	// 	assert.strictEqual(window.visibleTextEditors.length, 0);
 	// 	assert.ok(window.activeTextEditor === undefined);
 	// });
 
 	test('editor, assign and check view columns', async () => {
 		const doc = await workspace.openTextDocument(join(workspace.rootPath || '', './far.js'));
 		let p1 = window.showTextDocument(doc, ViewColumn.One).then(editor => {
-			assert.equal(editor.viewColumn, ViewColumn.One);
+			assert.strictEqual(editor.viewColumn, ViewColumn.One);
 		});
 		let p2 = window.showTextDocument(doc, ViewColumn.Two).then(editor_1 => {
-			assert.equal(editor_1.viewColumn, ViewColumn.Two);
+			assert.strictEqual(editor_1.viewColumn, ViewColumn.Two);
 		});
 		let p3 = window.showTextDocument(doc, ViewColumn.Three).then(editor_2 => {
-			assert.equal(editor_2.viewColumn, ViewColumn.Three);
+			assert.strictEqual(editor_2.viewColumn, ViewColumn.Three);
 		});
 		return Promise.all([p1, p2, p3]);
 	});
@@ -57,13 +60,13 @@ suite('vscode API - window', () => {
 
 		const doc = await workspace.openTextDocument(join(workspace.rootPath || '', './far.js'));
 		await window.showTextDocument(doc, ViewColumn.One);
-		assert.equal(eventCounter, 1);
+		assert.strictEqual(eventCounter, 1);
 
 		await window.showTextDocument(doc, ViewColumn.Two);
-		assert.equal(eventCounter, 2);
+		assert.strictEqual(eventCounter, 2);
 
 		await window.showTextDocument(doc, ViewColumn.Three);
-		assert.equal(eventCounter, 3);
+		assert.strictEqual(eventCounter, 3);
 
 		reg.dispose();
 	});
@@ -135,10 +138,10 @@ suite('vscode API - window', () => {
 				return commands.executeCommand('workbench.action.moveActiveEditorGroupLeft');
 
 			}).then(() => {
-				assert.equal(actualEvents.length, 2);
+				assert.strictEqual(actualEvents.length, 2);
 
 				for (const event of actualEvents) {
-					assert.equal(event.viewColumn, event.textEditor.viewColumn);
+					assert.strictEqual(event.viewColumn, event.textEditor.viewColumn);
 				}
 
 				registration1.dispose();
@@ -147,7 +150,14 @@ suite('vscode API - window', () => {
 	});
 
 	test('active editor not always correct... #49125', async function () {
-		if (process.env['BUILD_SOURCEVERSION']) {
+
+		if (!window.state.focused) {
+			// no focus!
+			this.skip();
+			return;
+		}
+
+		if (process.env['BUILD_SOURCEVERSION'] || process.env['CI']) {
 			this.skip();
 			return;
 		}
@@ -180,6 +190,29 @@ suite('vscode API - window', () => {
 		}
 	});
 
+	test('editor, opening multiple at the same time #134786', async () => {
+		const fileA = await createRandomFile();
+		const fileB = await createRandomFile();
+		const fileC = await createRandomFile();
+
+		const testFiles = [fileA, fileB, fileC];
+		const result = await Promise.all(testFiles.map(async testFile => {
+			try {
+				const doc = await workspace.openTextDocument(testFile);
+				const editor = await window.showTextDocument(doc);
+
+				return editor.document.uri;
+			} catch (error) {
+				return undefined;
+			}
+		}));
+
+		assert.strictEqual(result.length, 3);
+		assert.strictEqual(result[0], undefined);
+		assert.strictEqual(result[1], undefined);
+		assert.strictEqual(result[2]?.toString(), fileC.toString());
+	});
+
 	test('default column when opening a file', async () => {
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
@@ -192,7 +225,7 @@ suite('vscode API - window', () => {
 
 		assert.ok(window.activeTextEditor);
 		assert.ok(window.activeTextEditor!.document === docB);
-		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+		assert.strictEqual(window.activeTextEditor!.viewColumn, ViewColumn.Two);
 
 		const editor = await window.showTextDocument(docC);
 		assert.ok(
@@ -200,7 +233,7 @@ suite('vscode API - window', () => {
 			`wanted fileName:${editor.document.fileName}/viewColumn:${editor.viewColumn} but got fileName:${window.activeTextEditor!.document.fileName}/viewColumn:${window.activeTextEditor!.viewColumn}. a:${docA.fileName}, b:${docB.fileName}, c:${docC.fileName}`
 		);
 		assert.ok(window.activeTextEditor!.document === docC);
-		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+		assert.strictEqual(window.activeTextEditor!.viewColumn, ViewColumn.Two);
 	});
 
 	test('showTextDocument ViewColumn.BESIDE', async () => {
@@ -215,12 +248,12 @@ suite('vscode API - window', () => {
 
 		assert.ok(window.activeTextEditor);
 		assert.ok(window.activeTextEditor!.document === docB);
-		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+		assert.strictEqual(window.activeTextEditor!.viewColumn, ViewColumn.Two);
 
 		await window.showTextDocument(docC, ViewColumn.Beside);
 
 		assert.ok(window.activeTextEditor!.document === docC);
-		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Three);
+		assert.strictEqual(window.activeTextEditor!.viewColumn, ViewColumn.Three);
 	});
 
 	test('showTextDocument ViewColumn is always defined (even when opening > ViewColumn.Nine)', async () => {
@@ -250,7 +283,7 @@ suite('vscode API - window', () => {
 
 		assert.ok(window.activeTextEditor);
 		assert.ok(window.activeTextEditor!.document === doc10);
-		assert.equal(window.activeTextEditor!.viewColumn, 10);
+		assert.strictEqual(window.activeTextEditor!.viewColumn, 10);
 	});
 
 	test('issue #27408 - showTextDocument & vscode.diff always default to ViewColumn.One', async () => {
@@ -265,12 +298,12 @@ suite('vscode API - window', () => {
 
 		assert.ok(window.activeTextEditor);
 		assert.ok(window.activeTextEditor!.document === docB);
-		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+		assert.strictEqual(window.activeTextEditor!.viewColumn, ViewColumn.Two);
 
 		await window.showTextDocument(docC, ViewColumn.Active);
 
 		assert.ok(window.activeTextEditor!.document === docC);
-		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+		assert.strictEqual(window.activeTextEditor!.viewColumn, ViewColumn.Two);
 	});
 
 	test('issue #5362 - Incorrect TextEditor passed by onDidChangeTextEditorSelection', (done) => {
@@ -337,6 +370,151 @@ suite('vscode API - window', () => {
 		}).then(passOncePlease, failOncePlease);
 	});
 
+	//#region Tabs API tests
+	test('Tabs - Ensure tabs getter is correct', async function () {
+		// Reduce test timeout as this test should be quick, so even with 3 retries it will be under 60s.
+		this.timeout(10000);
+		// This test can be flaky because of opening a notebook
+		// Sometimes the webview doesn't resolve especially on windows so we will retry 3 times
+		this.retries(3);
+		const [docA, docB, docC, notebookDoc] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openNotebookDocument('jupyter-notebook', undefined)
+		]);
+
+		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
+		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
+		await window.showNotebookDocument(notebookDoc, { viewColumn: ViewColumn.One, preview: false });
+
+		const leftDiff = await createRandomFile();
+		const rightDiff = await createRandomFile();
+		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Three, preview: false });
+
+		const tabs = window.tabs;
+		assert.strictEqual(tabs.length, 5);
+
+		// All resources should match the text documents as they're the only tabs currently open
+		assert.strictEqual(tabs[0].resource?.toString(), docA.uri.toString());
+		assert.strictEqual(tabs[1].resource?.toString(), notebookDoc.uri.toString());
+		assert.strictEqual(tabs[2].resource?.toString(), docB.uri.toString());
+		assert.strictEqual(tabs[3].resource?.toString(), docC.uri.toString());
+		// Diff editor and side by side editor report the right side as the resource
+		assert.strictEqual(tabs[4].resource?.toString(), rightDiff.toString());
+
+		assert.strictEqual(tabs[0].viewColumn, ViewColumn.One);
+		assert.strictEqual(tabs[1].viewColumn, ViewColumn.One);
+		assert.strictEqual(tabs[2].viewColumn, ViewColumn.Two);
+		assert.strictEqual(tabs[3].viewColumn, ViewColumn.Three);
+		assert.strictEqual(tabs[4].viewColumn, ViewColumn.Three);
+	});
+
+	test('Tabs - ensure active tab is correct', async () => {
+
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+		]);
+
+		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+		assert.ok(window.activeTab);
+		assert.strictEqual(window.activeTab.resource?.toString(), docA.uri.toString());
+
+		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
+		assert.ok(window.activeTab);
+		assert.strictEqual(window.activeTab.resource?.toString(), docB.uri.toString());
+
+		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
+		assert.ok(window.activeTab);
+		assert.strictEqual(window.activeTab.resource?.toString(), docC.uri.toString());
+
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+
+		assert.ok(!window.activeTab);
+	});
+
+	test('Tabs - Move Tab', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+		]);
+		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docB, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docC, { viewColumn: ViewColumn.Two, preview: false });
+
+		let tabs = window.tabs;
+		assert.strictEqual(tabs.length, 3);
+
+		// Move the first tab of Group 1 to be the first tab of Group 2
+		await tabs[0].move(0, ViewColumn.Two);
+		assert.strictEqual(tabs.length, 3);
+		tabs = window.tabs;
+		// Tabs should now be B -> A -> C
+		assert.strictEqual(tabs[0].resource?.toString(), docB.uri.toString());
+
+		await tabs[2].move(0, ViewColumn.Two);
+		assert.strictEqual(tabs.length, 3);
+		tabs = window.tabs;
+		// Tabs should now be B -> C -> A
+		assert.strictEqual(tabs[1].resource?.toString(), docC.uri.toString());
+		await tabs[2].move(1000, ViewColumn.Two);
+		assert.strictEqual(tabs.length, 3);
+		tabs = window.tabs;
+		// Tabs should still be B -> C -> A
+		assert.strictEqual(tabs[2].resource?.toString(), docA.uri.toString());
+
+		await tabs[1].move(0, ViewColumn.Three);
+		assert.strictEqual(tabs.length, 3);
+		tabs = window.tabs;
+		// Tabs should now be B -> A -> C With C in a new group
+		assert.strictEqual(tabs[2].resource?.toString(), docC.uri.toString());
+		assert.strictEqual(tabs[2].viewColumn, ViewColumn.Three);
+
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+
+		assert.ok(!window.activeTab);
+	});
+
+	test('Tabs - Close Tabs', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+		]);
+		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docB, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docC, { viewColumn: ViewColumn.Two, preview: false });
+
+		let tabs = window.tabs;
+		assert.strictEqual(tabs.length, 3);
+
+		await tabs[0].close();
+		tabs = window.tabs;
+		assert.strictEqual(tabs.length, 2);
+		assert.strictEqual(tabs[0].resource?.toString(), docB.uri.toString());
+
+		await tabs[0].close();
+		tabs = window.tabs;
+		assert.strictEqual(tabs.length, 1);
+		assert.strictEqual(tabs[0].resource?.toString(), docC.uri.toString());
+
+		await tabs[0].close();
+		tabs = window.tabs;
+		assert.strictEqual(tabs.length, 0);
+		assert.strictEqual(tabs.length, 0);
+		assert.ok(!window.activeTab);
+	});
+
+	//#endregion
+
 	test('#7013 - input without options', function () {
 		const source = new CancellationTokenSource();
 		let p = window.showInputBox(undefined, source.token);
@@ -349,7 +527,7 @@ suite('vscode API - window', () => {
 		const p = window.showInputBox(undefined, source.token);
 		source.cancel();
 		const value = await p;
-		assert.equal(value, undefined);
+		assert.strictEqual(value, undefined);
 	});
 
 	test('showInputBox - cancel early', async function () {
@@ -357,21 +535,21 @@ suite('vscode API - window', () => {
 		source.cancel();
 		const p = window.showInputBox(undefined, source.token);
 		const value = await p;
-		assert.equal(value, undefined);
+		assert.strictEqual(value, undefined);
 	});
 
 	test('showInputBox - \'\' on Enter', function () {
 		const p = window.showInputBox();
 		return Promise.all<any>([
 			commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem'),
-			p.then(value => assert.equal(value, ''))
+			p.then(value => assert.strictEqual(value, ''))
 		]);
 	});
 
 	test('showInputBox - default value on Enter', function () {
 		const p = window.showInputBox({ value: 'farboo' });
 		return Promise.all<any>([
-			p.then(value => assert.equal(value, 'farboo')),
+			p.then(value => assert.strictEqual(value, 'farboo')),
 			commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem'),
 		]);
 	});
@@ -380,7 +558,7 @@ suite('vscode API - window', () => {
 		const p = window.showInputBox();
 		return Promise.all<any>([
 			commands.executeCommand('workbench.action.closeQuickOpen'),
-			p.then(value => assert.equal(value, undefined))
+			p.then(value => assert.strictEqual(value, undefined))
 		]);
 	});
 
@@ -388,17 +566,17 @@ suite('vscode API - window', () => {
 		const p = window.showInputBox({ value: 'farboo' });
 		return Promise.all<any>([
 			commands.executeCommand('workbench.action.closeQuickOpen'),
-			p.then(value => assert.equal(value, undefined))
+			p.then(value => assert.strictEqual(value, undefined))
 		]);
 	});
 
 	test('showInputBox - value not empty on second try', async function () {
 		const one = window.showInputBox({ value: 'notempty' });
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		assert.equal(await one, 'notempty');
+		assert.strictEqual(await one, 'notempty');
 		const two = window.showInputBox({ value: 'notempty' });
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		assert.equal(await two, 'notempty');
+		assert.strictEqual(await two, 'notempty');
 	});
 
 	test('showQuickPick, accept first', async function () {
@@ -407,9 +585,9 @@ suite('vscode API - window', () => {
 		const pick = window.showQuickPick(['eins', 'zwei', 'drei'], {
 			onDidSelectItem: tracker.onDidSelectItem
 		});
-		assert.equal(await first, 'eins');
+		assert.strictEqual(await first, 'eins');
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		assert.equal(await pick, 'eins');
+		assert.strictEqual(await pick, 'eins');
 		return tracker.done();
 	});
 
@@ -419,18 +597,18 @@ suite('vscode API - window', () => {
 		const pick = window.showQuickPick(['eins', 'zwei', 'drei'], {
 			onDidSelectItem: tracker.onDidSelectItem
 		});
-		assert.equal(await first, 'eins');
+		assert.strictEqual(await first, 'eins');
 		const second = tracker.nextItem();
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
-		assert.equal(await second, 'zwei');
+		assert.strictEqual(await second, 'zwei');
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		assert.equal(await pick, 'zwei');
+		assert.strictEqual(await pick, 'zwei');
 		return tracker.done();
 	});
 
 	test('showQuickPick, select first two', async function () {
-		const label = 'showQuickPick, select first two';
-		let i = 0;
+		// const label = 'showQuickPick, select first two';
+		// let i = 0;
 		const resolves: ((value: string) => void)[] = [];
 		let done: () => void;
 		const unexpected = new Promise<void>((resolve, reject) => {
@@ -442,26 +620,26 @@ suite('vscode API - window', () => {
 			canPickMany: true
 		});
 		const first = new Promise(resolve => resolves.push(resolve));
-		console.log(`${label}: ${++i}`);
+		// console.log(`${label}: ${++i}`);
 		await new Promise(resolve => setTimeout(resolve, 100)); // Allow UI to update.
-		console.log(`${label}: ${++i}`);
+		// console.log(`${label}: ${++i}`);
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
-		console.log(`${label}: ${++i}`);
-		assert.equal(await first, 'eins');
-		console.log(`${label}: ${++i}`);
+		// console.log(`${label}: ${++i}`);
+		assert.strictEqual(await first, 'eins');
+		// console.log(`${label}: ${++i}`);
 		await commands.executeCommand('workbench.action.quickPickManyToggle');
-		console.log(`${label}: ${++i}`);
+		// console.log(`${label}: ${++i}`);
 		const second = new Promise(resolve => resolves.push(resolve));
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
-		console.log(`${label}: ${++i}`);
-		assert.equal(await second, 'zwei');
-		console.log(`${label}: ${++i}`);
+		// console.log(`${label}: ${++i}`);
+		assert.strictEqual(await second, 'zwei');
+		// console.log(`${label}: ${++i}`);
 		await commands.executeCommand('workbench.action.quickPickManyToggle');
-		console.log(`${label}: ${++i}`);
+		// console.log(`${label}: ${++i}`);
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		console.log(`${label}: ${++i}`);
+		// console.log(`${label}: ${++i}`);
 		assert.deepStrictEqual(await picks, ['eins', 'zwei']);
-		console.log(`${label}: ${++i}`);
+		// console.log(`${label}: ${++i}`);
 		done!();
 		return unexpected;
 	});
@@ -493,7 +671,7 @@ suite('vscode API - window', () => {
 		const p = window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
 		source.cancel();
 		return p.then(value => {
-			assert.equal(value, undefined);
+			assert.strictEqual(value, undefined);
 		});
 	});
 
@@ -502,7 +680,7 @@ suite('vscode API - window', () => {
 		source.cancel();
 		const p = window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
 		return p.then(value => {
-			assert.equal(value, undefined);
+			assert.strictEqual(value, undefined);
 		});
 	});
 
@@ -512,7 +690,7 @@ suite('vscode API - window', () => {
 
 		const result = window.showQuickPick(['eins', 'zwei', 'drei'], { ignoreFocusOut: true }).then(result => {
 			source.cancel();
-			assert.equal(result, undefined);
+			assert.strictEqual(result, undefined);
 		});
 
 		window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
@@ -523,7 +701,7 @@ suite('vscode API - window', () => {
 	test('showQuickPick, canceled by input', function () {
 
 		const result = window.showQuickPick(['eins', 'zwei', 'drei'], { ignoreFocusOut: true }).then(result => {
-			assert.equal(result, undefined);
+			assert.strictEqual(result, undefined);
 		});
 
 		const source = new CancellationTokenSource();
@@ -543,7 +721,7 @@ suite('vscode API - window', () => {
 		const result = window.showQuickPick(data, undefined, source.token);
 		source.cancel();
 		const value_1 = await result;
-		assert.equal(value_1, undefined);
+		assert.strictEqual(value_1, undefined);
 	});
 
 	test('showQuickPick, never resolve promise and cancel - #22453', function () {
@@ -551,7 +729,7 @@ suite('vscode API - window', () => {
 		const result = window.showQuickPick(new Promise<string[]>(_resolve => { }));
 
 		const a = result.then(value => {
-			assert.equal(value, undefined);
+			assert.strictEqual(value, undefined);
 		});
 		const b = commands.executeCommand('workbench.action.closeQuickOpen');
 		return Promise.all([a, b]);
@@ -588,7 +766,7 @@ suite('vscode API - window', () => {
 
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 		await commands.executeCommand('workbench.action.closeQuickOpen');
-		assert.equal(await result, undefined);
+		assert.strictEqual(await result, undefined);
 	});
 
 	function createQuickPickTracker<T extends string | QuickPickItem>() {
@@ -617,7 +795,7 @@ suite('vscode API - window', () => {
 
 				let subscription = window.onDidChangeTextEditorSelection(e => {
 					assert.ok(e.textEditor === editor);
-					assert.equal(e.kind, TextEditorSelectionChangeKind.Command);
+					assert.strictEqual(e.kind, TextEditorSelectionChangeKind.Command);
 
 					subscription.dispose();
 					resolve();
@@ -627,5 +805,27 @@ suite('vscode API - window', () => {
 			});
 
 		});
+	});
+
+	test('createStatusBar', async function () {
+		const statusBarEntryWithoutId = window.createStatusBarItem(StatusBarAlignment.Left, 100);
+		assert.strictEqual(statusBarEntryWithoutId.id, 'vscode.vscode-api-tests');
+		assert.strictEqual(statusBarEntryWithoutId.alignment, StatusBarAlignment.Left);
+		assert.strictEqual(statusBarEntryWithoutId.priority, 100);
+		assert.strictEqual(statusBarEntryWithoutId.name, undefined);
+		statusBarEntryWithoutId.name = 'Test Name';
+		assert.strictEqual(statusBarEntryWithoutId.name, 'Test Name');
+		statusBarEntryWithoutId.tooltip = 'Tooltip';
+		assert.strictEqual(statusBarEntryWithoutId.tooltip, 'Tooltip');
+		statusBarEntryWithoutId.tooltip = new MarkdownString('**bold**');
+		assert.strictEqual(statusBarEntryWithoutId.tooltip.value, '**bold**');
+
+		const statusBarEntryWithId = window.createStatusBarItem('testId', StatusBarAlignment.Right, 200);
+		assert.strictEqual(statusBarEntryWithId.alignment, StatusBarAlignment.Right);
+		assert.strictEqual(statusBarEntryWithId.priority, 200);
+		assert.strictEqual(statusBarEntryWithId.id, 'testId');
+		assert.strictEqual(statusBarEntryWithId.name, undefined);
+		statusBarEntryWithId.name = 'Test Name';
+		assert.strictEqual(statusBarEntryWithId.name, 'Test Name');
 	});
 });

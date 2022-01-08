@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { OngoingRequestCancellerFactory } from '../tsServer/cancellation';
 import { ClientCapabilities, ClientCapability, ServerType } from '../typescriptService';
 import API from '../utils/api';
-import { SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
+import { SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Logger } from '../utils/logger';
 import { isWeb } from '../utils/platform';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
@@ -56,11 +56,13 @@ export class TypeScriptServerSpawner {
 	): ITypeScriptServer {
 		let primaryServer: ITypeScriptServer;
 		const serverType = this.getCompositeServerType(version, capabilities, configuration);
+		const shouldUseSeparateDiagnosticsServer = this.shouldUseSeparateDiagnosticsServer(configuration);
+
 		switch (serverType) {
 			case CompositeServerType.SeparateSyntax:
 			case CompositeServerType.DynamicSeparateSyntax:
 				{
-					const enableDynamicRouting = serverType === CompositeServerType.DynamicSeparateSyntax;
+					const enableDynamicRouting = !shouldUseSeparateDiagnosticsServer && serverType === CompositeServerType.DynamicSeparateSyntax;
 					primaryServer = new SyntaxRoutingTsServer({
 						syntax: this.spawnTsServer(TsServerProcessKind.Syntax, version, configuration, pluginManager, cancellerFactory),
 						semantic: this.spawnTsServer(TsServerProcessKind.Semantic, version, configuration, pluginManager, cancellerFactory),
@@ -79,7 +81,7 @@ export class TypeScriptServerSpawner {
 				}
 		}
 
-		if (this.shouldUseSeparateDiagnosticsServer(configuration)) {
+		if (shouldUseSeparateDiagnosticsServer) {
 			return new GetErrRoutingTsServer({
 				getErr: this.spawnTsServer(TsServerProcessKind.Diagnostics, version, configuration, pluginManager, cancellerFactory),
 				primary: primaryServer,
@@ -98,11 +100,14 @@ export class TypeScriptServerSpawner {
 			return CompositeServerType.SyntaxOnly;
 		}
 
-		switch (configuration.separateSyntaxServer) {
-			case SeparateSyntaxServerConfiguration.Disabled:
+		switch (configuration.useSyntaxServer) {
+			case SyntaxServerConfiguration.Always:
+				return CompositeServerType.SyntaxOnly;
+
+			case SyntaxServerConfiguration.Never:
 				return CompositeServerType.Single;
 
-			case SeparateSyntaxServerConfiguration.Enabled:
+			case SyntaxServerConfiguration.Auto:
 				if (version.apiVersion?.gte(API.v340)) {
 					return version.apiVersion?.gte(API.v400)
 						? CompositeServerType.DynamicSeparateSyntax
@@ -251,21 +256,15 @@ export class TypeScriptServerSpawner {
 			}
 		}
 
-		if (configuration.npmLocation) {
+		if (configuration.npmLocation && !isWeb()) {
 			args.push('--npmLocation', `"${configuration.npmLocation}"`);
 		}
 
-		if (apiVersion.gte(API.v260)) {
-			args.push('--locale', TypeScriptServerSpawner.getTsLocale(configuration));
-		}
+		args.push('--locale', TypeScriptServerSpawner.getTsLocale(configuration));
 
-		if (apiVersion.gte(API.v291)) {
-			args.push('--noGetErrOnBackgroundUpdate');
-		}
+		args.push('--noGetErrOnBackgroundUpdate');
 
-		if (apiVersion.gte(API.v345)) {
-			args.push('--validateDefaultNpmLocation');
-		}
+		args.push('--validateDefaultNpmLocation');
 
 		return { args, tsServerLogFile, tsServerTraceDirectory };
 	}

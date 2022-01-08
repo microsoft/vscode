@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionIdentifier, IGlobalExtensionEnablementService, DISABLED_EXTENSIONS_STORAGE_PATH } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { DISABLED_EXTENSIONS_STORAGE_PATH, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class GlobalExtensionEnablementService extends Disposable implements IGlobalExtensionEnablementService {
 
@@ -20,10 +20,16 @@ export class GlobalExtensionEnablementService extends Disposable implements IGlo
 
 	constructor(
 		@IStorageService storageService: IStorageService,
+		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 	) {
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
 		this._register(this.storageManger.onDidChange(extensions => this._onDidChangeEnablement.fire({ extensions, source: 'storage' })));
+		this._register(extensionManagementService.onDidInstallExtensions(e => e.forEach(({ local, operation }) => {
+			if (local && operation === InstallOperation.Migrate) {
+				this._removeFromDisabledExtensions(local.identifier); /* Reset migrated extensions */
+			}
+		})));
 	}
 
 	async enableExtension(extension: IExtensionIdentifier, source?: string): Promise<boolean> {

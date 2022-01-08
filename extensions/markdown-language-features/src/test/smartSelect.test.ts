@@ -5,11 +5,11 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-
 import MarkdownSmartSelect from '../features/smartSelect';
-import { InMemoryDocument } from './inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
+import { InMemoryDocument } from './inMemoryDocument';
 import { joinLines } from './util';
+
 const CURSOR = '$$CURSOR$$';
 
 const testFileName = vscode.Uri.file('test.md');

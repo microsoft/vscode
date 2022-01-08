@@ -11,12 +11,14 @@ import { conditionalRegistration, requireSomeCapability } from '../utils/depende
 import { DocumentSelector } from '../utils/documentSelector';
 import { markdownDocumentation } from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
+import FileConfigurationManager from './fileConfigurationManager';
 
 
 class TypeScriptHoverProvider implements vscode.HoverProvider {
 
 	public constructor(
-		private readonly client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient,
+		private readonly fileConfigurationManager: FileConfigurationManager,
 	) { }
 
 	public async provideHover(
@@ -29,8 +31,13 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 			return undefined;
 		}
 
-		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-		const response = await this.client.interruptGetErr(() => this.client.execute('quickinfo', args, token));
+		const response = await this.client.interruptGetErr(async () => {
+			await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
+
+			const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
+			return this.client.execute('quickinfo', args, token);
+		});
+
 		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}
@@ -45,7 +52,7 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 		data: Proto.QuickInfoResponseBody,
 		source: ServerType | undefined,
 	) {
-		const parts: vscode.MarkedString[] = [];
+		const parts: vscode.MarkdownString[] = [];
 
 		if (data.displayString) {
 			const displayParts: string[] = [];
@@ -59,22 +66,22 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 			}
 
 			displayParts.push(data.displayString);
-
-			parts.push({ language: 'typescript', value: displayParts.join(' ') });
+			parts.push(new vscode.MarkdownString().appendCodeblock(displayParts.join(' '), 'typescript'));
 		}
-		parts.push(markdownDocumentation(data.documentation, data.tags));
+		parts.push(markdownDocumentation(data.documentation, data.tags, this.client));
 		return parts;
 	}
 }
 
 export function register(
 	selector: DocumentSelector,
-	client: ITypeScriptServiceClient
+	client: ITypeScriptServiceClient,
+	fileConfigurationManager: FileConfigurationManager,
 ): vscode.Disposable {
 	return conditionalRegistration([
 		requireSomeCapability(client, ClientCapability.EnhancedSyntax, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerHoverProvider(selector.syntax,
-			new TypeScriptHoverProvider(client));
+			new TypeScriptHoverProvider(client, fileConfigurationManager));
 	});
 }

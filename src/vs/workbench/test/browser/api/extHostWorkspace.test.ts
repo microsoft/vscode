@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { basename } from 'vs/base/common/path';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
@@ -23,32 +23,20 @@ import { IPatternInfo } from 'vs/workbench/services/search/common/search';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { nullExtensionDescription as extensionDescriptor } from 'vs/workbench/services/extensions/common/extensions';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
 	const result = new ExtHostWorkspace(
 		new ExtHostRpcService(mainContext),
-		new class extends mock<IExtHostInitDataService>() { workspace = data; },
-		new class extends mock<IExtHostFileSystemInfo>() { getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } },
+		new class extends mock<IExtHostInitDataService>() { override workspace = data; },
+		new class extends mock<IExtHostFileSystemInfo>() { override getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } },
 		logService,
 	);
-	result.$initializeWorkspace(data);
+	result.$initializeWorkspace(data, true);
 	return result;
 }
 
 suite('ExtHostWorkspace', function () {
-
-	const extensionDescriptor: IExtensionDescription = {
-		identifier: new ExtensionIdentifier('nullExtensionDescription'),
-		name: 'ext',
-		publisher: 'vscode',
-		enableProposedApi: false,
-		engines: undefined!,
-		extensionLocation: undefined!,
-		isBuiltin: false,
-		isUserBuiltin: false,
-		isUnderDevelopment: false,
-		version: undefined!
-	};
 
 	function assertAsRelativePath(workspace: ExtHostWorkspace, input: string, expected: string, includeWorkspace?: boolean) {
 		const actual = workspace.getRelativePath(input, includeWorkspace);
@@ -270,7 +258,7 @@ suite('ExtHostWorkspace', function () {
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0)] });
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1)] });
 
-		assert.notEqual(firstFolder, ws.workspace!.folders[0]);
+		assert.notStrictEqual(firstFolder, ws.workspace!.folders[0]);
 	});
 
 	test('updateWorkspaceFolders - invalid arguments', function () {
@@ -589,7 +577,7 @@ suite('ExtHostWorkspace', function () {
 
 		let mainThreadCalled = false;
 		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			$startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
+			override $startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
 				mainThreadCalled = true;
 				assert.strictEqual(includePattern, 'foo');
 				assert.strictEqual(_includeFolder, null);
@@ -611,7 +599,7 @@ suite('ExtHostWorkspace', function () {
 
 		let mainThreadCalled = false;
 		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			$startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
+			override $startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
 				mainThreadCalled = true;
 				assert.strictEqual(includePattern, 'glob/**');
 				assert.deepStrictEqual(_includeFolder ? URI.from(_includeFolder).toJSON() : null, URI.file('/other/folder').toJSON());
@@ -640,7 +628,7 @@ suite('ExtHostWorkspace', function () {
 
 		let mainThreadCalled = false;
 		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			$startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
+			override $startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
 				mainThreadCalled = true;
 				assert.strictEqual(includePattern, 'glob/**');
 				assert.deepStrictEqual(_includeFolder, URI.file('/other/folder').toJSON());
@@ -661,7 +649,7 @@ suite('ExtHostWorkspace', function () {
 
 		let mainThreadCalled = false;
 		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			$startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
+			override $startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
 				mainThreadCalled = true;
 				return Promise.resolve(null);
 			}
@@ -681,7 +669,7 @@ suite('ExtHostWorkspace', function () {
 
 		let mainThreadCalled = false;
 		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			$startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
+			override $startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
 				mainThreadCalled = true;
 				assert(excludePatternOrDisregardExcludes, 'glob/**'); // Note that the base portion is ignored, see #52651
 				return Promise.resolve(null);
@@ -700,7 +688,7 @@ suite('ExtHostWorkspace', function () {
 
 		let mainThreadCalled = false;
 		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+			override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
 				mainThreadCalled = true;
 				assert.strictEqual(query.pattern, 'foo');
 				assert.strictEqual(folder, null);
@@ -721,7 +709,7 @@ suite('ExtHostWorkspace', function () {
 
 		let mainThreadCalled = false;
 		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+			override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
 				mainThreadCalled = true;
 				assert.strictEqual(query.pattern, 'foo');
 				assert.strictEqual(folder, null);
@@ -742,7 +730,7 @@ suite('ExtHostWorkspace', function () {
 
 		let mainThreadCalled = false;
 		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+			override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
 				mainThreadCalled = true;
 				assert.strictEqual(query.pattern, 'foo');
 				assert.deepStrictEqual(folder, URI.file('/other/folder').toJSON());
@@ -763,7 +751,7 @@ suite('ExtHostWorkspace', function () {
 
 		let mainThreadCalled = false;
 		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+			override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
 				mainThreadCalled = true;
 				return null;
 			}
@@ -781,7 +769,7 @@ suite('ExtHostWorkspace', function () {
 
 		let mainThreadCalled = false;
 		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+			override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
 				mainThreadCalled = true;
 				assert.strictEqual(query.pattern, 'foo');
 				assert.deepStrictEqual(folder, null);

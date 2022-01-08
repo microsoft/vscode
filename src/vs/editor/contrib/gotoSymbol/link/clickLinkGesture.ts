@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { Event, Emitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
+import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 function hasModifier(e: { ctrlKey: boolean; shiftKey: boolean; altKey: boolean; metaKey: boolean }, modifier: 'ctrlKey' | 'shiftKey' | 'altKey' | 'metaKey'): boolean {
 	return !!e[modifier];

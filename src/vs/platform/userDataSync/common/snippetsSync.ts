@@ -3,23 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSynchroniser, SyncResource, IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService,
-	USER_DATA_SYNC_SCHEME, ISyncResourceHandle, IRemoteUserData, ISyncData, Change
-} from 'vs/platform/userDataSync/common/userDataSync';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService, IFileStat, IFileContent, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { URI } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { merge, IMergeResult as ISnippetsMergeResult, areSame } from 'vs/platform/userDataSync/common/snippetsMerge';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { deepClone } from 'vs/base/common/objects';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
+import { deepClone } from 'vs/base/common/objects';
+import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { areSame, IMergeResult as ISnippetsMergeResult, merge } from 'vs/platform/userDataSync/common/snippetsMerge';
+import { Change, IRemoteUserData, ISyncData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface ISnippetsResourcePreview extends IFileResourcePreview {
 	previewResult: IMergeResult;
@@ -42,20 +40,24 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
+		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.Snippets, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
+		super(SyncResource.Snippets, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
 		this.snippetsFolder = environmentService.snippetsHome;
 		this._register(this.fileService.watch(environmentService.userRoamingDataHome));
 		this._register(this.fileService.watch(this.snippetsFolder));
 		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.affects(this.snippetsFolder))(() => this.triggerLocalChange()));
 	}
 
-	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISnippetsResourcePreview[]> {
+	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean): Promise<ISnippetsResourcePreview[]> {
 		const local = await this.getSnippetsFileContents();
 		const localSnippets = this.toSnippetsContents(local);
 		const remoteSnippets: IStringDictionary<string> | null = remoteUserData.syncData ? this.parseSnippets(remoteUserData.syncData) : null;
+
+		// Use remote data as last sync data if last sync data does not exist and remote data is from same machine
+		lastSyncUserData = lastSyncUserData === null && isRemoteDataFromCurrentMachine ? remoteUserData : lastSyncUserData;
 		const lastSyncSnippets: IStringDictionary<string> | null = lastSyncUserData && lastSyncUserData.syncData ? this.parseSnippets(lastSyncUserData.syncData) : null;
 
 		if (remoteSnippets) {
@@ -66,6 +68,17 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 
 		const mergeResult = merge(localSnippets, remoteSnippets, lastSyncSnippets);
 		return this.getResourcePreviews(mergeResult, local, remoteSnippets || {});
+	}
+
+	protected async hasRemoteChanged(lastSyncUserData: IRemoteUserData): Promise<boolean> {
+		const lastSyncSnippets: IStringDictionary<string> | null = lastSyncUserData.syncData ? this.parseSnippets(lastSyncUserData.syncData) : null;
+		if (lastSyncSnippets === null) {
+			return true;
+		}
+		const local = await this.getSnippetsFileContents();
+		const localSnippets = this.toSnippetsContents(local);
+		const mergeResult = merge(localSnippets, lastSyncSnippets, lastSyncSnippets);
+		return Object.keys(mergeResult.remote.added).length > 0 || Object.keys(mergeResult.remote.updated).length > 0 || mergeResult.remote.removed.length > 0 || mergeResult.conflicts.length > 0;
 	}
 
 	protected async getMergeResult(resourcePreview: ISnippetsResourcePreview, token: CancellationToken): Promise<IMergeResult> {
@@ -355,7 +368,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		return [];
 	}
 
-	async resolveContent(uri: URI): Promise<string | null> {
+	override async resolveContent(uri: URI): Promise<string | null> {
 		if (this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }))
 			|| this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }))
 			|| this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' }))) {
@@ -499,8 +512,9 @@ export class SnippetsInitializer extends AbstractInitializer {
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.Snippets, environmentService, logService, fileService);
+		super(SyncResource.Snippets, environmentService, logService, fileService, uriIdentityService);
 	}
 
 	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {

@@ -6,12 +6,12 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { MainThreadDocumentContentProviders } from 'vs/workbench/api/browser/mainThreadDocumentContentProviders';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { mock } from 'vs/base/test/common/mock';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
-import { TextEdit } from 'vs/editor/common/modes';
+import { TextEdit } from 'vs/editor/common/languages';
 
 suite('MainThreadDocumentContentProviders', function () {
 
@@ -22,13 +22,13 @@ suite('MainThreadDocumentContentProviders', function () {
 
 		let providers = new MainThreadDocumentContentProviders(new TestRPCProtocol(), null!, null!,
 			new class extends mock<IModelService>() {
-				getModel(_uri: URI) {
+				override getModel(_uri: URI) {
 					assert.strictEqual(uri.toString(), _uri.toString());
 					return model;
 				}
 			},
 			new class extends mock<IEditorWorkerService>() {
-				computeMoreMinimalEdits(_uri: URI, data: TextEdit[] | undefined) {
+				override computeMoreMinimalEdits(_uri: URI, data: TextEdit[] | undefined) {
 					assert.strictEqual(model.getValue(), '1');
 					return Promise.resolve(data);
 				}
@@ -45,6 +45,7 @@ suite('MainThreadDocumentContentProviders', function () {
 					reject(err);
 				}
 				if (model.getValue() === '1\n2\n3') {
+					model.dispose();
 					resolve();
 				}
 			});

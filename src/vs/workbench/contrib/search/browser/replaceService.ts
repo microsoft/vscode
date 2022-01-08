@@ -9,8 +9,8 @@ import * as network from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/workbench/contrib/search/common/searchModel';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
@@ -23,9 +23,9 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { mergeSort } from 'vs/base/common/arrays';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
+import { Promises } from 'vs/base/common/async';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -57,7 +57,7 @@ export class ReplacePreviewContentProvider implements ITextModelContentProvider,
 class ReplacePreviewModel extends Disposable {
 	constructor(
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@ISearchWorkbenchService private readonly searchWorkbenchService: ISearchWorkbenchService
@@ -70,8 +70,8 @@ class ReplacePreviewModel extends Disposable {
 		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches().filter(match => match.resource.toString() === fileResource.toString())[0];
 		const ref = this._register(await this.textModelResolverService.createModelReference(fileResource));
 		const sourceModel = ref.object.textEditorModel;
-		const sourceModelModeId = sourceModel.getLanguageIdentifier().language;
-		const replacePreviewModel = this.modelService.createModel(createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()), this.modeService.create(sourceModelModeId), replacePreviewUri);
+		const sourceModelLanguageId = sourceModel.getLanguageId();
+		const replacePreviewModel = this.modelService.createModel(createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()), this.languageService.createById(sourceModelLanguageId), replacePreviewUri);
 		this._register(fileMatch.onChange(({ forceUpdateModel }) => this.update(sourceModel, replacePreviewModel, fileMatch, forceUpdateModel)));
 		this._register(this.searchWorkbenchService.searchModel.onReplaceTermChanged(() => this.update(sourceModel, replacePreviewModel, fileMatch)));
 		this._register(fileMatch.onDispose(() => replacePreviewModel.dispose())); // TODO@Sandeep we should not dispose a model directly but rather the reference (depends on https://github.com/microsoft/vscode/issues/17073)
@@ -106,15 +106,15 @@ export class ReplaceService implements IReplaceService {
 		const edits = this.createEdits(arg, resource);
 		await this.bulkEditorService.apply(edits, { progress });
 
-		return Promise.all(edits.map(e => this.textFileService.files.get(e.resource)?.save()));
+		return Promises.settled(edits.map(async e => this.textFileService.files.get(e.resource)?.save()));
 	}
 
 	async openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		const fileMatch = element instanceof Match ? element.parent() : element;
 
 		const editor = await this.editorService.openEditor({
-			leftResource: fileMatch.resource,
-			rightResource: toReplaceResource(fileMatch.resource),
+			original: { resource: fileMatch.resource },
+			modified: { resource: toReplaceResource(fileMatch.resource) },
 			label: nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()),
 			description: this.labelService.getUriLabel(dirname(fileMatch.resource), { relative: true }),
 			options: {
@@ -169,7 +169,7 @@ export class ReplaceService implements IReplaceService {
 				resourceEdit.textEdit.text)
 			);
 		}
-		replaceModel.pushEditOperations([], mergeSort(modelEdits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range)), () => []);
+		replaceModel.pushEditOperations([], modelEdits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range)), () => []);
 	}
 
 	private createEdits(arg: FileMatchOrMatch | FileMatch[], resource: URI | null = null): ResourceTextEdit[] {

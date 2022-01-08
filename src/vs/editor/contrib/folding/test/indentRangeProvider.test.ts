@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { FoldingMarkers } from 'vs/editor/common/languages/languageConfiguration';
 import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
-import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 interface ExpectedIndentRange {
 	startLineNumber: number;
@@ -22,7 +22,7 @@ function assertRanges(lines: string[], expected: ExpectedIndentRange[], offside:
 	for (let i = 0; i < actual.length; i++) {
 		actualRanges[i] = r(actual.getStartLineNumber(i), actual.getEndLineNumber(i), actual.getParentIndex(i));
 	}
-	assert.deepEqual(actualRanges, expected);
+	assert.deepStrictEqual(actualRanges, expected);
 	model.dispose();
 }
 

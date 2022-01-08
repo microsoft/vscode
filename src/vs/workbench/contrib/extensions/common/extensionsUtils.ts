@@ -34,7 +34,7 @@ export class KeymapExtensions extends Disposable implements IWorkbenchContributi
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
-		this._register(lifecycleService.onShutdown(() => this.dispose()));
+		this._register(lifecycleService.onDidShutdown(() => this.dispose()));
 		this._register(instantiationService.invokeFunction(onExtensionChanged)((identifiers => {
 			Promise.all(identifiers.map(identifier => this.checkForOtherKeymaps(identifier)))
 				.then(undefined, onUnexpectedError);
@@ -90,12 +90,12 @@ export class KeymapExtensions extends Disposable implements IWorkbenchContributi
 export function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentifier[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
 	const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
-	const onDidInstallExtension = Event.chain(extensionService.onDidInstallExtension)
-		.filter(e => e.operation === InstallOperation.Install)
+	const onDidInstallExtensions = Event.chain(extensionService.onDidInstallExtensions)
+		.filter(e => e.some(({ operation }) => operation === InstallOperation.Install))
+		.map(e => e.map(({ identifier }) => identifier))
 		.event;
 	return Event.debounce<IExtensionIdentifier[], IExtensionIdentifier[]>(Event.any(
-		Event.chain(Event.any(onDidInstallExtension, extensionService.onDidUninstallExtension))
-			.map(e => [e.identifier])
+		Event.chain(Event.any(onDidInstallExtensions, Event.map(extensionService.onDidUninstallExtension, e => [e.identifier])))
 			.event,
 		Event.map(extensionEnablementService.onEnablementChanged, extensions => extensions.map(e => e.identifier))
 	), (result: IExtensionIdentifier[] | undefined, identifiers: IExtensionIdentifier[]) => {

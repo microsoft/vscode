@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/syntaxRangeProvider';
-import { FoldingRangeProvider, FoldingRange, FoldingContext, ProviderResult } from 'vs/editor/common/modes';
-import { ITextModel } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ITextModel } from 'vs/editor/common/model';
+import { FoldingContext, FoldingRange, FoldingRangeProvider, ProviderResult } from 'vs/editor/common/languages';
+import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/syntaxRangeProvider';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 interface IndentRange {
 	start: number;
@@ -81,7 +81,7 @@ suite('Syntax folding', () => {
 					actual.push({ start: indentRanges.getStartLineNumber(i), end: indentRanges.getEndLineNumber(i) });
 				}
 			}
-			assert.deepEqual(actual, expectedRanges, message);
+			assert.deepStrictEqual(actual, expectedRanges, message);
 		}
 
 		await assertLimit(1000, [r1, r2, r3, r4, r5, r6, r7, r8, r9], '1000');
@@ -95,6 +95,8 @@ suite('Syntax folding', () => {
 		await assertLimit(2, [r1, r9], '2');
 		await assertLimit(1, [r1], '1');
 		await assertLimit(0, [], '0');
+
+		model.dispose();
 	});
 
 });

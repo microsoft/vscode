@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { Node, Stylesheet } from 'EmmetFlatNode';
 import { isValidLocationForEmmetAbbreviation, getSyntaxFromArgs } from './abbreviationActions';
-import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, getFlatNode, allowedMimeTypesInScriptTag, toLSTextDocument, getHtmlFlatNode } from './util';
+import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, getFlatNode, allowedMimeTypesInScriptTag, toLSTextDocument, getHtmlFlatNode, getEmbeddedCssNodeIfAny } from './util';
 import { Range as LSRange } from 'vscode-languageserver-textdocument';
 import { getRootNode } from './parseDocument';
 
@@ -49,7 +49,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		const mappedLanguages = getMappingForIncludedLanguages();
 		const isSyntaxMapped = mappedLanguages[document.languageId] ? true : false;
-		let emmetMode = getEmmetMode((isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId), excludedLanguages);
+		let emmetMode = getEmmetMode((isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId), mappedLanguages, excludedLanguages);
 
 		if (!emmetMode
 			|| emmetConfig['showExpandedAbbreviation'] === 'never'
@@ -59,7 +59,6 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		let syntax = emmetMode;
 
-		const helper = getEmmetHelper();
 		let validateLocation = syntax === 'html' || syntax === 'jsx' || syntax === 'xml';
 		let rootNode: Node | undefined;
 		let currentNode: Node | undefined;
@@ -67,7 +66,14 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		const lsDoc = toLSTextDocument(document);
 		position = document.validatePosition(position);
 
-		if (document.languageId === 'html') {
+		// Don't show completions if there's a comment at the beginning of the line
+		const lineRange = new vscode.Range(position.line, 0, position.line, position.character);
+		if (document.getText(lineRange).trimStart().startsWith('//')) {
+			return;
+		}
+
+		const helper = getEmmetHelper();
+		if (syntax === 'html') {
 			if (context.triggerKind === vscode.CompletionTriggerKind.TriggerForIncompleteCompletions) {
 				switch (this.lastCompletionType) {
 					case 'html':
@@ -137,6 +143,20 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			currentNode = getFlatNode(rootNode, offset, true);
 		}
 
+		// Fix for https://github.com/microsoft/vscode/issues/107578
+		// Validate location if syntax is of styleSheet type to ensure that location is valid for emmet abbreviation.
+		// For an html document containing a <style> node, compute the embeddedCssNode and fetch the flattened node as currentNode.
+		if (!isStyleSheet(document.languageId) && isStyleSheet(syntax) && context.triggerKind !== vscode.CompletionTriggerKind.TriggerForIncompleteCompletions) {
+			validateLocation = true;
+			rootNode = getRootNode(document, true);
+			if (!rootNode) {
+				return;
+			}
+			let flatNode = getFlatNode(rootNode, offset, true);
+			let embeddedCssNode = getEmbeddedCssNodeIfAny(document, flatNode, position);
+			currentNode = getFlatNode(embeddedCssNode, offset, true);
+		}
+
 		if (validateLocation && !isValidLocationForEmmetAbbreviation(document, rootNode, currentNode, syntax, offset, toRange(extractAbbreviationResults.abbreviationRange))) {
 			return;
 		}
@@ -162,7 +182,8 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 				return;
 			}
 
-			let result = helper.doComplete(toLSTextDocument(document), position, syntax, getEmmetConfiguration(syntax!));
+			const config = getEmmetConfiguration(syntax!);
+			const result = helper.doComplete(toLSTextDocument(document), position, syntax, config);
 
 			// https://github.com/microsoft/vscode/issues/86941
 			if (result && result.items && result.items.length === 1) {

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as extpath from 'vs/base/common/extpath';
-import * as paths from 'vs/base/common/path';
-import { URI, uriToFsPath } from 'vs/base/common/uri';
-import { equalsIgnoreCase, compare as strCompare } from 'vs/base/common/strings';
-import { Schemas } from 'vs/base/common/network';
-import { isWindows, isLinux } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
+import * as extpath from 'vs/base/common/extpath';
+import { Schemas } from 'vs/base/common/network';
+import * as paths from 'vs/base/common/path';
+import { isLinux, isWindows } from 'vs/base/common/platform';
+import { compare as strCompare, equalsIgnoreCase } from 'vs/base/common/strings';
+import { URI, uriToFsPath } from 'vs/base/common/uri';
 
 export function originalFSPath(uri: URI): string {
 	return uriToFsPath(uri, true);
@@ -42,15 +42,15 @@ export interface IExtUri {
 	/**
 	 * Tests whether a `candidate` URI is a parent or equal of a given `base` URI.
 	 *
-	 * @param base A uri which is "longer"
-	 * @param parentCandidate A uri which is "shorter" then `base`
+	 * @param base A uri which is "longer" or at least same length as `parentCandidate`
+	 * @param parentCandidate A uri which is "shorter" or up to same length as `base`
 	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
 	 */
 	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment?: boolean): boolean;
 
 	/**
 	 * Creates a key from a resource URI to be used to resource comparison and for resource maps.
-	 * @see ResourceMap
+	 * @see {@link ResourceMap}
 	 * @param uri Uri
 	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
 	 */
@@ -264,12 +264,7 @@ export class ExtUri implements IExtUri {
 				path: newURI.path
 			});
 		}
-		if (path.indexOf('/') === -1) { // no slashes? it's likely a Windows path
-			path = extpath.toSlashes(path);
-			if (/^[a-zA-Z]:(\/|$)/.test(path)) { // starts with a drive letter
-				path = '/' + path;
-			}
-		}
+		path = extpath.toPosixPath(path); // we allow path to be a windows path
 		return base.with({
 			path: paths.posix.resolve(base.path, path)
 		});
@@ -281,8 +276,8 @@ export class ExtUri implements IExtUri {
 		return !!resource.path && resource.path[0] === '/';
 	}
 
-	isEqualAuthority(a1: string, a2: string) {
-		return a1 === a2 || equalsIgnoreCase(a1, a2);
+	isEqualAuthority(a1: string | undefined, a2: string | undefined) {
+		return a1 === a2 || (a1 !== undefined && a2 !== undefined && equalsIgnoreCase(a1, a2));
 	}
 
 	hasTrailingPathSeparator(resource: URI, sep: string = paths.sep): boolean {

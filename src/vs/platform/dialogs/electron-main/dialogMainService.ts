@@ -3,19 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { MessageBoxOptions, MessageBoxReturnValue, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, dialog, FileFilter, BrowserWindow } from 'electron';
+import { BrowserWindow, dialog, FileFilter, MessageBoxOptions, MessageBoxReturnValue, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron';
 import { Queue } from 'vs/base/common/async';
-import { IStateService } from 'vs/platform/state/node/state';
-import { isMacintosh } from 'vs/base/common/platform';
-import { dirname } from 'vs/base/common/path';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { exists } from 'vs/base/node/pfs';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
+import { hash } from 'vs/base/common/hash';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { normalizeNFC } from 'vs/base/common/normalization';
+import { dirname } from 'vs/base/common/path';
+import { isMacintosh } from 'vs/base/common/platform';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { Promises } from 'vs/base/node/pfs';
+import { localize } from 'vs/nls';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
 
 export const IDialogMainService = createDecorator<IDialogMainService>('dialogMainService');
 
@@ -48,14 +51,14 @@ export class DialogMainService implements IDialogMainService {
 
 	private static readonly workingDirPickerStorageKey = 'pickerWorkingDir';
 
-	private readonly mapWindowToDialogQueue: Map<number, Queue<void>>;
-	private readonly noWindowDialogQueue: Queue<void>;
+	private readonly windowFileDialogLocks = new Map<number, Set<number>>();
+	private readonly windowDialogQueues = new Map<number, Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>>();
+	private readonly noWindowDialogueQueue = new Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>();
 
 	constructor(
-		@IStateService private readonly stateService: IStateService
+		@IStateMainService private readonly stateMainService: IStateMainService,
+		@ILogService private readonly logService: ILogService
 	) {
-		this.mapWindowToDialogQueue = new Map<number, Queue<void>>();
-		this.noWindowDialogQueue = new Queue<void>();
 	}
 
 	pickFileFolder(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
@@ -71,7 +74,7 @@ export class DialogMainService implements IDialogMainService {
 	}
 
 	pickWorkspace(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
-		const title = localize('openWorkspaceTitle', "Open Workspace");
+		const title = localize('openWorkspaceTitle', "Open Workspace from File");
 		const buttonLabel = mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open"));
 		const filters = WORKSPACE_FILTER;
 
@@ -88,8 +91,7 @@ export class DialogMainService implements IDialogMainService {
 		};
 
 		// Ensure defaultPath
-		dialogOptions.defaultPath = options.defaultPath || this.stateService.getItem<string>(DialogMainService.workingDirPickerStorageKey);
-
+		dialogOptions.defaultPath = options.defaultPath || this.stateMainService.getItem<string>(DialogMainService.workingDirPickerStorageKey);
 
 		// Ensure properties
 		if (typeof options.pickFiles === 'boolean' || typeof options.pickFolders === 'boolean') {
@@ -115,7 +117,7 @@ export class DialogMainService implements IDialogMainService {
 		if (result && result.filePaths && result.filePaths.length > 0) {
 
 			// Remember path in storage for next time
-			this.stateService.setItem(DialogMainService.workingDirPickerStorageKey, dirname(result.filePaths[0]));
+			this.stateMainService.setItem(DialogMainService.workingDirPickerStorageKey, dirname(result.filePaths[0]));
 
 			return result.filePaths;
 		}
@@ -123,22 +125,25 @@ export class DialogMainService implements IDialogMainService {
 		return;
 	}
 
-	private getDialogQueue(window?: BrowserWindow): Queue<any> {
-		if (!window) {
-			return this.noWindowDialogQueue;
-		}
+	private getWindowDialogQueue<T extends MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>(window?: BrowserWindow): Queue<T> {
 
-		let windowDialogQueue = this.mapWindowToDialogQueue.get(window.id);
-		if (!windowDialogQueue) {
-			windowDialogQueue = new Queue<any>();
-			this.mapWindowToDialogQueue.set(window.id, windowDialogQueue);
-		}
+		// Queue message box requests per window so that one can show
+		// after the other.
+		if (window) {
+			let windowDialogQueue = this.windowDialogQueues.get(window.id);
+			if (!windowDialogQueue) {
+				windowDialogQueue = new Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>();
+				this.windowDialogQueues.set(window.id, windowDialogQueue);
+			}
 
-		return windowDialogQueue;
+			return windowDialogQueue as unknown as Queue<T>;
+		} else {
+			return this.noWindowDialogueQueue as unknown as Queue<T>;
+		}
 	}
 
 	showMessageBox(options: MessageBoxOptions, window?: BrowserWindow): Promise<MessageBoxReturnValue> {
-		return this.getDialogQueue(window).queue(async () => {
+		return this.getWindowDialogQueue<MessageBoxReturnValue>(window).queue(async () => {
 			if (window) {
 				return dialog.showMessageBox(window, options);
 			}
@@ -147,61 +152,125 @@ export class DialogMainService implements IDialogMainService {
 		});
 	}
 
-	showSaveDialog(options: SaveDialogOptions, window?: BrowserWindow): Promise<SaveDialogReturnValue> {
+	async showSaveDialog(options: SaveDialogOptions, window?: BrowserWindow): Promise<SaveDialogReturnValue> {
 
-		function normalizePath(path: string | undefined): string | undefined {
-			if (path && isMacintosh) {
-				path = normalizeNFC(path); // normalize paths returned from the OS
-			}
+		// prevent duplicates of the same dialog queueing at the same time
+		const fileDialogLock = this.acquireFileDialogLock(options, window);
+		if (!fileDialogLock) {
+			this.logService.error('[DialogMainService]: file save dialog is already or will be showing for the window with the same configuration');
 
-			return path;
+			return { canceled: true };
 		}
 
-		return this.getDialogQueue(window).queue(async () => {
-			let result: SaveDialogReturnValue;
-			if (window) {
-				result = await dialog.showSaveDialog(window, options);
-			} else {
-				result = await dialog.showSaveDialog(options);
-			}
+		try {
+			return await this.getWindowDialogQueue<SaveDialogReturnValue>(window).queue(async () => {
+				let result: SaveDialogReturnValue;
+				if (window) {
+					result = await dialog.showSaveDialog(window, options);
+				} else {
+					result = await dialog.showSaveDialog(options);
+				}
 
-			result.filePath = normalizePath(result.filePath);
+				result.filePath = this.normalizePath(result.filePath);
 
-			return result;
-		});
+				return result;
+			});
+		} finally {
+			dispose(fileDialogLock);
+		}
 	}
 
-	showOpenDialog(options: OpenDialogOptions, window?: BrowserWindow): Promise<OpenDialogReturnValue> {
-
-		function normalizePaths(paths: string[]): string[] {
-			if (paths && paths.length > 0 && isMacintosh) {
-				paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
-			}
-
-			return paths;
+	private normalizePath(path: string): string;
+	private normalizePath(path: string | undefined): string | undefined;
+	private normalizePath(path: string | undefined): string | undefined {
+		if (path && isMacintosh) {
+			path = normalizeNFC(path); // macOS only: normalize paths to NFC form
 		}
 
-		return this.getDialogQueue(window).queue(async () => {
+		return path;
+	}
 
-			// Ensure the path exists (if provided)
-			if (options.defaultPath) {
-				const pathExists = await exists(options.defaultPath);
-				if (!pathExists) {
-					options.defaultPath = undefined;
+	private normalizePaths(paths: string[]): string[] {
+		return paths.map(path => this.normalizePath(path));
+	}
+
+	async showOpenDialog(options: OpenDialogOptions, window?: BrowserWindow): Promise<OpenDialogReturnValue> {
+
+		// Ensure the path exists (if provided)
+		if (options.defaultPath) {
+			const pathExists = await Promises.exists(options.defaultPath);
+			if (!pathExists) {
+				options.defaultPath = undefined;
+			}
+		}
+
+		// prevent duplicates of the same dialog queueing at the same time
+		const fileDialogLock = this.acquireFileDialogLock(options, window);
+		if (!fileDialogLock) {
+			this.logService.error('[DialogMainService]: file open dialog is already or will be showing for the window with the same configuration');
+
+			return { canceled: true, filePaths: [] };
+		}
+
+		try {
+			return await this.getWindowDialogQueue<OpenDialogReturnValue>(window).queue(async () => {
+				let result: OpenDialogReturnValue;
+				if (window) {
+					result = await dialog.showOpenDialog(window, options);
+				} else {
+					result = await dialog.showOpenDialog(options);
 				}
+
+				result.filePaths = this.normalizePaths(result.filePaths);
+
+				return result;
+			});
+		} finally {
+			dispose(fileDialogLock);
+		}
+	}
+
+	private acquireFileDialogLock(options: SaveDialogOptions | OpenDialogOptions, window?: BrowserWindow): IDisposable | undefined {
+
+		// if no window is provided, allow as many dialogs as
+		// needed since we consider them not modal per window
+		if (!window) {
+			return Disposable.None;
+		}
+
+		// if a window is provided, only allow a single dialog
+		// at the same time because dialogs are modal and we
+		// do not want to open one dialog after the other
+		// (https://github.com/microsoft/vscode/issues/114432)
+		// we figure this out by `hashing` the configuration
+		// options for the dialog to prevent duplicates
+
+		this.logService.trace('[DialogMainService]: request to acquire file dialog lock', options);
+
+		let windowFileDialogLocks = this.windowFileDialogLocks.get(window.id);
+		if (!windowFileDialogLocks) {
+			windowFileDialogLocks = new Set();
+			this.windowFileDialogLocks.set(window.id, windowFileDialogLocks);
+		}
+
+		const optionsHash = hash(options);
+		if (windowFileDialogLocks.has(optionsHash)) {
+			return undefined; // prevent duplicates, return
+		}
+
+		this.logService.trace('[DialogMainService]: new file dialog lock created', options);
+
+		windowFileDialogLocks.add(optionsHash);
+
+		return toDisposable(() => {
+			this.logService.trace('[DialogMainService]: file dialog lock disposed', options);
+
+			windowFileDialogLocks?.delete(optionsHash);
+
+			// if the window has no more dialog locks, delete it from the set of locks
+			if (windowFileDialogLocks?.size === 0) {
+				this.windowFileDialogLocks.delete(window.id);
 			}
-
-			// Show dialog
-			let result: OpenDialogReturnValue;
-			if (window) {
-				result = await dialog.showOpenDialog(window, options);
-			} else {
-				result = await dialog.showOpenDialog(options);
-			}
-
-			result.filePaths = normalizePaths(result.filePaths);
-
-			return result;
 		});
 	}
 }

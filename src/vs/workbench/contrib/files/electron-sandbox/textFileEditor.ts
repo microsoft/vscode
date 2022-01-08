@@ -5,25 +5,27 @@
 
 import { localize } from 'vs/nls';
 import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { EditorOptions } from 'vs/workbench/common/editor';
+import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { FileOperationError, FileOperationResult, IFileService, MIN_MAX_MEMORY_SIZE_MB, FALLBACK_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
-import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { createErrorWithActions } from 'vs/base/common/errors';
 import { toAction } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 /**
  * An implementation of editor for file system resources.
@@ -33,7 +35,7 @@ export class NativeTextFileEditor extends TextFileEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService fileService: IFileService,
-		@IViewletService viewletService: IViewletService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
@@ -45,18 +47,20 @@ export class NativeTextFileEditor extends TextFileEditor {
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IExplorerService explorerService: IExplorerService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IProductService private readonly productService: IProductService,
+		@IPathService pathService: IPathService
 	) {
-		super(telemetryService, fileService, viewletService, instantiationService, contextService, storageService, textResourceConfigurationService, editorService, themeService, editorGroupService, textFileService, explorerService, uriIdentityService);
+		super(telemetryService, fileService, paneCompositeService, instantiationService, contextService, storageService, textResourceConfigurationService, editorService, themeService, editorGroupService, textFileService, explorerService, uriIdentityService, pathService);
 	}
 
-	protected handleSetInputError(error: Error, input: FileEditorInput, options: EditorOptions | undefined): void {
+	protected override handleSetInputError(error: Error, input: FileEditorInput, options: ITextEditorOptions | undefined): Promise<void> {
 
 		// Allow to restart with higher memory limit if the file is too large
 		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT) {
 			const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.textResourceConfigurationService.getValue<number>(undefined, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
 
-			throw createErrorWithActions(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow it to use more memory"), {
+			throw createErrorWithActions(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow {0} to use more memory", this.productService.nameShort), {
 				actions: [
 					toAction({
 						id: 'workbench.window.action.relaunchWithIncreasedMemoryLimit', label: localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), run: () => {
@@ -69,7 +73,7 @@ export class NativeTextFileEditor extends TextFileEditor {
 					}),
 					toAction({
 						id: 'workbench.window.action.configureMemoryLimit', label: localize('configureMemoryLimit', 'Configure Memory Limit'), run: () => {
-							return this.preferencesService.openGlobalSettings(undefined, { query: 'files.maxMemoryForLargeFilesMB' });
+							return this.preferencesService.openUserSettings({ query: 'files.maxMemoryForLargeFilesMB' });
 						}
 					}),
 				]
@@ -77,6 +81,6 @@ export class NativeTextFileEditor extends TextFileEditor {
 		}
 
 		// Fallback to handling in super type
-		super.handleSetInputError(error, input, options);
+		return super.handleSetInputError(error, input, options);
 	}
 }

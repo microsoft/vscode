@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 interface IndentRange {
 	start: number;
@@ -56,7 +56,7 @@ suite('Indentation Folding', () => {
 			for (let i = 0; i < indentRanges.length; i++) {
 				actual.push({ start: indentRanges.getStartLineNumber(i), end: indentRanges.getEndLineNumber(i) });
 			}
-			assert.deepEqual(actual, expectedRanges, message);
+			assert.deepStrictEqual(actual, expectedRanges, message);
 		}
 
 		assertLimit(1000, [r1, r2, r3, r4, r5, r6, r7, r8, r9], '1000');
@@ -70,6 +70,8 @@ suite('Indentation Folding', () => {
 		assertLimit(2, [r1, r9], '2');
 		assertLimit(1, [r1], '1');
 		assertLimit(0, [], '0');
+
+		model.dispose();
 	});
 
 });

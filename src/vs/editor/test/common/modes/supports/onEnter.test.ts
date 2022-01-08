@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { CharacterPair, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
-import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
+import { CharacterPair, IndentAction } from 'vs/editor/common/languages/languageConfiguration';
+import { OnEnterSupport } from 'vs/editor/common/languages/supports/onEnter';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
@@ -45,6 +45,40 @@ suite('OnEnter', () => {
 		testIndentAction('(', 'foo', IndentAction.Indent);
 		testIndentAction('begin', 'foo', IndentAction.Indent);
 		testIndentAction('begin', '', IndentAction.Indent);
+	});
+
+
+	test('Issue #121125: onEnterRules with global modifier', () => {
+		const support = new OnEnterSupport({
+			onEnterRules: [
+				{
+					action: {
+						appendText: '/// ',
+						indentAction: IndentAction.Outdent
+					},
+					beforeText: /^\s*\/{3}.*$/gm
+				}
+			]
+		});
+
+		let testIndentAction = (previousLineText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction | null, expectedAppendText: string | null, removeText: number = 0) => {
+			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, previousLineText, beforeText, afterText);
+			if (expectedIndentAction === null) {
+				assert.strictEqual(actual, null, 'isNull:' + beforeText);
+			} else {
+				assert.strictEqual(actual !== null, true, 'isNotNull:' + beforeText);
+				assert.strictEqual(actual!.indentAction, expectedIndentAction, 'indentAction:' + beforeText);
+				if (expectedAppendText !== null) {
+					assert.strictEqual(actual!.appendText, expectedAppendText, 'appendText:' + beforeText);
+				}
+				if (removeText !== 0) {
+					assert.strictEqual(actual!.removeText, removeText, 'removeText:' + beforeText);
+				}
+			}
+		};
+
+		testIndentAction('/// line', '/// line', '', IndentAction.Outdent, '/// ');
+		testIndentAction('/// line', '/// line', '', IndentAction.Outdent, '/// ');
 	});
 
 	test('uses regExpRules', () => {

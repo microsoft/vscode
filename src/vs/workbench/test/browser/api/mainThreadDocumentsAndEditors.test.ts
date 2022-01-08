@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { ModelService } from 'vs/editor/common/services/modelService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
@@ -19,27 +19,32 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from 'vs/workbench/test/common/workbenchTestServices';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
-	let modelService: ModelServiceImpl;
+	let disposables: DisposableStore;
+
+	let modelService: ModelService;
 	let codeEditorService: TestCodeEditorService;
 	let textFileService: ITextFileService;
 	let deltas: IDocumentsAndEditorsDelta[] = [];
-	const hugeModelString = new Array(2 + (50 * 1024 * 1024)).join('-');
 
 	function myCreateTestCodeEditor(model: ITextModel | undefined): ITestCodeEditor {
-		return createTestCodeEditor({
-			model: model,
+		return createTestCodeEditor(model, {
+			hasTextFocus: false,
 			serviceCollection: new ServiceCollection(
 				[ICodeEditorService, codeEditorService]
 			)
@@ -47,17 +52,28 @@ suite('MainThreadDocumentsAndEditors', () => {
 	}
 
 	setup(() => {
+		disposables = new DisposableStore();
+
 		deltas.length = 0;
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), undoRedoService);
-		codeEditorService = new TestCodeEditorService();
+		const themeService = new TestThemeService();
+		modelService = new ModelService(
+			configService,
+			new TestTextResourcePropertiesService(configService),
+			themeService,
+			new NullLogService(),
+			undoRedoService,
+			disposables.add(new LanguageService()),
+			new TestLanguageConfigurationService()
+		);
+		codeEditorService = new TestCodeEditorService(null, themeService);
 		textFileService = new class extends mock<ITextFileService>() {
-			isDirty() { return false; }
-			files = <any>{
+			override isDirty() { return false; }
+			override files = <any>{
 				onDidSave: Event.None,
 				onDidRevert: Event.None,
 				onDidChangeDirty: Event.None
@@ -67,14 +83,14 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const editorGroupService = new TestEditorGroupsService();
 
 		const fileService = new class extends mock<IFileService>() {
-			onDidRunOperation = Event.None;
-			onDidChangeFileSystemProviderCapabilities = Event.None;
-			onDidChangeFileSystemProviderRegistrations = Event.None;
+			override onDidRunOperation = Event.None;
+			override onDidChangeFileSystemProviderCapabilities = Event.None;
+			override onDidChangeFileSystemProviderRegistrations = Event.None;
 		};
 
 		new MainThreadDocumentsAndEditors(
 			SingleProxyRPCProtocol(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
-				$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta) { deltas.push(delta); }
+				override $acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta) { deltas.push(delta); }
 			}),
 			modelService,
 			textFileService,
@@ -84,11 +100,10 @@ suite('MainThreadDocumentsAndEditors', () => {
 			null!,
 			editorGroupService,
 			null!,
-			new class extends mock<IPanelService>() implements IPanelService {
-				declare readonly _serviceBrand: undefined;
-				onDidPanelOpen = Event.None;
-				onDidPanelClose = Event.None;
-				getActivePanel() {
+			new class extends mock<IPaneCompositePartService>() implements IPaneCompositePartService {
+				override onDidPaneCompositeOpen = Event.None;
+				override onDidPaneCompositeClose = Event.None;
+				override getActivePaneComposite() {
 					return undefined;
 				}
 			},
@@ -96,7 +111,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			new TestWorkingCopyFileService(),
 			new UriIdentityService(fileService),
 			new class extends mock<IClipboardService>() {
-				readText() {
+				override readText() {
 					return Promise.resolve('clipboard_contents');
 				}
 			},
@@ -104,6 +119,9 @@ suite('MainThreadDocumentsAndEditors', () => {
 		);
 	});
 
+	teardown(() => {
+		disposables.dispose();
+	});
 
 	test('Model#add', () => {
 		deltas.length = 0;
@@ -121,18 +139,46 @@ suite('MainThreadDocumentsAndEditors', () => {
 	});
 
 	test('ignore huge model', function () {
-		this.timeout(1000 * 60); // increase timeout for this one test
 
-		const model = modelService.createModel(hugeModelString, null);
-		assert.ok(model.isTooLargeForSyncing());
+		const oldLimit = (<any>TextModel).MODEL_SYNC_LIMIT;
+		try {
+			const largeModelString = 'abc'.repeat(1024);
+			(<any>TextModel).MODEL_SYNC_LIMIT = largeModelString.length / 2;
 
-		assert.strictEqual(deltas.length, 1);
-		const [delta] = deltas;
-		assert.strictEqual(delta.newActiveEditor, null);
-		assert.strictEqual(delta.addedDocuments, undefined);
-		assert.strictEqual(delta.removedDocuments, undefined);
-		assert.strictEqual(delta.addedEditors, undefined);
-		assert.strictEqual(delta.removedEditors, undefined);
+			const model = modelService.createModel(largeModelString, null);
+			assert.ok(model.isTooLargeForSyncing());
+
+			assert.strictEqual(deltas.length, 1);
+			const [delta] = deltas;
+			assert.strictEqual(delta.newActiveEditor, null);
+			assert.strictEqual(delta.addedDocuments, undefined);
+			assert.strictEqual(delta.removedDocuments, undefined);
+			assert.strictEqual(delta.addedEditors, undefined);
+			assert.strictEqual(delta.removedEditors, undefined);
+
+		} finally {
+			(<any>TextModel).MODEL_SYNC_LIMIT = oldLimit;
+		}
+	});
+
+	test('ignore huge model from editor', function () {
+
+		const oldLimit = (<any>TextModel).MODEL_SYNC_LIMIT;
+		try {
+			const largeModelString = 'abc'.repeat(1024);
+			(<any>TextModel).MODEL_SYNC_LIMIT = largeModelString.length / 2;
+
+			const model = modelService.createModel(largeModelString, null);
+			const editor = myCreateTestCodeEditor(model);
+
+			assert.strictEqual(deltas.length, 1);
+			deltas.length = 0;
+			assert.strictEqual(deltas.length, 0);
+			editor.dispose();
+
+		} finally {
+			(<any>TextModel).MODEL_SYNC_LIMIT = oldLimit;
+		}
 	});
 
 	test('ignore simple widget model', function () {
@@ -148,19 +194,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 		assert.strictEqual(delta.removedDocuments, undefined);
 		assert.strictEqual(delta.addedEditors, undefined);
 		assert.strictEqual(delta.removedEditors, undefined);
-	});
-
-	test('ignore huge model from editor', function () {
-		this.timeout(1000 * 60); // increase timeout for this one test
-
-		const model = modelService.createModel(hugeModelString, null);
-		const editor = myCreateTestCodeEditor(model);
-
-		assert.strictEqual(deltas.length, 1);
-		deltas.length = 0;
-		assert.strictEqual(deltas.length, 0);
-
-		editor.dispose();
 	});
 
 	test('ignore editor w/o model', () => {

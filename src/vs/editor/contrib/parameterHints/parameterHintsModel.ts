@@ -8,11 +8,11 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export interface TriggerContext {
 	readonly triggerKind: modes.SignatureHelpTriggerKind;
@@ -74,6 +74,7 @@ export class ParameterHintsModel extends Disposable {
 
 		this.throttledDelayer = new Delayer(delay);
 
+		this._register(this.editor.onDidBlurEditorWidget(() => this.cancel()));
 		this._register(this.editor.onDidChangeConfiguration(() => this.onEditorConfigurationChange()));
 		this._register(this.editor.onDidChangeModel(e => this.onModelChanged()));
 		this._register(this.editor.onDidChangeModelLanguage(_ => this.onModelChanged()));
@@ -304,7 +305,7 @@ export class ParameterHintsModel extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.cancel(true);
 		super.dispose();
 	}

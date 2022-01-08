@@ -24,7 +24,7 @@ suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 
 		let rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(MainContext.MainThreadBulkEdits, new class extends mock<MainThreadBulkEditsShape>() {
-			$tryApplyWorkspaceEdit(_workspaceResourceEdits: IWorkspaceEditDto): Promise<boolean> {
+			override $tryApplyWorkspaceEdit(_workspaceResourceEdits: IWorkspaceEditDto): Promise<boolean> {
 				workspaceResourceEdits = _workspaceResourceEdits;
 				return Promise.resolve(true);
 			}
@@ -33,14 +33,14 @@ suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
-				modeId: 'foo',
+				languageId: 'foo',
 				uri: resource,
 				versionId: 1337,
 				lines: ['foo'],
 				EOL: '\n',
 			}]
 		});
-		bulkEdits = new ExtHostBulkEdits(rpcProtocol, documentsAndEditors, null!);
+		bulkEdits = new ExtHostBulkEdits(rpcProtocol, documentsAndEditors);
 	});
 
 	test('uses version id if document available', async () => {

@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/gotoErrorWidget';
-import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
-import { Range } from 'vs/editor/common/core/range';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerColor, oneOf, textLinkForeground, editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { getBaseLabel } from 'vs/base/common/labels';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { Event, Emitter } from 'vs/base/common/event';
-import { PeekViewWidget, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/peekView';
-import { basename } from 'vs/base/common/resources';
 import { IAction } from 'vs/base/common/actions';
-import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { Color } from 'vs/base/common/color';
+import { Emitter, Event } from 'vs/base/common/event';
+import { getBaseLabel } from 'vs/base/common/labels';
+import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { basename } from 'vs/base/common/resources';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { splitLines } from 'vs/base/common/strings';
+import 'vs/css!./media/gotoErrorWidget';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Range } from 'vs/editor/common/core/range';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/peekView';
+import * as nls from 'vs/nls';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IMarker, IRelatedInformation, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { contrastBorder, editorBackground, editorErrorBorder, editorErrorForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, oneOf, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
 class MessageWidget {
 
@@ -78,8 +78,8 @@ class MessageWidget {
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: ScrollbarVisibility.Auto,
 			useShadows: false,
-			horizontalScrollbarSize: 3,
-			verticalScrollbarSize: 3
+			horizontalScrollbarSize: 6,
+			verticalScrollbarSize: 6
 		});
 		parent.appendChild(this._scrollable.getDomNode());
 		this._disposables.add(this._scrollable.onScroll(e => {
@@ -144,7 +144,7 @@ class MessageWidget {
 					this._codeLink.setAttribute('href', `${code.target.toString()}`);
 
 					this._codeLink.onclick = (e) => {
-						this._openerService.open(code.target);
+						this._openerService.open(code.target, { allowCommands: true });
 						e.preventDefault();
 						e.stopPropagation();
 					};
@@ -252,7 +252,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILabelService private readonly _labelService: ILabelService
 	) {
-		super(editor, { showArrow: true, showFrame: true, isAccessible: true }, instantiationService);
+		super(editor, { showArrow: true, showFrame: true, isAccessible: true, frameWidth: 1 }, instantiationService);
 		this._severity = MarkerSeverity.Warning;
 		this._backgroundColor = Color.white;
 
@@ -265,29 +265,36 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 	private _applyTheme(theme: IColorTheme) {
 		this._backgroundColor = theme.getColor(editorMarkerNavigationBackground);
 		let colorId = editorMarkerNavigationError;
+		let headerBackground = editorMarkerNavigationErrorHeader;
+
 		if (this._severity === MarkerSeverity.Warning) {
 			colorId = editorMarkerNavigationWarning;
+			headerBackground = editorMarkerNavigationWarningHeader;
 		} else if (this._severity === MarkerSeverity.Info) {
 			colorId = editorMarkerNavigationInfo;
+			headerBackground = editorMarkerNavigationInfoHeader;
 		}
+
 		const frameColor = theme.getColor(colorId);
+		const headerBg = theme.getColor(headerBackground);
+
 		this.style({
 			arrowColor: frameColor,
 			frameColor: frameColor,
-			headerBackgroundColor: this._backgroundColor,
+			headerBackgroundColor: headerBg,
 			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
 			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
 		}); // style() will trigger _applyStyles
 	}
 
-	protected _applyStyles(): void {
+	protected override _applyStyles(): void {
 		if (this._parentContainer) {
 			this._parentContainer.style.backgroundColor = this._backgroundColor ? this._backgroundColor.toString() : '';
 		}
 		super._applyStyles();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._callOnDispose.dispose();
 		super.dispose();
 	}
@@ -296,7 +303,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._parentContainer.focus();
 	}
 
-	protected _fillHead(container: HTMLElement): void {
+	protected override _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
 
 		this._disposables.add(this._actionbarWidget!.actionRunner.onBeforeRun(e => this.editor.focus()));
@@ -308,7 +315,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		menu.dispose();
 	}
 
-	protected _fillTitleIcon(container: HTMLElement): void {
+	protected override _fillTitleIcon(container: HTMLElement): void {
 		this._icon = dom.append(container, dom.$(''));
 	}
 
@@ -325,7 +332,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._disposables.add(this._message);
 	}
 
-	show(): void {
+	override show(): void {
 		throw new Error('call showAtMarker');
 	}
 
@@ -369,18 +376,18 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._relayout();
 	}
 
-	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
+	protected override _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
 		super._doLayoutBody(heightInPixel, widthInPixel);
 		this._heightInPixel = heightInPixel;
 		this._message.layout(heightInPixel, widthInPixel);
 		this._container.style.height = `${heightInPixel}px`;
 	}
 
-	public _onWidth(widthInPixel: number): void {
+	public override _onWidth(widthInPixel: number): void {
 		this._message.layout(this._heightInPixel, widthInPixel);
 	}
 
-	protected _relayout(): void {
+	protected override _relayout(): void {
 		super._relayout(this.computeRequiredHeight());
 	}
 
@@ -395,15 +402,13 @@ let errorDefault = oneOf(editorErrorForeground, editorErrorBorder);
 let warningDefault = oneOf(editorWarningForeground, editorWarningBorder);
 let infoDefault = oneOf(editorInfoForeground, editorInfoBorder);
 
-export const editorMarkerNavigationError = registerColor('editorMarkerNavigationError.background', { dark: errorDefault, light: errorDefault, hc: errorDefault }, nls.localize('editorMarkerNavigationError', 'Editor marker navigation widget error color.'));
-export const editorMarkerNavigationWarning = registerColor('editorMarkerNavigationWarning.background', { dark: warningDefault, light: warningDefault, hc: warningDefault }, nls.localize('editorMarkerNavigationWarning', 'Editor marker navigation widget warning color.'));
-export const editorMarkerNavigationInfo = registerColor('editorMarkerNavigationInfo.background', { dark: infoDefault, light: infoDefault, hc: infoDefault }, nls.localize('editorMarkerNavigationInfo', 'Editor marker navigation widget info color.'));
-export const editorMarkerNavigationBackground = registerColor('editorMarkerNavigation.background', { dark: '#2D2D30', light: Color.white, hc: '#0C141F' }, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));
+export const editorMarkerNavigationError = registerColor('editorMarkerNavigationError.background', { dark: errorDefault, light: errorDefault, hc: contrastBorder }, nls.localize('editorMarkerNavigationError', 'Editor marker navigation widget error color.'));
+export const editorMarkerNavigationErrorHeader = registerColor('editorMarkerNavigationError.headerBackground', { dark: transparent(editorMarkerNavigationError, .1), light: transparent(editorMarkerNavigationError, .1), hc: null }, nls.localize('editorMarkerNavigationErrorHeaderBackground', 'Editor marker navigation widget error heading background.'));
 
-registerThemingParticipant((theme, collector) => {
-	const linkFg = theme.getColor(textLinkForeground);
-	if (linkFg) {
-		collector.addRule(`.monaco-editor .marker-widget a { color: ${linkFg}; }`);
-		collector.addRule(`.monaco-editor .marker-widget a.code-link span:hover { color: ${linkFg}; }`);
-	}
-});
+export const editorMarkerNavigationWarning = registerColor('editorMarkerNavigationWarning.background', { dark: warningDefault, light: warningDefault, hc: contrastBorder }, nls.localize('editorMarkerNavigationWarning', 'Editor marker navigation widget warning color.'));
+export const editorMarkerNavigationWarningHeader = registerColor('editorMarkerNavigationWarning.headerBackground', { dark: transparent(editorMarkerNavigationWarning, .1), light: transparent(editorMarkerNavigationWarning, .1), hc: '#0C141F' }, nls.localize('editorMarkerNavigationWarningBackground', 'Editor marker navigation widget warning heading background.'));
+
+export const editorMarkerNavigationInfo = registerColor('editorMarkerNavigationInfo.background', { dark: infoDefault, light: infoDefault, hc: contrastBorder }, nls.localize('editorMarkerNavigationInfo', 'Editor marker navigation widget info color.'));
+export const editorMarkerNavigationInfoHeader = registerColor('editorMarkerNavigationInfo.headerBackground', { dark: transparent(editorMarkerNavigationInfo, .1), light: transparent(editorMarkerNavigationInfo, .1), hc: null }, nls.localize('editorMarkerNavigationInfoHeaderBackground', 'Editor marker navigation widget info heading background.'));
+
+export const editorMarkerNavigationBackground = registerColor('editorMarkerNavigation.background', { dark: editorBackground, light: editorBackground, hc: editorBackground }, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));

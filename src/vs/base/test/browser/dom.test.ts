@@ -30,7 +30,7 @@ suite('dom', () => {
 		assert(element.classList.contains('far'));
 		assert(!element.classList.contains('boo'));
 		assert(element.classList.contains('foobar'));
-		assert.equal(element.className, 'foobar far');
+		assert.strictEqual(element.className, 'foobar far');
 
 		element = document.createElement('div');
 		element.className = 'foobar boo far';
@@ -39,19 +39,19 @@ suite('dom', () => {
 		assert(!element.classList.contains('far'));
 		assert(element.classList.contains('boo'));
 		assert(element.classList.contains('foobar'));
-		assert.equal(element.className, 'foobar boo');
+		assert.strictEqual(element.className, 'foobar boo');
 
 		element.classList.remove('boo');
 		assert(!element.classList.contains('far'));
 		assert(!element.classList.contains('boo'));
 		assert(element.classList.contains('foobar'));
-		assert.equal(element.className, 'foobar');
+		assert.strictEqual(element.className, 'foobar');
 
 		element.classList.remove('foobar');
 		assert(!element.classList.contains('far'));
 		assert(!element.classList.contains('boo'));
 		assert(!element.classList.contains('foobar'));
-		assert.equal(element.className, '');
+		assert.strictEqual(element.className, '');
 	});
 
 	test('removeClass should consider hyphens', function () {
@@ -83,7 +83,7 @@ suite('dom', () => {
 			const div = $('div');
 			assert(div);
 			assert(div instanceof HTMLElement);
-			assert.equal(div.tagName, 'DIV');
+			assert.strictEqual(div.tagName, 'DIV');
 			assert(!div.firstChild);
 		});
 
@@ -91,42 +91,42 @@ suite('dom', () => {
 			const div = $('div#foo');
 			assert(div);
 			assert(div instanceof HTMLElement);
-			assert.equal(div.tagName, 'DIV');
-			assert.equal(div.id, 'foo');
+			assert.strictEqual(div.tagName, 'DIV');
+			assert.strictEqual(div.id, 'foo');
 		});
 
 		test('should buld nodes with class-name', () => {
 			const div = $('div.foo');
 			assert(div);
 			assert(div instanceof HTMLElement);
-			assert.equal(div.tagName, 'DIV');
-			assert.equal(div.className, 'foo');
+			assert.strictEqual(div.tagName, 'DIV');
+			assert.strictEqual(div.className, 'foo');
 		});
 
 		test('should build nodes with attributes', () => {
 			let div = $('div', { class: 'test' });
-			assert.equal(div.className, 'test');
+			assert.strictEqual(div.className, 'test');
 
 			div = $('div', undefined);
-			assert.equal(div.className, '');
+			assert.strictEqual(div.className, '');
 		});
 
 		test('should build nodes with children', () => {
 			let div = $('div', undefined, $('span', { id: 'demospan' }));
 			let firstChild = div.firstChild as HTMLElement;
-			assert.equal(firstChild.tagName, 'SPAN');
-			assert.equal(firstChild.id, 'demospan');
+			assert.strictEqual(firstChild.tagName, 'SPAN');
+			assert.strictEqual(firstChild.id, 'demospan');
 
 			div = $('div', undefined, 'hello');
 
-			assert.equal(div.firstChild && div.firstChild.textContent, 'hello');
+			assert.strictEqual(div.firstChild && div.firstChild.textContent, 'hello');
 		});
 
 		test('should build nodes with text children', () => {
 			let div = $('div', undefined, 'foobar');
 			let firstChild = div.firstChild as HTMLElement;
-			assert.equal(firstChild.tagName, undefined);
-			assert.equal(firstChild.textContent, 'foobar');
+			assert.strictEqual(firstChild.tagName, undefined);
+			assert.strictEqual(firstChild.textContent, 'foobar');
 		});
 	});
 });

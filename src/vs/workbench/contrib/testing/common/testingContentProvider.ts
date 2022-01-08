@@ -5,12 +5,13 @@
 
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/language';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
 import { parseTestUri, TestUriType, TEST_DATA_SCHEME } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 /**
  * A content provider that returns various outputs for tests. This is used
@@ -19,9 +20,9 @@ import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 export class TestingContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
 	constructor(
 		@ITextModelService textModelResolverService: ITextModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
-		@ITestService private readonly testService: ITestService,
-		@ITestService private readonly resultService: ITestResultService,
+		@ITestResultService private readonly resultService: ITestResultService,
 	) {
 		textModelResolverService.registerTextModelContentProvider(TEST_DATA_SCHEME, this);
 	}
@@ -40,34 +41,41 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 			return null;
 		}
 
-		const test = 'providerId' in parsed
-			? await this.testService.lookupTest({ providerId: parsed.providerId, testId: parsed.testId })
-			: this.resultService.lookup(parsed.resultId)?.tests.find(t => t.id === parsed.testId);
+		const test = this.resultService.getResult(parsed.resultId)?.getStateById(parsed.testExtId);
 
 		if (!test) {
 			return null;
 		}
 
 		let text: string | undefined;
+		let language: ILanguageSelection | null = null;
 		switch (parsed.type) {
-			case TestUriType.ResultActualOutput:
-			case TestUriType.LiveActualOutput:
-				text = test.item.state.messages[parsed.messageIndex]?.actualOutput;
+			case TestUriType.ResultActualOutput: {
+				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex];
+				if (message?.type === TestMessageType.Error) { text = message.actual; }
 				break;
-			case TestUriType.ResultExpectedOutput:
-			case TestUriType.LiveExpectedOutput:
-				text = test.item.state.messages[parsed.messageIndex]?.expectedOutput;
+			}
+			case TestUriType.ResultExpectedOutput: {
+				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex];
+				if (message?.type === TestMessageType.Error) { text = message.expected; }
 				break;
-			case TestUriType.ResultMessage:
-			case TestUriType.LiveMessage:
-				text = test.item.state.messages[parsed.messageIndex]?.message.toString();
+			}
+			case TestUriType.ResultMessage: {
+				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex]?.message;
+				if (typeof message === 'string') {
+					text = message;
+				} else if (message) {
+					text = message.value;
+					language = this.languageService.createById('markdown');
+				}
 				break;
+			}
 		}
 
 		if (text === undefined) {
 			return null;
 		}
 
-		return this.modelService.createModel(text, null, resource, true);
+		return this.modelService.createModel(text, language, resource, false);
 	}
 }

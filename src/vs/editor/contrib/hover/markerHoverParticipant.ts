@@ -3,50 +3,52 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { CodeActionTriggerType } from 'vs/editor/common/modes';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { basename } from 'vs/base/common/resources';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/gotoError';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
-import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { basename } from 'vs/base/common/resources';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Range } from 'vs/editor/common/core/range';
+import { IModelDecoration } from 'vs/editor/common/model';
+import { CodeActionTriggerType } from 'vs/editor/common/languages';
+import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
+import { CodeActionSet, getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Progress } from 'vs/platform/progress/common/progress';
+import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/gotoError';
+import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
+import * as nls from 'vs/nls';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { renderHoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
+import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Progress } from 'vs/platform/progress/common/progress';
+import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
 export class MarkerHover implements IHoverPart {
 
 	constructor(
+		public readonly owner: IEditorHoverParticipant<MarkerHover>,
 		public readonly range: Range,
 		public readonly marker: IMarker,
 	) { }
 
-	public equals(other: IHoverPart): boolean {
-		if (other instanceof MarkerHover) {
-			return IMarkerData.makeKey(this.marker) === IMarkerData.makeKey(other.marker);
-		}
-		return false;
+	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
+		return (
+			anchor.type === HoverAnchorType.Range
+			&& this.range.startColumn <= anchor.range.startColumn
+			&& this.range.endColumn >= anchor.range.endColumn
+		);
 	}
 }
 
 const markerCodeActionTrigger: CodeActionTrigger = {
-	type: CodeActionTriggerType.Manual,
+	type: CodeActionTriggerType.Invoke,
 	filter: { include: CodeActionKind.QuickFix }
 };
 
@@ -56,19 +58,17 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _hover: IEditorHover,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
-	public computeSync(hoverRange: Range, lineDecorations: IModelDecoration[]): MarkerHover[] {
-		if (!this._editor.hasModel()) {
+	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkerHover[] {
+		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
 			return [];
 		}
 
 		const model = this._editor.getModel();
-		const lineNumber = hoverRange.startLineNumber;
+		const lineNumber = anchor.range.startLineNumber;
 		const maxColumn = model.getLineMaxColumn(lineNumber);
 		const result: MarkerHover[] = [];
 		for (const d of lineDecorations) {
@@ -80,21 +80,21 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 				continue;
 			}
 
-			const range = new Range(hoverRange.startLineNumber, startColumn, hoverRange.startLineNumber, endColumn);
-			result.push(new MarkerHover(range, marker));
+			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
+			result.push(new MarkerHover(this, range, marker));
 		}
 
 		return result;
 	}
 
-	public renderHoverParts(hoverParts: MarkerHover[], fragment: DocumentFragment): IDisposable {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkerHover[]): IDisposable {
 		if (!hoverParts.length) {
 			return Disposable.None;
 		}
 		const disposables = new DisposableStore();
-		hoverParts.forEach(msg => fragment.appendChild(this.renderMarkerHover(msg, disposables)));
+		hoverParts.forEach(msg => context.fragment.appendChild(this.renderMarkerHover(msg, disposables)));
 		const markerHoverForStatusbar = hoverParts.length === 1 ? hoverParts[0] : hoverParts.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
-		fragment.appendChild(this.renderMarkerStatusbar(markerHoverForStatusbar, disposables));
+		this.renderMarkerStatusbar(context, markerHoverForStatusbar, disposables);
 		return disposables;
 	}
 
@@ -120,7 +120,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 				codeLink.setAttribute('href', code.target.toString());
 
 				disposables.add(dom.addDisposableListener(codeLink, 'click', (e) => {
-					this._openerService.open(code.target);
+					this._openerService.open(code.target, { allowCommands: true });
 					e.preventDefault();
 					e.stopPropagation();
 				}));
@@ -165,23 +165,21 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return hoverElement;
 	}
 
-	private renderMarkerStatusbar(markerHover: MarkerHover, disposables: DisposableStore): HTMLElement {
-		const hoverElement = $('div.hover-row.status-bar');
-		const actionsElement = dom.append(hoverElement, $('div.actions'));
+	private renderMarkerStatusbar(context: IEditorHoverRenderContext, markerHover: MarkerHover, disposables: DisposableStore): void {
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
-			disposables.add(this.renderAction(actionsElement, {
-				label: nls.localize('peek problem', "Peek Problem"),
+			context.statusBar.addAction({
+				label: nls.localize('view problem', "View Problem"),
 				commandId: NextMarkerAction.ID,
 				run: () => {
-					this._hover.hide();
-					MarkerController.get(this._editor).showAtMarker(markerHover.marker);
+					context.hide();
+					MarkerController.get(this._editor)?.showAtMarker(markerHover.marker);
 					this._editor.focus();
 				}
-			}));
+			});
 		}
 
 		if (!this._editor.getOption(EditorOption.readOnly)) {
-			const quickfixPlaceholderElement = dom.append(actionsElement, $('div'));
+			const quickfixPlaceholderElement = context.statusBar.append($('div'));
 			if (this.recentMarkerCodeActionsInfo) {
 				if (IMarkerData.makeKey(this.recentMarkerCodeActionsInfo.marker) === IMarkerData.makeKey(markerHover.marker)) {
 					if (!this.recentMarkerCodeActionsInfo.hasCodeActions) {
@@ -216,7 +214,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 					}
 				}));
 
-				disposables.add(this.renderAction(actionsElement, {
+				context.statusBar.addAction({
 					label: nls.localize('quick fixes', "Quick Fix..."),
 					commandId: QuickFixAction.Id,
 					run: (target) => {
@@ -225,23 +223,15 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						const elementPosition = dom.getDomNodePagePosition(target);
 						// Hide the hover pre-emptively, otherwise the editor can close the code actions
 						// context menu as well when using keyboard navigation
-						this._hover.hide();
-						controller.showCodeActions(markerCodeActionTrigger, actions, {
+						context.hide();
+						controller?.showCodeActions(markerCodeActionTrigger, actions, {
 							x: elementPosition.left + 6,
 							y: elementPosition.top + elementPosition.height + 6
 						});
 					}
-				}));
-			});
+				});
+			}, onUnexpectedError);
 		}
-
-		return hoverElement;
-	}
-
-	private renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
-		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
-		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
-		return renderHoverAction(parent, actionOptions, keybindingLabel);
 	}
 
 	private getCodeActions(marker: IMarker): CancelablePromise<CodeActionSet> {
@@ -255,3 +245,15 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		});
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const linkFg = theme.getColor(textLinkForeground);
+	if (linkFg) {
+		collector.addRule(`.monaco-hover .hover-contents a.code-link span { color: ${linkFg}; }`);
+	}
+	const activeLinkFg = theme.getColor(textLinkActiveForeground);
+	if (activeLinkFg) {
+		collector.addRule(`.monaco-hover .hover-contents a.code-link span:hover { color: ${activeLinkFg}; }`);
+	}
+});
+

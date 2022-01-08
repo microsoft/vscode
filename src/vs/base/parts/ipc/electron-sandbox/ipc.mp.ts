@@ -3,49 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { Event } from 'vs/base/common/event';
-import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
-import { Protocol as MessagePortProtocol } from 'vs/base/parts/ipc/common/ipc.mp';
+import { generateUuid } from 'vs/base/common/uuid';
+import { ipcMessagePort, ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
-/**
- * An implementation of a `IPCServer` on top of MessagePort style IPC communication.
- * The clients register themselves via Electron IPC transfer.
- */
-export class Server extends IPCServer {
+interface IMessageChannelResult {
+	nonce: string;
+	port: MessagePort;
+	source: unknown;
+}
 
-	private static getOnDidClientConnect(): Event<ClientConnectionEvent> {
+export async function acquirePort(requestChannel: string | undefined, responseChannel: string, nonce = generateUuid()): Promise<MessagePort> {
 
-		// Clients connect via `vscode:createMessageChannel` to get a
-		// `MessagePort` that is ready to be used. For every connection
-		// we create a pair of message ports and send it back.
-		//
-		// The `nonce` is included so that the main side has a chance to
-		// correlate the response back to the sender.
-		const onCreateMessageChannel = Event.fromNodeEventEmitter<string>(ipcRenderer, 'vscode:createMessageChannel', (_, nonce: string) => nonce);
+	// Get ready to acquire the message port from the
+	// provided `responseChannel` via preload helper.
+	ipcMessagePort.acquire(responseChannel, nonce);
 
-		return Event.map(onCreateMessageChannel, nonce => {
-
-			// Create a new pair of ports and protocol for this connection
-			const { port1: incomingPort, port2: outgoingPort } = new MessageChannel();
-			const protocol = new MessagePortProtocol(incomingPort);
-
-			const result: ClientConnectionEvent = {
-				protocol,
-				// Not part of the standard spec, but in Electron we get a `close` event
-				// when the other side closes. We can use this to detect disconnects
-				// (https://github.com/electron/electron/blob/11-x-y/docs/api/message-port-main.md#event-close)
-				onDidClientDisconnect: Event.fromDOMEventEmitter(incomingPort, 'close')
-			};
-
-			// Send one port back to the requestor
-			ipcRenderer.postMessage('vscode:createMessageChannelResult', nonce, [outgoingPort]);
-
-			return result;
-		});
+	// If a `requestChannel` is provided, we are in charge
+	// to trigger acquisition of the message port from main
+	if (typeof requestChannel === 'string') {
+		ipcRenderer.send(requestChannel, nonce);
 	}
 
-	constructor() {
-		super(Server.getOnDidClientConnect());
-	}
+	// Wait until the main side has returned the `MessagePort`
+	// We need to filter by the `nonce` to ensure we listen
+	// to the right response.
+	const onMessageChannelResult = Event.fromDOMEventEmitter<IMessageChannelResult>(window, 'message', (e: MessageEvent) => ({ nonce: e.data, port: e.ports[0], source: e.source }));
+	const { port } = await Event.toPromise(Event.once(Event.filter(onMessageChannelResult, e => e.nonce === nonce && e.source === window)));
+
+	return port;
 }

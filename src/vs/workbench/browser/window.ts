@@ -3,23 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpener } from 'vs/base/browser/dom';
-import { domEvent } from 'vs/base/browser/event';
+import { isSafari, setFullscreen } from 'vs/base/browser/browser';
+import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
+import { DomEmitter } from 'vs/base/browser/event';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isIOS, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -30,10 +29,8 @@ export class BrowserWindow extends Disposable {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IHostService private readonly hostService: IHostService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILogService private readonly logService: ILogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
@@ -49,16 +46,23 @@ export class BrowserWindow extends Disposable {
 
 		// Layout
 		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
-		this._register(addDisposableListener(viewport, EventType.RESIZE, () => this.onWindowResize()));
+		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
+			this.layoutService.layout();
+
+			// Sometimes the keyboard appearing scrolls the whole workbench out of view, as a workaround scroll back into view #121206
+			if (isIOS) {
+				window.scrollTo(0, 0);
+			}
+		}));
 
 		// Prevent the back/forward gestures in macOS
-		this._register(addDisposableListener(this.layoutService.getWorkbenchContainer(), EventType.WHEEL, e => e.preventDefault(), { passive: false }));
+		this._register(addDisposableListener(this.layoutService.container, EventType.WHEEL, e => e.preventDefault(), { passive: false }));
 
 		// Prevent native context menus in web
-		this._register(addDisposableListener(this.layoutService.getWorkbenchContainer(), EventType.CONTEXT_MENU, e => EventHelper.stop(e, true)));
+		this._register(addDisposableListener(this.layoutService.container, EventType.CONTEXT_MENU, e => EventHelper.stop(e, true)));
 
 		// Prevent default navigation on drop
-		this._register(addDisposableListener(this.layoutService.getWorkbenchContainer(), EventType.DROP, e => EventHelper.stop(e, true)));
+		this._register(addDisposableListener(this.layoutService.container, EventType.DROP, e => EventHelper.stop(e, true)));
 
 		// Fullscreen (Browser)
 		[EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE].forEach(event => {
@@ -71,20 +75,14 @@ export class BrowserWindow extends Disposable {
 		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}
 
-	private onWindowResize(): void {
-		this.logService.trace(`web.main#${isIOS && window.visualViewport ? 'visualViewport' : 'window'}Resize`);
-
-		this.layoutService.layout();
-	}
-
 	private onWillShutdown(): void {
 
 		// Try to detect some user interaction with the workbench
 		// when shutdown has happened to not show the dialog e.g.
 		// when navigation takes a longer time.
 		Event.toPromise(Event.any(
-			Event.once(domEvent(document.body, EventType.KEY_DOWN, true)),
-			Event.once(domEvent(document.body, EventType.MOUSE_DOWN, true))
+			Event.once(new DomEmitter(document.body, EventType.KEY_DOWN, true).event),
+			Event.once(new DomEmitter(document.body, EventType.MOUSE_DOWN, true).event)
 		)).then(async () => {
 
 			// Delay the dialog in case the user interacted
@@ -107,7 +105,7 @@ export class BrowserWindow extends Disposable {
 			);
 
 			if (res.choice === 0) {
-				this.hostService.reload();
+				window.location.reload(); // do not use any services at this point since they are likely not functional at this point
 			}
 		});
 	}
@@ -115,7 +113,7 @@ export class BrowserWindow extends Disposable {
 	private create(): void {
 
 		// Driver
-		if (this.environmentService.options?.driver) {
+		if (this.environmentService.options?.developmentOptions?.enableSmokeTestDriver) {
 			(async () => this._register(await registerWindowDriver()))();
 		}
 
@@ -137,10 +135,57 @@ export class BrowserWindow extends Disposable {
 		// will trigger the `beforeunload`.
 		this.openerService.setDefaultExternalOpener({
 			openExternal: async (href: string) => {
+				let isAllowedOpener = false;
+				if (this.environmentService.options?.openerAllowedExternalUrlPrefixes) {
+					for (const trustedPopupPrefix of this.environmentService.options.openerAllowedExternalUrlPrefixes) {
+						if (href.startsWith(trustedPopupPrefix)) {
+							isAllowedOpener = true;
+							break;
+						}
+					}
+				}
+
+				// HTTP(s): open in new window and deal with potential popup blockers
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
-					windowOpenNoOpener(href);
-				} else {
-					this.lifecycleService.withExpectedUnload(() => window.location.href = href);
+					if (isSafari) {
+						const opened = windowOpenWithSuccess(href, !isAllowedOpener);
+						if (!opened) {
+							const showResult = await this.dialogService.show(
+								Severity.Warning,
+								localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
+								[
+									localize('open', "Open"),
+									localize('learnMore', "Learn More"),
+									localize('cancel', "Cancel")
+								],
+								{
+									cancelId: 2,
+									detail: href
+								}
+							);
+
+							if (showResult.choice === 0) {
+								isAllowedOpener
+									? windowOpenPopup(href)
+									: windowOpenNoOpener(href);
+							}
+
+							if (showResult.choice === 1) {
+								await this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'));
+							}
+						}
+					} else {
+						isAllowedOpener
+							? windowOpenPopup(href)
+							: windowOpenNoOpener(href);
+					}
+				}
+
+				// Anything else: set location to trigger protocol handler in the browser
+				// but make sure to signal this as an expected unload and disable unload
+				// handling explicitly to prevent the workbench from going down.
+				else {
+					this.lifecycleService.withExpectedShutdown({ disableShutdownHandling: true }, () => window.location.href = href);
 				}
 
 				return true;
@@ -149,13 +194,13 @@ export class BrowserWindow extends Disposable {
 	}
 
 	private registerLabelFormatters() {
-		this.labelService.registerFormatter({
+		this._register(this.labelService.registerFormatter({
 			scheme: Schemas.userData,
 			priority: true,
 			formatting: {
-				label: '${scheme}:${path}',
+				label: '(Settings) ${path}',
 				separator: '/',
 			}
-		});
+		}));
 	}
 }

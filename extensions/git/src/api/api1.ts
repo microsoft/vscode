@@ -5,12 +5,13 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, RemoteSourceProvider, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands } from 'vscode';
-import { mapEvent } from '../util';
+import { combinedDisposable, mapEvent } from '../util';
 import { toGitUri } from '../uri';
-import { pickRemoteSource, PickRemoteSourceOptions } from '../remoteSource';
 import { GitExtensionImpl } from './extension';
+import { GitBaseApi } from '../git-base';
+import { PickRemoteSourceOptions } from './git-base';
 
 class ApiInputBox implements InputBox {
 	set value(value: string) { this._inputBox.value = value; }
@@ -103,6 +104,10 @@ export class ApiRepository implements Repository {
 		return this._repository.getCommit(ref);
 	}
 
+	add(paths: string[]) {
+		return this._repository.add(paths.map(p => Uri.file(p)));
+	}
+
 	clean(paths: string[]) {
 		return this._repository.clean(paths.map(p => Uri.file(p)));
 	}
@@ -173,6 +178,14 @@ export class ApiRepository implements Repository {
 		return this._repository.getMergeBase(ref1, ref2);
 	}
 
+	tag(name: string, upstream: string): Promise<void> {
+		return this._repository.tag(name, upstream);
+	}
+
+	deleteTag(name: string): Promise<void> {
+		return this._repository.deleteTag(name);
+	}
+
 	status(): Promise<void> {
 		return this._repository.status();
 	}
@@ -193,8 +206,16 @@ export class ApiRepository implements Repository {
 		return this._repository.renameRemote(name, newName);
 	}
 
-	fetch(remote?: string | undefined, ref?: string | undefined, depth?: number | undefined): Promise<void> {
-		return this._repository.fetch(remote, ref, depth);
+	fetch(arg0?: FetchOptions | string | undefined,
+		ref?: string | undefined,
+		depth?: number | undefined,
+		prune?: boolean | undefined
+	): Promise<void> {
+		if (arg0 !== undefined && typeof arg0 !== 'string') {
+			return this._repository.fetch(arg0);
+		}
+
+		return this._repository.fetch({ remote: arg0, ref, depth, prune });
 	}
 
 	pull(unshallow?: boolean): Promise<void> {
@@ -275,7 +296,18 @@ export class ApiImpl implements API {
 	}
 
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
-		return this._model.registerRemoteSourceProvider(provider);
+		const disposables: Disposable[] = [];
+
+		if (provider.publishRepository) {
+			disposables.push(this._model.registerRemoteSourcePublisher(provider as RemoteSourcePublisher));
+		}
+		disposables.push(GitBaseApi.getAPI().registerRemoteSourceProvider(provider));
+
+		return combinedDisposable(disposables);
+	}
+
+	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable {
+		return this._model.registerRemoteSourcePublisher(publisher);
 	}
 
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable {
@@ -362,11 +394,7 @@ export function registerAPICommands(extension: GitExtensionImpl): Disposable {
 	}));
 
 	disposables.push(commands.registerCommand('git.api.getRemoteSources', (opts?: PickRemoteSourceOptions) => {
-		if (!extension.model) {
-			return;
-		}
-
-		return pickRemoteSource(extension.model, opts as any);
+		return commands.executeCommand('git-base.api.getRemoteSources', opts);
 	}));
 
 	return Disposable.from(...disposables);

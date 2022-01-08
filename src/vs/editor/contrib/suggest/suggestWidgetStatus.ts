@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IActionViewItemProvider, IAction } from 'vs/base/common/actions';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction } from 'vs/base/common/actions';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { suggestWidgetStatusbarMenu } from 'vs/editor/contrib/suggest/suggest';
 import { localize } from 'vs/nls';
@@ -17,8 +17,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 
 class StatusBarViewItem extends MenuEntryActionViewItem {
 
-	updateLabel() {
-		const kb = this._keybindingService.lookupKeybinding(this._action.id);
+	override updateLabel() {
+		const kb = this._keybindingService.lookupKeybinding(this._action.id, this._contextKeyService);
 		if (!kb) {
 			return super.updateLabel();
 		}
@@ -49,7 +49,7 @@ export class SuggestWidgetStatus {
 		this.element = dom.append(container, dom.$('.suggest-status-bar'));
 
 		const actionViewItemProvider = <IActionViewItemProvider>(action => {
-			return action instanceof MenuItemAction ? instantiationService.createInstance(StatusBarViewItem, action) : undefined;
+			return action instanceof MenuItemAction ? instantiationService.createInstance(StatusBarViewItem, action, undefined) : undefined;
 		});
 		this._leftActions = new ActionBar(this.element, { actionViewItemProvider });
 		this._rightActions = new ActionBar(this.element, { actionViewItemProvider });

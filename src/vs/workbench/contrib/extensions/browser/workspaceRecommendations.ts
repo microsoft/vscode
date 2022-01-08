@@ -12,7 +12,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
-import { IExtensionsConfigContent, IWorkpsaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
+import { IExtensionsConfigContent, IWorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 
 export class WorkspaceRecommendations extends ExtensionRecommendations {
 
@@ -26,7 +26,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 	get ignoredRecommendations(): ReadonlyArray<string> { return this._ignoredRecommendations; }
 
 	constructor(
-		@IWorkpsaceExtensionsConfigService private readonly workpsaceExtensionsConfigService: IWorkpsaceExtensionsConfigService,
+		@IWorkspaceExtensionsConfigService private readonly workspaceExtensionsConfigService: IWorkspaceExtensionsConfigService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -36,7 +36,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 
 	protected async doActivate(): Promise<void> {
 		await this.fetch();
-		this._register(this.workpsaceExtensionsConfigService.onDidChangeExtensionsConfigs(() => this.onDidChangeExtensionsConfigs()));
+		this._register(this.workspaceExtensionsConfigService.onDidChangeExtensionsConfigs(() => this.onDidChangeExtensionsConfigs()));
 	}
 
 	/**
@@ -44,7 +44,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 	 */
 	private async fetch(): Promise<void> {
 
-		const extensionsConfigs = await this.workpsaceExtensionsConfigService.getExtensionsConfigs();
+		const extensionsConfigs = await this.workspaceExtensionsConfigService.getExtensionsConfigs();
 
 		const { invalidRecommendations, message } = await this.validateExtensions(extensionsConfigs);
 		if (invalidRecommendations.length) {

@@ -14,6 +14,7 @@ export interface ICredentialsProvider {
 	deletePassword(service: string, account: string): Promise<boolean>;
 	findPassword(service: string): Promise<string | null>;
 	findCredentials(service: string): Promise<Array<{ account: string, password: string }>>;
+	clear?(): Promise<void>;
 }
 
 export interface ICredentialsChangeEvent {
