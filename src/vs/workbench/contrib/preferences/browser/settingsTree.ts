@@ -592,6 +592,7 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	deprecationWarningElement: HTMLElement;
 	otherOverridesElement: HTMLElement;
 	syncIgnoredElement: HTMLElement;
+	defaultOverrideIndicator: HTMLElement;
 	toolbar: ToolBar;
 	elementDisposables: DisposableStore;
 }
@@ -781,6 +782,14 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		return syncIgnoredElement;
 	}
 
+	protected createDefaultOverrideIndicator(container: HTMLElement): HTMLElement {
+		const defaultOverrideIndicator = DOM.append(container, $('span.setting-item-default-overriden'));
+		const defaultOverrideLabel = new SimpleIconLabel(defaultOverrideIndicator);
+		defaultOverrideLabel.text = `($(alert) ${localize('defaultOverridenLabel', "Default overriden")})`;
+
+		return defaultOverrideIndicator;
+	}
+
 	protected renderCommonTemplate(tree: any, _container: HTMLElement, typeClass: string): ISettingItemTemplate {
 		_container.classList.add('setting-item');
 		_container.classList.add('setting-item-' + typeClass);
@@ -793,6 +802,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const labelElement = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 		const syncIgnoredElement = this.createSyncIgnoredElement(titleElement);
+		const defaultOverrideIndicator = this.createDefaultOverrideIndicator(titleElement);
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
@@ -820,6 +830,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			deprecationWarningElement,
 			otherOverridesElement,
 			syncIgnoredElement,
+			defaultOverrideIndicator,
 			toolbar
 		};
 
@@ -943,12 +954,22 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
-		const update = () => {
+		const defaultValueSource = element.setting.defaultValueSource;
+		const updateTitleElements = () => {
 			template.syncIgnoredElement.style.display = this.ignoredSettings.includes(element.setting.key) ? 'inline' : 'none';
+			template.defaultOverrideIndicator.style.display = 'none';
+			if (defaultValueSource) {
+				template.defaultOverrideIndicator.style.display = 'inline';
+				if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
+					template.defaultOverrideIndicator.title = localize('defaultOverridenDetails', "Default overriden by {0}", defaultValueSource.displayName ?? defaultValueSource.id);
+				} else if (typeof defaultValueSource === 'string') {
+					template.defaultOverrideIndicator.title = localize('defaultOverridenDetails', "Default overriden by {0}", defaultValueSource);
+				}
+			}
 		};
-		update();
+		updateTitleElements();
 		template.elementDisposables.add(this.onDidChangeIgnoredSettings(() => {
-			update();
+			updateTitleElements();
 		}));
 
 		this.updateSettingTabbable(element, template);
@@ -1809,6 +1830,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 		const syncIgnoredElement = this.createSyncIgnoredElement(titleElement);
+		const defaultOverrideIndicator = this.createDefaultOverrideIndicator(titleElement);
 
 		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
@@ -1859,6 +1881,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 			deprecationWarningElement,
 			otherOverridesElement,
 			syncIgnoredElement,
+			defaultOverrideIndicator,
 			toolbar
 		};
 
