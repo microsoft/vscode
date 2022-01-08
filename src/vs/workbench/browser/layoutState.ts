@@ -146,6 +146,9 @@ export class LayoutStateModel extends Disposable {
 			}
 		}
 
+		// Apply behavioral setting
+		this.stateCache.set(LayoutStateKeys.PANEL_POSITION.name, positionFromString(this.configurationService.getValue(WorkbenchLayoutSettings.PANEL_DEFAULT_POSITION) ?? 'bottom'));
+
 		// Apply sizing defaults
 		const workbenchDimensions = getClientArea(this.container);
 		const panelPosition = this.stateCache.get(LayoutStateKeys.PANEL_POSITION.name) ?? LayoutStateKeys.PANEL_POSITION.defaultValue;
@@ -254,6 +257,7 @@ export class LayoutStateModel extends Disposable {
 }
 
 export enum WorkbenchLayoutSettings {
+	PANEL_DEFAULT_POSITION = 'workbench.panel.defaultLocation',
 	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
 	ZEN_MODE_CONFIG = 'zenMode',
 	ZEN_MODE_SILENT_NOTIFICATIONS = 'zenMode.silentNotifications',
@@ -261,7 +265,6 @@ export enum WorkbenchLayoutSettings {
 }
 
 enum LegacyWorkbenchLayoutSettings {
-	PANEL_POSITION = 'workbench.panel.defaultLocation', // Deprecated to UI State
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible', // Deprecated to UI State
 	STATUSBAR_VISIBLE = 'workbench.statusBar.visible', // Deprecated to UI State
 	SIDEBAR_POSITION = 'workbench.sideBar.location', // Deprecated to UI State
