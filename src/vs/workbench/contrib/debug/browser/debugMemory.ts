@@ -5,12 +5,12 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { assertNever } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { FileChangeType, FileOpenOptions, FilePermission, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileChange, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { DEBUG_MEMORY_SCHEME, IDebugService, IDebugSession, IMemoryInvalidationEvent, IMemoryRegion, MemoryRange, MemoryRangeType } from 'vs/workbench/contrib/debug/common/debug';
+import { DEBUG_MEMORY_SCHEME, IDebugService, IDebugSession, IMemoryInvalidationEvent, IMemoryRegion, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
 
 const rangeRe = /range=([0-9]+):([0-9]+)/;
 
@@ -46,7 +46,15 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 		}
 
 		const { session, memoryReference, offset } = this.parseUri(resource);
-		return session.onDidInvalidateMemory(e => {
+		const disposable = new DisposableStore();
+
+		disposable.add(session.onDidChangeState(() => {
+			if (session.state === State.Running || session.state === State.Inactive) {
+				this.changeEmitter.fire([{ type: FileChangeType.DELETED, resource }]);
+			}
+		}));
+
+		disposable.add(session.onDidInvalidateMemory(e => {
 			if (e.body.memoryReference !== memoryReference) {
 				return;
 			}
@@ -56,7 +64,9 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 			}
 
 			this.changeEmitter.fire([{ resource, type: FileChangeType.UPDATED }]);
-		});
+		}));
+
+		return disposable;
 	}
 
 	/** @inheritdoc */

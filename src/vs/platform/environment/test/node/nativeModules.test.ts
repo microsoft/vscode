@@ -90,7 +90,7 @@ flakySuite('Native Modules (all platforms)', () => {
 	});
 
 	test('vscode-windows-registry', async () => {
-		const windowsRegistry = await import('vscode-windows-registry');
+		const windowsRegistry = await import('@vscode/windows-registry');
 		assert.ok(typeof windowsRegistry.GetStringRegKey === 'function', testErrorMessage('vscode-windows-registry'));
 	});
 
