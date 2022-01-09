@@ -288,7 +288,7 @@ export class View extends ViewEventHandler {
 		this.domNode.setWidth(layoutInfo.width);
 		this.domNode.setHeight(layoutInfo.height);
 
-		this._overflowGuardContainer.setWidth(layoutInfo.width);
+		this._overflowGuardContainer.setWidth(layoutInfo.width - 8);
 		this._overflowGuardContainer.setHeight(layoutInfo.height);
 
 		this._linesContent.setWidth(1000000);
