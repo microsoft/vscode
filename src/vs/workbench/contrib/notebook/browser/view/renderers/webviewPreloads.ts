@@ -230,11 +230,21 @@ async function webviewPreloads(ctx: PreloadContext) {
 					this.updateImmediately();
 				}, 0);
 			}
-			this.pending.set(id, {
-				id,
-				height,
-				...options,
-			});
+			const update = this.pending.get(id);
+			if (update && update.isOutput) {
+				this.pending.set(id, {
+					id,
+					height,
+					init: update.init,
+					isOutput: update.isOutput,
+				});
+			} else {
+				this.pending.set(id, {
+					id,
+					height,
+					...options,
+				});
+			}
 		}
 
 		updateImmediately() {
@@ -379,6 +389,229 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		return false;
+	}
+
+	function _internalHighlightRange(range: Range, tagName = 'mark', attributes = {}) {
+		// derived from https://github.com/Treora/dom-highlight-range/blob/master/highlight-range.js
+
+		// Return an array of the text nodes in the range. Split the start and end nodes if required.
+		function _textNodesInRange(range: Range): Text[] {
+			if (!range.startContainer.ownerDocument) {
+				return [];
+			}
+
+			// If the start or end node is a text node and only partly in the range, split it.
+			if (range.startContainer.nodeType === Node.TEXT_NODE && range.startOffset > 0) {
+				const startContainer = range.startContainer as Text;
+				const endOffset = range.endOffset; // (this may get lost when the splitting the node)
+				const createdNode = startContainer.splitText(range.startOffset);
+				if (range.endContainer === startContainer) {
+					// If the end was in the same container, it will now be in the newly created node.
+					range.setEnd(createdNode, endOffset - range.startOffset);
+				}
+
+				range.setStart(createdNode, 0);
+			}
+
+			if (
+				range.endContainer.nodeType === Node.TEXT_NODE
+				&& range.endOffset < (range.endContainer as Text).length
+			) {
+				(range.endContainer as Text).splitText(range.endOffset);
+			}
+
+			// Collect the text nodes.
+			const walker = range.startContainer.ownerDocument.createTreeWalker(
+				range.commonAncestorContainer,
+				NodeFilter.SHOW_TEXT,
+				node => range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
+			);
+
+			walker.currentNode = range.startContainer;
+
+			// // Optimise by skipping nodes that are explicitly outside the range.
+			// const NodeTypesWithCharacterOffset = [
+			//  Node.TEXT_NODE,
+			//  Node.PROCESSING_INSTRUCTION_NODE,
+			//  Node.COMMENT_NODE,
+			// ];
+			// if (!NodeTypesWithCharacterOffset.includes(range.startContainer.nodeType)) {
+			//   if (range.startOffset < range.startContainer.childNodes.length) {
+			//     walker.currentNode = range.startContainer.childNodes[range.startOffset];
+			//   } else {
+			//     walker.nextSibling(); // TODO verify this is correct.
+			//   }
+			// }
+
+			const nodes: Text[] = [];
+			if (walker.currentNode.nodeType === Node.TEXT_NODE) {
+				nodes.push(walker.currentNode as Text);
+			}
+
+			while (walker.nextNode() && range.comparePoint(walker.currentNode, 0) !== 1) {
+				if (walker.currentNode.nodeType === Node.TEXT_NODE) {
+					nodes.push(walker.currentNode as Text);
+				}
+			}
+
+			return nodes;
+		}
+
+		// Replace [node] with <tagName ...attributes>[node]</tagName>
+		function wrapNodeInHighlight(node: Text, tagName: string, attributes: any) {
+			const highlightElement = node.ownerDocument.createElement(tagName);
+			Object.keys(attributes).forEach(key => {
+				highlightElement.setAttribute(key, attributes[key]);
+			});
+			const tempRange = node.ownerDocument.createRange();
+			tempRange.selectNode(node);
+			tempRange.surroundContents(highlightElement);
+			return highlightElement;
+		}
+
+		if (range.collapsed) {
+			return {
+				remove: () => { },
+				update: () => { }
+			};
+		}
+
+		// First put all nodes in an array (splits start and end nodes if needed)
+		const nodes = _textNodesInRange(range);
+
+		// Highlight each node
+		const highlightElements: Element[] = [];
+		for (const nodeIdx in nodes) {
+			const highlightElement = wrapNodeInHighlight(nodes[nodeIdx], tagName, attributes);
+			highlightElements.push(highlightElement);
+		}
+
+		// Remove a highlight element created with wrapNodeInHighlight.
+		function _removeHighlight(highlightElement: Element) {
+			if (highlightElement.childNodes.length === 1) {
+				highlightElement.parentNode?.replaceChild(highlightElement.firstChild!, highlightElement);
+			} else {
+				// If the highlight somehow contains multiple nodes now, move them all.
+				while (highlightElement.firstChild) {
+					highlightElement.parentNode?.insertBefore(highlightElement.firstChild, highlightElement);
+				}
+				highlightElement.remove();
+			}
+		}
+
+		// Return a function that cleans up the highlightElements.
+		function _removeHighlights() {
+			// Remove each of the created highlightElements.
+			for (const highlightIdx in highlightElements) {
+				_removeHighlight(highlightElements[highlightIdx]);
+			}
+		}
+
+		function _updateHighlight(highlightElement: Element, attributes: any = {}) {
+			Object.keys(attributes).forEach(key => {
+				highlightElement.setAttribute(key, attributes[key]);
+			});
+		}
+
+		function updateHighlights(attributes: any) {
+			for (const highlightIdx in highlightElements) {
+				_updateHighlight(highlightElements[highlightIdx], attributes);
+			}
+		}
+
+		return {
+			remove: _removeHighlights,
+			update: updateHighlights
+		};
+	}
+
+	interface ICommonRange {
+		collapsed: boolean,
+		commonAncestorContainer: Node,
+		endContainer: Node,
+		endOffset: number,
+		startContainer: Node,
+		startOffset: number
+
+	}
+
+	interface IHighlightResult {
+		range: ICommonRange;
+		dispose: () => void,
+		update: (color: string | undefined, className: string | undefined) => void;
+	}
+
+	function selectRange(_range: ICommonRange) {
+		const sel = window.getSelection();
+		if (sel) {
+			try {
+				sel.removeAllRanges();
+				const r = document.createRange();
+				r.setStart(_range.startContainer, _range.startOffset);
+				r.setEnd(_range.endContainer, _range.endOffset);
+				sel.addRange(r);
+			} catch (e) {
+				console.log(e);
+			}
+		}
+	}
+
+	function highlightRange(range: Range, useCustom: boolean, tagName = 'mark', attributes = {}): IHighlightResult {
+		if (useCustom) {
+			const ret = _internalHighlightRange(range, tagName, attributes);
+			return {
+				range: range,
+				dispose: ret.remove,
+				update: (color: string | undefined, className: string | undefined) => {
+					if (className === undefined) {
+						ret.update({
+							'style': `background-color: ${color}`
+						});
+					} else {
+						ret.update({
+							'class': className
+						});
+					}
+				}
+			};
+		} else {
+			window.document.execCommand('hiliteColor', false, matchColor);
+			const cloneRange = window.getSelection()!.getRangeAt(0).cloneRange();
+			const _range = {
+				collapsed: cloneRange.collapsed,
+				commonAncestorContainer: cloneRange.commonAncestorContainer,
+				endContainer: cloneRange.endContainer,
+				endOffset: cloneRange.endOffset,
+				startContainer: cloneRange.startContainer,
+				startOffset: cloneRange.startOffset
+			};
+			return {
+				range: _range,
+				dispose: () => {
+					selectRange(_range);
+					try {
+						document.designMode = 'On';
+						document.execCommand('removeFormat', false, undefined);
+						document.designMode = 'Off';
+						window.getSelection()?.removeAllRanges();
+					} catch (e) {
+						console.log(e);
+					}
+				},
+				update: (color: string | undefined, className: string | undefined) => {
+					selectRange(_range);
+					try {
+						document.designMode = 'On';
+						document.execCommand('removeFormat', false, undefined);
+						window.document.execCommand('hiliteColor', false, color);
+						document.designMode = 'Off';
+						window.getSelection()?.removeAllRanges();
+					} catch (e) {
+						console.log(e);
+					}
+				}
+			};
+		}
 	}
 
 	class OutputFocusTracker {
@@ -536,6 +769,210 @@ async function webviewPreloads(ctx: PreloadContext) {
 	});
 
 	window.addEventListener('wheel', handleWheel);
+
+	interface IFindMatch {
+		type: 'preview' | 'output',
+		id: string,
+		cellId: string,
+		container: Node,
+		isShadow: boolean,
+		highlightResult: IHighlightResult
+	}
+
+	let _findingMatches: IFindMatch[] = [];
+	let _findMatchIndex = -1;
+	let matchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).color;
+	let currentMatchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).backgroundColor;
+
+	const find = (query: string) => {
+		let find = true;
+		let matches: {
+			type: 'preview' | 'output',
+			id: string,
+			cellId: string,
+			container: Node,
+			originalRange: Range,
+			isShadow: boolean,
+			highlightResult?: IHighlightResult
+		}[] = [];
+
+		let range = document.createRange();
+		range.selectNodeContents(document.getElementById('findStart')!);
+		let sel = window.getSelection();
+		sel?.removeAllRanges();
+		sel?.addRange(range);
+		document.designMode = 'On';
+
+		while (find && matches.length < 500) {
+			find = (window as any).find(query, /* caseSensitive*/ false,
+			/* backwards*/ false,
+			/* wrapAround*/ false,
+			/* wholeWord */ false,
+			/* searchInFrames*/ true,
+				false);
+
+			if (find) {
+				const selection = window.getSelection();
+				if (!selection) {
+					console.log('no selection');
+					break;
+				}
+
+				if (selection.getRangeAt(0).startContainer.nodeType === 1
+					&& (selection.getRangeAt(0).startContainer as Element).classList.contains('markup')) {
+					// markdown preview container
+					const preview = (selection.anchorNode?.firstChild as Element);
+					const root = preview.shadowRoot as ShadowRoot & { getSelection: () => Selection };
+					const shadowSelection = root?.getSelection ? root?.getSelection() : null;
+					if (shadowSelection && shadowSelection.anchorNode) {
+						matches.push({
+							type: 'preview',
+							id: preview.id,
+							cellId: preview.id,
+							container: preview,
+							isShadow: true,
+							originalRange: shadowSelection.getRangeAt(0)
+						});
+					}
+				}
+
+				if (selection.getRangeAt(0).startContainer.nodeType === 1
+					&& (selection.getRangeAt(0).startContainer as Element).classList.contains('output_container')) {
+					// output container
+					const cellId = selection.getRangeAt(0).startContainer.parentElement!.id;
+					const outputNode = (selection.anchorNode?.firstChild as Element);
+					const root = outputNode.shadowRoot as ShadowRoot & { getSelection: () => Selection };
+					const shadowSelection = root?.getSelection ? root?.getSelection() : null;
+					if (shadowSelection && shadowSelection.anchorNode) {
+						matches.push({
+							type: 'output',
+							id: outputNode.id,
+							cellId: cellId,
+							container: outputNode,
+							isShadow: true,
+							originalRange: shadowSelection.getRangeAt(0)
+						});
+					}
+				}
+
+				const anchorNode = selection?.anchorNode?.parentElement;
+
+				if (anchorNode) {
+					const lastEl: any = matches.length ? matches[matches.length - 1] : null;
+
+					if (lastEl && lastEl.container.contains(anchorNode)) {
+						matches.push({
+							type: lastEl.type,
+							id: lastEl.id,
+							cellId: lastEl.cellId,
+							container: lastEl.container,
+							isShadow: false,
+							originalRange: window.getSelection()!.getRangeAt(0)
+						});
+
+					} else {
+						for (let node = anchorNode as Element | null; node; node = node.parentElement) {
+							if (!(node instanceof Element)) {
+								break;
+							}
+
+							if (node.classList.contains('output')) {
+								// inside output
+								const cellId = node.parentElement?.parentElement?.id;
+								if (cellId) {
+									matches.push({
+										type: 'output',
+										id: node.id,
+										cellId: cellId,
+										container: node,
+										isShadow: false,
+										originalRange: window.getSelection()!.getRangeAt(0)
+									});
+								}
+								break;
+							}
+
+							if (node.id === 'container' || node === document.body) {
+								break;
+							}
+						}
+					}
+
+				} else {
+					break;
+				}
+			}
+		}
+
+		for (let i = matches.length - 1; i >= 0; i--) {
+			const match = matches[i];
+			const ret = highlightRange(match.originalRange, true, 'mark', match.isShadow ? {
+				'style': 'background-color: ' + matchColor + ';',
+			} : {
+				'class': 'find-match'
+			});
+			match.highlightResult = ret;
+		}
+
+		document.designMode = 'Off';
+		document.getSelection()?.collapseToStart();
+
+		_findingMatches = matches as IFindMatch[];
+		postNotebookMessage('didFind', {
+			matches: matches.map((match, index) => ({
+				type: match.type,
+				id: match.id,
+				cellId: match.cellId,
+				index
+			}))
+		});
+	};
+
+	const highlightCurrentMatch = (index: number) => {
+		const oldMatch = _findingMatches[_findMatchIndex];
+		if (oldMatch) {
+			oldMatch.highlightResult.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
+		}
+
+		const match = _findingMatches[index];
+		_findMatchIndex = index;
+		const sel = window.getSelection();
+		if (!!match && !!sel) {
+			let offset = 0;
+			try {
+				const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
+				const tempRange = document.createRange();
+				tempRange.selectNode(match.highlightResult.range.startContainer);
+				const rangeOffset = tempRange.getBoundingClientRect().top;
+				tempRange.detach();
+				offset = rangeOffset - outputOffset;
+			} catch (e) {
+			}
+
+			match.highlightResult.update(currentMatchColor, match.isShadow ? undefined : 'current-find-match');
+
+			document.getSelection()?.removeAllRanges();
+			postNotebookMessage('didFindHighlight', {
+				offset
+			});
+		}
+	};
+
+	const unHighlightCurrentMatch = (index: number) => {
+		const oldMatch = _findingMatches[index];
+		if (oldMatch) {
+			oldMatch.highlightResult.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
+		}
+	};
+
+	const clearFindMatches = () => {
+		_findingMatches.forEach(match => {
+			match.highlightResult.dispose();
+		});
+
+		_findingMatches = [];
+		_findMatchIndex = -1;
+	};
 
 	window.addEventListener('message', async rawEvent => {
 		const event = rawEvent as ({ data: webviewMessages.ToWebviewMessage; });
@@ -696,6 +1133,23 @@ async function webviewPreloads(ctx: PreloadContext) {
 				if (tokenizationStyleElement) {
 					tokenizationStyleElement.textContent = event.data.css;
 				}
+				break;
+			}
+			case 'find': {
+				clearFindMatches();
+				find(event.data.query);
+				break;
+			}
+			case 'findHighlight': {
+				highlightCurrentMatch(event.data.index);
+				break;
+			}
+			case 'findUnHighlight': {
+				unHighlightCurrentMatch(event.data.index);
+				break;
+			}
+			case 'findStop': {
+				clearFindMatches();
 				break;
 			}
 		}
@@ -1126,6 +1580,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.ready = new Promise<void>(r => resolveReady = r);
 
 			const root = document.getElementById('container')!;
+			const markupCell = document.createElement('div');
+			markupCell.className = 'markup';
+			markupCell.style.position = 'absolute';
+			markupCell.style.width = '100%';
 
 			this.element = document.createElement('div');
 			this.element.id = this.id;
@@ -1133,7 +1591,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.style.position = 'absolute';
 			this.element.style.top = top + 'px';
 			this.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
-			root.appendChild(this.element);
+			markupCell.appendChild(this.element);
+			root.appendChild(markupCell);
 
 			this.addEventListeners();
 

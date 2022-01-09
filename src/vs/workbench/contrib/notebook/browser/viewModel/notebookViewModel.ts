@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { FindMatch, IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { IntervalNode, IntervalTree } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -23,7 +23,7 @@ import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { CellEditState, CellFindMatch, CellFindMatchWithIndex, ICellViewModel, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, NotebookLayoutInfo, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, CellFindMatchWithIndex, ICellViewModel, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, NotebookLayoutInfo, NotebookMetadataChangedEvent, OutputFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
@@ -909,7 +909,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				matches.push({
 					cell: cellMatches.cell,
 					index: index,
-					matches: cellMatches.matches
+					matches: cellMatches.matches,
+					modelMatchCount: cellMatches.matches.length
 				});
 			}
 		});
@@ -938,10 +939,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 		matches.forEach(match => {
 			match.matches.forEach((singleMatch, index) => {
-				textEdits.push({
-					edit: { range: singleMatch.range, text: texts[index] },
-					resource: match.cell.uri
-				});
+				if ((singleMatch as OutputFindMatch).index !== undefined) {
+					textEdits.push({
+						edit: { range: (singleMatch as FindMatch).range, text: texts[index] },
+						resource: match.cell.uri
+					});
+				}
 			});
 		});
 

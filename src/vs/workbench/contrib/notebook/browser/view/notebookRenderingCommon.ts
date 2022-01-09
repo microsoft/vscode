@@ -79,6 +79,7 @@ export interface INotebookCellList {
 	revealElementRangeInViewAsync(element: ICellViewModel, range: Range): Promise<void>;
 	revealElementRangeInCenterAsync(element: ICellViewModel, range: Range): Promise<void>;
 	revealElementRangeInCenterIfOutsideViewportAsync(element: ICellViewModel, range: Range): Promise<void>;
+	revealElementOffsetInCenterAsync(element: ICellViewModel, offset: number): Promise<void>;
 	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;
 	focusView(): void;
