@@ -9,7 +9,7 @@
 
 const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {any} */ (self));
 
-const VERSION = 3;
+const VERSION = 4;
 
 const resourceCacheName = `vscode-resource-cache-${VERSION}`;
 
@@ -127,33 +127,25 @@ const notFound = () =>
 const methodNotAllowed = () =>
 	new Response('Method Not Allowed', { status: 405, });
 
-const vscodeMessageChannel = new MessageChannel();
-
-sw.addEventListener('message', event => {
+sw.addEventListener('message', async (event) => {
 	switch (event.data.channel) {
-		case 'init':
+		case 'version':
 			{
 				const source = /** @type {Client} */ (event.source);
 				sw.clients.get(source.id).then(client => {
-					client?.postMessage({
-						channel: 'init',
-						version: VERSION
-					}, [vscodeMessageChannel.port2]);
+					if (client) {
+						client.postMessage({
+							channel: 'version',
+							version: VERSION
+						});
+					}
 				});
 				return;
 			}
-		default:
-			console.log('Unknown message');
-			return;
-	}
-});
-
-vscodeMessageChannel.port1.onmessage = (event) => {
-	switch (event.data.channel) {
 		case 'did-load-resource':
 			{
 				/** @type {ResourceResponse} */
-				const response = event.data;
+				const response = event.data.data;
 				if (!resourceRequestStore.resolve(response.id, response)) {
 					console.log('Could not resolve unknown resource', response.path);
 				}
@@ -161,7 +153,7 @@ vscodeMessageChannel.port1.onmessage = (event) => {
 			}
 		case 'did-load-localhost':
 			{
-				const data = event.data;
+				const data = event.data.data;
 				if (!localhostRequestStore.resolve(data.id, data.location)) {
 					console.log('Could not resolve unknown localhost', data.origin);
 				}
@@ -171,7 +163,7 @@ vscodeMessageChannel.port1.onmessage = (event) => {
 			console.log('Unknown message');
 			return;
 	}
-};
+});
 
 sw.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
@@ -193,7 +185,7 @@ sw.addEventListener('fetch', (event) => {
 });
 
 sw.addEventListener('install', (event) => {
-	event.waitUntil(sw.skipWaiting());
+	event.waitUntil(sw.skipWaiting()); // Activate worker immediately
 });
 
 sw.addEventListener('activate', (event) => {
@@ -205,6 +197,18 @@ sw.addEventListener('activate', (event) => {
  * @param {URL} requestUrl
  */
 async function processResourceRequest(event, requestUrl) {
+	const client = await sw.clients.get(event.clientId);
+	if (!client) {
+		console.error('Could not find inner client for request');
+		return notFound();
+	}
+
+	const webviewId = getWebviewIdForClient(client);
+	if (!webviewId) {
+		console.error('Could not resolve webview id');
+		return notFound();
+	}
+
 	const shouldTryCaching = (event.request.method === 'GET');
 
 	/**
@@ -254,6 +258,12 @@ async function processResourceRequest(event, requestUrl) {
 		return response.clone();
 	};
 
+	const parentClients = await getOuterIframeClient(webviewId);
+	if (!parentClients.length) {
+		console.log('Could not find parent client for request');
+		return notFound();
+	}
+
 	/** @type {Response | undefined} */
 	let cached;
 	if (shouldTryCaching) {
@@ -267,15 +277,17 @@ async function processResourceRequest(event, requestUrl) {
 	const scheme = firstHostSegment.split('+', 1)[0];
 	const authority = firstHostSegment.slice(scheme.length + 1); // may be empty
 
-	vscodeMessageChannel.port1.postMessage({
-		channel: 'load-resource',
-		id: requestId,
-		path: requestUrl.pathname,
-		scheme,
-		authority,
-		query: requestUrl.search.replace(/^\?/, ''),
-		ifNoneMatch: cached?.headers.get('ETag'),
-	});
+	for (const parentClient of parentClients) {
+		parentClient.postMessage({
+			channel: 'load-resource',
+			id: requestId,
+			path: requestUrl.pathname,
+			scheme,
+			authority,
+			query: requestUrl.search.replace(/^\?/, ''),
+			ifNoneMatch: cached?.headers.get('ETag'),
+		});
+	}
 
 	return promise.then(entry => resolveResourceEntry(entry, cached));
 }
@@ -290,6 +302,11 @@ async function processLocalhostRequest(event, requestUrl) {
 	if (!client) {
 		// This is expected when requesting resources on other localhost ports
 		// that are not spawned by vs code
+		return fetch(event.request);
+	}
+	const webviewId = getWebviewIdForClient(client);
+	if (!webviewId) {
+		console.error('Could not resolve webview id');
 		return fetch(event.request);
 	}
 
@@ -312,13 +329,42 @@ async function processLocalhostRequest(event, requestUrl) {
 		});
 	};
 
-	const { requestId, promise } = localhostRequestStore.create();
+	const parentClients = await getOuterIframeClient(webviewId);
+	if (!parentClients.length) {
+		console.log('Could not find parent client for request');
+		return notFound();
+	}
 
-	vscodeMessageChannel.port1.postMessage({
-		channel: 'load-localhost',
-		origin: origin,
-		id: requestId,
-	});
+	const { requestId, promise } = localhostRequestStore.create();
+	for (const parentClient of parentClients) {
+		parentClient.postMessage({
+			channel: 'load-localhost',
+			origin: origin,
+			id: requestId,
+		});
+	}
 
 	return promise.then(resolveRedirect);
+}
+
+/**
+ * @param {Client} client
+ * @returns {string | null}
+ */
+function getWebviewIdForClient(client) {
+	const requesterClientUrl = new URL(client.url);
+	return requesterClientUrl.searchParams.get('id');
+}
+
+/**
+ * @param {string} webviewId
+ * @returns {Promise<Client[]>}
+ */
+async function getOuterIframeClient(webviewId) {
+	const allClients = await sw.clients.matchAll({ includeUncontrolled: true });
+	return allClients.filter(client => {
+		const clientUrl = new URL(client.url);
+		const hasExpectedPathName = (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html`);
+		return hasExpectedPathName && clientUrl.searchParams.get('id') === webviewId;
+	});
 }
