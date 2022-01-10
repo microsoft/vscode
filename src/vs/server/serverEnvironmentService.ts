@@ -37,8 +37,8 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 
 	/* ----- vs code web options ----- */
 
-	'folder': { type: 'string' },
-	'workspace': { type: 'string' },
+	'folder': { type: 'string', deprecationMessage: 'No longer supported. Folder needs to be provided in the browser URL.' },
+	'workspace': { type: 'string', deprecationMessage: 'No longer supported. Workspace needs to be provided in the browser URL.' },
 
 	'enable-sync': { type: 'boolean' },
 	'github-auth': { type: 'string' },
