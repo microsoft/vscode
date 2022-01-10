@@ -178,7 +178,7 @@ export class CodeApplication extends Disposable {
 			}
 
 			for (const window of this.windowsMainService.getWindows()) {
-				if (window.win && details.frame.routingId === window.win.webContents.mainFrame.routingId) {
+				if (window.win && details.frame.processId === window.win.webContents.mainFrame.processId) {
 					return true;
 				}
 			}
