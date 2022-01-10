@@ -95,6 +95,9 @@ export function activate(context: vscode.ExtensionContext) {
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
 
 			const connectionTokenFile = path.join(remoteDataDir, `${process.pid}-${new Date().getTime()}.token`);
+			if (!fs.existsSync(remoteDataDir)) {
+				fs.mkdirSync(remoteDataDir, { recursive: true });
+			}
 			fs.writeFileSync(connectionTokenFile, connectionToken);
 			commandArgs.push('--connection-token-file', connectionTokenFile);
 
