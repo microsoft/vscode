@@ -67,7 +67,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'enable-remote-auto-shutdown': { type: 'boolean' },
 	'remote-auto-shutdown-without-delay': { type: 'boolean' },
 
-	'use-host-proxy': { type: 'string' },
+	'use-host-proxy': { type: 'boolean' },
 	'without-browser-env-var': { type: 'boolean' },
 
 	/* ----- server cli ----- */
@@ -162,7 +162,7 @@ export interface ServerParsedArgs {
 	'enable-remote-auto-shutdown'?: boolean;
 	'remote-auto-shutdown-without-delay'?: boolean;
 
-	'use-host-proxy'?: string;
+	'use-host-proxy'?: boolean;
 	'without-browser-env-var'?: boolean;
 
 	/* ----- server cli ----- */
