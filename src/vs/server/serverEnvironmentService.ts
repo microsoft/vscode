@@ -59,7 +59,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'force': OPTIONS['force'],
 	'do-not-sync': OPTIONS['do-not-sync'],
 	'pre-release': OPTIONS['pre-release'],
-	'start-server': { type: 'boolean', cat: 'e', description: nls.localize('start-server', 'Start the server when installing or uninstalling extensions. To be used in combination with `install-extension`, `install-builtin-extension` and `install-builtin-extension`.') },
+	'start-server': { type: 'boolean', cat: 'e', description: nls.localize('start-server', 'Start the server when installing or uninstalling extensions. To be used in combination with `install-extension`, `install-builtin-extension` and `uninstall-extension`.') },
 
 
 	/* ----- remote development options ----- */
