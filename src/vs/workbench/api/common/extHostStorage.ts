@@ -7,7 +7,7 @@ import { MainContext, MainThreadStorageShape, ExtHostStorageShape } from './extH
 import { Emitter } from 'vs/base/common/event';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
+import { IExtensionIdWithVersion } from 'vs/platform/extensionManagement/common/extensionStorage';
 
 export interface IStorageChangeEvent {
 	shared: boolean;
@@ -32,8 +32,8 @@ export class ExtHostStorage implements ExtHostStorageShape {
 		this._proxy.$registerExtensionStorageKeysToSync(extension, keys);
 	}
 
-	getValue<T>(shared: boolean, key: string, defaultValue?: T): Promise<T | undefined> {
-		return this._proxy.$getValue<T>(shared, key).then(value => value || defaultValue);
+	initializeExtensionStorage(shared: boolean, key: string, defaultValue?: object): Promise<object | undefined> {
+		return this._proxy.$initializeExtensionStorage(shared, key).then(value => value || defaultValue);
 	}
 
 	setValue(shared: boolean, key: string, value: object): Promise<void> {
