@@ -764,7 +764,6 @@ export class CommandCenter {
 	}
 
 	@command('git.openChange')
-	@command('git.openChangeEditor')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		let resources: Resource[] | undefined = undefined;
 
