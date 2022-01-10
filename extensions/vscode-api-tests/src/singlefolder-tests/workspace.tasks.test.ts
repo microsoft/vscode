@@ -76,7 +76,7 @@ import { assertNoRpc } from '../utils';
 				});
 			});
 
-			test.skip('dependsOn task should start with a different processId (#118256)', async () => {
+			test('dependsOn task should start with a different processId (#118256)', async () => {
 				// Set up dependsOn task by creating tasks.json since this is not possible via the API
 				// Tasks API
 				const tasksConfig = workspace.getConfiguration('tasks');
@@ -97,11 +97,16 @@ import { assertNoRpc } from '../utils';
 					}
 				], ConfigurationTarget.Workspace);
 
-				// Run the task
-				commands.executeCommand('workbench.action.tasks.runTask', 'Run this task');
+				const waitForTaskToFinish = new Promise<void>(resolve => {
+					tasks.onDidEndTask(e => {
+						if (e.execution.task.name === 'Run this task') {
+							resolve();
+						}
+					});
+				});
 
-				// Listen for first task and verify valid process ID
-				const startEvent1 = await new Promise<TaskProcessStartEvent>(r => {
+				const waitForStartEvent1 = new Promise<TaskProcessStartEvent>(r => {
+					// Listen for first task and verify valid process ID
 					const listener = tasks.onDidStartTaskProcess(async (e) => {
 						if (e.execution.task.name === 'taskToDependOn') {
 							listener.dispose();
@@ -109,11 +114,10 @@ import { assertNoRpc } from '../utils';
 						}
 					});
 				});
-				assert.ok(startEvent1.processId);
 
-				// Listen for second task, verify valid process ID and that it's not the process ID of
-				// the first task
-				const startEvent2 = await new Promise<TaskProcessStartEvent>(r => {
+				const waitForStartEvent2 = new Promise<TaskProcessStartEvent>(r => {
+					// Listen for second task, verify valid process ID and that it's not the process ID of
+					// the first task
 					const listener = tasks.onDidStartTaskProcess(async (e) => {
 						if (e.execution.task.name === 'Run this task') {
 							listener.dispose();
@@ -121,9 +125,17 @@ import { assertNoRpc } from '../utils';
 						}
 					});
 				});
+
+				// Run the task
+				commands.executeCommand('workbench.action.tasks.runTask', 'Run this task');
+
+				const startEvent1 = await waitForStartEvent1;
+				assert.ok(startEvent1.processId);
+
+				const startEvent2 = await waitForStartEvent2;
 				assert.ok(startEvent2.processId);
 				assert.notStrictEqual(startEvent1.processId, startEvent2.processId);
-
+				await waitForTaskToFinish;
 				// Clear out tasks config
 				await tasksConfig.update('tasks', []);
 			});

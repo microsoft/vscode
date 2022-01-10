@@ -326,4 +326,7 @@ import 'vs/workbench/contrib/workspaces/browser/workspaces.contribution';
 // List
 import 'vs/workbench/contrib/list/browser/list.contribution';
 
+// Audio Cues
+import 'vs/workbench/contrib/audioCues/browser/audioCues.contribution';
+
 //#endregion

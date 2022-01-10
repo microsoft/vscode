@@ -428,6 +428,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.setSideBarPosition(change.value as Position);
 			}
 
+			if (change.key === LayoutStateKeys.PANEL_POSITION) {
+				this.setPanelPosition(change.value as Position);
+			}
+
 			if (change.key === LayoutStateKeys.PANEL_ALIGNMENT) {
 				this.setPanelAlignment(change.value as PanelAlignment);
 			}
@@ -1265,7 +1269,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
-		active = false;
 		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_CENTERED, active);
 
 		let smartActive = active;

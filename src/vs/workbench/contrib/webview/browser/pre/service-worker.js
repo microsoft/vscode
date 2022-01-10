@@ -118,6 +118,9 @@ const resourceRequestStore = new RequestStore();
  */
 const localhostRequestStore = new RequestStore();
 
+const unauthorized = () =>
+	new Response('Unauthorized', { status: 401, });
+
 const notFound = () =>
 	new Response('Not Found', { status: 404, });
 
@@ -139,16 +142,16 @@ sw.addEventListener('message', event => {
 				});
 				return;
 			}
+		default:
+			console.log('Unknown message');
+			return;
 	}
-
-	console.log('Unknown message');
 });
 
 vscodeMessageChannel.port1.onmessage = (event) => {
 	switch (event.data.channel) {
 		case 'did-load-resource':
 			{
-
 				/** @type {ResourceResponse} */
 				const response = event.data;
 				if (!resourceRequestStore.resolve(response.id, response)) {
@@ -164,9 +167,10 @@ vscodeMessageChannel.port1.onmessage = (event) => {
 				}
 				return;
 			}
+		default:
+			console.log('Unknown message');
+			return;
 	}
-
-	console.log('Unknown message');
 };
 
 sw.addEventListener('fetch', (event) => {
@@ -214,6 +218,10 @@ async function processResourceRequest(event, requestUrl) {
 			} else {
 				throw new Error('No cache found');
 			}
+		}
+
+		if (entry.status === 401) {
+			return unauthorized();
 		}
 
 		if (entry.status !== 200) {

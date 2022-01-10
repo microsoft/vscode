@@ -409,16 +409,16 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 
-		const targetType = mouseEvent.target.type;
+		const target = mouseEvent.target;
 		const stopKey = env.isMacintosh ? 'metaKey' : 'ctrlKey';
 
-		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
+		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
 			// mouse moved on top of debug hover widget
 			return;
 		}
-		if (targetType === MouseTargetType.CONTENT_TEXT) {
-			if (mouseEvent.target.range && !mouseEvent.target.range.equalsRange(this.hoverRange)) {
-				this.hoverRange = mouseEvent.target.range;
+		if (target.type === MouseTargetType.CONTENT_TEXT) {
+			if (target.range && !target.range.equalsRange(this.hoverRange)) {
+				this.hoverRange = target.range;
 				this.hideHoverScheduler.cancel();
 				this.showHoverScheduler.schedule();
 			}

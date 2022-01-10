@@ -5,38 +5,52 @@
 
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { InlayHint } from 'vs/editor/common/languages';
+import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { Position } from 'vs/editor/common/core/position';
+import { Command, HoverProviderRegistry } from 'vs/editor/common/languages';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
-import { HoverAnchor, HoverForeignElementAnchor } from 'vs/editor/contrib/hover/hoverTypes';
+import { HoverAnchor, HoverForeignElementAnchor, IEditorHoverParticipant } from 'vs/editor/contrib/hover/hoverTypes';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { MarkdownHover, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
-import { InlayHintData, InlayHintsController } from 'vs/editor/contrib/inlayHints/inlayHintsController';
+import { InlayHintLabelPart, InlayHintsController } from 'vs/editor/contrib/inlayHints/inlayHintsController';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
-
-	constructor(readonly hint: InlayHint, owner: InlayHintsHover) {
-		super(10, owner, Range.fromPositions(hint.position));
+	constructor(readonly part: InlayHintLabelPart, owner: InlayHintsHover) {
+		super(10, owner, part.item.anchor.range);
 	}
 }
 
-export class InlayHintsHover extends MarkdownHoverParticipant {
+export class InlayHintsHover extends MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
+
+	constructor(
+		editor: ICodeEditor,
+		@ILanguageService languageService: ILanguageService,
+		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ITextModelService private readonly _resolverService: ITextModelService
+	) {
+		super(editor, languageService, openerService, configurationService);
+	}
 
 	suggestHoverAnchor(mouseEvent: IEditorMouseEvent): HoverAnchor | null {
 		const controller = InlayHintsController.get(this._editor);
 		if (!controller) {
 			return null;
 		}
-		if (mouseEvent.target.type !== MouseTargetType.CONTENT_TEXT || typeof mouseEvent.target.detail !== 'object') {
+		if (mouseEvent.target.type !== MouseTargetType.CONTENT_TEXT) {
 			return null;
 		}
-		const options = mouseEvent.target.detail?.injectedText?.options;
-		if (!(options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintData)) {
+		const options = mouseEvent.target.detail.injectedText?.options;
+		if (!(options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLabelPart)) {
 			return null;
 		}
-		return new InlayHintsHoverAnchor(options.attachedData.hint, this);
+		return new InlayHintsHoverAnchor(options.attachedData, this);
 	}
 
 	override computeSync(): MarkdownHover[] {
@@ -47,15 +61,58 @@ export class InlayHintsHover extends MarkdownHoverParticipant {
 		if (!(anchor instanceof InlayHintsHoverAnchor)) {
 			return AsyncIterableObject.EMPTY;
 		}
-		if (!anchor.hint.tooltip) {
+
+		return new AsyncIterableObject<MarkdownHover>(async executor => {
+
+			const { part } = anchor;
+			await part.item.resolve(token);
+
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			// (1) Inlay Tooltip
+			let contents: IMarkdownString | undefined;
+			if (typeof part.item.hint.tooltip === 'string') {
+				contents = new MarkdownString().appendText(part.item.hint.tooltip);
+			} else if (part.item.hint.tooltip) {
+				contents = part.item.hint.tooltip;
+			}
+			if (contents) {
+				executor.emitOne(new MarkdownHover(this, anchor.range, [contents], 0));
+			}
+
+			// (2) Inlay Label Part Tooltip
+			const iterable = await this._resolveInlayHintLabelPartHover(part, token);
+			for await (let item of iterable) {
+				executor.emitOne(item);
+			}
+		});
+	}
+
+	private async _resolveInlayHintLabelPartHover(part: InlayHintLabelPart, token: CancellationToken): Promise<AsyncIterableObject<MarkdownHover>> {
+		if (typeof part.item.hint.label === 'string') {
 			return AsyncIterableObject.EMPTY;
 		}
-		let md: IMarkdownString;
-		if (typeof anchor.hint.tooltip === 'string') {
-			md = new MarkdownString().appendText(anchor.hint.tooltip);
-		} else {
-			md = anchor.hint.tooltip;
+
+		const candidate = part.part.action;
+
+		if (!candidate || Command.is(candidate)) {
+			// LOCATION
+			return AsyncIterableObject.EMPTY;
 		}
-		return new AsyncIterableObject(emitter => emitter.emitOne(new MarkdownHover(this, anchor.range, [md], 0)));
+		const { uri, range } = candidate;
+		const ref = await this._resolverService.createModelReference(uri);
+		try {
+			const model = ref.object.textEditorModel;
+			if (!HoverProviderRegistry.has(model)) {
+				return AsyncIterableObject.EMPTY;
+			}
+			return getHover(model, new Position(range.startLineNumber, range.startColumn), token)
+				.filter(item => !isEmptyMarkdownString(item.hover.contents))
+				.map(item => new MarkdownHover(this, part.item.anchor.range, item.hover.contents, item.ordinal));
+		} finally {
+			ref.dispose();
+		}
 	}
 }

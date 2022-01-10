@@ -19,7 +19,7 @@ import { CodeActionSet, getCodeActions } from 'vs/editor/contrib/codeAction/code
 import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
 import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/gotoError';
-import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
+import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 import * as nls from 'vs/nls';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -58,7 +58,6 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _hover: IEditorHover,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
@@ -88,14 +87,14 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return result;
 	}
 
-	public renderHoverParts(hoverParts: MarkerHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkerHover[]): IDisposable {
 		if (!hoverParts.length) {
 			return Disposable.None;
 		}
 		const disposables = new DisposableStore();
-		hoverParts.forEach(msg => fragment.appendChild(this.renderMarkerHover(msg, disposables)));
+		hoverParts.forEach(msg => context.fragment.appendChild(this.renderMarkerHover(msg, disposables)));
 		const markerHoverForStatusbar = hoverParts.length === 1 ? hoverParts[0] : hoverParts.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
-		this.renderMarkerStatusbar(markerHoverForStatusbar, statusBar, disposables);
+		this.renderMarkerStatusbar(context, markerHoverForStatusbar, disposables);
 		return disposables;
 	}
 
@@ -166,13 +165,13 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return hoverElement;
 	}
 
-	private renderMarkerStatusbar(markerHover: MarkerHover, statusBar: IEditorHoverStatusBar, disposables: DisposableStore): void {
+	private renderMarkerStatusbar(context: IEditorHoverRenderContext, markerHover: MarkerHover, disposables: DisposableStore): void {
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
-			statusBar.addAction({
+			context.statusBar.addAction({
 				label: nls.localize('view problem', "View Problem"),
 				commandId: NextMarkerAction.ID,
 				run: () => {
-					this._hover.hide();
+					context.hide();
 					MarkerController.get(this._editor)?.showAtMarker(markerHover.marker);
 					this._editor.focus();
 				}
@@ -180,7 +179,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		}
 
 		if (!this._editor.getOption(EditorOption.readOnly)) {
-			const quickfixPlaceholderElement = statusBar.append($('div'));
+			const quickfixPlaceholderElement = context.statusBar.append($('div'));
 			if (this.recentMarkerCodeActionsInfo) {
 				if (IMarkerData.makeKey(this.recentMarkerCodeActionsInfo.marker) === IMarkerData.makeKey(markerHover.marker)) {
 					if (!this.recentMarkerCodeActionsInfo.hasCodeActions) {
@@ -215,7 +214,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 					}
 				}));
 
-				statusBar.addAction({
+				context.statusBar.addAction({
 					label: nls.localize('quick fixes', "Quick Fix..."),
 					commandId: QuickFixAction.Id,
 					run: (target) => {
@@ -224,7 +223,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						const elementPosition = dom.getDomNodePagePosition(target);
 						// Hide the hover pre-emptively, otherwise the editor can close the code actions
 						// context menu as well when using keyboard navigation
-						this._hover.hide();
+						context.hide();
 						controller?.showCodeActions(markerCodeActionTrigger, actions, {
 							x: elementPosition.left + 6,
 							y: elementPosition.top + elementPosition.height + 6

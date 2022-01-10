@@ -364,6 +364,43 @@ export interface ITokenizedStylesChangedMessage {
 	readonly css: string;
 }
 
+export interface IFindMessage {
+	readonly type: 'find';
+	readonly query: string;
+}
+
+
+export interface IFindHighlightMessage {
+	readonly type: 'findHighlight';
+	readonly index: number;
+}
+
+export interface IFindUnHighlightMessage {
+	readonly type: 'findUnHighlight';
+	readonly index: number;
+}
+
+export interface IFindStopMessage {
+	readonly type: 'findStop';
+}
+
+export interface IFindMatch {
+	readonly type: 'preview' | 'output';
+	readonly cellId: string;
+	readonly id: string;
+	readonly index: number;
+}
+
+export interface IDidFindMessage extends BaseToWebviewMessage {
+	readonly type: 'didFind';
+	readonly matches: IFindMatch[];
+}
+
+export interface IDidFindHighlightMessage extends BaseToWebviewMessage {
+	readonly type: 'didFindHighlight';
+	readonly offset: number;
+}
+
 export type FromWebviewMessage = WebviewInitialized |
 	IDimensionMessage |
 	IMouseEnterMessage |
@@ -390,7 +427,9 @@ export type FromWebviewMessage = WebviewInitialized |
 	IInitializedMarkupMessage |
 	IRenderedMarkupMessage |
 	ITelemetryFoundRenderedMarkdownMath |
-	ITelemetryFoundUnrenderedMarkdownMath;
+	ITelemetryFoundUnrenderedMarkdownMath |
+	IDidFindMessage |
+	IDidFindHighlightMessage;
 
 export type ToWebviewMessage = IClearMessage |
 	IFocusOutputMessage |
@@ -416,6 +455,10 @@ export type ToWebviewMessage = IClearMessage |
 	INotebookOptionsMessage |
 	INotebookUpdateWorkspaceTrust |
 	ITokenizedCodeBlockMessage |
-	ITokenizedStylesChangedMessage;
+	ITokenizedStylesChangedMessage |
+	IFindMessage |
+	IFindHighlightMessage |
+	IFindUnHighlightMessage |
+	IFindStopMessage;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;

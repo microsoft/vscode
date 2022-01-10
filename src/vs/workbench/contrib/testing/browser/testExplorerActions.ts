@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { distinct } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -1143,6 +1144,60 @@ export class ToggleInlineTestOutput extends Action2 {
 	}
 }
 
+export class RefreshTestsAction extends Action2 {
+	public static readonly ID = 'testing.refreshTests';
+	constructor() {
+		super({
+			id: RefreshTestsAction.ID,
+			title: localize('testing.refreshTests', "Refresh Tests"),
+			category,
+			icon: icons.testingRefreshTests,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyR),
+			},
+			menu: [
+				{
+					id: MenuId.TestItem,
+					group: 'inline',
+					when: TestingContextKeys.canRefreshTests.isEqualTo(true),
+				},
+				{
+					id: MenuId.ViewTitle,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.equals('view', Testing.ExplorerViewId),
+						TestingContextKeys.canRefreshTests.isEqualTo(true),
+					),
+				},
+				{
+					id: MenuId.CommandPalette,
+					when: TestingContextKeys.canRefreshTests.isEqualTo(true),
+				},
+			]
+		});
+	}
+
+	public async run(accessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]) {
+		const testService = accessor.get(ITestService);
+		const progressService = accessor.get(IProgressService);
+
+		const controllerIds = distinct(
+			elements
+				.filter((e): e is TestItemTreeElement => e instanceof TestItemTreeElement)
+				.map(e => e.test.controllerId)
+		);
+
+		return progressService.withProgress({ location: Testing.ViewletId }, async () => {
+			if (controllerIds.length) {
+				await Promise.all(controllerIds.map(id => testService.refreshTests(id)));
+			} else {
+				await testService.refreshTests();
+			}
+		});
+	}
+}
+
 export const allTestActions = [
 	// todo: these are disabled until we figure out how we want autorun to work
 	// AutoRunOffAction,
@@ -1161,6 +1216,7 @@ export const allTestActions = [
 	GoToTest,
 	HideTestAction,
 	OpenOutputPeek,
+	RefreshTestsAction,
 	ReRunFailedTests,
 	ReRunLastRun,
 	RunAction,

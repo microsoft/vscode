@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { MouseTarget } from 'vs/editor/browser/controller/mouseTarget';
-import { IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
@@ -118,36 +115,13 @@ export class ViewUserInputEvents {
 	}
 
 	public static convertViewToModelMouseTarget(target: IMouseTarget, coordinatesConverter: ICoordinatesConverter): IMouseTarget {
-		return new ExternalMouseTarget(
-			target.element,
-			target.type,
-			target.mouseColumn,
-			target.position ? coordinatesConverter.convertViewPositionToModelPosition(target.position) : null,
-			target.range ? coordinatesConverter.convertViewRangeToModelRange(target.range) : null,
-			target.detail
-		);
-	}
-}
-
-class ExternalMouseTarget implements IMouseTarget {
-
-	public readonly element: Element | null;
-	public readonly type: MouseTargetType;
-	public readonly mouseColumn: number;
-	public readonly position: Position | null;
-	public readonly range: Range | null;
-	public readonly detail: any;
-
-	constructor(element: Element | null, type: MouseTargetType, mouseColumn: number, position: Position | null, range: Range | null, detail: any) {
-		this.element = element;
-		this.type = type;
-		this.mouseColumn = mouseColumn;
-		this.position = position;
-		this.range = range;
-		this.detail = detail;
-	}
-
-	public toString(): string {
-		return MouseTarget.toString(this);
+		const result = { ...target };
+		if (result.position) {
+			result.position = coordinatesConverter.convertViewPositionToModelPosition(result.position);
+		}
+		if (result.range) {
+			result.range = coordinatesConverter.convertViewRangeToModelRange(result.range);
+		}
+		return result;
 	}
 }

@@ -327,12 +327,14 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			const hash = new StringSHA1();
 			hash.update(cssUrl);
 			cssClass = `activity-${id.replace(/\./g, '-')}-${hash.digest()}`;
-			const iconClass = `.monaco-workbench .panel .monaco-action-bar .action-label.${cssClass}`;
+			const iconClass = `.monaco-workbench .basepanel .monaco-action-bar .action-label.${cssClass}`;
 			createCSSRule(iconClass, `
 				mask: ${cssUrl} no-repeat 50% 50%;
-				mask-size: 24px;
+				mask-size: 16px;
 				-webkit-mask: ${cssUrl} no-repeat 50% 50%;
-				-webkit-mask-size: 24px;
+				-webkit-mask-size: 16px;
+				mask-origin: padding;
+				-webkit-mask-origin: padding;
 			`);
 		} else if (ThemeIcon.isThemeIcon(icon)) {
 			cssClass = ThemeIcon.asClassName(icon);

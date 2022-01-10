@@ -502,6 +502,11 @@
         "category": "Git"
       },
       {
+        "command": "git.stashDropAll",
+        "title": "%command.stashDropAll%",
+        "category": "Git"
+      },
+      {
         "command": "git.timeline.openDiff",
         "title": "%command.timelineOpenDiff%",
         "icon": "$(compare-changes)",
@@ -912,6 +917,10 @@
         },
         {
           "command": "git.stashDrop",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stashDropAll",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -1651,6 +1660,10 @@
         {
           "command": "git.stashDrop",
           "group": "stash@7"
+        },
+        {
+          "command": "git.stashDropAll",
+          "group": "stash@8"
         }
       ],
       "git.tags": [
@@ -2215,6 +2228,12 @@
           "scope": "resource",
           "default": 10000,
           "description": "%config.statusLimit%"
+        },
+        "git.repositoryScanMaxDepth": {
+          "type": "number",
+          "scope": "resource",
+          "default": 1,
+          "markdownDescription": "%config.repositoryScanMaxDepth%"
         }
       }
     },

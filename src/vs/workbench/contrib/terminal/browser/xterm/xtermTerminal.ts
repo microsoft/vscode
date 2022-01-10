@@ -12,15 +12,15 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ICommandTracker, ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalCapability, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ICommandTracker, IShellIntegration, ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
 import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
+import { CommandTrackerAddon, NaiveCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { localize } from 'vs/nls';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -28,6 +28,9 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
+import { ShellIntegrationAddon, ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
+import { CognisantCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/cognisantCommandTrackerAddon';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -52,6 +55,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	// Always on addons
 	private _commandTrackerAddon: CommandTrackerAddon;
+	private _shellIntegrationAddon: ShellIntegrationAddon;
 
 	// Optional addons
 	private _searchAddon?: SearchAddonType;
@@ -59,6 +63,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	private _webglAddon?: WebglAddonType;
 
 	get commandTracker(): ICommandTracker { return this._commandTrackerAddon; }
+	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
 
 	private _target: TerminalLocation | undefined;
 	set target(location: TerminalLocation | undefined) {
@@ -77,6 +82,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		rows: number,
 		location: TerminalLocation,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -139,9 +145,37 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 		// Load addons
 		this._updateUnicodeVersion();
-
-		this._commandTrackerAddon = new CommandTrackerAddon();
+		this._commandTrackerAddon = new NaiveCommandTrackerAddon();
 		this.raw.loadAddon(this._commandTrackerAddon);
+		this._shellIntegrationAddon = new ShellIntegrationAddon();
+		this.raw.loadAddon(this._shellIntegrationAddon);
+
+		// Hook up co-dependent addon events
+		this._shellIntegrationAddon.onCapabilityEnabled(e => {
+			if (e === TerminalCapability.CommandDetection) {
+				this.upgradeCommandTracker();
+			}
+		});
+		this._shellIntegrationAddon.onIntegratedShellChange(e => {
+			if (e.type === ShellIntegrationInteraction.CommandFinished) {
+				// TODO: This should move into the new command tracker
+				if (this.raw.buffer.active.cursorX >= 2) {
+					this.raw.registerMarker(0);
+					this.commandTracker.clearMarker();
+				}
+			}
+			this._commandTrackerAddon.handleIntegratedShellChange(e);
+		});
+
+	}
+
+	upgradeCommandTracker(): void {
+		if (this._commandTrackerAddon instanceof CognisantCommandTrackerAddon) {
+			return;
+		}
+		this._commandTrackerAddon.dispose();
+		this._commandTrackerAddon = this._instantiationService.createInstance(CognisantCommandTrackerAddon);
+		this._commandTrackerAddon.activate(this.raw);
 	}
 
 	attachToElement(container: HTMLElement) {
@@ -151,6 +185,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			this.raw.open(container);
 		}
 		this._container = container;
+		if (this._shouldLoadWebgl()) {
+			this._enableWebglRenderer();
+		}
 	}
 
 	updateConfig(): void {
@@ -171,12 +208,16 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.options.rightClickSelectsWord = config.rightClickBehavior === 'selectWord';
 		this.raw.options.wordSeparator = config.wordSeparators;
 		this.raw.options.customGlyphs = config.customGlyphs;
-		if ((!isSafari && config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
-			this.enableWebglRenderer();
+		if (this._shouldLoadWebgl()) {
+			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
 			this.raw.options.rendererType = this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType);
 		}
+	}
+
+	private _shouldLoadWebgl(): boolean {
+		return !isSafari && (this._configHelper.config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || this._configHelper.config.gpuAcceleration === 'on';
 	}
 
 	forceRedraw() {
@@ -312,7 +353,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		return rendererType;
 	}
 
-	async enableWebglRenderer(): Promise<void> {
+	private async _enableWebglRenderer(): Promise<void> {
 		if (!this.raw.element || this._webglAddon) {
 			return;
 		}

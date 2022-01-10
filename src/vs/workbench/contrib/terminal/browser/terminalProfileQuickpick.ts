@@ -15,6 +15,7 @@ import { ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/te
 import { IQuickPickTerminalObject, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
+import { basename } from 'vs/base/common/path';
 
 
 type DefaultProfileName = string;
@@ -208,6 +209,7 @@ export class TerminalProfileQuickpick {
 		}];
 		const icon = (profile.icon && ThemeIcon.isThemeIcon(profile.icon)) ? profile.icon : Codicon.terminal;
 		const label = `$(${icon.id}) ${profile.profileName}`;
+		const friendlyPath = profile.isFromPath ? basename(profile.path) : profile.path;
 		const colorClass = getColorClass(profile);
 		const iconClasses = [];
 		if (colorClass) {
@@ -224,9 +226,9 @@ export class TerminalProfileQuickpick {
 				}
 				return e;
 			}).join(' ');
-			return { label, description: `${profile.path} ${argsString}`, profile, profileName: profile.profileName, buttons, iconClasses };
+			return { label, description: `${friendlyPath} ${argsString}`, profile, profileName: profile.profileName, buttons, iconClasses };
 		}
-		return { label, description: profile.path, profile, profileName: profile.profileName, buttons, iconClasses };
+		return { label, description: friendlyPath, profile, profileName: profile.profileName, buttons, iconClasses };
 	}
 
 	private _sortProfileQuickPickItems(items: IProfileQuickPickItem[], defaultProfileName: string) {

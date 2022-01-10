@@ -816,7 +816,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			return undefined;
 		}
 
-		const Registry = await import('vscode-windows-registry');
+		const Registry = await import('@vscode/windows-registry');
 		try {
 			return Registry.GetStringRegKey(hive, path, name);
 		} catch {

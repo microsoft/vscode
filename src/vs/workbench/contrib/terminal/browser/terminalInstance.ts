@@ -21,7 +21,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, ITerminalProfileResolverService, TerminalCommandId, ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -38,13 +38,13 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap, WindowsShellType, TerminalCommand } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AutoOpenBarrier, Promises } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -66,8 +66,10 @@ import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { isFirefox, isSafari } from 'vs/base/browser/browser';
+import { isFirefox } from 'vs/base/browser/browser';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
+import { fromNow } from 'vs/base/common/date';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const enum Constants {
 	/**
@@ -322,7 +324,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super();
 
@@ -626,9 +629,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm.raw, this._processManager!);
 			this._areLinksReady = true;
 			this._onLinksReady.fire(this);
-			if ((!isSafari && this._configHelper.config.gpuAcceleration === 'auto') || this._configHelper.config.gpuAcceleration === 'on') {
-				await xterm.enableWebglRenderer();
-			}
 		});
 
 		this._loadTypeAheadAddon(xterm);
@@ -698,6 +698,70 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 		return { wordLinks: wordResults, webLinks: webResults, fileLinks: fileResults };
+	}
+
+	async runRecent(type: 'command' | 'cwd'): Promise<void> {
+		const commands = this.xterm?.commandTracker.commands;
+		if (!commands || !this.xterm) {
+			return;
+		}
+		type Item = IQuickPickItem & { command?: TerminalCommand };
+		const items: Item[] = [];
+		if (type === 'command') {
+			for (const { command, timestamp, cwd, exitCode, getOutput } of commands) {
+				// trim off any whitespace and/or line endings
+				const label = command.trim();
+				if (label.length === 0) {
+					continue;
+				}
+				let detail = '';
+				if (cwd) {
+					detail += `cwd: ${cwd} `;
+				}
+				if (exitCode) {
+					// Since you cannot get the last command's exit code on pwsh, just whether it failed
+					// or not, -1 is treated specially as simply failed
+					if (exitCode === -1) {
+						detail += 'failed';
+					} else {
+						detail += `exitCode: ${exitCode}`;
+					}
+				}
+				detail = detail.trim();
+				const iconClass = exitCode ? `${ThemeIcon.asClassName(Codicon.x)}` : `${ThemeIcon.asClassName(Codicon.more)}`;
+				const buttons: IQuickInputButton[] = [{
+					iconClass,
+					tooltip: nls.localize('viewCommandOutput', "View Command Output"),
+					alwaysVisible: true
+				}];
+				items.push({
+					label,
+					description: fromNow(timestamp, true),
+					detail,
+					id: timestamp.toString(),
+					command: { command, timestamp, cwd, exitCode, getOutput },
+					buttons
+				});
+			}
+		} else {
+			const cwds = this.xterm.commandTracker.cwds;
+			for (const label of cwds) {
+				items.push({ label });
+			}
+		}
+		const result = await this._quickInputService.pick(items.reverse(), {
+			onDidTriggerItemButton: (async e => {
+				const output = e.item.command?.getOutput();
+				if (output) {
+					await this._clipboardService.writeText(output);
+					await this._commandService.executeCommand('workbench.action.files.newUntitledFile');
+					await this._commandService.executeCommand('editor.action.clipboardPasteAction');
+				}
+			})
+		});
+		if (result) {
+			this.sendText(type === 'cwd' ? `cd ${result.label}` : result.label, true);
+		}
 	}
 
 	detachFromElement(): void {

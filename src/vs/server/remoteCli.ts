@@ -356,13 +356,13 @@ function sendToPipe(args: PipeCommand, verbose: boolean): Promise<any> {
 			res.on('data', chunk => {
 				chunks.push(chunk);
 			});
-			res.on('error', () => fatal('Error in response'));
+			res.on('error', (err) => fatal('Error in response.', err));
 			res.on('end', () => {
 				resolve(chunks.join(''));
 			});
 		});
 
-		req.on('error', () => fatal('Error in request'));
+		req.on('error', (err) => fatal('Error in request.', err));
 		req.write(message);
 		req.end();
 	});
@@ -372,8 +372,8 @@ function asExtensionIdOrVSIX(inputs: string[] | undefined) {
 	return inputs?.map(input => /\.vsix$/i.test(input) ? pathToURI(input).href : input);
 }
 
-function fatal(err: any): void {
-	console.error('Unable to connect to VS Code server.');
+function fatal(message: string, err: any): void {
+	console.error('Unable to connect to VS Code server: ' + message);
 	console.error(err);
 	process.exit(1);
 }

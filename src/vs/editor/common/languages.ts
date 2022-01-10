@@ -1544,6 +1544,23 @@ export interface Command {
 /**
  * @internal
  */
+export namespace Command {
+
+	/**
+	 * @internal
+	 */
+	export function is(obj: any): obj is Command {
+		if (!obj || typeof obj !== 'object') {
+			return false;
+		}
+		return typeof (<Command>obj).id === 'string' &&
+			typeof (<Command>obj).title === 'string';
+	}
+}
+
+/**
+ * @internal
+ */
 export interface CommentThreadTemplate {
 	controllerHandle: number;
 	label: string;
@@ -1721,8 +1738,14 @@ export enum InlayHintKind {
 	Parameter = 2,
 }
 
+export interface InlayHintLabelPart {
+	label: string;
+	collapsible?: boolean;
+	action?: Command | Location
+}
+
 export interface InlayHint {
-	text: string;
+	label: string | InlayHintLabelPart[];
 	tooltip?: string | IMarkdownString
 	position: IPosition;
 	kind: InlayHintKind;
@@ -1730,9 +1753,15 @@ export interface InlayHint {
 	whitespaceAfter?: boolean;
 }
 
+export interface InlayHintList {
+	hints: InlayHint[];
+	dispose(): void;
+}
+
 export interface InlayHintsProvider {
 	onDidChangeInlayHints?: Event<void>;
-	provideInlayHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
+	provideInlayHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHintList>;
+	resolveInlayHint?(hint: InlayHint, token: CancellationToken): ProviderResult<InlayHint>;
 }
 
 export interface SemanticTokensLegend {
