@@ -179,11 +179,10 @@ steps:
     timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-  # Firefox unit testing is disabled pending https://github.com/microsoft/playwright/issues/11130
   - script: |
       set -e
-      yarn test-browser --build --browser chromium --browser webkit --tfs "Browser Unit Tests"
-    displayName: Run unit tests (Browser, Chromium & Webkit)
+      DEBUG=*browser* yarn test-browser --build --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
+    displayName: Run unit tests (Browser, Chromium & Firefox & Webkit)
     timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
