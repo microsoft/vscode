@@ -593,6 +593,7 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	otherOverridesElement: HTMLElement;
 	syncIgnoredElement: HTMLElement;
 	defaultOverrideIndicator: HTMLElement;
+	defaultOverrideLabel: SimpleIconLabel;
 	toolbar: ToolBar;
 	elementDisposables: DisposableStore;
 }
@@ -782,12 +783,10 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		return syncIgnoredElement;
 	}
 
-	protected createDefaultOverrideIndicator(container: HTMLElement): HTMLElement {
-		const defaultOverrideIndicator = DOM.append(container, $('span.setting-item-default-overriden'));
+	protected createDefaultOverrideIndicator(container: HTMLElement): { element: HTMLElement, label: SimpleIconLabel } {
+		const defaultOverrideIndicator = DOM.append(container, $('span.setting-item-default-overridden'));
 		const defaultOverrideLabel = new SimpleIconLabel(defaultOverrideIndicator);
-		defaultOverrideLabel.text = `($(alert) ${localize('defaultOverridenLabel', "Default overriden")})`;
-
-		return defaultOverrideIndicator;
+		return { element: defaultOverrideIndicator, label: defaultOverrideLabel };
 	}
 
 	protected renderCommonTemplate(tree: any, _container: HTMLElement, typeClass: string): ISettingItemTemplate {
@@ -802,7 +801,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const labelElement = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 		const syncIgnoredElement = this.createSyncIgnoredElement(titleElement);
-		const defaultOverrideIndicator = this.createDefaultOverrideIndicator(titleElement);
+		const { element: defaultOverrideIndicator, label: defaultOverrideLabel } = this.createDefaultOverrideIndicator(titleElement);
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
@@ -831,6 +830,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			otherOverridesElement,
 			syncIgnoredElement,
 			defaultOverrideIndicator,
+			defaultOverrideLabel,
 			toolbar
 		};
 
@@ -955,21 +955,26 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
 		const defaultValueSource = element.setting.defaultValueSource;
-		const updateTitleElements = () => {
+		const updateSyncIgnoredElement = () => {
 			template.syncIgnoredElement.style.display = this.ignoredSettings.includes(element.setting.key) ? 'inline' : 'none';
+		};
+		const updateTitleElements = () => {
+			updateSyncIgnoredElement();
 			template.defaultOverrideIndicator.style.display = 'none';
 			if (defaultValueSource) {
 				template.defaultOverrideIndicator.style.display = 'inline';
 				if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
-					template.defaultOverrideIndicator.title = localize('defaultOverridenDetails', "Default overriden by {0}", defaultValueSource.displayName ?? defaultValueSource.id);
+					const extensionSource = defaultValueSource.displayName ?? defaultValueSource.id;
+					template.defaultOverrideIndicator.title = localize('defaultOverriddenDetails', "Default overridden by {0}", extensionSource);
+					template.defaultOverrideLabel.text = localize('defaultOverrideLabelText', "($(wrench) Source: {0})", extensionSource);
 				} else if (typeof defaultValueSource === 'string') {
-					template.defaultOverrideIndicator.title = localize('defaultOverridenDetails', "Default overriden by {0}", defaultValueSource);
+					template.defaultOverrideIndicator.title = localize('defaultOverriddenDetails', "Default overridden by {0}", defaultValueSource);
 				}
 			}
 		};
 		updateTitleElements();
 		template.elementDisposables.add(this.onDidChangeIgnoredSettings(() => {
-			updateTitleElements();
+			updateSyncIgnoredElement();
 		}));
 
 		this.updateSettingTabbable(element, template);
@@ -1830,7 +1835,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 		const syncIgnoredElement = this.createSyncIgnoredElement(titleElement);
-		const defaultOverrideIndicator = this.createDefaultOverrideIndicator(titleElement);
+		const { element: defaultOverrideIndicator, label: defaultOverrideLabel } = this.createDefaultOverrideIndicator(titleElement);
 
 		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
@@ -1882,6 +1887,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 			otherOverridesElement,
 			syncIgnoredElement,
 			defaultOverrideIndicator,
+			defaultOverrideLabel,
 			toolbar
 		};
 
