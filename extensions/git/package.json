@@ -84,8 +84,7 @@
         "command": "git.openChange",
         "title": "%command.openChange%",
         "category": "Git",
-        "icon": "$(compare-changes)",
-        "enablement": "scmActiveResourceHasChanges"
+        "icon": "$(compare-changes)"
       },
       {
         "command": "git.openAllChanges",
@@ -1370,7 +1369,7 @@
         {
           "command": "git.openChange",
           "group": "navigation",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file && scmActiveResourceHasChanges"
         },
         {
           "command": "git.stageSelectedRanges",
