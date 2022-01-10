@@ -55,18 +55,19 @@ export class FileService extends Disposable implements IFileService {
 
 		mark(`code/registerFilesystem/${scheme}`);
 
+		const providerDisposables = new DisposableStore();
+		
 		// Add provider with event
 		this.provider.set(scheme, provider);
 		this._onDidChangeFileSystemProviderRegistrations.fire({ added: true, scheme, provider });
 
 		// Forward events from provider
-		const providerDisposables = new DisposableStore();
 		const providerFileChangeEventsWorker = providerDisposables.add(this.createProviderFileEventsWorker(this.isPathCaseSensitive(provider)));
 		providerDisposables.add(provider.onDidChangeFile(changes => this.onProviderDidChangeFile(providerFileChangeEventsWorker, changes)));
-		providerDisposables.add(provider.onDidChangeCapabilities(() => this._onDidChangeFileSystemProviderCapabilities.fire({ provider, scheme })));
 		if (typeof provider.onDidWatchError === 'function') {
 			providerDisposables.add(provider.onDidWatchError(error => this._onDidWatchError.fire(new Error(error))));
 		}
+		providerDisposables.add(provider.onDidChangeCapabilities(() => this._onDidChangeFileSystemProviderCapabilities.fire({ provider, scheme })));
 
 		return toDisposable(() => {
 			this._onDidChangeFileSystemProviderRegistrations.fire({ added: false, scheme, provider });

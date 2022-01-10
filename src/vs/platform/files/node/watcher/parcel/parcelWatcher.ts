@@ -21,7 +21,7 @@ import { rtrim } from 'vs/base/common/strings';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { IDiskFileChange, ILogMessage, coalesceEvents, IWatchRequest, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, ILogMessage, coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
 
 export interface IParcelWatcherInstance {
 
@@ -33,7 +33,7 @@ export interface IParcelWatcherInstance {
 	/**
 	 * The watch request associated to the watcher.
 	 */
-	readonly request: IWatchRequest;
+	readonly request: IRecursiveWatchRequest;
 
 	/**
 	 * How often this watcher has been restarted in case of an unexpected
@@ -104,7 +104,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		process.on('unhandledRejection', error => this.onUnexpectedError(error));
 	}
 
-	async watch(requests: IWatchRequest[]): Promise<void> {
+	async watch(requests: IRecursiveWatchRequest[]): Promise<void> {
 
 		// Figure out duplicates to remove from the requests
 		const normalizedRequests = this.normalizeRequests(requests);
@@ -236,7 +236,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		return undefined;
 	}
 
-	private startPolling(request: IWatchRequest, pollingInterval: number, restarts = 0): void {
+	private startPolling(request: IRecursiveWatchRequest, pollingInterval: number, restarts = 0): void {
 		const cts = new CancellationTokenSource();
 
 		const instance = new DeferredPromise<void>();
@@ -306,7 +306,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		pollingWatcher.schedule(0);
 	}
 
-	private startWatching(request: IWatchRequest, restarts = 0): void {
+	private startWatching(request: IRecursiveWatchRequest, restarts = 0): void {
 		const cts = new CancellationTokenSource();
 
 		const instance = new DeferredPromise<parcelWatcher.AsyncSubscription | undefined>();
@@ -422,7 +422,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	private normalizePath(request: IWatchRequest): { realPath: string, realPathDiffers: boolean, realPathLength: number } {
+	private normalizePath(request: IRecursiveWatchRequest): { realPath: string, realPathDiffers: boolean, realPathLength: number } {
 		let realPath = request.path;
 		let realPathDiffers = false;
 		let realPathLength = request.path.length;
@@ -452,7 +452,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		return { realPath, realPathDiffers, realPathLength };
 	}
 
-	private normalizeEvents(events: IDiskFileChange[], request: IWatchRequest, realPathDiffers: boolean, realPathLength: number): { events: IDiskFileChange[], rootDeleted: boolean } {
+	private normalizeEvents(events: IDiskFileChange[], request: IRecursiveWatchRequest, realPathDiffers: boolean, realPathLength: number): { events: IDiskFileChange[], rootDeleted: boolean } {
 		let rootDeleted = false;
 
 		for (const event of events) {
@@ -484,7 +484,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		return { events, rootDeleted };
 	}
 
-	private filterEvents(events: IDiskFileChange[], request: IWatchRequest, rootDeleted: boolean): IDiskFileChange[] {
+	private filterEvents(events: IDiskFileChange[], request: IRecursiveWatchRequest, rootDeleted: boolean): IDiskFileChange[] {
 		if (!rootDeleted) {
 			return events;
 		}
@@ -607,8 +607,8 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	protected normalizeRequests(requests: IWatchRequest[]): IWatchRequest[] {
-		const requestTrie = TernarySearchTree.forPaths<IWatchRequest>(!isLinux);
+	protected normalizeRequests(requests: IRecursiveWatchRequest[]): IRecursiveWatchRequest[] {
+		const requestTrie = TernarySearchTree.forPaths<IRecursiveWatchRequest>(!isLinux);
 
 		// Sort requests by path length to have shortest first
 		// to have a way to prevent children to be watched if
