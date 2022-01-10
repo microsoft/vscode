@@ -206,10 +206,10 @@ export interface IFileService {
 	/**
 	 * Allows to start a watcher that reports file/folder change events on the provided resource.
 	 *
-	 * Note: watching a folder does not report events recursively unless the provided options
-	 * explicitly opt-in to recursive watching.
+	 * Note: recursive file watching is not supported from this method. Only events from files
+	 * that are direct children of the provided resource will be reported.
 	 */
-	watch(resource: URI, options?: IWatchOptions): IDisposable;
+	watch(resource: URI): IDisposable;
 
 	/**
 	 * Frees up any resources occupied by this service.

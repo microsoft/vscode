@@ -70,7 +70,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService()
 		);
-		codeEditorService = new TestCodeEditorService(null, themeService);
+		codeEditorService = new TestCodeEditorService(themeService);
 		textFileService = new class extends mock<ITextFileService>() {
 			override isDirty() { return false; }
 			override files = <any>{

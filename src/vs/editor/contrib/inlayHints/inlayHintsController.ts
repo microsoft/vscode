@@ -77,7 +77,7 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _sessionDisposables = new DisposableStore();
 	private readonly _getInlayHintsDelays = new LanguageFeatureRequestDelays(languages.InlayHintsProviderRegistry, 25, 500);
 	private readonly _cache = new InlayHintsCache();
-	private readonly _decorationsMetadata = new Map<string, { item: InlayHintItem, classNameRef: IDisposable }>();
+	private readonly _decorationsMetadata = new Map<string, { item: InlayHintItem, classNameRef: IDisposable; }>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
 	private _activeInlayHintPart?: InlayHintLabelPart;
@@ -124,11 +124,13 @@ export class InlayHintsController implements IEditorContribution {
 			this._updateHintsDecorators([model.getFullModelRange()], cached);
 		}
 
+		let cts: CancellationTokenSource | undefined;
+
 		const scheduler = new RunOnceScheduler(async () => {
 			const t1 = Date.now();
 
-			const cts = new CancellationTokenSource();
-			this._sessionDisposables.add(toDisposable(() => cts.dispose(true)));
+			cts?.dispose(true);
+			cts = new CancellationTokenSource();
 
 			const ranges = this._getHintsRanges();
 			const inlayHints = await InlayHintsFragments.create(model, ranges, cts.token);
@@ -146,6 +148,7 @@ export class InlayHintsController implements IEditorContribution {
 		}, this._getInlayHintsDelays.get(model));
 
 		this._sessionDisposables.add(scheduler);
+		this._sessionDisposables.add(toDisposable(() => cts?.dispose(true)));
 
 		// update inline hints when content or scroll position changes
 		this._sessionDisposables.add(this._editor.onDidChangeModelContent(() => scheduler.schedule()));
@@ -284,7 +287,7 @@ export class InlayHintsController implements IEditorContribution {
 	private _updateHintsDecorators(ranges: Range[], items: readonly InlayHintItem[]): void {
 
 		const { fontSize, fontFamily } = this._getLayoutInfo();
-		const newDecorationsData: { item: InlayHintItem, decoration: IModelDeltaDecoration, classNameRef: IDisposable }[] = [];
+		const newDecorationsData: { item: InlayHintItem, decoration: IModelDeltaDecoration, classNameRef: IDisposable; }[] = [];
 
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);

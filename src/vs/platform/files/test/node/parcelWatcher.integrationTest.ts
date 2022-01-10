@@ -13,7 +13,7 @@ import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IParcelWatcherInstance, ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
-import { IWatchRequest } from 'vs/platform/files/common/watcher';
+import { IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { ltrim } from 'vs/base/common/strings';
 
@@ -29,14 +29,14 @@ import { ltrim } from 'vs/base/common/strings';
 		testNormalizePaths(paths: string[]): string[] {
 
 			// Work with strings as paths to simplify testing
-			const requests: IWatchRequest[] = paths.map(path => {
+			const requests: IRecursiveWatchRequest[] = paths.map(path => {
 				return { path, excludes: [] };
 			});
 
 			return this.normalizeRequests(requests).map(request => request.path);
 		}
 
-		override async watch(requests: IWatchRequest[]): Promise<void> {
+		override async watch(requests: IRecursiveWatchRequest[]): Promise<void> {
 			await super.watch(requests);
 			await this.whenReady();
 		}
