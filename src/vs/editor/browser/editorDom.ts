@@ -269,6 +269,8 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
  * Reference counting and delayed garbage collection ensure that no rules leak.
 */
 export class DynamicCssRules {
+	private static _idPool = 0;
+	private readonly _instanceId = ++DynamicCssRules._idPool;
 	private _counter = 0;
 	private readonly _rules = new Map<string, RefCountedCssRule>();
 
@@ -296,7 +298,7 @@ export class DynamicCssRules {
 		let existingRule = this._rules.get(key);
 		if (!existingRule) {
 			const counter = this._counter++;
-			existingRule = new RefCountedCssRule(key, `dyn-rule-${counter}`,
+			existingRule = new RefCountedCssRule(key, `dyn-rule-${this._instanceId}-${counter}`,
 				dom.isInShadowDOM(this._editor.getContainerDomNode())
 					? this._editor.getContainerDomNode()
 					: undefined,
