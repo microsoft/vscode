@@ -1014,27 +1014,6 @@ export class FileService extends Disposable implements IFileService {
 
 	private readonly activeWatchers = new Map<number /* watch request hash */, { disposable: IDisposable, count: number; }>();
 
-	private createProviderFileEventsWorker(caseSensitive: boolean): ThrottledWorker<IFileChange> {
-		return new ThrottledWorker<IFileChange>(
-			FileService.FILE_EVENTS_THROTTLING.maxChangesChunkSize,
-			FileService.FILE_EVENTS_THROTTLING.maxChangesBufferSize,
-			FileService.FILE_EVENTS_THROTTLING.coolDownDelay,
-			chunks => this._onDidFilesChange.fire(new FileChangesEvent(chunks, !caseSensitive))
-		);
-	}
-
-	private onProviderDidChangeFile(worker: ThrottledWorker<IFileChange>, changes: readonly IFileChange[]): void {
-		const worked = worker.work(changes);
-
-		if (!worked && FileService.FILE_EVENTS_THROTTLING.warningscounter++ < 10) {
-			this.logService.warn(`[File watcher]: started ignoring events due to too many file change events at once (incoming: ${changes.length}, most recent change: ${changes[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
-		}
-
-		if (worker.pending > 0) {
-			this.logService.trace(`[File watcher]: started throttling events due to large amount of file change events at once (pending: ${worker.pending}, most recent change: ${changes[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
-		}
-	}
-
 	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
 		const disposables = new DisposableStore();
 
@@ -1063,9 +1042,9 @@ export class FileService extends Disposable implements IFileService {
 
 	private async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable> {
 		const provider = await this.withProvider(resource);
-		const watchHash = this.toWatchHash(provider, resource, options);
 
-		// Only start watching if we are the first for the given key
+		// Deduplicate identical watch requests
+		const watchHash = hash([this.getExtUri(provider).providerExtUri.getComparisonKey(resource), options]);
 		let watcher = this.activeWatchers.get(watchHash);
 		if (!watcher) {
 			watcher = {
@@ -1094,14 +1073,32 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	private toWatchHash(provider: IFileSystemProvider, resource: URI, options: IWatchOptions): number {
-		const { providerExtUri } = this.getExtUri(provider);
+	private createProviderFileEventsWorker(caseSensitive: boolean): ThrottledWorker<IFileChange> {
+		return new ThrottledWorker<IFileChange>(
+			FileService.FILE_EVENTS_THROTTLING.maxChangesChunkSize,
+			FileService.FILE_EVENTS_THROTTLING.maxChangesBufferSize,
+			FileService.FILE_EVENTS_THROTTLING.coolDownDelay,
+			chunks => this._onDidFilesChange.fire(new FileChangesEvent(chunks, !caseSensitive))
+		);
+	}
 
-		return hash([
-			providerExtUri.getComparisonKey(resource), 	// lowercase path if the provider is case insensitive
-			String(options.recursive),					// use recursive: true | false as part of the key
-			options.excludes.join()						// use excludes as part of the key
-		]);
+	private onProviderDidChangeFile(worker: ThrottledWorker<IFileChange>, changes: readonly IFileChange[]): void {
+
+		// File events can be pretty much unbounded, depending on
+		// how many paths are watched and how large the changes are
+		// in them. As such, we use a `ThrottledWorker` that caps
+		// the number of changes we process at once as well as in
+		// total
+
+		const worked = worker.work(changes);
+
+		if (!worked && FileService.FILE_EVENTS_THROTTLING.warningscounter++ < 10) {
+			this.logService.warn(`[File watcher]: started ignoring events due to too many file change events at once (incoming: ${changes.length}, most recent change: ${changes[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+		}
+
+		if (worker.pending > 0) {
+			this.logService.trace(`[File watcher]: started throttling events due to large amount of file change events at once (pending: ${worker.pending}, most recent change: ${changes[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+		}
 	}
 
 	override dispose(): void {
