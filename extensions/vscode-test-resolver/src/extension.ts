@@ -94,7 +94,7 @@ export function activate(context: vscode.ExtensionContext) {
 			env['VSCODE_AGENT_FOLDER'] = remoteDataDir;
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
 
-			const connectionTokenFile = path.join(remoteDataDir, `${new Date().getTime()}.token`);
+			const connectionTokenFile = path.join(remoteDataDir, `${process.pid}-${new Date().getTime()}.token`);
 			fs.writeFileSync(connectionTokenFile, connectionToken);
 			commandArgs.push('--connection-token-file', connectionTokenFile);
 
@@ -139,6 +139,11 @@ export function activate(context: vscode.ExtensionContext) {
 				dispose: () => {
 					if (extHostProcess) {
 						terminateProcess(extHostProcess, context.extensionPath);
+					}
+					try {
+						fs.unlinkSync(connectionTokenFile);
+					} catch (_e) {
+						//ignore
 					}
 				}
 			});
