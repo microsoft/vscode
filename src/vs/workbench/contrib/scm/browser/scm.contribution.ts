@@ -211,10 +211,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.defaultViewSortKey': {
 			type: 'string',
-			enum: ['path', 'name', 'status'],
+			enum: ['name', 'path', 'status'],
 			enumDescriptions: [
-				localize('scm.defaultViewSortKey.path', "Sort the repository changes by path."),
 				localize('scm.defaultViewSortKey.name', "Sort the repository changes by file name."),
+				localize('scm.defaultViewSortKey.path', "Sort the repository changes by path."),
 				localize('scm.defaultViewSortKey.status', "Sort the repository changes by SCM status.")
 			],
 			description: localize('scm.defaultViewSortKey', "Controls the default Source Control repository sort mode."),

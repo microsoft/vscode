@@ -1074,11 +1074,14 @@ class ViewModel {
 
 	get sortKey(): ViewModelSortKey { return this._sortKey; }
 	set sortKey(sortKey: ViewModelSortKey) {
-		if (sortKey !== this._sortKey) {
-			this._sortKey = sortKey;
-			this.refresh();
-			this._onDidChangeSortKey.fire(sortKey);
+		if (this._sortKey === sortKey) {
+			return;
 		}
+
+		this._sortKey = sortKey;
+
+		this.refresh();
+		this._onDidChangeSortKey.fire(sortKey);
 		this.sortKeyContextKey.set(sortKey);
 	}
 
@@ -2148,13 +2151,17 @@ export class SCMViewPane extends ViewPane {
 		}
 
 		let viewSortKey: ViewModelSortKey;
-		let viewSortKeyString = this.configurationService.getValue<'path' | 'name' | 'status'>('scm.defaultViewSortKey');
-		if (viewSortKeyString === 'name') {
-			viewSortKey = ViewModelSortKey.Name;
-		} else if (viewSortKeyString === 'status') {
-			viewSortKey = ViewModelSortKey.Status;
-		} else {
-			viewSortKey = ViewModelSortKey.Path;
+		const viewSortKeyString = this.configurationService.getValue<'path' | 'name' | 'status'>('scm.defaultViewSortKey');
+		switch (viewSortKeyString) {
+			case 'name':
+				viewSortKey = ViewModelSortKey.Name;
+				break;
+			case 'status':
+				viewSortKey = ViewModelSortKey.Status;
+				break;
+			default:
+				viewSortKey = ViewModelSortKey.Path;
+				break;
 		}
 
 		const storageSortKey = this.storageService.get(`scm.viewSortKey`, StorageScope.WORKSPACE) as ViewModelSortKey;
