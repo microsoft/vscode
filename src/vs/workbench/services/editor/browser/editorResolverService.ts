@@ -173,6 +173,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// Resolved the editor ID as much as possible, now find a given editor (cast here is ok because we resolve down to a string above)
 		let { editor: selectedEditor, conflictingDefault } = this.getEditor(resource, untypedEditor.options?.override as (string | EditorResolution.EXCLUSIVE_ONLY | undefined));
+		console.log(`Selected editor: ${selectedEditor?.editorInfo.id}`);
 		if (!selectedEditor) {
 			return ResolvedStatus.NONE;
 		}
@@ -391,8 +392,11 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		let editors = this.findMatchingEditors(resource);
+		// Logging for debugging todo @lramos15 remove
+		console.log(`All editors: ${JSON.stringify(editors.map(e => e.editorInfo.id))}`);
 
 		const associationsFromSetting = this.getAssociationsForResource(resource);
+		console.log(`User settings: ${JSON.stringify(associationsFromSetting)}`);
 		// We only want minPriority+ if no user defined setting is found, else we won't resolve an editor
 		const minPriority = editorId === EditorResolution.EXCLUSIVE_ONLY ? RegisteredEditorPriority.exclusive : RegisteredEditorPriority.builtin;
 		let possibleEditors = editors.filter(editor => priorityToRank(editor.editorInfo.priority) >= priorityToRank(minPriority) && editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
@@ -414,6 +418,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		if (associationsFromSetting.length === 0 && possibleEditors.length > 1) {
 			conflictingDefault = true;
 		}
+
+		console.log(`Possible Editors: ${JSON.stringify(possibleEditors.map(e => e.editorInfo.id))}`);
+		console.log(`Selected View Type: ${selectedViewType}`);
 
 		return {
 			editor: findMatchingEditor(editors, selectedViewType),
