@@ -128,6 +128,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _latestXtermWriteData: number = 0;
 	private _latestXtermParseData: number = 0;
 	private _isExiting: boolean;
+	private _shellIntegrationEnabled: boolean = false;
 	private _hadFocusOnExit: boolean;
 	private _isVisible: boolean;
 	private _isDisposed: boolean;
@@ -569,7 +570,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('Terminal disposed of during xterm.js creation');
 		}
 
-		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this._capabilities);
+		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel);
 		this.xterm = xterm;
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
@@ -1272,10 +1273,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const hadIcon = !!this.shellLaunchConfig.icon;
-		this.shellLaunchConfig.args = this._updateArgsForShellIntegration(this.shellLaunchConfig);
+		const shellIntegration = this._updateArgsForShellIntegration(this.shellLaunchConfig);
+		this.shellLaunchConfig.args = shellIntegration.args;
+		this._shellIntegrationEnabled = shellIntegration.shellIntegrationEnabled;
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
-			//TODO: add custom error for if it fails and the args were updated telling
-			// people to turn off the setting
+			if (error && this._shellIntegrationEnabled) {
+				this._shellIntegrationEnabled = false;
+				//TODO: mention setting?
+				this._configHelper.config.shellIntegrationEnabled = false;
+				error = { message: 'Terminal shell integration failed, disabling it now' };
+			}
 			if (error) {
 				this._onProcessExit(error);
 			}
@@ -1285,27 +1292,43 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private _updateArgsForShellIntegration(shellLaunchConfig: IShellLaunchConfig): string | string[] | undefined {
+	private _updateArgsForShellIntegration(shellLaunchConfig: IShellLaunchConfig): { args: string | string[] | undefined, shellIntegrationEnabled: boolean } {
 		const originalArgs = shellLaunchConfig.args;
 		if (!this._configHelper.config.shellIntegrationEnabled || !shellLaunchConfig.executable) {
-			return originalArgs;
+			return { args: originalArgs, shellIntegrationEnabled: false };
 		}
 		const shell = path.basename(shellLaunchConfig.executable);
-		if (isWindows && shell === 'pwsh' && !shellLaunchConfig.args) {
-			return [
+		let newArgs: string | string[] | undefined;
+		let shellIntegrationEnabled = false;
+		if (isWindows && shell === 'pwsh' && !originalArgs) {
+			newArgs = [
 				'-noexit',
 				'-command',
 				'C:\\Github\\microsoft\\vscode\\ShellIntegration.ps1'
 			];
+			shellIntegrationEnabled = true;
 		} else if (!isWindows) {
-			//TODO: support appending orignal args
 			if (shell === 'zsh') {
-				return ['-c', '/Users/meganrogge/Desktop/shell-integration-zsh.sh; zsh -il'];
+				newArgs = this._appendArgs(['-c', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration.sh; zsh -il'], originalArgs);
+				shellIntegrationEnabled = true;
 			} else if (shell === 'bash') {
-				return ['--init-file', '/Users/meganrogge/Desktop/shell-integration-zsh.sh'];
+				newArgs = this._appendArgs(['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration.sh'], originalArgs);
+				shellIntegrationEnabled = true;
 			}
 		}
-		return originalArgs;
+		return { args: newArgs || originalArgs, shellIntegrationEnabled };
+	}
+
+	private _appendArgs(newArgs: string[], originalArgs: string | string[] | undefined): string[] {
+		if (!originalArgs) {
+			return newArgs;
+		}
+		if (typeof originalArgs === 'string') {
+			newArgs.push('; ' + originalArgs);
+		} else {
+			newArgs.push(...originalArgs);
+		}
+		return newArgs;
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
