@@ -39,18 +39,17 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 	private readonly _codeEditors: { [editorId: string]: ICodeEditor; };
 	private readonly _diffEditors: { [editorId: string]: IDiffEditor; };
-	private _globalStyleSheet: GlobalStyleSheet | null;
+	protected _globalStyleSheet: GlobalStyleSheet | null;
 	private readonly _decorationOptionProviders = new Map<string, IModelDecorationOptionsProvider>();
 	private readonly _editorStyleSheets = new Map<string, RefCountedStyleSheet>();
 
 	constructor(
-		styleSheet: GlobalStyleSheet | null,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 		this._codeEditors = Object.create(null);
 		this._diffEditors = Object.create(null);
-		this._globalStyleSheet = styleSheet ? styleSheet : null;
+		this._globalStyleSheet = null;
 	}
 
 	addCodeEditor(editor: ICodeEditor): void {
@@ -105,9 +104,13 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 	private _getOrCreateGlobalStyleSheet(): GlobalStyleSheet {
 		if (!this._globalStyleSheet) {
-			this._globalStyleSheet = new GlobalStyleSheet(dom.createStyleSheet());
+			this._globalStyleSheet = this._createGlobalStyleSheet();
 		}
 		return this._globalStyleSheet;
+	}
+
+	protected _createGlobalStyleSheet(): GlobalStyleSheet {
+		return new GlobalStyleSheet(dom.createStyleSheet());
 	}
 
 	private _getOrCreateStyleSheet(editor: ICodeEditor | undefined): GlobalStyleSheet | RefCountedStyleSheet {

@@ -23,7 +23,7 @@ export class CodeEditorService extends AbstractCodeEditorService {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		super(null, themeService);
+		super(themeService);
 	}
 
 	getActiveCodeEditor(): ICodeEditor | null {

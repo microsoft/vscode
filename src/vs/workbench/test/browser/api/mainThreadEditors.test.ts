@@ -106,7 +106,7 @@ suite('MainThreadEditors', () => {
 		services.set(INotificationService, notificationService);
 		services.set(IUndoRedoService, undoRedoService);
 		services.set(IModelService, modelService);
-		services.set(ICodeEditorService, new TestCodeEditorService(null, themeService));
+		services.set(ICodeEditorService, new TestCodeEditorService(themeService));
 		services.set(IFileService, new TestFileService());
 		services.set(IEditorService, new TestEditorService());
 		services.set(ILifecycleService, new TestLifecycleService());
