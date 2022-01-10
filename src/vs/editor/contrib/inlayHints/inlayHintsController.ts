@@ -129,13 +129,14 @@ export class InlayHintsController implements IEditorContribution {
 
 			const ranges = this._getHintsRanges();
 			const inlayHints = await InlayHintsFragments.create(model, ranges, cts.token);
+			scheduler.delay = this._getInlayHintsDelays.update(model, Date.now() - t1);
+			if (cts.token.isCancellationRequested) {
+				inlayHints.dispose();
+				return;
+			}
 			this._sessionDisposables.add(inlayHints);
 			this._sessionDisposables.add(inlayHints.onDidReceiveProviderSignal(() => scheduler.schedule()));
 
-			scheduler.delay = this._getInlayHintsDelays.update(model, Date.now() - t1);
-			if (cts.token.isCancellationRequested) {
-				return;
-			}
 			this._updateHintsDecorators(ranges, inlayHints.items);
 			this._cacheHintsForFastRestore(model);
 
