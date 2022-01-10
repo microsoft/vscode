@@ -1239,11 +1239,20 @@ const getActionableElementActions = (
 	element: TestItemTreeElement,
 ) => {
 	const test = element instanceof TestItemTreeElement ? element.test : undefined;
-	const contextOverlay = contextKeyService.createOverlay([
-		['view', Testing.ExplorerViewId],
-		[TestingContextKeys.testItemIsHidden.key, !!test && testService.excluded.contains(test)],
-		...getTestItemContextOverlay(test, test ? profiles.capabilitiesForTest(test) : 0),
-	]);
+	const contextKeys: [string, unknown][] = getTestItemContextOverlay(test, test ? profiles.capabilitiesForTest(test) : 0);
+	contextKeys.push(['view', Testing.ExplorerViewId]);
+	if (test) {
+		contextKeys.push([
+			TestingContextKeys.canRefreshTests.key,
+			TestId.isRoot(test.item.extId) && testService.getTestController(test.item.extId)?.canRefresh.value
+		]);
+		contextKeys.push([
+			TestingContextKeys.testItemIsHidden.key,
+			testService.excluded.contains(test)
+		]);
+	}
+
+	const contextOverlay = contextKeyService.createOverlay(contextKeys);
 	const menu = menuService.createMenu(MenuId.TestItem, contextOverlay);
 
 	try {

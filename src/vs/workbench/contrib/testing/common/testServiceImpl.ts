@@ -6,7 +6,8 @@
 import { groupBy } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Iterable } from 'vs/base/common/iterator';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -33,6 +34,7 @@ export class TestService extends Disposable implements ITestService {
 	private readonly willProcessDiffEmitter = new Emitter<TestsDiff>();
 	private readonly didProcessDiffEmitter = new Emitter<TestsDiff>();
 	private readonly providerCount: IContextKey<number>;
+	private readonly canRefreshTests: IContextKey<boolean>;
 	/**
 	 * Cancellation for runs requested by the user being managed by the UI.
 	 * Test runs initiated by extensions are not included here.
@@ -85,6 +87,7 @@ export class TestService extends Disposable implements ITestService {
 		super();
 		this.excluded = instantiationService.createInstance(TestExclusions);
 		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
+		this.canRefreshTests = TestingContextKeys.canRefreshTests.bindTo(contextKeyService);
 	}
 
 	/**
@@ -218,11 +221,32 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
+	public getTestController(id: string) {
+		return this.testControllers.get(id);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public async refreshTests(controllerId?: string): Promise<void> {
+		if (controllerId) {
+			await this.testControllers.get(controllerId)?.refreshTests();
+		} else {
+			await Promise.all([...this.testControllers.values()].map(c => c.refreshTests()));
+		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
 	public registerTestController(id: string, controller: IMainThreadTestController): IDisposable {
 		this.testControllers.set(id, controller);
 		this.providerCount.set(this.testControllers.size);
+		this.updateCanRefresh();
 
-		return toDisposable(() => {
+		const disposable = new DisposableStore();
+
+		disposable.add(toDisposable(() => {
 			const diff: TestsDiff = [];
 			for (const root of this.collection.rootItems) {
 				if (root.controllerId === id) {
@@ -234,8 +258,17 @@ export class TestService extends Disposable implements ITestService {
 
 			if (this.testControllers.delete(id)) {
 				this.providerCount.set(this.testControllers.size);
+				this.updateCanRefresh();
 			}
-		});
+		}));
+
+		disposable.add(controller.canRefresh.onDidChange(this.updateCanRefresh, this));
+
+		return disposable;
+	}
+
+	private updateCanRefresh() {
+		this.canRefreshTests.set(Iterable.some(this.testControllers.values(), t => t.canRefresh.value));
 	}
 }
 

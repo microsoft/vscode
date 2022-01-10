@@ -724,6 +724,7 @@ export class PersistentTerminalProcess extends Disposable {
 class XtermSerializer implements ITerminalSerializer {
 	private _xterm: XtermTerminal;
 	private _unicodeAddon?: XtermUnicode11Addon;
+	private _isShellIntegrationEnabled: boolean = false;
 
 	constructor(
 		cols: number,
@@ -735,8 +736,21 @@ class XtermSerializer implements ITerminalSerializer {
 		this._xterm = new XtermTerminal({ cols, rows, scrollback });
 		if (reviveBuffer) {
 			this._xterm.writeln(reviveBuffer);
+			if (this._isShellIntegrationEnabled) {
+				this._xterm.write('\x1b033]133;E\x1b007');
+			}
 		}
+		this._xterm.parser.registerOscHandler(133, (data => this._handleShellIntegration(data)));
 		this.setUnicodeVersion(unicodeVersion);
+	}
+
+	private _handleShellIntegration(data: string): boolean {
+		const [command,] = data.split(';');
+		if (command === 'E') {
+			this._isShellIntegrationEnabled = true;
+			return true;
+		}
+		return false;
 	}
 
 	handleData(data: string): void {

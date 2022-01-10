@@ -745,7 +745,8 @@ suite('SplitLinesCollection', () => {
 			options: {
 				description: 'example',
 				after: {
-					content: 'very very long injected text that causes a line break'
+					content: 'very very long injected text that causes a line break',
+					inlineClassName: 'myClassName'
 				},
 				showIfCollapsed: true,
 			}
@@ -908,6 +909,32 @@ suite('SplitLinesCollection', () => {
 				_expected[10],
 				_expected[11],
 			]);
+
+			const data = splitLinesCollection.getViewLinesData(1, 14, new Array(14).fill(true));
+			assert.deepStrictEqual(
+				data.map((d) => ({
+					inlineDecorations: d.inlineDecorations?.map((d) => ({
+						startOffset: d.startOffset,
+						endOffset: d.endOffset,
+					})),
+				})),
+				[
+					{ inlineDecorations: [{ startOffset: 8, endOffset: 23 }] },
+					{ inlineDecorations: [{ startOffset: 4, endOffset: 42 }] },
+					{ inlineDecorations: [{ startOffset: 4, endOffset: 16 }] },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+				]
+			);
 		});
 	});
 

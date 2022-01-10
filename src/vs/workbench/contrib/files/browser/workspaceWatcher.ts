@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { IDisposable, Disposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, IFileService } from 'vs/platform/files/common/files';
+import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ResourceMap } from 'vs/base/common/map';
 import { INotificationService, Severity, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
@@ -15,13 +15,14 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { isAbsolute } from 'vs/base/common/path';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 
 export class WorkspaceWatcher extends Disposable {
 
 	private readonly watchedWorkspaces = new ResourceMap<IDisposable>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 
 	constructor(
-		@IFileService private readonly fileService: IFileService,
+		@IWorkbenchFileService private readonly fileService: IWorkbenchFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,

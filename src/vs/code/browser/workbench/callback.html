@@ -7,19 +7,12 @@
 		<!-- Disable pinch zooming -->
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
 
-		<!-- Content Security Policy -->
-		<meta
-			http-equiv="Content-Security-Policy"
-			content="
-				default-src 'self';
-				img-src 'self' https: data: blob:;
-				media-src 'none';
-				script-src 'self';
-				style-src 'self' 'unsafe-inline';
-				font-src 'self' blob:;
-		">
-
 		<title>Visual Studio Code</title>
+
+		<!-- Scripts -->
+		<script>
+			window.localStorage.setItem('vscode-web.url-callbacks[{{CALLBACK_ID}}]', '{{CALLBACK_URI}}');
+		</script>
 
 		<!-- Styling -->
 		<style type="text/css">

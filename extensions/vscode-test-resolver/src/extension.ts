@@ -80,7 +80,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 
 			const { updateUrl, commit, quality, serverDataFolderName, dataFolderName } = getProductConfiguration();
-			const commandArgs = ['--port=0', '--disable-telemetry'];
+			const commandArgs = ['--host=127.0.0.1', '--port=0', '--disable-telemetry', '--use-host-proxy', '--accept-server-license-terms'];
 			const env = getNewEnv();
 			const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), serverDataFolderName || `${dataFolderName}-testresolver`);
 			const logsDir = process.env['TESTRESOLVER_LOGS_FOLDER'];
@@ -95,6 +95,9 @@ export function activate(context: vscode.ExtensionContext) {
 				const serverCommand = process.platform === 'win32' ? 'server.bat' : 'server.sh';
 				const vscodePath = path.resolve(path.join(context.extensionPath, '..', '..'));
 				const serverCommandPath = path.join(vscodePath, 'resources', 'server', 'bin-dev', serverCommand);
+
+				outputChannel.appendLine(`Launching server: VSCODE_AGENT_FOLDER="${remoteDataDir}" "${serverCommandPath}" ${commandArgs.join(' ')}`);
+
 				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath });
 			} else {
 				const extensionToInstall = process.env['TESTRESOLVER_INSTALL_BUILTIN_EXTENSION'];

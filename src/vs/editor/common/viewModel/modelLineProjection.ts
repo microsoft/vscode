@@ -198,8 +198,13 @@ class ModelLineProjection implements IModelLineProjection {
 						}
 					}
 
-					totalInjectedTextLengthBefore += length;
-					currentInjectedOffset++;
+					if (injectedTextEndOffsetInInputWithInjections <= lineEndOffsetInInputWithInjections) {
+						totalInjectedTextLengthBefore += length;
+						currentInjectedOffset++;
+					} else {
+						// injected text breaks into next line, process it again
+						break;
+					}
 				}
 			}
 		}

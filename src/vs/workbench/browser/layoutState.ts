@@ -64,7 +64,7 @@ export const LayoutStateKeys = {
 
 	// Part Positions
 	SIDEBAR_POSITON: new RuntimeStateKey<Position>('sideBar.position', StorageScope.GLOBAL, StorageTarget.USER, Position.LEFT),
-	PANEL_POSITION: new RuntimeStateKey<Position>('panel.position', StorageScope.WORKSPACE, StorageTarget.USER, Position.BOTTOM),
+	PANEL_POSITION: new RuntimeStateKey<Position>('panel.position', StorageScope.GLOBAL, StorageTarget.USER, Position.BOTTOM),
 	PANEL_ALIGNMENT: new RuntimeStateKey<PanelAlignment>('panel.alignment', StorageScope.GLOBAL, StorageTarget.USER, 'center'),
 
 	// Part Visibility
@@ -114,6 +114,10 @@ export class LayoutStateModel extends Disposable {
 		if (configurationChangeEvent.affectsConfiguration(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION)) {
 			this.setRuntimeValueAndFire(LayoutStateKeys.SIDEBAR_POSITON, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left'));
 		}
+
+		if (configurationChangeEvent.affectsConfiguration(LegacyWorkbenchLayoutSettings.PANEL_POSITION)) {
+			this.setRuntimeValueAndFire(LayoutStateKeys.PANEL_POSITION, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.PANEL_POSITION) ?? 'bottom'));
+		}
 	}
 
 	private updateLegacySettingsFromState<T extends StorageKeyType>(key: RuntimeStateKey<T>, value: T): void {
@@ -130,6 +134,8 @@ export class LayoutStateModel extends Disposable {
 			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.PANEL_ALIGNMENT, value);
 		} else if (key === LayoutStateKeys.SIDEBAR_POSITON) {
 			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION, positionToString(value as Position));
+		} else if (key === LayoutStateKeys.PANEL_POSITION) {
+			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.PANEL_POSITION, positionToString(value as Position));
 		}
 	}
 
@@ -146,6 +152,13 @@ export class LayoutStateModel extends Disposable {
 			}
 		}
 
+		// Apply legacy settings
+		this.stateCache.set(LayoutStateKeys.ACTIVITYBAR_HIDDEN.name, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE));
+		this.stateCache.set(LayoutStateKeys.STATUSBAR_HIDDEN.name, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE));
+		this.stateCache.set(LayoutStateKeys.PANEL_ALIGNMENT.name, this.configurationService.getValue(LegacyWorkbenchLayoutSettings.PANEL_ALIGNMENT));
+		this.stateCache.set(LayoutStateKeys.SIDEBAR_POSITON.name, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left'));
+		this.stateCache.set(LayoutStateKeys.PANEL_POSITION.name, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.PANEL_POSITION) ?? 'bottom'));
+
 		// Apply sizing defaults
 		const workbenchDimensions = getClientArea(this.container);
 		const panelPosition = this.stateCache.get(LayoutStateKeys.PANEL_POSITION.name) ?? LayoutStateKeys.PANEL_POSITION.defaultValue;
@@ -161,10 +174,6 @@ export class LayoutStateModel extends Disposable {
 		applySizingIfUndefined(LayoutStateKeys.PANEL_SIZE, panelPosition === Position.BOTTOM ? workbenchDimensions.height / 3 : workbenchDimensions.width / 4);
 
 		// Apply legacy settings
-		this.stateCache.set(LayoutStateKeys.ACTIVITYBAR_HIDDEN.name, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE));
-		this.stateCache.set(LayoutStateKeys.STATUSBAR_HIDDEN.name, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE));
-		this.stateCache.set(LayoutStateKeys.PANEL_ALIGNMENT.name, this.configurationService.getValue(LegacyWorkbenchLayoutSettings.PANEL_ALIGNMENT));
-		this.stateCache.set(LayoutStateKeys.SIDEBAR_POSITON.name, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left'));
 
 		// Apply all defaults
 		for (key in LayoutStateKeys) {

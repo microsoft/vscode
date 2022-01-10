@@ -31,7 +31,7 @@ import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { memoize } from 'vs/base/common/decorators';
 import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
-import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from 'vs/editor/common/model';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { basename } from 'vs/base/common/path';
@@ -87,6 +87,7 @@ function createInlineValueDecoration(lineNumber: number, contentText: string, co
 				content: replaceWsWithNoBreakWs(contentText),
 				inlineClassName: 'debug-inline-value',
 				inlineClassNameAffectsLetterSpacing: true,
+				cursorStops: InjectedTextCursorStops.Left
 			},
 			showIfCollapsed: true
 		}
@@ -409,16 +410,16 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 
-		const targetType = mouseEvent.target.type;
+		const target = mouseEvent.target;
 		const stopKey = env.isMacintosh ? 'metaKey' : 'ctrlKey';
 
-		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
+		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
 			// mouse moved on top of debug hover widget
 			return;
 		}
-		if (targetType === MouseTargetType.CONTENT_TEXT) {
-			if (mouseEvent.target.range && !mouseEvent.target.range.equalsRange(this.hoverRange)) {
-				this.hoverRange = mouseEvent.target.range;
+		if (target.type === MouseTargetType.CONTENT_TEXT) {
+			if (target.range && !target.range.equalsRange(this.hoverRange)) {
+				this.hoverRange = target.range;
 				this.hideHoverScheduler.cancel();
 				this.showHoverScheduler.schedule();
 			}

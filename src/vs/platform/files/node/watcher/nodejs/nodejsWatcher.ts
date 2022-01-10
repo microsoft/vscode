@@ -15,7 +15,7 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { realcase } from 'vs/base/node/extpath';
 import { Promises } from 'vs/base/node/pfs';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { IDiskFileChange, ILogMessage, coalesceEvents, IWatchRequest, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, ILogMessage, coalesceEvents, INonRecursiveWatcher, INonRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 
 export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatcher {
 
@@ -40,7 +40,7 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 	readonly ready = this.watch();
 
 	constructor(
-		private request: IWatchRequest,
+		private request: INonRecursiveWatchRequest,
 		private onDidFilesChange: (changes: IDiskFileChange[]) => void,
 		private onLogMessage?: (msg: ILogMessage) => void,
 		private verboseLogging?: boolean
@@ -71,7 +71,7 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 		}
 	}
 
-	private async normalizePath(request: IWatchRequest): Promise<string> {
+	private async normalizePath(request: INonRecursiveWatchRequest): Promise<string> {
 		let realPath = request.path;
 
 		try {
@@ -450,7 +450,7 @@ export async function watchFileContents(path: string, onData: (chunk: Uint8Array
 	let error: Error | undefined = undefined;
 	let isReading = false;
 
-	const request: IWatchRequest = { path, excludes: [] };
+	const request: INonRecursiveWatchRequest = { path, excludes: [] };
 	const watcher = new NodeJSFileWatcher(request, changes => {
 		(async () => {
 			for (const { type } of changes) {

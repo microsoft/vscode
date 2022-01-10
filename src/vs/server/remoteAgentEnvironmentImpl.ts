@@ -350,7 +350,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			os: platform.OS,
 			arch: process.arch,
 			marks: performance.getMarks(),
-			useHostProxy: (this.environmentService.args['use-host-proxy'] !== undefined)
+			useHostProxy: !!this.environmentService.args['use-host-proxy']
 		};
 	}
 

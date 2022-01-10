@@ -104,7 +104,6 @@ export interface NotebookCellInternalMetadata {
 	runStartTime?: number;
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
-	isPaused?: boolean;
 }
 
 export interface NotebookCellCollapseState {
@@ -825,6 +824,7 @@ export interface INotebookSearchOptions {
 	wholeWord?: boolean;
 	caseSensitive?: boolean;
 	wordSeparators?: string;
+	includePreview?: boolean;
 }
 
 export interface INotebookExclusiveDocumentFilter {

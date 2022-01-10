@@ -919,21 +919,36 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	}
 }
 
+const connectionTokenRegex = /^[0-9A-Za-z-]+$/;
+
 function parseConnectionToken(args: ServerParsedArgs): { connectionToken: string; connectionTokenIsMandatory: boolean; } {
-	if (args['connection-secret']) {
-		if (args['connection-token']) {
-			console.warn(`Please do not use the argument '--connection-token' at the same time as '--connection-secret'.`);
+	const connectionToken = args['connection-token'];
+	const connectionTokenFile = args['connection-token-file'];
+
+	if (connectionTokenFile) {
+		if (connectionToken) {
+			console.warn(`Please do not use the argument '--connection-token' at the same time as '--connection-token-file'.`);
 			process.exit(1);
 		}
-		let rawConnectionToken = fs.readFileSync(args['connection-secret']).toString();
-		rawConnectionToken = rawConnectionToken.replace(/\r?\n$/, '');
-		if (!/^[0-9A-Za-z\-]+$/.test(rawConnectionToken)) {
-			console.warn(`The secret defined in ${args['connection-secret']} does not adhere to the characters 0-9, a-z, A-Z or -.`);
+		try {
+			let rawConnectionToken = fs.readFileSync(connectionTokenFile).toString();
+			rawConnectionToken = rawConnectionToken.replace(/\r?\n$/, '');
+			if (!connectionTokenRegex.test(rawConnectionToken)) {
+				console.warn(`The connection token defined in '${connectionTokenFile} does not adhere to the characters 0-9, a-z, A-Z or -.`);
+				process.exit(1);
+			}
+			return { connectionToken: rawConnectionToken, connectionTokenIsMandatory: true };
+		} catch (e) {
+			console.warn(`Unable to read the connection token file at '${connectionTokenFile}'.`);
 			process.exit(1);
 		}
-		return { connectionToken: rawConnectionToken, connectionTokenIsMandatory: true };
+
 	} else {
-		return { connectionToken: args['connection-token'] || generateUuid(), connectionTokenIsMandatory: false };
+		if (connectionToken !== undefined && !connectionTokenRegex.test(connectionToken)) {
+			console.warn(`The connection token '${connectionToken}' does not adhere to the characters 0-9, a-z, A-Z or -.`);
+			process.exit(1);
+		}
+		return { connectionToken: connectionToken || generateUuid(), connectionTokenIsMandatory: false };
 	}
 }
 
