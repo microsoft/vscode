@@ -195,7 +195,21 @@ export class Button extends Disposable implements IButton {
 	set label(value: string) {
 		this._element.classList.add('monaco-text-button');
 		if (this.options.supportIcons) {
-			reset(this._element, ...renderLabelWithIcons(value));
+			// In order to be able to apply CSS styles we
+			// convert the text nodes into <span> elements.
+			const nodes = renderLabelWithIcons(value)
+				.map(value => {
+					if (typeof (value) === 'string') {
+						const node = document.createElement('span');
+						node.textContent = value.trim();
+
+						return node;
+					}
+
+					return value;
+				});
+
+			reset(this._element, ...nodes);
 		} else {
 			this._element.textContent = value;
 		}
