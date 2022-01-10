@@ -13,6 +13,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -24,7 +25,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IFileService private readonly _fileService: IFileService,
+		@IWorkbenchFileService private readonly _fileService: IWorkbenchFileService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
