@@ -17,6 +17,7 @@ global.vscodeServerStartTime = performance.now();
 
 async function start() {
 	if (process.argv[2] === '--exec') {
+		console.warn('--exec is deprecated and will be removed.');
 		process.argv.splice(1, 2);
 		require(process.argv[1]);
 		return;
@@ -173,11 +174,11 @@ async function parsePort(strPort, strPickPort) {
 			if (port !== undefined) {
 				return port;
 			}
-			console.log(`--port: Could not find free port in range: ${range.start}-${range.end}.`);
+			console.warn(`--port: Could not find free port in range: ${range.start}-${range.end}.`);
 			process.exit(1);
 
 		} else {
-			console.log('--port "${strPort}" is not a valid number or range.');
+			console.warn('--port "${strPort}" is not a valid number or range.');
 			process.exit(1);
 		}
 	}

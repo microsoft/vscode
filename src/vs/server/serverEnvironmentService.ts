@@ -132,7 +132,9 @@ export interface ServerParsedArgs {
 	'force-disable-user-env'?: boolean;
 
 	/* ----- vs code web options ----- */
+	/** @deprecated */
 	workspace: string;
+	/** @deprecated */
 	folder: string;
 	'enable-sync'?: boolean;
 	'github-auth'?: string;
