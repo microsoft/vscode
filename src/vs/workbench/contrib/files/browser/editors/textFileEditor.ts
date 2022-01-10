@@ -73,11 +73,8 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 	}
 
 	private onDidFilesChange(e: FileChangesEvent): void {
-		const deleted = e.rawDeleted;
-		if (deleted) {
-			for (const [resource] of deleted) {
-				this.clearEditorViewState(resource);
-			}
+		for (const resource of e.rawDeleted) {
+			this.clearEditorViewState(resource);
 		}
 	}
 
