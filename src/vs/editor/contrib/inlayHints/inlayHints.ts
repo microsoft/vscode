@@ -18,29 +18,48 @@ export class InlayHintAnchor {
 
 export class InlayHintItem {
 
-	readonly resolve: (token: CancellationToken) => Promise<void>;
+	private _isResolved: boolean = false;
+	private _currentResolve?: Promise<void>;
 
-	constructor(readonly hint: InlayHint, readonly anchor: InlayHintAnchor, private readonly _provider: InlayHintsProvider) {
-		let resolve: Promise<any> | undefined;
-		if (!_provider.resolveInlayHint) {
-			resolve = Promise.resolve();
-		}
-		this.resolve = async token => {
-			if (!resolve) {
-				resolve = Promise.resolve(_provider.resolveInlayHint!(this.hint, token)).then(newHint => {
-					this.hint.tooltip = newHint?.tooltip ?? this.hint.tooltip;
-					this.hint.label = newHint?.label ?? this.hint.label;
-				}).catch(err => {
-					onUnexpectedExternalError(err);
-					resolve = undefined;
-				});
-			}
-			return resolve;
-		};
-	}
+	constructor(readonly hint: InlayHint, readonly anchor: InlayHintAnchor, private readonly _provider: InlayHintsProvider) { }
 
 	with(delta: { anchor: InlayHintAnchor }): InlayHintItem {
-		return new InlayHintItem(this.hint, delta.anchor, this._provider);
+		const result = new InlayHintItem(this.hint, delta.anchor, this._provider);
+		result._isResolved = this._isResolved;
+		result._currentResolve = this._currentResolve;
+		return result;
+	}
+
+	async resolve(token: CancellationToken): Promise<void> {
+		if (typeof this._provider.resolveInlayHint !== 'function') {
+			return;
+		}
+		if (this._currentResolve) {
+			// wait for an active resolve operation and try again
+			// when that's done.
+			await this._currentResolve;
+			if (token.isCancellationRequested) {
+				return;
+			}
+			return this.resolve(token);
+		}
+		if (!this._isResolved) {
+			this._currentResolve = this._doResolve(token)
+				.finally(() => this._currentResolve = undefined);
+		}
+		await this._currentResolve;
+	}
+
+	private async _doResolve(token: CancellationToken) {
+		try {
+			const newHint = await Promise.resolve(this._provider.resolveInlayHint!(this.hint, token));
+			this.hint.tooltip = newHint?.tooltip ?? this.hint.tooltip;
+			this.hint.label = newHint?.label ?? this.hint.label;
+			this._isResolved = true;
+		} catch (err) {
+			onUnexpectedExternalError(err);
+			this._isResolved = false;
+		}
 	}
 }
 
