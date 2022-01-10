@@ -61,7 +61,8 @@ export class FileService extends Disposable implements IFileService {
 
 		// Forward events from provider
 		const providerDisposables = new DisposableStore();
-		providerDisposables.add(provider.onDidChangeFile(changes => this.onProviderDidChangeFile(changes, this.isPathCaseSensitive(provider))));
+		const providerFileChangeEventsWorker = providerDisposables.add(this.createProviderFileEventsWorker(this.isPathCaseSensitive(provider)));
+		providerDisposables.add(provider.onDidChangeFile(changes => this.onProviderDidChangeFile(providerFileChangeEventsWorker, changes)));
 		providerDisposables.add(provider.onDidChangeCapabilities(() => this._onDidChangeFileSystemProviderCapabilities.fire({ provider, scheme })));
 		if (typeof provider.onDidWatchError === 'function') {
 			providerDisposables.add(provider.onDidWatchError(error => this._onDidWatchError.fire(new Error(error))));
@@ -1013,26 +1014,16 @@ export class FileService extends Disposable implements IFileService {
 
 	private readonly activeWatchers = new Map<number /* watch request hash */, { disposable: IDisposable, count: number; }>();
 
-	private readonly caseSensitiveFileEventsWorker = this._register(
-		new ThrottledWorker<IFileChange>(
+	private createProviderFileEventsWorker(caseSensitive: boolean): ThrottledWorker<IFileChange> {
+		return new ThrottledWorker<IFileChange>(
 			FileService.FILE_EVENTS_THROTTLING.maxChangesChunkSize,
 			FileService.FILE_EVENTS_THROTTLING.maxChangesBufferSize,
 			FileService.FILE_EVENTS_THROTTLING.coolDownDelay,
-			chunks => this._onDidFilesChange.fire(new FileChangesEvent(chunks, false))
-		)
-	);
+			chunks => this._onDidFilesChange.fire(new FileChangesEvent(chunks, !caseSensitive))
+		);
+	}
 
-	private readonly caseInsensitiveFileEventsWorker = this._register(
-		new ThrottledWorker<IFileChange>(
-			FileService.FILE_EVENTS_THROTTLING.maxChangesChunkSize,
-			FileService.FILE_EVENTS_THROTTLING.maxChangesBufferSize,
-			FileService.FILE_EVENTS_THROTTLING.coolDownDelay,
-			chunks => this._onDidFilesChange.fire(new FileChangesEvent(chunks, true))
-		)
-	);
-
-	private onProviderDidChangeFile(changes: readonly IFileChange[], caseSensitive: boolean): void {
-		const worker = caseSensitive ? this.caseSensitiveFileEventsWorker : this.caseInsensitiveFileEventsWorker;
+	private onProviderDidChangeFile(worker: ThrottledWorker<IFileChange>, changes: readonly IFileChange[]): void {
 		const worked = worker.work(changes);
 
 		if (!worked && FileService.FILE_EVENTS_THROTTLING.warningscounter++ < 10) {
