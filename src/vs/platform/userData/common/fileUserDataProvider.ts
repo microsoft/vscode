@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileWriteOptions, FileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileWriteOptions, FileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileService, FileChangesEvent } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
@@ -94,21 +94,17 @@ export class FileUserDataProvider extends Disposable implements
 
 	private handleFileChanges(e: FileChangesEvent): void {
 		const userDataChanges: IFileChange[] = [];
-		for (const changes of [{ raw: e.rawAdded, type: FileChangeType.ADDED }, { raw: e.rawUpdated, type: FileChangeType.UPDATED }, { raw: e.rawDeleted, type: FileChangeType.DELETED }]) {
-			if (changes.raw) {
-				for (const [resource] of changes.raw) {
-					if (resource.scheme !== this.fileSystemScheme) {
-						continue; // only interested in file schemes
-					}
+		for (const change of e.rawChanges) {
+			if (change.resource.scheme !== this.fileSystemScheme) {
+				continue; // only interested in file schemes
+			}
 
-					const userDataResource = this.toUserDataResource(resource);
-					if (this.watchResources.findSubstr(userDataResource)) {
-						userDataChanges.push({
-							resource: userDataResource,
-							type: changes.type
-						});
-					}
-				}
+			const userDataResource = this.toUserDataResource(change.resource);
+			if (this.watchResources.findSubstr(userDataResource)) {
+				userDataChanges.push({
+					resource: userDataResource,
+					type: change.type
+				});
 			}
 		}
 		if (userDataChanges.length) {

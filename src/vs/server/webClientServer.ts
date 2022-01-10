@@ -9,17 +9,15 @@ import * as url from 'url';
 import * as util from 'util';
 import * as cookie from 'cookie';
 import * as crypto from 'crypto';
-import { isEqualOrParent, sanitizeFilePath } from 'vs/base/common/extpath';
+import { isEqualOrParent } from 'vs/base/common/extpath';
 import { getMediaMime } from 'vs/base/common/mime';
 import { isLinux } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IServerEnvironmentService } from 'vs/server/serverEnvironmentService';
 import { extname, dirname, join, normalize } from 'vs/base/common/path';
 import { FileAccess } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
-import { cwd } from 'vs/base/common/process';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 const textMimeType = {
@@ -174,8 +172,6 @@ export class WebClientServer {
 		}
 
 		const remoteAuthority = req.headers.host;
-		const transformer = createRemoteURITransformer(remoteAuthority);
-		const { workspacePath, isFolder } = await this._getWorkspaceFromCLI();
 
 		function escapeAttribute(value: string): string {
 			return value.replace(/"/g, '&quot;');
@@ -197,8 +193,6 @@ export class WebClientServer {
 		} : undefined;
 		const data = (await util.promisify(fs.readFile)(filePath)).toString()
 			.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify({
-				folderUri: (workspacePath && isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
-				workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 				remoteAuthority,
 				_wrapWebWorkerExtHostInIframe,
 				developmentOptions: { enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined },
@@ -248,30 +242,6 @@ export class WebClientServer {
 			result.push(`'sha256-${hash}'`);
 		}
 		return result;
-	}
-
-	private async _getWorkspaceFromCLI(): Promise<{ workspacePath?: string, isFolder?: boolean }> {
-
-		// check for workspace argument
-		const workspaceCandidate = this._environmentService.args['workspace'];
-		if (workspaceCandidate && workspaceCandidate.length > 0) {
-			const workspace = sanitizeFilePath(workspaceCandidate, cwd());
-			if (await util.promisify(fs.exists)(workspace)) {
-				return { workspacePath: workspace };
-			}
-		}
-
-		// check for folder argument
-		const folderCandidate = this._environmentService.args['folder'];
-		if (folderCandidate && folderCandidate.length > 0) {
-			const folder = sanitizeFilePath(folderCandidate, cwd());
-			if (await util.promisify(fs.exists)(folder)) {
-				return { workspacePath: folder, isFolder: true };
-			}
-		}
-
-		// empty window otherwise
-		return {};
 	}
 
 	private _getFirstQueryValue(parsedUrl: url.UrlWithParsedQuery, key: string): string | undefined {

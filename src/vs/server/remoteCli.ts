@@ -114,8 +114,8 @@ export function main(desc: ProductDescription, args: string[]): void {
 			console.error(`Ignoring option ${id}: not supported for ${desc.executableName}.`);
 		},
 
-		onDeprecatedOption: (deprecatedOption: string, actualOption: string) => {
-			console.warn(`Option '${deprecatedOption}' is deprecated, please use '${actualOption}' instead`);
+		onDeprecatedOption: (deprecatedOption: string, message: string) => {
+			console.warn(`Option '${deprecatedOption}' is deprecated: ${message}`);
 		}
 	};
 
