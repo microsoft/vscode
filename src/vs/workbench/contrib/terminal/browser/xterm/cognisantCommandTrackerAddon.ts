@@ -48,6 +48,7 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 		if (!this._terminal) {
 			return;
 		}
+		console.log('type', event.type);
 		switch (event.type) {
 			case ShellIntegrationInfo.CurrentDir: {
 				this._cwd = event.value;

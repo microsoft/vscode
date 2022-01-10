@@ -128,7 +128,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _latestXtermWriteData: number = 0;
 	private _latestXtermParseData: number = 0;
 	private _isExiting: boolean;
-	private _shellIntegrationEnabled: boolean = false;
+	private _enableShellIntegration: boolean = false;
 	private _hadFocusOnExit: boolean;
 	private _isVisible: boolean;
 	private _isDisposed: boolean;
@@ -1273,14 +1273,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const hadIcon = !!this.shellLaunchConfig.icon;
+		console.log(this.shellLaunchConfig.args);
 		const shellIntegration = this._updateArgsForShellIntegration(this.shellLaunchConfig);
 		this.shellLaunchConfig.args = shellIntegration.args;
-		this._shellIntegrationEnabled = shellIntegration.shellIntegrationEnabled;
+		this._enableShellIntegration = shellIntegration.enableShellIntegration;
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
-			if (error && this._shellIntegrationEnabled) {
-				this._shellIntegrationEnabled = false;
+			if (error && this._enableShellIntegration) {
+				this._enableShellIntegration = false;
 				//TODO: mention setting?
-				this._configHelper.config.shellIntegrationEnabled = false;
+				this._configHelper.config.enableShellIntegration = false;
 				error = { message: 'Terminal shell integration failed, disabling it now' };
 			}
 			if (error) {
@@ -1292,45 +1293,35 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private _updateArgsForShellIntegration(shellLaunchConfig: IShellLaunchConfig): { args: string | string[] | undefined, shellIntegrationEnabled: boolean } {
+	private _updateArgsForShellIntegration(shellLaunchConfig: IShellLaunchConfig): { args: string | string[] | undefined, enableShellIntegration: boolean } {
 		const originalArgs = shellLaunchConfig.args;
-		if (!this._configHelper.config.shellIntegrationEnabled || !shellLaunchConfig.executable) {
-			return { args: originalArgs, shellIntegrationEnabled: false };
+		if (!this._configHelper.config.enableShellIntegration || !shellLaunchConfig.executable) {
+			return { args: originalArgs, enableShellIntegration: false };
 		}
 		const shell = path.basename(shellLaunchConfig.executable);
 		let newArgs: string | string[] | undefined;
-		let shellIntegrationEnabled = false;
+		let enableShellIntegration = false;
 		if (isWindows && shell === 'pwsh' && !originalArgs) {
 			newArgs = [
 				'-noexit',
 				'-command',
 				'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
 			];
-			shellIntegrationEnabled = true;
+			enableShellIntegration = true;
 		} else if (!isWindows) {
 			if (shell === 'zsh') {
-				newArgs = this._appendArgs(['-c', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration.sh; zsh -il'], originalArgs);
-				shellIntegrationEnabled = true;
+				newArgs = ['-c', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration.sh; zsh -il'];
+				enableShellIntegration = true;
 			} else if (shell === 'bash') {
-				newArgs = this._appendArgs(['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration.sh'], originalArgs);
-				shellIntegrationEnabled = true;
+				newArgs = [
+					'--init-file',
+					'${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration.sh'
+				];
+				enableShellIntegration = true;
 			}
 		}
-		return { args: newArgs || originalArgs, shellIntegrationEnabled };
+		return { args: newArgs || originalArgs, enableShellIntegration };
 	}
-
-	private _appendArgs(newArgs: string[], originalArgs: string | string[] | undefined): string[] {
-		if (!originalArgs) {
-			return newArgs;
-		}
-		if (typeof originalArgs === 'string') {
-			newArgs.push('; ' + originalArgs);
-		} else {
-			newArgs.push(...originalArgs);
-		}
-		return newArgs;
-	}
-
 	private _onProcessData(ev: IProcessDataEvent): void {
 		const messageId = ++this._latestXtermWriteData;
 		if (ev.trackCommit) {

@@ -284,7 +284,7 @@ export interface ITerminalConfiguration {
 	persistentSessionReviveProcess: 'onExit' | 'onExitAndWindowClose' | 'never';
 	ignoreProcessNames: string[];
 	autoReplies: { [key: string]: string };
-	shellIntegrationEnabled: boolean;
+	enableShellIntegration: boolean;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
