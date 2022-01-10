@@ -569,7 +569,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('Terminal disposed of during xterm.js creation');
 		}
 
-		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel);
+		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this._capabilities);
 		this.xterm = xterm;
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
@@ -1272,7 +1272,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const hadIcon = !!this.shellLaunchConfig.icon;
+		this.shellLaunchConfig.args = this._updateArgsForShellIntegration(this.shellLaunchConfig);
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
+			//TODO: add custom error for if it fails and the args were updated telling
+			// people to turn off the setting
 			if (error) {
 				this._onProcessExit(error);
 			}
@@ -1280,6 +1283,29 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!hadIcon && this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
 			this._onIconChanged.fire(this);
 		}
+	}
+
+	private _updateArgsForShellIntegration(shellLaunchConfig: IShellLaunchConfig): string | string[] | undefined {
+		const originalArgs = shellLaunchConfig.args;
+		if (!this._configHelper.config.shellIntegrationEnabled || !shellLaunchConfig.executable) {
+			return originalArgs;
+		}
+		const shell = path.basename(shellLaunchConfig.executable);
+		if (isWindows && shell === 'pwsh' && !shellLaunchConfig.args) {
+			return [
+				'-noexit',
+				'-command',
+				'C:\\Github\\microsoft\\vscode\\ShellIntegration.ps1'
+			];
+		} else if (!isWindows) {
+			//TODO: support appending orignal args
+			if (shell === 'zsh') {
+				return ['-c', '/Users/meganrogge/Desktop/shell-integration-zsh.sh; zsh -il'];
+			} else if (shell === 'bash') {
+				return ['--init-file', '/Users/meganrogge/Desktop/shell-integration-zsh.sh'];
+			}
+		}
+		return originalArgs;
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
