@@ -1304,7 +1304,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			newArgs = [
 				'-noexit',
 				'-command',
-				'C:\\Github\\microsoft\\vscode\\ShellIntegration.ps1'
+				'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
 			];
 			shellIntegrationEnabled = true;
 		} else if (!isWindows) {
