@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as net from 'net';
 import * as http from 'http';
+import * as crypto from 'crypto';
 import { downloadAndUnzipVSCodeServer } from './download';
 import { terminateProcess } from './util/processes';
 
@@ -24,6 +25,8 @@ let outputChannel: vscode.OutputChannel;
 export function activate(context: vscode.ExtensionContext) {
 
 	function doResolve(_authority: string, progress: vscode.Progress<{ message?: string; increment?: number }>): Promise<vscode.ResolvedAuthority> {
+		const connectionToken = String(crypto.randomInt(0xffffffffff));
+
 		// eslint-disable-next-line no-async-promise-executor
 		const serverPromise = new Promise<vscode.ResolvedAuthority>(async (res, rej) => {
 			progress.report({ message: 'Starting Test Resolver' });
@@ -53,7 +56,7 @@ export function activate(context: vscode.ExtensionContext) {
 						const match = lastProgressLine.match(/Extension host agent listening on (\d+)/);
 						if (match) {
 							isResolved = true;
-							res(new vscode.ResolvedAuthority('127.0.0.1', parseInt(match[1], 10))); // success!
+							res(new vscode.ResolvedAuthority('127.0.0.1', parseInt(match[1], 10), connectionToken)); // success!
 						}
 						lastProgressLine = '';
 					} else if (chr === CharCode.Backspace) {
@@ -90,6 +93,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 			env['VSCODE_AGENT_FOLDER'] = remoteDataDir;
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
+
+			const connectionTokenFile = path.join(remoteDataDir, `${new Date().getTime()}.token`);
+			fs.writeFileSync(connectionTokenFile, connectionToken);
+			commandArgs.push('--connection-token-file', connectionTokenFile);
 
 			if (!commit) { // dev mode
 				const serverCommand = process.platform === 'win32' ? 'server.bat' : 'server.sh';
@@ -211,7 +218,7 @@ export function activate(context: vscode.ExtensionContext) {
 				proxyServer.listen(0, '127.0.0.1', () => {
 					const port = (<net.AddressInfo>proxyServer.address()).port;
 					outputChannel.appendLine(`Going through proxy at port ${port}`);
-					const r: vscode.ResolverResult = new vscode.ResolvedAuthority('127.0.0.1', port);
+					const r: vscode.ResolverResult = new vscode.ResolvedAuthority('127.0.0.1', port, connectionToken);
 					res(r);
 				});
 				context.subscriptions.push({
