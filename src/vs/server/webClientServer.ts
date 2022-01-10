@@ -12,7 +12,7 @@ import * as crypto from 'crypto';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { getMediaMime } from 'vs/base/common/mime';
 import { isLinux } from 'vs/base/common/platform';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IServerEnvironmentService } from 'vs/server/serverEnvironmentService';
 import { extname, dirname, join, normalize } from 'vs/base/common/path';
@@ -73,8 +73,6 @@ const APP_ROOT = dirname(FileAccess.asFileUri('', require).fsPath);
 
 export class WebClientServer {
 
-	private _mapCallbackUriToRequestId: Map<string, UriComponents> = new Map();
-
 	constructor(
 		private readonly _connectionToken: string,
 		private readonly _environmentService: IServerEnvironmentService,
@@ -101,10 +99,6 @@ export class WebClientServer {
 			if (pathname === '/callback') {
 				// callback support
 				return this._handleCallback(req, res, parsedUrl);
-			}
-			if (pathname === '/fetch-callback') {
-				// callback fetch support
-				return this._handleFetchCallback(req, res, parsedUrl);
 			}
 
 			return serveError(req, res, 404, 'Not found.');
@@ -297,28 +291,23 @@ export class WebClientServer {
 			query += `${prefix}${key}=${value}`;
 		});
 
-		// add to map of known callbacks
-		this._mapCallbackUriToRequestId.set(requestId, URI.from({ scheme: vscodeScheme || this._productService.urlProtocol, authority: vscodeAuthority, path: vscodePath, query, fragment: vscodeFragment }).toJSON());
+		const filePath = FileAccess.asFileUri('vs/code/browser/workbench/callback.html', require).fsPath;
+		const data = (await util.promisify(fs.readFile)(filePath)).toString()
+			.replace('{{CALLBACK_ID}}', requestId)
+			.replace('{{CALLBACK_URI}}', JSON.stringify(URI.from({ scheme: vscodeScheme || this._productService.urlProtocol, authority: vscodeAuthority, path: vscodePath, query, fragment: vscodeFragment }).toJSON()));
+		const cspDirectives = [
+			'default-src \'self\';',
+			'img-src \'self\' https: data: blob:;',
+			'media-src \'none\';',
+			`script-src 'self' ${this._getScriptCspHashes(data).join(' ')};`,
+			'style-src \'self\' \'unsafe-inline\';',
+			'font-src \'self\' blob:;'
+		].join(' ');
 
-		return serveFile(this._logService, req, res, FileAccess.asFileUri('vs/code/browser/workbench/callback.html', require).fsPath, { 'Content-Type': 'text/html' });
-	}
-
-	/**
-	 * Handle HTTP requests for /fetch-callback
-	 */
-	private async _handleFetchCallback(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
-		const requestId = this._getFirstQueryValue(parsedUrl, 'vscode-requestId')!;
-		if (!requestId) {
-			res.writeHead(400, { 'Content-Type': 'text/plain' });
-			return res.end(`Bad request.`);
-		}
-
-		const knownCallbackUri = this._mapCallbackUriToRequestId.get(requestId);
-		if (knownCallbackUri) {
-			this._mapCallbackUriToRequestId.delete(requestId);
-		}
-
-		res.writeHead(200, { 'Content-Type': 'text/json' });
-		return res.end(JSON.stringify(knownCallbackUri));
+		res.writeHead(200, {
+			'Content-Type': 'text/html',
+			'Content-Security-Policy': cspDirectives
+		});
+		return res.end(data);
 	}
 }
