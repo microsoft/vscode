@@ -23,7 +23,7 @@ export interface IMainThreadTestController {
 	readonly id: string;
 	readonly label: IObservableValue<string>;
 	readonly canRefresh: IObservableValue<boolean>;
-	refreshTests(): Promise<void>;
+	refreshTests(token: CancellationToken): Promise<void>;
 	configureRunProfile(profileId: number): void;
 	expandTest(id: string, levels: number): Promise<void>;
 	runTests(request: RunTestForControllerRequest, token: CancellationToken): Promise<void>;
@@ -250,6 +250,11 @@ export interface ITestService {
 	 * Refreshes tests for the controller, or all controllers if no ID is given.
 	 */
 	refreshTests(controllerId?: string): Promise<void>;
+
+	/**
+	 * Cancels any ongoing test refreshes.
+	 */
+	cancelRefreshTests(): void;
 
 	/**
 	 * Requests that tests be executed.

@@ -2160,7 +2160,7 @@ export interface ExtHostTestingShape {
 	/** Configures a test run config. */
 	$configureRunProfile(controllerId: string, configId: number): void;
 	/** Asks the controller to refresh its tests */
-	$refreshTests(controllerId: string): Promise<void>;
+	$refreshTests(controllerId: string, token: CancellationToken): Promise<void>;
 }
 
 export interface ITestControllerPatch {
