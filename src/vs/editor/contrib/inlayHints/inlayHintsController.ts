@@ -10,7 +10,7 @@ import { LRUCache } from 'vs/base/common/map';
 import { IRange } from 'vs/base/common/range';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { CssProperties, DynamicCssRules } from 'vs/editor/browser/editorDom';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
@@ -23,7 +23,9 @@ import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textM
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
 import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/inlayHints';
+import { goToDefinitionWithLocation, showGoToContextMenu } from 'vs/editor/contrib/inlayHints/inlayHintsLocations';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -84,6 +86,7 @@ export class InlayHintsController implements IEditorContribution {
 		private readonly _editor: ICodeEditor,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		this._disposables.add(languages.InlayHintsProviderRegistry.onDidChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
@@ -149,8 +152,9 @@ export class InlayHintsController implements IEditorContribution {
 		this._sessionDisposables.add(this._editor.onDidScrollChange(() => scheduler.schedule()));
 		scheduler.schedule();
 
-		// link gesture
+		// mouse gestures
 		this._sessionDisposables.add(this._installLinkGesture());
+		this._sessionDisposables.add(this._installContextMenu());
 	}
 
 	private _installLinkGesture(): IDisposable {
@@ -172,12 +176,13 @@ export class InlayHintsController implements IEditorContribution {
 				return;
 			}
 
-			// kick-off resolve whenever the mouse is over inlay hints
-			// todo@jrieken CANCEL for real!
-			options.attachedData.item.resolve(CancellationToken.None);
-
 			// render link => when the modifier is pressed and when there is an action
 			if (mouseEvent.hasTriggerModifier && options.attachedData.part.action) {
+
+				// resolve the item
+				const cts = new CancellationTokenSource();
+				options.attachedData.item.resolve(cts.token);
+
 				this._activeInlayHintPart = options.attachedData;
 
 				const lineNumber = this._activeInlayHintPart.item.hint.position.lineNumber;
@@ -190,6 +195,7 @@ export class InlayHintsController implements IEditorContribution {
 				}
 				this._updateHintsDecorators([range], Array.from(lineHints));
 				removeHighlight = () => {
+					cts.dispose(true);
 					this._activeInlayHintPart = undefined;
 					this._updateHintsDecorators([range], Array.from(lineHints));
 				};
@@ -197,22 +203,46 @@ export class InlayHintsController implements IEditorContribution {
 		});
 		gesture.onCancel(removeHighlight);
 		gesture.onExecute(e => {
-			if (e.target.type !== MouseTargetType.CONTENT_TEXT || !e.hasTriggerModifier) {
+			if (e.target.type !== MouseTargetType.CONTENT_TEXT) {
 				return;
 			}
 			const options = e.target.detail?.injectedText?.options;
 			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLabelPart && options.attachedData.part.action) {
 				const part = options.attachedData.part;
 				if (languages.Command.is(part.action)) {
+					// command -> execute it
 					this._commandService.executeCommand(part.action.id, ...(part.action.arguments ?? [])).catch(err => this._notificationService.error(err));
 
 				} else if (part.action) {
-					console.log('TODO', part.action);
-					// todo@jrieken IMPLEMENT THIS
+					// location -> execute go to def
+					this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, part.action);
 				}
 			}
 		});
 		return gesture;
+	}
+
+	private _installContextMenu(): IDisposable {
+		return this._editor.onContextMenu(async e => {
+			if (!(e.event.target instanceof HTMLElement)) {
+				return;
+			}
+			const part = this._getInlayHintLabelPart(e);
+			if (part) {
+				await this._instaService.invokeFunction(showGoToContextMenu, this._editor, e.event.target, part);
+			}
+		});
+	}
+
+	private _getInlayHintLabelPart(e: IEditorMouseEvent) {
+		if (e.target.type !== MouseTargetType.CONTENT_TEXT) {
+			return undefined;
+		}
+		const options = e.target.detail.injectedText?.options;
+		if (options instanceof ModelDecorationInjectedTextOptions && options?.attachedData instanceof InlayHintLabelPart) {
+			return options.attachedData;
+		}
+		return undefined;
 	}
 
 	private _cacheHintsForFastRestore(model: ITextModel): void {
@@ -299,12 +329,12 @@ export class InlayHintsController implements IEditorContribution {
 				} else if (isFirst) {
 					// first element
 					cssProperties.margin = `0 0 0 ${marginBefore}px`;
-					cssProperties.padding = `1px 0 0 ${Math.max(1, fontSize / 4) | 0}px`;
+					cssProperties.padding = `1px 0 1px ${Math.max(1, fontSize / 4) | 0}px`;
 					cssProperties.borderRadius = `${(fontSize / 4) | 0}px 0 0 ${(fontSize / 4) | 0}px`;
 				} else if (isLast) {
 					// last element
 					cssProperties.margin = `0 ${marginAfter}px 0 0`;
-					cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px 0 0`;
+					cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px 1px 0`;
 					cssProperties.borderRadius = `0 ${(fontSize / 4) | 0}px ${(fontSize / 4) | 0}px 0`;
 				} else {
 					cssProperties.padding = `1px 0 1px 0`;
