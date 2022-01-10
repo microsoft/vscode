@@ -292,17 +292,17 @@ export class InlayHintsController implements IEditorContribution {
 
 				if (isFirst && isLast) {
 					// only element
-					cssProperties.margin = `0px ${marginAfter}px 0px ${marginBefore}px`;
+					cssProperties.margin = `0 ${marginAfter}px 0 ${marginBefore}px`;
 					cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px`;
 					cssProperties.borderRadius = `${(fontSize / 4) | 0}px`;
 				} else if (isFirst) {
 					// first element
-					cssProperties.margin = `0px 0 0 ${marginAfter}px`;
+					cssProperties.margin = `0 0 0 ${marginBefore}px`;
 					cssProperties.padding = `1px 0 0 ${Math.max(1, fontSize / 4) | 0}px`;
 					cssProperties.borderRadius = `${(fontSize / 4) | 0}px 0 0 ${(fontSize / 4) | 0}px`;
 				} else if (isLast) {
 					// last element
-					cssProperties.margin = `0px ${marginAfter}px 0 0`;
+					cssProperties.margin = `0 ${marginAfter}px 0 0`;
 					cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px 0 0`;
 					cssProperties.borderRadius = `0 ${(fontSize / 4) | 0}px ${(fontSize / 4) | 0}px 0`;
 				} else {

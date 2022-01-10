@@ -208,6 +208,18 @@ export interface InjectedTextOptions {
 	 * The data can be read when injected texts at a given position are queried.
 	 */
 	readonly attachedData?: unknown;
+
+	/**
+	 * Configures cursor stops around injected text.
+	 * Defaults to {@link InjectedTextCursorStops.Both}.
+	*/
+	readonly cursorStops?: InjectedTextCursorStops | null;
+}
+
+export enum InjectedTextCursorStops {
+	Both,
+	Right,
+	Left
 }
 
 /**

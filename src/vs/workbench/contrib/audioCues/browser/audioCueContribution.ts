@@ -72,7 +72,7 @@ export class AudioCueContribution extends DisposableStore implements IWorkbenchC
 	}
 
 	public handleBreakpointOnLine(): void {
-		this.playSound('breakpointHit');
+		this.playSound('breakpoint');
 	}
 
 	private async playSound(fileName: string) {

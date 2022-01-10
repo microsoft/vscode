@@ -13,7 +13,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { MATCHES_LIMIT } from 'vs/editor/contrib/find/findModel';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindReplaceWidget';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import * as DOM from 'vs/base/browser/dom';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
@@ -29,6 +28,8 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from 'vs/editor/contrib/find/findWidget';
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { FindMatch } from 'vs/editor/common/model';
+import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
@@ -42,16 +43,17 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 	private _hideTimeout: number | null = null;
 	private _previousFocusElement?: HTMLElement;
 	private _findModel: FindModel;
+	private _styleElement!: HTMLStyleElement;
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 
 	) {
-		super(contextViewService, contextKeyService, themeService, new FindReplaceState(), true);
+		super(contextViewService, contextKeyService, themeService, configurationService, new FindReplaceState(), true);
 		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
@@ -63,13 +65,36 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			this.updateTheme(themeService.getColorTheme());
 		}));
 
-		this._register(this._state.onFindReplaceStateChange(() => {
+		this._register(this._state.onFindReplaceStateChange((e) => {
 			this.onInputChanged();
+
+			if (e.isSearching) {
+				if (this._state.isSearching) {
+					this._progressBar.infinite().show();
+				} else {
+					this._progressBar.stop();
+				}
+			}
 		}));
 
 		this._register(DOM.addDisposableListener(this.getDomNode(), DOM.EventType.FOCUS, e => {
 			this._previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
 		}, true));
+
+		this._createLayoutStyles();
+	}
+
+	private _createLayoutStyles(): void {
+		this._styleElement = DOM.createStyleSheet(this.getDomNode());
+		const experimental = this._configurationService.getValue<boolean>('notebook.find.experimental');
+		const styleSheets: string[] = [];
+		if (experimental) {
+			styleSheets.push('.monaco-workbench .simple-fr-find-part-wrapper { width: 341px; }');
+		} else {
+			styleSheets.push('.monaco-workbench .simple-fr-find-part-wrapper { width: 318px; }');
+		}
+
+		this._styleElement.textContent = styleSheets.join('\n');
 	}
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
@@ -114,16 +139,24 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			this._findModel.find(false);
 		}
 
-		const { cell, match } = this._findModel.getCurrentMatch();
-		this._progressBar.infinite().show();
+		const currentMatch = this._findModel.getCurrentMatch();
+		const cell = currentMatch.cell;
+		if (currentMatch.isModelMatch) {
+			const match = currentMatch.match as FindMatch;
 
-		const replacePattern = this.replacePattern;
-		const replaceString = replacePattern.buildReplaceString(match.matches, this._state.preserveCase);
+			this._progressBar.infinite().show();
 
-		const viewModel = this._notebookEditor._getViewModel();
-		viewModel.replaceOne(cell, match.range, replaceString).then(() => {
-			this._progressBar.stop();
-		});
+			const replacePattern = this.replacePattern;
+			const replaceString = replacePattern.buildReplaceString(match.matches, this._state.preserveCase);
+
+			const viewModel = this._notebookEditor._getViewModel();
+			viewModel.replaceOne(cell, match.range, replaceString).then(() => {
+				this._progressBar.stop();
+			});
+		} else {
+			// this should not work
+			console.error('Replace does not work for output match');
+		}
 	}
 
 	protected replaceAll() {
@@ -139,9 +172,12 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		const replaceStrings: string[] = [];
 		cellFindMatches.forEach(cellFindMatch => {
 			const findMatches = cellFindMatch.matches;
-			findMatches.forEach(findMatch => {
-				const matches = findMatch.matches;
-				replaceStrings.push(replacePattern.buildReplaceString(matches, this._state.preserveCase));
+			findMatches.forEach((findMatch, index) => {
+				if (index < cellFindMatch.modelMatchCount) {
+					const match = findMatch as FindMatch;
+					const matches = match.matches;
+					replaceStrings.push(replacePattern.buildReplaceString(matches, this._state.preserveCase));
+				}
 			});
 		});
 
@@ -220,6 +256,8 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		super.hide();
 		this._state.change({ isRevealed: false }, false);
 		this._findModel.clear();
+		this._notebookEditor.findStop();
+		this._progressBar.stop();
 
 		if (this._hideTimeout === null) {
 			if (this._showTimeout !== null) {

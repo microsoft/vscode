@@ -17,6 +17,7 @@ global.vscodeServerStartTime = performance.now();
 
 async function start() {
 	if (process.argv[2] === '--exec') {
+		console.warn('--exec is deprecated and will be removed.');
 		process.argv.splice(1, 2);
 		require(process.argv[1]);
 		return;
@@ -169,9 +170,16 @@ async function parsePort(strPort, strPickPort) {
 				return specificPort;
 			}
 		} else if (range = parseRange(strPort)) {
-			return await findFreePort(range.start, range.end, 8000);
+			const port = await findFreePort(range.start, range.end);
+			if (port !== undefined) {
+				return port;
+			}
+			console.warn(`--port: Could not find free port in range: ${range.start}-${range.end}.`);
+			process.exit(1);
+
 		} else {
-			console.log('--port "${strPort}" is not a valid number or range.');
+			console.warn('--port "${strPort}" is not a valid number or range.');
+			process.exit(1);
 		}
 	}
 	if (strPickPort) {
@@ -180,10 +188,16 @@ async function parsePort(strPort, strPickPort) {
 			if (range.start <= specificPort && specificPort <= range.end) {
 				return specificPort;
 			} else {
-				return await findFreePort(range.start, range.end, 8000);
+				const port = await findFreePort(range.start, range.end);
+				if (port !== undefined) {
+					return port;
+				}
+				console.log(`--pick-port: Could not find free port in range: ${range.start}-${range.end}.`);
+				process.exit(1);
 			}
 		} else {
 			console.log(`--pick-port "${strPickPort}" is not properly formatted.`);
+			process.exit(1);
 		}
 	}
 	return 8000;
@@ -203,15 +217,14 @@ function parseRange(strRange) {
 
 /**
  * Starting at the `start` port, look for a free port incrementing
- * by 1 until `end` inclusive. If no free port is found, the fallback is returned.
+ * by 1 until `end` inclusive. If no free port is found, undefined is returned.
  *
  * @param {number} start
  * @param {number} end
- * @param {number} fallback
- * @returns {Promise<number>}
+ * @returns {Promise<number | undefined>}
  * @throws
  */
-async function findFreePort(start, end, fallback) {
+async function findFreePort(start, end) {
 	const testPort = (port) => {
 		return new Promise((resolve) => {
 			const server = http.createServer();
@@ -228,8 +241,7 @@ async function findFreePort(start, end, fallback) {
 			return port;
 		}
 	}
-	console.log(`Could not find free port in range: ${start}-${end}. Using ${fallback} instead.`);
-	return fallback;
+	return undefined;
 }
 
 /** @returns { Promise<typeof import('./remoteExtensionHostAgent')> } */

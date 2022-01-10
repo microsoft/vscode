@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertNever } from 'vs/base/common/types';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Position } from 'vs/editor/common/core/position';
-import { InjectedTextOptions, PositionAffinity } from 'vs/editor/common/model';
+import { InjectedTextCursorStops, InjectedTextOptions, PositionAffinity } from 'vs/editor/common/model';
 import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
 
 /**
@@ -205,16 +206,30 @@ export class ModelLineProjectionData {
 		}
 
 		if (affinity === PositionAffinity.None) {
-			if (offsetInInputWithInjections === injectedText.offsetInInputWithInjections + injectedText.length) {
+			let effectiveAffinity: PositionAffinity.Right | PositionAffinity.Left;
+			switch (this.injectionOptions![injectedText.injectedTextIndex].cursorStops) {
+				case InjectedTextCursorStops.Right:
+					effectiveAffinity = PositionAffinity.Right;
+					break;
+				case InjectedTextCursorStops.Left:
+					effectiveAffinity = PositionAffinity.Left;
+					break;
+				default:
+					effectiveAffinity = offsetInInputWithInjections === injectedText.offsetInInputWithInjections + injectedText.length
+						? PositionAffinity.Right
+						: PositionAffinity.Left;
+					break;
+			}
+
+			if (effectiveAffinity === PositionAffinity.Right) {
 				// go to the end of this injected text
 				return injectedText.offsetInInputWithInjections + injectedText.length;
-			} else {
+			} else if (effectiveAffinity === PositionAffinity.Left) {
 				// go to the start of this injected text
 				return injectedText.offsetInInputWithInjections;
 			}
-		}
-
-		if (affinity === PositionAffinity.Right) {
+			assertNever(effectiveAffinity);
+		} else if (affinity === PositionAffinity.Right) {
 			let result = injectedText.offsetInInputWithInjections + injectedText.length;
 			let index = injectedText.injectedTextIndex;
 			// traverse all injected text that touch each other
@@ -223,17 +238,19 @@ export class ModelLineProjectionData {
 				index++;
 			}
 			return result;
+		} else if (affinity === PositionAffinity.Left) {
+			// affinity is left
+			let result = injectedText.offsetInInputWithInjections;
+			let index = injectedText.injectedTextIndex;
+			// traverse all injected text that touch each other
+			while (index - 1 >= 0 && this.injectionOffsets![index - 1] === this.injectionOffsets![index]) {
+				result -= this.injectionOptions![index - 1].content.length;
+				index++;
+			}
+			return result;
 		}
 
-		// affinity is left
-		let result = injectedText.offsetInInputWithInjections;
-		let index = injectedText.injectedTextIndex;
-		// traverse all injected text that touch each other
-		while (index - 1 >= 0 && this.injectionOffsets![index - 1] === this.injectionOffsets![index]) {
-			result -= this.injectionOptions![index - 1].content.length;
-			index++;
-		}
-		return result;
+		assertNever(affinity);
 	}
 
 	public getInjectedText(outputLineIndex: number, outputOffset: number): InjectedText | null {

@@ -171,57 +171,6 @@ suite('File Service', () => {
 		service.dispose();
 	});
 
-	test('watch: explicit watched resources have preference over implicit and do not get throttled', async () => {
-		const service = new FileService(new NullLogService());
-
-		const provider = new NullFileSystemProvider();
-		service.registerProvider('test', provider);
-
-		await service.activateProvider('test');
-
-		let onDidFilesChangeFired = false;
-		service.onDidFilesChange(e => {
-			if (e.contains(URI.file('marker'))) {
-				onDidFilesChangeFired = true;
-			}
-		});
-
-		const throttledEvents: IFileChange[] = [];
-		for (let i = 0; i < 1000; i++) {
-			throttledEvents.push({ resource: URI.file(String(i)), type: FileChangeType.ADDED });
-		}
-		throttledEvents.push({ resource: URI.file('marker'), type: FileChangeType.ADDED });
-
-		// not throttled when explicitly watching
-		let disposable1 = service.watch(URI.file('marker'));
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, true);
-		onDidFilesChangeFired = false;
-
-		let disposable2 = service.watch(URI.file('marker'));
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, true);
-		onDidFilesChangeFired = false;
-
-		disposable1.dispose();
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, true);
-		onDidFilesChangeFired = false;
-
-		// throttled again after dispose
-		disposable2.dispose();
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, false);
-
-		// not throttled when watched again
-		service.watch(URI.file('marker'));
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, true);
-		onDidFilesChangeFired = false;
-
-		service.dispose();
-	});
-
 	test('error from readFile bubbles through (https://github.com/microsoft/vscode/issues/118060) - async', async () => {
 		testReadErrorBubbles(true);
 	});

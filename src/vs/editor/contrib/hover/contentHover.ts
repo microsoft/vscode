@@ -39,37 +39,32 @@ const $ = dom.$;
 
 export class ContentHoverController extends Disposable {
 
-	private readonly _participants: IEditorHoverParticipant[];
-	private readonly _widget: ContentHoverWidget;
+	private readonly _participants: IEditorHoverParticipant[] = [
+		this._instantiationService.createInstance(ColorHoverParticipant, this._editor),
+		this._instantiationService.createInstance(MarkdownHoverParticipant, this._editor),
+		this._instantiationService.createInstance(InlineCompletionsHoverParticipant, this._editor),
+		this._instantiationService.createInstance(UnicodeHighlighterHoverParticipant, this._editor),
+		this._instantiationService.createInstance(MarkerHoverParticipant, this._editor),
+		this._instantiationService.createInstance(InlayHintsHover, this._editor),
+	];
+	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
 	private readonly _decorationsChangerListener = this._register(new EditorDecorationsChangerListener(this._editor));
+	private readonly _computer = new ContentHoverComputer(this._editor, this._participants);
+	private readonly _hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
 
 	private _messages: IHoverPart[];
 	private _messagesAreComplete: boolean;
-	private readonly _computer: ContentHoverComputer;
-	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
-		this._participants = [
-			instantiationService.createInstance(ColorHoverParticipant, this._editor),
-			instantiationService.createInstance(MarkdownHoverParticipant, this._editor),
-			instantiationService.createInstance(InlineCompletionsHoverParticipant, this._editor),
-			instantiationService.createInstance(UnicodeHighlighterHoverParticipant, this._editor),
-			instantiationService.createInstance(MarkerHoverParticipant, this._editor),
-			instantiationService.createInstance(InlayHintsHover, this._editor),
-		];
-		this._widget = this._register(instantiationService.createInstance(ContentHoverWidget, this._editor));
-
 		this._messages = [];
 		this._messagesAreComplete = false;
-		this._computer = new ContentHoverComputer(this._editor, this._participants);
 
-		this._hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
 		this._register(this._hoverOperation.onResult((result) => {
 			this._withResult(result.value, result.isComplete, result.hasLoadingMessage);
 		}));
@@ -173,7 +168,6 @@ export class ContentHoverController extends Disposable {
 	public hide(): void {
 		this._computer.anchor = null;
 		this._hoverOperation.cancel();
-
 		this._widget.hide();
 	}
 
@@ -227,15 +221,9 @@ export class ContentHoverController extends Disposable {
 		const context: IEditorHoverRenderContext = {
 			fragment,
 			statusBar,
-			setColorPicker: (widget: ColorPickerWidget): void => {
-				colorPicker = widget;
-			},
-			onContentsChanged: (): void => {
-				this._widget.onContentsChanged();
-			},
-			hide: (): void => {
-				this.hide();
-			}
+			setColorPicker: (widget) => colorPicker = widget,
+			onContentsChanged: () => this._widget.onContentsChanged(),
+			hide: () => this.hide()
 		};
 
 		for (const participant of this._participants) {
@@ -278,6 +266,9 @@ export class ContentHoverController extends Disposable {
 	});
 }
 
+/**
+ * Allows listening to `ICodeEditor.onDidChangeModelDecorations` and ignores the change caused by itself.
+ */
 class EditorDecorationsChangerListener extends Disposable {
 
 	private readonly _onDidChangeModelDecorations = this._register(new Emitter<IModelDecorationsChangedEvent>());
@@ -310,8 +301,8 @@ class EditorDecorationsChangerListener extends Disposable {
 class ContentHoverVisibleData {
 	constructor(
 		public readonly colorPicker: ColorPickerWidget | null,
-		public readonly showAtPosition: Position | null,
-		public readonly showAtRange: Range | null,
+		public readonly showAtPosition: Position,
+		public readonly showAtRange: Range,
 		public readonly preferAbove: boolean,
 		public readonly stoleFocus: boolean,
 		public readonly disposables: DisposableStore

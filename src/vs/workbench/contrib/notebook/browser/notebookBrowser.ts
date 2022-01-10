@@ -14,7 +14,7 @@ import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/con
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo, ICellOutput, INotebookCellStatusBarItem, NotebookCellInternalMetadata, NotebookDocumentMetadata, NotebookCellCollapseState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo, ICellOutput, INotebookCellStatusBarItem, NotebookCellInternalMetadata, NotebookDocumentMetadata, NotebookCellCollapseState, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -27,6 +27,7 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOp
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -572,6 +573,11 @@ export interface INotebookEditor {
 	revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void>;
 
 	/**
+	 * Reveal a position with `offset` in a cell into viewport center.
+	 */
+	revealCellOffsetInCenterAsync(cell: ICellViewModel, offset: number): Promise<void>;
+
+	/**
 	 * Convert the view range to model range
 	 * @param startIndex Inclusive
 	 * @param endIndex Exclusive
@@ -627,7 +633,10 @@ export interface INotebookEditor {
 	getCellByHandle(handle: number): ICellViewModel | undefined;
 	getCellIndex(cell: ICellViewModel): number | undefined;
 	getNextVisibleCellIndex(index: number): number | undefined;
-
+	find(query: string, options: INotebookSearchOptions, token: CancellationToken): Promise<CellFindMatchWithIndex[]>;
+	highlightFind(cell: ICellViewModel, matchIndex: number): Promise<number>;
+	unHighlightFind(matchIndex: number): Promise<void>;
+	findStop(): void;
 	showProgress(): void;
 	hideProgress(): void;
 }
@@ -674,15 +683,21 @@ export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate {
 	getNextVisibleCellIndex(index: number): number;
 }
 
+export interface OutputFindMatch {
+	readonly index: number;
+}
+
 export interface CellFindMatch {
 	cell: CellViewModel;
-	matches: FindMatch[];
+	matches: (FindMatch | OutputFindMatch)[];
+	modelMatchCount: number;
 }
 
 export interface CellFindMatchWithIndex {
 	cell: CellViewModel;
 	index: number;
-	matches: FindMatch[];
+	matches: (FindMatch | OutputFindMatch)[];
+	modelMatchCount: number;
 }
 
 export enum CellRevealType {

@@ -14,12 +14,12 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 
 	/* ----- server setup ----- */
 
-	'host': { type: 'string', cat: 'o', description: nls.localize('host', 'The IP address the server should listen to. To use in combination with port.') },
-	'port': { type: 'string', cat: 'o', description: nls.localize('port', 'The port the server should listen to. If 0 is passed a random free port is picked. If a range in the format num-num is passed, a free port from the range is selected.') },
-	'pick-port': { type: 'string' },
-	'socket-path': { type: 'string', cat: 'o', description: nls.localize('socket-path', 'The path to a socket file for the server to listen to.') },
-	'connection-token': { type: 'string', cat: 'o', deprecates: ['connectionToken'], description: nls.localize('connection-token', "A secret that must be included with all requests.") },
-	'connection-token-file': { type: 'string', cat: 'o', deprecates: ['connection-secret', 'connectionTokenFile'], description: nls.localize('connection-token-file', "Path to a file that contains the connection token. This will require that all incoming connections know the secret.") },
+	'host': { type: 'string', cat: 'o', args: 'ip-address', description: nls.localize('host', 'The IP address the server should listen to. To use in combination with port.') },
+	'port': { type: 'string', cat: 'o', args: 'port | port-port', description: nls.localize('port', 'The port the server should listen to. If 0 is passed a random free port is picked. If a range in the format num-num is passed, a free port from the range is selected.') },
+	'pick-port': { type: 'string', deprecationMessage: 'Use the range notation in `port` instead.' },
+	'socket-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('socket-path', 'The path to a socket file for the server to listen to.') },
+	'connection-token': { type: 'string', cat: 'o', args: 'token', deprecates: ['connectionToken'], description: nls.localize('connection-token', "A secret that must be included with all requests.") },
+	'connection-token-file': { type: 'string', cat: 'o', args: 'path', deprecates: ['connection-secret', 'connectionTokenFile'], description: nls.localize('connection-token-file', "Path to a file that contains the connection token. This will require that all incoming connections know the secret.") },
 	'disable-websocket-compression': { type: 'boolean' },
 	'print-startup-performance': { type: 'boolean' },
 	'print-ip-address': { type: 'boolean' },
@@ -30,15 +30,15 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'user-data-dir': OPTIONS['user-data-dir'],
 	'driver': OPTIONS['driver'],
 	'disable-telemetry': OPTIONS['disable-telemetry'],
-	'file-watcher-polling': { type: 'string', deprecates: ['fileWatcherPolling']},
+	'file-watcher-polling': { type: 'string', deprecates: ['fileWatcherPolling'] },
 	'log': OPTIONS['log'],
 	'logsPath': OPTIONS['logsPath'],
 	'force-disable-user-env': OPTIONS['force-disable-user-env'],
 
 	/* ----- vs code web options ----- */
 
-	'folder': { type: 'string' },
-	'workspace': { type: 'string' },
+	'folder': { type: 'string', deprecationMessage: 'No longer supported. Folder needs to be provided in the browser URL.' },
+	'workspace': { type: 'string', deprecationMessage: 'No longer supported. Workspace needs to be provided in the browser URL.' },
 
 	'enable-sync': { type: 'boolean' },
 	'github-auth': { type: 'string' },
@@ -59,7 +59,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'force': OPTIONS['force'],
 	'do-not-sync': OPTIONS['do-not-sync'],
 	'pre-release': OPTIONS['pre-release'],
-	'start-server': { type: 'boolean' },
+	'start-server': { type: 'boolean', cat: 'e', description: nls.localize('start-server', 'Start the server when installing or uninstalling extensions. To be used in combination with `install-extension`, `install-builtin-extension` and `uninstall-extension`.') },
 
 
 	/* ----- remote development options ----- */
@@ -67,7 +67,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'enable-remote-auto-shutdown': { type: 'boolean' },
 	'remote-auto-shutdown-without-delay': { type: 'boolean' },
 
-	'use-host-proxy': { type: 'string' },
+	'use-host-proxy': { type: 'boolean' },
 	'without-browser-env-var': { type: 'boolean' },
 
 	/* ----- server cli ----- */
@@ -132,7 +132,9 @@ export interface ServerParsedArgs {
 	'force-disable-user-env'?: boolean;
 
 	/* ----- vs code web options ----- */
+	/** @deprecated */
 	workspace: string;
+	/** @deprecated */
 	folder: string;
 	'enable-sync'?: boolean;
 	'github-auth'?: string;
@@ -160,7 +162,7 @@ export interface ServerParsedArgs {
 	'enable-remote-auto-shutdown'?: boolean;
 	'remote-auto-shutdown-without-delay'?: boolean;
 
-	'use-host-proxy'?: string;
+	'use-host-proxy'?: boolean;
 	'without-browser-env-var'?: boolean;
 
 	/* ----- server cli ----- */

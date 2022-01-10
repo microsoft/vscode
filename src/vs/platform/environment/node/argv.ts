@@ -23,6 +23,7 @@ export interface Option<OptionType> {
 	deprecates?: string[]; // old deprecated ids
 	args?: string | string[];
 	description?: string;
+	deprecationMessage?: string;
 	cat?: keyof typeof helpCategories;
 }
 
@@ -155,7 +156,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 export interface ErrorReporter {
 	onUnknownOption(id: string): void;
 	onMultipleValues(id: string, usedValue: string): void;
-	onDeprecatedOption(deprecatedId: string, currentId: string): void;
+	onDeprecatedOption(deprecatedId: string, message: string): void;
 }
 
 const ignoringReporter: ErrorReporter = {
@@ -210,7 +211,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 					if (!val) {
 						val = remainingArgs[deprecatedId];
 						if (val) {
-							errorReporter.onDeprecatedOption(deprecatedId, optionId);
+							errorReporter.onDeprecatedOption(deprecatedId, o.deprecationMessage || localize('deprecated.useInstead', 'Use {0} instead.'));
 						}
 					}
 					delete remainingArgs[deprecatedId];
@@ -230,6 +231,10 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 				}
 			}
 			cleanedArgs[optionId] = val;
+
+			if (o.deprecationMessage) {
+				errorReporter.onDeprecatedOption(optionId, o.deprecationMessage);
+			}
 		}
 		delete remainingArgs[optionId];
 	}
