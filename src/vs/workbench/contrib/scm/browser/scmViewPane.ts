@@ -113,6 +113,9 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 	) { }
 
 	renderTemplate(container: HTMLElement): ActionButtonTemplate {
+		// hack
+		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+
 		// Disable hover for list item
 		container.parentElement!.parentElement!.classList.add('force-no-hover');
 
