@@ -41,6 +41,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 
 	async $initializeExtensionStorage(shared: boolean, extensionId: string): Promise<object | undefined> {
 		if (isWeb && extensionId !== extensionId.toLowerCase()) {
+			// TODO: @sandy081 - Remove it after 6 months
 			await migrateExtensionStorage(extensionId.toLowerCase(), extensionId, `extension.storage.migrateFromLowerCaseKey.${extensionId.toLowerCase()}`, this._instantiationService);
 		}
 		if (shared) {

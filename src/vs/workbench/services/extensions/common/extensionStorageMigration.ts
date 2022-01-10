@@ -64,13 +64,13 @@ export async function migrateExtensionStorage(fromExtensionId: string, toExtensi
 
 		// Migrate Global Storage
 		if (!storageService.getBoolean(storageMigratedKey, StorageScope.GLOBAL, false)) {
-			migrateStorage(true);
+			await migrateStorage(true);
 			storageService.store(storageMigratedKey, true, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}
 
 		// Migrate Workspace Storage
 		if (!storageService.getBoolean(storageMigratedKey, StorageScope.WORKSPACE, false)) {
-			migrateStorage(false);
+			await migrateStorage(false);
 			storageService.store(storageMigratedKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 	});
