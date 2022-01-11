@@ -126,7 +126,7 @@ export function activate(context: vscode.ExtensionContext) {
 				outputChannel.appendLine(`Using server build at ${serverLocation}`);
 				outputChannel.appendLine(`Server arguments ${commandArgs.join(' ')}`);
 
-				extHostProcess = cp.spawn(path.join(serverLocation, serverCommand), commandArgs, { env, cwd: serverLocation });
+				extHostProcess = cp.spawn(path.join(serverLocation, 'bin', serverCommand), commandArgs, { env, cwd: serverLocation });
 			}
 			extHostProcess.stdout!.on('data', (data: Buffer) => processOutput(data.toString()));
 			extHostProcess.stderr!.on('data', (data: Buffer) => processOutput(data.toString()));
