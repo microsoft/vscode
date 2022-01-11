@@ -38,6 +38,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -209,6 +210,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ICredentialsService private readonly credentialsService: ICredentialsService,
 	) {
 		super(MenuId.AccountsContext, action, contextMenuActionsProvider, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
 	}
@@ -239,7 +241,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 
 		const result = await Promise.all(allSessions);
 		let menus: IAction[] = [];
-		const authenticationSession = this.environmentService.options?.credentialsProvider ? await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService) : undefined;
+		const authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
 		result.forEach(sessionInfo => {
 			const providerDisplayName = this.authenticationService.getLabel(sessionInfo.providerId);
 
