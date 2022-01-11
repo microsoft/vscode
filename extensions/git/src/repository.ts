@@ -1800,7 +1800,7 @@ export class Repository implements Disposable {
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
 
-		const limit = scopedConfig.get<number>('statusLimit', 5000);
+		const limit = scopedConfig.get<number>('statusLimit', 10000);
 
 		const { status, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules });
 

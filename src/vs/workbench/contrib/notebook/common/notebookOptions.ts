@@ -64,6 +64,7 @@ export interface NotebookLayoutConfiguration {
 	markupFontSize: number;
 	focusIndicatorLeftMargin: number;
 	editorOptionsCustomizations: any | undefined;
+	focusIndicatorGap: number;
 }
 
 export interface NotebookOptionsChangeEvent {
@@ -164,6 +165,7 @@ export class NotebookOptions extends Disposable {
 			fontSize,
 			markupFontSize,
 			editorOptionsCustomizations,
+			focusIndicatorGap: 3
 		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

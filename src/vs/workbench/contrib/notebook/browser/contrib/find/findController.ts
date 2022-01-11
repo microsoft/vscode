@@ -75,6 +75,11 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 					this._progressBar.stop();
 				}
 			}
+
+			if (this._findModel.currentMatch >= 0) {
+				const currentMatch = this._findModel.getCurrentMatch();
+				this._replaceBtn.setEnabled(currentMatch.isModelMatch);
+			}
 		}));
 
 		this._register(DOM.addDisposableListener(this.getDomNode(), DOM.EventType.FOCUS, e => {

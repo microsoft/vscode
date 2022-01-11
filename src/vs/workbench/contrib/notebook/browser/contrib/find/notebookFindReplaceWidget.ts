@@ -57,8 +57,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private readonly _innerReplaceDomNode!: HTMLElement;
 	private _toggleReplaceBtn!: SimpleButton;
 	private readonly _replaceInputFocusTracker!: dom.IFocusTracker;
-	private _replaceBtn!: SimpleButton;
-	private _replaceAllBtn!: SimpleButton;
+	protected _replaceBtn!: SimpleButton;
+	protected _replaceAllBtn!: SimpleButton;
 
 
 	private _isVisible: boolean = false;
@@ -358,6 +358,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this._domNode.classList.toggle('replaceToggled', this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
+
 	}
 
 	protected _updateMatchesCount(): void {

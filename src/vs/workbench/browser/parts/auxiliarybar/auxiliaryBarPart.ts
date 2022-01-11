@@ -17,7 +17,7 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { Extensions as PaneCompositeExtensions } from 'vs/workbench/browser/panecomposite';
 import { BasePanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { ActiveAuxiliaryContext, AuxiliaryBarFocusContext } from 'vs/workbench/common/auxiliarybar';
-import { SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, SIDE_BAR_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
+import { PANEL_ACTIVE_TITLE_BORDER, SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, SIDE_BAR_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
@@ -143,13 +143,16 @@ registerThemingParticipant((theme, collector) => {
 
 	// Title Active
 	const titleActive = theme.getColor(SIDE_BAR_TITLE_FOREGROUND);
-	const titleActiveBorder = theme.getColor(SIDE_BAR_TITLE_FOREGROUND);
-	if (titleActive || titleActiveBorder) {
+	if (titleActive) {
 		collector.addRule(`
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
-				color: ${titleActive} !important;
-				border-bottom-color: ${titleActiveBorder} !important;
-			}
+		.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+			color: ${titleActive} !important;
+		}
+		`);
+		collector.addRule(`
+		.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
+			color: ${titleActive} !important;
+		}
 		`);
 	}
 
@@ -157,10 +160,8 @@ registerThemingParticipant((theme, collector) => {
 	const focusBorderColor = theme.getColor(focusBorder);
 	if (focusBorderColor) {
 		collector.addRule(`
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
-				color: ${titleActive} !important;
-				border-bottom-color: ${focusBorderColor} !important;
-				border-bottom: 1px solid;
+			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+				border-top-color: ${focusBorderColor};
 			}
 			`);
 		collector.addRule(`
@@ -168,6 +169,15 @@ registerThemingParticipant((theme, collector) => {
 				outline: none;
 			}
 			`);
+	}
+
+	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
+	if (titleActiveBorder) {
+		collector.addRule(`
+			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .active-item-indicator:before {
+				border-top-color: ${titleActiveBorder};
+			}
+		`);
 	}
 
 	// Styling with Outline color (e.g. high contrast theme)

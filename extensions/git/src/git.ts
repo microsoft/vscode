@@ -1842,7 +1842,7 @@ export class Repository {
 				c({ status: parser.status, didHitLimit: false });
 			};
 
-			const limit = opts?.limit ?? 5000;
+			const limit = opts?.limit ?? 10000;
 			const onStdoutData = (raw: string) => {
 				parser.update(raw);
 

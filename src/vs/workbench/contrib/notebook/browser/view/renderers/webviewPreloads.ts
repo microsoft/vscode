@@ -801,121 +801,130 @@ async function webviewPreloads(ctx: PreloadContext) {
 		let sel = window.getSelection();
 		sel?.removeAllRanges();
 		sel?.addRange(range);
-		document.designMode = 'On';
 
-		while (find && matches.length < 500) {
-			find = (window as any).find(query, /* caseSensitive*/ false,
-			/* backwards*/ false,
-			/* wrapAround*/ false,
-			/* wholeWord */ false,
-			/* searchInFrames*/ true,
-				false);
+		viewModel.toggleDragDropEnabled(false);
 
-			if (find) {
-				const selection = window.getSelection();
-				if (!selection) {
-					console.log('no selection');
-					break;
-				}
+		try {
+			document.designMode = 'On';
 
-				if (selection.getRangeAt(0).startContainer.nodeType === 1
-					&& (selection.getRangeAt(0).startContainer as Element).classList.contains('markup')) {
-					// markdown preview container
-					const preview = (selection.anchorNode?.firstChild as Element);
-					const root = preview.shadowRoot as ShadowRoot & { getSelection: () => Selection };
-					const shadowSelection = root?.getSelection ? root?.getSelection() : null;
-					if (shadowSelection && shadowSelection.anchorNode) {
-						matches.push({
-							type: 'preview',
-							id: preview.id,
-							cellId: preview.id,
-							container: preview,
-							isShadow: true,
-							originalRange: shadowSelection.getRangeAt(0)
-						});
+			while (find && matches.length < 500) {
+				find = (window as any).find(query, /* caseSensitive*/ false,
+				/* backwards*/ false,
+				/* wrapAround*/ false,
+				/* wholeWord */ false,
+				/* searchInFrames*/ true,
+					false);
+
+				if (find) {
+					const selection = window.getSelection();
+					if (!selection) {
+						console.log('no selection');
+						break;
 					}
-				}
 
-				if (selection.getRangeAt(0).startContainer.nodeType === 1
-					&& (selection.getRangeAt(0).startContainer as Element).classList.contains('output_container')) {
-					// output container
-					const cellId = selection.getRangeAt(0).startContainer.parentElement!.id;
-					const outputNode = (selection.anchorNode?.firstChild as Element);
-					const root = outputNode.shadowRoot as ShadowRoot & { getSelection: () => Selection };
-					const shadowSelection = root?.getSelection ? root?.getSelection() : null;
-					if (shadowSelection && shadowSelection.anchorNode) {
-						matches.push({
-							type: 'output',
-							id: outputNode.id,
-							cellId: cellId,
-							container: outputNode,
-							isShadow: true,
-							originalRange: shadowSelection.getRangeAt(0)
-						});
-					}
-				}
-
-				const anchorNode = selection?.anchorNode?.parentElement;
-
-				if (anchorNode) {
-					const lastEl: any = matches.length ? matches[matches.length - 1] : null;
-
-					if (lastEl && lastEl.container.contains(anchorNode)) {
-						matches.push({
-							type: lastEl.type,
-							id: lastEl.id,
-							cellId: lastEl.cellId,
-							container: lastEl.container,
-							isShadow: false,
-							originalRange: window.getSelection()!.getRangeAt(0)
-						});
-
-					} else {
-						for (let node = anchorNode as Element | null; node; node = node.parentElement) {
-							if (!(node instanceof Element)) {
-								break;
-							}
-
-							if (node.classList.contains('output')) {
-								// inside output
-								const cellId = node.parentElement?.parentElement?.id;
-								if (cellId) {
-									matches.push({
-										type: 'output',
-										id: node.id,
-										cellId: cellId,
-										container: node,
-										isShadow: false,
-										originalRange: window.getSelection()!.getRangeAt(0)
-									});
-								}
-								break;
-							}
-
-							if (node.id === 'container' || node === document.body) {
-								break;
-							}
+					if (selection.rangeCount > 0 && selection.getRangeAt(0).startContainer.nodeType === 1
+						&& (selection.getRangeAt(0).startContainer as Element).classList.contains('markup')) {
+						// markdown preview container
+						const preview = (selection.anchorNode?.firstChild as Element);
+						const root = preview.shadowRoot as ShadowRoot & { getSelection: () => Selection };
+						const shadowSelection = root?.getSelection ? root?.getSelection() : null;
+						if (shadowSelection && shadowSelection.anchorNode) {
+							matches.push({
+								type: 'preview',
+								id: preview.id,
+								cellId: preview.id,
+								container: preview,
+								isShadow: true,
+								originalRange: shadowSelection.getRangeAt(0)
+							});
 						}
 					}
 
-				} else {
-					break;
+					if (selection.rangeCount > 0 && selection.getRangeAt(0).startContainer.nodeType === 1
+						&& (selection.getRangeAt(0).startContainer as Element).classList.contains('output_container')) {
+						// output container
+						const cellId = selection.getRangeAt(0).startContainer.parentElement!.id;
+						const outputNode = (selection.anchorNode?.firstChild as Element);
+						const root = outputNode.shadowRoot as ShadowRoot & { getSelection: () => Selection };
+						const shadowSelection = root?.getSelection ? root?.getSelection() : null;
+						if (shadowSelection && shadowSelection.anchorNode) {
+							matches.push({
+								type: 'output',
+								id: outputNode.id,
+								cellId: cellId,
+								container: outputNode,
+								isShadow: true,
+								originalRange: shadowSelection.getRangeAt(0)
+							});
+						}
+					}
+
+					const anchorNode = selection?.anchorNode?.parentElement;
+
+					if (anchorNode) {
+						const lastEl: any = matches.length ? matches[matches.length - 1] : null;
+
+						if (lastEl && lastEl.container.contains(anchorNode)) {
+							matches.push({
+								type: lastEl.type,
+								id: lastEl.id,
+								cellId: lastEl.cellId,
+								container: lastEl.container,
+								isShadow: false,
+								originalRange: window.getSelection()!.getRangeAt(0)
+							});
+
+						} else {
+							for (let node = anchorNode as Element | null; node; node = node.parentElement) {
+								if (!(node instanceof Element)) {
+									break;
+								}
+
+								if (node.classList.contains('output')) {
+									// inside output
+									const cellId = node.parentElement?.parentElement?.id;
+									if (cellId) {
+										matches.push({
+											type: 'output',
+											id: node.id,
+											cellId: cellId,
+											container: node,
+											isShadow: false,
+											originalRange: window.getSelection()!.getRangeAt(0)
+										});
+									}
+									break;
+								}
+
+								if (node.id === 'container' || node === document.body) {
+									break;
+								}
+							}
+						}
+
+					} else {
+						break;
+					}
 				}
 			}
+
+			for (let i = matches.length - 1; i >= 0; i--) {
+				const match = matches[i];
+				const ret = highlightRange(match.originalRange, true, 'mark', match.isShadow ? {
+					'style': 'background-color: ' + matchColor + ';',
+				} : {
+					'class': 'find-match'
+				});
+				match.highlightResult = ret;
+			}
+
+			document.designMode = 'Off';
+			document.getSelection()?.collapseToStart();
+		} catch (e) {
+			console.log(e);
 		}
 
-		for (let i = matches.length - 1; i >= 0; i--) {
-			const match = matches[i];
-			const ret = highlightRange(match.originalRange, true, 'mark', match.isShadow ? {
-				'style': 'background-color: ' + matchColor + ';',
-			} : {
-				'class': 'find-match'
-			});
-			match.highlightResult = ret;
-		}
-
-		document.designMode = 'Off';
-		document.getSelection()?.collapseToStart();
+		viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 
 		_findingMatches = matches as IFindMatch[];
 		postNotebookMessage('didFind', {

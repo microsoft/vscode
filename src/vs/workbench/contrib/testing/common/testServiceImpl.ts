@@ -33,8 +33,10 @@ export class TestService extends Disposable implements ITestService {
 	private readonly cancelExtensionTestRunEmitter = new Emitter<{ runId: string | undefined }>();
 	private readonly willProcessDiffEmitter = new Emitter<TestsDiff>();
 	private readonly didProcessDiffEmitter = new Emitter<TestsDiff>();
+	private readonly testRefreshCancellations = new Set<CancellationTokenSource>();
 	private readonly providerCount: IContextKey<number>;
 	private readonly canRefreshTests: IContextKey<boolean>;
+	private readonly isRefreshingTests: IContextKey<boolean>;
 	/**
 	 * Cancellation for runs requested by the user being managed by the UI.
 	 * Test runs initiated by extensions are not included here.
@@ -88,6 +90,7 @@ export class TestService extends Disposable implements ITestService {
 		this.excluded = instantiationService.createInstance(TestExclusions);
 		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
 		this.canRefreshTests = TestingContextKeys.canRefreshTests.bindTo(contextKeyService);
+		this.isRefreshingTests = TestingContextKeys.isRefreshingTests.bindTo(contextKeyService);
 	}
 
 	/**
@@ -229,11 +232,32 @@ export class TestService extends Disposable implements ITestService {
 	 * @inheritdoc
 	 */
 	public async refreshTests(controllerId?: string): Promise<void> {
-		if (controllerId) {
-			await this.testControllers.get(controllerId)?.refreshTests();
-		} else {
-			await Promise.all([...this.testControllers.values()].map(c => c.refreshTests()));
+		const cts = new CancellationTokenSource();
+		this.testRefreshCancellations.add(cts);
+		this.isRefreshingTests.set(true);
+
+		try {
+			if (controllerId) {
+				await this.testControllers.get(controllerId)?.refreshTests(cts.token);
+			} else {
+				await Promise.all([...this.testControllers.values()].map(c => c.refreshTests(cts.token)));
+			}
+		} finally {
+			this.testRefreshCancellations.delete(cts);
+			this.isRefreshingTests.set(this.testRefreshCancellations.size > 0);
+			cts.dispose();
 		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public cancelRefreshTests(): void {
+		for (const cts of this.testRefreshCancellations) {
+			cts.cancel();
+		}
+		this.testRefreshCancellations.clear();
+		this.isRefreshingTests.set(false);
 	}
 
 	/**

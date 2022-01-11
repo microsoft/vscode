@@ -1002,13 +1002,16 @@ registerThemingParticipant((theme, collector) => {
 
 	// Title Active
 	const titleActive = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
-	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
-	if (titleActive || titleActiveBorder) {
+	if (titleActive) {
 		collector.addRule(`
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
-				color: ${titleActive} !important;
-				border-bottom-color: ${titleActiveBorder} !important;
-			}
+		.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+			color: ${titleActive} !important;
+		}
+		`);
+		collector.addRule(`
+		.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
+			color: ${titleActive} !important;
+		}
 		`);
 	}
 
@@ -1016,10 +1019,8 @@ registerThemingParticipant((theme, collector) => {
 	const focusBorderColor = theme.getColor(focusBorder);
 	if (focusBorderColor) {
 		collector.addRule(`
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
-				color: ${titleActive} !important;
-				border-bottom-color: ${focusBorderColor} !important;
-				border-bottom: 1px solid;
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+				border-top-color: ${focusBorderColor};
 			}
 			`);
 		collector.addRule(`
@@ -1027,6 +1028,15 @@ registerThemingParticipant((theme, collector) => {
 				outline: none;
 			}
 			`);
+	}
+
+	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
+	if (titleActiveBorder) {
+		collector.addRule(`
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .active-item-indicator:before {
+				border-top-color: ${titleActiveBorder};
+			}
+		`);
 	}
 
 	// Styling with Outline color (e.g. high contrast theme)

@@ -16,7 +16,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICellOutputViewModel, ICellViewModel, IGenericCellViewModel, INotebookCellOutputLayoutInfo, INotebookEditorCreationOptions, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { DragPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
 import { CellExecutionPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellExecution';
 import { CellFocusIndicator } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellFocusIndicator';
 import { CellProgressBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellProgressBar';
@@ -128,7 +127,6 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	focusSinkElement: HTMLElement;
 	editor: ICodeEditor;
 	progressBar: CellProgressBar;
-	dragHandle: DragPart;
 	cellExecution: CellExecutionPart;
 }
 
