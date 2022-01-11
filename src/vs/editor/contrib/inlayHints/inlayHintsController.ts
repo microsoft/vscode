@@ -11,14 +11,14 @@ import { IRange } from 'vs/base/common/range';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { CssProperties, DynamicCssRules } from 'vs/editor/browser/editorDom';
+import { ClassNameReference, CssProperties, DynamicCssRules } from 'vs/editor/browser/editorDom';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/languages/languageFeatureRegistry';
-import { IModelDeltaDecoration, InjectedTextOptions, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
@@ -31,7 +31,6 @@ import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 const MAX_DECORATORS = 1500;
-
 
 class InlayHintsCache {
 
@@ -286,22 +285,57 @@ export class InlayHintsController implements IEditorContribution {
 
 	private _updateHintsDecorators(ranges: Range[], items: readonly InlayHintItem[]): void {
 
-		const { fontSize, fontFamily } = this._getLayoutInfo();
+		// utils to collect/create injected text decorations
 		const newDecorationsData: { item: InlayHintItem, decoration: IModelDeltaDecoration, classNameRef: IDisposable; }[] = [];
+		const addInjectedText = (item: InlayHintItem, ref: ClassNameReference, content: string, cursorStops: InjectedTextCursorStops, attachedData?: InlayHintLabelPart): void => {
+			newDecorationsData.push({
+				item,
+				classNameRef: ref,
+				decoration: {
+					range: item.anchor.range,
+					options: {
+						// className: "rangeHighlight", // DEBUG highlight to see to what range a hint is attached
+						description: 'InlayHint',
+						showIfCollapsed: item.anchor.range.isEmpty(), // "original" range is empty
+						collapseOnReplaceEdit: !item.anchor.range.isEmpty(),
+						stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+						[item.anchor.direction]: {
+							content,
+							inlineClassNameAffectsLetterSpacing: true,
+							inlineClassName: ref.className,
+							cursorStops,
+							attachedData
+						}
+					}
+				}
+			});
+		};
 
+		const addInjectedWhitespace = (item: InlayHintItem, isLast: boolean): void => {
+			const marginRule = this._ruleFactory.createClassNameRef({
+				width: `${(fontSize / 3) | 0}px`,
+				display: 'inline-block'
+			});
+			addInjectedText(item, marginRule, '\u200a', isLast ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None);
+		};
+
+
+		//
+		const { fontSize, fontFamily } = this._getLayoutInfo();
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
 		for (const item of items) {
 
+			// whitespace leading the actual label
+			if (item.hint.whitespaceBefore) {
+				addInjectedWhitespace(item, false);
+			}
+
+			// the label with its parts
 			const parts: languages.InlayHintLabelPart[] = typeof item.hint.label === 'string'
 				? [{ label: item.hint.label }]
 				: item.hint.label;
-
-			// text w/ links
-
-			const marginBefore = item.hint.whitespaceBefore ? (fontSize / 3) | 0 : 0;
-			const marginAfter = item.hint.whitespaceAfter ? (fontSize / 3) | 0 : 0;
 
 			for (let i = 0; i < parts.length; i++) {
 				const part = parts[i];
@@ -326,46 +360,32 @@ export class InlayHintsController implements IEditorContribution {
 
 				if (isFirst && isLast) {
 					// only element
-					cssProperties.margin = `0 ${marginAfter}px 0 ${marginBefore}px`;
 					cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px`;
 					cssProperties.borderRadius = `${(fontSize / 4) | 0}px`;
 				} else if (isFirst) {
 					// first element
-					cssProperties.margin = `0 0 0 ${marginBefore}px`;
 					cssProperties.padding = `1px 0 1px ${Math.max(1, fontSize / 4) | 0}px`;
 					cssProperties.borderRadius = `${(fontSize / 4) | 0}px 0 0 ${(fontSize / 4) | 0}px`;
 				} else if (isLast) {
 					// last element
-					cssProperties.margin = `0 ${marginAfter}px 0 0`;
 					cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px 1px 0`;
 					cssProperties.borderRadius = `0 ${(fontSize / 4) | 0}px ${(fontSize / 4) | 0}px 0`;
 				} else {
 					cssProperties.padding = `1px 0 1px 0`;
 				}
 
-				const classNameRef = this._ruleFactory.createClassNameRef(cssProperties);
-
-				newDecorationsData.push({
+				addInjectedText(
 					item,
-					classNameRef,
-					decoration: {
-						range: item.anchor.range,
-						options: {
-							[item.anchor.direction]: {
-								content: fixSpace(part.label),
-								inlineClassNameAffectsLetterSpacing: true,
-								inlineClassName: classNameRef.className,
-								attachedData: new InlayHintLabelPart(item, i)
-							} as InjectedTextOptions,
-							description: 'InlayHint',
-							showIfCollapsed: item.anchor.range.isEmpty(), // "original" range is empty
-							collapseOnReplaceEdit: !item.anchor.range.isEmpty(),
-							stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+					this._ruleFactory.createClassNameRef(cssProperties),
+					fixSpace(part.label),
+					isLast && !item.hint.whitespaceAfter ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None,
+					new InlayHintLabelPart(item, i)
+				);
+			}
 
-							// className: "rangeHighlight" // DEBUG highlight to see to what range a hint is attached
-						}
-					},
-				});
+			// whitespace trailing the actual label
+			if (item.hint.whitespaceAfter) {
+				addInjectedWhitespace(item, true);
 			}
 
 			if (newDecorationsData.length > MAX_DECORATORS) {
