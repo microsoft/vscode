@@ -9,8 +9,7 @@ import { ColorId, ITokenPresentation, TokenMetadata } from 'vs/editor/common/lan
 /**
  * A token on a line.
  */
-export class ViewLineToken {
-	_viewLineTokenBrand: void = undefined;
+export class TestLineToken {
 
 	/**
 	 * last char index of this token (not inclusive).
@@ -39,14 +38,14 @@ export class ViewLineToken {
 		return TokenMetadata.getPresentationFromMetadata(this._metadata);
 	}
 
-	private static _equals(a: ViewLineToken, b: ViewLineToken): boolean {
+	private static _equals(a: TestLineToken, b: TestLineToken): boolean {
 		return (
 			a.endIndex === b.endIndex
 			&& a._metadata === b._metadata
 		);
 	}
 
-	public static equalsArr(a: ViewLineToken[], b: ViewLineToken[]): boolean {
+	public static equalsArr(a: TestLineToken[], b: TestLineToken[]): boolean {
 		const aLen = a.length;
 		const bLen = b.length;
 		if (aLen !== bLen) {
@@ -61,17 +60,17 @@ export class ViewLineToken {
 	}
 }
 
-export class ViewLineTokens implements IViewLineTokens {
+export class TestLineTokens implements IViewLineTokens {
 
-	private readonly _actual: ViewLineToken[];
+	private readonly _actual: TestLineToken[];
 
-	constructor(actual: ViewLineToken[]) {
+	constructor(actual: TestLineToken[]) {
 		this._actual = actual;
 	}
 
 	public equals(other: IViewLineTokens): boolean {
-		if (other instanceof ViewLineTokens) {
-			return ViewLineToken.equalsArr(this._actual, other._actual);
+		if (other instanceof TestLineTokens) {
+			return TestLineToken.equalsArr(this._actual, other._actual);
 		}
 		return false;
 	}
@@ -110,17 +109,17 @@ export class ViewLineTokens implements IViewLineTokens {
 
 }
 
-export class ViewLineTokenFactory {
+export class TestLineTokenFactory {
 
-	public static inflateArr(tokens: Uint32Array): ViewLineToken[] {
+	public static inflateArr(tokens: Uint32Array): TestLineToken[] {
 		const tokensCount = (tokens.length >>> 1);
 
-		let result: ViewLineToken[] = new Array<ViewLineToken>(tokensCount);
+		let result: TestLineToken[] = new Array<TestLineToken>(tokensCount);
 		for (let i = 0; i < tokensCount; i++) {
 			const endOffset = tokens[i << 1];
 			const metadata = tokens[(i << 1) + 1];
 
-			result[i] = new ViewLineToken(endOffset, metadata);
+			result[i] = new TestLineToken(endOffset, metadata);
 		}
 
 		return result;
