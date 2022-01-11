@@ -1273,7 +1273,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const hadIcon = !!this.shellLaunchConfig.icon;
-		console.log(this.shellLaunchConfig.args);
 		const shellIntegration = this._updateArgsForShellIntegration(this.shellLaunchConfig);
 		this.shellLaunchConfig.args = shellIntegration.args;
 		this._enableShellIntegration = shellIntegration.enableShellIntegration;
@@ -1315,7 +1314,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			} else if (shell === 'bash') {
 				newArgs = [
 					'--init-file',
-					'${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration.sh'
+					'${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-bash.sh'
 				];
 				enableShellIntegration = true;
 			}
