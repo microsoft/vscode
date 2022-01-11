@@ -922,7 +922,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 const connectionTokenRegex = /^[0-9A-Za-z-]+$/;
 
 function parseConnectionToken(args: ServerParsedArgs): { connectionToken: string; connectionTokenIsMandatory: boolean; } {
-	console.log(args);
+
 	let connectionToken = args['connection-token'];
 	const connectionTokenFile = args['connection-token-file'];
 
