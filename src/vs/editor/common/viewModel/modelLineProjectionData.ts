@@ -206,29 +206,29 @@ export class ModelLineProjectionData {
 		}
 
 		if (affinity === PositionAffinity.None) {
-			let effectiveAffinity: PositionAffinity.Right | PositionAffinity.Left;
-			switch (this.injectionOptions![injectedText.injectedTextIndex].cursorStops) {
-				case InjectedTextCursorStops.Right:
-					effectiveAffinity = PositionAffinity.Right;
-					break;
-				case InjectedTextCursorStops.Left:
-					effectiveAffinity = PositionAffinity.Left;
-					break;
-				default:
-					effectiveAffinity = offsetInInputWithInjections === injectedText.offsetInInputWithInjections + injectedText.length
-						? PositionAffinity.Right
-						: PositionAffinity.Left;
-					break;
-			}
-
-			if (effectiveAffinity === PositionAffinity.Right) {
-				// go to the end of this injected text
+			if (offsetInInputWithInjections === injectedText.offsetInInputWithInjections + injectedText.length
+				&& hasRightCursorStop(this.injectionOptions![injectedText.injectedTextIndex].cursorStops)) {
 				return injectedText.offsetInInputWithInjections + injectedText.length;
-			} else if (effectiveAffinity === PositionAffinity.Left) {
-				// go to the start of this injected text
-				return injectedText.offsetInInputWithInjections;
+			} else {
+				let result = injectedText.offsetInInputWithInjections;
+				if (hasLeftCursorStop(this.injectionOptions![injectedText.injectedTextIndex].cursorStops)) {
+					return result;
+				}
+
+				let index = injectedText.injectedTextIndex - 1;
+				while (index >= 0 && this.injectionOffsets![index] === this.injectionOffsets![injectedText.injectedTextIndex]) {
+					if (hasRightCursorStop(this.injectionOptions![index].cursorStops)) {
+						break;
+					}
+					result -= this.injectionOptions![index].content.length;
+					if (hasLeftCursorStop(this.injectionOptions![index].cursorStops)) {
+						break;
+					}
+					index--;
+				}
+
+				return result;
 			}
-			assertNever(effectiveAffinity);
 		} else if (affinity === PositionAffinity.Right) {
 			let result = injectedText.offsetInInputWithInjections + injectedText.length;
 			let index = injectedText.injectedTextIndex;
@@ -245,7 +245,7 @@ export class ModelLineProjectionData {
 			// traverse all injected text that touch each other
 			while (index - 1 >= 0 && this.injectionOffsets![index - 1] === this.injectionOffsets![index]) {
 				result -= this.injectionOptions![index - 1].content.length;
-				index++;
+				index--;
 			}
 			return result;
 		}
@@ -295,6 +295,15 @@ export class ModelLineProjectionData {
 
 		return undefined;
 	}
+}
+
+function hasRightCursorStop(cursorStop: InjectedTextCursorStops | null | undefined): boolean {
+	if (cursorStop === null || cursorStop === undefined) { return true; }
+	return cursorStop === InjectedTextCursorStops.Right || cursorStop === InjectedTextCursorStops.Both;
+}
+function hasLeftCursorStop(cursorStop: InjectedTextCursorStops | null | undefined): boolean {
+	if (cursorStop === null || cursorStop === undefined) { return true; }
+	return cursorStop === InjectedTextCursorStops.Left || cursorStop === InjectedTextCursorStops.Both;
 }
 
 export class InjectedText {

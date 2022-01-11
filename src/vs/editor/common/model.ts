@@ -219,7 +219,8 @@ export interface InjectedTextOptions {
 export enum InjectedTextCursorStops {
 	Both,
 	Right,
-	Left
+	Left,
+	None
 }
 
 /**
