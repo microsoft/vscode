@@ -98,10 +98,6 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			return disposable; // a pattern alone does not carry sufficient information to start watching anything
 		}
 
-		if (!globPattern.baseFolder) {
-			return disposable; // we need a base folder to start watching
-		}
-
 		const proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
 
 		let recursive = false;
@@ -110,7 +106,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		}
 
 		const session = Math.random();
-		proxy.$watch(extension.identifier.value, session, globPattern.baseFolder, { recursive, excludes: [] /* excludes are not yet surfaced in the API */ });
+		proxy.$watch(extension.identifier.value, session, globPattern.baseUri, { recursive, excludes: [] /* excludes are not yet surfaced in the API */ });
 
 		return Disposable.from({ dispose: () => proxy.$unwatch(session) });
 	}

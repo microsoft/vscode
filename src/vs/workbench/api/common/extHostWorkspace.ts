@@ -578,7 +578,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 export const IExtHostWorkspace = createDecorator<IExtHostWorkspace>('IExtHostWorkspace');
 export interface IExtHostWorkspace extends ExtHostWorkspace, ExtHostWorkspaceShape, IExtHostWorkspaceProvider { }
 
-function parseSearchInclude(include: RelativePattern | string | undefined): { includePattern?: string, folder?: URI } {
+function parseSearchInclude(include: RelativePattern | vscode.GlobPattern | string | undefined): { includePattern?: string, folder?: URI } {
 	let includePattern: string | undefined;
 	let includeFolder: URI | undefined;
 	if (include) {
@@ -586,7 +586,7 @@ function parseSearchInclude(include: RelativePattern | string | undefined): { in
 			includePattern = include;
 		} else {
 			includePattern = include.pattern;
-			includeFolder = include.baseFolder || URI.file(include.base);
+			includeFolder = include.baseUri;
 		}
 	}
 

@@ -1393,15 +1393,15 @@ export namespace GlobPattern {
 		}
 
 		if (isRelativePattern(pattern)) {
-			return new types.RelativePattern(pattern.base, pattern.pattern);
+			return new types.RelativePattern(pattern.baseUri, pattern.pattern);
 		}
 
 		return pattern; // preserve `undefined` and `null`
 	}
 
-	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
+	export function isRelativePattern(obj: any): obj is vscode.RelativePattern {
 		const rp = obj as vscode.RelativePattern;
-		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+		return rp && URI.isUri(rp.baseUri) && typeof rp.pattern === 'string';
 	}
 }
 
@@ -1581,8 +1581,8 @@ export namespace NotebookExclusiveDocumentPattern {
 		}
 
 
-		if (isRelativePattern(pattern)) {
-			return new types.RelativePattern(pattern.base, pattern.pattern);
+		if (GlobPattern.isRelativePattern(pattern)) {
+			return new types.RelativePattern(pattern.baseUri, pattern.pattern);
 		}
 
 		if (isExclusivePattern(pattern)) {
@@ -1601,11 +1601,8 @@ export namespace NotebookExclusiveDocumentPattern {
 			return pattern;
 		}
 
-		if (isRelativePattern(pattern)) {
-			return {
-				base: pattern.base,
-				pattern: pattern.pattern
-			};
+		if (GlobPattern.isRelativePattern(pattern)) {
+			return new types.RelativePattern(pattern.baseUri, pattern.pattern);
 		}
 
 		return {
@@ -1627,11 +1624,6 @@ export namespace NotebookExclusiveDocumentPattern {
 		}
 
 		return true;
-	}
-
-	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
-		const rp = obj as vscode.RelativePattern;
-		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
 	}
 }
 
