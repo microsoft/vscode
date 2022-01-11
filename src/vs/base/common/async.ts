@@ -959,11 +959,29 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 	}
 }
 
+export interface IThrottledWorkerOptions {
+
+	/**
+	 * maximum of units the worker will pass onto handler at once
+	 */
+	maxWorkChunkSize: number;
+
+	/**
+	 * maximum of units the worker will keep in memory for processing
+	 */
+	maxBufferedWork: number | undefined;
+
+	/**
+	 * delay before processing the next round of chunks when chunk size exceeds limits
+	 */
+	throttleDelay: number;
+}
+
 /**
  * The `ThrottledWorker` will accept units of work `T`
  * to handle. The contract is:
  * * there is a maximum of units the worker can handle at once (via `maxWorkChunkSize`)
- * * there is a maximum of units the worker will keep in memory for processing (via `maxPendingWork`)
+ * * there is a maximum of units the worker will keep in memory for processing (via `maxBufferedWork`)
  * * after having handled `maxWorkChunkSize` units, the worker needs to rest (via `throttleDelay`)
  */
 export class ThrottledWorker<T> extends Disposable {
@@ -974,10 +992,8 @@ export class ThrottledWorker<T> extends Disposable {
 	private disposed = false;
 
 	constructor(
-		private readonly maxWorkChunkSize: number,
-		private readonly maxBufferedWork: number | undefined,
-		private readonly throttleDelay: number,
-		private readonly handler: (units: readonly T[]) => void
+		private options: IThrottledWorkerOptions,
+		private readonly handler: (units: T[]) => void
 	) {
 		super();
 	}
@@ -1003,11 +1019,11 @@ export class ThrottledWorker<T> extends Disposable {
 		}
 
 		// Check for reaching maximum of pending work
-		if (typeof this.maxBufferedWork === 'number') {
+		if (typeof this.options.maxBufferedWork === 'number') {
 
 			// Throttled: simple check if pending + units exceeds max pending
 			if (this.throttler.value) {
-				if (this.pending + units.length > this.maxBufferedWork) {
+				if (this.pending + units.length > this.options.maxBufferedWork) {
 					return false; // work not accepted: too much pending work
 				}
 			}
@@ -1015,7 +1031,7 @@ export class ThrottledWorker<T> extends Disposable {
 			// Unthrottled: same as throttled, but account for max chunk getting
 			// worked on directly without being pending
 			else {
-				if (this.pending + units.length - this.maxWorkChunkSize > this.maxBufferedWork) {
+				if (this.pending + units.length - this.options.maxWorkChunkSize > this.options.maxBufferedWork) {
 					return false; // work not accepted: too much pending work
 				}
 			}
@@ -1037,7 +1053,7 @@ export class ThrottledWorker<T> extends Disposable {
 	private doWork(): void {
 
 		// Extract chunk to handle and handle it
-		this.handler(this.pendingWork.splice(0, this.maxWorkChunkSize));
+		this.handler(this.pendingWork.splice(0, this.options.maxWorkChunkSize));
 
 		// If we have remaining work, schedule it after a delay
 		if (this.pendingWork.length > 0) {
@@ -1045,7 +1061,7 @@ export class ThrottledWorker<T> extends Disposable {
 				this.throttler.clear();
 
 				this.doWork();
-			}, this.throttleDelay);
+			}, this.options.throttleDelay);
 			this.throttler.value.schedule();
 		}
 	}

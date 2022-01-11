@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { watch } from 'fs';
-import { ThrottledDelayer } from 'vs/base/common/async';
+import { ThrottledDelayer, ThrottledWorker } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { parse } from 'vs/base/common/glob';
@@ -29,6 +29,20 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 	// before collecting them for coalescing and emitting
 	// (same delay as Parcel is using)
 	private static readonly FILE_CHANGES_HANDLER_DELAY = 50;
+
+	// Reduce likelyhood of spam from file events via throttling.
+	// These numbers are a bit more aggressive compared to the
+	// recursive watcher because we can have many individual
+	// node.js watchers per request.
+	// (https://github.com/microsoft/vscode/issues/124723)
+	private readonly throttledFileChangesWorker = new ThrottledWorker<IDiskFileChange>(
+		{
+			maxWorkChunkSize: 100,	// only process up to 100 changes at once before...
+			throttleDelay: 200,	  	// ...resting for 200ms until we process events again...
+			maxBufferedWork: 10000 	// ...but never buffering more than 10000 events in memory
+		},
+		events => this.onDidFilesChange(events)
+	);
 
 	private readonly fileChangesDelayer = this._register(new ThrottledDelayer<void>(NodeJSFileWatcher.FILE_CHANGES_HANDLER_DELAY));
 	private fileChangesBuffer: IDiskFileChange[] = [];
@@ -372,16 +386,26 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 				// Coalesce events: merge events of same kind
 				const coalescedFileChanges = coalesceEvents(fileChanges);
 
-				// Logging
-				if (this.verboseLogging) {
-					for (const event of coalescedFileChanges) {
-						this.trace(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
-					}
-				}
-
-				// Broadcast to clients
 				if (coalescedFileChanges.length > 0) {
-					this.onDidFilesChange(coalescedFileChanges);
+
+					// Logging
+					if (this.verboseLogging) {
+						for (const event of coalescedFileChanges) {
+							this.trace(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
+						}
+					}
+
+					// Broadcast to clients via throttler
+					const worked = this.throttledFileChangesWorker.work(coalescedFileChanges);
+
+					// Logging
+					if (!worked) {
+						this.warn(`started ignoring events due to too many file change events at once (incoming: ${coalescedFileChanges.length}, most recent change: ${coalescedFileChanges[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+					} else {
+						if (this.throttledFileChangesWorker.pending > 0) {
+							this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesWorker.pending}, most recent change: ${coalescedFileChanges[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+						}
+					}
 				}
 			});
 		} catch (error) {
