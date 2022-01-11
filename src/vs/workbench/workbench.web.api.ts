@@ -32,7 +32,7 @@ interface IResourceUriProvider {
  */
 type ExtensionId = string;
 
-type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId, preRelease?: boolean };
+type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId, preRelease?: boolean, migrateStorageFrom?: ExtensionId };
 
 interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
