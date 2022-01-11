@@ -687,6 +687,7 @@
 	position: relative;
 	width: 0px;
 	cursor: pointer;
+	pointer-events: all; /* Take pointer-events in markdown cell */
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left,
