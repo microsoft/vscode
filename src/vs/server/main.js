@@ -31,9 +31,10 @@ async function start() {
 		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port']
 	});
 
-	const extensionCliArgs = ['list-extensions', 'install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension'];
+	const extensionLookupArgs = ['list-extensions', 'locate-extension'];
+	const extensionInstallArgs = ['install-extension', 'install-builtin-extension', 'uninstall-extension'];
 
-	const shouldSpawnCli = parsedArgs.help || parsedArgs.version || !parsedArgs['start-server'] && extensionCliArgs.some(a => !!parsedArgs[a]);
+	const shouldSpawnCli = parsedArgs.help || parsedArgs.version || extensionLookupArgs.some(a => !!parsedArgs[a]) || (extensionInstallArgs.some(a => !!parsedArgs[a]) && !parsedArgs['start-server']);
 
 	if (shouldSpawnCli) {
 		loadCode().then((mod) => {
