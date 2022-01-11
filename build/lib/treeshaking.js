@@ -256,7 +256,7 @@ function isVariableStatementWithSideEffects(ts, node) {
         }
         if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
             // TODO: assuming `createDecorator` and `refineServiceDecorator` calls are side-effect free
-            const isSideEffectFree = /(createDecorator|refineServiceDecorator)/.test(node.getText());
+            const isSideEffectFree = /(createDecorator|refineServiceDecorator)/.test(node.expression.getText());
             if (!isSideEffectFree) {
                 hasSideEffects = true;
             }
