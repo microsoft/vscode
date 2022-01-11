@@ -9,8 +9,9 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { IExtensionIdWithVersion, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
-import { getMigrateFromLowerCaseStorageKey, migrateExtensionStorage } from 'vs/workbench/services/extensions/common/extensionStorageMigration';
+import { migrateExtensionStorage } from 'vs/workbench/services/extensions/common/extensionStorageMigration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 
 @extHostNamedCustomer(MainContext.MainThreadStorage)
 export class MainThreadStorage implements MainThreadStorageShape {
@@ -24,6 +25,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		@IExtensionStorageService private readonly _extensionStorageService: IExtensionStorageService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostStorage);
 
@@ -40,10 +42,9 @@ export class MainThreadStorage implements MainThreadStorageShape {
 	}
 
 	async $initializeExtensionStorage(shared: boolean, extensionId: string): Promise<object | undefined> {
-		if (isWeb && extensionId !== extensionId.toLowerCase()) {
-			// TODO: @sandy081 - Remove it after 6 months
-			await migrateExtensionStorage(extensionId.toLowerCase(), extensionId, getMigrateFromLowerCaseStorageKey(extensionId), this._instantiationService);
-		}
+
+		await this.checkAndMigrateExtensionStorage(extensionId);
+
 		if (shared) {
 			this._sharedStorageKeysToWatch.set(extensionId, true);
 		}
@@ -56,5 +57,32 @@ export class MainThreadStorage implements MainThreadStorageShape {
 
 	$registerExtensionStorageKeysToSync(extension: IExtensionIdWithVersion, keys: string[]): void {
 		this._extensionStorageService.setKeysForSync(extension, keys);
+	}
+
+	private async checkAndMigrateExtensionStorage(extensionId: string): Promise<void> {
+		try {
+			let sourceExtensionId = this._extensionStorageService.getSourceExtensionToMigrate(extensionId);
+
+			// TODO: @sandy081 - Remove it after 6 months
+			// If current extension does not have any migration requested
+			// Then check if the extension has to be migrated for using lower case in web
+			// If so, migrate the extension state from lower case id to its normal id.
+			if (!sourceExtensionId && isWeb && extensionId !== extensionId.toLowerCase()) {
+				sourceExtensionId = extensionId.toLowerCase();
+			}
+
+			if (sourceExtensionId) {
+				// TODO: @sandy081 - Remove it after 6 months
+				// In Web, extension state was used to be stored in lower case extension id.
+				// Hence check that if the lower cased source extension was not yet migrated in web
+				// If not take the lower cased source extension id for migration
+				if (isWeb && sourceExtensionId !== sourceExtensionId.toLowerCase() && this._extensionStorageService.hasExtensionState(sourceExtensionId.toLowerCase()) && !this._extensionStorageService.hasExtensionState(sourceExtensionId)) {
+					sourceExtensionId = sourceExtensionId.toLowerCase();
+				}
+				await migrateExtensionStorage(sourceExtensionId, extensionId, this._instantiationService);
+			}
+		} catch (error) {
+			this._logService.error(error);
+		}
 	}
 }

@@ -12,7 +12,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { distinct } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
-import { isString } from 'vs/base/common/types';
+import { isArray, isString } from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
@@ -33,6 +33,9 @@ export interface IExtensionStorageService {
 	readonly onDidChangeExtensionStorageToSync: Event<void>;
 	setKeysForSync(extensionIdWithVersion: IExtensionIdWithVersion, keys: string[]): void;
 	getKeysForSync(extensionIdWithVersion: IExtensionIdWithVersion): string[] | undefined;
+
+	addToMigrationList(from: string, to: string): void;
+	getSourceExtensionToMigrate(target: string): string | undefined;
 }
 
 const EXTENSION_KEYS_ID_VERSION_REGEX = /^extensionKeys\/([^.]+\..+)@(\d+\.\d+\.\d+(-.*)?)$/;
@@ -150,4 +153,36 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 			: (extensionKeysForSyncFromStorage || extensionKeysForSyncFromProduct);
 	}
 
+	addToMigrationList(from: string, to: string): void {
+		if (from !== to) {
+			// remove the duplicates
+			const migrationList: [string, string][] = this.migrationList.filter(entry => !entry.includes(from) && !entry.includes(to));
+			migrationList.push([from, to]);
+			this.migrationList = migrationList;
+		}
+	}
+
+	getSourceExtensionToMigrate(toExtensionId: string): string | undefined {
+		const entry = this.migrationList.find(([, to]) => toExtensionId === to);
+		return entry ? entry[0] : undefined;
+	}
+
+	private get migrationList(): [string, string][] {
+		const value = this.storageService.get('extensionStorage.migrationList', StorageScope.GLOBAL, '[]');
+		try {
+			const migrationList = JSON.parse(value);
+			if (isArray(migrationList)) {
+				return migrationList;
+			}
+		} catch (error) { /* ignore */ }
+		return [];
+	}
+
+	private set migrationList(migrationList: [string, string][]) {
+		if (migrationList.length) {
+			this.storageService.store('extensionStorage.migrationList', JSON.stringify(migrationList), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove('extensionStorage.migrationList', StorageScope.GLOBAL);
+		}
+	}
 }
