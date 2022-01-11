@@ -20,7 +20,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 
-export class FindModel extends Disposable {
+export class FindModel<T> extends Disposable {
 	private _findMatches: CellFindMatch[] = [];
 	protected _findMatchesStarts: PrefixSumComputer | null = null;
 	private _currentMatch: number = -1;
@@ -40,7 +40,7 @@ export class FindModel extends Disposable {
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		private readonly _state: FindReplaceState<boolean>,
+		private readonly _state: FindReplaceState<T>,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();

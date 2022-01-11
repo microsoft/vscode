@@ -241,6 +241,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					child-src https: data:;
 				">` : ''}
 				<style nonce="${this.nonce}">
+					::highlight(find-highlight) {
+						background-color: var(--vscode-editor-findMatchHighlightBackground);
+					}
+
+					::highlight(current-find-highlight) {
+						background-color: var(--vscode-editor-findMatchBackground);
+					}
+
 					#container .cell_container {
 						width: 100%;
 					}

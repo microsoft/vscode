@@ -152,6 +152,12 @@ defaultStyles.textContent = `
 	}
 	::-webkit-scrollbar-thumb:active {
 		background-color: var(--vscode-scrollbarSlider-activeBackground);
+	}
+	::highlight(find-highlight) {
+		background-color: var(--vscode-editor-findMatchHighlightBackground);
+	}
+	::highlight(current-find-highlight) {
+		background-color: var(--vscode-editor-findMatchBackground);
 	}`;
 
 /**

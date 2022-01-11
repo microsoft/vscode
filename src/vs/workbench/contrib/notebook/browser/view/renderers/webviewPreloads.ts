@@ -26,6 +26,20 @@ declare class ResizeObserver {
 	disconnect(): void;
 }
 
+declare class Highlight {
+	constructor();
+	add(range: AbstractRange): void;
+	clear(): void;
+	priority: number;
+}
+
+interface CSSHighlights {
+	set(name: string, ht: Highlight): void;
+}
+declare namespace CSS {
+	var highlights: CSSHighlights | undefined;
+}
+
 
 type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
@@ -775,26 +789,137 @@ async function webviewPreloads(ctx: PreloadContext) {
 		id: string,
 		cellId: string,
 		container: Node,
+		originalRange: Range,
 		isShadow: boolean,
-		highlightResult: IHighlightResult
+		highlightResult?: IHighlightResult
 	}
 
-	let _findingMatches: IFindMatch[] = [];
-	let _findMatchIndex = -1;
+	interface IHighlighter {
+		highlightCurrentMatch(index: number): void;
+		unHighlightCurrentMatch(index: number): void;
+		dispose(): void;
+	}
+
+	let _highlighter: IHighlighter | null = null;
 	let matchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).color;
 	let currentMatchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).backgroundColor;
 
+	class JSHighlighter implements IHighlighter {
+		private _findMatchIndex = -1;
+
+		constructor(
+			readonly matches: IFindMatch[],
+		) {
+			for (let i = matches.length - 1; i >= 0; i--) {
+				const match = matches[i];
+				const ret = highlightRange(match.originalRange, true, 'mark', match.isShadow ? {
+					'style': 'background-color: ' + matchColor + ';',
+				} : {
+					'class': 'find-match'
+				});
+				match.highlightResult = ret;
+			}
+		}
+
+		highlightCurrentMatch(index: number) {
+			const oldMatch = this.matches[this._findMatchIndex];
+			if (oldMatch) {
+				oldMatch.highlightResult?.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
+			}
+
+			const match = this.matches[index];
+			this._findMatchIndex = index;
+			const sel = window.getSelection();
+			if (!!match && !!sel && match.highlightResult) {
+				let offset = 0;
+				try {
+					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
+					const tempRange = document.createRange();
+					tempRange.selectNode(match.highlightResult.range.startContainer);
+					const rangeOffset = tempRange.getBoundingClientRect().top;
+					tempRange.detach();
+					offset = rangeOffset - outputOffset;
+				} catch (e) {
+				}
+
+				match.highlightResult?.update(currentMatchColor, match.isShadow ? undefined : 'current-find-match');
+
+				document.getSelection()?.removeAllRanges();
+				postNotebookMessage('didFindHighlight', {
+					offset
+				});
+			}
+		}
+
+		unHighlightCurrentMatch(index: number) {
+			const oldMatch = this.matches[index];
+			if (oldMatch && oldMatch.highlightResult) {
+				oldMatch.highlightResult.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
+			}
+		}
+
+		dispose() {
+			this.matches.forEach(match => {
+				match.highlightResult?.dispose();
+			});
+		}
+	}
+
+	class CSSHighlighter implements IHighlighter {
+		private _matchesHighlight: Highlight;
+		private _currentMatchesHighlight: Highlight;
+		private _findMatchIndex = -1;
+
+		constructor(
+			readonly matches: IFindMatch[],
+		) {
+			this._matchesHighlight = new Highlight();
+			this._matchesHighlight.priority = 1;
+			this._currentMatchesHighlight = new Highlight();
+			this._currentMatchesHighlight.priority = 2;
+
+			for (let i = 0; i < matches.length; i++) {
+				this._matchesHighlight.add(matches[i].originalRange);
+			}
+			CSS.highlights?.set('find-highlight', this._matchesHighlight);
+			CSS.highlights?.set('current-find-highlight', this._currentMatchesHighlight);
+		}
+
+		highlightCurrentMatch(index: number): void {
+			this._findMatchIndex = index;
+			const match = this.matches[this._findMatchIndex];
+			const range = match.originalRange;
+
+			if (match) {
+				let offset = 0;
+				try {
+					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
+					const rangeOffset = match.originalRange.getBoundingClientRect().top;
+					offset = rangeOffset - outputOffset;
+					postNotebookMessage('didFindHighlight', {
+						offset
+					});
+				} catch (e) {
+				}
+			}
+
+			this._currentMatchesHighlight.clear();
+			this._currentMatchesHighlight.add(range);
+		}
+
+		unHighlightCurrentMatch(index: number): void {
+			this._currentMatchesHighlight.clear();
+		}
+
+		dispose(): void {
+			this._currentMatchesHighlight.clear();
+			this._matchesHighlight.clear();
+		}
+	}
+
 	const find = (query: string) => {
 		let find = true;
-		let matches: {
-			type: 'preview' | 'output',
-			id: string,
-			cellId: string,
-			container: Node,
-			originalRange: Range,
-			isShadow: boolean,
-			highlightResult?: IHighlightResult
-		}[] = [];
+		let matches: IFindMatch[] = [];
 
 		let range = document.createRange();
 		range.selectNodeContents(document.getElementById('findStart')!);
@@ -907,26 +1032,18 @@ async function webviewPreloads(ctx: PreloadContext) {
 					}
 				}
 			}
-
-			for (let i = matches.length - 1; i >= 0; i--) {
-				const match = matches[i];
-				const ret = highlightRange(match.originalRange, true, 'mark', match.isShadow ? {
-					'style': 'background-color: ' + matchColor + ';',
-				} : {
-					'class': 'find-match'
-				});
-				match.highlightResult = ret;
-			}
-
-			document.designMode = 'Off';
-			document.getSelection()?.collapseToStart();
 		} catch (e) {
 			console.log(e);
 		}
 
+		if (matches.length && CSS.highlights) {
+			_highlighter = new CSSHighlighter(matches);
+		} else {
+			_highlighter = new JSHighlighter(matches);
+		}
+
 		viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 
-		_findingMatches = matches as IFindMatch[];
 		postNotebookMessage('didFind', {
 			matches: matches.map((match, index) => ({
 				type: match.type,
@@ -935,52 +1052,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 				index
 			}))
 		});
-	};
-
-	const highlightCurrentMatch = (index: number) => {
-		const oldMatch = _findingMatches[_findMatchIndex];
-		if (oldMatch) {
-			oldMatch.highlightResult.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
-		}
-
-		const match = _findingMatches[index];
-		_findMatchIndex = index;
-		const sel = window.getSelection();
-		if (!!match && !!sel) {
-			let offset = 0;
-			try {
-				const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
-				const tempRange = document.createRange();
-				tempRange.selectNode(match.highlightResult.range.startContainer);
-				const rangeOffset = tempRange.getBoundingClientRect().top;
-				tempRange.detach();
-				offset = rangeOffset - outputOffset;
-			} catch (e) {
-			}
-
-			match.highlightResult.update(currentMatchColor, match.isShadow ? undefined : 'current-find-match');
-
-			document.getSelection()?.removeAllRanges();
-			postNotebookMessage('didFindHighlight', {
-				offset
-			});
-		}
-	};
-
-	const unHighlightCurrentMatch = (index: number) => {
-		const oldMatch = _findingMatches[index];
-		if (oldMatch) {
-			oldMatch.highlightResult.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
-		}
-	};
-
-	const clearFindMatches = () => {
-		_findingMatches.forEach(match => {
-			match.highlightResult.dispose();
-		});
-
-		_findingMatches = [];
-		_findMatchIndex = -1;
 	};
 
 	window.addEventListener('message', async rawEvent => {
@@ -1145,20 +1216,20 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'find': {
-				clearFindMatches();
+				_highlighter?.dispose();
 				find(event.data.query);
 				break;
 			}
 			case 'findHighlight': {
-				highlightCurrentMatch(event.data.index);
+				_highlighter?.highlightCurrentMatch(event.data.index);
 				break;
 			}
 			case 'findUnHighlight': {
-				unHighlightCurrentMatch(event.data.index);
+				_highlighter?.unHighlightCurrentMatch(event.data.index);
 				break;
 			}
 			case 'findStop': {
-				clearFindMatches();
+				_highlighter?.dispose();
 				break;
 			}
 		}
