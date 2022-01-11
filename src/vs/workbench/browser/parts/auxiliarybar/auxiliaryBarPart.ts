@@ -156,30 +156,6 @@ registerThemingParticipant((theme, collector) => {
 		`);
 	}
 
-	// Title focus
-	const focusBorderColor = theme.getColor(focusBorder);
-	if (focusBorderColor) {
-		collector.addRule(`
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .active-item-indicator:before {
-				border-top-color: ${focusBorderColor};
-			}
-			`);
-		collector.addRule(`
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
-				outline: none;
-			}
-			`);
-	}
-
-	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
-	if (titleActiveBorder) {
-		collector.addRule(`
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .active-item-indicator:before {
-				border-top-color: ${titleActiveBorder};
-			}
-		`);
-	}
-
 	// Styling with Outline color (e.g. high contrast theme)
 	const outline = theme.getColor(activeContrastBorder);
 	if (outline) {
