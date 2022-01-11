@@ -250,7 +250,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		const name = product.nameShort;
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
-			.pipe(json({ name, version }));
+			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined }));
 
 		const date = new Date().toISOString();
 
