@@ -238,11 +238,6 @@ function isValidLanguageExtensionPoint(value: IRawLanguageExtensionPoint, extens
 		return false;
 	}
 	if (typeof value.icon !== 'undefined') {
-		const proposal = 'languageIcon';
-		if (!isProposedApiEnabled(extension, proposal)) {
-			collector.error(`Extension '${extension.identifier.value}' CANNOT use API proposal: ${proposal}.\nIts package.json#enabledApiProposals-property declares: ${extension.enabledApiProposals?.join(', ') ?? '[]'} but NOT ${proposal}.\n The missing proposal MUST be added and you must start in extension development mode or use the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
-			return false;
-		}
 		if (typeof value.icon !== 'object' || typeof value.icon.light !== 'string' || typeof value.icon.dark !== 'string') {
 			collector.error(localize('opt.icon', "property `{0}` can be omitted and must be of type `object` with properties `{1}` and `{2}` of type `string`", 'icon', 'light', 'dark'));
 			return false;
