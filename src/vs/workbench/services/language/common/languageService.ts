@@ -12,7 +12,7 @@ import { LanguageService } from 'vs/editor/common/services/languageService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FILES_ASSOCIATIONS_CONFIG, IFilesConfiguration } from 'vs/platform/files/common/files';
-import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
