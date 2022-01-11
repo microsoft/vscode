@@ -98,7 +98,7 @@ export class InlayHintsFragments {
 			for (let hint of list.hints) {
 
 				// compute the range to which the item should be attached to
-				let position = hint.position;
+				let position = model.validatePosition(hint.position);
 				let direction: 'before' | 'after' = 'before';
 
 				const wordRange = InlayHintsFragments._getRangeAtPosition(model, position);
