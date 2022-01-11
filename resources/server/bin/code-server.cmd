@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-set ROOT_DIR=%~dp0
+set ROOT_DIR=%~dp0..
 
 set _FIRST_ARG=%1
 if "%_FIRST_ARG:~0,9%"=="--inspect" (
@@ -19,6 +19,6 @@ goto loop1
 
 :after_loop
 
-"%ROOT_DIR%node.exe" %INSPECT% "%ROOT_DIR%out\vs\server\main.js" %RESTVAR%
+"%ROOT_DIR%\node.exe" %INSPECT% "%ROOT_DIR%\out\vs\server\main.js" %RESTVAR%
 
 endlocal
