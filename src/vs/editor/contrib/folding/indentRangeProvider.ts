@@ -11,7 +11,7 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { FoldingRegions, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/foldingRanges';
 import { RangeProvider } from './folding';
 
-const MAX_FOLDING_REGIONS_FOR_INDENT_DEFAULT = 5000;
+const MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT = 5000;
 
 export const ID_INDENT_PROVIDER = 'indent';
 
@@ -20,17 +20,16 @@ export class IndentRangeProvider implements RangeProvider {
 
 	constructor(
 		private readonly editorModel: ITextModel,
-		private readonly languageConfigurationService: ILanguageConfigurationService,
-		private readonly maxFoldingRegions: number
+		private readonly languageConfigurationService: ILanguageConfigurationService
 	) { }
 
 	dispose() { }
 
-	compute(cancelationToken: CancellationToken, notifyTooManyRegions: (maxRegions: number) => void): Promise<FoldingRegions> {
+	compute(cancelationToken: CancellationToken): Promise<FoldingRegions> {
 		let foldingRules = this.languageConfigurationService.getLanguageConfiguration(this.editorModel.getLanguageId()).foldingRules;
 		let offSide = foldingRules && !!foldingRules.offSide;
 		let markers = foldingRules && foldingRules.markers;
-		return Promise.resolve(computeRanges(this.editorModel, offSide, markers, this.maxFoldingRegions, notifyTooManyRegions));
+		return Promise.resolve(computeRanges(this.editorModel, offSide, markers));
 	}
 }
 
@@ -42,7 +41,7 @@ export class RangesCollector {
 	private _length: number;
 	private readonly _foldingRangesLimit: number;
 
-	constructor(foldingRangesLimit: number, private readonly _notifyTooManyRegions?: (maxRegions: number) => void) {
+	constructor(foldingRangesLimit: number) {
 		this._startIndexes = [];
 		this._endIndexes = [];
 		this._indentOccurrences = [];
@@ -74,9 +73,6 @@ export class RangesCollector {
 			}
 			return new FoldingRegions(startIndexes, endIndexes);
 		} else {
-			if (this._notifyTooManyRegions) {
-				this._notifyTooManyRegions(this._foldingRangesLimit);
-			}
 			let entries = 0;
 			let maxIndent = this._indentOccurrences.length;
 			for (let i = 0; i < this._indentOccurrences.length; i++) {
@@ -116,10 +112,9 @@ interface PreviousRegion {
 	line: number; // start line of the region. Only used for marker regions.
 }
 
-export function computeRanges(model: ITextModel, offSide: boolean, markers?: FoldingMarkers, foldingRangesLimit?: number, notifyTooManyRegions?: (maxRegions: number) => void): FoldingRegions {
+export function computeRanges(model: ITextModel, offSide: boolean, markers?: FoldingMarkers, foldingRangesLimit = MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT): FoldingRegions {
 	const tabSize = model.getOptions().tabSize;
-	foldingRangesLimit = foldingRangesLimit ?? MAX_FOLDING_REGIONS_FOR_INDENT_DEFAULT;
-	let result = new RangesCollector(foldingRangesLimit, notifyTooManyRegions);
+	let result = new RangesCollector(foldingRangesLimit);
 
 	let pattern: RegExp | undefined = undefined;
 	if (markers) {

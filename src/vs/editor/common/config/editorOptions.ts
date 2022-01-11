@@ -554,11 +554,6 @@ export interface IEditorOptions {
 	 */
 	foldingImportsByDefault?: boolean;
 	/**
-	 * Maximum number of foldable regions.
-	 * Defaults to 5000.
-	 */
-	foldingMaximumRegions?: number;
-	/**
 	 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 	 * Defaults to 'mouseover'.
 	 */
@@ -4353,7 +4348,6 @@ export const enum EditorOption {
 	foldingStrategy,
 	foldingHighlight,
 	foldingImportsByDefault,
-	foldingMaximumRegions,
 	unfoldOnClickAfterEndOfLine,
 	fontFamily,
 	fontInfo,
@@ -4687,11 +4681,6 @@ export const EditorOptions = {
 	foldingImportsByDefault: register(new EditorBooleanOption(
 		EditorOption.foldingImportsByDefault, 'foldingImportsByDefault', false,
 		{ description: nls.localize('foldingImportsByDefault', "Controls whether the editor automatically collapses import ranges.") }
-	)),
-	foldingMaximumRegions: register(new EditorIntOption(
-		EditorOption.foldingMaximumRegions, 'foldingMaximumRegions',
-		5000, 10, 65000, // limit must be less than foldingRanges MAX_FOLDING_REGIONS
-		{ description: nls.localize('foldingMaximumRegions', "The maximum number of foldable regions. Increasing this value may result in the editor becoming less responsive when the current source has a large number of foldable regions.") }
 	)),
 	unfoldOnClickAfterEndOfLine: register(new EditorBooleanOption(
 		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,
