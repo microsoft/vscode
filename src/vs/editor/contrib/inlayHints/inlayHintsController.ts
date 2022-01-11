@@ -362,7 +362,7 @@ export class InlayHintsController implements IEditorContribution {
 							collapseOnReplaceEdit: item.anchor.usesWordRange,
 							stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 
-							// className: 'rangeHighlight' // DEBUG highlight to see to what range a hint is attached
+							// className: "rangeHighlight" // DEBUG highlight to see to what range a hint is attached
 						}
 					},
 				});
