@@ -80,7 +80,7 @@ export class AudioCueContribution extends DisposableStore implements IWorkbenchC
 			return;
 		}
 
-		const url = FileAccess.asBrowserUri(`vs/workbench/contrib/audioCues/browser/media/${fileName}.webm`, require).toString();
+		const url = FileAccess.asBrowserUri(`vs/workbench/contrib/audioCues/browser/media/${fileName}.opus`, require).toString();
 		const audio = new Audio(url);
 
 		try {
