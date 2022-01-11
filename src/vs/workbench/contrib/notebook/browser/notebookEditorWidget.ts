@@ -677,7 +677,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			insertToolbarPosition,
 			insertToolbarAlignment,
 			fontSize,
-			focusIndicatorLeftMargin
+			focusIndicatorLeftMargin,
+			focusIndicatorGap
 		} = this._notebookOptions.getLayoutConfiguration();
 
 		const { bottomToolbarGap, bottomToolbarHeight } = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
@@ -756,44 +757,35 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				top: -${cellTopMargin}px; height: calc(100% + ${cellTopMargin + cellBottomMargin}px)
 			}`);
 		} else {
-			// gutter
 			styleSheets.push(`
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left:before,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right:before {
-				content: "";
-				position: absolute;
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-left .codeOutput-focus-indicator,
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.selected .cell-focus-indicator-left .codeOutput-focus-indicator {
+				border-left: 3px solid transparent;
+				border-radius: 4px;
+				margin-left: ${focusIndicatorLeftMargin}px;
 				width: 0px;
-				height: 100%;
-				z-index: 10;
+			}
+
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-left .codeOutput-focus-indicator:hover,
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.selected .cell-focus-indicator-left .codeOutput-focus-indicator:hover {
+				border-left: 5px solid transparent;
+				margin-left: ${focusIndicatorLeftMargin - 1}px;
 			}
 			`);
 
-			// left and right border margins
 			styleSheets.push(`
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.focused .cell-focus-indicator-left:before,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.focused .cell-focus-indicator-right:before,
-			.monaco-workbench .notebookOverlay .monaco-list.selection-multiple .monaco-list-row.code-cell-row.selected .cell-focus-indicator-left:before,
-			.monaco-workbench .notebookOverlay .monaco-list.selection-multiple .monaco-list-row.code-cell-row.selected .cell-focus-indicator-right:before {
-				top: 0px; height: 100%;
-			}`);
-
-			styleSheets.push(`
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-left:before,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.selected .cell-focus-indicator-left:before {
-				border-left: 3px solid transparent;
-				border-radius: 2px;
-				margin-left: ${focusIndicatorLeftMargin}px;
-			}`);
-
-			// boder should always show
-			styleSheets.push(`
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-inner-container.cell-output-focus .cell-focus-indicator-left:before,
-			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container .cell-focus-indicator-left:before {
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-inner-container.cell-output-focus .cell-focus-indicator-left .codeOutput-focus-indicator,
+			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container .cell-focus-indicator-left .codeOutput-focus-indicator {
 				border-color: var(--notebook-focused-cell-border-color) !important;
 			}
 
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-inner-container .cell-focus-indicator-left:before {
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-inner-container .cell-focus-indicator-left .code-focus-indicator,
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-inner-container .cell-focus-indicator-left .output-focus-indicator {
 				border-color: var(--notebook-inactive-focused-cell-border-color) !important;
+			}
+
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-inner-container .cell-focus-indicator-left .output-focus-indicator {
+				margin-top: ${focusIndicatorGap}px;
 			}
 			`);
 		}
@@ -877,8 +869,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator { left: ${(markdownCellGutter - 20) / 2 + markdownCellLeftMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row :not(.webview-backed-markdown-cell) .cell-focus-indicator-top { height: ${cellTopMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side { bottom: ${bottomToolbarGap}px; }`);
-		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row.code-cell-row .cell-focus-indicator-left,
-	.notebookOverlay .monaco-list .monaco-list-row.code-cell-row .cell-drag-handle { width: ${codeCellLeftMargin + cellRunGutter}px; }`);
+		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row.code-cell-row .cell-focus-indicator-left { width: ${codeCellLeftMargin + cellRunGutter}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row .cell-focus-indicator-left { width: ${codeCellLeftMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator.cell-focus-indicator-right { width: ${cellRightMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom { height: ${cellBottomMargin}px; }`);
@@ -2927,7 +2918,6 @@ registerZIndex(ZIndex.Base, 10, 'notebook-list-insertion-indicator');
 registerZIndex(ZIndex.Base, 20, 'notebook-cell-editor-outline');
 registerZIndex(ZIndex.Base, 25, 'notebook-scrollbar');
 registerZIndex(ZIndex.Base, 26, 'notebook-cell-status');
-registerZIndex(ZIndex.Base, 26, 'notebook-cell-drag-handle');
 registerZIndex(ZIndex.Base, 26, 'notebook-folding-indicator');
 registerZIndex(ZIndex.Base, 27, 'notebook-output');
 registerZIndex(ZIndex.Base, 28, 'notebook-cell-bottom-toolbar-container');
