@@ -1516,7 +1516,8 @@ declare namespace monaco.editor {
 	export enum InjectedTextCursorStops {
 		Both = 0,
 		Right = 1,
-		Left = 2
+		Left = 2,
+		None = 3
 	}
 
 	/**

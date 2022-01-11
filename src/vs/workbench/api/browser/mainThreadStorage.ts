@@ -9,7 +9,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { IExtensionIdWithVersion, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
-import { migrateExtensionStorage } from 'vs/workbench/services/extensions/common/extensionStorageMigration';
+import { getMigrateFromLowerCaseStorageKey, migrateExtensionStorage } from 'vs/workbench/services/extensions/common/extensionStorageMigration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 @extHostNamedCustomer(MainContext.MainThreadStorage)
@@ -42,7 +42,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 	async $initializeExtensionStorage(shared: boolean, extensionId: string): Promise<object | undefined> {
 		if (isWeb && extensionId !== extensionId.toLowerCase()) {
 			// TODO: @sandy081 - Remove it after 6 months
-			await migrateExtensionStorage(extensionId.toLowerCase(), extensionId, `extension.storage.migrateFromLowerCaseKey.${extensionId.toLowerCase()}`, this._instantiationService);
+			await migrateExtensionStorage(extensionId.toLowerCase(), extensionId, getMigrateFromLowerCaseStorageKey(extensionId), this._instantiationService);
 		}
 		if (shared) {
 			this._sharedStorageKeysToWatch.set(extensionId, true);

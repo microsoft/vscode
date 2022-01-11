@@ -7,13 +7,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { InlayHint, InlayHintList, InlayHintsProvider, InlayHintsProviderRegistry } from 'vs/editor/common/languages';
-import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
+import { ITextModel } from 'vs/editor/common/model';
 
 export class InlayHintAnchor {
-	constructor(readonly range: Range, readonly direction: 'before' | 'after', readonly usesWordRange: boolean) { }
+	constructor(readonly range: Range, readonly direction: 'before' | 'after') { }
 }
 
 export class InlayHintItem {
@@ -23,7 +23,7 @@ export class InlayHintItem {
 
 	constructor(readonly hint: InlayHint, readonly anchor: InlayHintAnchor, private readonly _provider: InlayHintsProvider) { }
 
-	with(delta: { anchor: InlayHintAnchor }): InlayHintItem {
+	with(delta: { anchor: InlayHintAnchor; }): InlayHintItem {
 		const result = new InlayHintItem(this.hint, delta.anchor, this._provider);
 		result._isResolved = this._isResolved;
 		result._currentResolve = this._currentResolve;
@@ -100,21 +100,19 @@ export class InlayHintsFragments {
 				// compute the range to which the item should be attached to
 				let position = hint.position;
 				let direction: 'before' | 'after' = 'before';
-				let range = Range.fromPositions(position);
-				let word = model.getWordAtPosition(position);
-				let usesWordRange = false;
-				if (word) {
-					if (word.endColumn === position.column) {
-						direction = 'after';
-						usesWordRange = true;
-						range = wordToRange(word, position.lineNumber);
-					} else if (word.startColumn === position.column) {
-						usesWordRange = true;
-						range = wordToRange(word, position.lineNumber);
-					}
+
+				const wordRange = InlayHintsFragments._getRangeAtPosition(model, position);
+				let range: Range;
+
+				if (wordRange.getStartPosition().isBefore(position)) {
+					range = Range.fromPositions(wordRange.getStartPosition(), position);
+					direction = 'after';
+				} else {
+					range = Range.fromPositions(position, wordRange.getEndPosition());
+					direction = 'before';
 				}
 
-				items.push(new InlayHintItem(hint, new InlayHintAnchor(range, direction, usesWordRange), provider));
+				items.push(new InlayHintItem(hint, new InlayHintAnchor(range, direction), provider));
 			}
 			if (provider.onDidChangeInlayHints) {
 				provider.onDidChangeInlayHints(this._onDidChange.fire, this._onDidChange, this._disposables);
@@ -127,13 +125,36 @@ export class InlayHintsFragments {
 		this._onDidChange.dispose();
 		this._disposables.dispose();
 	}
-}
 
-function wordToRange(word: IWordAtPosition, lineNumber: number): Range {
-	return new Range(
-		lineNumber,
-		word.startColumn,
-		lineNumber,
-		word.endColumn
-	);
+	private static _getRangeAtPosition(model: ITextModel, position: IPosition): Range {
+		const line = position.lineNumber;
+		const word = model.getWordAtPosition(position);
+		if (word) {
+			// always prefer the word range
+			return new Range(line, word.startColumn, line, word.endColumn);
+		}
+
+		model.tokenizeIfCheap(line);
+		const tokens = model.getLineTokens(line);
+		const offset = position.column - 1;
+		const idx = tokens.findTokenIndexAtOffset(offset);
+
+		let start = tokens.getStartOffset(idx);
+		let end = tokens.getEndOffset(idx);
+
+		if (end - start === 1) {
+			// single character token, when at its end try leading/trailing token instead
+			if (start === offset && idx > 1) {
+				// leading token
+				start = tokens.getStartOffset(idx - 1);
+				end = tokens.getEndOffset(idx - 1);
+			} else if (end === offset && idx < tokens.getCount() - 1) {
+				// trailing token
+				start = tokens.getStartOffset(idx + 1);
+				end = tokens.getEndOffset(idx + 1);
+			}
+		}
+
+		return new Range(line, start + 1, line, end + 1);
+	}
 }

@@ -1198,7 +1198,9 @@ class InlayHintsAdapter {
 		this._disposables.set(pid, new DisposableStore());
 		const result: extHostProtocol.IInlayHintsDto = { hints: [], cacheId: pid };
 		for (let i = 0; i < hints.length; i++) {
-			result.hints.push(this._convertInlayHint(hints[i], [pid, i]));
+			if (this._isValidInlayHint(hints[i])) {
+				result.hints.push(this._convertInlayHint(hints[i], [pid, i]));
+			}
 		}
 		return result;
 	}
@@ -1218,6 +1220,9 @@ class InlayHintsAdapter {
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
+		if (!this._isValidInlayHint(hint)) {
+			return undefined;
+		}
 		return this._convertInlayHint(hint, id);
 	}
 
@@ -1225,6 +1230,14 @@ class InlayHintsAdapter {
 		this._disposables.get(id)?.dispose();
 		this._disposables.delete(id);
 		this._cache.delete(id);
+	}
+
+	private _isValidInlayHint(hint: vscode.InlayHint): boolean {
+		if (hint.label.length === 0 || Array.isArray(hint.label) && hint.label.every(part => part.label.length === 0)) {
+			console.log('INVALID inlay hint, empty label', hint);
+			return false;
+		}
+		return true;
 	}
 
 	private _convertInlayHint(hint: vscode.InlayHint, id: extHostProtocol.ChainedCacheId): extHostProtocol.IInlayHintDto {

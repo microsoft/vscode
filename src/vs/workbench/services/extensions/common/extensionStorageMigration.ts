@@ -14,6 +14,11 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
+// TODO: @sandy081 - Remove it after 6 months
+export function getMigrateFromLowerCaseStorageKey(extensionId: string) {
+	return `extension.storage.migrateFromLowerCaseKey.${extensionId.toLowerCase()}`;
+}
+
 /**
  * An extension storage has following
  * 	- State: Stored using storage service with extension id as key and state as value.
@@ -41,6 +46,7 @@ export async function migrateExtensionStorage(fromExtensionId: string, toExtensi
 		};
 
 		const migrateStorage = async (global: boolean) => {
+			logService.info(`Migrating ${global ? 'global' : 'workspace'} extension storage from ${fromExtensionId} to ${toExtensionId}...`);
 			// Migrate state
 			const value = extensionStorageService.getExtensionState(fromExtensionId, global);
 			if (value) {
@@ -56,10 +62,11 @@ export async function migrateExtensionStorage(fromExtensionId: string, toExtensi
 					await fileService.move(fromPath, toPath, true);
 				} catch (error) {
 					if ((<FileSystemProviderError>error).code !== FileSystemProviderErrorCode.FileNotFound) {
-						logService.info(`Error while migrating ${global ? 'global' : 'workspace'} storage from '${fromExtensionId}' to '${toExtensionId}'`, getErrorMessage(error));
+						logService.info(`Error while migrating ${global ? 'global' : 'workspace'} file storage from '${fromExtensionId}' to '${toExtensionId}'`, getErrorMessage(error));
 					}
 				}
 			}
+			logService.info(`Migrated ${global ? 'global' : 'workspace'} extension storage from ${fromExtensionId} to ${toExtensionId}`);
 		};
 
 		// Migrate Global Storage

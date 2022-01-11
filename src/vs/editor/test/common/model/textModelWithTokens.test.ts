@@ -16,7 +16,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/langua
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { NullState } from 'vs/editor/common/languages/nullMode';
 import { ILanguageService } from 'vs/editor/common/services/language';
-import { ViewLineToken } from 'vs/editor/test/common/core/viewLineToken';
+import { TestLineToken } from 'vs/editor/test/common/core/testLineToken';
 import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 
 suite('TextModelWithTokens', () => {
@@ -530,7 +530,7 @@ suite('TextModelWithTokens', () => {
 suite('TextModelWithTokens regression tests', () => {
 
 	test('microsoft/monaco-editor#122: Unhandled Exception: TypeError: Unable to get property \'replace\' of undefined or null reference', () => {
-		function assertViewLineTokens(model: TextModel, lineNumber: number, forceTokenization: boolean, expected: ViewLineToken[]): void {
+		function assertViewLineTokens(model: TextModel, lineNumber: number, forceTokenization: boolean, expected: TestLineToken[]): void {
 			if (forceTokenization) {
 				model.forceTokenization(lineNumber);
 			}
@@ -546,7 +546,7 @@ suite('TextModelWithTokens regression tests', () => {
 					foreground: _actual.getForeground(i)
 				};
 			}
-			let decode = (token: ViewLineToken) => {
+			let decode = (token: TestLineToken) => {
 				return {
 					endIndex: token.endIndex,
 					foreground: token.getForeground()
@@ -595,11 +595,11 @@ suite('TextModelWithTokens regression tests', () => {
 		registration1.dispose();
 		registration2.dispose();
 
-		function createViewLineToken(endIndex: number, foreground: number): ViewLineToken {
+		function createViewLineToken(endIndex: number, foreground: number): TestLineToken {
 			let metadata = (
 				(foreground << MetadataConsts.FOREGROUND_OFFSET)
 			) >>> 0;
-			return new ViewLineToken(endIndex, metadata);
+			return new TestLineToken(endIndex, metadata);
 		}
 	});
 

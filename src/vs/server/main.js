@@ -31,9 +31,10 @@ async function start() {
 		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port']
 	});
 
-	const extensionCliArgs = ['list-extensions', 'install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension'];
+	const extensionLookupArgs = ['list-extensions', 'locate-extension'];
+	const extensionInstallArgs = ['install-extension', 'install-builtin-extension', 'uninstall-extension'];
 
-	const shouldSpawnCli = parsedArgs.help || parsedArgs.version || !parsedArgs['start-server'] && extensionCliArgs.some(a => !!parsedArgs[a]);
+	const shouldSpawnCli = parsedArgs.help || parsedArgs.version || extensionLookupArgs.some(a => !!parsedArgs[a]) || (extensionInstallArgs.some(a => !!parsedArgs[a]) && !parsedArgs['start-server']);
 
 	if (shouldSpawnCli) {
 		loadCode().then((mod) => {
@@ -249,9 +250,14 @@ function loadCode() {
 	return new Promise((resolve, reject) => {
 		const path = require('path');
 
-		// Set default remote native node modules path, if unset
-		process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', '..', '..', 'remote', 'node_modules');
-		require('../../bootstrap-node').injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+		if (process.env['VSCODE_DEV']) {
+			// When running out of sources, we need to load node modules from remote/node_modules,
+			// which are compiled against nodejs, not electron
+			process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', '..', '..', 'remote', 'node_modules');
+			require('../../bootstrap-node').injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+		} else {
+			delete process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'];
+		}
 		require('../../bootstrap-amd').load('vs/server/remoteExtensionHostAgent', resolve, reject);
 	});
 }

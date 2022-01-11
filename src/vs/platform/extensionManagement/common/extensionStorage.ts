@@ -26,6 +26,7 @@ export const IExtensionStorageService = createDecorator<IExtensionStorageService
 export interface IExtensionStorageService {
 	readonly _serviceBrand: undefined;
 
+	hasExtensionState(extension: IExtension | IGalleryExtension | string): boolean;
 	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<any> | undefined;
 	setExtensionState(extension: IExtension | IGalleryExtension | string, state: IStringDictionary<any> | undefined, global: boolean): void;
 
@@ -104,6 +105,10 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 		const publisher = (extension as IExtension).manifest ? (extension as IExtension).manifest.publisher : (extension as IGalleryExtension).publisher;
 		const name = (extension as IExtension).manifest ? (extension as IExtension).manifest.name : (extension as IGalleryExtension).name;
 		return getExtensionId(publisher, name);
+	}
+
+	hasExtensionState(extension: IExtension | IGalleryExtension | string): boolean {
+		return !!this.getExtensionState(extension, true) || !!this.getExtensionState(extension, false);
 	}
 
 	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<any> | undefined {

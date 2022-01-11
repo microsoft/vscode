@@ -31,6 +31,8 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
+import { ColorId, ITokenPresentation, TokenizationRegistry } from 'vs/editor/common/languages';
+import { Color } from 'vs/base/common/color';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -38,6 +40,9 @@ export interface IVisibleRangeProvider {
 
 class VisibleTextAreaData {
 	_visibleTextAreaBrand: void = undefined;
+
+	public startPosition: Position | null = null;
+	public endPosition: Position | null = null;
 
 	public visibleTextareaStart: HorizontalPosition | null = null;
 	public visibleTextareaEnd: HorizontalPosition | null = null;
@@ -55,12 +60,12 @@ class VisibleTextAreaData {
 		const startModelPosition = new Position(this.modelLineNumber, this.distanceToModelLineStart + 1);
 		const endModelPosition = new Position(this.modelLineNumber, this._context.model.getModelLineMaxColumn(this.modelLineNumber) - this.distanceToModelLineEnd);
 
-		const startPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(startModelPosition);
-		const endPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(endModelPosition);
+		this.startPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(startModelPosition);
+		this.endPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(endModelPosition);
 
-		if (startPosition.lineNumber === endPosition.lineNumber) {
-			this.visibleTextareaStart = visibleRangeProvider.visibleRangeForPosition(startPosition);
-			this.visibleTextareaEnd = visibleRangeProvider.visibleRangeForPosition(endPosition);
+		if (this.startPosition.lineNumber === this.endPosition.lineNumber) {
+			this.visibleTextareaStart = visibleRangeProvider.visibleRangeForPosition(this.startPosition);
+			this.visibleTextareaEnd = visibleRangeProvider.visibleRangeForPosition(this.endPosition);
 		} else {
 			// TODO: what if the view positions are not on the same line?
 			this.visibleTextareaStart = null;
@@ -606,9 +611,13 @@ export class TextAreaHandler extends ViewPart {
 
 	private _render(): void {
 		if (this._visibleTextArea) {
+			// The text area is visible for composition reasons
+
 			const visibleStart = this._visibleTextArea.visibleTextareaStart;
 			const visibleEnd = this._visibleTextArea.visibleTextareaEnd;
-			if (visibleStart && visibleEnd && visibleEnd.left >= this._scrollLeft && visibleStart.left <= this._scrollLeft + this._contentWidth) {
+			const startPosition = this._visibleTextArea.startPosition;
+			const endPosition = this._visibleTextArea.endPosition;
+			if (startPosition && endPosition && visibleStart && visibleEnd && visibleEnd.left >= this._scrollLeft && visibleStart.left <= this._scrollLeft + this._contentWidth) {
 				const top = (this._context.viewLayout.getVerticalOffsetForLineNumber(this._primaryCursorPosition.lineNumber) - this._scrollTop);
 				const lineCount = this._newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
 				this.textArea.domNode.scrollTop = lineCount * this._lineHeight;
@@ -633,7 +642,6 @@ export class TextAreaHandler extends ViewPart {
 
 				this.textArea.domNode.scrollLeft = scrollLeft;
 
-				// The text area is visible for composition reasons
 				this._renderInsideEditor(
 					null,
 					top,
@@ -641,6 +649,32 @@ export class TextAreaHandler extends ViewPart {
 					width,
 					this._lineHeight
 				);
+
+				// Try to render the textarea with the color/font style to match the text under it
+				const viewLineData = this._context.model.getViewLineData(startPosition.lineNumber);
+				const startTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(startPosition.column - 1);
+				const endTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(endPosition.column - 1);
+				let presentation: ITokenPresentation;
+				if (startTokenIndex === endTokenIndex) {
+					presentation = viewLineData.tokens.getPresentation(startTokenIndex);
+				} else {
+					// if the textarea spans multiple tokens, then use default styles
+					presentation = {
+						foreground: ColorId.DefaultForeground,
+						italic: false,
+						bold: false,
+						underline: false,
+						strikethrough: false,
+					};
+				}
+				const color: Color | undefined = (TokenizationRegistry.getColorMap() || [])[presentation.foreground];
+				this.textArea.domNode.style.color = (color ? Color.Format.CSS.formatHex(color) : 'inherit');
+				this.textArea.domNode.style.fontStyle = (presentation.italic ? 'italic' : 'inherit');
+				if (presentation.bold) {
+					// fontWeight is also set by `applyFontInfo`, so only overwrite it if necessary
+					this.textArea.domNode.style.fontWeight = 'bold';
+				}
+				this.textArea.domNode.style.textDecoration = `${presentation.underline ? ' underline' : ''}${presentation.strikethrough ? ' line-through' : ''}`;
 			}
 			return;
 		}
