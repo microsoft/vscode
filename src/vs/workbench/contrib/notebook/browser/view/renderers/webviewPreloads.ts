@@ -818,7 +818,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					break;
 				}
 
-				if (selection.getRangeAt(0).startContainer.nodeType === 1
+				if (selection.rangeCount > 0 && selection.getRangeAt(0).startContainer.nodeType === 1
 					&& (selection.getRangeAt(0).startContainer as Element).classList.contains('markup')) {
 					// markdown preview container
 					const preview = (selection.anchorNode?.firstChild as Element);
@@ -836,7 +836,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					}
 				}
 
-				if (selection.getRangeAt(0).startContainer.nodeType === 1
+				if (selection.rangeCount > 0 && selection.getRangeAt(0).startContainer.nodeType === 1
 					&& (selection.getRangeAt(0).startContainer as Element).classList.contains('output_container')) {
 					// output container
 					const cellId = selection.getRangeAt(0).startContainer.parentElement!.id;

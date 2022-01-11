@@ -9,7 +9,7 @@ import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { IAction } from 'vs/base/common/actions';
-import { SequencerByKey } from 'vs/base/common/async';
+import { runWhenIdle, SequencerByKey } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -75,6 +75,7 @@ import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
+import { setTimeout0 } from 'vs/base/common/platform';
 
 const $ = DOM.$;
 
@@ -1182,6 +1183,49 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		this.updateContextKeysOnFocusChange();
+		// render markdown top down on idle
+		this._backgroundMarkdownRendering();
+	}
+
+	private _isScheduled = false;
+	private _backgroundMarkdownRendering() {
+		if (this._isScheduled) {
+			return;
+		}
+
+		runWhenIdle((deadline) => {
+			this._isScheduled = false;
+			this._backgroundMarkdownRenderingWithDeadline(deadline);
+		});
+	}
+
+	private _backgroundMarkdownRenderingWithDeadline(deadline: IdleDeadline) {
+		const endTime = Date.now() + deadline.timeRemaining();
+
+		const execute = () => {
+			if (this._isDisposed) {
+				return;
+			}
+
+			if (!this.viewModel) {
+				return;
+			}
+
+			const firstMarkupCell = this.viewModel.viewCells.find(cell => cell.cellKind === CellKind.Markup && !this._webview?.markupPreviewMapping.has(cell.id)) as MarkupCellViewModel | undefined;
+			if (!firstMarkupCell) {
+				return;
+			}
+
+			this.createMarkupPreview(firstMarkupCell);
+
+			if (Date.now() < endTime) {
+				setTimeout0(execute);
+			} else {
+				this._backgroundMarkdownRendering();
+			}
+		};
+
+		execute();
 	}
 
 	private updateContextKeysOnFocusChange() {
@@ -2344,30 +2388,33 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 	}
-	private async _warmupAll() {
+
+	private async _warmupAll(includeOutput: boolean) {
 		if (!this.hasModel() || !this.viewModel) {
 			return;
 		}
 
 		const cells = this.viewModel.viewCells;
-		const markupRequests = [];
+		const requests = [];
 
 		for (let i = 0; i < cells.length; i++) {
 			if (cells[i].cellKind === CellKind.Markup && !this._webview!.markupPreviewMapping.has(cells[i].id)) {
-				markupRequests.push(this.createMarkupPreview(cells[i]));
+				requests.push(this.createMarkupPreview(cells[i]));
 			}
 		}
 
-		const renderOutputPromises = [];
-		for (let i = 0; i < this.getLength(); i++) {
-			const cell = this.cellAt(i);
+		if (includeOutput) {
+			for (let i = 0; i < this.getLength(); i++) {
+				const cell = this.cellAt(i);
 
-			if (cell?.cellKind === CellKind.Code) {
-				renderOutputPromises.push(this._renderCell((cell as CodeCellViewModel)));
+				if (cell?.cellKind === CellKind.Code) {
+					requests.push(this._renderCell((cell as CodeCellViewModel)));
+				}
 			}
 		}
 
-		return Promise.all([...markupRequests, ...renderOutputPromises]);
+
+		return Promise.all(requests);
 	}
 
 	async find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup: boolean = false): Promise<CellFindMatchWithIndex[]> {
@@ -2376,11 +2423,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		const findMatches = this._notebookViewModel.find(query, options).filter(match => match.matches.length > 0);
-		if (!options.includePreview) {
-			// clear output matches
-			await this._webview?.findStop();
-			return findMatches;
-		}
+		// if (!options.includePreview) {
+		// 	// clear output matches
+		// 	await this._webview?.findStop();
+		// 	return findMatches;
+		// }
 
 		const matchMap: { [key: string]: CellFindMatchWithIndex } = {};
 		findMatches.forEach(match => {
@@ -2391,10 +2438,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		if (this._webview) {
 			// request all outputs to be rendered
-			await this._warmupAll();
+			await this._warmupAll(!!options.includePreview);
 			const webviewMatches = await this._webview.find(query);
 			// attach webview matches to model find matches
 			webviewMatches.forEach(match => {
+				if (!options.includePreview && match.type === 'output') {
+					// skip outputs if not included
+					return;
+				}
+
 				const exisitingMatch = matchMap[match.cellId];
 
 				if (exisitingMatch) {
