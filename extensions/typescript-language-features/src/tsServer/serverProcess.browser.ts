@@ -46,7 +46,7 @@ export class WorkerServerProcess implements TsServerProcess {
 	) {
 		worker.addEventListener('message', (msg: any) => {
 			if (msg.data.type === 'log') {
-				this.output.appendLine(msg.data.body);
+				this.output.append(msg.data.body);
 				return;
 			}
 
