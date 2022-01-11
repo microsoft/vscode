@@ -403,10 +403,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	override focus(): void {
 		if (this._currentFocusContext === SettingsFocusContext.Search) {
-			if (!platform.isIOS) {
-				// #122044
-				this.focusSearch();
-			}
+			this.focusSearch();
 		} else if (this._currentFocusContext === SettingsFocusContext.SettingControl) {
 			const element = this.focusedSettingDOMElement;
 			if (element) {
