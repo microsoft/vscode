@@ -11,7 +11,7 @@ import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabe
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { DefaultKeyboardNavigationDelegate, IListOptions, IListStyles, isInputElement, isMonacoEditor, List, MouseController } from 'vs/base/browser/ui/list/listWidget';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeError, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { distinct, equals, firstOrDefault, range } from 'vs/base/common/arrays';
 import { disposableTimeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
@@ -232,6 +232,49 @@ interface ITreeListTemplateData<T> {
 	readonly twistie: HTMLElement;
 	indentGuidesDisposable: IDisposable;
 	readonly templateData: T;
+}
+
+export interface IAbstractTreeViewState {
+	readonly focus: Iterable<string>;
+	readonly selection: Iterable<string>;
+	readonly expanded: Iterable<string>;
+	readonly scrollTop: number;
+}
+
+export class AbstractTreeViewState implements IAbstractTreeViewState {
+	public readonly focus: Set<string>;
+	public readonly selection: Set<string>;
+	public readonly expanded: Set<string>;
+	public scrollTop: number;
+
+	public static lift(state: IAbstractTreeViewState) {
+		return state instanceof AbstractTreeViewState ? state : new AbstractTreeViewState(state);
+	}
+
+	public static empty(scrollTop = 0) {
+		return new AbstractTreeViewState({
+			focus: [],
+			selection: [],
+			expanded: [],
+			scrollTop,
+		});
+	}
+
+	protected constructor(state: IAbstractTreeViewState) {
+		this.focus = new Set(state.focus);
+		this.selection = new Set(state.selection);
+		this.expanded = new Set(state.expanded);
+		this.scrollTop = state.scrollTop;
+	}
+
+	public toJSON(): IAbstractTreeViewState {
+		return {
+			focus: Array.from(this.focus),
+			selection: Array.from(this.selection),
+			expanded: Array.from(this.expanded),
+			scrollTop: this.scrollTop,
+		};
+	}
 }
 
 export enum RenderIndentGuides {
@@ -1312,7 +1355,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
 
 	constructor(
-		user: string,
+		private readonly _user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
@@ -1339,9 +1382,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.focus = new Trait(() => this.view.getFocusedElements()[0], _options.identityProvider);
 		this.selection = new Trait(() => this.view.getSelectedElements()[0], _options.identityProvider);
 		this.anchor = new Trait(() => this.view.getAnchorElement(), _options.identityProvider);
-		this.view = new TreeNodeList(user, container, treeDelegate, this.renderers, this.focus, this.selection, this.anchor, { ...asListOptions(() => this.model, _options), tree: this });
+		this.view = new TreeNodeList(_user, container, treeDelegate, this.renderers, this.focus, this.selection, this.anchor, { ...asListOptions(() => this.model, _options), tree: this });
 
-		this.model = this.createModel(user, this.view, _options);
+		this.model = this.createModel(_user, this.view, _options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
 		const onDidModelSplice = Event.forEach(this.model.onDidSplice, e => {
@@ -1682,6 +1725,36 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		return this.view.getRelativeTop(index);
+	}
+
+	getViewState(): AbstractTreeViewState {
+		if (!this.options.identityProvider) {
+			throw new TreeError(this._user, 'Can\'t get tree view state without an identity provider');
+		}
+
+		const getId = (element: T | null) => this.options.identityProvider!.getId(element!).toString();
+		const state = AbstractTreeViewState.empty(this.scrollTop);
+		for (const focus of this.getFocus()) {
+			state.focus.add(getId(focus));
+		}
+		for (const selection of this.getSelection()) {
+			state.selection.add(getId(selection));
+		}
+
+		const root = this.model.getNode();
+		const queue = [root];
+
+		while (queue.length > 0) {
+			const node = queue.shift()!;
+
+			if (node !== root && node.collapsible && !node.collapsed) {
+				state.expanded.add(getId(node.element!));
+			}
+
+			queue.push(...node.children);
+		}
+
+		return state;
 	}
 
 	// List
