@@ -70,6 +70,7 @@ import { isFirefox } from 'vs/base/browser/browser';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 import { fromNow } from 'vs/base/common/date';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 
 const enum Constants {
 	/**
@@ -121,7 +122,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _xtermReadyPromise: Promise<XtermTerminal>;
 	private _xtermTypeAheadAddon: TypeAheadAddon | undefined;
 
-	private _processManager!: ITerminalProcessManager;
+	private readonly _processManager: ITerminalProcessManager;
 	private _pressAnyKeyToCloseListener: IDisposable | undefined;
 
 	private _instanceId: number;
@@ -177,6 +178,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly statusList: ITerminalStatusList;
 	disableLayout: boolean = false;
 
+	// TODO: Gather terminal capabilities here
+	private _capabilities2 = new TerminalCapabilityStoreMultiplexer();
 	private _capabilities: ProcessCapability[] = [];
 	private _description?: string;
 	private _processName: string = '';
@@ -368,7 +371,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this.statusList = this._instantiationService.createInstance(TerminalStatusList);
 		this._initDimensions();
-		this._createProcessManager();
+		this._processManager = this._createProcessManager();
 
 		this._register(toDisposable(() => this._dndObserver?.dispose()));
 
@@ -1172,9 +1175,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalHasTextContextKey.set((isActive || isEditorActive) && this.hasSelection());
 	}
 
-	protected _createProcessManager(): void {
-		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper);
-		this._processManager.onProcessReady(async (e) => {
+	protected _createProcessManager(): TerminalProcessManager {
+		const processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper);
+		this._capabilities2.addCapabilityStore(this._processManager.capabilities);
+		processManager.onProcessReady(async (e) => {
 			this._onProcessIdReady.fire(this);
 			this._initialCwd = await this.getInitialCwd();
 			this._capabilities = e.capabilities;
@@ -1201,8 +1205,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.refreshTabLabels(this._shellLaunchConfig.executable, TitleEventSource.Process);
 			}
 		});
-		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
-		this._processManager.onDidChangeProperty(({ type, value }) => {
+		processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
+		processManager.onDidChangeProperty(({ type, value }) => {
 			switch (type) {
 				case ProcessPropertyType.Cwd:
 					this._cwd = value;
@@ -1231,12 +1235,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		});
 
-		this._processManager.onProcessData(ev => {
+		processManager.onProcessData(ev => {
 			this._initialDataEvents?.push(ev.data);
 			this._onData.fire(ev.data);
 		});
-		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
-		this._processManager.onPtyDisconnect(() => {
+		processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
+		processManager.onPtyDisconnect(() => {
 			if (this.xterm) {
 				this.xterm.raw.options.disableStdin = true;
 			}
@@ -1247,12 +1251,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				tooltip: nls.localize('disconnectStatus', "Lost connection to process")
 			});
 		});
-		this._processManager.onPtyReconnect(() => {
+		processManager.onPtyReconnect(() => {
 			if (this.xterm) {
 				this.xterm.raw.options.disableStdin = false;
 			}
 			this.statusList.remove(TerminalStatus.Disconnected);
 		});
+		return processManager;
 	}
 
 	private async _createProcess(): Promise<void> {
