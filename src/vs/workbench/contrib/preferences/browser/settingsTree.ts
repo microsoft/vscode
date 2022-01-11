@@ -800,8 +800,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
 		const labelElement = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
-		const syncIgnoredElement = this.createSyncIgnoredElement(titleElement);
 		const { element: defaultOverrideIndicator, label: defaultOverrideLabel } = this.createDefaultOverrideIndicator(titleElement);
+		const syncIgnoredElement = this.createSyncIgnoredElement(titleElement);
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
@@ -965,10 +965,11 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 				template.defaultOverrideIndicator.style.display = 'inline';
 				if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
 					const extensionSource = defaultValueSource.displayName ?? defaultValueSource.id;
-					template.defaultOverrideIndicator.title = localize('defaultOverriddenDetails', "Default overridden by {0}", extensionSource);
-					template.defaultOverrideLabel.text = localize('defaultOverrideLabelText', "($(wrench) Source: {0})", extensionSource);
+					template.defaultOverrideIndicator.title = localize('defaultOverriddenDetails', "Default value overridden by {0}", extensionSource);
+					template.defaultOverrideLabel.text = localize('defaultOverrideLabelText', "($(wrench) Overridden by: {0})", extensionSource);
 				} else if (typeof defaultValueSource === 'string') {
-					template.defaultOverrideIndicator.title = localize('defaultOverriddenDetails', "Default overridden by {0}", defaultValueSource);
+					template.defaultOverrideIndicator.title = localize('defaultOverriddenDetails', "Default value overridden by {0}", defaultValueSource);
+					template.defaultOverrideLabel.text = localize('defaultOverrideLabelText', "($(wrench) Overridden by: {0})", defaultValueSource);
 				}
 			}
 		};
@@ -1834,8 +1835,8 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
-		const syncIgnoredElement = this.createSyncIgnoredElement(titleElement);
 		const { element: defaultOverrideIndicator, label: defaultOverrideLabel } = this.createDefaultOverrideIndicator(titleElement);
+		const syncIgnoredElement = this.createSyncIgnoredElement(titleElement);
 
 		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
