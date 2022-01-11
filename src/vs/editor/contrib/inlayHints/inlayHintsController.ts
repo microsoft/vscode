@@ -260,7 +260,7 @@ export class InlayHintsController implements IEditorContribution {
 			const range = model.getDecorationRange(id);
 			if (range) {
 				// update range with whatever the editor has tweaked it to
-				const anchor = new InlayHintAnchor(range, obj.item.anchor.direction, obj.item.anchor.usesWordRange);
+				const anchor = new InlayHintAnchor(range, obj.item.anchor.direction);
 				value = obj.item.with({ anchor });
 			}
 			items.set(obj.item, value);
@@ -358,8 +358,8 @@ export class InlayHintsController implements IEditorContribution {
 								attachedData: new InlayHintLabelPart(item, i)
 							} as InjectedTextOptions,
 							description: 'InlayHint',
-							showIfCollapsed: !item.anchor.usesWordRange,
-							collapseOnReplaceEdit: item.anchor.usesWordRange,
+							showIfCollapsed: item.anchor.range.isEmpty(), // "original" range is empty
+							collapseOnReplaceEdit: !item.anchor.range.isEmpty(),
 							stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 
 							// className: "rangeHighlight" // DEBUG highlight to see to what range a hint is attached
