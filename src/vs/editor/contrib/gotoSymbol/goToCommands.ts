@@ -63,6 +63,24 @@ function registerGoToAction<T extends EditorAction>(ctor: { new(): T; }): T {
 	return result;
 }
 
+export class SymbolNavigationAnchor {
+
+	static is(thing: any): thing is SymbolNavigationAnchor {
+		if (!thing || typeof thing !== 'object') {
+			return false;
+		}
+		if (thing instanceof SymbolNavigationAnchor) {
+			return true;
+		}
+		if (corePosition.Position.isIPosition((<SymbolNavigationAnchor>thing).position) && (<SymbolNavigationAnchor>thing).model) {
+			return true;
+		}
+		return false;
+	}
+
+	constructor(readonly model: ITextModel, readonly position: corePosition.Position) { }
+}
+
 export abstract class SymbolNavigationAction extends EditorAction {
 
 	readonly configuration: SymbolNavigationActionConfig;
@@ -72,7 +90,7 @@ export abstract class SymbolNavigationAction extends EditorAction {
 		this.configuration = configuration;
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor, location?: { model: ITextModel, position: corePosition.Position }): Promise<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor, arg?: SymbolNavigationAnchor | unknown): Promise<void> {
 		if (!editor.hasModel()) {
 			return Promise.resolve(undefined);
 		}
@@ -83,13 +101,11 @@ export abstract class SymbolNavigationAction extends EditorAction {
 
 		const model = editor.getModel();
 		const position = editor.getPosition();
-		if (!location) {
-			location = { model, position };
-		}
+		const anchor = SymbolNavigationAnchor.is(arg) ? arg : new SymbolNavigationAnchor(model, position);
 
 		const cts = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
-		const promise = raceCancellation(this._getLocationModel(location.model, location.position, cts.token), cts.token).then(async references => {
+		const promise = raceCancellation(this._getLocationModel(anchor.model, anchor.position, cts.token), cts.token).then(async references => {
 
 			if (!references || cts.token.isCancellationRequested) {
 				return;
