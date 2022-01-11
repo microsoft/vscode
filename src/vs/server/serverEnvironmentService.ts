@@ -20,6 +20,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'socket-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('socket-path', 'The path to a socket file for the server to listen to.') },
 	'connection-token': { type: 'string', cat: 'o', args: 'token', deprecates: ['connectionToken'], description: nls.localize('connection-token', "A secret that must be included with all requests.") },
 	'connection-token-file': { type: 'string', cat: 'o', args: 'path', deprecates: ['connection-secret', 'connectionTokenFile'], description: nls.localize('connection-token-file', "Path to a file that contains the connection token. This will require that all incoming connections know the secret.") },
+	'without-connection-token': { type: 'boolean', cat: 'o', description: nls.localize('without-connection-token', "Run without a connection token. Only use this if the connection is protected by other means.") },
 	'disable-websocket-compression': { type: 'boolean' },
 	'print-startup-performance': { type: 'boolean' },
 	'print-ip-address': { type: 'boolean' },
@@ -109,6 +110,11 @@ export interface ServerParsedArgs {
 	 * This secret must be communicated to any vscode instance via the resolver or embedder API.
 	 */
 	'connection-token-file'?: string;
+
+	/**
+	 * Run the server without a connection token
+	 */
+	'without-connection-token'?: boolean;
 
 	'disable-websocket-compression'?: boolean;
 
