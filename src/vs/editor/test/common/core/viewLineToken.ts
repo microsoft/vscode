@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IViewLineTokens } from 'vs/editor/common/model/tokens/lineTokens';
-import { ColorId, TokenMetadata } from 'vs/editor/common/languages';
+import { ColorId, ITokenPresentation, TokenMetadata } from 'vs/editor/common/languages';
 
 /**
  * A token on a line.
@@ -33,6 +33,10 @@ export class ViewLineToken {
 
 	public getInlineStyle(colorMap: string[]): string {
 		return TokenMetadata.getInlineStyleFromMetadata(this._metadata, colorMap);
+	}
+
+	public getPresentation(): ITokenPresentation {
+		return TokenMetadata.getPresentationFromMetadata(this._metadata);
 	}
 
 	private static _equals(a: ViewLineToken, b: ViewLineToken): boolean {
@@ -90,6 +94,10 @@ export class ViewLineTokens implements IViewLineTokens {
 
 	public getInlineStyle(tokenIndex: number, colorMap: string[]): string {
 		return this._actual[tokenIndex].getInlineStyle(colorMap);
+	}
+
+	public getPresentation(tokenIndex: number): ITokenPresentation {
+		return this._actual[tokenIndex].getPresentation();
 	}
 
 	public findTokenIndexAtOffset(offset: number): number {
