@@ -142,7 +142,11 @@
 			'iconv-lite-umd': `${baseNodeModulesPath}/iconv-lite-umd/lib/iconv-lite-umd.js`,
 			'jschardet': `${baseNodeModulesPath}/jschardet/dist/jschardet.min.js`,
 			'@vscode/vscode-languagedetection': `${baseNodeModulesPath}/@vscode/vscode-languagedetection/dist/lib/index.js`,
-			'tas-client-umd': `${baseNodeModulesPath}/tas-client-umd/lib/tas-client-umd.js`
+			'tas-client-umd': `${baseNodeModulesPath}/tas-client-umd/lib/tas-client-umd.js`,
+			'dayjs': `${baseNodeModulesPath}/dayjs/dayjs.min.js`,
+			'dayjs/plugin/relativeTime': `${baseNodeModulesPath}/dayjs/plugin/relativeTime.js`,
+			'dayjs/plugin/updateLocale': `${baseNodeModulesPath}/dayjs/plugin/updateLocale.js`,
+			'dayjs/plugin/localizedFormat': `${baseNodeModulesPath}/dayjs/plugin/localizedFormat.js`
 		};
 
 		// Allow to load built-in and other node.js modules via AMD

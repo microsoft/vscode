@@ -10,7 +10,7 @@ import { SerializedError } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
+import { MarshalledId, revive } from 'vs/base/common/marshalling';
 import * as performance from 'vs/base/common/performance';
 import Severity from 'vs/base/common/severity';
 import { Dto } from 'vs/base/common/types';
@@ -160,11 +160,25 @@ export interface CommentProviderFeatures {
 	options?: modes.CommentOptions;
 }
 
+export interface CommentChanges {
+	readonly uniqueIdInThread: number;
+	readonly body: IMarkdownString;
+	readonly userName: string;
+	readonly userIconPath?: string;
+	readonly contextValue?: string;
+	readonly commentReactions?: modes.CommentReaction[];
+	readonly label?: string;
+	readonly mode?: modes.CommentMode;
+	readonly detail?: {
+		$mid: MarshalledId.Date
+	} | string;
+}
+
 export type CommentThreadChanges = Partial<{
 	range: IRange,
 	label: string,
 	contextValue: string | null,
-	comments: modes.Comment[],
+	comments: CommentChanges[],
 	collapseState: modes.CommentThreadCollapsibleState;
 	canReply: boolean;
 }>;
