@@ -8,7 +8,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const rimraf = require('rimraf');
 
 const root = path.join(__dirname, 'node_modules', 'typescript');
 
@@ -21,12 +20,12 @@ function processRoot() {
 		if (!toKeep.has(name)) {
 			const filePath = path.join(root, name);
 			console.log(`Removed ${filePath}`);
-			rimraf.sync(filePath);
+			fs.rmdirSync(filePath, { recursive: true });
 		}
 	}
 
 	// Delete .bin so it doesn't contain broken symlinks that trip up nfpm.
-	rimraf.sync(path.join(__dirname, 'node_modules', '.bin'));
+	fs.rmdirSync(path.join(__dirname, 'node_modules', '.bin'), { recursive: true });
 }
 
 function processLib() {
