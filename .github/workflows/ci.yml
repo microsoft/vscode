@@ -85,11 +85,11 @@ jobs:
         run: .\scripts\test-integration.bat
 
       - name: Run Integration Tests (Browser, Firefox)
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: .\resources\server\test\test-web-integration.bat --browser firefox
 
       - name: Run Integration Tests (Remote)
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: .\resources\server\test\test-remote-integration.bat
 
   linux:
@@ -171,7 +171,7 @@ jobs:
 
       - name: Run Integration Tests (Remote)
         id: electron-remote-integration-tests
-        timeout-minutes: 7
+        timeout-minutes: 15
         run: DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
 
   darwin:
@@ -245,7 +245,7 @@ jobs:
         run: DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser webkit
 
       - name: Run Integration Tests (Remote)
-        timeout-minutes: 7
+        timeout-minutes: 15
         run: DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
 
   hygiene:
