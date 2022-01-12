@@ -9,7 +9,7 @@ import { TerminalLabelComputer, parseExitResult } from 'vs/workbench/contrib/ter
 import { IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { fixPath, getUri } from 'vs/workbench/contrib/search/test/browser/queryBuilder.test';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -17,8 +17,13 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
 import { basename } from 'vs/base/common/path';
+import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 
-function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
+function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities2' | 'title' | 'description'> {
+	const capabilities2 = new TerminalCapabilityStore();
+	if (!isWindows) {
+		capabilities2.addCapability(TerminalCapability.CwdDetection);
+	}
 	return {
 		shellLaunchConfig: {},
 		cwd: 'cwd',
@@ -27,7 +32,7 @@ function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalIns
 		sequence: undefined,
 		workspaceFolder: undefined,
 		staticTitle: undefined,
-		capabilities: isWindows ? [] : [ProcessCapability.CwdDetection],
+		capabilities2,
 		title: '',
 		description: '',
 		userHome: undefined,
@@ -157,12 +162,16 @@ suite('Workbench - TerminalInstance', () => {
 		let mockWorkspace: Workspace;
 		let mockMultiRootWorkspace: Workspace;
 		let emptyWorkspace: Workspace;
-		let capabilities: ProcessCapability[];
+		let capabilities2: TerminalCapabilityStore;
 		let configHelper: TerminalConfigHelper;
 		setup(async () => {
 			instantiationService = new TestInstantiationService();
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
-			capabilities = isWindows ? [] : [ProcessCapability.CwdDetection];
+			const capabilities2 = new TerminalCapabilityStore();
+			if (!isWindows) {
+				// TODO: Replace all these with Naive
+				capabilities2.addCapability(TerminalCapability.CwdDetection);
+			}
 
 			const ROOT_1_URI = getUri(ROOT_1);
 			mockContextService = new TestContextService();
@@ -183,7 +192,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should resolve to "" when the template variables are empty', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '', description: '' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: '' }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities2, processName: '' }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			// TODO:
 			// terminalLabelComputer.onLabelChanged(e => {
@@ -196,7 +205,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should resolve cwd', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, cwd: ROOT_1 }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities2, cwd: ROOT_1 }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			strictEqual(terminalLabelComputer.title, ROOT_1);
 			strictEqual(terminalLabelComputer.description, ROOT_1);
@@ -204,7 +213,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should resolve cwdFolder in a single root workspace if cwd differs from root', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwdFolder}' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, cwd: ROOT_2, processName: 'zsh' }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities2, cwd: ROOT_2, processName: 'zsh' }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			if (isWindows) {
 				strictEqual(terminalLabelComputer.title, 'zsh');
@@ -217,7 +226,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should resolve workspaceFolder', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${workspaceFolder}', description: '${workspaceFolder}' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh', workspaceFolder: 'folder' }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities2, processName: 'zsh', workspaceFolder: 'folder' }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			strictEqual(terminalLabelComputer.title, 'folder');
 			strictEqual(terminalLabelComputer.description, 'folder');
@@ -225,7 +234,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should resolve local', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${local}', description: '${local}' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { description: 'Local' } }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities2, processName: 'zsh', shellLaunchConfig: { description: 'Local' } }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			strictEqual(terminalLabelComputer.title, 'Local');
 			strictEqual(terminalLabelComputer.description, 'Local');
@@ -233,7 +242,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should resolve process', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${process}' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh' }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities2, processName: 'zsh' }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			strictEqual(terminalLabelComputer.title, 'zsh');
 			strictEqual(terminalLabelComputer.description, 'zsh');
@@ -241,7 +250,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should resolve sequence', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${sequence}', description: '${sequence}' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, sequence: 'sequence' }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities2, sequence: 'sequence' }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			strictEqual(terminalLabelComputer.title, 'sequence');
 			strictEqual(terminalLabelComputer.description, 'sequence');
@@ -249,7 +258,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should resolve task', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${task}', description: '${task}' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { description: 'Task' } }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities2, processName: 'zsh', shellLaunchConfig: { description: 'Task' } }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			strictEqual(terminalLabelComputer.title, 'zsh ~ Task');
 			strictEqual(terminalLabelComputer.description, 'Task');
@@ -257,7 +266,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should resolve separator', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${separator}', description: '${separator}' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { description: 'Task' } }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities2, processName: 'zsh', shellLaunchConfig: { description: 'Task' } }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			strictEqual(terminalLabelComputer.title, 'zsh');
 			strictEqual(terminalLabelComputer.description, '');
@@ -265,7 +274,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should always return static title when specified', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}', description: '${workspaceFolder}' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'process', workspaceFolder: 'folder', staticTitle: 'my-title' }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities2, processName: 'process', workspaceFolder: 'folder', staticTitle: 'my-title' }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			strictEqual(terminalLabelComputer.title, 'my-title');
 			strictEqual(terminalLabelComputer.description, 'folder');
@@ -273,7 +282,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should provide cwdFolder for all cwds only when in multi-root', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } }, cwd: ROOT_1 } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'process', workspaceFolder: 'folder', cwd: ROOT_1 }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities2, processName: 'process', workspaceFolder: 'folder', cwd: ROOT_1 }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			// single-root, cwd is same as root
 			strictEqual(terminalLabelComputer.title, 'process');
@@ -281,7 +290,7 @@ suite('Workbench - TerminalInstance', () => {
 			// multi-root
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } }, cwd: ROOT_1 } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'process', workspaceFolder: 'folder', cwd: ROOT_2 }), mockMultiRootContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities2, processName: 'process', workspaceFolder: 'folder', cwd: ROOT_2 }), mockMultiRootContextService);
 			terminalLabelComputer.refreshLabel();
 			if (isWindows) {
 				strictEqual(terminalLabelComputer.title, 'process');
@@ -294,12 +303,12 @@ suite('Workbench - TerminalInstance', () => {
 		test('should hide cwdFolder in single folder workspaces when cwd matches the workspace\'s default cwd even when slashes differ', async () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } }, cwd: '\\foo\\root1' } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'process', workspaceFolder: 'folder', cwd: ROOT_1 }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities2, processName: 'process', workspaceFolder: 'folder', cwd: ROOT_1 }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			strictEqual(terminalLabelComputer.title, 'process');
 			strictEqual(terminalLabelComputer.description, '');
 			if (!isWindows) {
-				terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'process', workspaceFolder: 'folder', cwd: ROOT_2 }), mockContextService);
+				terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities2, processName: 'process', workspaceFolder: 'folder', cwd: ROOT_2 }), mockContextService);
 				terminalLabelComputer.refreshLabel();
 				strictEqual(terminalLabelComputer.title, 'process ~ root2');
 				strictEqual(terminalLabelComputer.description, 'root2');

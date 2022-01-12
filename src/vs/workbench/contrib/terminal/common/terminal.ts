@@ -406,6 +406,7 @@ export interface ITerminalCapabilityStore {
 	readonly items: readonly TerminalCapability[];
 	readonly onDidDisableCapability: Event<TerminalCapability>;
 	readonly onDidEnableCapability: Event<TerminalCapability>;
+	has(capability: TerminalCapability): boolean;
 }
 
 export interface ITerminalCapabilityStoreController {

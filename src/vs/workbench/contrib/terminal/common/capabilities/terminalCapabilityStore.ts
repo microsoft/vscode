@@ -29,6 +29,10 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 		this.items.splice(index, 1);
 		this._onDidDisableCapability.fire(capability);
 	}
+
+	has(capability: TerminalCapability) {
+		return this.items.includes(capability);
+	}
 }
 
 export class TerminalCapabilityStoreMultiplexer extends Disposable implements ITerminalCapabilityStore {
@@ -44,6 +48,10 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 			p.push(...c.items);
 			return p;
 		}, []);
+	}
+
+	has(capability: TerminalCapability) {
+		return this.items.includes(capability);
 	}
 
 	addCapabilityStore(store: ITerminalCapabilityStore) {
