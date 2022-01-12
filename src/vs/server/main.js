@@ -37,7 +37,7 @@ async function start() {
 	}
 
 	if (parsedArgs['compatibility'] === '1.63') {
-		console.warn(`server.sh is being replaced by 'bin/${product.applicationName}'. Please migrate to the new command and adopt the following new default behaviors:`);
+		console.warn(`server.sh is being replaced by 'bin/${product.serverApplicationName}'. Please migrate to the new command and adopt the following new default behaviors:`);
 		console.warn('* connection token is mandatody unless --without-connection-token is used');
 		console.warn('* host defaults to 127.0.0.1');
 	}
