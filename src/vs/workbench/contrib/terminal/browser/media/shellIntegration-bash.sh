@@ -31,15 +31,15 @@ update_prompt() {
     if [[ $PS1 == *"$(prompt_start)"* ]]; then
         PREFIX=""
     else
-        PREFIX="%{$(prompt_start)%}"
+        PREFIX="$(prompt_start)"
     fi
-    PS1="$PREFIX$PS1%{$(prompt_end)%}"
+    PS1="$PREFIX$PS1$(prompt_end)"
 }
 
 precmd() {
     local STATUS="$?"
     if [ -z "${IN_COMMAND_EXECUTION-}" ]; then
-        # ctrl c was = to ""
+        # if not in command execution
         command_output_start
     fi
 
@@ -56,7 +56,8 @@ preexec() {
     IN_COMMAND_EXECUTION="1"
     command_output_start
 }
-set_shell_integration_enabled
-PROMPT_COMMAND='precmd'
+update_prompt
+PROMPT_COMMAND=${PROMPT_COMMAND:+"$PROMPT_COMMAND; "}'precmd'
 trap 'preexec' DEBUG
 update_cwd
+set_shell_integration_enabled

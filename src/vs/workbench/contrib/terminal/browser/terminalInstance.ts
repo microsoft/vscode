@@ -1309,7 +1309,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			enableShellIntegration = true;
 		} else if (!isWindows) {
 			if (shell === 'zsh') {
-				newArgs = ['-c', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration.sh; zsh -il'];
+				newArgs = ['-c', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh; zsh -il'];
 				enableShellIntegration = true;
 			} else if (shell === 'bash') {
 				newArgs = [
@@ -2444,4 +2444,10 @@ async function preparePathForShell(originalPath: string, executable: string | un
 
 		c(escapeNonWindowsPath(originalPath));
 	});
+}
+
+enum ShellIntegrationArgs {
+	'bash':,
+	'pwsh':,
+	'zsh' :
 }
