@@ -27,13 +27,7 @@ set_shell_integration_enabled() {
 update_prompt() {
     PRIOR_PROMPT="$PS1"
     IN_COMMAND_EXECUTION=""
-    local PREFIX=""
-    if [[ $PS1 == *"$(prompt_start)"* ]]; then
-        PREFIX=""
-    else
-        PREFIX="$(prompt_start)"
-    fi
-    PS1="$PREFIX$PS1$(prompt_end)"
+    PS1="$(prompt_start)$PREFIX$PS1$(prompt_end)"
 }
 
 precmd() {
