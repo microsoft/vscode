@@ -15,6 +15,7 @@
     "iconv-lite-umd": "0.6.10",
     "jschardet": "3.0.0",
     "minimist": "^1.2.5",
+    "keytar": "7.2.0",
     "native-watchdog": "1.3.0",
     "node-pty": "0.11.0-beta11",
     "spdlog": "^0.13.0",
