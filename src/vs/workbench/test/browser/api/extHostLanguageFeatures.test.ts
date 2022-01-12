@@ -1153,7 +1153,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, [';']));
 
 		await rpcProtocol.sync();
-		const value = (await getOnTypeFormattingEdits(NullWorkerService, model, new EditorPosition(1, 1), ';', { insertSpaces: true, tabSize: 2 }))!;
+		const value = (await getOnTypeFormattingEdits(NullWorkerService, model, new EditorPosition(1, 1), ';', { insertSpaces: true, tabSize: 2 }, CancellationToken.None))!;
 		assert.strictEqual(value.length, 1);
 		const [first] = value;
 		assert.strictEqual(first.text, ';');
@@ -1207,7 +1207,7 @@ suite('ExtHostLanguageFeatures', function () {
 			provideDocumentColors(): vscode.ColorInformation[] {
 				return [new types.ColorInformation(new types.Range(0, 0, 0, 20), new types.Color(0.1, 0.2, 0.3, 0.4))];
 			}
-			provideColorPresentations(color: vscode.Color, context: { range: vscode.Range, document: vscode.TextDocument }): vscode.ColorPresentation[] {
+			provideColorPresentations(color: vscode.Color, context: { range: vscode.Range, document: vscode.TextDocument; }): vscode.ColorPresentation[] {
 				return [];
 			}
 		}));

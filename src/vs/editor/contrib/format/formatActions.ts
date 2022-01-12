@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -102,7 +102,7 @@ class FormatOnType implements IEditorContribution {
 
 		const model = this._editor.getModel();
 		const position = this._editor.getPosition();
-		let canceled = false;
+		const cts = new CancellationTokenSource();
 
 		// install a listener that checks if edits happens before the
 		// position on which we format right now. If so, we won't
@@ -111,7 +111,7 @@ class FormatOnType implements IEditorContribution {
 			if (e.isFlush) {
 				// a model.setValue() was called
 				// cancel only once
-				canceled = true;
+				cts.cancel();
 				unbind.dispose();
 				return;
 			}
@@ -120,12 +120,11 @@ class FormatOnType implements IEditorContribution {
 				const change = e.changes[i];
 				if (change.range.endLineNumber <= position.lineNumber) {
 					// cancel only once
-					canceled = true;
+					cts.cancel();
 					unbind.dispose();
 					return;
 				}
 			}
-
 		});
 
 		getOnTypeFormattingEdits(
@@ -133,23 +132,18 @@ class FormatOnType implements IEditorContribution {
 			model,
 			position,
 			ch,
-			model.getFormattingOptions()
+			model.getFormattingOptions(),
+			cts.token
 		).then(edits => {
-
-			unbind.dispose();
-
-			if (canceled) {
+			if (cts.token.isCancellationRequested) {
 				return;
 			}
-
 			if (isNonEmptyArray(edits)) {
 				FormattingEdit.execute(this._editor, edits, true);
 				alertFormattingEdits(edits);
 			}
-
-		}, (err) => {
+		}).finally(() => {
 			unbind.dispose();
-			throw err;
 		});
 	}
 }
