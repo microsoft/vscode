@@ -213,9 +213,10 @@ export interface CodeCellLayoutInfo {
 	readonly outputTotalHeight: number;
 	readonly outputShowMoreContainerHeight: number;
 	readonly outputShowMoreContainerOffset: number;
-	readonly indicatorHeight: number;
 	readonly bottomToolbarOffset: number;
 	readonly layoutState: CellLayoutState;
+	readonly codeIndicatorHeight: number;
+	readonly outputIndicatorHeight: number;
 }
 
 export interface CodeCellLayoutChangeEvent {

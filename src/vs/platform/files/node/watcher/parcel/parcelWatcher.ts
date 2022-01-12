@@ -6,7 +6,7 @@
 import * as parcelWatcher from '@parcel/watcher';
 import { existsSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
-import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
+import { DeferredPromise, RunOnceScheduler, ThrottledWorker } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
@@ -87,6 +87,17 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 	readonly onDidError = this._onDidError.event;
 
 	protected readonly watchers = new Map<string, IParcelWatcherInstance>();
+
+	// Reduce likelyhood of spam from file events via throttling.
+	// (https://github.com/microsoft/vscode/issues/124723)
+	private readonly throttledFileChangesWorker = new ThrottledWorker<IDiskFileChange>(
+		{
+			maxWorkChunkSize: 500,	// only process up to 500 changes at once before...
+			throttleDelay: 200,	  	// ...resting for 200ms until we process events again...
+			maxBufferedWork: 30000 	// ...but never buffering more than 30000 events in memory
+		},
+		events => this._onDidChangeFile.fire(events)
+	);
 
 	private verboseLogging = false;
 	private enospcErrorLogged = false;
@@ -410,14 +421,26 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 	}
 
 	private emitEvents(events: IDiskFileChange[]): void {
-
-		// Send outside
-		this._onDidChangeFile.fire(events);
+		if (events.length === 0) {
+			return;
+		}
 
 		// Logging
 		if (this.verboseLogging) {
 			for (const event of events) {
 				this.trace(` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
+			}
+		}
+
+		// Broadcast to clients via throttler
+		const worked = this.throttledFileChangesWorker.work(events);
+
+		// Logging
+		if (!worked) {
+			this.warn(`started ignoring events due to too many file change events at once (incoming: ${events.length}, most recent change: ${events[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+		} else {
+			if (this.throttledFileChangesWorker.pending > 0) {
+				this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesWorker.pending}, most recent change: ${events[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
 			}
 		}
 	}

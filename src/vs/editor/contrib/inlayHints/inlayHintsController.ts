@@ -11,17 +11,17 @@ import { IRange } from 'vs/base/common/range';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { CssProperties, DynamicCssRules } from 'vs/editor/browser/editorDom';
+import { ClassNameReference, CssProperties, DynamicCssRules } from 'vs/editor/browser/editorDom';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/languages/languageFeatureRegistry';
-import { IModelDeltaDecoration, InjectedTextOptions, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
+import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
 import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/inlayHints';
 import { goToDefinitionWithLocation, showGoToContextMenu } from 'vs/editor/contrib/inlayHints/inlayHintsLocations';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -31,7 +31,6 @@ import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 const MAX_DECORATORS = 1500;
-
 
 class InlayHintsCache {
 
@@ -52,7 +51,7 @@ class InlayHintsCache {
 	}
 }
 
-export class InlayHintLabelPart {
+export class RenderedInlayHintLabelPart {
 	constructor(readonly item: InlayHintItem, readonly index: number) { }
 
 	get part() {
@@ -80,7 +79,7 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _decorationsMetadata = new Map<string, { item: InlayHintItem, classNameRef: IDisposable; }>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
-	private _activeInlayHintPart?: InlayHintLabelPart;
+	private _activeInlayHintPart?: RenderedInlayHintLabelPart;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -125,6 +124,7 @@ export class InlayHintsController implements IEditorContribution {
 		}
 
 		let cts: CancellationTokenSource | undefined;
+		let watchedProviders = new Set<languages.InlayHintsProvider>();
 
 		const scheduler = new RunOnceScheduler(async () => {
 			const t1 = Date.now();
@@ -132,17 +132,22 @@ export class InlayHintsController implements IEditorContribution {
 			cts?.dispose(true);
 			cts = new CancellationTokenSource();
 
-			const ranges = this._getHintsRanges();
-			const inlayHints = await InlayHintsFragments.create(model, ranges, cts.token);
+			const inlayHints = await InlayHintsFragments.create(model, this._getHintsRanges(), cts.token);
 			scheduler.delay = this._getInlayHintsDelays.update(model, Date.now() - t1);
 			if (cts.token.isCancellationRequested) {
 				inlayHints.dispose();
 				return;
 			}
-			this._sessionDisposables.add(inlayHints);
-			this._sessionDisposables.add(inlayHints.onDidReceiveProviderSignal(() => scheduler.schedule()));
 
-			this._updateHintsDecorators(ranges, inlayHints.items);
+			// listen to provider changes
+			for (const provider of inlayHints.provider) {
+				if (typeof provider.onDidChangeInlayHints === 'function' && !watchedProviders.has(provider)) {
+					this._sessionDisposables.add(provider.onDidChangeInlayHints(() => scheduler.schedule()));
+				}
+			}
+
+			this._sessionDisposables.add(inlayHints);
+			this._updateHintsDecorators(inlayHints.ranges, inlayHints.items);
 			this._cacheHintsForFastRestore(model);
 
 		}, this._getInlayHintsDelays.get(model));
@@ -167,31 +172,27 @@ export class InlayHintsController implements IEditorContribution {
 
 		gesture.onMouseMoveOrRelevantKeyDown(e => {
 			const [mouseEvent] = e;
-			if (mouseEvent.target.type !== MouseTargetType.CONTENT_TEXT || !mouseEvent.hasTriggerModifier) {
-				removeHighlight();
-				return;
-			}
-			const model = this._editor.getModel()!;
-			const options = mouseEvent.target.detail.injectedText?.options;
+			const labelPart = this._getInlayHintLabelPart(mouseEvent);
+			const model = this._editor.getModel();
 
-			if (!(options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLabelPart)) {
+			if (!labelPart || !mouseEvent.hasTriggerModifier || !model) {
 				removeHighlight();
 				return;
 			}
 
 			// render link => when the modifier is pressed and when there is an action
-			if (mouseEvent.hasTriggerModifier && options.attachedData.part.action) {
+			if (mouseEvent.hasTriggerModifier && labelPart.part.action) {
 
 				// resolve the item
 				const cts = new CancellationTokenSource();
-				options.attachedData.item.resolve(cts.token);
+				labelPart.item.resolve(cts.token);
 
-				this._activeInlayHintPart = options.attachedData;
+				this._activeInlayHintPart = labelPart;
 
 				const lineNumber = this._activeInlayHintPart.item.hint.position.lineNumber;
 				const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
 				const lineHints = new Set<InlayHintItem>();
-				for (let data of this._decorationsMetadata.values()) {
+				for (const data of this._decorationsMetadata.values()) {
 					if (range.containsRange(data.item.anchor.range)) {
 						lineHints.add(data.item);
 					}
@@ -206,12 +207,9 @@ export class InlayHintsController implements IEditorContribution {
 		});
 		gesture.onCancel(removeHighlight);
 		gesture.onExecute(e => {
-			if (e.target.type !== MouseTargetType.CONTENT_TEXT) {
-				return;
-			}
-			const options = e.target.detail?.injectedText?.options;
-			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLabelPart && options.attachedData.part.action) {
-				const part = options.attachedData.part;
+			const label = this._getInlayHintLabelPart(e);
+			if (label) {
+				const part = label.part;
 				if (languages.Command.is(part.action)) {
 					// command -> execute it
 					this._commandService.executeCommand(part.action.id, ...(part.action.arguments ?? [])).catch(err => this._notificationService.error(err));
@@ -237,12 +235,12 @@ export class InlayHintsController implements IEditorContribution {
 		});
 	}
 
-	private _getInlayHintLabelPart(e: IEditorMouseEvent) {
+	private _getInlayHintLabelPart(e: IEditorMouseEvent | ClickLinkMouseEvent): RenderedInlayHintLabelPart | undefined {
 		if (e.target.type !== MouseTargetType.CONTENT_TEXT) {
 			return undefined;
 		}
 		const options = e.target.detail.injectedText?.options;
-		if (options instanceof ModelDecorationInjectedTextOptions && options?.attachedData instanceof InlayHintLabelPart) {
+		if (options instanceof ModelDecorationInjectedTextOptions && options?.attachedData instanceof RenderedInlayHintLabelPart) {
 			return options.attachedData;
 		}
 		return undefined;
@@ -260,7 +258,7 @@ export class InlayHintsController implements IEditorContribution {
 			const range = model.getDecorationRange(id);
 			if (range) {
 				// update range with whatever the editor has tweaked it to
-				const anchor = new InlayHintAnchor(range, obj.item.anchor.direction, obj.item.anchor.usesWordRange);
+				const anchor = new InlayHintAnchor(range, obj.item.anchor.direction);
 				value = obj.item.with({ anchor });
 			}
 			items.set(obj.item, value);
@@ -284,24 +282,59 @@ export class InlayHintsController implements IEditorContribution {
 		return result;
 	}
 
-	private _updateHintsDecorators(ranges: Range[], items: readonly InlayHintItem[]): void {
+	private _updateHintsDecorators(ranges: readonly Range[], items: readonly InlayHintItem[]): void {
 
-		const { fontSize, fontFamily } = this._getLayoutInfo();
+		// utils to collect/create injected text decorations
 		const newDecorationsData: { item: InlayHintItem, decoration: IModelDeltaDecoration, classNameRef: IDisposable; }[] = [];
+		const addInjectedText = (item: InlayHintItem, ref: ClassNameReference, content: string, cursorStops: InjectedTextCursorStops, attachedData?: RenderedInlayHintLabelPart): void => {
+			newDecorationsData.push({
+				item,
+				classNameRef: ref,
+				decoration: {
+					range: item.anchor.range,
+					options: {
+						// className: "rangeHighlight", // DEBUG highlight to see to what range a hint is attached
+						description: 'InlayHint',
+						showIfCollapsed: item.anchor.range.isEmpty(), // "original" range is empty
+						collapseOnReplaceEdit: !item.anchor.range.isEmpty(),
+						stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+						[item.anchor.direction]: {
+							content,
+							inlineClassNameAffectsLetterSpacing: true,
+							inlineClassName: ref.className,
+							cursorStops,
+							attachedData
+						}
+					}
+				}
+			});
+		};
 
+		const addInjectedWhitespace = (item: InlayHintItem, isLast: boolean): void => {
+			const marginRule = this._ruleFactory.createClassNameRef({
+				width: `${(fontSize / 3) | 0}px`,
+				display: 'inline-block'
+			});
+			addInjectedText(item, marginRule, '\u200a', isLast ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None);
+		};
+
+
+		//
+		const { fontSize, fontFamily } = this._getLayoutInfo();
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
 		for (const item of items) {
 
+			// whitespace leading the actual label
+			if (item.hint.whitespaceBefore) {
+				addInjectedWhitespace(item, false);
+			}
+
+			// the label with its parts
 			const parts: languages.InlayHintLabelPart[] = typeof item.hint.label === 'string'
 				? [{ label: item.hint.label }]
 				: item.hint.label;
-
-			// text w/ links
-
-			const marginBefore = item.hint.whitespaceBefore ? (fontSize / 3) | 0 : 0;
-			const marginAfter = item.hint.whitespaceAfter ? (fontSize / 3) | 0 : 0;
 
 			for (let i = 0; i < parts.length; i++) {
 				const part = parts[i];
@@ -326,43 +359,32 @@ export class InlayHintsController implements IEditorContribution {
 
 				if (isFirst && isLast) {
 					// only element
-					cssProperties.margin = `0 ${marginAfter}px 0 ${marginBefore}px`;
 					cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px`;
 					cssProperties.borderRadius = `${(fontSize / 4) | 0}px`;
 				} else if (isFirst) {
 					// first element
-					cssProperties.margin = `0 0 0 ${marginBefore}px`;
 					cssProperties.padding = `1px 0 1px ${Math.max(1, fontSize / 4) | 0}px`;
 					cssProperties.borderRadius = `${(fontSize / 4) | 0}px 0 0 ${(fontSize / 4) | 0}px`;
 				} else if (isLast) {
 					// last element
-					cssProperties.margin = `0 ${marginAfter}px 0 0`;
 					cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px 1px 0`;
 					cssProperties.borderRadius = `0 ${(fontSize / 4) | 0}px ${(fontSize / 4) | 0}px 0`;
 				} else {
 					cssProperties.padding = `1px 0 1px 0`;
 				}
 
-				const classNameRef = this._ruleFactory.createClassNameRef(cssProperties);
-
-				newDecorationsData.push({
+				addInjectedText(
 					item,
-					classNameRef,
-					decoration: {
-						range: item.anchor.range,
-						options: {
-							[item.anchor.direction]: {
-								content: fixSpace(part.label),
-								inlineClassNameAffectsLetterSpacing: true,
-								inlineClassName: classNameRef.className,
-								attachedData: new InlayHintLabelPart(item, i)
-							} as InjectedTextOptions,
-							description: 'InlayHint',
-							showIfCollapsed: !item.anchor.usesWordRange,
-							stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
-						}
-					},
-				});
+					this._ruleFactory.createClassNameRef(cssProperties),
+					fixSpace(part.label),
+					isLast && !item.hint.whitespaceAfter ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None,
+					new RenderedInlayHintLabelPart(item, i)
+				);
+			}
+
+			// whitespace trailing the actual label
+			if (item.hint.whitespaceAfter) {
+				addInjectedWhitespace(item, true);
 			}
 
 			if (newDecorationsData.length > MAX_DECORATORS) {

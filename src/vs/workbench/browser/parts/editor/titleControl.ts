@@ -37,7 +37,7 @@ import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
 import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
 import { isFirefox } from 'vs/base/browser/browser';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 
 export interface IToolbarActions {
@@ -181,7 +181,7 @@ export abstract class TitleControl extends Themable {
 		this._register(this.editorActionsToolbar.actionRunner.onDidRun(e => {
 
 			// Notify for Error
-			if (e.error && !isPromiseCanceledError(e.error)) {
+			if (e.error && !isCancellationError(e.error)) {
 				this.notificationService.error(e.error);
 			}
 
@@ -340,7 +340,7 @@ export abstract class TitleControl extends Themable {
 		this.sideBySideEditorContext.set(editor.typeId === SideBySideEditorInput.ID);
 
 		// Find target anchor
-		let anchor: HTMLElement | { x: number, y: number } = node;
+		let anchor: HTMLElement | { x: number, y: number; } = node;
 		if (e instanceof MouseEvent) {
 			const event = new StandardMouseEvent(e);
 			anchor = { x: event.posx, y: event.posy };

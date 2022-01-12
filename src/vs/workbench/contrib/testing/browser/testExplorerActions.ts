@@ -44,7 +44,8 @@ const category = CATEGORIES.Test;
 
 const enum ActionOrder {
 	// Navigation:
-	Run = 10,
+	Refresh = 10,
+	Run,
 	Debug,
 	Coverage,
 	RunUsing,
@@ -1144,6 +1145,32 @@ export class ToggleInlineTestOutput extends Action2 {
 	}
 }
 
+const refreshMenus = (whenIsRefreshing: boolean): IAction2Options['menu'] => [
+	{
+		id: MenuId.TestItem,
+		group: 'inline',
+		order: ActionOrder.Refresh,
+		when: ContextKeyExpr.and(
+			TestingContextKeys.canRefreshTests.isEqualTo(true),
+			TestingContextKeys.isRefreshingTests.isEqualTo(whenIsRefreshing),
+		),
+	},
+	{
+		id: MenuId.ViewTitle,
+		group: 'navigation',
+		order: ActionOrder.Refresh,
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals('view', Testing.ExplorerViewId),
+			TestingContextKeys.canRefreshTests.isEqualTo(true),
+			TestingContextKeys.isRefreshingTests.isEqualTo(whenIsRefreshing),
+		),
+	},
+	{
+		id: MenuId.CommandPalette,
+		when: TestingContextKeys.canRefreshTests.isEqualTo(true),
+	},
+];
+
 export class RefreshTestsAction extends Action2 {
 	public static readonly ID = 'testing.refreshTests';
 	constructor() {
@@ -1155,26 +1182,9 @@ export class RefreshTestsAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyR),
+				when: TestingContextKeys.canRefreshTests.isEqualTo(true),
 			},
-			menu: [
-				{
-					id: MenuId.TestItem,
-					group: 'inline',
-					when: TestingContextKeys.canRefreshTests.isEqualTo(true),
-				},
-				{
-					id: MenuId.ViewTitle,
-					group: 'navigation',
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.equals('view', Testing.ExplorerViewId),
-						TestingContextKeys.canRefreshTests.isEqualTo(true),
-					),
-				},
-				{
-					id: MenuId.CommandPalette,
-					when: TestingContextKeys.canRefreshTests.isEqualTo(true),
-				},
-			]
+			menu: refreshMenus(false),
 		});
 	}
 
@@ -1198,10 +1208,28 @@ export class RefreshTestsAction extends Action2 {
 	}
 }
 
+export class CancelTestRefreshAction extends Action2 {
+	public static readonly ID = 'testing.cancelTestRefresh';
+	constructor() {
+		super({
+			id: CancelTestRefreshAction.ID,
+			title: localize('testing.cancelTestRefresh', "Cancel Test Refresh"),
+			category,
+			icon: icons.testingCancelRefreshTests,
+			menu: refreshMenus(true),
+		});
+	}
+
+	public async run(accessor: ServicesAccessor) {
+		accessor.get(ITestService).cancelRefreshTests();
+	}
+}
+
 export const allTestActions = [
 	// todo: these are disabled until we figure out how we want autorun to work
 	// AutoRunOffAction,
 	// AutoRunOnAction,
+	CancelTestRefreshAction,
 	CancelTestRunAction,
 	ClearTestResultsAction,
 	CollapseAllAction,
@@ -1228,9 +1256,9 @@ export const allTestActions = [
 	SearchForTestExtension,
 	SelectDefaultTestProfiles,
 	ShowMostRecentOutputAction,
+	TestingSortByDurationAction,
 	TestingSortByLocationAction,
 	TestingSortByStatusAction,
-	TestingSortByDurationAction,
 	TestingViewAsListAction,
 	TestingViewAsTreeAction,
 	ToggleInlineTestOutput,

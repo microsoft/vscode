@@ -55,7 +55,7 @@ import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/
 import { Codicon } from 'vs/base/common/codicons';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Command } from 'vs/editor/common/languages';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { CodeDataTransfers, fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
@@ -980,7 +980,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		templateData.icon.style.color = '';
 
 		if (resource || this.isFileKindThemeIcon(node.themeIcon)) {
-			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
+			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean; }>('explorer.decorations');
 			const labelResource = resource ? resource : URI.parse('missing:_icon_resource');
 			templateData.resourceLabel.setResource({ name: label, description, resource: labelResource }, {
 				fileKind: this.getFileKind(node),
@@ -1114,7 +1114,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 	constructor(notificationService: INotificationService, private getSelectedResources: (() => ITreeItem[])) {
 		super();
 		this._register(this.onDidRun(e => {
-			if (e.error && !isPromiseCanceledError(e.error)) {
+			if (e.error && !isCancellationError(e.error)) {
 				notificationService.error(localize('command-error', 'Error running command {1}: {0}. This is likely caused by the extension that contributes {1}.', e.error.message, e.action.id));
 			}
 		}));
@@ -1163,7 +1163,7 @@ class TreeMenus extends Disposable implements IDisposable {
 		this.contextKeyService = service;
 	}
 
-	private getActions(menuId: MenuId, context: { key: string, value?: string }): { primary: IAction[]; secondary: IAction[]; } {
+	private getActions(menuId: MenuId, context: { key: string, value?: string; }): { primary: IAction[]; secondary: IAction[]; } {
 		if (!this.contextKeyService) {
 			return { primary: [], secondary: [] };
 		}
@@ -1260,7 +1260,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			return;
 		}
 		const uuid = generateUuid();
-		this.treeViewsDragAndDropService.addDragOperationTransfer(uuid, this.dndController.onWillDrop(itemHandles, uuid));
+		this.treeViewsDragAndDropService.addDragOperationTransfer(uuid, this.dndController.handleDrag(itemHandles, uuid));
 		originalEvent.dataTransfer.setData(TREE_DRAG_UUID_MIME, uuid);
 	}
 
@@ -1387,7 +1387,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 
 		const additionalWillDropPromise = this.treeViewsDragAndDropService.removeDragOperationTransfer(willDropUuid);
 		if (!additionalWillDropPromise) {
-			return dndController.onDrop(treeDataTransfer, targetNode, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
+			return dndController.handleDrop(treeDataTransfer, targetNode, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
 		}
 		return additionalWillDropPromise.then(additionalDataTransfer => {
 			if (additionalDataTransfer) {
@@ -1395,7 +1395,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 					treeDataTransfer.set(item[0], item[1]);
 				}
 			}
-			return dndController.onDrop(treeDataTransfer, targetNode, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
+			return dndController.handleDrop(treeDataTransfer, targetNode, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
 		});
 
 	}

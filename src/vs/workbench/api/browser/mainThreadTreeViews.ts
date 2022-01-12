@@ -32,14 +32,14 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
 	}
 
-	async $registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean, dragAndDropMimeTypes: string[] | undefined, hasWillDrop: boolean }): Promise<void> {
+	async $registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean, dragAndDropMimeTypes: string[] | undefined, hasHandleDrag: boolean }): Promise<void> {
 		this.logService.trace('MainThreadTreeViews#$registerTreeViewDataProvider', treeViewId, options);
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			const dataProvider = new TreeViewDataProvider(treeViewId, this._proxy, this.notificationService);
 			this._dataProviders.set(treeViewId, dataProvider);
 			const dndController = options.dragAndDropMimeTypes
-				? new TreeViewDragAndDropController(treeViewId, options.dragAndDropMimeTypes, options.hasWillDrop, this._proxy) : undefined;
+				? new TreeViewDragAndDropController(treeViewId, options.dragAndDropMimeTypes, options.hasHandleDrag, this._proxy) : undefined;
 			const viewer = this.getTreeView(treeViewId);
 			if (viewer) {
 				// Order is important here. The internal tree isn't created until the dataProvider is set.
@@ -172,15 +172,15 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 		readonly hasWillDrop: boolean,
 		private readonly _proxy: ExtHostTreeViewsShape) { }
 
-	async onDrop(dataTransfer: ITreeDataTransfer, targetTreeItem: ITreeItem, operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
-		return this._proxy.$onDrop(this.treeViewId, await TreeDataTransferConverter.toTreeDataTransferDTO(dataTransfer), targetTreeItem.handle, operationUuid, sourceTreeId, sourceTreeItemHandles);
+	async handleDrop(dataTransfer: ITreeDataTransfer, targetTreeItem: ITreeItem, operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
+		return this._proxy.$handleDrop(this.treeViewId, await TreeDataTransferConverter.toTreeDataTransferDTO(dataTransfer), targetTreeItem.handle, operationUuid, sourceTreeId, sourceTreeItemHandles);
 	}
 
-	async onWillDrop(sourceTreeItemHandles: string[], operationUuid: string): Promise<ITreeDataTransfer | undefined> {
+	async handleDrag(sourceTreeItemHandles: string[], operationUuid: string): Promise<ITreeDataTransfer | undefined> {
 		if (!this.hasWillDrop) {
 			return;
 		}
-		const additionalTransferItems = await this._proxy.$onWillDrop(this.treeViewId, sourceTreeItemHandles, operationUuid);
+		const additionalTransferItems = await this._proxy.$handleDrag(this.treeViewId, sourceTreeItemHandles, operationUuid);
 		if (!additionalTransferItems) {
 			return;
 		}

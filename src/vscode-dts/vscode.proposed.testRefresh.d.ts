@@ -19,7 +19,7 @@ declare module 'vscode' {
 		 *
 		 * @returns A thenable that resolves when tests have been refreshed.
 		 */
-		refreshHandler: (() => Thenable<void> | void) | undefined;
+		refreshHandler: ((token: CancellationToken) => Thenable<void> | void) | undefined;
 	}
 
 

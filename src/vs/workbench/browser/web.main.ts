@@ -64,7 +64,7 @@ import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { safeStringify } from 'vs/base/common/objects';
+import { mixin, safeStringify } from 'vs/base/common/objects';
 import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 
@@ -159,7 +159,7 @@ class BrowserMain extends Disposable {
 		const payload = this.resolveWorkspaceInitializationPayload();
 
 		// Product
-		const productService: IProductService = { _serviceBrand: undefined, ...product, ...this.configuration.productConfiguration };
+		const productService: IProductService = mixin({ _serviceBrand: undefined, ...product }, this.configuration.productConfiguration);
 		serviceCollection.set(IProductService, productService);
 
 		// Environment

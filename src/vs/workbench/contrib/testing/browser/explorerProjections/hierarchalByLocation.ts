@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Emitter } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -59,6 +60,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	public readonly onUpdate = this.updateEmitter.event;
 
 	constructor(
+		private readonly lastState: AbstractTreeViewState,
 		@ITestService private readonly testService: ITestService,
 		@ITestResultService private readonly results: ITestResultService,
 	) {
@@ -233,7 +235,9 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		return {
 			element: node,
 			collapsible: node.test.expand !== TestItemExpandState.NotExpandable,
-			collapsed: node.test.expand === TestItemExpandState.Expandable ? true : undefined,
+			collapsed: this.lastState.expanded[node.treeId] !== undefined
+				? !this.lastState.expanded[node.treeId]
+				: node.test.expand === TestItemExpandState.Expandable ? true : undefined,
 			children: recurse(node.children),
 		};
 	};

@@ -17,10 +17,10 @@ import { Progress } from 'vs/platform/progress/common/progress';
 import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializeSearchError } from 'vs/workbench/services/search/common/search';
 import { Range, TextSearchComplete, TextSearchContext, TextSearchMatch, TextSearchOptions, TextSearchPreviewOptions, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
-import { rgPath } from 'vscode-ripgrep';
+import { rgPath } from '@vscode/ripgrep';
 import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe } from './ripgrepSearchUtils';
 
-// If vscode-ripgrep is in an .asar file, then the binary is unpacked.
+// If @vscode/ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
 export class RipgrepTextSearchEngine {

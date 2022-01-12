@@ -17,6 +17,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { distinct } from 'vs/base/common/arrays';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hc: '#ffff0033' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
 export const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hc: '#7abd7a4d' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));
@@ -113,7 +114,8 @@ export class CallStackEditorContribution implements IEditorContribution {
 	constructor(
 		private readonly editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		const setDecorations = () => this.decorationIds = this.editor.deltaDecorations(this.decorationIds, this.createCallStackDecorations());
 		this.toDispose.push(Event.any(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getModel().onDidChangeCallStack)(() => {
@@ -127,6 +129,11 @@ export class CallStackEditorContribution implements IEditorContribution {
 	}
 
 	private createCallStackDecorations(): IModelDeltaDecoration[] {
+		const editor = this.editor;
+		if (!editor.hasModel()) {
+			return [];
+		}
+
 		const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 		const decorations: IModelDeltaDecoration[] = [];
 		this.debugService.getModel().getSessions().forEach(s => {
@@ -144,8 +151,13 @@ export class CallStackEditorContribution implements IEditorContribution {
 					}
 
 					stackFrames.forEach(candidateStackFrame => {
-						if (candidateStackFrame && this.uriIdentityService.extUri.isEqual(candidateStackFrame.source.uri, this.editor.getModel()?.uri)) {
-							const noCharactersBefore = this.editor.hasModel() ? this.editor.getModel()?.getLineFirstNonWhitespaceColumn(candidateStackFrame.range.startLineNumber) >= candidateStackFrame.range.startColumn : false;
+						if (candidateStackFrame && this.uriIdentityService.extUri.isEqual(candidateStackFrame.source.uri, editor.getModel()?.uri)) {
+							if (candidateStackFrame.range.startLineNumber > editor.getModel()?.getLineCount()) {
+								this.logService.warn(`CallStackEditorContribution: invalid stack frame line number: ${candidateStackFrame.range.startLineNumber}`);
+								return;
+							}
+
+							const noCharactersBefore = editor.getModel().getLineFirstNonWhitespaceColumn(candidateStackFrame.range.startLineNumber) >= candidateStackFrame.range.startColumn;
 							decorations.push(...createDecorationsForStackFrame(candidateStackFrame, isSessionFocused, noCharactersBefore));
 						}
 					});

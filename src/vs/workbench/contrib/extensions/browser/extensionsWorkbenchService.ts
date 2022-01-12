@@ -8,7 +8,7 @@ import * as semver from 'vs/base/common/semver/semver';
 import { Event, Emitter } from 'vs/base/common/event';
 import { index, distinct } from 'vs/base/common/arrays';
 import { Promises, ThrottledDelayer } from 'vs/base/common/async';
-import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
+import { canceled, isCancellationError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -112,7 +112,7 @@ class Extension implements IExtension {
 		return this.local!.manifest.publisher;
 	}
 
-	get publisherDomain(): { link: string, verified: boolean } | undefined {
+	get publisherDomain(): { link: string, verified: boolean; } | undefined {
 		return this.gallery?.publisherDomain;
 	}
 
@@ -186,7 +186,7 @@ class Extension implements IExtension {
 	}
 
 	public isMalicious: boolean = false;
-	public isUnsupported: boolean | { preReleaseExtension: { id: string, displayName: string } } = false;
+	public isUnsupported: boolean | { preReleaseExtension: { id: string, displayName: string; }; } = false;
 
 	get installCount(): number | undefined {
 		return this.gallery ? this.gallery.installCount : undefined;
@@ -358,8 +358,8 @@ ${this.description}
 
 class Extensions extends Disposable {
 
-	private readonly _onChange: Emitter<{ extension: Extension, operation?: InstallOperation } | undefined> = this._register(new Emitter<{ extension: Extension, operation?: InstallOperation } | undefined>());
-	get onChange(): Event<{ extension: Extension, operation?: InstallOperation } | undefined> { return this._onChange.event; }
+	private readonly _onChange: Emitter<{ extension: Extension, operation?: InstallOperation; } | undefined> = this._register(new Emitter<{ extension: Extension, operation?: InstallOperation; } | undefined>());
+	get onChange(): Event<{ extension: Extension, operation?: InstallOperation; } | undefined> { return this._onChange.event; }
 
 	private installing: Extension[] = [];
 	private uninstalling: Extension[] = [];
@@ -1006,7 +1006,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private async syncWithGallery(): Promise<void> {
-		const identifiers: (IExtensionIdentifier & { preRelease: boolean })[] = [], names: string[] = [];
+		const identifiers: (IExtensionIdentifier & { preRelease: boolean; })[] = [], names: string[] = [];
 		for (const installed of this.local) {
 			if (installed.type === ExtensionType.User) {
 				if (installed.identifier.uuid) {
@@ -1274,7 +1274,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.doSetEnablement(allExtensions, enablementState);
 	}
 
-	private getExtensionsRecursively(extensions: IExtension[], installed: IExtension[], enablementState: EnablementState, options: { dependencies: boolean, pack: boolean }, checked: IExtension[] = []): IExtension[] {
+	private getExtensionsRecursively(extensions: IExtension[], installed: IExtension[], enablementState: EnablementState, options: { dependencies: boolean, pack: boolean; }, checked: IExtension[] = []): IExtension[] {
 		const toCheck = extensions.filter(e => checked.indexOf(e) === -1);
 		if (toCheck.length) {
 			for (const extension of toCheck) {
@@ -1392,7 +1392,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private onError(err: any): void {
-		if (isPromiseCanceledError(err)) {
+		if (isCancellationError(err)) {
 			return;
 		}
 

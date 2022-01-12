@@ -663,10 +663,44 @@ export const Promises = new class {
 	get lstat() { return promisify(fs.lstat); }
 	get utimes() { return promisify(fs.utimes); }
 
-	get read() { return promisify(fs.read); }
+	get read() {
+
+		// Not using `promisify` here for a reason: the return
+		// type is not an object as indicated by TypeScript but
+		// just the bytes read, so we create our own wrapper.
+
+		return (fd: number, buffer: Uint8Array, offset: number, length: number, position: number | null) => {
+			return new Promise<{ bytesRead: number, buffer: Uint8Array }>((resolve, reject) => {
+				fs.read(fd, buffer, offset, length, position, (err, bytesRead, buffer) => {
+					if (err) {
+						return reject(err);
+					}
+
+					return resolve({ bytesRead, buffer });
+				});
+			});
+		};
+	}
 	get readFile() { return promisify(fs.readFile); }
 
-	get write() { return promisify(fs.write); }
+	get write() {
+
+		// Not using `promisify` here for a reason: the return
+		// type is not an object as indicated by TypeScript but
+		// just the bytes written, so we create our own wrapper.
+
+		return (fd: number, buffer: Uint8Array, offset: number | undefined | null, length: number | undefined | null, position: number | undefined | null) => {
+			return new Promise<{ bytesWritten: number, buffer: Uint8Array }>((resolve, reject) => {
+				fs.write(fd, buffer, offset, length, position, (err, bytesWritten, buffer) => {
+					if (err) {
+						return reject(err);
+					}
+
+					return resolve({ bytesWritten, buffer });
+				});
+			});
+		};
+	}
 
 	get appendFile() { return promisify(fs.appendFile); }
 

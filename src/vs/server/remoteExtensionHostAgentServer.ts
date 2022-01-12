@@ -922,8 +922,18 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 const connectionTokenRegex = /^[0-9A-Za-z-]+$/;
 
 function parseConnectionToken(args: ServerParsedArgs): { connectionToken: string; connectionTokenIsMandatory: boolean; } {
-	const connectionToken = args['connection-token'];
+
+	let connectionToken = args['connection-token'];
 	const connectionTokenFile = args['connection-token-file'];
+	const compatibility = args['compatibility'] === '1.63';
+
+	if (args['without-connection-token']) {
+		if (connectionToken || connectionTokenFile) {
+			console.warn(`Please do not use the argument '--connection-token' or '--connection-token-file' at the same time as '--without-connection-token'.`);
+			process.exit(1);
+		}
+		return { connectionToken: 'without-connection-token' /* to be implemented @alexd */, connectionTokenIsMandatory: false };
+	}
 
 	if (connectionTokenFile) {
 		if (connectionToken) {
@@ -947,8 +957,14 @@ function parseConnectionToken(args: ServerParsedArgs): { connectionToken: string
 		if (connectionToken !== undefined && !connectionTokenRegex.test(connectionToken)) {
 			console.warn(`The connection token '${connectionToken}' does not adhere to the characters 0-9, a-z, A-Z or -.`);
 			process.exit(1);
+		} else if (connectionToken === undefined) {
+			connectionToken = generateUuid();
+			console.log(`Connection token: ${connectionToken}`);
+			if (compatibility) {
+				console.log(`Connection token or will made mandatory in the next release. To run without connection token, use '--without-connection-token'.`);
+			}
 		}
-		return { connectionToken: connectionToken || generateUuid(), connectionTokenIsMandatory: false };
+		return { connectionToken, connectionTokenIsMandatory: !compatibility };
 	}
 }
 

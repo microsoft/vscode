@@ -114,7 +114,7 @@
 	cursor: pointer;
 }
 
-.monaco-workbench .simple-fr-find-part .button.disabled {
+.monaco-workbench .simple-fr-find-part-wrapper .button.disabled {
 	opacity: 0.3;
 	cursor: default;
 }

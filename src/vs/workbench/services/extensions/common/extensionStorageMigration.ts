@@ -14,12 +14,17 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
+// TODO: @sandy081 - Remove it after 6 months
+export function getMigrateFromLowerCaseStorageKey(extensionId: string) {
+	return `extension.storage.migrateFromLowerCaseKey.${extensionId.toLowerCase()}`;
+}
+
 /**
  * An extension storage has following
  * 	- State: Stored using storage service with extension id as key and state as value.
  *  - Resources: Stored under a location scoped to the extension.
  */
-export async function migrateExtensionStorage(fromExtensionId: string, toExtensionId: string, storageMigratedKey: string, instantionService: IInstantiationService): Promise<void> {
+export async function migrateExtensionStorage(fromExtensionId: string, toExtensionId: string, instantionService: IInstantiationService): Promise<void> {
 	return instantionService.invokeFunction(async serviceAccessor => {
 		const environmentService = serviceAccessor.get(IEnvironmentService);
 		const extensionStorageService = serviceAccessor.get(IExtensionStorageService);
@@ -28,6 +33,8 @@ export async function migrateExtensionStorage(fromExtensionId: string, toExtensi
 		const fileService = serviceAccessor.get(IFileService);
 		const workspaceContextService = serviceAccessor.get(IWorkspaceContextService);
 		const logService = serviceAccessor.get(ILogService);
+		const storageMigratedKey = `extensionStorage.migrate.${fromExtensionId}-${toExtensionId}`;
+		const migrateLowerCaseStorageKey = fromExtensionId.toLowerCase() === toExtensionId.toLowerCase() ? `extension.storage.migrateFromLowerCaseKey.${fromExtensionId.toLowerCase()}` : undefined;
 
 		if (fromExtensionId === toExtensionId) {
 			return;
@@ -41,6 +48,7 @@ export async function migrateExtensionStorage(fromExtensionId: string, toExtensi
 		};
 
 		const migrateStorage = async (global: boolean) => {
+			logService.info(`Migrating ${global ? 'global' : 'workspace'} extension storage from ${fromExtensionId} to ${toExtensionId}...`);
 			// Migrate state
 			const value = extensionStorageService.getExtensionState(fromExtensionId, global);
 			if (value) {
@@ -56,20 +64,21 @@ export async function migrateExtensionStorage(fromExtensionId: string, toExtensi
 					await fileService.move(fromPath, toPath, true);
 				} catch (error) {
 					if ((<FileSystemProviderError>error).code !== FileSystemProviderErrorCode.FileNotFound) {
-						logService.info(`Error while migrating ${global ? 'global' : 'workspace'} storage from '${fromExtensionId}' to '${toExtensionId}'`, getErrorMessage(error));
+						logService.info(`Error while migrating ${global ? 'global' : 'workspace'} file storage from '${fromExtensionId}' to '${toExtensionId}'`, getErrorMessage(error));
 					}
 				}
 			}
+			logService.info(`Migrated ${global ? 'global' : 'workspace'} extension storage from ${fromExtensionId} to ${toExtensionId}`);
 		};
 
 		// Migrate Global Storage
-		if (!storageService.getBoolean(storageMigratedKey, StorageScope.GLOBAL, false)) {
+		if (!storageService.getBoolean(storageMigratedKey, StorageScope.GLOBAL, false) && !(migrateLowerCaseStorageKey && storageService.getBoolean(migrateLowerCaseStorageKey, StorageScope.GLOBAL, false))) {
 			await migrateStorage(true);
 			storageService.store(storageMigratedKey, true, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}
 
 		// Migrate Workspace Storage
-		if (!storageService.getBoolean(storageMigratedKey, StorageScope.WORKSPACE, false)) {
+		if (!storageService.getBoolean(storageMigratedKey, StorageScope.WORKSPACE, false) && !(migrateLowerCaseStorageKey && storageService.getBoolean(migrateLowerCaseStorageKey, StorageScope.WORKSPACE, false))) {
 			await migrateStorage(false);
 			storageService.store(storageMigratedKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}

@@ -345,6 +345,7 @@ export interface CssProperties {
 	padding?: string;
 	width?: string;
 	height?: string;
+	display?: string;
 }
 
 class RefCountedCssRule {

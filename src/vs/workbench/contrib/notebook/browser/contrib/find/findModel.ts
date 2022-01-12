@@ -18,6 +18,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { findFirstInSorted } from 'vs/base/common/arrays';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { INotebookFindFilter } from 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
 
 
 export class FindModel extends Disposable {
@@ -40,7 +41,7 @@ export class FindModel extends Disposable {
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		private readonly _state: FindReplaceState<boolean>,
+		private readonly _state: FindReplaceState<INotebookFindFilter>,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
@@ -307,7 +308,7 @@ export class FindModel extends Disposable {
 		const val = this._state.searchString;
 		const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
 
-		const options: INotebookSearchOptions = { regex: this._state.isRegex, wholeWord: this._state.wholeWord, caseSensitive: this._state.matchCase, wordSeparators: wordSeparators, includePreview: !!this._state.filters };
+		const options: INotebookSearchOptions = { regex: this._state.isRegex, wholeWord: this._state.wholeWord, caseSensitive: this._state.matchCase, wordSeparators: wordSeparators, includePreview: !!this._state.filters?.findInMarkdownPreview, includeOutput: !!this._state.filters?.findInOutput };
 		if (!val) {
 			ret = null;
 		} else if (!this._notebookEditor.hasModel()) {

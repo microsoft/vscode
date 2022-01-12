@@ -463,13 +463,12 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			if (workspaceRoots) {
 				baseRoots.push(...workspaceRoots);
 			}
-		} else if (!this._resource.scheme || this._resource.scheme === 'file') {
-			baseRoots.push(vscode.Uri.file(path.dirname(this._resource.fsPath)));
+		} else {
+			baseRoots.push(this._resource.with({ path: path.dirname(this._resource.path) }));
 		}
 
 		return baseRoots;
 	}
-
 
 	private async onDidClickPreviewLink(href: string) {
 		const targetResource = resolveDocumentLink(href, this.resource);

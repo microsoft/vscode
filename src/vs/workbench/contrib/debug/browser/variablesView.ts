@@ -51,7 +51,7 @@ let dataBreakpointInfoResponse: IDataBreakpointInfoResponse | undefined;
 
 interface IVariablesContext {
 	sessionId: string | undefined;
-	container: DebugProtocol.Variable | DebugProtocol.Scope;
+	container: DebugProtocol.Variable | DebugProtocol.Scope | DebugProtocol.EvaluateArguments;
 	variable: DebugProtocol.Variable;
 }
 
@@ -224,7 +224,9 @@ export class VariablesView extends ViewPane {
 
 const getVariablesContext = (variable: Variable): IVariablesContext => ({
 	sessionId: variable.getSession()?.getId(),
-	container: (variable.parent as (Variable | Scope)).toDebugProtocolObject(),
+	container: variable.parent instanceof Expression
+		? { expression: variable.parent.name }
+		: (variable.parent as (Variable | Scope)).toDebugProtocolObject(),
 	variable: variable.toDebugProtocolObject()
 });
 

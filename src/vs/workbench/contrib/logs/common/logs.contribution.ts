@@ -25,7 +25,7 @@ import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { createCancelablePromise, timeout } from 'vs/base/common/async';
-import { canceled, getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
+import { canceled, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
@@ -105,7 +105,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 			await promise;
 			outputChannelRegistry.registerChannel({ id, label, file, log: true });
 		} catch (error) {
-			if (!isPromiseCanceledError(error)) {
+			if (!isCancellationError(error)) {
 				this.logService.error('Error while registering log channel', file.toString(), getErrorMessage(error));
 			}
 		}

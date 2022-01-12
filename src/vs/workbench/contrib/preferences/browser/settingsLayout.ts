@@ -192,6 +192,11 @@ export const tocData: ITOCEntry<string> = {
 					id: 'features/notebook',
 					label: localize('notebook', 'Notebook'),
 					settings: ['notebook.*']
+				},
+				{
+					id: 'features/audioCues',
+					label: localize('audioCues', 'Audio Cues'),
+					settings: ['audioCues.*']
 				}
 			]
 		},

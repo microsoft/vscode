@@ -241,6 +241,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					child-src https: data:;
 				">` : ''}
 				<style nonce="${this.nonce}">
+					::highlight(find-highlight) {
+						background-color: var(--vscode-editor-findMatchHighlightBackground);
+					}
+
+					::highlight(current-find-highlight) {
+						background-color: var(--vscode-editor-findMatchBackground);
+					}
+
 					#container .cell_container {
 						width: 100%;
 					}
@@ -1283,7 +1291,7 @@ var requirejs = (function() {
 		}, 50);
 	}
 
-	async find(query: string): Promise<IFindMatch[]> {
+	async find(query: string, options: { includeMarkup: boolean, includeOutput: boolean }): Promise<IFindMatch[]> {
 		if (query === '') {
 			return [];
 		}
@@ -1299,7 +1307,8 @@ var requirejs = (function() {
 
 		this._sendMessageToWebview({
 			type: 'find',
-			query: query
+			query: query,
+			options
 		});
 
 		const ret = await p;

@@ -6,7 +6,7 @@
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { matchesContiguousSubString, matchesPrefix, matchesWords, or } from 'vs/base/common/filters';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
@@ -162,7 +162,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 					try {
 						await this.commandService.executeCommand(commandPick.commandId);
 					} catch (error) {
-						if (!isPromiseCanceledError(error)) {
+						if (!isCancellationError(error)) {
 							this.dialogService.show(Severity.Error, localize('canNotRun', "Command '{0}' resulted in an error ({1})", commandPick.label, toErrorMessage(error)));
 						}
 					}
@@ -181,7 +181,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 interface ISerializedCommandHistory {
 	usesLRU?: boolean;
-	entries: { key: string; value: number }[];
+	entries: { key: string; value: number; }[];
 }
 
 interface ICommandsQuickAccessConfiguration {
@@ -189,7 +189,7 @@ interface ICommandsQuickAccessConfiguration {
 		commandPalette: {
 			history: number;
 			preserveInput: boolean;
-		}
+		};
 	};
 }
 
@@ -244,7 +244,7 @@ export class CommandsHistory extends Disposable {
 
 		const cache = CommandsHistory.cache = new LRUCache<string, number>(this.configuredCommandsHistoryLength, 1);
 		if (serializedCache) {
-			let entries: { key: string; value: number }[];
+			let entries: { key: string; value: number; }[];
 			if (serializedCache.usesLRU) {
 				entries = serializedCache.entries;
 			} else {
@@ -301,4 +301,3 @@ export class CommandsHistory extends Disposable {
 		CommandsHistory.saveState(storageService);
 	}
 }
-

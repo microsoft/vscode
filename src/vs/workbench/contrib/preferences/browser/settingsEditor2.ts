@@ -14,7 +14,7 @@ import { Delayer, IntervalTimer, ThrottledDelayer, timeout } from 'vs/base/commo
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
 import { fromNow } from 'vs/base/common/date';
-import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
+import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -161,7 +161,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private settingFastUpdateDelayer: Delayer<void>;
 	private settingSlowUpdateDelayer: Delayer<void>;
-	private pendingSettingUpdate: { key: string, value: any } | null = null;
+	private pendingSettingUpdate: { key: string, value: any; } | null = null;
 
 	private readonly viewState: ISettingsEditorViewState;
 	private _searchResultModel: SearchResultModel | null = null;
@@ -931,7 +931,7 @@ export class SettingsEditor2 extends EditorPane {
 			});
 	}
 
-	private reportModifiedSetting(props: { key: string, query: string, searchResults: ISearchResult[] | null, rawResults: ISearchResult[] | null, showConfiguredOnly: boolean, isReset: boolean, settingsTarget: SettingsTarget }): void {
+	private reportModifiedSetting(props: { key: string, query: string, searchResults: ISearchResult[] | null, rawResults: ISearchResult[] | null, showConfiguredOnly: boolean, isReset: boolean, settingsTarget: SettingsTarget; }): void {
 		this.pendingSettingUpdate = null;
 
 		let groupId: string | undefined = undefined;
@@ -1291,7 +1291,7 @@ export class SettingsEditor2 extends EditorPane {
 		};
 
 		// Count unique results
-		const counts: { nlpResult?: number, filterResult?: number } = {};
+		const counts: { nlpResult?: number, filterResult?: number; } = {};
 		const filterResult = results[SearchResultIdx.Local];
 		if (filterResult) {
 			counts['filterResult'] = filterResult.filterMatches.length;
@@ -1436,7 +1436,7 @@ export class SettingsEditor2 extends EditorPane {
 		const searchP = provider ? provider.searchModel(model, token) : Promise.resolve(null);
 		return searchP
 			.then<ISearchResult, ISearchResult | null>(undefined, err => {
-				if (isPromiseCanceledError(err)) {
+				if (isCancellationError(err)) {
 					return Promise.reject(err);
 				} else {
 					/* __GDPR__

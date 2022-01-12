@@ -11,14 +11,14 @@ import { MetadataConsts } from 'vs/editor/common/languages';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { CharacterMapping, RenderLineInput, renderViewLine2 as renderViewLine, LineRange, DomPosition } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
-import { ViewLineToken, ViewLineTokens } from 'vs/editor/test/common/core/viewLineToken';
+import { TestLineToken, TestLineTokens } from 'vs/editor/test/common/core/testLineToken';
 
-function createViewLineTokens(viewLineTokens: ViewLineToken[]): IViewLineTokens {
-	return new ViewLineTokens(viewLineTokens);
+function createViewLineTokens(viewLineTokens: TestLineToken[]): IViewLineTokens {
+	return new TestLineTokens(viewLineTokens);
 }
 
-function createPart(endIndex: number, foreground: number): ViewLineToken {
-	return new ViewLineToken(endIndex, (
+function createPart(endIndex: number, foreground: number): TestLineToken {
+	return new TestLineToken(endIndex, (
 		foreground << MetadataConsts.FOREGROUND_OFFSET
 	) >>> 0);
 }
@@ -34,7 +34,7 @@ suite('viewLineRenderer.renderLine', () => {
 			strings.isBasicASCII(lineContent),
 			false,
 			0,
-			createViewLineTokens([new ViewLineToken(lineContent.length, 0)]),
+			createViewLineTokens([new TestLineToken(lineContent.length, 0)]),
 			[],
 			tabSize,
 			0,
@@ -79,7 +79,7 @@ suite('viewLineRenderer.renderLine', () => {
 		assertCharacterReplacement('xxxx\t', 4, 'xxxx\u00a0\u00a0\u00a0\u00a0', [0, 1, 2, 3, 4, 8]);
 	});
 
-	function assertParts(lineContent: string, tabSize: number, parts: ViewLineToken[], expected: string, info: CharacterMappingInfo[]): void {
+	function assertParts(lineContent: string, tabSize: number, parts: TestLineToken[], expected: string, info: CharacterMappingInfo[]): void {
 		const _actual = renderViewLine(new RenderLineInput(
 			false,
 			true,
@@ -845,7 +845,7 @@ function assertCharacterMapping3(actual: CharacterMapping, expectedInfo: Charact
 
 suite('viewLineRenderer.renderLine 2', () => {
 
-	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all', selections: LineRange[] | null, expected: string): void {
+	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: TestLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all', selections: LineRange[] | null, expected: string): void {
 		const actual = renderViewLine(new RenderLineInput(
 			fontIsMonospace,
 			true,
@@ -2234,7 +2234,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 
-	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
+	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: TestLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
 		const renderLineOutput = renderViewLine(new RenderLineInput(
 			false,
 			true,

@@ -6,7 +6,7 @@
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -351,7 +351,7 @@ export interface IRemoteExtensionHostStartParams {
 	debugId?: string;
 	break?: boolean;
 	port?: number | null;
-	env?: { [key: string]: string | null };
+	env?: { [key: string]: string | null; };
 }
 
 interface IExtensionHostConnectionResult {
@@ -662,7 +662,7 @@ export abstract class PersistentConnection extends Disposable {
 					// try again!
 					continue;
 				}
-				if (isPromiseCanceledError(err)) {
+				if (isCancellationError(err)) {
 					this._options.logService.info(`${logPrefix} A promise cancelation error occurred while trying to reconnect, will try again...`);
 					this._options.logService.trace(err);
 					// try again!

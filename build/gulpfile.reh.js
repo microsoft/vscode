@@ -250,7 +250,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		const name = product.nameShort;
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
-			.pipe(json({ name, version }));
+			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined }));
 
 		const date = new Date().toISOString();
 
@@ -300,26 +300,28 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		if (platform === 'win32') {
 			result = es.merge(result,
-				gulp.src('resources/server/bin/code.cmd', { base: '.' })
+				gulp.src('resources/server/bin/remote-cli/code.cmd', { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
 					.pipe(replace('@@COMMIT@@', commit))
 					.pipe(replace('@@APPNAME@@', product.applicationName))
-					.pipe(rename(`bin/${product.applicationName}.cmd`)),
+					.pipe(rename(`bin/remote-cli/${product.applicationName}.cmd`)),
 				gulp.src('resources/server/bin/helpers/browser.cmd', { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
 					.pipe(replace('@@COMMIT@@', commit))
 					.pipe(replace('@@APPNAME@@', product.applicationName))
 					.pipe(rename(`bin/helpers/browser.cmd`)),
-				gulp.src('resources/server/bin/server.cmd', { base: '.' })
-					.pipe(rename(`server.cmd`))
+				gulp.src('resources/server/bin/server-old.cmd', { base: '.' })
+					.pipe(rename(`server.cmd`)),
+				gulp.src('resources/server/bin/code-server.cmd', { base: '.' })
+					.pipe(rename(`bin/${product.serverApplicationName}.cmd`)),
 			);
 		} else if (platform === 'linux' || platform === 'alpine' || platform === 'darwin') {
 			result = es.merge(result,
-				gulp.src('resources/server/bin/code.sh', { base: '.' })
+				gulp.src('resources/server/bin/remote-cli/code.sh', { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
 					.pipe(replace('@@COMMIT@@', commit))
 					.pipe(replace('@@APPNAME@@', product.applicationName))
-					.pipe(rename(`bin/${product.applicationName}`))
+					.pipe(rename(`bin/remote-cli/${product.applicationName}`))
 					.pipe(util.setExecutableBit()),
 				gulp.src('resources/server/bin/helpers/browser.sh', { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
@@ -327,8 +329,11 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 					.pipe(replace('@@APPNAME@@', product.applicationName))
 					.pipe(rename(`bin/helpers/browser.sh`))
 					.pipe(util.setExecutableBit()),
-				gulp.src('resources/server/bin/server.sh', { base: '.' })
+				gulp.src('resources/server/bin/server-old.sh', { base: '.' })
 					.pipe(rename(`server.sh`))
+					.pipe(util.setExecutableBit()),
+				gulp.src('resources/server/bin/code-server.sh', { base: '.' })
+					.pipe(rename(`bin/${product.serverApplicationName}`))
 					.pipe(util.setExecutableBit())
 			);
 		}
