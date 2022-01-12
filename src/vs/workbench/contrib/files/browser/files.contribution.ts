@@ -336,11 +336,12 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.openEditors.sortOrder': {
 			'type': 'string',
-			'enum': ['editorOrder', 'alphabetical'],
+			'enum': ['editorOrder', 'alphabetical', 'fullPath'],
 			'description': nls.localize({ key: 'openEditorsSortOrder', comment: ['Open is an adjective'] }, "Controls the sorting order of editors in the Open Editors pane."),
 			'enumDescriptions': [
 				nls.localize('sortOrder.editorOrder', 'Editors are ordered in the same order editor tabs are shown.'),
-				nls.localize('sortOrder.alphabetical', 'Editors are ordered in alphabetical order inside each editor group.')
+				nls.localize('sortOrder.alphabetical', 'Editors are ordered alphabetically by tab name inside each editor group.'),
+				nls.localize('sortOrder.fullPath', 'Editors are ordered alphabetically by full path inside each editor group.')
 			],
 			'default': 'editorOrder'
 		},
