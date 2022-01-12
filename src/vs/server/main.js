@@ -181,7 +181,7 @@ async function parsePort(host, strPort, strPickPort) {
 			process.exit(1);
 
 		} else {
-			console.warn('--port "${strPort}" is not a valid number or range.');
+			console.warn(`--port "${strPort}" is not a valid number or range.`);
 			process.exit(1);
 		}
 	}
