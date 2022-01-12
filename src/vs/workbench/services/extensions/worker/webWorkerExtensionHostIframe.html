@@ -4,15 +4,15 @@
 		<meta http-equiv="Content-Security-Policy" content="
 			default-src 'none';
 			child-src 'self' data: blob:;
-			script-src 'self' 'unsafe-eval' 'sha256-7r+WjLnkogQ49YJMiebuJrtdmXlsN8evaIGRDcHnFCo=' https:;
+			script-src 'self' 'unsafe-eval' 'sha256-9CevbjD7QdrWdGrVTVJD74tTH4eAhisvCOlLtWUn+Iw=' https:;
 			connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"/>
 	</head>
 	<body>
 	<script>
 (function() {
-	const searchParams = new URL(document.location).searchParams;
+	const searchParams = new URL(document.location.href).searchParams;
 	const vscodeWebWorkerExtHostId = searchParams.get('vscodeWebWorkerExtHostId') || '';
-	const name = searchParams.get('debugged') ? 'WorkerExtensionHost' : 'DebugWorkerExtensionHost';
+	const name = searchParams.get('debugged') ? 'DebugWorkerExtensionHost' : 'WorkerExtensionHost';
 
 	function sendError(error) {
 		window.parent.postMessage({
