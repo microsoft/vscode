@@ -54,6 +54,10 @@
 	text-decoration: underline;
 }
 
+.monaco-workbench .part.banner .message-container a {
+	text-decoration: underline;
+}
+
 .monaco-workbench .part.banner .action-container {
 	padding: 0 10px 0 6px;
 }
