@@ -358,13 +358,6 @@ export enum IndentAction {
 	Outdent = 3
 }
 
-export enum InjectedTextCursorStops {
-	Both = 0,
-	Right = 1,
-	Left = 2,
-	None = 3
-}
-
 export enum InlayHintKind {
 	Other = 0,
 	Type = 1,

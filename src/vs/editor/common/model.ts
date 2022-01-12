@@ -210,17 +210,27 @@ export interface InjectedTextOptions {
 	readonly attachedData?: unknown;
 
 	/**
-	 * Configures cursor stops around injected text.
-	 * Defaults to {@link InjectedTextCursorStops.Both}.
+	 * If set to `true`, ensures that left of this injected text there is a cursor stop.
 	*/
-	readonly cursorStops?: InjectedTextCursorStops | null;
-}
+	readonly cursorStopLeft?: boolean;
 
-export enum InjectedTextCursorStops {
-	Both,
-	Right,
-	Left,
-	None
+	/**
+	 * If set to `true`, ensures that right of this injected text there is a cursor stop.
+	*/
+	readonly cursorStopRight?: boolean;
+
+	/**
+	 * In case of a view position that is surrounded by two neighboring injected texts,
+	 * the affinity determines to which injected text the position belongs. Defaults to 0.
+	 *
+	 * Consider this example:
+	 * ```
+	 * injectedText1]|[injectedText2
+	 * ```
+	 * The position `|` belongs to `injectedText1` if the border affinity of `injectedText1` is equal to or larger than the border affinity of `injectedText2`,
+	 * otherwise it belongs to `injectedText2`.
+	*/
+	readonly borderAffinity?: number;
 }
 
 /**

@@ -18,7 +18,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/languages/languageFeatureRegistry';
-import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
@@ -287,7 +287,7 @@ export class InlayHintsController implements IEditorContribution {
 
 		// utils to collect/create injected text decorations
 		const newDecorationsData: { item: InlayHintItem, decoration: IModelDeltaDecoration, classNameRef: IDisposable; }[] = [];
-		const addInjectedText = (item: InlayHintItem, ref: ClassNameReference, content: string, cursorStops: InjectedTextCursorStops, attachedData?: InlayHintLabelPart): void => {
+		const addInjectedText = (item: InlayHintItem, ref: ClassNameReference, content: string, cursorStopRight: boolean, attachedData?: InlayHintLabelPart, borderAffinity?: number): void => {
 			newDecorationsData.push({
 				item,
 				classNameRef: ref,
@@ -303,8 +303,10 @@ export class InlayHintsController implements IEditorContribution {
 							content,
 							inlineClassNameAffectsLetterSpacing: true,
 							inlineClassName: ref.className,
-							cursorStops,
-							attachedData
+							cursorStopRight,
+							cursorStopLeft: false,
+							attachedData,
+							borderAffinity
 						}
 					}
 				}
@@ -316,7 +318,10 @@ export class InlayHintsController implements IEditorContribution {
 				width: `${(fontSize / 3) | 0}px`,
 				display: 'inline-block'
 			});
-			addInjectedText(item, marginRule, '\u200a', isLast ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None);
+
+			// The last whitespace should have higher border affinity than the injected text before it,
+			// so that clicking at `[some hint]|[ ]` will move the cursor to `[some hint][ ]|` and not to `|[some hint][ ]`.
+			addInjectedText(item, marginRule, '\u200a', isLast, undefined, isLast ? 10 : 0);
 		};
 
 
@@ -378,7 +383,7 @@ export class InlayHintsController implements IEditorContribution {
 					item,
 					this._ruleFactory.createClassNameRef(cssProperties),
 					fixSpace(part.label),
-					isLast && !item.hint.whitespaceAfter ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None,
+					isLast && !item.hint.whitespaceAfter,
 					new InlayHintLabelPart(item, i)
 				);
 			}
