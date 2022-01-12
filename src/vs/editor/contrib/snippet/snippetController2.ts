@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionItemKind } from 'vs/editor/common/languages';
 import { Choice } from 'vs/editor/contrib/snippet/snippetParser';
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/suggest';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';

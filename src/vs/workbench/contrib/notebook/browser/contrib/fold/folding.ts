@@ -67,14 +67,14 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 
 	setFoldingStateDown(index: number, state: CellFoldingState, levels: number) {
 		const doCollapse = state === CellFoldingState.Collapsed;
-		let region = this._foldingModel!.getRegionAtLine(index + 1);
-		let regions: FoldingRegion[] = [];
+		const region = this._foldingModel!.getRegionAtLine(index + 1);
+		const regions: FoldingRegion[] = [];
 		if (region) {
 			if (region.isCollapsed !== doCollapse) {
 				regions.push(region);
 			}
 			if (levels > 1) {
-				let regionsInside = this._foldingModel!.getRegionsInside(region, (r, level: number) => r.isCollapsed !== doCollapse && level < levels);
+				const regionsInside = this._foldingModel!.getRegionsInside(region, (r, level: number) => r.isCollapsed !== doCollapse && level < levels);
 				regions.push(...regionsInside);
 			}
 		}
@@ -88,7 +88,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 			return;
 		}
 
-		let regions = this._foldingModel.getAllRegionsAtLine(index + 1, (region, level) => region.isCollapsed !== (state === CellFoldingState.Collapsed) && level <= levels);
+		const regions = this._foldingModel.getAllRegionsAtLine(index + 1, (region, level) => region.isCollapsed !== (state === CellFoldingState.Collapsed) && level <= levels);
 		regions.forEach(r => this._foldingModel!.setCollapsed(r.regionIndex, state === CellFoldingState.Collapsed));
 		this._updateEditorFoldingRanges();
 	}

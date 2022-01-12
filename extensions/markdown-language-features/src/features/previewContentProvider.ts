@@ -111,7 +111,7 @@ export class MarkdownContentProvider {
 		resourceProvider: WebviewResourceProvider,
 	): Promise<MarkdownContentProviderOutput> {
 		const rendered = await this.engine.render(markdownDocument, resourceProvider);
-		const html = `<div class="markdown-body">${rendered.html}<div class="code-line" data-line="${markdownDocument.lineCount}"></div></div>`;
+		const html = `<div class="markdown-body" dir="auto">${rendered.html}<div class="code-line" data-line="${markdownDocument.lineCount}"></div></div>`;
 		return {
 			html,
 			containingImages: rendered.containingImages

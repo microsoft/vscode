@@ -386,12 +386,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.updateContextKeys();
 	}
 
-	private navigate(): void {
+	private async navigate(): Promise<void> {
 		this.navigatingInStack = true;
 
 		const navigateToStackEntry = this.navigationStack[this.navigationStackIndex];
 
-		this.doNavigate(navigateToStackEntry).finally(() => { this.navigatingInStack = false; });
+		try {
+			await this.doNavigate(navigateToStackEntry);
+		} finally {
+			this.navigatingInStack = false;
+		}
 	}
 
 	private doNavigate(location: IStackEntry): Promise<IEditorPane | undefined> {
@@ -1258,7 +1262,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.doNavigateInRecentlyUsedEditorsStack(stack[index], groupId);
 	}
 
-	private doNavigateInRecentlyUsedEditorsStack(editorIdentifier: IEditorIdentifier | undefined, groupId?: GroupIdentifier): void {
+	private async doNavigateInRecentlyUsedEditorsStack(editorIdentifier: IEditorIdentifier | undefined, groupId?: GroupIdentifier): Promise<void> {
 		if (editorIdentifier) {
 			const acrossGroups = typeof groupId !== 'number' || !this.editorGroupService.getGroup(groupId);
 
@@ -1269,13 +1273,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 			}
 
 			const group = this.editorGroupService.getGroup(editorIdentifier.groupId) ?? this.editorGroupService.activeGroup;
-			group.openEditor(editorIdentifier.editor).finally(() => {
+			try {
+				await group.openEditor(editorIdentifier.editor);
+			} finally {
 				if (acrossGroups) {
 					this.navigatingInRecentlyUsedEditorsStack = false;
 				} else {
 					this.navigatingInRecentlyUsedEditorsInGroupStack = false;
 				}
-			});
+			}
 		}
 	}
 

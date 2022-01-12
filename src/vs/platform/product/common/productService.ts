@@ -13,3 +13,6 @@ export interface IProductService extends Readonly<IProductConfiguration> {
 	readonly _serviceBrand: undefined;
 
 }
+
+
+export const productSchemaId = 'vscode://schemas/vscode-product';

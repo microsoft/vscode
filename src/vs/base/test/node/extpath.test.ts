@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { tmpdir } from 'os';
-import { realcaseSync, realpath, realpathSync } from 'vs/base/node/extpath';
+import { realcase, realcaseSync, realpath, realpathSync } from 'vs/base/node/extpath';
 import { Promises } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
@@ -22,7 +22,7 @@ flakySuite('Extpath', () => {
 		return Promises.rm(testDir);
 	});
 
-	test('realcase', async () => {
+	test('realcaseSync', async () => {
 
 		// assume case insensitive file system
 		if (process.platform === 'win32' || process.platform === 'darwin') {
@@ -42,6 +42,30 @@ flakySuite('Extpath', () => {
 			assert.strictEqual(real, testDir);
 
 			real = realcaseSync(testDir.toUpperCase());
+			assert.strictEqual(real, testDir.toUpperCase());
+		}
+	});
+
+	test('realcase', async () => {
+
+		// assume case insensitive file system
+		if (process.platform === 'win32' || process.platform === 'darwin') {
+			const upper = testDir.toUpperCase();
+			const real = await realcase(upper);
+
+			if (real) { // can be null in case of permission errors
+				assert.notStrictEqual(real, upper);
+				assert.strictEqual(real.toUpperCase(), upper);
+				assert.strictEqual(real, testDir);
+			}
+		}
+
+		// linux, unix, etc. -> assume case sensitive file system
+		else {
+			let real = await realcase(testDir);
+			assert.strictEqual(real, testDir);
+
+			real = await realcase(testDir.toUpperCase());
 			assert.strictEqual(real, testDir.toUpperCase());
 		}
 	});

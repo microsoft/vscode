@@ -75,7 +75,7 @@ export class NotebookEditorModelManager extends Disposable {
 
 	public ensureSyncedResources(resources: URI[]): void {
 		for (const resource of resources) {
-			let resourceStr = resource.toString();
+			const resourceStr = resource.toString();
 
 			if (!this._syncedModels[resourceStr]) {
 				this._beginModelSync(resource);
@@ -87,12 +87,12 @@ export class NotebookEditorModelManager extends Disposable {
 	}
 
 	private _beginModelSync(resource: URI): void {
-		let model = this._notebookService.listNotebookDocuments().find(document => document.uri.toString() === resource.toString());
+		const model = this._notebookService.listNotebookDocuments().find(document => document.uri.toString() === resource.toString());
 		if (!model) {
 			return;
 		}
 
-		let modelUrl = resource.toString();
+		const modelUrl = resource.toString();
 
 		this._proxy.acceptNewModel(
 			model.uri.toString(),
@@ -171,7 +171,7 @@ export class NotebookEditorModelManager extends Disposable {
 	}
 
 	private _stopModelSync(modelUrl: string): void {
-		let toDispose = this._syncedModels[modelUrl];
+		const toDispose = this._syncedModels[modelUrl];
 		delete this._syncedModels[modelUrl];
 		delete this._syncedModelsLastUsedTime[modelUrl];
 		dispose(toDispose);

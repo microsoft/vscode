@@ -136,9 +136,8 @@ declare module 'vscode' {
 		/**
 		 * Save the underlying file.
 		 *
-		 * @return A promise that will resolve to true when the file
-		 * has been saved. If the file was not dirty or the save failed,
-		 * will return false.
+		 * @return A promise that will resolve to `true` when the file
+		 * has been saved. If the save failed, will return `false`.
 		 */
 		save(): Thenable<boolean>;
 
@@ -7403,13 +7402,23 @@ declare module 'vscode' {
 		readonly onDidChangeFile: Event<FileChangeEvent[]>;
 
 		/**
-		 * Subscribe to events in the file or folder denoted by `uri`.
+		 * Subscribes to file change events in the file or folder denoted by `uri`. For folders,
+		 * the option `recursive` indicates whether subfolders, sub-subfolders, etc. should
+		 * be watched for file changes as well. With `recursive: false`, only changes to the
+		 * files that are direct children of the folder should trigger an event.
 		 *
-		 * The editor will call this function for files and folders. In the latter case, the
-		 * options differ from defaults, e.g. what files/folders to exclude from watching
-		 * and if subfolders, sub-subfolder, etc. should be watched (`recursive`).
+		 * The `excludes` array is used to indicate paths that should be excluded from file
+		 * watching. It is typically derived from the `files.watcherExclude` setting that
+		 * is configurable by the user. Each entry can be be:
+		 * - the absolute path to exclude
+		 * - a relative path to exclude (for example `build/output`)
+		 * - a simple glob pattern (for example `**​/build`, `output/**`)
 		 *
-		 * @param uri The uri of the file to be watched.
+		 * It is the file system provider's job to call {@linkcode FileSystemProvider.onDidChangeFile onDidChangeFile}
+		 * for every change given these rules. No event should be emitted for files that match any of the provided
+		 * excludes.
+		 *
+		 * @param uri The uri of the file or folder to be watched.
 		 * @param options Configures the watch.
 		 * @returns A disposable that tells the provider to stop watching the `uri`.
 		 */
@@ -10974,7 +10983,8 @@ declare module 'vscode' {
 		 * Save all dirty files.
 		 *
 		 * @param includeUntitled Also save files that have been created during this session.
-		 * @return A thenable that resolves when the files have been saved.
+		 * @return A thenable that resolves when the files have been saved. Will return `false`
+		 * for any file that failed to save.
 		 */
 		export function saveAll(includeUntitled?: boolean): Thenable<boolean>;
 

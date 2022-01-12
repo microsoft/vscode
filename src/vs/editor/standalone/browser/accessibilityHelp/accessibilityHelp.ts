@@ -211,7 +211,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
-		let kb = this._keybindingService.lookupKeybinding(commandId);
+		const kb = this._keybindingService.lookupKeybinding(commandId);
 		if (kb) {
 			return strings.format(msg, kb.getAriaLabel());
 		}
@@ -304,18 +304,18 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _layout(): void {
-		let editorLayout = this._editor.getLayoutInfo();
+		const editorLayout = this._editor.getLayoutInfo();
 
-		let w = Math.max(5, Math.min(AccessibilityHelpWidget.WIDTH, editorLayout.width - 40));
-		let h = Math.max(5, Math.min(AccessibilityHelpWidget.HEIGHT, editorLayout.height - 40));
+		const w = Math.max(5, Math.min(AccessibilityHelpWidget.WIDTH, editorLayout.width - 40));
+		const h = Math.max(5, Math.min(AccessibilityHelpWidget.HEIGHT, editorLayout.height - 40));
 
 		this._domNode.setWidth(w);
 		this._domNode.setHeight(h);
 
-		let top = Math.round((editorLayout.height - h) / 2);
+		const top = Math.round((editorLayout.height - h) / 2);
 		this._domNode.setTop(top);
 
-		let left = Math.round((editorLayout.width - w) / 2);
+		const left = Math.round((editorLayout.width - w) / 2);
 		this._domNode.setLeft(left);
 	}
 }
@@ -339,7 +339,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = AccessibilityHelpController.get(editor);
+		const controller = AccessibilityHelpController.get(editor);
 		if (controller) {
 			controller.show();
 		}

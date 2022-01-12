@@ -11,8 +11,8 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { toFormattedString } from 'vs/base/common/jsonFormatter';
 import { ITextModel, ITextBufferFactory, DefaultEndOfLine, ITextBuffer } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/language';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { Extensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -88,6 +88,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/vie
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
 import 'vs/workbench/contrib/notebook/browser/contrib/codeRenderer/codeRenderer';
 import 'vs/workbench/contrib/notebook/browser/contrib/breakpoints/notebookBreakpoints';
+import 'vs/workbench/contrib/notebook/browser/contrib/execute/executionEditorProgress';
 
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
@@ -95,11 +96,14 @@ import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 // Output renderers registration
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
 import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
+import { NotebookExecutionStateService } from 'vs/workbench/contrib/notebook/browser/notebookExecutionStateServiceImpl';
 import { NotebookExecutionService } from 'vs/workbench/contrib/notebook/browser/notebookExecutionServiceImpl';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/notebookKeymapService';
 import { NotebookKeymapService } from 'vs/workbench/contrib/notebook/browser/notebookKeymapServiceImpl';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -270,10 +274,10 @@ class CellContentProvider implements ITextModelContentProvider {
 						return { textBuffer: cell.textBuffer as ITextBuffer, disposable: Disposable.None };
 					},
 					getFirstLineText: (limit: number) => {
-						return cell.textBuffer.getLineContent(1).substr(0, limit);
+						return cell.textBuffer.getLineContent(1).substring(0, limit);
 					}
 				};
-				const languageId = this._languageService.getLanguageIdForLanguageName(cell.language);
+				const languageId = this._languageService.getLanguageIdByLanguageName(cell.language);
 				const languageSelection = languageId ? this._languageService.createById(languageId) : (cell.cellKind === CellKind.Markup ? this._languageService.createById('markdown') : this._languageService.createByFilepathOrFirstLine(resource, cell.textBuffer.getLineContent(1)));
 				result = this._modelService.createModel(
 					bufferFactory,
@@ -381,7 +385,7 @@ class CellInfoContentProvider {
 		if (streamOutputData) {
 			return {
 				content: streamOutputData,
-				mode: this._languageService.createById('plaintext')
+				mode: this._languageService.createById(PLAINTEXT_LANGUAGE_ID)
 			};
 		}
 
@@ -526,7 +530,7 @@ class NotebookEditorManager implements IWorkbenchContribution {
 
 	private _openMissingDirtyNotebookEditors(models: IResolvedNotebookEditorModel[]): void {
 		const result: IResourceEditorInput[] = [];
-		for (let model of models) {
+		for (const model of models) {
 			if (model.isDirty() && !this._editorService.isOpened({ resource: model.resource, typeId: NotebookEditorInput.ID, editorId: model.viewType }) && model.resource.scheme !== Schemas.vscodeInteractive) {
 				result.push({
 					resource: model.resource,
@@ -626,6 +630,7 @@ registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, t
 registerSingleton(INotebookEditorService, NotebookEditorWidgetService, true);
 registerSingleton(INotebookKernelService, NotebookKernelService, true);
 registerSingleton(INotebookExecutionService, NotebookExecutionService, true);
+registerSingleton(INotebookExecutionStateService, NotebookExecutionStateService, true);
 registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, true);
 registerSingleton(INotebookKeymapService, NotebookKeymapService, true);
 
@@ -639,7 +644,7 @@ for (const editorOption of editorOptionsRegistry) {
 		if (isConfigurationPropertySchema(schema)) {
 			schemas[`editor.${editorOption.name}`] = schema;
 		} else {
-			for (let key in schema) {
+			for (const key in schema) {
 				if (Object.hasOwnProperty.call(schema, key)) {
 					schemas[key] = schema[key];
 				}

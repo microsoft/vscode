@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { CompletionItemInsertTextRule, CompletionItemKind } from 'vs/editor/common/modes';
+import { CompletionItemInsertTextRule, CompletionItemKind } from 'vs/editor/common/languages';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
 import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';

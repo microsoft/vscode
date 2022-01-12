@@ -11,7 +11,7 @@ import { ContentWidgetPositionPreference, IActiveCodeEditor, IContentWidget, ICo
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { CodeLens, Command } from 'vs/editor/common/modes';
+import { CodeLens, Command } from 'vs/editor/common/languages';
 import { CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
 
 class CodeLensViewZone implements IViewZone {

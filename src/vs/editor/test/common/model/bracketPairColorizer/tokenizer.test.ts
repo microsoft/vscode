@@ -5,17 +5,17 @@
 
 import assert = require('assert');
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/brackets';
 import { Length, lengthAdd, lengthsToRange, lengthZero } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet';
 import { TextBufferTokenizer, Token, Tokenizer, TokenKind } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IState, ITokenizationSupport, LanguageId, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
-import { createModelServices, createTextModel2 } from 'vs/editor/test/common/editorTestUtils';
+import { IState, ITokenizationSupport, LanguageId, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('Bracket Pair Colorizer - Tokenizer', () => {
@@ -41,7 +41,7 @@ suite('Bracket Pair Colorizer - Tokenizer', () => {
 			brackets: [['{', '}'], ['[', ']'], ['(', ')'], ['begin', 'end']],
 		}));
 
-		const model = disposableStore.add(createTextModel2(instantiationService, document.getText(), {}, mode1));
+		const model = disposableStore.add(instantiateTextModel(instantiationService, document.getText(), mode1));
 		model.forceTokenization(model.getLineCount());
 
 		const languageConfigService = new TestLanguageConfigurationService();
@@ -175,7 +175,7 @@ class TokenizedDocument {
 		return {
 			getInitialState: () => new State(0),
 			tokenize: () => { throw new Error('Method not implemented.'); },
-			tokenize2: (line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult2 => {
+			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
 				const state2 = state as State;
 				const tokens = this.tokensByLine[state2.lineNumber];
 				const arr = new Array<number>();
@@ -185,7 +185,7 @@ class TokenizedDocument {
 					offset += t.text.length;
 				}
 
-				return new TokenizationResult2(new Uint32Array(arr), new State(state2.lineNumber + 1));
+				return new EncodedTokenizationResult(new Uint32Array(arr), new State(state2.lineNumber + 1));
 			}
 		};
 	}

@@ -47,12 +47,13 @@ require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
 //#region Helpers
 
 function pipeLoggingToParent() {
+	const MAX_STREAM_BUFFER_LENGTH = 1024 * 1024;
 	const MAX_LENGTH = 100000;
 
 	/**
 	 * Prevent circular stringify and convert arguments to real array
 	 *
-	 * @param {IArguments} args
+	 * @param {ArrayLike<unknown>} args
 	 */
 	function safeToArray(args) {
 		const seen = [];
@@ -61,26 +62,27 @@ function pipeLoggingToParent() {
 		// Massage some arguments with special treatment
 		if (args.length) {
 			for (let i = 0; i < args.length; i++) {
+				let arg = args[i];
 
 				// Any argument of type 'undefined' needs to be specially treated because
 				// JSON.stringify will simply ignore those. We replace them with the string
 				// 'undefined' which is not 100% right, but good enough to be logged to console
-				if (typeof args[i] === 'undefined') {
-					args[i] = 'undefined';
+				if (typeof arg === 'undefined') {
+					arg = 'undefined';
 				}
 
 				// Any argument that is an Error will be changed to be just the error stack/message
 				// itself because currently cannot serialize the error over entirely.
-				else if (args[i] instanceof Error) {
-					const errorObj = args[i];
+				else if (arg instanceof Error) {
+					const errorObj = arg;
 					if (errorObj.stack) {
-						args[i] = errorObj.stack;
+						arg = errorObj.stack;
 					} else {
-						args[i] = errorObj.toString();
+						arg = errorObj.toString();
 					}
 				}
 
-				argsArray.push(args[i]);
+				argsArray.push(arg);
 			}
 		}
 
@@ -151,24 +153,65 @@ function pipeLoggingToParent() {
 		safeSend({ type: '__$console', severity, arguments: args });
 	}
 
+	let isMakingConsoleCall = false;
+
 	/**
+	 * Wraps a console message so that it is transmitted to the renderer. If
+	 * native logging is turned on, the original console message will be written
+	 * as well. This is needed since the console methods are "magic" in V8 and
+	 * are the only methods that allow later introspection of logged variables.
+	 *
 	 * @param {'log' | 'info' | 'warn' | 'error'} method
 	 * @param {'log' | 'warn' | 'error'} severity
 	 */
 	function wrapConsoleMethod(method, severity) {
 		if (process.env['VSCODE_LOG_NATIVE'] === 'true') {
 			const original = console[method];
+			const stream = method === 'error' || method === 'warn' ? process.stderr : process.stdout;
 			console[method] = function () {
 				safeSendConsoleMessage(severity, safeToArray(arguments));
 
-				const stream = method === 'error' || method === 'warn' ? process.stderr : process.stdout;
+				isMakingConsoleCall = true;
 				stream.write('\nSTART_NATIVE_LOG\n');
 				original.apply(console, arguments);
 				stream.write('\nEND_NATIVE_LOG\n');
+				isMakingConsoleCall = false;
 			};
 		} else {
 			console[method] = function () { safeSendConsoleMessage(severity, safeToArray(arguments)); };
 		}
+	}
+
+	/**
+	 * Wraps process.stderr/stdout.write() so that it is transmitted to the
+	 * renderer or CLI. It both calls through to the original method as well
+	 * as to console.log with complete lines so that they're made available
+	 * to the debugger/CLI.
+	 *
+	 * @param {'stdout' | 'stderr'} streamName
+	 * @param {'log' | 'warn' | 'error'} severity
+	 */
+	function wrapStream(streamName, severity) {
+		const stream = process[streamName];
+		const original = stream.write;
+
+		/** @type string */
+		let buf = '';
+
+		Object.defineProperty(stream, 'write', {
+			value: (chunk, encoding, callback) => {
+				if (!isMakingConsoleCall) {
+					buf += chunk.toString(encoding);
+					const eol = buf.length > MAX_STREAM_BUFFER_LENGTH ? buf.length : buf.lastIndexOf('\n');
+					if (eol !== -1) {
+						console[severity](buf.slice(0, eol));
+						buf = buf.slice(eol + 1);
+					}
+				}
+
+				original.call(stream, chunk, encoding, callback);
+			},
+		});
 	}
 
 	// Pass console logging to the outside so that we have it in the main side if told so
@@ -183,6 +226,9 @@ function pipeLoggingToParent() {
 		console.info = function () { /* ignore */ };
 		wrapConsoleMethod('error', 'error');
 	}
+
+	wrapStream('stderr', 'error');
+	wrapStream('stdout', 'log');
 }
 
 function handleExceptions() {

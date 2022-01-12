@@ -80,15 +80,12 @@ export class ExplorerService implements IExplorerService {
 			// Or if they affect not yet resolved parts of the explorer. If that is the case we will not refresh.
 			events.forEach(e => {
 				if (!shouldRefresh) {
-					const added = e.rawAdded;
-					if (added) {
-						for (const [resource] of added) {
-							const parent = this.model.findClosest(dirname(resource));
-							// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
-							if (parent && !parent.getChild(basename(resource))) {
-								shouldRefresh = true;
-								break;
-							}
+					for (const resource of e.rawAdded) {
+						const parent = this.model.findClosest(dirname(resource));
+						// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
+						if (parent && !parent.getChild(basename(resource))) {
+							shouldRefresh = true;
+							break;
 						}
 					}
 				}

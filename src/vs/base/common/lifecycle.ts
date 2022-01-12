@@ -200,6 +200,13 @@ export class DisposableStore implements IDisposable {
 	}
 
 	/**
+	 * Returns `true` if this object has been disposed
+	 */
+	public get isDisposed(): boolean {
+		return this._isDisposed;
+	}
+
+	/**
 	 * Dispose of all registered disposables but do not mark this object as disposed.
 	 */
 	public clear(): void {

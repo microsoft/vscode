@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IFileService, FileChangeType, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, FileType, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { IFileService, FileChangeType, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, FileType, FileSystemProviderCapabilities, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
@@ -18,6 +18,7 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product/common/product';
+import { isLinux } from 'vs/base/common/platform';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -51,7 +52,7 @@ suite('FileUserDataProvider', () => {
 
 		environmentService = new TestEnvironmentService(userDataHomeOnDisk);
 
-		fileUserDataProvider = new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, logService);
+		fileUserDataProvider = new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, new FileService(logService), logService);
 		disposables.add(fileUserDataProvider);
 		disposables.add(testObject.registerProvider(Schemas.userData, fileUserDataProvider));
 	});
@@ -299,6 +300,18 @@ class TestFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapa
 
 }
 
+class TestFileService extends FileService {
+
+	private readonly _onDidFilesChange2 = this._register(new Emitter<FileChangesEvent>());
+	override readonly onDidFilesChange = this._onDidFilesChange2.event;
+
+	constructor(fileEventEmitter: Emitter<readonly IFileChange[]>) {
+		super(new NullLogService());
+
+		fileEventEmitter.event(changes => this._onDidFilesChange2.fire(new FileChangesEvent(changes, !isLinux)));
+	}
+}
+
 suite('FileUserDataProvider - Watching', () => {
 
 	let testObject: FileUserDataProvider;
@@ -310,7 +323,8 @@ suite('FileUserDataProvider - Watching', () => {
 	disposables.add(fileEventEmitter);
 
 	setup(() => {
-		testObject = disposables.add(new FileUserDataProvider(rootFileResource.scheme, new TestFileSystemProvider(fileEventEmitter.event), Schemas.userData, new NullLogService()));
+		const logService = new NullLogService();
+		testObject = disposables.add(new FileUserDataProvider(rootFileResource.scheme, new TestFileSystemProvider(fileEventEmitter.event), Schemas.userData, new TestFileService(fileEventEmitter), logService));
 	});
 
 	teardown(() => disposables.clear());

@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import { EditorOptions, InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import { CompletionModel } from 'vs/editor/contrib/suggest/completionModel';
 import { CompletionItem, getSuggestionComparator, SnippetSortOrder } from 'vs/editor/contrib/suggest/suggest';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';

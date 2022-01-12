@@ -8,7 +8,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { getIconRegistry, IconContribution, IconFontDefinition } from 'vs/platform/theme/common/iconRegistry';
 import { IProductIconTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 
-
 export interface IIconsStyleSheet {
 	getCSS(): string;
 	readonly onDidChange: Event<void>;

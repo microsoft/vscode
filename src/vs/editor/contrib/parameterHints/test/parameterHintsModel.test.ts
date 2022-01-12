@@ -11,10 +11,10 @@ import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { Position } from 'vs/editor/common/core/position';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -51,8 +51,7 @@ suite('ParameterHintsModel', () => {
 
 	function createMockEditor(fileContents: string) {
 		const textModel = createTextModel(fileContents, undefined, undefined, mockFile);
-		const editor = createTestCodeEditor({
-			model: textModel,
+		const editor = createTestCodeEditor(textModel, {
 			serviceCollection: new ServiceCollection(
 				[ITelemetryService, NullTelemetryService],
 				[IStorageService, new InMemoryStorageService()]

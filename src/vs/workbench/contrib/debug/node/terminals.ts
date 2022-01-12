@@ -121,7 +121,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 				command += `cd ${quote(cwd)}; `;
 			}
 			if (env) {
-				for (let key in env) {
+				for (const key in env) {
 					const value = env[key];
 					if (value === null) {
 						command += `Remove-Item env:${key}; `;
@@ -133,7 +133,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 			if (args.length > 0) {
 				const cmd = quote(args.shift()!);
 				command += (cmd[0] === '\'') ? `& ${cmd} ` : `${cmd} `;
-				for (let a of args) {
+				for (const a of args) {
 					command += `${quote(a)} `;
 				}
 			}
@@ -155,7 +155,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 			}
 			if (env) {
 				command += 'cmd /C "';
-				for (let key in env) {
+				for (const key in env) {
 					let value = env[key];
 					if (value === null) {
 						command += `set "${key}=" && `;
@@ -165,7 +165,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 					}
 				}
 			}
-			for (let a of args) {
+			for (const a of args) {
 				command += `${quote(a)} `;
 			}
 			if (env) {
@@ -189,7 +189,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 			}
 			if (env) {
 				command += '/usr/bin/env';
-				for (let key in env) {
+				for (const key in env) {
 					const value = env[key];
 					if (value === null) {
 						command += ` -u ${hardQuote(key)}`;
@@ -199,7 +199,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 				}
 				command += ' ';
 			}
-			for (let a of args) {
+			for (const a of args) {
 				command += `${quote(a)} `;
 			}
 			break;

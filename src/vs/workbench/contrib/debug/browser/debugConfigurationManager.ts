@@ -264,8 +264,8 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	getAllConfigurations(): { launch: ILaunch; name: string; presentation?: IConfigPresentation }[] {
 		const all: { launch: ILaunch, name: string, presentation?: IConfigPresentation }[] = [];
-		for (let l of this.launches) {
-			for (let name of l.getConfigurationNames()) {
+		for (const l of this.launches) {
+			for (const name of l.getConfigurationNames()) {
 				const config = l.getConfiguration(name) || l.getCompound(name);
 				if (config) {
 					all.push({ launch: l, name, presentation: config.presentation });
@@ -660,10 +660,10 @@ class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 	}
 
 	async openConfigFile(preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null, created: boolean }> {
-		let launchExistInFile = !!this.getConfig();
+		const launchExistInFile = !!this.getConfig();
 		if (!launchExistInFile) {
 			// Launch property in workspace config not found: create one by collecting launch configs from debugConfigProviders
-			let content = await this.getInitialConfigurationContent(undefined, type, token);
+			const content = await this.getInitialConfigurationContent(undefined, type, token);
 			if (content) {
 				await this.configurationService.updateValue('launch', json.parse(content), ConfigurationTarget.WORKSPACE);
 			} else {

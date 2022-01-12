@@ -269,7 +269,7 @@ registerThemingParticipant((theme, collector) => {
 	const colorProvider = new BracketPairGuidesClassNames();
 
 
-	let colorValues = colors
+	const colorValues = colors
 		.map(c => {
 			const bracketColor = theme.getColor(c.bracketColor);
 			const guideColor = theme.getColor(c.guideColor);

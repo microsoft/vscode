@@ -250,19 +250,19 @@ suite('Debug - REPL', () => {
 		repl.appendToRepl(session, 'fourth line\n', severity.Info);
 
 		replFilter.filterQuery = 'first';
-		let r1 = <SimpleReplElement[]>getFilteredElements();
+		const r1 = <SimpleReplElement[]>getFilteredElements();
 		assert.strictEqual(r1.length, 1);
 		assert.strictEqual(r1[0].value, 'first line\n');
 
 		replFilter.filterQuery = '!first';
-		let r2 = <SimpleReplElement[]>getFilteredElements();
+		const r2 = <SimpleReplElement[]>getFilteredElements();
 		assert.strictEqual(r1.length, 1);
 		assert.strictEqual(r2[0].value, 'second line\n');
 		assert.strictEqual(r2[1].value, 'third line\n');
 		assert.strictEqual(r2[2].value, 'fourth line\n');
 
 		replFilter.filterQuery = 'first, line';
-		let r3 = <SimpleReplElement[]>getFilteredElements();
+		const r3 = <SimpleReplElement[]>getFilteredElements();
 		assert.strictEqual(r3.length, 4);
 		assert.strictEqual(r3[0].value, 'first line\n');
 		assert.strictEqual(r3[1].value, 'second line\n');
@@ -270,22 +270,22 @@ suite('Debug - REPL', () => {
 		assert.strictEqual(r3[3].value, 'fourth line\n');
 
 		replFilter.filterQuery = 'line, !second';
-		let r4 = <SimpleReplElement[]>getFilteredElements();
+		const r4 = <SimpleReplElement[]>getFilteredElements();
 		assert.strictEqual(r4.length, 3);
 		assert.strictEqual(r4[0].value, 'first line\n');
 		assert.strictEqual(r4[1].value, 'third line\n');
 		assert.strictEqual(r4[2].value, 'fourth line\n');
 
 		replFilter.filterQuery = '!second, line';
-		let r4_same = <SimpleReplElement[]>getFilteredElements();
+		const r4_same = <SimpleReplElement[]>getFilteredElements();
 		assert.strictEqual(r4.length, r4_same.length);
 
 		replFilter.filterQuery = '!line';
-		let r5 = <SimpleReplElement[]>getFilteredElements();
+		const r5 = <SimpleReplElement[]>getFilteredElements();
 		assert.strictEqual(r5.length, 0);
 
 		replFilter.filterQuery = 'smth';
-		let r6 = <SimpleReplElement[]>getFilteredElements();
+		const r6 = <SimpleReplElement[]>getFilteredElements();
 		assert.strictEqual(r6.length, 0);
 	});
 });

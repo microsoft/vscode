@@ -146,6 +146,10 @@
 	margin-bottom: 0;
 }
 
+.monaco-editor .zone-widget.test-output-peek .preview-text a {
+	cursor: pointer;
+}
+
 /** -- filter  */
 .testing-filter-action-bar {
 	flex-shrink: 0;

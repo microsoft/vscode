@@ -100,7 +100,7 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly treeId = getId();
+	public readonly treeId = this.test.item.extId;
 
 	/**
 	 * @inheritdoc

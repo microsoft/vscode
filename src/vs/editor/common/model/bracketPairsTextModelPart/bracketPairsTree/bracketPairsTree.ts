@@ -10,7 +10,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { BracketInfo, BracketPairWithMinIndentationInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
 import { BackgroundTokenizationState, TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { AstNode, AstNodeKind } from './ast';
 import { TextEditInfo } from './beforeEditPositionMapper';
 import { LanguageAgnosticBracketTokens } from './brackets';

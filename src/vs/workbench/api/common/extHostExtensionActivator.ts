@@ -29,10 +29,10 @@ export interface IExtensionAPI {
 }
 
 export type ExtensionActivationTimesFragment = {
-	startup?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	codeLoadingTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	activateCallTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	activateResolvedTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	startup?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; };
+	codeLoadingTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; };
+	activateCallTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; };
+	activateResolvedTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; };
 };
 
 export class ExtensionActivationTimes {
@@ -168,7 +168,7 @@ export interface ExtensionActivationReason {
 	readonly activationEvent: string;
 }
 
-type ActivationIdAndReason = { id: ExtensionIdentifier, reason: ExtensionActivationReason };
+type ActivationIdAndReason = { id: ExtensionIdentifier, reason: ExtensionActivationReason; };
 
 export class ExtensionsActivator implements IDisposable {
 
@@ -414,7 +414,7 @@ export class ExtensionsActivator implements IDisposable {
 				error.stack = err.stack;
 			}
 
-			if (this._isDisposed && errors.isPromiseCanceledError(err)) {
+			if (this._isDisposed && errors.isCancellationError(err)) {
 				// It is expected for ongoing activations to fail if the extension host is going down
 				// So simply ignore and don't log canceled errors in this case
 				return new FailedExtension(err);

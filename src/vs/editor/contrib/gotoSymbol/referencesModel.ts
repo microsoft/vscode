@@ -15,7 +15,7 @@ import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { Location, LocationLink } from 'vs/editor/common/modes';
+import { Location, LocationLink } from 'vs/editor/common/languages';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 

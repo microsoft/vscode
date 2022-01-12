@@ -337,6 +337,7 @@
 					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
+					"**/vs/base/test/common/**",
 					"**/vs/platform/*/common/**",
 					"**/vs/platform/*/test/common/**",
 					"**/vs/editor/common/**",

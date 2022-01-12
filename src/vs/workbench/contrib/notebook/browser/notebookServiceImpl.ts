@@ -253,7 +253,7 @@ export class NotebookProviderInfoStore extends Disposable {
 
 	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {
 		const result: NotebookProviderInfo[] = [];
-		for (let info of this._contributedEditors.values()) {
+		for (const info of this._contributedEditors.values()) {
 			if (info.matches(resource)) {
 				result.push(info);
 			}
@@ -485,7 +485,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		}));
 
 		let decorationTriggeredAdjustment = false;
-		let decorationCheckSet = new Set<string>();
+		const decorationCheckSet = new Set<string>();
 		this._register(this._codeEditorService.onDecorationTypeRegistered(e => {
 			if (decorationTriggeredAdjustment) {
 				return;

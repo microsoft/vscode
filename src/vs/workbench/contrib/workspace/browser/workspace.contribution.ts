@@ -680,7 +680,7 @@ registerAction2(class extends Action2 {
 
 		const input = instantiationService.createInstance(WorkspaceTrustEditorInput);
 
-		editorService.openEditor(input, { pinned: true, revealIfOpened: true });
+		editorService.openEditor(input, { pinned: true });
 		return;
 	}
 });

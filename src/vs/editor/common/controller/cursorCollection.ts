@@ -116,12 +116,12 @@ export class CursorCollection {
 		const secondaryStatesLength = secondaryStates.length;
 
 		if (secondaryCursorsLength < secondaryStatesLength) {
-			let createCnt = secondaryStatesLength - secondaryCursorsLength;
+			const createCnt = secondaryStatesLength - secondaryCursorsLength;
 			for (let i = 0; i < createCnt; i++) {
 				this._addSecondaryCursor();
 			}
 		} else if (secondaryCursorsLength > secondaryStatesLength) {
-			let removeCnt = secondaryCursorsLength - secondaryStatesLength;
+			const removeCnt = secondaryCursorsLength - secondaryStatesLength;
 			for (let i = 0; i < removeCnt; i++) {
 				this._removeSecondaryCursor(this.cursors.length - 2);
 			}
@@ -160,13 +160,13 @@ export class CursorCollection {
 		if (this.cursors.length === 1) {
 			return;
 		}
-		let cursors = this.cursors.slice(0);
+		const cursors = this.cursors.slice(0);
 
 		interface SortedCursor {
 			index: number;
 			selection: Selection;
 		}
-		let sortedCursors: SortedCursor[] = [];
+		const sortedCursors: SortedCursor[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			sortedCursors.push({
 				index: i,

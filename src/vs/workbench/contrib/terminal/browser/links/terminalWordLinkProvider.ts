@@ -28,7 +28,7 @@ const MAX_LENGTH = 2000;
 
 export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	private readonly _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
-
+	static id: string = 'TerminalWordLinkProvider';
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,

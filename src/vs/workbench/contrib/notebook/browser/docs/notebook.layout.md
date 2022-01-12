@@ -1,15 +1,16 @@
-The notebook editor is a virtualized list view rendered in two contexts (mainframe and webview/iframe). It's on top of the builtin list/tree view renderer but its experience is different from traditional list views like File Explorer and Settings Editor. This doc covers the architecture of the notebook editor and layout optimiziations we experimented.
+The notebook editor is a virtualized list view rendered in two contexts (mainframe and webview/iframe). It's on top of the builtin list/tree view renderer but its experience is different from traditional list views like File Explorer and Settings Editor. This doc covers the architecture of the notebook editor and layout optimizations we experimented with.
 
-* [Architecture](#architecture)
-  * [Notebook model resolution](#notebook-model-resolution)
-  * [Viewport rendering](#viewport-rendering)
-  * [Cell rendering](#cell-rendering)
-  * [Focus tracking](#focus-tracking)
-* [Optimizations](#optimizations)
-  * [Executing code cell followed by markdown cells](#executing-code-cell-followed-by-markdown-cells)
-  * [Re-executing code cell followed by markdown cells](#re-executing-code-cell-followed-by-markdown-cells)
-  * [Scrolling](#scrolling)
-  * [Avoid flickering on resize of cells above current viewport](#avoid-flickering-on-resize-of-cells-above-current-viewport)
+- [Architecture](#architecture)
+	- [Notebook model resolution](#notebook-model-resolution)
+	- [Viewport rendering](#viewport-rendering)
+	- [Cell rendering](#cell-rendering)
+	- [Focus Tracking](#focus-tracking)
+- [Optimizations](#optimizations)
+	- [Avoid flickering on resize of cells above current viewport](#avoid-flickering-on-resize-of-cells-above-current-viewport)
+	- [Executing code cell followed by markdown cells](#executing-code-cell-followed-by-markdown-cells)
+		- [What's the catch](#whats-the-catch)
+	- [Re-executing code cell followed by markdown cells](#re-executing-code-cell-followed-by-markdown-cells)
+	- [Scrolling](#scrolling)
 
 
 # Architecture
@@ -21,15 +22,15 @@ The notebook model resolution consists of two main parts
 * Resolving the raw data (bytes) of the resource from file service. This part is backed by the `WorkingCopyService` and it will resolve the data and broadcast updates when the resource is updated on file system.
 * Requesting the contributed notebook serializer to serialize/deserize the raw bytes for the resource. We will find the best matched notebook serializer (by user's editor type configuration and serializer's selector defintion) and convert the raw bytes from/to `NotebookTextModel`.
 
-`NotebookTextModel` is the only source of truth for the notebook document once the resource is opened in the workspace. The source text of each individual cell in the notebook is backed by a piece tree text buffer. When the notebook is opened in the editor group, we will request the `TextModelResolverModelService` for the monaco `TextModel` reference for each cell. The `TextModel` will use the piece tree text buffer from the cell as the backing store so whenver the `TextModel` gets udpated, the cells in `NotebookTextModel` are always up to date.
+`NotebookTextModel` is the only source of truth for the notebook document once the resource is opened in the workspace. The source text of each individual cell in the notebook is backed by a piece tree text buffer. When the notebook is opened in the editor group, we will request the `TextModelResolverService` for the monaco `TextModel` reference for each cell. The `TextModel` will use the piece tree text buffer from the cell as the backing store so whenever the `TextModel` gets updated, the cells in `NotebookTextModel` are always up to date.``
 
-Since we are using the `TextModelResolverModelService` for cell's text model resolution, the `TextModel`s will have a mirror in the extension host, just like a normal resource opened in a text editor. Extensions can treat them as normal text documents.
+Since we are using the `TextModelResolverService` for cell's text model resolution, the `TextModel`s will have a mirror in the extension host, just like a normal resource opened in a text editor. Extensions can treat them as normal text documents.
 
 ![arch](https://user-images.githubusercontent.com/876920/141845889-abe0384e-0093-4b08-831a-04424a4b8101.png)
 
 ## Viewport rendering
 
-The veiewport rendering of notebook list view is a "guess and validate" process. It will calcuate how many cells/rows it can render within the viewport first, have them all rendered, and then ask for their real dimensions, and based on the cell/row dimensions it will decide if it needs to render more cells (if there are still some room in the viewport) or remove a few.
+The viewport rendering of notebook list view is a "guess and validate" process. It will calcuate how many cells/rows it can render within the viewport first, have them all rendered, and then ask for their real dimensions, and based on the cell/row dimensions it will decide if it needs to render more cells (if there is still some room in the viewport) or remove a few.
 
 For short, the process is more or less
 
@@ -77,7 +78,7 @@ export abstract class CellPart extends Disposable {
 
 <!-- ![render in the core](https://user-images.githubusercontent.com/876920/142806570-a477d315-40f3-4e0c-8079-f2867d5f3e88.png) -->
 
-When the notebook document contains markdown cells or rich outputs, the workflow is a bit more complex and become asynchornously partially due to the fact the markdown and rich outputs are rendered in a separate webview/iframe. While the list view renders the cell/row, it will send requests to the webview for output rendering, the rendering result (like dimensions of the output elements) won't come back in current frame. Once we receive the output rendering results from the webview (say next frame), we would ask the list view to adjust the position/dimension of the cell and ones below.
+When the notebook document contains markdown cells or rich outputs, the workflow is a bit more complex and become asynchronous partially due to the fact the markdown and rich outputs are rendered in a separate webview/iframe. While the list view renders the cell/row, it will send requests to the webview for output rendering, the rendering result (like dimensions of the output elements) won't come back in current frame. Once we receive the output rendering results from the webview (say next frame), we would ask the list view to adjust the position/dimension of the cell and ones below.
 
 
 ![render outputs in the webview/iframe](https://user-images.githubusercontent.com/876920/142923784-4e7a297c-6ce4-4741-b306-cbfb3277699b.png)
@@ -124,9 +125,9 @@ Copy in Notebook depends on the focus tracking
 
 # Optimizations
 
-Since most elements' positions are absoulte and there is latency between the two frames, we have multiple optimizations to ensure smooth (we try our best) perceived user experience. The optimizations are mostly around:
+Since most elements' positions are absolute and there is latency between the two frames, we have multiple optimizations to ensure smooth (we try our best) perceived user experience. The optimizations are mostly around:
 
-* Ensure the elements in curent viewport are stable when other elements dimensions update
+* Ensure the elements in current viewport are stable when other elements' dimensions update
 * Fewer layout messages between the main and iframe
 * Less flickering and forced reflow on scrolling
 
@@ -138,27 +139,27 @@ We always ensure that elements in current viewport are stable (their visual posi
 
 ![cell resize above viewport](./cell-resize-above-viewport.drawio.svg)
 
-1. Users scroll to the middle of the document, with one markdown cell partially visible (blue box in the green container) and one code cell full visible (blue box in the white container)
-2. The code cell above current viewport grows by 50px. The list view will then push down every cell below it. Thus the code cell in the viewport will move down by 50px. In current tick/frame, the markdown preview elemnets in the webview are not updated yet thus it's still partially visible.
-3. To ensure the code cell's position is stable, we would move the whole list view upwards by 50px. The code cell's position is now fixed but at the same time, the webview also moves up by 50px (as it's a child of the list view scrollable element).
+1. User scrolls to the middle of the document, with one markdown cell partially visible (blue box in the green container) and one code cell fully visible (blue box in the white container)
+2. The code cell above current viewport grows by 50px. The list view will then push down every cell below it. Thus the code cell in the viewport will move down by 50px. In current tick/frame, the markdown preview elements in the webview are not updated yet thus it's still partially visible.
+3. To ensure the code cell's position is stable, we would scroll the whole list view downwards by 50px. The code cell's position is now fixed but at the same time, the webview also moves up by 50px (as it's a child of the list view scrollable element).
 4. Lastly we sent requests to the webview to fix the visual positions of markdown previews
 
 After the last step, both the code and markdown cells in the viewport stays where they were. However due to the fact that code cells and markdown cells are rendered in two different contexts (UI and iframe), there is always latency between step 3 and 4 so users will notice  annoying flickering of markdown cells easily.
 
-The fix is kidn of "tricky". Instead of adjusting the position of the partially markdown cells, we can actually make it visually stable by adjusting the position of the webview element (step 4'). That would mess up the positions of markdown cells above current viewport, but we can fix them in next frame/tick (step 5) and since they are never in the viewport, users won't notice their position flicker/shift.
+The fix is kind of "tricky". Instead of adjusting the position of the partially markdown cells, we can actually make it visually stable by adjusting the position of the webview element (step 4). That would mess up the positions of markdown cells above current viewport, but we can fix them in next frame/tick (step 5) and since they are never in the viewport, users won't notice their position flicker/shift.
 
 ## Executing code cell followed by markdown cells
 
-Code cell outputs and markdown cells are both rendered in the underling webview. When executing a code cell, the list view will
+Code cell outputs and markdown cells are both rendered in the underlying webview. When executing a code cell, the list view will
 
 1. Request cell output rendering in webview
 2. Cell output height change
-  2.1 in the webview, we set `maxHeight: 0; overflow: hidden` on the output DOM node, then it won't overlap with the following markdown cells
-  2.2 broadcast the height change to the list view in main frame
+	1. in the webview, we set `maxHeight: 0; overflow: hidden` on the output DOM node, then it won't overlap with the following markdown cells
+	2. broadcast the height change to the list view in main frame
 3. List view received the height update request
-  3.1 Send acknowledge of the output height change to webview
-  3.2 Push down code cells below
-  3.3 Webview remove `maxHeight: 0` on the output DOM node
+	1. Send acknowledge of the output height change to webview
+	2. Push down code cells below
+	3. Webview remove `maxHeight: 0` on the output DOM node
 
 Whether users would see flickering or overlap of outputs, monaco editor and markdown cells depends on the latency between 3.2 and 3.3.
 
@@ -169,7 +170,7 @@ Setting `overflow: hidden` turns out to be imperfect. When we replace outputs (o
 
 ## Re-executing code cell followed by markdown cells
 
-Re-exuecting code cell consists of two steps:
+Re-executing code cell consists of two steps:
 
 1. Remove old outputs, which will reset the output height to 0
 2. Render new outputs, which will push elements below downwards
@@ -188,14 +189,14 @@ it will generate text output `1`. Updating the code to
 print(2)
 ```
 
-will genrate text output `2`. The re-rendering of the output is fast and we want to ensure the UI is stable in this scenario, to archive this:
+will genrate text output `2`. The re-rendering of the output is fast and we want to ensure the UI is stable in this scenario, to achieve this:
 
 1. Clear existing output `1`
-  1.1 Remove the output DOM node, but we reserve the height of the output
-  1.2 In 200ms, we will reset the output height to `0`, unless there is a new output rendered
+	1. Remove the output DOM node, but we reserve the height of the output
+	2. In 200ms, we will reset the output height to `0`, unless there is a new output rendered
 2. Received new output
-  2.1 Re-render the new output
-  2.2 Calcuate the height of the new output, update layout
+	1. Re-render the new output
+	2. Calcuate the height of the new output, update layout
 
 
 If the new output is rendered within 200ms, users won't see the UI movement.

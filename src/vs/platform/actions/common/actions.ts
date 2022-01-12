@@ -169,6 +169,8 @@ export class MenuId {
 	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
 	static readonly NotebookOutputToolbar = new MenuId('NotebookOutputToolbar');
 	static readonly NotebookEditorLayoutConfigure = new MenuId('NotebookEditorLayoutConfigure');
+	static readonly NotebookFindToolbar = new MenuId('NotebookFindToolbar');
+	static readonly NotebookFindFilter = new MenuId('NotebookFindFilter');
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
 	static readonly BulkEditContext = new MenuId('BulkEditContext');
 	static readonly TimelineItemContext = new MenuId('TimelineItemContext');

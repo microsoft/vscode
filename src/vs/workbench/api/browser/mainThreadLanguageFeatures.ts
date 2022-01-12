@@ -6,15 +6,15 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITextModel, ISingleEditOperation } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto, IdentifiableInlineCompletions, IdentifiableInlineCompletion, ITypeHierarchyItemDto } from '../common/extHost.protocol';
-import { ILanguageConfigurationService, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto, IdentifiableInlineCompletions, IdentifiableInlineCompletion, ITypeHierarchyItemDto, IInlayHintDto } from '../common/extHost.protocol';
+import { ILanguageConfigurationService, LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -23,6 +23,8 @@ import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy'
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { mixin } from 'vs/base/common/objects';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
+import { revive } from 'vs/base/common/marshalling';
+import { CancellationError } from 'vs/base/common/errors';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -449,7 +451,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- suggest
 
-	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange, replace: IRange }, data: ISuggestDataDto): modes.CompletionItem {
+	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange, replace: IRange; }, data: ISuggestDataDto): modes.CompletionItem {
 
 		const label = data[ISuggestDataDtoField.label];
 
@@ -549,14 +551,43 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- inline hints
 
-	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
+	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean, eventHandle: number | undefined): void {
 		const provider = <modes.InlayHintsProvider>{
-			provideInlayHints: async (model: ITextModel, range: EditorRange, token: CancellationToken): Promise<modes.InlayHint[] | undefined> => {
+			provideInlayHints: async (model: ITextModel, range: EditorRange, token: CancellationToken): Promise<modes.InlayHintList | undefined> => {
 				const result = await this._proxy.$provideInlayHints(handle, model.uri, range, token);
-				return result?.hints;
+				if (!result) {
+					return;
+				}
+				return {
+					hints: revive(result.hints),
+					dispose: () => {
+						if (result.cacheId) {
+							this._proxy.$releaseInlayHints(handle, result.cacheId);
+						}
+					}
+				};
 			}
 		};
-
+		if (supportsResolve) {
+			provider.resolveInlayHint = async (hint, token) => {
+				const dto: IInlayHintDto = hint;
+				if (!dto.cacheId) {
+					return hint;
+				}
+				const result = await this._proxy.$resolveInlayHint(handle, dto.cacheId, token);
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				if (!result) {
+					return hint;
+				}
+				return {
+					...hint,
+					tooltip: result.tooltip,
+					label: revive<string | modes.InlayHintLabelPart[]>(result.label)
+				};
+			};
+		}
 		if (typeof eventHandle === 'number') {
 			const emitter = new Emitter<void>();
 			this._registrations.set(eventHandle, emitter);
@@ -775,9 +806,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			};
 		}
 
-		const validLanguageId = this._languageService.validateLanguageId(languageId);
-		if (validLanguageId) {
-			this._registrations.set(handle, LanguageConfigurationRegistry.register(validLanguageId, configuration, 100));
+		if (this._languageService.isRegisteredLanguageId(languageId)) {
+			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageId, configuration, 100));
 		}
 	}
 

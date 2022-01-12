@@ -7,7 +7,7 @@ import type { ModelOperations, ModelResult } from '@vscode/vscode-languagedetect
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerService';
 
 /**
  * Called on the worker side

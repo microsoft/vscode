@@ -178,7 +178,7 @@ export class KeyboardLayoutPickerAction extends Action {
 				}
 				return this.editorService.openEditor({
 					resource: stat.resource,
-					mode: 'jsonc',
+					languageId: 'jsonc',
 					options: { pinned: true }
 				});
 			}, (error) => {

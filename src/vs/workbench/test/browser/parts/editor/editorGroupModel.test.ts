@@ -214,8 +214,8 @@ suite('EditorGroupModel', () => {
 		setPreferredEncoding(encoding: string) { }
 		setForceOpenAsBinary(): void { }
 		setPreferredContents(contents: string): void { }
-		setMode(mode: string) { }
-		setPreferredMode(mode: string) { }
+		setLanguageId(languageId: string) { }
+		setPreferredLanguageId(languageId: string) { }
 		isResolved(): boolean { return false; }
 
 		override matches(other: TestFileEditorInput): boolean {

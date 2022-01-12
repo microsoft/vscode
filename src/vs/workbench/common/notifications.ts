@@ -7,7 +7,7 @@ import { INotification, INotificationHandle, INotificationActions, INotification
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isErrorWithActions, isPromiseCanceledError } from 'vs/base/common/errors';
+import { isErrorWithActions, isCancellationError } from 'vs/base/common/errors';
 import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { parseLinkedText, LinkedText } from 'vs/base/common/linkedText';
@@ -84,7 +84,7 @@ export interface INotificationChangeEvent {
 	 * Additional detail about the item change. Only applies to
 	 * `NotificationChangeType.CHANGE`.
 	 */
-	detail?: NotificationViewItemContentChangeKind
+	detail?: NotificationViewItemContentChangeKind;
 }
 
 export const enum StatusMessageChangeType {
@@ -446,7 +446,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	static create(notification: INotification, filter: NotificationsFilter = NotificationsFilter.OFF): INotificationViewItem | undefined {
-		if (!notification || !notification.message || isPromiseCanceledError(notification.message)) {
+		if (!notification || !notification.message || isCancellationError(notification.message)) {
 			return undefined; // we need a message to show
 		}
 
@@ -506,7 +506,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		private _sticky: boolean | undefined,
 		private _silent: boolean | undefined,
 		private _message: INotificationMessage,
-		private _source: string | { label: string, id: string } | undefined,
+		private _source: string | { label: string, id: string; } | undefined,
 		progress: INotificationProgressProperties | undefined,
 		actions?: INotificationActions
 	) {
@@ -746,7 +746,7 @@ export class ChoiceAction extends Action {
 class StatusMessageViewItem {
 
 	static create(notification: NotificationMessage, options?: IStatusMessageOptions): IStatusMessageViewItem | undefined {
-		if (!notification || isPromiseCanceledError(notification)) {
+		if (!notification || isCancellationError(notification)) {
 			return undefined; // we need a message to show
 		}
 

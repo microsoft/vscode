@@ -14,7 +14,7 @@ import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector, asCS
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { hash } from 'vs/base/common/hash';
@@ -386,7 +386,7 @@ export class DecorationsService implements IDecorationsService {
 					this._keepItem(map, provider, uri, data);
 				}
 			}).catch(err => {
-				if (!isPromiseCanceledError(err) && map.get(provider) === request) {
+				if (!isCancellationError(err) && map.get(provider) === request) {
 					map.delete(provider);
 				}
 			}));

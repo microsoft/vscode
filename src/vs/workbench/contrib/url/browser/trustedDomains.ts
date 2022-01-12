@@ -30,7 +30,7 @@ export const manageTrustedDomainSettingsCommand = {
 	},
 	handler: async (accessor: ServicesAccessor) => {
 		const editorService = accessor.get(IEditorService);
-		editorService.openEditor({ resource: TRUSTED_DOMAINS_URI, mode: 'jsonc', options: { pinned: true } });
+		editorService.openEditor({ resource: TRUSTED_DOMAINS_URI, languageId: 'jsonc', options: { pinned: true } });
 		return;
 	}
 };
@@ -114,7 +114,7 @@ export async function configureOpenerTrustedDomainsHandler(
 			case 'manage':
 				await editorService.openEditor({
 					resource: TRUSTED_DOMAINS_URI.with({ fragment: resource.toString() }),
-					mode: 'jsonc',
+					languageId: 'jsonc',
 					options: { pinned: true }
 				});
 				return trustedDomains;

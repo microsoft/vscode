@@ -152,7 +152,7 @@ export class TypeScriptServerSpawner {
 		}
 
 		this._logger.info(`<${kind}> Forking...`);
-		const process = this._factory.fork(version.tsServerPath, args, kind, configuration, this._versionManager);
+		const process = this._factory.fork(version, args, kind, configuration, this._versionManager);
 		this._logger.info(`<${kind}> Starting...`);
 
 		return new ProcessBasedTsServer(
@@ -237,23 +237,21 @@ export class TypeScriptServerSpawner {
 			}
 		}
 
-		if (!isWeb()) {
-			const pluginPaths = this._pluginPathsProvider.getPluginPaths();
+		const pluginPaths = isWeb() ? [] : this._pluginPathsProvider.getPluginPaths();
 
-			if (pluginManager.plugins.length) {
-				args.push('--globalPlugins', pluginManager.plugins.map(x => x.name).join(','));
+		if (pluginManager.plugins.length) {
+			args.push('--globalPlugins', pluginManager.plugins.map(x => x.name).join(','));
 
-				const isUsingBundledTypeScriptVersion = currentVersion.path === this._versionProvider.defaultVersion.path;
-				for (const plugin of pluginManager.plugins) {
-					if (isUsingBundledTypeScriptVersion || plugin.enableForWorkspaceTypeScriptVersions) {
-						pluginPaths.push(plugin.path);
-					}
+			const isUsingBundledTypeScriptVersion = currentVersion.path === this._versionProvider.defaultVersion.path;
+			for (const plugin of pluginManager.plugins) {
+				if (isUsingBundledTypeScriptVersion || plugin.enableForWorkspaceTypeScriptVersions) {
+					pluginPaths.push(isWeb() ? plugin.uri.toString() : plugin.uri.path);
 				}
 			}
+		}
 
-			if (pluginPaths.length !== 0) {
-				args.push('--pluginProbeLocations', pluginPaths.join(','));
-			}
+		if (pluginPaths.length !== 0) {
+			args.push('--pluginProbeLocations', pluginPaths.join(','));
 		}
 
 		if (configuration.npmLocation && !isWeb()) {

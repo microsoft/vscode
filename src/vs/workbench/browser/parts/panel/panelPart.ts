@@ -327,12 +327,14 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			const hash = new StringSHA1();
 			hash.update(cssUrl);
 			cssClass = `activity-${id.replace(/\./g, '-')}-${hash.digest()}`;
-			const iconClass = `.monaco-workbench .panel .monaco-action-bar .action-label.${cssClass}`;
+			const iconClass = `.monaco-workbench .basepanel .monaco-action-bar .action-label.${cssClass}`;
 			createCSSRule(iconClass, `
 				mask: ${cssUrl} no-repeat 50% 50%;
-				mask-size: 24px;
+				mask-size: 16px;
 				-webkit-mask: ${cssUrl} no-repeat 50% 50%;
-				-webkit-mask-size: 24px;
+				-webkit-mask-size: 16px;
+				mask-origin: padding;
+				-webkit-mask-origin: padding;
 			`);
 		} else if (ThemeIcon.isThemeIcon(icon)) {
 			cssClass = ThemeIcon.asClassName(icon);
@@ -1000,49 +1002,16 @@ registerThemingParticipant((theme, collector) => {
 
 	// Title Active
 	const titleActive = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
-	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
-	if (titleActive || titleActiveBorder) {
+	if (titleActive) {
 		collector.addRule(`
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
-				color: ${titleActive} !important;
-				border-bottom-color: ${titleActiveBorder} !important;
-			}
+		.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+			color: ${titleActive} !important;
+		}
 		`);
-	}
-
-	// Title focus
-	const focusBorderColor = theme.getColor(focusBorder);
-	if (focusBorderColor) {
 		collector.addRule(`
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
-				color: ${titleActive} !important;
-				border-bottom-color: ${focusBorderColor} !important;
-				border-bottom: 1px solid;
-			}
-			`);
-		collector.addRule(`
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
-				outline: none;
-			}
-			`);
-	}
-
-	// Styling with Outline color (e.g. high contrast theme)
-	const outline = theme.getColor(activeContrastBorder);
-	if (outline) {
-		collector.addRule(`
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
-				outline-color: ${outline};
-				outline-width: 1px;
-				outline-style: solid;
-				border-bottom: none;
-				outline-offset: -2px;
-			}
-
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked):hover .action-label {
-				outline-style: dashed;
-			}
+		.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
+			color: ${titleActive} !important;
+		}
 		`);
 	}
 
@@ -1053,5 +1022,51 @@ registerThemingParticipant((theme, collector) => {
 				border-color: ${inputBorder}
 			}
 		`);
+	}
+
+
+	// Base Panel Styles
+	// Title focus
+	const focusBorderColor = theme.getColor(focusBorder);
+	if (focusBorderColor) {
+		collector.addRule(`
+				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+					border-top-color: ${focusBorderColor};
+				}
+				`);
+		collector.addRule(`
+				.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
+					outline: none;
+				}
+				`);
+	}
+
+	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
+	if (titleActiveBorder) {
+		collector.addRule(`
+				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+					.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
+					border-top-color: ${titleActiveBorder};
+				}
+			`);
+	}
+
+	// Styling with Outline color (e.g. high contrast theme)
+	const outline = theme.getColor(activeContrastBorder);
+	if (outline) {
+		collector.addRule(`
+				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
+				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+					outline-color: ${outline};
+					outline-width: 1px;
+					outline-style: solid;
+					border-bottom: none;
+					outline-offset: -2px;
+				}
+
+				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked):hover .action-label {
+					outline-style: dashed;
+				}
+			`);
 	}
 });

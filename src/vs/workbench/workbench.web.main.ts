@@ -35,7 +35,7 @@ import 'vs/workbench/browser/web.main';
 //#region --- workbench services
 
 import 'vs/workbench/services/integrity/browser/integrityService';
-import 'vs/workbench/services/textMate/browser/textMateService';
+import 'vs/workbench/services/textMate/browser/browserTextMateService';
 import 'vs/workbench/services/search/browser/searchService';
 import 'vs/workbench/services/textfile/browser/browserTextFileService';
 import 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
@@ -57,7 +57,7 @@ import 'vs/workbench/services/path/browser/pathService';
 import 'vs/workbench/services/themes/browser/browserHostColorSchemeService';
 import 'vs/workbench/services/encryption/browser/encryptionService';
 import 'vs/workbench/services/workingCopy/browser/workingCopyBackupService';
-import 'vs/workbench/services/remote/browser/tunnelServiceImpl';
+import 'vs/workbench/services/remote/browser/tunnelService';
 import 'vs/workbench/services/files/browser/elevatedFileService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

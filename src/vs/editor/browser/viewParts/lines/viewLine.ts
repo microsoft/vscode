@@ -9,7 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IConfiguration } from 'vs/editor/common/editorCommon';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { FloatHorizontalRange, VisibleRanges } from 'vs/editor/common/view/renderingContext';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange, DomPosition } from 'vs/editor/common/viewLayout/viewLineRenderer';
@@ -99,7 +99,7 @@ export class ViewLineOptions {
 	public readonly stopRenderingLineAfter: number;
 	public readonly fontLigatures: string;
 
-	constructor(config: IConfiguration, themeType: ColorScheme) {
+	constructor(config: IEditorConfiguration, themeType: ColorScheme) {
 		this.themeType = themeType;
 		const options = config.options;
 		const fontInfo = options.get(EditorOption.fontInfo);

@@ -25,7 +25,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { CompletionItemInsertTextRule, CompletionItemProvider } from 'vs/editor/common/modes';
+import { CompletionItemInsertTextRule, CompletionItemProvider } from 'vs/editor/common/languages';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';

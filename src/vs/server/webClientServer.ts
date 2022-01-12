@@ -9,17 +9,14 @@ import * as url from 'url';
 import * as util from 'util';
 import * as cookie from 'cookie';
 import * as crypto from 'crypto';
-import { isEqualOrParent, sanitizeFilePath } from 'vs/base/common/extpath';
+import { isEqualOrParent } from 'vs/base/common/extpath';
 import { getMediaMime } from 'vs/base/common/mime';
 import { isLinux } from 'vs/base/common/platform';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IServerEnvironmentService } from 'vs/server/serverEnvironmentService';
 import { extname, dirname, join, normalize } from 'vs/base/common/path';
 import { FileAccess } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
-import { cwd } from 'vs/base/common/process';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 const textMimeType = {
@@ -75,8 +72,6 @@ const APP_ROOT = dirname(FileAccess.asFileUri('', require).fsPath);
 
 export class WebClientServer {
 
-	private _mapCallbackUriToRequestId: Map<string, UriComponents> = new Map();
-
 	constructor(
 		private readonly _connectionToken: string,
 		private readonly _environmentService: IServerEnvironmentService,
@@ -102,11 +97,7 @@ export class WebClientServer {
 			}
 			if (pathname === '/callback') {
 				// callback support
-				return this._handleCallback(req, res, parsedUrl);
-			}
-			if (pathname === '/fetch-callback') {
-				// callback fetch support
-				return this._handleFetchCallback(req, res, parsedUrl);
+				return this._handleCallback(res);
 			}
 
 			return serveError(req, res, 404, 'Not found.');
@@ -174,8 +165,6 @@ export class WebClientServer {
 		}
 
 		const remoteAuthority = req.headers.host;
-		const transformer = createRemoteURITransformer(remoteAuthority);
-		const { workspacePath, isFolder } = await this._getWorkspaceFromCLI();
 
 		function escapeAttribute(value: string): string {
 			return value.replace(/"/g, '&quot;');
@@ -197,8 +186,6 @@ export class WebClientServer {
 		} : undefined;
 		const data = (await util.promisify(fs.readFile)(filePath)).toString()
 			.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify({
-				folderUri: (workspacePath && isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
-				workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 				remoteAuthority,
 				_wrapWebWorkerExtHostInIframe,
 				developmentOptions: { enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined },
@@ -209,7 +196,7 @@ export class WebClientServer {
 		const cspDirectives = [
 			'default-src \'self\';',
 			'img-src \'self\' https: data: blob:;',
-			'media-src \'none\';',
+			'media-src \'self\';',
 			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-cb2sg39EJV8ABaSNFfWu/ou8o1xVXYK7jp90oZ9vpcg=' http://${remoteAuthority};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
 			'child-src \'self\';',
 			`frame-src 'self' https://*.vscode-webview.net ${this._productService.webEndpointUrl || ''} data:;`,
@@ -250,105 +237,25 @@ export class WebClientServer {
 		return result;
 	}
 
-	private async _getWorkspaceFromCLI(): Promise<{ workspacePath?: string, isFolder?: boolean }> {
-
-		// check for workspace argument
-		const workspaceCandidate = this._environmentService.args['workspace'];
-		if (workspaceCandidate && workspaceCandidate.length > 0) {
-			const workspace = sanitizeFilePath(workspaceCandidate, cwd());
-			if (await util.promisify(fs.exists)(workspace)) {
-				return { workspacePath: workspace };
-			}
-		}
-
-		// check for folder argument
-		const folderCandidate = this._environmentService.args['folder'];
-		if (folderCandidate && folderCandidate.length > 0) {
-			const folder = sanitizeFilePath(folderCandidate, cwd());
-			if (await util.promisify(fs.exists)(folder)) {
-				return { workspacePath: folder, isFolder: true };
-			}
-		}
-
-		// empty window otherwise
-		return {};
-	}
-
-	private _getFirstQueryValue(parsedUrl: url.UrlWithParsedQuery, key: string): string | undefined {
-		const result = parsedUrl.query[key];
-		return Array.isArray(result) ? result[0] : result;
-	}
-
-	private _getFirstQueryValues(parsedUrl: url.UrlWithParsedQuery, ignoreKeys?: string[]): Map<string, string> {
-		const queryValues = new Map<string, string>();
-
-		for (const key in parsedUrl.query) {
-			if (ignoreKeys && ignoreKeys.indexOf(key) >= 0) {
-				continue;
-			}
-
-			const value = this._getFirstQueryValue(parsedUrl, key);
-			if (typeof value === 'string') {
-				queryValues.set(key, value);
-			}
-		}
-
-		return queryValues;
-	}
-
 	/**
 	 * Handle HTTP requests for /callback
 	 */
-	private async _handleCallback(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
-		const wellKnownKeys = ['vscode-requestId', 'vscode-scheme', 'vscode-authority', 'vscode-path', 'vscode-query', 'vscode-fragment'];
-		const [requestId, vscodeScheme, vscodeAuthority, vscodePath, vscodeQuery, vscodeFragment] = wellKnownKeys.map(key => {
-			const value = this._getFirstQueryValue(parsedUrl, key);
-			if (value) {
-				return decodeURIComponent(value);
-			}
+	private async _handleCallback(res: http.ServerResponse): Promise<void> {
+		const filePath = FileAccess.asFileUri('vs/code/browser/workbench/callback.html', require).fsPath;
+		const data = (await util.promisify(fs.readFile)(filePath)).toString();
+		const cspDirectives = [
+			'default-src \'self\';',
+			'img-src \'self\' https: data: blob:;',
+			'media-src \'none\';',
+			`script-src 'self' ${this._getScriptCspHashes(data).join(' ')};`,
+			'style-src \'self\' \'unsafe-inline\';',
+			'font-src \'self\' blob:;'
+		].join(' ');
 
-			return value;
+		res.writeHead(200, {
+			'Content-Type': 'text/html',
+			'Content-Security-Policy': cspDirectives
 		});
-
-		if (!requestId) {
-			res.writeHead(400, { 'Content-Type': 'text/plain' });
-			return res.end(`Bad request.`);
-		}
-
-		// merge over additional query values that we got
-		let query: string | undefined = vscodeQuery;
-		let index = 0;
-		this._getFirstQueryValues(parsedUrl, wellKnownKeys).forEach((value, key) => {
-			if (!query) {
-				query = '';
-			}
-
-			const prefix = (index++ === 0) ? '' : '&';
-			query += `${prefix}${key}=${value}`;
-		});
-
-		// add to map of known callbacks
-		this._mapCallbackUriToRequestId.set(requestId, URI.from({ scheme: vscodeScheme || this._productService.urlProtocol, authority: vscodeAuthority, path: vscodePath, query, fragment: vscodeFragment }).toJSON());
-
-		return serveFile(this._logService, req, res, FileAccess.asFileUri('vs/code/browser/workbench/callback.html', require).fsPath, { 'Content-Type': 'text/html' });
-	}
-
-	/**
-	 * Handle HTTP requests for /fetch-callback
-	 */
-	private async _handleFetchCallback(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
-		const requestId = this._getFirstQueryValue(parsedUrl, 'vscode-requestId')!;
-		if (!requestId) {
-			res.writeHead(400, { 'Content-Type': 'text/plain' });
-			return res.end(`Bad request.`);
-		}
-
-		const knownCallbackUri = this._mapCallbackUriToRequestId.get(requestId);
-		if (knownCallbackUri) {
-			this._mapCallbackUriToRequestId.delete(requestId);
-		}
-
-		res.writeHead(200, { 'Content-Type': 'text/json' });
-		return res.end(JSON.stringify(knownCallbackUri));
+		return res.end(data);
 	}
 }

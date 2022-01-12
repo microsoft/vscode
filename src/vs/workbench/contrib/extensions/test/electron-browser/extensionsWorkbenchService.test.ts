@@ -36,7 +36,7 @@ import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType, IExtension, ExtensionKind } from 'vs/platform/extensions/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentService';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IProductService } from 'vs/platform/product/common/productService';

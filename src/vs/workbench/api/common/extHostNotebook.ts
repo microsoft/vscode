@@ -56,8 +56,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	readonly onDidChangeCellMetadata = this._onDidChangeCellMetadata.event;
 	private readonly _onDidChangeActiveNotebookEditor = new Emitter<vscode.NotebookEditor | undefined>();
 	readonly onDidChangeActiveNotebookEditor = this._onDidChangeActiveNotebookEditor.event;
-	private readonly _onDidChangeCellExecutionState = new Emitter<vscode.NotebookCellExecutionStateChangeEvent>();
-	readonly onDidChangeNotebookCellExecutionState = this._onDidChangeCellExecutionState.event;
 
 	private _activeNotebookEditor: ExtHostNotebookEditor | undefined;
 	get activeNotebookEditor(): vscode.NotebookEditor | undefined {
@@ -459,9 +457,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 						},
 						emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void {
 							that._onDidChangeCellMetadata.fire(event);
-						},
-						emitCellExecutionStateChange(event: vscode.NotebookCellExecutionStateChangeEvent): void {
-							that._onDidChangeCellExecutionState.fire(event);
 						}
 					},
 					uri,

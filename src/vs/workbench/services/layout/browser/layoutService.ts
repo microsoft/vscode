@@ -5,7 +5,6 @@
 
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension } from 'vs/base/browser/dom';
@@ -35,6 +34,8 @@ export const enum PanelOpensMaximizedOptions {
 	NEVER,
 	REMEMBER_LAST
 }
+
+export type PanelAlignment = 'left' | 'center' | 'right' | 'justified';
 
 export function positionToString(position: Position): string {
 	switch (position) {
@@ -194,11 +195,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.
 	 */
 	getSideBarPosition(): Position;
-
-	/**
-	 * Gets the current menubar visibility.
-	 */
-	getMenubarVisibility(): MenuBarVisibility;
 
 	/**
 	 * Toggles the menu bar visibility.

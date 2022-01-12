@@ -6,7 +6,7 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import { CursorCollection } from 'vs/editor/common/controller/cursorCollection';
-import { CursorColumns, CursorConfiguration, CursorContext, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
+import { CursorConfiguration, CursorContext, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { TypeOperations, TypeWithAutoClosingCommand } from 'vs/editor/common/controller/cursorTypeOperations';
@@ -90,7 +90,7 @@ export class CursorsController extends Disposable {
 
 	private _validateAutoClosedActions(): void {
 		if (this._autoClosedActions.length > 0) {
-			let selections: Range[] = this._cursors.getSelections();
+			const selections: Range[] = this._cursors.getSelections();
 			for (let i = 0; i < this._autoClosedActions.length; i++) {
 				const autoClosedAction = this._autoClosedActions[i];
 				if (!autoClosedAction.isValid(selections)) {
@@ -167,7 +167,7 @@ export class CursorsController extends Disposable {
 
 	public saveState(): editorCommon.ICursorState[] {
 
-		let result: editorCommon.ICursorState[] = [];
+		const result: editorCommon.ICursorState[] = [];
 
 		const selections = this._cursors.getSelections();
 		for (let i = 0, len = selections.length; i < len; i++) {
@@ -191,7 +191,7 @@ export class CursorsController extends Disposable {
 
 	public restoreState(eventsCollector: ViewModelEventsCollector, states: editorCommon.ICursorState[]): void {
 
-		let desiredSelections: ISelection[] = [];
+		const desiredSelections: ISelection[] = [];
 
 		for (let i = 0, len = states.length; i < len; i++) {
 			const state = states[i];
@@ -298,9 +298,9 @@ export class CursorsController extends Disposable {
 		return {
 			isReal: false,
 			fromViewLineNumber: viewSelectionStart.lineNumber,
-			fromViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.cursorConfig, this._viewModel, viewSelectionStart),
+			fromViewVisualColumn: this.context.cursorConfig.visibleColumnFromColumn(this._viewModel, viewSelectionStart),
 			toViewLineNumber: viewPosition.lineNumber,
-			toViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.cursorConfig, this._viewModel, viewPosition),
+			toViewVisualColumn: this.context.cursorConfig.visibleColumnFromColumn(this._viewModel, viewPosition),
 		};
 	}
 
@@ -327,8 +327,8 @@ export class CursorsController extends Disposable {
 	// ------ auxiliary handling logic
 
 	private _pushAutoClosedAction(autoClosedCharactersRanges: Range[], autoClosedEnclosingRanges: Range[]): void {
-		let autoClosedCharactersDeltaDecorations: IModelDeltaDecoration[] = [];
-		let autoClosedEnclosingDeltaDecorations: IModelDeltaDecoration[] = [];
+		const autoClosedCharactersDeltaDecorations: IModelDeltaDecoration[] = [];
+		const autoClosedEnclosingDeltaDecorations: IModelDeltaDecoration[] = [];
 
 		for (let i = 0, len = autoClosedCharactersRanges.length; i < len; i++) {
 			autoClosedCharactersDeltaDecorations.push({
@@ -370,8 +370,8 @@ export class CursorsController extends Disposable {
 			this._interpretCommandResult(result);
 
 			// Check for auto-closing closed characters
-			let autoClosedCharactersRanges: Range[] = [];
-			let autoClosedEnclosingRanges: Range[] = [];
+			const autoClosedCharactersRanges: Range[] = [];
+			const autoClosedEnclosingRanges: Range[] = [];
 
 			for (let i = 0; i < opResult.commands.length; i++) {
 				const command = opResult.commands[i];
@@ -439,7 +439,7 @@ export class CursorsController extends Disposable {
 			return null;
 		}
 
-		let indices: [number, number][] = [];
+		const indices: [number, number][] = [];
 		for (let i = 0, len = edits.length; i < len; i++) {
 			const edit = edits[i];
 			if (!edit.text || edit.text.indexOf('\n') >= 0) {
@@ -479,8 +479,8 @@ export class CursorsController extends Disposable {
 		if (autoClosingIndices) {
 			edits[0]._isTracked = true;
 		}
-		let autoClosedCharactersRanges: Range[] = [];
-		let autoClosedEnclosingRanges: Range[] = [];
+		const autoClosedCharactersRanges: Range[] = [];
+		const autoClosedEnclosingRanges: Range[] = [];
 		const selections = this._model.pushEditOperations(this.getSelections(), edits, (undoEdits) => {
 			if (autoClosingIndices) {
 				for (let i = 0, len = autoClosingIndices.length; i < len; i++) {
@@ -693,7 +693,7 @@ class AutoClosedAction {
 	}
 
 	public getAutoClosedCharactersRanges(): Range[] {
-		let result: Range[] = [];
+		const result: Range[] = [];
 		for (let i = 0; i < this._autoClosedCharactersDecorations.length; i++) {
 			const decorationRange = this._model.getDecorationRange(this._autoClosedCharactersDecorations[i]);
 			if (decorationRange) {
@@ -704,7 +704,7 @@ class AutoClosedAction {
 	}
 
 	public isValid(selections: Range[]): boolean {
-		let enclosingRanges: Range[] = [];
+		const enclosingRanges: Range[] = [];
 		for (let i = 0; i < this._autoClosedEnclosingDecorations.length; i++) {
 			const decorationRange = this._model.getDecorationRange(this._autoClosedEnclosingDecorations[i]);
 			if (decorationRange) {
@@ -790,7 +790,7 @@ class CommandExecutor {
 		}
 
 		// Remove operations belonging to losing cursors
-		let filteredOperations: IIdentifiedSingleEditOperation[] = [];
+		const filteredOperations: IIdentifiedSingleEditOperation[] = [];
 		for (let i = 0, len = rawOperations.length; i < len; i++) {
 			if (!loserCursorsMap.hasOwnProperty(rawOperations[i].identifier!.major.toString())) {
 				filteredOperations.push(rawOperations[i]);
@@ -803,7 +803,7 @@ class CommandExecutor {
 			filteredOperations[0]._isTracked = true;
 		}
 		let selectionsAfter = ctx.model.pushEditOperations(ctx.selectionsBefore, filteredOperations, (inverseEditOperations: IValidEditOperation[]): Selection[] => {
-			let groupedInverseEditOperations: IValidEditOperation[][] = [];
+			const groupedInverseEditOperations: IValidEditOperation[][] = [];
 			for (let i = 0; i < ctx.selectionsBefore.length; i++) {
 				groupedInverseEditOperations[i] = [];
 			}
@@ -817,7 +817,7 @@ class CommandExecutor {
 			const minorBasedSorter = (a: IValidEditOperation, b: IValidEditOperation) => {
 				return a.identifier!.minor - b.identifier!.minor;
 			};
-			let cursorSelections: Selection[] = [];
+			const cursorSelections: Selection[] = [];
 			for (let i = 0; i < ctx.selectionsBefore.length; i++) {
 				if (groupedInverseEditOperations[i].length > 0) {
 					groupedInverseEditOperations[i].sort(minorBasedSorter);
@@ -846,7 +846,7 @@ class CommandExecutor {
 		}
 
 		// Extract losing cursors
-		let losingCursors: number[] = [];
+		const losingCursors: number[] = [];
 		for (let losingCursorIndex in loserCursorsMap) {
 			if (loserCursorsMap.hasOwnProperty(losingCursorIndex)) {
 				losingCursors.push(parseInt(losingCursorIndex, 10));
@@ -896,7 +896,7 @@ class CommandExecutor {
 	private static _getEditOperationsFromCommand(ctx: IExecContext, majorIdentifier: number, command: editorCommon.ICommand): ICommandData {
 		// This method acts as a transaction, if the command fails
 		// everything it has done is ignored
-		let operations: IIdentifiedSingleEditOperation[] = [];
+		const operations: IIdentifiedSingleEditOperation[] = [];
 		let operationMinor = 0;
 
 		const addEditOperation = (range: IRange, text: string | null, forceMoveMarkers: boolean = false) => {
@@ -987,7 +987,7 @@ class CommandExecutor {
 		});
 
 		// Operations can not overlap!
-		let loserCursorsMap: { [index: string]: boolean; } = {};
+		const loserCursorsMap: { [index: string]: boolean; } = {};
 
 		for (let i = 1; i < operations.length; i++) {
 			const previousOp = operations[i - 1];

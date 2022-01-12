@@ -6,21 +6,20 @@
 import 'vs/css!./media/notebookFind';
 import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
 import * as strings from 'vs/base/common/strings';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellEditState, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, getNotebookEditorFromEditorPane, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { MATCHES_LIMIT } from 'vs/editor/contrib/find/findModel';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindReplaceWidget';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import * as DOM from 'vs/base/browser/dom';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, MenuId, MenuRegistry, IMenuService } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -29,33 +28,48 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from 'vs/editor/contrib/find/findWidget';
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { FindMatch } from 'vs/editor/common/model';
+import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
+import { Codicon } from 'vs/base/common/codicons';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
 let MAX_MATCHES_COUNT_WIDTH = 69;
 
+export interface INotebookFindFilter {
+	findInMarkdownPreview: boolean;
+	findInOutput: boolean;
+}
+export const FindInPreviewFilterContext = new RawContextKey<boolean>('notebookFindMarkdownPreview', false);
+export const FindInOutputFilterContext = new RawContextKey<boolean>('notebookFindOutputPreview', false);
 
-export class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
+export class NotebookFindWidget extends SimpleFindReplaceWidget<INotebookFindFilter> implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.find';
 	protected _findWidgetFocused: IContextKey<boolean>;
 	private _showTimeout: number | null = null;
 	private _hideTimeout: number | null = null;
 	private _previousFocusElement?: HTMLElement;
 	private _findModel: FindModel;
+	private _styleElement!: HTMLStyleElement;
+	private _findInPreview: IContextKey<boolean>;
+	private _findInOutput: IContextKey<boolean>;
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
-
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IMenuService menuService: IMenuService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(contextViewService, contextKeyService, themeService, new FindReplaceState(), true);
+		super(contextViewService, contextKeyService, themeService, configurationService, menuService, contextMenuService, instantiationService, new FindReplaceState<INotebookFindFilter>(), true);
 		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
-
+		this._findInPreview = FindInPreviewFilterContext.bindTo(this._scopedContextKeyService);
+		this._findInOutput = FindInOutputFilterContext.bindTo(this._scopedContextKeyService);
 		this._findWidgetFocused = KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
 		this.updateTheme(themeService.getColorTheme());
@@ -63,13 +77,41 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			this.updateTheme(themeService.getColorTheme());
 		}));
 
-		this._register(this._state.onFindReplaceStateChange(() => {
+		this._register(this._state.onFindReplaceStateChange((e) => {
 			this.onInputChanged();
+
+			if (e.isSearching) {
+				if (this._state.isSearching) {
+					this._progressBar.infinite().show();
+				} else {
+					this._progressBar.stop();
+				}
+			}
+
+			if (this._findModel.currentMatch >= 0) {
+				const currentMatch = this._findModel.getCurrentMatch();
+				this._replaceBtn.setEnabled(currentMatch.isModelMatch);
+			}
 		}));
 
 		this._register(DOM.addDisposableListener(this.getDomNode(), DOM.EventType.FOCUS, e => {
 			this._previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
 		}, true));
+
+		this._createLayoutStyles();
+	}
+
+	private _createLayoutStyles(): void {
+		this._styleElement = DOM.createStyleSheet(this.getDomNode());
+		const experimental = this._configurationService.getValue<boolean>('notebook.find.experimental');
+		const styleSheets: string[] = [];
+		if (experimental) {
+			styleSheets.push('.monaco-workbench .simple-fr-find-part-wrapper { width: 341px; }');
+		} else {
+			styleSheets.push('.monaco-workbench .simple-fr-find-part-wrapper { width: 318px; }');
+		}
+
+		this._styleElement.textContent = styleSheets.join('\n');
 	}
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
@@ -114,16 +156,24 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			this._findModel.find(false);
 		}
 
-		const { cell, match } = this._findModel.getCurrentMatch();
-		this._progressBar.infinite().show();
+		const currentMatch = this._findModel.getCurrentMatch();
+		const cell = currentMatch.cell;
+		if (currentMatch.isModelMatch) {
+			const match = currentMatch.match as FindMatch;
 
-		const replacePattern = this.replacePattern;
-		const replaceString = replacePattern.buildReplaceString(match.matches, this._state.preserveCase);
+			this._progressBar.infinite().show();
 
-		const viewModel = this._notebookEditor._getViewModel();
-		viewModel.replaceOne(cell, match.range, replaceString).then(() => {
-			this._progressBar.stop();
-		});
+			const replacePattern = this.replacePattern;
+			const replaceString = replacePattern.buildReplaceString(match.matches, this._state.preserveCase);
+
+			const viewModel = this._notebookEditor._getViewModel();
+			viewModel.replaceOne(cell, match.range, replaceString).then(() => {
+				this._progressBar.stop();
+			});
+		} else {
+			// this should not work
+			console.error('Replace does not work for output match');
+		}
 	}
 
 	protected replaceAll() {
@@ -136,12 +186,15 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		const replacePattern = this.replacePattern;
 
 		const cellFindMatches = this._findModel.findMatches;
-		let replaceStrings: string[] = [];
+		const replaceStrings: string[] = [];
 		cellFindMatches.forEach(cellFindMatch => {
 			const findMatches = cellFindMatch.matches;
-			findMatches.forEach(findMatch => {
-				const matches = findMatch.matches;
-				replaceStrings.push(replacePattern.buildReplaceString(matches, this._state.preserveCase));
+			findMatches.forEach((findMatch, index) => {
+				if (index < cellFindMatch.modelMatchCount) {
+					const match = findMatch as FindMatch;
+					const matches = match.matches;
+					replaceStrings.push(replacePattern.buildReplaceString(matches, this._state.preserveCase));
+				}
 			});
 		});
 
@@ -216,10 +269,27 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		}
 	}
 
+	toggleFindFilter(filters: {
+		findInMarkdownPreview?: boolean,
+		findInOutput?: boolean
+	}) {
+		const currentFilters = this._state.filters;
+		this._state.change({
+			filters: {
+				findInMarkdownPreview: filters.findInMarkdownPreview ?? currentFilters?.findInMarkdownPreview ?? false,
+				findInOutput: filters.findInOutput ?? currentFilters?.findInOutput ?? false
+			}
+		}, false);
+		this._findInPreview.set(!!this._state.filters?.findInMarkdownPreview);
+		this._findInOutput.set(!!this._state.filters?.findInOutput);
+	}
+
 	override hide() {
 		super.hide();
 		this._state.change({ isRevealed: false }, false);
 		this._findModel.clear();
+		this._notebookEditor.findStop();
+		this._progressBar.stop();
 
 		if (this._hideTimeout === null) {
 			if (this._showTimeout !== null) {
@@ -271,7 +341,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			if (this._state.matchesCount >= MATCHES_LIMIT) {
 				matchesCount += '+';
 			}
-			let matchesPosition: string = this._findModel.currentMatch < 0 ? '?' : String((this._findModel.currentMatch + 1));
+			const matchesPosition: string = this._findModel.currentMatch < 0 ? '?' : String((this._findModel.currentMatch + 1));
 			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
 		} else {
 			label = NLS_NO_RESULTS;
@@ -388,4 +458,69 @@ StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeE
 	}
 
 	return false;
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookFindToolbar, {
+	submenu: MenuId.NotebookFindFilter,
+	title: localize('notebookMenu.notebookFindFilter', "Notebook Find Filter"),
+	icon: Codicon.filter
+});
+
+registerAction2(class NotebookFindInMarkdownPreviewFilter extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.findInMarkdownPreview',
+			title: localize('notebook.findInMarkdownPreview', "Find in Markdown Preview"),
+			menu: {
+				id: MenuId.NotebookFindFilter,
+				order: 0
+			},
+			toggled: FindInPreviewFilterContext
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const editorService = accessor.get(IEditorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+
+		if (!editor) {
+			return;
+		}
+
+		const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
+		if (controller) {
+			controller.toggleFindFilter({ findInMarkdownPreview: true });
+			return;
+		}
+	}
+});
+
+
+registerAction2(class NotebookFindInMarkdownPreviewFilter extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.findInOutput',
+			title: localize('notebook.findInOutput', "Find in Cell Outputs"),
+			menu: {
+				id: MenuId.NotebookFindFilter,
+				order: 1
+			},
+			toggled: FindInOutputFilterContext
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const editorService = accessor.get(IEditorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+
+		if (!editor) {
+			return;
+		}
+
+		const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
+		if (controller) {
+			controller.toggleFindFilter({ findInOutput: true });
+			return;
+		}
+	}
 });

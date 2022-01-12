@@ -8,7 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletion } from 'vs/editor/common/modes';
+import { InlineCompletion } from 'vs/editor/common/languages';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/ghostText';
 
 export interface NormalizedInlineCompletion extends InlineCompletion {

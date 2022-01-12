@@ -74,7 +74,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		container.classList.add('start-debug-action-item');
 		this.start = dom.append(container, $(ThemeIcon.asCSSSelector(debugStart)));
 		const keybinding = this.keybindingService.lookupKeybinding(this.action.id)?.getLabel();
-		let keybindingLabel = keybinding ? ` (${keybinding})` : '';
+		const keybindingLabel = keybinding ? ` (${keybinding})` : '';
 		this.start.title = this.action.label + keybindingLabel;
 		this.start.setAttribute('role', 'button');
 

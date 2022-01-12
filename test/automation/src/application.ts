@@ -21,7 +21,11 @@ export interface ApplicationOptions extends LaunchOptions {
 
 export class Application {
 
+	private static INSTANCES = 0;
+
 	constructor(private options: ApplicationOptions) {
+		Application.INSTANCES++;
+
 		this._userDataPath = options.userDataDir;
 		this._workspacePathOrFolder = options.workspacePath;
 	}
@@ -75,8 +79,21 @@ export class Application {
 	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<any> {
 		this._workspacePathOrFolder = workspaceOrFolder;
 
+		// Launch Code...
 		const code = await this.startApplication(extraArgs);
-		await this.checkWindowReady(code);
+
+		// ...and make sure the window is ready to interact
+		const windowReady = this.checkWindowReady(code);
+
+		// Make sure to take a screenshot if waiting for window ready
+		// takes unusually long to help diagnose issues when Code does
+		// not seem to startup healthy.
+		const timeoutHandle = setTimeout(() => this.takeScreenshot(`checkWindowReady_instance_${Application.INSTANCES}`), 20000);
+		try {
+			await windowReady;
+		} finally {
+			clearTimeout(timeoutHandle);
+		}
 	}
 
 	async stop(): Promise<any> {
@@ -95,6 +112,15 @@ export class Application {
 
 	async stopTracing(name: string, persist: boolean): Promise<void> {
 		await this._code?.stopTracing(name, persist);
+	}
+
+	private async takeScreenshot(name: string): Promise<void> {
+		if (this.web) {
+			return; // supported only on desktop
+		}
+
+		// Desktop: call `stopTracing` to take a screenshot
+		return this._code?.stopTracing(name, true);
 	}
 
 	private async startApplication(extraArgs: string[] = []): Promise<Code> {

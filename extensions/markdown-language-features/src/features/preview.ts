@@ -463,13 +463,12 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			if (workspaceRoots) {
 				baseRoots.push(...workspaceRoots);
 			}
-		} else if (!this._resource.scheme || this._resource.scheme === 'file') {
-			baseRoots.push(vscode.Uri.file(path.dirname(this._resource.fsPath)));
+		} else {
+			baseRoots.push(this._resource.with({ path: path.dirname(this._resource.path) }));
 		}
 
 		return baseRoots;
 	}
-
 
 	private async onDidClickPreviewLink(href: string) {
 		const targetResource = resolveDocumentLink(href, this.resource);
@@ -595,7 +594,7 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 	}
 
 	public refresh() {
-		this.preview.refresh();
+		this.preview.refresh(true);
 	}
 
 	public updateConfiguration() {
@@ -748,7 +747,7 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 	}
 
 	public refresh() {
-		this._preview.refresh();
+		this._preview.refresh(true);
 	}
 
 	public updateConfiguration() {

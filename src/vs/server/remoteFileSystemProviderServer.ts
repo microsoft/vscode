@@ -91,7 +91,7 @@ class SessionFileWatcher extends Disposable implements ISessionFileWatcher {
 	}
 
 	private getWatcherOptions(): IWatcherOptions | undefined {
-		const fileWatcherPolling = this.environmentService.args['fileWatcherPolling'];
+		const fileWatcherPolling = this.environmentService.args['file-watcher-polling'];
 		if (fileWatcherPolling) {
 			const segments = fileWatcherPolling.split(delimiter);
 			const pollingInterval = Number(segments[0]);
@@ -122,7 +122,9 @@ class SessionFileWatcher extends Disposable implements ISessionFileWatcher {
 	override dispose(): void {
 		super.dispose();
 
-		this.watcherRequests.forEach(disposable => dispose(disposable));
+		for (const [, disposable] of this.watcherRequests) {
+			disposable.dispose();
+		}
 		this.watcherRequests.clear();
 	}
 }

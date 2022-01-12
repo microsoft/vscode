@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { editorActiveIndentGuides, editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
-import { IStandaloneThemeData } from 'vs/editor/standalone/common/standaloneThemeService';
+import { IStandaloneThemeData } from 'vs/editor/standalone/common/standaloneTheme';
 import { editorBackground, editorForeground, editorInactiveSelection, editorSelectionHighlight } from 'vs/platform/theme/common/colorRegistry';
 
 /* -------------------------------- Begin vs theme -------------------------------- */

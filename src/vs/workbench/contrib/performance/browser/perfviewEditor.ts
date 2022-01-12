@@ -9,9 +9,9 @@ import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResource
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILifecycleService, LifecyclePhase, StartupKindToString } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';

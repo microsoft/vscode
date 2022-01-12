@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { isWindows } from 'vs/base/common/platform';
-import * as extpath from 'vs/base/common/extpath';
+import { isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { extname, basename } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { VIEWLET_ID, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, IFilesConfiguration, VIEW_ID, UndoEnablement } from 'vs/workbench/contrib/files/common/files';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
@@ -23,8 +22,8 @@ import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITL
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';
@@ -50,6 +49,8 @@ import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { BrowserFileUpload, FileDownload } from 'vs/workbench/contrib/files/browser/fileImportExport';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -621,7 +622,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 }
 
-export function validateFileName(item: ExplorerItem, name: string): { content: string, severity: Severity } | null {
+export function validateFileName(pathService: IPathService, item: ExplorerItem, name: string, os: OperatingSystem): { content: string, severity: Severity } | null {
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
 
@@ -655,9 +656,8 @@ export function validateFileName(item: ExplorerItem, name: string): { content: s
 		}
 	}
 
-	// Invalid File name
-	const windowsBasenameValidity = item.resource.scheme === Schemas.file && isWindows;
-	if (names.some((folderName) => !extpath.isValidBasename(folderName, windowsBasenameValidity))) {
+	// Check for invalid file name.
+	if (names.some(folderName => !pathService.hasValidBasename(item.resource, os, folderName))) {
 		return {
 			content: nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name)),
 			severity: Severity.Error
@@ -780,7 +780,9 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const editorService = accessor.get(IEditorService);
 	const viewsService = accessor.get(IViewsService);
 	const notificationService = accessor.get(INotificationService);
+	const remoteAgentService = accessor.get(IRemoteAgentService);
 	const commandService = accessor.get(ICommandService);
+	const pathService = accessor.get(IPathService);
 
 	const wasHidden = !viewsService.isViewVisible(VIEW_ID);
 	const view = await viewsService.openView(VIEW_ID, true);
@@ -834,8 +836,10 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 		}
 	};
 
+	const os = (await remoteAgentService.getEnvironment())?.os ?? OS;
+
 	await explorerService.setEditable(newStat, {
-		validationMessage: value => validateFileName(newStat, value),
+		validationMessage: value => validateFileName(pathService, newStat, value, os),
 		onFinish: async (value, success) => {
 			folder.removeChild(newStat);
 			await explorerService.setEditable(newStat, null);
@@ -863,6 +867,8 @@ CommandsRegistry.registerCommand({
 export const renameHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const notificationService = accessor.get(INotificationService);
+	const remoteAgentService = accessor.get(IRemoteAgentService);
+	const pathService = accessor.get(IPathService);
 
 	const stats = explorerService.getContext(false);
 	const stat = stats.length > 0 ? stats[0] : undefined;
@@ -870,8 +876,10 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 		return;
 	}
 
+	const os = (await remoteAgentService.getEnvironment())?.os ?? OS;
+
 	await explorerService.setEditable(stat, {
-		validationMessage: value => validateFileName(stat, value),
+		validationMessage: value => validateFileName(pathService, stat, value, os),
 		onFinish: async (value, success) => {
 			if (success) {
 				const parentResource = stat.parent!.resource;
@@ -931,13 +939,21 @@ export const cutFileHandler = async (accessor: ServicesAccessor) => {
 
 const downloadFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
+	const notificationService = accessor.get(INotificationService);
 	const instantiationService = accessor.get(IInstantiationService);
 
 	const context = explorerService.getContext(true);
 	const explorerItems = context.length ? context : explorerService.roots;
 
 	const downloadHandler = instantiationService.createInstance(FileDownload);
-	return downloadHandler.download(explorerItems);
+
+	try {
+		await downloadHandler.download(explorerItems);
+	} catch (error) {
+		notificationService.error(error);
+
+		throw error;
+	}
 };
 
 CommandsRegistry.registerCommand({
@@ -947,15 +963,22 @@ CommandsRegistry.registerCommand({
 
 const uploadFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
+	const notificationService = accessor.get(INotificationService);
 	const instantiationService = accessor.get(IInstantiationService);
 
 	const context = explorerService.getContext(true);
 	const element = context.length ? context[0] : explorerService.roots[0];
 
-	const files = await triggerUpload();
-	if (files) {
-		const browserUpload = instantiationService.createInstance(BrowserFileUpload);
-		return browserUpload.upload(element, files);
+	try {
+		const files = await triggerUpload();
+		if (files) {
+			const browserUpload = instantiationService.createInstance(BrowserFileUpload);
+			await browserUpload.upload(element, files);
+		}
+	} catch (error) {
+		notificationService.error(error);
+
+		throw error;
 	}
 };
 
@@ -1014,10 +1037,11 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			} else {
 				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target, { copy: true }));
 				const options = {
+					confirmBeforeUndo: configurationService.getValue<IFilesConfiguration>().explorer.enableUndo === UndoEnablement.Warn,
 					progressLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'copyingBulkEdit', comment: ['Placeholder will be replaced by the number of files being copied'] }, "Copying {0} files", sourceTargetPairs.length)
 						: nls.localize({ key: 'copyingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file copied.'] }, "Copying {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
-					undoLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'copyBulkEdit', comment: ['Placeholder will be replaced by the number of files being copied'] }, "Copy {0} files", sourceTargetPairs.length)
-						: nls.localize({ key: 'copyFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file copied.'] }, "Copy {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target))
+					undoLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'copyBulkEdit', comment: ['Placeholder will be replaced by the number of files being copied'] }, "Paste {0} files", sourceTargetPairs.length)
+						: nls.localize({ key: 'copyFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file copied.'] }, "Paste {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target))
 				};
 				await explorerService.applyBulkEdit(resourceFileEdits, options);
 			}

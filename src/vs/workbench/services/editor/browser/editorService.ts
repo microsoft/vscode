@@ -410,7 +410,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return undefined;
 	}
 
-	get activeTextEditorMode(): string | undefined {
+	get activeTextEditorLanguageId(): string | undefined {
 		let activeCodeEditor: ICodeEditor | undefined = undefined;
 
 		const activeTextEditorControl = this.activeTextEditorControl;

@@ -299,7 +299,8 @@ class TextChangeCompressor {
 			return edits;
 		}
 
-		let result: TextChange[] = [], resultLen = 0;
+		const result: TextChange[] = [];
+		let resultLen = 0;
 
 		let prev = edits[0];
 		for (let i = 1; i < edits.length; i++) {
@@ -328,7 +329,8 @@ class TextChangeCompressor {
 			return edits;
 		}
 
-		let result: TextChange[] = [], resultLen = 0;
+		const result: TextChange[] = [];
+		let resultLen = 0;
 
 		for (let i = 0; i < edits.length; i++) {
 			const edit = edits[i];

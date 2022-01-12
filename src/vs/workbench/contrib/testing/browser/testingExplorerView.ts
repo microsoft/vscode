@@ -9,6 +9,7 @@ import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionb
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { AbstractTreeViewState, IAbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, ActionRunner, IAction, Separator } from 'vs/base/common/actions';
@@ -56,6 +57,7 @@ import { TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/test
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
+import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { InternalTestItem, ITestRunProfile, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
@@ -397,6 +399,11 @@ export class TestingExplorerViewModel extends Disposable {
 	private readonly _viewSorting = TestingContextKeys.viewSorting.bindTo(this.contextKeyService);
 	private readonly welcomeVisibilityEmitter = new Emitter<WelcomeExperience>();
 	private readonly actionRunner = new TestExplorerActionRunner(() => this.tree.getSelection().filter(isDefined));
+	private readonly lastViewState = new StoredValue<IAbstractTreeViewState>({
+		key: 'testing.treeState',
+		scope: StorageScope.WORKSPACE,
+		target: StorageTarget.MACHINE,
+	}, this.storageService);
 	private readonly noTestForDocumentWidget: NoTestsForDocumentWidget;
 
 	/**
@@ -568,6 +575,10 @@ export class TestingExplorerViewModel extends Disposable {
 			this.revealById(evt.item.item.extId, false, false);
 		}));
 
+		this._register(testResults.onResultsChanged(() => {
+			this.tree.resort(null);
+		}));
+
 		this._register(this.testProfileService.onDidChange(() => {
 			this.tree.rerender();
 		}));
@@ -580,6 +591,10 @@ export class TestingExplorerViewModel extends Disposable {
 		};
 
 		this._register(editorService.onDidActiveEditorChange(onEditorChange));
+
+		this._register(this.storageService.onWillSaveState(() => {
+			this.lastViewState.store(this.tree.getViewState());
+		}));
 
 		onEditorChange();
 	}
@@ -745,10 +760,11 @@ export class TestingExplorerViewModel extends Disposable {
 	private updatePreferredProjection() {
 		this.projection.clear();
 
+		const lastState = AbstractTreeViewState.lift(this.lastViewState.get() ?? AbstractTreeViewState.empty());
 		if (this._viewMode.get() === TestExplorerViewMode.List) {
-			this.projection.value = this.instantiationService.createInstance(HierarchicalByNameProjection);
+			this.projection.value = this.instantiationService.createInstance(HierarchicalByNameProjection, lastState);
 		} else {
-			this.projection.value = this.instantiationService.createInstance(HierarchicalByLocationProjection);
+			this.projection.value = this.instantiationService.createInstance(HierarchicalByLocationProjection, lastState);
 		}
 
 		const scheduler = new RunOnceScheduler(() => this.applyProjectionChanges(), 200);
@@ -1235,11 +1251,20 @@ const getActionableElementActions = (
 	element: TestItemTreeElement,
 ) => {
 	const test = element instanceof TestItemTreeElement ? element.test : undefined;
-	const contextOverlay = contextKeyService.createOverlay([
-		['view', Testing.ExplorerViewId],
-		[TestingContextKeys.testItemIsHidden.key, !!test && testService.excluded.contains(test)],
-		...getTestItemContextOverlay(test, test ? profiles.capabilitiesForTest(test) : 0),
-	]);
+	const contextKeys: [string, unknown][] = getTestItemContextOverlay(test, test ? profiles.capabilitiesForTest(test) : 0);
+	contextKeys.push(['view', Testing.ExplorerViewId]);
+	if (test) {
+		contextKeys.push([
+			TestingContextKeys.canRefreshTests.key,
+			TestId.isRoot(test.item.extId) && testService.getTestController(test.item.extId)?.canRefresh.value
+		]);
+		contextKeys.push([
+			TestingContextKeys.testItemIsHidden.key,
+			testService.excluded.contains(test)
+		]);
+	}
+
+	const contextOverlay = contextKeyService.createOverlay(contextKeys);
 	const menu = menuService.createMenu(MenuId.TestItem, contextOverlay);
 
 	try {

@@ -21,7 +21,7 @@ import { ITextFileService, ITextFileSaveEvent, ITextFileResolveEvent } from 'vs/
 import { extname, basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { guessMimeTypes } from 'vs/base/common/mime';
+import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { hash } from 'vs/base/common/hash';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
@@ -200,7 +200,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		const fileName = basename(resource);
 		const path = resource.scheme === Schemas.file ? resource.fsPath : resource.path;
 		const telemetryData = {
-			mimeType: guessMimeTypes(resource).join(', '),
+			mimeType: getMimeTypes(resource).join(', '),
 			ext,
 			path: hash(path),
 			reason,
