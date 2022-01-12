@@ -957,7 +957,7 @@ function parseConnectionToken(args: ServerParsedArgs): { connectionToken: string
 		if (connectionToken !== undefined && !connectionTokenRegex.test(connectionToken)) {
 			console.warn(`The connection token '${connectionToken}' does not adhere to the characters 0-9, a-z, A-Z or -.`);
 			process.exit(1);
-		} else {
+		} else if (connectionToken === undefined) {
 			connectionToken = generateUuid();
 			console.log(`Connection token: ${connectionToken}`);
 			if (compatibility) {
