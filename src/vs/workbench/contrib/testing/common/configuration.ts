@@ -12,9 +12,16 @@ export const enum TestingConfigKeys {
 	AutoRunMode = 'testing.autoRun.mode',
 	AutoOpenPeekView = 'testing.automaticallyOpenPeekView',
 	AutoOpenPeekViewDuringAutoRun = 'testing.automaticallyOpenPeekViewDuringAutoRun',
+	OpenTesting = 'testing.openTesting',
 	FollowRunningTest = 'testing.followRunningTest',
 	DefaultGutterClickAction = 'testing.defaultGutterClickAction',
 	GutterEnabled = 'testing.gutterEnabled',
+}
+
+export const enum AutoOpenTesting {
+	NeverOpen = 'neverOpen',
+	OpenOnTestStart = 'openOnTestStart',
+	OpenOnTestFailure = 'openOnTestFailure',
 }
 
 export const enum AutoOpenPeekViewWhen {
@@ -101,6 +108,20 @@ export const testingConfiguation: IConfigurationNode = {
 			type: 'boolean',
 			default: true,
 		},
+		[TestingConfigKeys.OpenTesting]: {
+			enum: [
+				AutoOpenTesting.NeverOpen,
+				AutoOpenTesting.OpenOnTestStart,
+				AutoOpenTesting.OpenOnTestFailure,
+			],
+			enumDescriptions: [
+				localize('testing.openTesting.neverOpen', 'Never automatically open the testing view'),
+				localize('testing.openTesting.openOnTestStart', 'Open the testing view when tests start'),
+				localize('testing.openTesting.openOnTestFailure', 'Open the testing view on any test failure'),
+			],
+			default: 'openOnTestStart',
+			description: localize('testing.openTesting', "Controls when the debug view should open.")
+		},
 	}
 };
 
@@ -112,6 +133,7 @@ export interface ITestingConfiguration {
 	[TestingConfigKeys.FollowRunningTest]: boolean;
 	[TestingConfigKeys.DefaultGutterClickAction]: DefaultGutterClickAction;
 	[TestingConfigKeys.GutterEnabled]: boolean;
+	[TestingConfigKeys.OpenTesting]: AutoOpenTesting;
 }
 
 export const getTestingConfiguration = <K extends TestingConfigKeys>(config: IConfigurationService, key: K) => config.getValue<ITestingConfiguration[K]>(key);
