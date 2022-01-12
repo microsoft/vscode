@@ -518,7 +518,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.EnableShellIntegration]: {
 			description: localize('terminal.integrated.enableShellIntegration', "For supported shells, use shell integration (zsh on mac/linux, pwsh on windows)"),
 			type: 'boolean',
-			default: true
+			default: false
 		},
 	}
 };

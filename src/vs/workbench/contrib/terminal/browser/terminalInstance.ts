@@ -2445,9 +2445,3 @@ async function preparePathForShell(originalPath: string, executable: string | un
 		c(escapeNonWindowsPath(originalPath));
 	});
 }
-
-enum ShellIntegrationArgs {
-	'bash':,
-	'pwsh':,
-	'zsh' :
-}

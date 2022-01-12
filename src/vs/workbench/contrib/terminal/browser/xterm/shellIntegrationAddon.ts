@@ -114,7 +114,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return false;
 		}
 		const value = exitCode || type;
-		console.log(command, value);
 
 		if (!value) {
 			return false;
