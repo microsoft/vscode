@@ -402,7 +402,7 @@ export async function main(argv: string[]): Promise<any> {
 
 							const cts = new CancellationTokenSource();
 							child.on('close', () => cts.dispose(true));
-							await watchFileContents(tmpName, chunk => stream.write(chunk), cts.token);
+							await watchFileContents(tmpName, chunk => stream.write(chunk), () => { /* ignore */ }, cts.token);
 						} finally {
 							unlinkSync(tmpName);
 						}
