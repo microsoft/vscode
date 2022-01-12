@@ -24,7 +24,7 @@ import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy'
 import { mixin } from 'vs/base/common/objects';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 import { revive } from 'vs/base/common/marshalling';
-import { canceled } from 'vs/base/common/errors';
+import { CancellationError } from 'vs/base/common/errors';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -451,7 +451,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- suggest
 
-	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange, replace: IRange }, data: ISuggestDataDto): modes.CompletionItem {
+	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange, replace: IRange; }, data: ISuggestDataDto): modes.CompletionItem {
 
 		const label = data[ISuggestDataDtoField.label];
 
@@ -576,7 +576,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				}
 				const result = await this._proxy.$resolveInlayHint(handle, dto.cacheId, token);
 				if (token.isCancellationRequested) {
-					throw canceled();
+					throw new CancellationError();
 				}
 				if (!result) {
 					return hint;

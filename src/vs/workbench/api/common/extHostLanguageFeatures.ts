@@ -31,8 +31,9 @@ import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { Cache } from './cache';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { CancellationError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
+import { raceCancellationError } from 'vs/base/common/async';
 
 // --- adapter
 
@@ -1218,9 +1219,6 @@ class InlayHintsAdapter {
 		if (!hint) {
 			return undefined;
 		}
-		if (token.isCancellationRequested) {
-			return undefined;
-		}
 		if (!this._isValidInlayHint(hint)) {
 			return undefined;
 		}
@@ -1668,7 +1666,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		ctor: { new(...args: any[]): A; },
 		callback: (adapter: A, extension: IExtensionDescription) => Promise<R>,
 		fallbackValue: R,
-		allowCancellationError: boolean = false
+		tokenToRaceAgainst?: CancellationToken
 	): Promise<R> {
 		const data = this._adapter.get(handle);
 		if (!data || !(data.adapter instanceof ctor)) {
@@ -1682,8 +1680,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 		// logging,tracing
 		Promise.resolve(result).catch(err => {
-			const isExpectedError = allowCancellationError && (err instanceof CancellationError);
-			if (!isExpectedError) {
+			if (!isCancellationError(err)) {
 				this._logService.error(`[${data.extension.identifier.value}] provider FAILED`);
 				this._logService.error(err);
 			}
@@ -1691,6 +1688,9 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 			this._logService.trace(`[${data.extension.identifier.value}] provider DONE after ${Date.now() - t1}ms`);
 		});
 
+		if (CancellationToken.isCancellationToken(tokenToRaceAgainst)) {
+			return raceCancellationError(result, tokenToRaceAgainst);
+		}
 		return result;
 	}
 
@@ -1993,7 +1993,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	}
 
 	$provideDocumentSemanticTokens(handle: number, resource: UriComponents, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
-		return this._withAdapter(handle, DocumentSemanticTokensAdapter, adapter => adapter.provideDocumentSemanticTokens(URI.revive(resource), previousResultId, token), null, true);
+		return this._withAdapter(handle, DocumentSemanticTokensAdapter, adapter => adapter.provideDocumentSemanticTokens(URI.revive(resource), previousResultId, token), null);
 	}
 
 	$releaseDocumentSemanticTokens(handle: number, semanticColoringResultId: number): void {
@@ -2007,7 +2007,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	}
 
 	$provideDocumentRangeSemanticTokens(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<VSBuffer | null> {
-		return this._withAdapter(handle, DocumentRangeSemanticTokensAdapter, adapter => adapter.provideDocumentRangeSemanticTokens(URI.revive(resource), range, token), null, true);
+		return this._withAdapter(handle, DocumentRangeSemanticTokensAdapter, adapter => adapter.provideDocumentRangeSemanticTokens(URI.revive(resource), range, token), null);
 	}
 
 	//#endregion
@@ -2021,11 +2021,11 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	}
 
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<extHostProtocol.ISuggestResultDto | undefined> {
-		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(URI.revive(resource), position, context, token), undefined);
+		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(URI.revive(resource), position, context, token), undefined, token);
 	}
 
 	$resolveCompletionItem(handle: number, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.ISuggestDataDto | undefined> {
-		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.resolveCompletionItem(id, token), undefined);
+		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.resolveCompletionItem(id, token), undefined, token);
 	}
 
 	$releaseCompletionItems(handle: number, id: number): void {
@@ -2092,11 +2092,11 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	}
 
 	$provideInlayHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlayHintsDto | undefined> {
-		return this._withAdapter(handle, InlayHintsAdapter, adapter => adapter.provideInlayHints(URI.revive(resource), range, token), undefined);
+		return this._withAdapter(handle, InlayHintsAdapter, adapter => adapter.provideInlayHints(URI.revive(resource), range, token), undefined, token);
 	}
 
 	$resolveInlayHint(handle: number, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.IInlayHintDto | undefined> {
-		return this._withAdapter(handle, InlayHintsAdapter, adapter => adapter.resolveInlayHint(id, token), undefined);
+		return this._withAdapter(handle, InlayHintsAdapter, adapter => adapter.resolveInlayHint(id, token), undefined, token);
 	}
 
 	$releaseInlayHints(handle: number, id: number): void {
