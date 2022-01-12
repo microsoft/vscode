@@ -124,6 +124,7 @@ export class InlayHintsController implements IEditorContribution {
 		}
 
 		let cts: CancellationTokenSource | undefined;
+		let watchedProviders = new Set<languages.InlayHintsProvider>();
 
 		const scheduler = new RunOnceScheduler(async () => {
 			const t1 = Date.now();
@@ -131,17 +132,22 @@ export class InlayHintsController implements IEditorContribution {
 			cts?.dispose(true);
 			cts = new CancellationTokenSource();
 
-			const ranges = this._getHintsRanges();
-			const inlayHints = await InlayHintsFragments.create(model, ranges, cts.token);
+			const inlayHints = await InlayHintsFragments.create(model, this._getHintsRanges(), cts.token);
 			scheduler.delay = this._getInlayHintsDelays.update(model, Date.now() - t1);
 			if (cts.token.isCancellationRequested) {
 				inlayHints.dispose();
 				return;
 			}
-			this._sessionDisposables.add(inlayHints);
-			this._sessionDisposables.add(inlayHints.onDidReceiveProviderSignal(() => scheduler.schedule()));
 
-			this._updateHintsDecorators(ranges, inlayHints.items);
+			// listen to provider changes
+			for (const provider of inlayHints.provider) {
+				if (typeof provider.onDidChangeInlayHints === 'function' && !watchedProviders.has(provider)) {
+					this._sessionDisposables.add(provider.onDidChangeInlayHints(() => scheduler.schedule()));
+				}
+			}
+
+			this._sessionDisposables.add(inlayHints);
+			this._updateHintsDecorators(inlayHints.ranges, inlayHints.items);
 			this._cacheHintsForFastRestore(model);
 
 		}, this._getInlayHintsDelays.get(model));
@@ -283,7 +289,7 @@ export class InlayHintsController implements IEditorContribution {
 		return result;
 	}
 
-	private _updateHintsDecorators(ranges: Range[], items: readonly InlayHintItem[]): void {
+	private _updateHintsDecorators(ranges: readonly Range[], items: readonly InlayHintItem[]): void {
 
 		// utils to collect/create injected text decorations
 		const newDecorationsData: { item: InlayHintItem, decoration: IModelDeltaDecoration, classNameRef: IDisposable; }[] = [];
