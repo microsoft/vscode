@@ -16,13 +16,6 @@ perf.mark('code/server/start');
 global.vscodeServerStartTime = performance.now();
 
 async function start() {
-	if (process.argv[2] === '--exec') {
-		console.warn('--exec is deprecated and will be removed.');
-		process.argv.splice(1, 2);
-		require(process.argv[1]);
-		return;
-	}
-
 	const minimist = require('minimist');
 
 	// Do a quick parse to determine if a server or the cli needs to be started
@@ -41,6 +34,12 @@ async function start() {
 			mod.spawnCli();
 		});
 		return;
+	}
+
+	if (parsedArgs['compatibility'] === '1.63') {
+		console.warn(`server.sh is being replaced by 'bin/${product.applicationName}'. Please migrate to the new command and adopt the following new default behaviors:`);
+		console.warn('* connection token is mandatody unless --without-connection-token is used');
+		console.warn('* host defaults to 127.0.0.1');
 	}
 
 	/**
@@ -148,9 +147,9 @@ async function start() {
 }
 
 /**
- * If `--pick-port` and `--port` is specified, connect to that port.
+ * If `--pick - port` and `--port` is specified, connect to that port.
  *
- * If not and a port range is specified through `--pick-port`
+ * If not and a port range is specified through `--pick - port`
  * then find a free port in that range. Throw error if no
  * free port available in range.
  *
@@ -177,7 +176,7 @@ async function parsePort(host, strPort, strPickPort) {
 			if (port !== undefined) {
 				return port;
 			}
-			console.warn(`--port: Could not find free port in range: ${range.start}-${range.end}.`);
+			console.warn(`--port: Could not find free port in range: ${range.start} - ${range.end}.`);
 			process.exit(1);
 
 		} else {
@@ -195,11 +194,11 @@ async function parsePort(host, strPort, strPickPort) {
 				if (port !== undefined) {
 					return port;
 				}
-				console.log(`--pick-port: Could not find free port in range: ${range.start}-${range.end}.`);
+				console.log(`--pick - port: Could not find free port in range: ${range.start} - ${range.end}.`);
 				process.exit(1);
 			}
 		} else {
-			console.log(`--pick-port "${strPickPort}" is not properly formatted.`);
+			console.log(`--pick - port "${strPickPort}" is not properly formatted.`);
 			process.exit(1);
 		}
 	}
