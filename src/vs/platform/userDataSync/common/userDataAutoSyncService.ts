@@ -7,7 +7,7 @@ import { CancelablePromise, createCancelablePromise, Delayer, disposableTimeout,
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toLocalISOString } from 'vs/base/common/date';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
@@ -22,12 +22,12 @@ import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/use
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 type AutoSyncClassification = {
-	sources: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	sources: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true; };
 };
 
 type AutoSyncErrorClassification = {
-	code: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	service: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	code: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true; };
+	service: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true; };
 };
 
 const disableMachineEventuallyKey = 'sync.disableMachineEventually';
@@ -155,7 +155,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	// For tests purpose only
 	protected startAutoSync(): boolean { return true; }
 
-	private isAutoSyncEnabled(): { enabled: boolean, message?: string } {
+	private isAutoSyncEnabled(): { enabled: boolean, message?: string; } {
 		if (!this.userDataSyncEnablementService.isEnabled()) {
 			return { enabled: false, message: 'Auto Sync: Disabled.' };
 		}
@@ -228,7 +228,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 
 		// Log to telemetry
 		if (userDataSyncError instanceof UserDataAutoSyncError) {
-			this.telemetryService.publicLog2<{ code: string, service: string }, AutoSyncErrorClassification>(`autosync/error`, { code: userDataSyncError.code, service: this.userDataSyncStoreManagementService.userDataSyncStore!.url.toString() });
+			this.telemetryService.publicLog2<{ code: string, service: string; }, AutoSyncErrorClassification>(`autosync/error`, { code: userDataSyncError.code, service: this.userDataSyncStoreManagementService.userDataSyncStore!.url.toString() });
 		}
 
 		// Session got expired
@@ -339,7 +339,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		this.sources.push(...sources);
 		return this.syncTriggerDelayer.trigger(async () => {
 			this.logService.trace('activity sources', ...this.sources);
-			this.telemetryService.publicLog2<{ sources: string[] }, AutoSyncClassification>('sync/triggered', { sources: this.sources });
+			this.telemetryService.publicLog2<{ sources: string[]; }, AutoSyncClassification>('sync/triggered', { sources: this.sources });
 			this.sources = [];
 			if (this.autoSync.value) {
 				await this.autoSync.value.sync('Activity', disableCache);
@@ -414,7 +414,7 @@ class AutoSync extends Disposable {
 					this.logService.debug('Auto Sync: Waiting until sync is finished.');
 					await this.syncPromise;
 				} catch (error) {
-					if (isPromiseCanceledError(error)) {
+					if (isCancellationError(error)) {
 						// Cancelled => Disposed. Donot continue sync.
 						return;
 					}

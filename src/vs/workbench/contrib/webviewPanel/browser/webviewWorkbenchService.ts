@@ -6,7 +6,7 @@
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -52,7 +52,7 @@ export interface IWebviewWorkbenchService {
 		webviewOptions: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
-		group: number | undefined
+		group: number | undefined;
 	}): WebviewInput;
 
 	revealWebview(
@@ -122,7 +122,7 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 			try {
 				await this.#resolvePromise;
 			} catch (e) {
-				if (!isPromiseCanceledError(e)) {
+				if (!isCancellationError(e)) {
 					throw e;
 				}
 			}
@@ -142,7 +142,7 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 
 
 class RevivalPool {
-	private _awaitingRevival: Array<{ input: WebviewInput, resolve: () => void }> = [];
+	private _awaitingRevival: Array<{ input: WebviewInput, resolve: () => void; }> = [];
 
 	public add(input: WebviewInput, resolve: () => void) {
 		this._awaitingRevival.push({ input, resolve });

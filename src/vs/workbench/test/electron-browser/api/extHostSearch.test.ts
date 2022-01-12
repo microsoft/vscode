@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -78,7 +78,7 @@ suite('ExtHostSearch', () => {
 		await rpcProtocol.sync();
 	}
 
-	async function runFileSearch(query: IFileQuery, cancel = false): Promise<{ results: URI[]; stats: ISearchCompleteStats }> {
+	async function runFileSearch(query: IFileQuery, cancel = false): Promise<{ results: URI[]; stats: ISearchCompleteStats; }> {
 		let stats: ISearchCompleteStats;
 		try {
 			const cancellation = new CancellationTokenSource();
@@ -90,7 +90,7 @@ suite('ExtHostSearch', () => {
 
 			stats = await p;
 		} catch (err) {
-			if (!isPromiseCanceledError(err)) {
+			if (!isCancellationError(err)) {
 				await rpcProtocol.sync();
 				throw err;
 			}
@@ -103,7 +103,7 @@ suite('ExtHostSearch', () => {
 		};
 	}
 
-	async function runTextSearch(query: ITextQuery): Promise<{ results: IFileMatch[], stats: ISearchCompleteStats }> {
+	async function runTextSearch(query: ITextQuery): Promise<{ results: IFileMatch[], stats: ISearchCompleteStats; }> {
 		let stats: ISearchCompleteStats;
 		try {
 			const cancellation = new CancellationTokenSource();
@@ -111,7 +111,7 @@ suite('ExtHostSearch', () => {
 
 			stats = await p;
 		} catch (err) {
-			if (!isPromiseCanceledError(err)) {
+			if (!isCancellationError(err)) {
 				await rpcProtocol.sync();
 				throw err;
 			}
