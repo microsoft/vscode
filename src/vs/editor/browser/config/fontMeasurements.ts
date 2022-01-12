@@ -15,7 +15,6 @@ import { BareFontInfo, FontInfo, SERIALIZED_FONT_INFO_VERSION } from 'vs/editor/
  */
 export interface ISerializedFontInfo {
 	readonly version: number;
-	readonly zoomLevel: number;
 	readonly pixelRatio: number;
 	readonly fontFamily: string;
 	readonly fontWeight: string;
@@ -124,7 +123,6 @@ class FontMeasurementsImpl extends Disposable {
 			if (readConfig.typicalHalfwidthCharacterWidth <= 2 || readConfig.typicalFullwidthCharacterWidth <= 2 || readConfig.spaceWidth <= 2 || readConfig.maxDigitWidth <= 2) {
 				// Hey, it's Bug 14341 ... we couldn't read
 				readConfig = new FontInfo({
-					zoomLevel: browser.getZoomLevel(),
 					pixelRatio: browser.PixelRatio.value,
 					fontFamily: readConfig.fontFamily,
 					fontWeight: readConfig.fontWeight,
@@ -217,10 +215,7 @@ class FontMeasurementsImpl extends Disposable {
 			canUseHalfwidthRightwardsArrow = false;
 		}
 
-		// let's trust the zoom level only 2s after it was changed.
-		const canTrustBrowserZoomLevel = (browser.getTimeSinceLastZoomLevelChanged() > 2000);
 		return new FontInfo({
-			zoomLevel: browser.getZoomLevel(),
 			pixelRatio: browser.PixelRatio.value,
 			fontFamily: bareFontInfo.fontFamily,
 			fontWeight: bareFontInfo.fontWeight,
@@ -236,7 +231,7 @@ class FontMeasurementsImpl extends Disposable {
 			middotWidth: middot.width,
 			wsmiddotWidth: wsmiddotWidth.width,
 			maxDigitWidth: maxDigitWidth
-		}, canTrustBrowserZoomLevel);
+		}, true);
 	}
 }
 

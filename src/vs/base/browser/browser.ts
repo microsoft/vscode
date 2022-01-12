@@ -12,15 +12,11 @@ class WindowManager {
 
 	// --- Zoom Level
 	private _zoomLevel: number = 0;
-	private _lastZoomLevelChangeTime: number = 0;
 	private readonly _onDidChangeZoomLevel = new Emitter<number>();
 
 	public readonly onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
 	public getZoomLevel(): number {
 		return this._zoomLevel;
-	}
-	public getTimeSinceLastZoomLevelChanged(): number {
-		return Date.now() - this._lastZoomLevelChangeTime;
 	}
 	public setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
 		if (this._zoomLevel === zoomLevel) {
@@ -28,8 +24,6 @@ class WindowManager {
 		}
 
 		this._zoomLevel = zoomLevel;
-		// See https://github.com/microsoft/vscode/issues/26151
-		this._lastZoomLevelChangeTime = isTrusted ? 0 : Date.now();
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
 
@@ -153,10 +147,6 @@ export function setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
 }
 export function getZoomLevel(): number {
 	return WindowManager.INSTANCE.getZoomLevel();
-}
-/** Returns the time (in ms) since the zoom level was changed */
-export function getTimeSinceLastZoomLevelChanged(): number {
-	return WindowManager.INSTANCE.getTimeSinceLastZoomLevelChanged();
 }
 export function onDidChangeZoomLevel(callback: (zoomLevel: number) => void): IDisposable {
 	return WindowManager.INSTANCE.onDidChangeZoomLevel(callback);
