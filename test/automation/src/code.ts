@@ -189,7 +189,7 @@ export class Code {
 			let done = false;
 
 			// Start the exit flow via driver
-			this.driver.exitApplication().then((veto: any) => {
+			this.driver.exitApplication().then(veto => {
 				if (veto) {
 					done = true;
 					reject(new Error('Smoke test exit call resulted in unexpected veto'));
