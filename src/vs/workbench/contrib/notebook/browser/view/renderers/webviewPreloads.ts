@@ -37,7 +37,7 @@ interface CSSHighlights {
 	set(name: string, ht: Highlight): void;
 }
 declare namespace CSS {
-	var highlights: CSSHighlights | undefined;
+	let highlights: CSSHighlights | undefined;
 }
 
 

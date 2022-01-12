@@ -7,7 +7,7 @@ import 'vs/css!./media/notebookFind';
 import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
 import * as strings from 'vs/base/common/strings';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellEditState, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, getNotebookEditorFromEditorPane, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { MATCHES_LIMIT } from 'vs/editor/contrib/find/findModel';
@@ -41,6 +41,9 @@ export interface INotebookFindFilter {
 	findInOutput: boolean;
 }
 
+export const FindInPreviewFilterContext = new RawContextKey<boolean>('notebookFindMarkdownPreview', false);
+export const FindInOutputFilterContext = new RawContextKey<boolean>('notebookFindOutputPreview', false);
+
 export class NotebookFindWidget extends SimpleFindReplaceWidget<INotebookFindFilter> implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.find';
 	protected _findWidgetFocused: IContextKey<boolean>;
@@ -49,6 +52,9 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget<INotebookFindFil
 	private _previousFocusElement?: HTMLElement;
 	private _findModel: FindModel<INotebookFindFilter>;
 	private _styleElement!: HTMLStyleElement;
+	private _scopedContextKeyService: IContextKeyService;
+	private _findInPreview: IContextKey<boolean>;
+	private _findInOutput: IContextKey<boolean>;
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
@@ -64,7 +70,9 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget<INotebookFindFil
 		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
-
+		this._scopedContextKeyService = contextKeyService.createScoped(this.getDomNode());
+		this._findInPreview = FindInPreviewFilterContext.bindTo(this._scopedContextKeyService);
+		this._findInOutput = FindInOutputFilterContext.bindTo(this._scopedContextKeyService);
 		this._findWidgetFocused = KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
 		this.updateTheme(themeService.getColorTheme());
@@ -275,6 +283,8 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget<INotebookFindFil
 				findInOutput: filters.findInOutput ?? currentFilters?.findInOutput ?? false
 			}
 		}, false);
+		this._findInPreview.set(!!this._state.filters?.findInMarkdownPreview);
+		this._findInOutput.set(!!this._state.filters?.findInOutput);
 	}
 
 	override hide() {
@@ -467,7 +477,8 @@ registerAction2(class NotebookFindInMarkdownPreviewFilter extends Action2 {
 			menu: {
 				id: MenuId.NotebookFindFilter,
 				order: 0
-			}
+			},
+			toggled: FindInPreviewFilterContext
 		});
 	}
 
@@ -496,7 +507,8 @@ registerAction2(class NotebookFindInMarkdownPreviewFilter extends Action2 {
 			menu: {
 				id: MenuId.NotebookFindFilter,
 				order: 1
-			}
+			},
+			toggled: FindInOutputFilterContext
 		});
 	}
 
