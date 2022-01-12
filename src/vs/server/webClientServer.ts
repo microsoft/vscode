@@ -12,7 +12,6 @@ import * as crypto from 'crypto';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { getMediaMime } from 'vs/base/common/mime';
 import { isLinux } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IServerEnvironmentService } from 'vs/server/serverEnvironmentService';
 import { extname, dirname, join, normalize } from 'vs/base/common/path';
@@ -98,7 +97,7 @@ export class WebClientServer {
 			}
 			if (pathname === '/callback') {
 				// callback support
-				return this._handleCallback(req, res, parsedUrl);
+				return this._handleCallback(res);
 			}
 
 			return serveError(req, res, 404, 'Not found.');
@@ -238,63 +237,12 @@ export class WebClientServer {
 		return result;
 	}
 
-	private _getFirstQueryValue(parsedUrl: url.UrlWithParsedQuery, key: string): string | undefined {
-		const result = parsedUrl.query[key];
-		return Array.isArray(result) ? result[0] : result;
-	}
-
-	private _getFirstQueryValues(parsedUrl: url.UrlWithParsedQuery, ignoreKeys?: string[]): Map<string, string> {
-		const queryValues = new Map<string, string>();
-
-		for (const key in parsedUrl.query) {
-			if (ignoreKeys && ignoreKeys.indexOf(key) >= 0) {
-				continue;
-			}
-
-			const value = this._getFirstQueryValue(parsedUrl, key);
-			if (typeof value === 'string') {
-				queryValues.set(key, value);
-			}
-		}
-
-		return queryValues;
-	}
-
 	/**
 	 * Handle HTTP requests for /callback
 	 */
-	private async _handleCallback(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
-		const wellKnownKeys = ['vscode-requestId', 'vscode-scheme', 'vscode-authority', 'vscode-path', 'vscode-query', 'vscode-fragment'];
-		const [requestId, vscodeScheme, vscodeAuthority, vscodePath, vscodeQuery, vscodeFragment] = wellKnownKeys.map(key => {
-			const value = this._getFirstQueryValue(parsedUrl, key);
-			if (value) {
-				return decodeURIComponent(value);
-			}
-
-			return value;
-		});
-
-		if (!requestId) {
-			res.writeHead(400, { 'Content-Type': 'text/plain' });
-			return res.end(`Bad request.`);
-		}
-
-		// merge over additional query values that we got
-		let query: string | undefined = vscodeQuery;
-		let index = 0;
-		this._getFirstQueryValues(parsedUrl, wellKnownKeys).forEach((value, key) => {
-			if (!query) {
-				query = '';
-			}
-
-			const prefix = (index++ === 0) ? '' : '&';
-			query += `${prefix}${key}=${value}`;
-		});
-
+	private async _handleCallback(res: http.ServerResponse): Promise<void> {
 		const filePath = FileAccess.asFileUri('vs/code/browser/workbench/callback.html', require).fsPath;
-		const data = (await util.promisify(fs.readFile)(filePath)).toString()
-			.replace('{{CALLBACK_ID}}', requestId)
-			.replace('{{CALLBACK_URI}}', JSON.stringify(URI.from({ scheme: vscodeScheme || this._productService.urlProtocol, authority: vscodeAuthority, path: vscodePath, query, fragment: vscodeFragment }).toJSON()));
+		const data = (await util.promisify(fs.readFile)(filePath)).toString();
 		const cspDirectives = [
 			'default-src \'self\';',
 			'img-src \'self\' https: data: blob:;',
