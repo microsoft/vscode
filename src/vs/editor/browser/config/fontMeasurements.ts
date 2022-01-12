@@ -125,7 +125,7 @@ class FontMeasurementsImpl extends Disposable {
 				// Hey, it's Bug 14341 ... we couldn't read
 				readConfig = new FontInfo({
 					zoomLevel: browser.getZoomLevel(),
-					pixelRatio: browser.getPixelRatio(),
+					pixelRatio: browser.PixelRatio.value,
 					fontFamily: readConfig.fontFamily,
 					fontWeight: readConfig.fontWeight,
 					fontSize: readConfig.fontSize,
@@ -221,7 +221,7 @@ class FontMeasurementsImpl extends Disposable {
 		const canTrustBrowserZoomLevel = (browser.getTimeSinceLastZoomLevelChanged() > 2000);
 		return new FontInfo({
 			zoomLevel: browser.getZoomLevel(),
-			pixelRatio: browser.getPixelRatio(),
+			pixelRatio: browser.PixelRatio.value,
 			fontFamily: bareFontInfo.fontFamily,
 			fontWeight: bareFontInfo.fontWeight,
 			fontSize: bareFontInfo.fontSize,

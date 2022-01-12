@@ -74,6 +74,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 		this._register(this._containerObserver.onDidChange(() => this._recomputeOptions()));
 		this._register(FontMeasurements.onDidChange(() => this._recomputeOptions()));
 		this._register(browser.onDidChangeZoomLevel(() => this._recomputeOptions()));
+		this._register(browser.PixelRatio.onDidChange(() => this._recomputeOptions()));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
 	}
 
@@ -117,7 +118,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			outerWidth: this._containerObserver.getWidth(),
 			outerHeight: this._containerObserver.getHeight(),
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
-			pixelRatio: browser.getPixelRatio(),
+			pixelRatio: browser.PixelRatio.value,
 			zoomLevel: browser.getZoomLevel(),
 			accessibilitySupport: (
 				this._accessibilityService.isScreenReaderOptimized()
@@ -149,10 +150,6 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 
 	public observeContainer(dimension?: IDimension): void {
 		this._containerObserver.observe(dimension);
-	}
-
-	public observePixelRatio(): void {
-		this._recomputeOptions();
 	}
 
 	public setIsDominatedByLongLines(isDominatedByLongLines: boolean): void {
