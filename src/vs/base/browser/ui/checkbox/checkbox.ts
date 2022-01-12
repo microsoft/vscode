@@ -132,9 +132,11 @@ export class Checkbox extends Widget {
 		this.applyStyles();
 
 		this.onclick(this.domNode, (ev) => {
-			this.checked = !this._checked;
-			this._onChange.fire(false);
-			ev.preventDefault();
+			if (this.enabled) {
+				this.checked = !this._checked;
+				this._onChange.fire(false);
+				ev.preventDefault();
+			}
 		});
 
 		this.ignoreGesture(this.domNode);

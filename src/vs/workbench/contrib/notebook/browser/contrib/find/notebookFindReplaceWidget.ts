@@ -85,8 +85,26 @@ class NotebookFindInput extends FindInput {
 		this.controls.appendChild(this._filterButtonContainer);
 	}
 
+	override setEnabled(enabled: boolean) {
+		super.setEnabled(enabled);
+		if (enabled && !this._filterChecked) {
+			this.regex.enable();
+		} else {
+			this.regex.disable();
+		}
+	}
+
 	updateFilterState(changed: boolean) {
 		this._filterChecked = changed;
+		if (this._filterChecked) {
+			this.regex.disable();
+			this.regex.domNode.tabIndex = -1;
+			this.regex.domNode.classList.toggle('disabled', true);
+		} else {
+			this.regex.enable();
+			this.regex.domNode.tabIndex = 0;
+			this.regex.domNode.classList.toggle('disabled', false);
+		}
 		this.applyStyles();
 	}
 

@@ -34,7 +34,7 @@ declare class Highlight {
 }
 
 interface CSSHighlights {
-	set(name: string, ht: Highlight): void;
+	set(rule: string, highlight: Highlight): void;
 }
 declare namespace CSS {
 	let highlights: CSSHighlights | undefined;
