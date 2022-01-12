@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 class WindowManager {
 
@@ -12,9 +12,7 @@ class WindowManager {
 
 	// --- Zoom Level
 	private _zoomLevel: number = 0;
-	private readonly _onDidChangeZoomLevel = new Emitter<number>();
 
-	public readonly onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
 	public getZoomLevel(): number {
 		return this._zoomLevel;
 	}
@@ -22,9 +20,7 @@ class WindowManager {
 		if (this._zoomLevel === zoomLevel) {
 			return;
 		}
-
 		this._zoomLevel = zoomLevel;
-		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
 
 	// --- Zoom Factor
@@ -147,9 +143,6 @@ export function setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
 }
 export function getZoomLevel(): number {
 	return WindowManager.INSTANCE.getZoomLevel();
-}
-export function onDidChangeZoomLevel(callback: (zoomLevel: number) => void): IDisposable {
-	return WindowManager.INSTANCE.onDidChangeZoomLevel(callback);
 }
 
 /** The zoom scale for an index, e.g. 1, 1.2, 1.4 */

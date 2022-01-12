@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -345,7 +345,7 @@ export class ColorPickerWidget extends Widget {
 	constructor(container: Node, readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService) {
 		super();
 
-		this._register(onDidChangeZoomLevel(() => this.layout()));
+		this._register(PixelRatio.onDidChange(() => this.layout()));
 
 		const element = $('.colorpicker-widget');
 		container.appendChild(element);

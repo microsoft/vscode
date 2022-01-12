@@ -36,7 +36,7 @@ import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/browser';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
@@ -397,7 +397,7 @@ export class BreadcrumbsControl {
 				}
 
 				let selectListener = picker.onWillPickElement(() => this._contextViewService.hideContextView({ source: this, didPick: true }));
-				let zoomListener = onDidChangeZoomLevel(() => this._contextViewService.hideContextView({ source: this }));
+				let zoomListener = PixelRatio.onDidChange(() => this._contextViewService.hideContextView({ source: this }));
 
 				let focusTracker = dom.trackFocus(parent);
 				let blurListener = focusTracker.onDidBlur(() => {
