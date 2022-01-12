@@ -917,7 +917,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	}
 
-	const find = (query: string) => {
+	const find = (query: string, options: { includeMarkup: boolean; includeOutput: boolean; }) => {
 		let find = true;
 		let matches: IFindMatch[] = [];
 
@@ -947,7 +947,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 						break;
 					}
 
-					if (selection.rangeCount > 0 && selection.getRangeAt(0).startContainer.nodeType === 1
+					if (options.includeMarkup && selection.rangeCount > 0 && selection.getRangeAt(0).startContainer.nodeType === 1
 						&& (selection.getRangeAt(0).startContainer as Element).classList.contains('markup')) {
 						// markdown preview container
 						const preview = (selection.anchorNode?.firstChild as Element);
@@ -965,7 +965,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 						}
 					}
 
-					if (selection.rangeCount > 0 && selection.getRangeAt(0).startContainer.nodeType === 1
+					if (options.includeOutput && selection.rangeCount > 0 && selection.getRangeAt(0).startContainer.nodeType === 1
 						&& (selection.getRangeAt(0).startContainer as Element).classList.contains('output_container')) {
 						// output container
 						const cellId = selection.getRangeAt(0).startContainer.parentElement!.id;
@@ -989,7 +989,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					if (anchorNode) {
 						const lastEl: any = matches.length ? matches[matches.length - 1] : null;
 
-						if (lastEl && lastEl.container.contains(anchorNode)) {
+						if (lastEl && lastEl.container.contains(anchorNode) && options.includeOutput) {
 							matches.push({
 								type: lastEl.type,
 								id: lastEl.id,
@@ -1005,7 +1005,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 									break;
 								}
 
-								if (node.classList.contains('output')) {
+								if (node.classList.contains('output') && options.includeOutput) {
 									// inside output
 									const cellId = node.parentElement?.parentElement?.id;
 									if (cellId) {
@@ -1217,7 +1217,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 			case 'find': {
 				_highlighter?.dispose();
-				find(event.data.query);
+				find(event.data.query, event.data.options);
 				break;
 			}
 			case 'findHighlight': {

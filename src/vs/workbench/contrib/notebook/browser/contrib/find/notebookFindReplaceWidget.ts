@@ -28,8 +28,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { createAndFillInActionBarActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -70,6 +70,7 @@ export abstract class SimpleFindReplaceWidget<T> extends Widget {
 	private foundMatch: boolean = false;
 
 	protected _progressBar!: ProgressBar;
+	protected _scopedContextKeyService: IContextKeyService;
 
 
 	constructor(
@@ -88,6 +89,7 @@ export abstract class SimpleFindReplaceWidget<T> extends Widget {
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('simple-fr-find-part-wrapper');
 		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
+		this._scopedContextKeyService = contextKeyService.createScoped(this._domNode);
 
 		let progressContainer = dom.$('.find-replace-progress');
 		this._progressBar = new ProgressBar(progressContainer);
@@ -199,27 +201,20 @@ export abstract class SimpleFindReplaceWidget<T> extends Widget {
 		if (experimental) {
 			let filterButtonContainer = dom.$('.find-filter-button');
 			this._innerFindDomNode.appendChild(filterButtonContainer);
-			const primaryMenu = this.menuService.createMenu(MenuId.NotebookFindToolbar, contextKeyService);
-			// const primary = this.getCellToolbarActions(primaryMenu).primary[0];
+			const primaryMenu = this.menuService.createMenu(MenuId.NotebookFindToolbar, this._scopedContextKeyService);
 
 			this.filterToolbar = this._register(new ToolBar(filterButtonContainer, this.contextMenuService, {
 				actionViewItemProvider: action => {
-					if (action instanceof MenuItemAction) {
-						return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
-					} else if (action instanceof SubmenuItemAction) {
-						return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, undefined);
-					}
-
-					return undefined;
+					return createActionViewItem(this.instantiationService, action);
 				}
 			}));
 			const actions = this.getCellToolbarActions(primaryMenu);
 			this.filterToolbar.setActions([...actions.primary, ...actions.secondary]);
 
-			primaryMenu.onDidChange(() => {
+			this._register(primaryMenu.onDidChange(() => {
 				const actions = this.getCellToolbarActions(primaryMenu);
 				this.filterToolbar?.setActions([...actions.primary, ...actions.secondary]);
-			});
+			}));
 		}
 
 		this._innerFindDomNode.appendChild(this.prevBtn.domNode);

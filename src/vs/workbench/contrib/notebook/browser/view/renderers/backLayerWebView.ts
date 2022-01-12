@@ -1291,7 +1291,7 @@ var requirejs = (function() {
 		}, 50);
 	}
 
-	async find(query: string): Promise<IFindMatch[]> {
+	async find(query: string, options: { includeMarkup: boolean, includeOutput: boolean }): Promise<IFindMatch[]> {
 		if (query === '') {
 			return [];
 		}
@@ -1307,7 +1307,8 @@ var requirejs = (function() {
 
 		this._sendMessageToWebview({
 			type: 'find',
-			query: query
+			query: query,
+			options
 		});
 
 		const ret = await p;
