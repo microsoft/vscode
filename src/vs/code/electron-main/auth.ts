@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
+import { IEncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';

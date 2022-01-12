@@ -68,6 +68,7 @@ import { mixin, safeStringify } from 'vs/base/common/objects';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { BrowserCredentialsService } from 'vs/workbench/services/credentials/browser/credentialsService';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 
 class BrowserMain extends Disposable {
 
@@ -268,7 +269,10 @@ class BrowserMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Credentials Service
-		const credentialsService = new BrowserCredentialsService(environmentService);
+		const credentialsService = environmentService.remoteAuthority
+			// If we have a remote authority, we can use the CredentialsService on the remote side
+			? ProxyChannel.toService<ICredentialsService>(remoteAgentService.getConnection()!.getChannel('credentials'))
+			: new BrowserCredentialsService(environmentService);
 		serviceCollection.set(ICredentialsService, credentialsService);
 
 		// Userdata Initialize Service
