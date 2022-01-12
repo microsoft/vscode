@@ -1260,7 +1260,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			return;
 		}
 		const uuid = generateUuid();
-		this.treeViewsDragAndDropService.addDragOperationTransfer(uuid, this.dndController.onWillDrop(itemHandles, uuid));
+		this.treeViewsDragAndDropService.addDragOperationTransfer(uuid, this.dndController.handleDrag(itemHandles, uuid));
 		originalEvent.dataTransfer.setData(TREE_DRAG_UUID_MIME, uuid);
 	}
 
@@ -1387,7 +1387,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 
 		const additionalWillDropPromise = this.treeViewsDragAndDropService.removeDragOperationTransfer(willDropUuid);
 		if (!additionalWillDropPromise) {
-			return dndController.onDrop(treeDataTransfer, targetNode, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
+			return dndController.handleDrop(treeDataTransfer, targetNode, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
 		}
 		return additionalWillDropPromise.then(additionalDataTransfer => {
 			if (additionalDataTransfer) {
@@ -1395,7 +1395,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 					treeDataTransfer.set(item[0], item[1]);
 				}
 			}
-			return dndController.onDrop(treeDataTransfer, targetNode, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
+			return dndController.handleDrop(treeDataTransfer, targetNode, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
 		});
 
 	}

@@ -29,7 +29,7 @@ declare module 'vscode' {
 	/**
 	 * A class for encapsulating data transferred during a tree drag and drop event.
 	 *
-	 * If your `DragAndDropController` implements `onWillDrop`, you can extend `TreeDataTransferItem` and return
+	 * If your `DragAndDropController` implements `handleDrag`, you can extend `TreeDataTransferItem` and return
 	 * an instance of your new class for easy access to the source tree items.
 	 *
 	 * ```ts
@@ -52,7 +52,7 @@ declare module 'vscode' {
 
 	/**
 	 * A map containing a mapping of the mime type of the corresponding transferred data.
-	 * Trees that support drag and drop can implement `DragAndDropController.onWillDrop` to add additional mime types
+	 * Trees that support drag and drop can implement `DragAndDropController.handleDrag` to add additional mime types
 	 * when the drop occurs on an item in the same tree.
 	 */
 	export class TreeDataTransfer<T extends TreeDataTransferItem = TreeDataTransferItem> {
@@ -83,7 +83,7 @@ declare module 'vscode' {
 
 		/**
 		 * The mime types that the `drop` method of this `DragAndDropController` supports. This could be well-defined, existing, mime types,
-		 * and also mime types defined by the extension that are returned in the `TreeDataTransfer` from `onWillDrop`.
+		 * and also mime types defined by the extension that are returned in the `TreeDataTransfer` from `handleDrag`.
 		 *
 		 * Each tree will automatically support drops from it's own `DragAndDropController`. To support drops from other trees,
 		 * you will need to add the mime type of that tree. The mime type of a tree is of the format `tree/treeidlowercase`.
@@ -96,8 +96,8 @@ declare module 'vscode' {
 		readonly supportedMimeTypes: string[];
 
 		/**
-		 * When the user starts dragging items from this `DragAndDropController`, `onWillDrop` will be called.
-		 * Extensions can use `onWillDrop` to add their `TreeDataTransferItem`s to the drag and drop.
+		 * When the user starts dragging items from this `DragAndDropController`, `handleDrag` will be called.
+		 * Extensions can use `handleDrag` to add their `TreeDataTransferItem`s to the drag and drop.
 		 *
 		 * When the items are dropped on **another tree item** in **the same tree**, your `TreeDataTransferItem` objects
 		 * will be preserved. See the documentation for `TreeDataTransferItem` for how best to take advantage of this.
@@ -106,7 +106,7 @@ declare module 'vscode' {
 		 *
 		 * @param source The source items for the drag and drop operation.
 		 */
-		onWillDrop?(source: T[]): Thenable<TreeDataTransfer>;
+		handleDrag?(source: T[]): Thenable<TreeDataTransfer>;
 
 		/**
 		 * Called when a drag and drop action results in a drop on the tree that this `DragAndDropController` belongs too.
@@ -116,6 +116,6 @@ declare module 'vscode' {
 		 * @param source The data transfer items of the source of the drag.
 		 * @param target The target tree element that the drop is occuring on.
 		 */
-		onDrop(source: TreeDataTransfer, target: T): Thenable<void> | void;
+		handleDrop(source: TreeDataTransfer, target: T): Thenable<void> | void;
 	}
 }
