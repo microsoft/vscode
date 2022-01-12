@@ -193,6 +193,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					spellcheck: false,
 					nativeWindowOpen: true,
 					zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel),
+					// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
+					// Refs https://github.com/microsoft/vscode/issues/140098
+					enableBlinkFeatures: 'HighlightAPI',
 					...this.environmentMainService.sandbox ?
 
 						// Sandbox
