@@ -222,6 +222,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	toggleZenMode(): void;
 
 	/**
+	 * Toggles the workbench out of zen mode if it is in zen mode.
+	 */
+	toggleZenModeOff(): void;
+
+	/**
 	 * Returns whether the centered editor layout is active.
 	 */
 	isEditorLayoutCentered(): boolean;

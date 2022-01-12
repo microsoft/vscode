@@ -1146,6 +1146,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onDidChangeZenMode.fire(this.stateModel.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE));
 	}
 
+	toggleZenModeOff(skipLayout?: boolean, restoring = false): void {
+		// Zen Mode Active
+		if (this.stateModel.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE)) {
+			return this.toggleZenMode(skipLayout, restoring);
+		}
+	}
+
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN, hidden);
 

@@ -64,10 +64,10 @@ export class ToggleActivityBarVisibilityAction extends Action2 {
 				group: '2_workbench_layout',
 				order: 4
 			}, {
-					id: MenuId.LayoutControlMenu,
-					group: '0_workbench_layout',
-					order: 3
-				}]
+				id: MenuId.LayoutControlMenu,
+				group: '0_workbench_layout',
+				order: 3
+			}]
 		});
 	}
 
@@ -104,10 +104,10 @@ registerAction2(class extends Action2 {
 				group: '1_toggle_view',
 				order: 3
 			}, {
-					id: MenuId.LayoutControlMenu,
-					group: '1_toggle_view',
-					order: 3
-				}]
+				id: MenuId.LayoutControlMenu,
+				group: '1_toggle_view',
+				order: 3
+			}]
 		});
 	}
 
@@ -374,10 +374,10 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 				group: '2_workbench_layout',
 				order: 3
 			}, {
-					id: MenuId.LayoutControlMenu,
-					group: '0_workbench_layout',
-					order: 1
-				}]
+				id: MenuId.LayoutControlMenu,
+				group: '0_workbench_layout',
+				order: 1
+			}]
 		});
 	}
 
@@ -463,7 +463,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.EditorContrib - 1000,
 	handler(accessor: ServicesAccessor) {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
-		layoutService.toggleZenMode();
+		layoutService.toggleZenModeOff();
 	},
 	when: InEditorZenModeContext,
 	primary: KeyChord(KeyCode.Escape, KeyCode.Escape)
