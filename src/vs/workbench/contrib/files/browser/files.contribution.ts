@@ -344,7 +344,7 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize({ key: 'openEditorsSortOrder', comment: ['Open is an adjective'] }, "Controls the sorting order of editors in the Open Editors pane."),
 			'enumDescriptions': [
 				nls.localize('sortOrder.editorOrder', 'Editors are ordered in the same order editor tabs are shown.'),
-				nls.localize('sortOrder.alphabetical', 'Editors are ordered in alphabetical order by tab name inside each editor group.'),
+				nls.localize('sortOrder.alphabetical', 'Editors are ordered in alphabetily by tab name inside each editor group.'),
 				nls.localize('sortOrder.fullPath', 'Editors are ordered alphabetically by full path inside each editor group.')
 			],
 			'default': 'editorOrder'
