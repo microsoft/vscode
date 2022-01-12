@@ -100,6 +100,5 @@
 		"list",
 		"git",
 		"sash"
-	],
-	"notebook.find.experimental": true
+	]
 }

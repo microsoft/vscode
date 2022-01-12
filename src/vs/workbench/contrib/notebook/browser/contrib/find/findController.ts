@@ -50,7 +50,6 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget<INotebookFindFil
 	private _hideTimeout: number | null = null;
 	private _previousFocusElement?: HTMLElement;
 	private _findModel: FindModel;
-	private _styleElement!: HTMLStyleElement;
 	private _findInPreview: IContextKey<boolean>;
 	private _findInOutput: IContextKey<boolean>;
 
@@ -64,7 +63,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget<INotebookFindFil
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(contextViewService, contextKeyService, themeService, configurationService, menuService, contextMenuService, instantiationService, new FindReplaceState<INotebookFindFilter>(), true);
+		super(contextViewService, contextKeyService, themeService, configurationService, menuService, contextMenuService, instantiationService, new FindReplaceState<INotebookFindFilter>());
 		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
@@ -97,22 +96,8 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget<INotebookFindFil
 		this._register(DOM.addDisposableListener(this.getDomNode(), DOM.EventType.FOCUS, e => {
 			this._previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
 		}, true));
-
-		this._createLayoutStyles();
 	}
 
-	private _createLayoutStyles(): void {
-		this._styleElement = DOM.createStyleSheet(this.getDomNode());
-		const experimental = this._configurationService.getValue<boolean>('notebook.find.experimental');
-		const styleSheets: string[] = [];
-		if (experimental) {
-			styleSheets.push('.monaco-workbench .simple-fr-find-part-wrapper { width: 341px; }');
-		} else {
-			styleSheets.push('.monaco-workbench .simple-fr-find-part-wrapper { width: 318px; }');
-		}
-
-		this._styleElement.textContent = styleSheets.join('\n');
-	}
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 		if (e.equals(KeyCode.Enter)) {
@@ -273,15 +258,16 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget<INotebookFindFil
 		findInMarkdownPreview?: boolean,
 		findInOutput?: boolean
 	}) {
-		const currentFilters = this._state.filters;
+		const currentFilters = this._state.filters ?? { findInMarkdownPreview: false, findInOutput: false };
 		this._state.change({
 			filters: {
-				findInMarkdownPreview: filters.findInMarkdownPreview ?? currentFilters?.findInMarkdownPreview ?? false,
-				findInOutput: filters.findInOutput ?? currentFilters?.findInOutput ?? false
+				findInMarkdownPreview: filters.findInMarkdownPreview ? !currentFilters?.findInMarkdownPreview : currentFilters?.findInMarkdownPreview,
+				findInOutput: filters.findInOutput ? !currentFilters?.findInOutput : currentFilters?.findInOutput
 			}
 		}, false);
 		this._findInPreview.set(!!this._state.filters?.findInMarkdownPreview);
 		this._findInOutput.set(!!this._state.filters?.findInOutput);
+		this._findInput.updateFilterState((this._state.filters?.findInMarkdownPreview ?? false) || (this._state.filters?.findInOutput ?? false));
 	}
 
 	override hide() {
