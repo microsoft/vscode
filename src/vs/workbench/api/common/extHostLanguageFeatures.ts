@@ -1181,10 +1181,11 @@ class InlayHintsAdapter {
 		private readonly _provider: vscode.InlayHintsProvider,
 	) { }
 
-	async provideInlayHints(resource: URI, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlayHintsDto | undefined> {
+	async provideInlayHints(resource: URI, ran: IRange, token: CancellationToken): Promise<extHostProtocol.IInlayHintsDto | undefined> {
 		const doc = this._documents.getDocument(resource);
+		const range = typeConvert.Range.to(ran);
 
-		const hints = await this._provider.provideInlayHints(doc, typeConvert.Range.to(range), token);
+		const hints = await this._provider.provideInlayHints(doc, range, token);
 		if (!Array.isArray(hints) || hints.length === 0) {
 			// bad result
 			return undefined;
@@ -1198,7 +1199,7 @@ class InlayHintsAdapter {
 		this._disposables.set(pid, new DisposableStore());
 		const result: extHostProtocol.IInlayHintsDto = { hints: [], cacheId: pid };
 		for (let i = 0; i < hints.length; i++) {
-			if (this._isValidInlayHint(hints[i])) {
+			if (this._isValidInlayHint(hints[i], range)) {
 				result.hints.push(this._convertInlayHint(hints[i], [pid, i]));
 			}
 		}
@@ -1232,9 +1233,13 @@ class InlayHintsAdapter {
 		this._cache.delete(id);
 	}
 
-	private _isValidInlayHint(hint: vscode.InlayHint): boolean {
+	private _isValidInlayHint(hint: vscode.InlayHint, range?: vscode.Range): boolean {
 		if (hint.label.length === 0 || Array.isArray(hint.label) && hint.label.every(part => part.label.length === 0)) {
 			console.log('INVALID inlay hint, empty label', hint);
+			return false;
+		}
+		if (range && !range.contains(hint.position)) {
+			console.log('INVALID inlay hint, position outside range', hint);
 			return false;
 		}
 		return true;
