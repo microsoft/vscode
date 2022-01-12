@@ -31,7 +31,7 @@ import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { memoize } from 'vs/base/common/decorators';
 import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
-import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from 'vs/editor/common/model';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { basename } from 'vs/base/common/path';
@@ -85,7 +85,8 @@ function createInlineValueDecoration(lineNumber: number, contentText: string, co
 			options: {
 				description: 'debug-inline-value-decoration-spacer',
 				after: {
-					content: strings.noBreakWhitespace
+					content: strings.noBreakWhitespace,
+					cursorStops: InjectedTextCursorStops.None
 				},
 				showIfCollapsed: true,
 			}
@@ -102,7 +103,8 @@ function createInlineValueDecoration(lineNumber: number, contentText: string, co
 				after: {
 					content: replaceWsWithNoBreakWs(contentText),
 					inlineClassName: 'debug-inline-value',
-					inlineClassNameAffectsLetterSpacing: true
+					inlineClassNameAffectsLetterSpacing: true,
+					cursorStops: InjectedTextCursorStops.None
 				},
 				showIfCollapsed: true,
 			}
