@@ -462,6 +462,7 @@ function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 		} : undefined,
 		workspaceProvider: WorkspaceProvider.create(config),
 		urlCallbackProvider: new LocalStorageURLCallbackProvider(),
-		credentialsProvider: new LocalStorageCredentialsProvider()
+		// if we have a remote authority, we will use the remote side for storing secrets
+		credentialsProvider: config.remoteAuthority ? undefined : new LocalStorageCredentialsProvider()
 	});
 })();
