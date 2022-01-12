@@ -929,7 +929,7 @@ function parseConnectionToken(args: ServerParsedArgs): { connectionToken: string
 
 	if (args['without-connection-token']) {
 		if (connectionToken || connectionTokenFile) {
-			console.warn(`Please do not use the argument '--connection-token' and 'connection-token-file' at the same time as '--without-connection-token'.`);
+			console.warn(`Please do not use the argument '--connection-token' or '--connection-token-file' at the same time as '--without-connection-token'.`);
 			process.exit(1);
 		}
 		return { connectionToken: 'without-connection-token' /* to be implemented @alexd */, connectionTokenIsMandatory: false };
