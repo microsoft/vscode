@@ -11,6 +11,7 @@ import { ILanguageService } from 'vs/editor/common/services/language';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { INotebookFindFilter } from 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { ICellModelDecorations, ICellModelDeltaDecorations, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -56,7 +57,7 @@ suite('Notebook Find', () => {
 			],
 			async (editor, viewModel, accessor) => {
 				accessor.stub(IConfigurationService, configurationService);
-				const state = new FindReplaceState<boolean>();
+				const state = new FindReplaceState<INotebookFindFilter>();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
 
 				const found = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
@@ -103,7 +104,7 @@ suite('Notebook Find', () => {
 			async (editor, viewModel, accessor) => {
 				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
-				const state = new FindReplaceState<boolean>();
+				const state = new FindReplaceState<INotebookFindFilter>();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
 				const found = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
 					if (e.matchesCount) { resolve(true); }
@@ -154,7 +155,7 @@ suite('Notebook Find', () => {
 			async (editor, viewModel, accessor) => {
 				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
-				const state = new FindReplaceState<boolean>();
+				const state = new FindReplaceState<INotebookFindFilter>();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
 				const found = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
 					if (e.matchesCount) { resolve(true); }
@@ -198,7 +199,7 @@ suite('Notebook Find', () => {
 			async (editor, viewModel, accessor) => {
 				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
-				const state = new FindReplaceState<boolean>();
+				const state = new FindReplaceState<INotebookFindFilter>();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
 				const found = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
 					if (e.matchesCount) { resolve(true); }
@@ -235,7 +236,7 @@ suite('Notebook Find', () => {
 			],
 			async (editor, viewModel, accessor) => {
 				accessor.stub(IConfigurationService, configurationService);
-				const state = new FindReplaceState<boolean>();
+				const state = new FindReplaceState<INotebookFindFilter>();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
 				const found = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
 					if (e.matchesCount) { resolve(true); }
