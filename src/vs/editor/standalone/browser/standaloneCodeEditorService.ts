@@ -26,7 +26,7 @@ export class StandaloneCodeEditorService extends AbstractCodeEditorService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 	) {
-		super(null, themeService);
+		super(themeService);
 		this.onCodeEditorAdd(() => this._checkContextKey());
 		this.onCodeEditorRemove(() => this._checkContextKey());
 		this._editorIsOpen = contextKeyService.createKey('editorIsOpen', false);

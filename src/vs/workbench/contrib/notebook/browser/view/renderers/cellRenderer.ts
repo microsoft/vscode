@@ -17,9 +17,10 @@ import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOpti
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/languages';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
+import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -32,13 +33,13 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { CodeCellLayoutInfo, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellContextKeys';
 import { CellDecorations } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDecorations';
-import { CellDragAndDropController, DragPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
+import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { CellExecutionPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellExecution';
 import { CellFocusIndicator } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellFocusIndicator';
 import { CellProgressBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellProgressBar';
-import { BetweenCellToolbar, CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellStatusPart';
+import { BetweenCellToolbar, CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCell';
 import { RunToolbar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellRunToolbar';
 import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/cellParts/markdownCell';
@@ -47,7 +48,6 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 const $ = DOM.$;
 
@@ -377,7 +377,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const focusIndicatorTop = new FastDomNode(DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top')));
 		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
 		const focusIndicatorLeft = new FastDomNode(DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left')));
-		const dragHandle = new DragPart(this.notebookEditor, new FastDomNode(DOM.append(container, DOM.$('.cell-drag-handle'))));
 
 		const cellContainer = DOM.append(container, $('.cell.code'));
 		const runButtonContainer = DOM.append(cellContainer, $('.run-button-container'));
@@ -457,13 +456,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			editor,
 			templateDisposables,
 			elementDisposables: new DisposableStore(),
-			dragHandle,
 			toJSON: () => { return {}; }
 		};
 
 		this.setupOutputCollapsedPart(templateData);
 
-		this.dndController?.registerDragHandle(templateData, rootContainer, dragHandle.domNode, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
+		this.dndController?.registerDragHandle(templateData, rootContainer, focusIndicatorLeft.domNode, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
 
 		templateDisposables.add(this.addCollapseClickCollapseHandler(templateData));
 		templateDisposables.add(DOM.addDisposableListener(focusSinkElement, DOM.EventType.FOCUS, () => {
@@ -518,7 +516,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	private addCollapseClickCollapseHandler(templateData: CodeCellRenderTemplate): IDisposable {
-		const dragHandleListener = DOM.addDisposableListener(templateData.dragHandle.domNode, DOM.EventType.DBLCLICK, e => {
+		const dragHandleListener = DOM.addDisposableListener(templateData.focusIndicator.left.domNode, DOM.EventType.DBLCLICK, e => {
 			const cell = templateData.currentRenderedCell;
 			if (!cell || !this.notebookEditor.hasModel()) {
 				return;
@@ -587,8 +585,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateData.progressBar,
 			templateData.titleToolbar,
 			templateData.runToolbar,
-			templateData.cellExecution,
-			templateData.dragHandle
+			templateData.cellExecution
 		]));
 
 		this.renderedEditors.set(element, templateData.editor);

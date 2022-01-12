@@ -28,12 +28,13 @@ async function start() {
 	// Do a quick parse to determine if a server or the cli needs to be started
 	const parsedArgs = minimist(process.argv.slice(2), {
 		boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version', 'accept-server-license-terms'],
-		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port']
+		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port', 'compatibility']
 	});
 
-	const extensionCliArgs = ['list-extensions', 'install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension'];
+	const extensionLookupArgs = ['list-extensions', 'locate-extension'];
+	const extensionInstallArgs = ['install-extension', 'install-builtin-extension', 'uninstall-extension'];
 
-	const shouldSpawnCli = parsedArgs.help || parsedArgs.version || !parsedArgs['start-server'] && extensionCliArgs.some(a => !!parsedArgs[a]);
+	const shouldSpawnCli = parsedArgs.help || parsedArgs.version || extensionLookupArgs.some(a => !!parsedArgs[a]) || (extensionInstallArgs.some(a => !!parsedArgs[a]) && !parsedArgs['start-server']);
 
 	if (shouldSpawnCli) {
 		loadCode().then((mod) => {
@@ -101,10 +102,11 @@ async function start() {
 		const remoteExtensionHostAgentServer = await getRemoteExtensionHostAgentServer();
 		return remoteExtensionHostAgentServer.handleServerError(err);
 	});
+	const host = parsedArgs['host'] || (parsedArgs['compatibility'] !== '1.63' ? '127.0.0.1' : undefined);
 	const nodeListenOptions = (
 		parsedArgs['socket-path']
 			? { path: parsedArgs['socket-path'] }
-			: { host: parsedArgs['host'], port: await parsePort(parsedArgs['port'], parsedArgs['pick-port']) }
+			: { host, port: await parsePort(host, parsedArgs['port'], parsedArgs['pick-port']) }
 	);
 	server.listen(nodeListenOptions, async () => {
 		const serverGreeting = product.serverGreeting.join('\n');
@@ -155,12 +157,13 @@ async function start() {
  * If only `--port` is provided then connect to that port.
  *
  * In absence of specified ports, connect to port 8000.
+ * @param {string | undefined} host
  * @param {string | undefined} strPort
  * @param {string | undefined} strPickPort
  * @returns {Promise<number>}
  * @throws
  */
-async function parsePort(strPort, strPickPort) {
+async function parsePort(host, strPort, strPickPort) {
 	let specificPort;
 	if (strPort) {
 		let range;
@@ -170,7 +173,7 @@ async function parsePort(strPort, strPickPort) {
 				return specificPort;
 			}
 		} else if (range = parseRange(strPort)) {
-			const port = await findFreePort(range.start, range.end);
+			const port = await findFreePort(host, range.start, range.end);
 			if (port !== undefined) {
 				return port;
 			}
@@ -178,7 +181,7 @@ async function parsePort(strPort, strPickPort) {
 			process.exit(1);
 
 		} else {
-			console.warn('--port "${strPort}" is not a valid number or range.');
+			console.warn(`--port "${strPort}" is not a valid number or range.`);
 			process.exit(1);
 		}
 	}
@@ -188,7 +191,7 @@ async function parsePort(strPort, strPickPort) {
 			if (range.start <= specificPort && specificPort <= range.end) {
 				return specificPort;
 			} else {
-				const port = await findFreePort(range.start, range.end);
+				const port = await findFreePort(host, range.start, range.end);
 				if (port !== undefined) {
 					return port;
 				}
@@ -219,16 +222,17 @@ function parseRange(strRange) {
  * Starting at the `start` port, look for a free port incrementing
  * by 1 until `end` inclusive. If no free port is found, undefined is returned.
  *
+ * @param {string | undefined} host
  * @param {number} start
  * @param {number} end
  * @returns {Promise<number | undefined>}
  * @throws
  */
-async function findFreePort(start, end) {
+async function findFreePort(host, start, end) {
 	const testPort = (port) => {
 		return new Promise((resolve) => {
 			const server = http.createServer();
-			server.listen(port, '127.0.0.1', () => {
+			server.listen(port, host, () => {
 				server.close();
 				resolve(true);
 			}).on('error', () => {
@@ -249,9 +253,14 @@ function loadCode() {
 	return new Promise((resolve, reject) => {
 		const path = require('path');
 
-		// Set default remote native node modules path, if unset
-		process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', '..', '..', 'remote', 'node_modules');
-		require('../../bootstrap-node').injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+		if (process.env['VSCODE_DEV']) {
+			// When running out of sources, we need to load node modules from remote/node_modules,
+			// which are compiled against nodejs, not electron
+			process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', '..', '..', 'remote', 'node_modules');
+			require('../../bootstrap-node').injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+		} else {
+			delete process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'];
+		}
 		require('../../bootstrap-amd').load('vs/server/remoteExtensionHostAgent', resolve, reject);
 	});
 }

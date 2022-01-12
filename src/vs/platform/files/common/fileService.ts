@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from 'vs/base/common/arrays';
-import { Promises, ResourceQueue, ThrottledWorker } from 'vs/base/common/async';
+import { Promises, ResourceQueue } from 'vs/base/common/async';
 import { bufferedStreamToBuffer, bufferToReadable, newWriteableBufferStream, readableToBuffer, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableBufferedStream, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
@@ -18,7 +18,7 @@ import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from 'vs/base/c
 import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, FileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileChange, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IResolveFileResult, IResolveFileResultWithMetadata, IResolveMetadataFileOptions, IStat, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
+import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, FileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IResolveFileResult, IResolveFileResultWithMetadata, IResolveMetadataFileOptions, IStat, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -55,18 +55,18 @@ export class FileService extends Disposable implements IFileService {
 
 		mark(`code/registerFilesystem/${scheme}`);
 
+		const providerDisposables = new DisposableStore();
+
 		// Add provider with event
 		this.provider.set(scheme, provider);
 		this._onDidChangeFileSystemProviderRegistrations.fire({ added: true, scheme, provider });
 
 		// Forward events from provider
-		const providerDisposables = new DisposableStore();
-		const providerFileChangeEventsWorker = providerDisposables.add(this.createProviderFileEventsWorker(this.isPathCaseSensitive(provider)));
-		providerDisposables.add(provider.onDidChangeFile(changes => this.onProviderDidChangeFile(providerFileChangeEventsWorker, changes)));
-		providerDisposables.add(provider.onDidChangeCapabilities(() => this._onDidChangeFileSystemProviderCapabilities.fire({ provider, scheme })));
+		providerDisposables.add(provider.onDidChangeFile(changes => this._onDidFilesChange.fire(new FileChangesEvent(changes, !this.isPathCaseSensitive(provider)))));
 		if (typeof provider.onDidWatchError === 'function') {
 			providerDisposables.add(provider.onDidWatchError(error => this._onDidWatchError.fire(new Error(error))));
 		}
+		providerDisposables.add(provider.onDidChangeCapabilities(() => this._onDidChangeFileSystemProviderCapabilities.fire({ provider, scheme })));
 
 		return toDisposable(() => {
 			this._onDidChangeFileSystemProviderRegistrations.fire({ added: false, scheme, provider });
@@ -992,20 +992,6 @@ export class FileService extends Disposable implements IFileService {
 
 	//#region File Watching
 
-	/**
-	 * Providers can send unlimited amount of `IFileChange` events
-	 * and we want to protect against this to reduce CPU pressure.
-	 * The following settings limit the amount of file changes we
-	 * process at once.
-	 * (https://github.com/microsoft/vscode/issues/124723)
-	 */
-	private static readonly FILE_EVENTS_THROTTLING = {
-		maxChangesChunkSize: 500 as const,		// number of changes we process at once before...
-		coolDownDelay: 200 as const,	  		// ...resting for 200ms until we process events again
-		maxChangesBufferSize: 30000 as const,  	// total number of changes we are willing to buffer in memory
-		warningscounter: 0						// keep track how many warnings we showed to reduce log spam
-	};
-
 	private readonly _onDidFilesChange = this._register(new Emitter<FileChangesEvent>());
 	readonly onDidFilesChange = this._onDidFilesChange.event;
 
@@ -1013,27 +999,6 @@ export class FileService extends Disposable implements IFileService {
 	readonly onDidWatchError = this._onDidWatchError.event;
 
 	private readonly activeWatchers = new Map<number /* watch request hash */, { disposable: IDisposable, count: number; }>();
-
-	private createProviderFileEventsWorker(caseSensitive: boolean): ThrottledWorker<IFileChange> {
-		return new ThrottledWorker<IFileChange>(
-			FileService.FILE_EVENTS_THROTTLING.maxChangesChunkSize,
-			FileService.FILE_EVENTS_THROTTLING.maxChangesBufferSize,
-			FileService.FILE_EVENTS_THROTTLING.coolDownDelay,
-			chunks => this._onDidFilesChange.fire(new FileChangesEvent(chunks, !caseSensitive))
-		);
-	}
-
-	private onProviderDidChangeFile(worker: ThrottledWorker<IFileChange>, changes: readonly IFileChange[]): void {
-		const worked = worker.work(changes);
-
-		if (!worked && FileService.FILE_EVENTS_THROTTLING.warningscounter++ < 10) {
-			this.logService.warn(`[File watcher]: started ignoring events due to too many file change events at once (incoming: ${changes.length}, most recent change: ${changes[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
-		}
-
-		if (worker.pending > 0) {
-			this.logService.trace(`[File watcher]: started throttling events due to large amount of file change events at once (pending: ${worker.pending}, most recent change: ${changes[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
-		}
-	}
 
 	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
 		const disposables = new DisposableStore();
@@ -1063,9 +1028,9 @@ export class FileService extends Disposable implements IFileService {
 
 	private async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable> {
 		const provider = await this.withProvider(resource);
-		const watchHash = this.toWatchHash(provider, resource, options);
 
-		// Only start watching if we are the first for the given key
+		// Deduplicate identical watch requests
+		const watchHash = hash([this.getExtUri(provider).providerExtUri.getComparisonKey(resource), options]);
 		let watcher = this.activeWatchers.get(watchHash);
 		if (!watcher) {
 			watcher = {
@@ -1092,16 +1057,6 @@ export class FileService extends Disposable implements IFileService {
 				}
 			}
 		});
-	}
-
-	private toWatchHash(provider: IFileSystemProvider, resource: URI, options: IWatchOptions): number {
-		const { providerExtUri } = this.getExtUri(provider);
-
-		return hash([
-			providerExtUri.getComparisonKey(resource), 	// lowercase path if the provider is case insensitive
-			String(options.recursive),					// use recursive: true | false as part of the key
-			options.excludes.join()						// use excludes as part of the key
-		]);
 	}
 
 	override dispose(): void {

@@ -19,7 +19,7 @@ import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteA
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -64,7 +64,7 @@ import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { safeStringify } from 'vs/base/common/objects';
+import { mixin, safeStringify } from 'vs/base/common/objects';
 import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 
@@ -159,7 +159,7 @@ class BrowserMain extends Disposable {
 		const payload = this.resolveWorkspaceInitializationPayload();
 
 		// Product
-		const productService: IProductService = { _serviceBrand: undefined, ...product, ...this.configuration.productConfiguration };
+		const productService: IProductService = mixin({ _serviceBrand: undefined, ...product }, this.configuration.productConfiguration);
 		serviceCollection.set(IProductService, productService);
 
 		// Environment
@@ -197,7 +197,7 @@ class BrowserMain extends Disposable {
 
 		// Files
 		const fileService = this._register(new FileService(logService));
-		serviceCollection.set(IFileService, fileService);
+		serviceCollection.set(IWorkbenchFileService, fileService);
 		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
 
 		// URI Identity
@@ -287,7 +287,7 @@ class BrowserMain extends Disposable {
 		return { serviceCollection, configurationService, logService };
 	}
 
-	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {
+	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IWorkbenchFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {
 
 		// IndexedDB is used for logging and user data
 		let indexedDB: IndexedDB | undefined;

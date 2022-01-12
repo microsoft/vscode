@@ -56,7 +56,7 @@ const vscodeResources = [
 	'out-build/bootstrap-amd.js',
 	'out-build/bootstrap-node.js',
 	'out-build/bootstrap-window.js',
-	'out-build/vs/**/*.{svg,png,html,jpg}',
+	'out-build/vs/**/*.{svg,png,html,jpg,opus}',
 	'!out-build/vs/code/browser/**/*.html',
 	'!out-build/vs/editor/standalone/**/*.svg',
 	'out-build/vs/base/common/performance.js',
@@ -235,7 +235,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(jsFilter.restore)
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
 				'**/*.node',
-				'**/vscode-ripgrep/bin/*',
+				'**/@vscode/ripgrep/bin/*',
 				'**/node-pty/build/Release/*',
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',

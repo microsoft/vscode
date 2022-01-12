@@ -35,7 +35,7 @@ export interface IRecursiveWatcher extends IDisposable {
 	 * in the array, will be removed from watching and
 	 * any new path will be added to watching.
 	 */
-	watch(requests: IWatchRequest[]): Promise<void>;
+	watch(requests: IRecursiveWatchRequest[]): Promise<void>;
 
 	/**
 	 * Enable verbose logging in the watcher.
@@ -68,7 +68,7 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 	private watcher: IRecursiveWatcher | undefined;
 	private readonly watcherDisposables = this._register(new MutableDisposable());
 
-	private requests: IWatchRequest[] | undefined = undefined;
+	private requests: IRecursiveWatchRequest[] | undefined = undefined;
 
 	private restartCounter = 0;
 
@@ -112,14 +112,14 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 		}
 	}
 
-	private restart(requests: IWatchRequest[]): void {
+	private restart(requests: IRecursiveWatchRequest[]): void {
 		this.restartCounter++;
 
 		this.init();
 		this.watch(requests);
 	}
 
-	async watch(requests: IWatchRequest[]): Promise<void> {
+	async watch(requests: IRecursiveWatchRequest[]): Promise<void> {
 		this.requests = requests;
 
 		await this.watcher?.watch(requests);
@@ -155,6 +155,11 @@ export interface IWatchRequest {
 	 * A set of glob patterns or paths to exclude from watching.
 	 */
 	excludes: string[];
+}
+
+export interface INonRecursiveWatchRequest extends IWatchRequest { }
+
+export interface IRecursiveWatchRequest extends IWatchRequest {
 
 	/**
 	 * @deprecated this only exists for WSL1 support and should never

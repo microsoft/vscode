@@ -184,6 +184,30 @@ export class TokenMetadata {
 		}
 		return result;
 	}
+
+	public static getPresentationFromMetadata(metadata: number): ITokenPresentation {
+		const foreground = this.getForeground(metadata);
+		const fontStyle = this.getFontStyle(metadata);
+
+		return {
+			foreground: foreground,
+			italic: Boolean(fontStyle & FontStyle.Italic),
+			bold: Boolean(fontStyle & FontStyle.Bold),
+			underline: Boolean(fontStyle & FontStyle.Underline),
+			strikethrough: Boolean(fontStyle & FontStyle.Strikethrough),
+		};
+	}
+}
+
+/**
+ * @internal
+ */
+export interface ITokenPresentation {
+	foreground: ColorId;
+	italic: boolean;
+	bold: boolean;
+	underline: boolean;
+	strikethrough: boolean;
 }
 
 /**

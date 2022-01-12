@@ -55,7 +55,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * Implements vscode.test.registerTestProvider
 	 */
-	public createTestController(controllerId: string, label: string, refreshHandler?: () => Thenable<void> | void): vscode.TestController {
+	public createTestController(controllerId: string, label: string, refreshHandler?: (token: CancellationToken) => Thenable<void> | void): vscode.TestController {
 		if (this.controllers.has(controllerId)) {
 			throw new Error(`Attempt to insert a duplicate controller with ID "${controllerId}"`);
 		}
@@ -80,7 +80,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			get refreshHandler() {
 				return refreshHandler;
 			},
-			set refreshHandler(value: (() => Thenable<void> | void) | undefined) {
+			set refreshHandler(value: ((token: CancellationToken) => Thenable<void> | void) | undefined) {
 				refreshHandler = value;
 				proxy.$updateController(controllerId, { canRefresh: !!value });
 			},
@@ -183,8 +183,8 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	}
 
 	/** @inheritdoc */
-	async $refreshTests(controllerId: string) {
-		await this.controllers.get(controllerId)?.controller.refreshHandler?.();
+	async $refreshTests(controllerId: string, token: CancellationToken) {
+		await this.controllers.get(controllerId)?.controller.refreshHandler?.(token);
 	}
 
 	/**

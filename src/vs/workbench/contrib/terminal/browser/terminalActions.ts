@@ -1385,7 +1385,7 @@ export function registerTerminalActions() {
 					},
 					{
 						primary: KeyMod.Shift | KeyCode.Enter,
-						when: TerminalContextKeys.findFocus,
+						when: TerminalContextKeys.findInputFocus,
 						weight: KeybindingWeight.WorkbenchContrib
 					}
 				],
@@ -1412,7 +1412,7 @@ export function registerTerminalActions() {
 					},
 					{
 						primary: KeyCode.Enter,
-						when: TerminalContextKeys.findFocus,
+						when: TerminalContextKeys.findInputFocus,
 						weight: KeybindingWeight.WorkbenchContrib
 					}
 				],

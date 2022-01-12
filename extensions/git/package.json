@@ -87,13 +87,6 @@
         "icon": "$(compare-changes)"
       },
       {
-        "command": "git.openChangeEditor",
-        "title": "%command.openChange%",
-        "category": "Git",
-        "icon": "$(compare-changes)",
-        "enablement": "scmActiveResourceHasChanges"
-      },
-      {
         "command": "git.openAllChanges",
         "title": "%command.openAllChanges%",
         "category": "Git"
@@ -613,10 +606,6 @@
         },
         {
           "command": "git.openChange",
-          "when": "false"
-        },
-        {
-          "command": "git.openChangeEditor",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -1378,9 +1367,9 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInNotebookTextDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
-          "command": "git.openChangeEditor",
+          "command": "git.openChange",
           "group": "navigation",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file && scmActiveResourceHasChanges"
         },
         {
           "command": "git.stageSelectedRanges",

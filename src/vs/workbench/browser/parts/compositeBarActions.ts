@@ -255,11 +255,8 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.badge = append(container, $('.badge'));
 		this.badgeContent = append(this.badge, $('.badge-content'));
 
-		// Activity bar active border + background
-		const isActivityBarItem = this.options.icon;
-		if (isActivityBarItem) {
-			append(container, $('.active-item-indicator'));
-		}
+		// pane composite bar active border + background
+		append(container, $('.active-item-indicator'));
 
 		hide(this.badge);
 

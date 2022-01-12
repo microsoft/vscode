@@ -161,9 +161,9 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { yarn test-browser --build --browser chromium --browser firefox --tfs "Browser Unit Tests" }
+      exec { yarn test-browser --sequential --build --browser chromium --browser firefox --tfs "Browser Unit Tests" }
     displayName: Run unit tests (Browser, Chromium & Firefox)
-    timeoutInMinutes: 7
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |

@@ -5,9 +5,9 @@
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
-	VSCODE_PATH=$(dirname $(dirname $(dirname $(dirname $(realpath "$0")))))
+	VSCODE_PATH=$(dirname $(dirname $(dirname $(dirname $(dirname $(realpath "$0"))))))
 else
-	VSCODE_PATH=$(dirname $(dirname $(dirname $(dirname $(readlink -f $0)))))
+	VSCODE_PATH=$(dirname $(dirname $(dirname $(dirname $(dirname $(readlink -f $0))))))
 fi
 
 PROD_NAME="Code Server - Dev"

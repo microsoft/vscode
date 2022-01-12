@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { consumeStream, newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
-import { FileChangeType, FileOpenOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileChange, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat } from 'vs/platform/files/common/files';
+import { FileOpenOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -79,45 +79,6 @@ suite('File Service', () => {
 		assert.strictEqual(registrations.length, 2);
 		assert.strictEqual(registrations[1].scheme, 'test');
 		assert.strictEqual(registrations[1].added, false);
-
-		service.dispose();
-	});
-
-	test('provider change events are throttled', async () => {
-		const service = new FileService(new NullLogService());
-
-		const provider = new NullFileSystemProvider();
-		service.registerProvider('test', provider);
-
-		await service.activateProvider('test');
-
-		let onDidFilesChangeFired = false;
-		service.onDidFilesChange(e => {
-			if (e.contains(URI.file('marker'))) {
-				onDidFilesChangeFired = true;
-			}
-		});
-
-		const throttledEvents: IFileChange[] = [];
-		for (let i = 0; i < 1000; i++) {
-			throttledEvents.push({ resource: URI.file(String(i)), type: FileChangeType.ADDED });
-		}
-		throttledEvents.push({ resource: URI.file('marker'), type: FileChangeType.ADDED });
-
-		const nonThrottledEvents: IFileChange[] = [];
-		for (let i = 0; i < 100; i++) {
-			nonThrottledEvents.push({ resource: URI.file(String(i)), type: FileChangeType.ADDED });
-		}
-		nonThrottledEvents.push({ resource: URI.file('marker'), type: FileChangeType.ADDED });
-
-		// 100 events are not throttled
-		provider.emitFileChangeEvents(nonThrottledEvents);
-		assert.strictEqual(onDidFilesChangeFired, true);
-		onDidFilesChangeFired = false;
-
-		// 1000 events are throttled
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, false);
 
 		service.dispose();
 	});

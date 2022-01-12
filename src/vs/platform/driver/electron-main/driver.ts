@@ -246,13 +246,9 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	}
 
 	private async whenUnfrozen(windowId: number): Promise<void> {
-		this.logService.info(`[driver] whenUnfrozen(${windowId}): begin`);
-
 		while (this.reloadingWindowIds.has(windowId)) {
 			await Event.toPromise(this.onDidReloadingChange.event);
 		}
-
-		this.logService.info(`[driver] whenUnfrozen(${windowId}): end`);
 	}
 }
 

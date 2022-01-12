@@ -137,9 +137,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			outputShowMoreContainerHeight: 0,
 			outputShowMoreContainerOffset: 0,
 			totalHeight: this.computeTotalHeight(17, 0, 0),
-			indicatorHeight: 0,
+			codeIndicatorHeight: 0,
+			outputIndicatorHeight: 0,
 			bottomToolbarOffset: 0,
-			layoutState: CellLayoutState.Uninitialized
+			layoutState: CellLayoutState.Uninitialized,
 		};
 	}
 
@@ -187,7 +188,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			}
 
 			const statusbarHeight = this.viewContext.notebookOptions.computeEditorStatusbarHeight(this.internalMetadata, this.uri);
-			const indicatorHeight = editorHeight + statusbarHeight + outputTotalHeight + outputShowMoreContainerHeight;
+			const codeIndicatorHeight = editorHeight + statusbarHeight;
+			const outputIndicatorHeight = outputTotalHeight + outputShowMoreContainerHeight;
 			const outputContainerOffset = notebookLayoutConfiguration.editorToolbarHeight
 				+ notebookLayoutConfiguration.cellTopMargin // CELL_TOP_MARGIN
 				+ editorHeight
@@ -210,12 +212,14 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				outputShowMoreContainerHeight,
 				outputShowMoreContainerOffset,
 				totalHeight,
-				indicatorHeight,
+				codeIndicatorHeight,
+				outputIndicatorHeight,
 				bottomToolbarOffset,
-				layoutState: newState
+				layoutState: newState,
 			};
 		} else {
-			const indicatorHeight = notebookLayoutConfiguration.collapsedIndicatorHeight + outputTotalHeight + outputShowMoreContainerHeight;
+			const codeIndicatorHeight = notebookLayoutConfiguration.collapsedIndicatorHeight;
+			const outputIndicatorHeight = outputTotalHeight + outputShowMoreContainerHeight;
 
 			const outputContainerOffset = notebookLayoutConfiguration.cellTopMargin + notebookLayoutConfiguration.collapsedIndicatorHeight;
 			const totalHeight =
@@ -242,9 +246,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				outputShowMoreContainerHeight,
 				outputShowMoreContainerOffset,
 				totalHeight,
-				indicatorHeight,
+				codeIndicatorHeight,
+				outputIndicatorHeight,
 				bottomToolbarOffset,
-				layoutState: this._layoutInfo.layoutState
+				layoutState: this._layoutInfo.layoutState,
 			};
 		}
 
@@ -270,7 +275,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				outputShowMoreContainerHeight: this._layoutInfo.outputShowMoreContainerHeight,
 				outputShowMoreContainerOffset: this._layoutInfo.outputShowMoreContainerOffset,
 				totalHeight: totalHeight,
-				indicatorHeight: this._layoutInfo.indicatorHeight,
+				codeIndicatorHeight: this._layoutInfo.codeIndicatorHeight,
+				outputIndicatorHeight: this._layoutInfo.outputIndicatorHeight,
 				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
 				layoutState: CellLayoutState.FromCache
 			};

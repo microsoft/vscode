@@ -80,14 +80,18 @@ export class AudioCueContribution extends DisposableStore implements IWorkbenchC
 			return;
 		}
 
-		const url = FileAccess.asBrowserUri(`vs/workbench/contrib/audioCues/browser/media/${fileName}.webm`, require).toString();
+		const url = FileAccess.asBrowserUri(`vs/workbench/contrib/audioCues/browser/media/${fileName}.opus`, require).toString();
 		const audio = new Audio(url);
 
 		try {
-			// Don't play when loading takes more than 1s, due to loading, decoding or playing issues.
-			// Delayed sounds are very confusing.
-			await raceTimeout(audio.play(), 1000);
-		} catch (e) {
+			try {
+				// Don't play when loading takes more than 1s, due to loading, decoding or playing issues.
+				// Delayed sounds are very confusing.
+				await raceTimeout(audio.play(), 1000);
+			} catch (e) {
+				console.error('Error while playing sound', e);
+			}
+		} finally {
 			audio.remove();
 		}
 	}

@@ -1181,10 +1181,11 @@ class InlayHintsAdapter {
 		private readonly _provider: vscode.InlayHintsProvider,
 	) { }
 
-	async provideInlayHints(resource: URI, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlayHintsDto | undefined> {
+	async provideInlayHints(resource: URI, ran: IRange, token: CancellationToken): Promise<extHostProtocol.IInlayHintsDto | undefined> {
 		const doc = this._documents.getDocument(resource);
+		const range = typeConvert.Range.to(ran);
 
-		const hints = await this._provider.provideInlayHints(doc, typeConvert.Range.to(range), token);
+		const hints = await this._provider.provideInlayHints(doc, range, token);
 		if (!Array.isArray(hints) || hints.length === 0) {
 			// bad result
 			return undefined;
@@ -1198,7 +1199,9 @@ class InlayHintsAdapter {
 		this._disposables.set(pid, new DisposableStore());
 		const result: extHostProtocol.IInlayHintsDto = { hints: [], cacheId: pid };
 		for (let i = 0; i < hints.length; i++) {
-			result.hints.push(this._convertInlayHint(hints[i], [pid, i]));
+			if (this._isValidInlayHint(hints[i], range)) {
+				result.hints.push(this._convertInlayHint(hints[i], [pid, i]));
+			}
 		}
 		return result;
 	}
@@ -1218,6 +1221,9 @@ class InlayHintsAdapter {
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
+		if (!this._isValidInlayHint(hint)) {
+			return undefined;
+		}
 		return this._convertInlayHint(hint, id);
 	}
 
@@ -1225,6 +1231,18 @@ class InlayHintsAdapter {
 		this._disposables.get(id)?.dispose();
 		this._disposables.delete(id);
 		this._cache.delete(id);
+	}
+
+	private _isValidInlayHint(hint: vscode.InlayHint, range?: vscode.Range): boolean {
+		if (hint.label.length === 0 || Array.isArray(hint.label) && hint.label.every(part => part.label.length === 0)) {
+			console.log('INVALID inlay hint, empty label', hint);
+			return false;
+		}
+		if (range && !range.contains(hint.position)) {
+			console.log('INVALID inlay hint, position outside range', hint);
+			return false;
+		}
+		return true;
 	}
 
 	private _convertInlayHint(hint: vscode.InlayHint, id: extHostProtocol.ChainedCacheId): extHostProtocol.IInlayHintDto {
@@ -1595,7 +1613,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 class AdapterData {
 	constructor(
 		readonly adapter: Adapter,
-		readonly extension: IExtensionDescription | undefined
+		readonly extension: IExtensionDescription
 	) { }
 }
 
@@ -1605,10 +1623,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	private readonly _uriTransformer: IURITransformer;
 	private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
-	private _documents: ExtHostDocuments;
-	private _commands: ExtHostCommands;
-	private _diagnostics: ExtHostDiagnostics;
-	private _adapter = new Map<number, AdapterData>();
+	private readonly _documents: ExtHostDocuments;
+	private readonly _commands: ExtHostCommands;
+	private readonly _diagnostics: ExtHostDiagnostics;
+	private readonly _adapter = new Map<number, AdapterData>();
 	private readonly _logService: ILogService;
 	private readonly _apiDeprecation: IExtHostApiDeprecationService;
 
@@ -1645,38 +1663,38 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return ExtHostLanguageFeatures._handlePool++;
 	}
 
-	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A; }, callback: (adapter: A, extension: IExtensionDescription | undefined) => Promise<R>, fallbackValue: R, allowCancellationError: boolean = false): Promise<R> {
+	private async _withAdapter<A, R>(
+		handle: number,
+		ctor: { new(...args: any[]): A; },
+		callback: (adapter: A, extension: IExtensionDescription) => Promise<R>,
+		fallbackValue: R,
+		allowCancellationError: boolean = false
+	): Promise<R> {
 		const data = this._adapter.get(handle);
-		if (!data) {
-			return Promise.resolve(fallbackValue);
+		if (!data || !(data.adapter instanceof ctor)) {
+			return fallbackValue;
 		}
 
-		if (data.adapter instanceof ctor) {
-			let t1: number;
-			if (data.extension) {
-				t1 = Date.now();
-				this._logService.trace(`[${data.extension.identifier.value}] INVOKE provider '${(ctor as any).name}'`);
+		const t1: number = Date.now();
+		this._logService.trace(`[${data.extension.identifier.value}] INVOKE provider '${(ctor as any).name}'`);
+
+		const result = callback(data.adapter, data.extension);
+
+		// logging,tracing
+		Promise.resolve(result).catch(err => {
+			const isExpectedError = allowCancellationError && (err instanceof CancellationError);
+			if (!isExpectedError) {
+				this._logService.error(`[${data.extension.identifier.value}] provider FAILED`);
+				this._logService.error(err);
 			}
-			const p = callback(data.adapter, data.extension);
-			const extension = data.extension;
-			if (extension) {
-				Promise.resolve(p).then(
-					() => this._logService.trace(`[${extension.identifier.value}] provider DONE after ${Date.now() - t1}ms`),
-					err => {
-						const isExpectedError = allowCancellationError && (err instanceof CancellationError);
-						if (!isExpectedError) {
-							this._logService.error(`[${extension.identifier.value}] provider FAILED`);
-							this._logService.error(err);
-						}
-					}
-				);
-			}
-			return p;
-		}
-		return Promise.reject(new Error('no adapter found'));
+		}).finally(() => {
+			this._logService.trace(`[${data.extension.identifier.value}] provider DONE after ${Date.now() - t1}ms`);
+		});
+
+		return result;
 	}
 
-	private _addNewAdapter(adapter: Adapter, extension: IExtensionDescription | undefined): number {
+	private _addNewAdapter(adapter: Adapter, extension: IExtensionDescription): number {
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new AdapterData(adapter, extension));
 		return handle;
@@ -1961,10 +1979,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	//#region semantic coloring
 
 	registerDocumentSemanticTokensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
-		const handle = this._nextHandle();
+		const handle = this._addNewAdapter(new DocumentSemanticTokensAdapter(this._documents, provider), extension);
 		const eventHandle = (typeof provider.onDidChangeSemanticTokens === 'function' ? this._nextHandle() : undefined);
-
-		this._adapter.set(handle, new AdapterData(new DocumentSemanticTokensAdapter(this._documents, provider), extension));
 		this._proxy.$registerDocumentSemanticTokensProvider(handle, this._transformDocumentSelector(selector), legend, eventHandle);
 		let result = this._createDisposable(handle);
 
@@ -2089,7 +2105,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- links
 
-	registerDocumentLinkProvider(extension: IExtensionDescription | undefined, selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
+	registerDocumentLinkProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new LinkProviderAdapter(this._documents, provider), extension);
 		this._proxy.$registerDocumentLinkProvider(handle, this._transformDocumentSelector(selector), typeof provider.resolveDocumentLink === 'function');
 		return this._createDisposable(handle);

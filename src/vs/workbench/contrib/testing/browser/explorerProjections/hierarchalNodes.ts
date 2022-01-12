@@ -12,7 +12,6 @@ import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate } from 'vs/workb
 export class ByLocationTestItemElement extends TestItemTreeElement {
 	private errorChild?: TestTreeErrorMessage;
 
-
 	constructor(
 		test: InternalTestItem,
 		parent: null | ByLocationTestItemElement,

@@ -425,6 +425,12 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// Simply force a synchronous render on the editor
 		// such that the widget does not really render with left = '0px'
 		this._editor.render();
+
+		// See https://github.com/microsoft/vscode/issues/140339
+		// TODO: Doing a second layout of the hover after force rendering the editor
+		this._editor.layoutContentWidget(this);
+		this._hover.onContentsChanged();
+
 		if (visibleData.stoleFocus) {
 			this._hover.containerDomNode.focus();
 		}

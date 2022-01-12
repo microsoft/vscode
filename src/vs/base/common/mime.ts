@@ -64,6 +64,7 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.mpga': 'audio/mpeg',
 	'.oga': 'audio/ogg',
 	'.ogg': 'audio/ogg',
+	'.opus': 'audio/opus',
 	'.ogv': 'video/ogg',
 	'.png': 'image/png',
 	'.psd': 'image/vnd.adobe.photoshop',

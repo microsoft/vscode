@@ -26,6 +26,20 @@ declare class ResizeObserver {
 	disconnect(): void;
 }
 
+declare class Highlight {
+	constructor();
+	add(range: AbstractRange): void;
+	clear(): void;
+	priority: number;
+}
+
+interface CSSHighlights {
+	set(name: string, ht: Highlight): void;
+}
+declare namespace CSS {
+	let highlights: CSSHighlights | undefined;
+}
+
 
 type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
@@ -775,149 +789,261 @@ async function webviewPreloads(ctx: PreloadContext) {
 		id: string,
 		cellId: string,
 		container: Node,
+		originalRange: Range,
 		isShadow: boolean,
-		highlightResult: IHighlightResult
+		highlightResult?: IHighlightResult
 	}
 
-	let _findingMatches: IFindMatch[] = [];
-	let _findMatchIndex = -1;
+	interface IHighlighter {
+		highlightCurrentMatch(index: number): void;
+		unHighlightCurrentMatch(index: number): void;
+		dispose(): void;
+	}
+
+	let _highlighter: IHighlighter | null = null;
 	let matchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).color;
 	let currentMatchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).backgroundColor;
 
-	const find = (query: string) => {
+	class JSHighlighter implements IHighlighter {
+		private _findMatchIndex = -1;
+
+		constructor(
+			readonly matches: IFindMatch[],
+		) {
+			for (let i = matches.length - 1; i >= 0; i--) {
+				const match = matches[i];
+				const ret = highlightRange(match.originalRange, true, 'mark', match.isShadow ? {
+					'style': 'background-color: ' + matchColor + ';',
+				} : {
+					'class': 'find-match'
+				});
+				match.highlightResult = ret;
+			}
+		}
+
+		highlightCurrentMatch(index: number) {
+			const oldMatch = this.matches[this._findMatchIndex];
+			if (oldMatch) {
+				oldMatch.highlightResult?.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
+			}
+
+			const match = this.matches[index];
+			this._findMatchIndex = index;
+			const sel = window.getSelection();
+			if (!!match && !!sel && match.highlightResult) {
+				let offset = 0;
+				try {
+					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
+					const tempRange = document.createRange();
+					tempRange.selectNode(match.highlightResult.range.startContainer);
+					const rangeOffset = tempRange.getBoundingClientRect().top;
+					tempRange.detach();
+					offset = rangeOffset - outputOffset;
+				} catch (e) {
+				}
+
+				match.highlightResult?.update(currentMatchColor, match.isShadow ? undefined : 'current-find-match');
+
+				document.getSelection()?.removeAllRanges();
+				postNotebookMessage('didFindHighlight', {
+					offset
+				});
+			}
+		}
+
+		unHighlightCurrentMatch(index: number) {
+			const oldMatch = this.matches[index];
+			if (oldMatch && oldMatch.highlightResult) {
+				oldMatch.highlightResult.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
+			}
+		}
+
+		dispose() {
+			this.matches.forEach(match => {
+				match.highlightResult?.dispose();
+			});
+		}
+	}
+
+	class CSSHighlighter implements IHighlighter {
+		private _matchesHighlight: Highlight;
+		private _currentMatchesHighlight: Highlight;
+		private _findMatchIndex = -1;
+
+		constructor(
+			readonly matches: IFindMatch[],
+		) {
+			this._matchesHighlight = new Highlight();
+			this._matchesHighlight.priority = 1;
+			this._currentMatchesHighlight = new Highlight();
+			this._currentMatchesHighlight.priority = 2;
+
+			for (let i = 0; i < matches.length; i++) {
+				this._matchesHighlight.add(matches[i].originalRange);
+			}
+			CSS.highlights?.set('find-highlight', this._matchesHighlight);
+			CSS.highlights?.set('current-find-highlight', this._currentMatchesHighlight);
+		}
+
+		highlightCurrentMatch(index: number): void {
+			this._findMatchIndex = index;
+			const match = this.matches[this._findMatchIndex];
+			const range = match.originalRange;
+
+			if (match) {
+				let offset = 0;
+				try {
+					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
+					const rangeOffset = match.originalRange.getBoundingClientRect().top;
+					offset = rangeOffset - outputOffset;
+					postNotebookMessage('didFindHighlight', {
+						offset
+					});
+				} catch (e) {
+				}
+			}
+
+			this._currentMatchesHighlight.clear();
+			this._currentMatchesHighlight.add(range);
+		}
+
+		unHighlightCurrentMatch(index: number): void {
+			this._currentMatchesHighlight.clear();
+		}
+
+		dispose(): void {
+			this._currentMatchesHighlight.clear();
+			this._matchesHighlight.clear();
+		}
+	}
+
+	const find = (query: string, options: { includeMarkup: boolean; includeOutput: boolean; }) => {
 		let find = true;
-		let matches: {
-			type: 'preview' | 'output',
-			id: string,
-			cellId: string,
-			container: Node,
-			originalRange: Range,
-			isShadow: boolean,
-			highlightResult?: IHighlightResult
-		}[] = [];
+		let matches: IFindMatch[] = [];
 
 		let range = document.createRange();
 		range.selectNodeContents(document.getElementById('findStart')!);
 		let sel = window.getSelection();
 		sel?.removeAllRanges();
 		sel?.addRange(range);
-		document.designMode = 'On';
 
-		while (find && matches.length < 500) {
-			find = (window as any).find(query, /* caseSensitive*/ false,
-			/* backwards*/ false,
-			/* wrapAround*/ false,
-			/* wholeWord */ false,
-			/* searchInFrames*/ true,
-				false);
+		viewModel.toggleDragDropEnabled(false);
 
-			if (find) {
-				const selection = window.getSelection();
-				if (!selection) {
-					console.log('no selection');
-					break;
-				}
+		try {
+			document.designMode = 'On';
 
-				if (selection.getRangeAt(0).startContainer.nodeType === 1
-					&& (selection.getRangeAt(0).startContainer as Element).classList.contains('markup')) {
-					// markdown preview container
-					const preview = (selection.anchorNode?.firstChild as Element);
-					const root = preview.shadowRoot as ShadowRoot & { getSelection: () => Selection };
-					const shadowSelection = root?.getSelection ? root?.getSelection() : null;
-					if (shadowSelection && shadowSelection.anchorNode) {
-						matches.push({
-							type: 'preview',
-							id: preview.id,
-							cellId: preview.id,
-							container: preview,
-							isShadow: true,
-							originalRange: shadowSelection.getRangeAt(0)
-						});
+			while (find && matches.length < 500) {
+				find = (window as any).find(query, /* caseSensitive*/ false,
+				/* backwards*/ false,
+				/* wrapAround*/ false,
+				/* wholeWord */ false,
+				/* searchInFrames*/ true,
+					false);
+
+				if (find) {
+					const selection = window.getSelection();
+					if (!selection) {
+						console.log('no selection');
+						break;
 					}
-				}
 
-				if (selection.getRangeAt(0).startContainer.nodeType === 1
-					&& (selection.getRangeAt(0).startContainer as Element).classList.contains('output_container')) {
-					// output container
-					const cellId = selection.getRangeAt(0).startContainer.parentElement!.id;
-					const outputNode = (selection.anchorNode?.firstChild as Element);
-					const root = outputNode.shadowRoot as ShadowRoot & { getSelection: () => Selection };
-					const shadowSelection = root?.getSelection ? root?.getSelection() : null;
-					if (shadowSelection && shadowSelection.anchorNode) {
-						matches.push({
-							type: 'output',
-							id: outputNode.id,
-							cellId: cellId,
-							container: outputNode,
-							isShadow: true,
-							originalRange: shadowSelection.getRangeAt(0)
-						});
-					}
-				}
-
-				const anchorNode = selection?.anchorNode?.parentElement;
-
-				if (anchorNode) {
-					const lastEl: any = matches.length ? matches[matches.length - 1] : null;
-
-					if (lastEl && lastEl.container.contains(anchorNode)) {
-						matches.push({
-							type: lastEl.type,
-							id: lastEl.id,
-							cellId: lastEl.cellId,
-							container: lastEl.container,
-							isShadow: false,
-							originalRange: window.getSelection()!.getRangeAt(0)
-						});
-
-					} else {
-						for (let node = anchorNode as Element | null; node; node = node.parentElement) {
-							if (!(node instanceof Element)) {
-								break;
-							}
-
-							if (node.classList.contains('output')) {
-								// inside output
-								const cellId = node.parentElement?.parentElement?.id;
-								if (cellId) {
-									matches.push({
-										type: 'output',
-										id: node.id,
-										cellId: cellId,
-										container: node,
-										isShadow: false,
-										originalRange: window.getSelection()!.getRangeAt(0)
-									});
-								}
-								break;
-							}
-
-							if (node.id === 'container' || node === document.body) {
-								break;
-							}
+					if (options.includeMarkup && selection.rangeCount > 0 && selection.getRangeAt(0).startContainer.nodeType === 1
+						&& (selection.getRangeAt(0).startContainer as Element).classList.contains('markup')) {
+						// markdown preview container
+						const preview = (selection.anchorNode?.firstChild as Element);
+						const root = preview.shadowRoot as ShadowRoot & { getSelection: () => Selection };
+						const shadowSelection = root?.getSelection ? root?.getSelection() : null;
+						if (shadowSelection && shadowSelection.anchorNode) {
+							matches.push({
+								type: 'preview',
+								id: preview.id,
+								cellId: preview.id,
+								container: preview,
+								isShadow: true,
+								originalRange: shadowSelection.getRangeAt(0)
+							});
 						}
 					}
 
-				} else {
-					break;
+					if (options.includeOutput && selection.rangeCount > 0 && selection.getRangeAt(0).startContainer.nodeType === 1
+						&& (selection.getRangeAt(0).startContainer as Element).classList.contains('output_container')) {
+						// output container
+						const cellId = selection.getRangeAt(0).startContainer.parentElement!.id;
+						const outputNode = (selection.anchorNode?.firstChild as Element);
+						const root = outputNode.shadowRoot as ShadowRoot & { getSelection: () => Selection };
+						const shadowSelection = root?.getSelection ? root?.getSelection() : null;
+						if (shadowSelection && shadowSelection.anchorNode) {
+							matches.push({
+								type: 'output',
+								id: outputNode.id,
+								cellId: cellId,
+								container: outputNode,
+								isShadow: true,
+								originalRange: shadowSelection.getRangeAt(0)
+							});
+						}
+					}
+
+					const anchorNode = selection?.anchorNode?.parentElement;
+
+					if (anchorNode) {
+						const lastEl: any = matches.length ? matches[matches.length - 1] : null;
+
+						if (lastEl && lastEl.container.contains(anchorNode) && options.includeOutput) {
+							matches.push({
+								type: lastEl.type,
+								id: lastEl.id,
+								cellId: lastEl.cellId,
+								container: lastEl.container,
+								isShadow: false,
+								originalRange: window.getSelection()!.getRangeAt(0)
+							});
+
+						} else {
+							for (let node = anchorNode as Element | null; node; node = node.parentElement) {
+								if (!(node instanceof Element)) {
+									break;
+								}
+
+								if (node.classList.contains('output') && options.includeOutput) {
+									// inside output
+									const cellId = node.parentElement?.parentElement?.id;
+									if (cellId) {
+										matches.push({
+											type: 'output',
+											id: node.id,
+											cellId: cellId,
+											container: node,
+											isShadow: false,
+											originalRange: window.getSelection()!.getRangeAt(0)
+										});
+									}
+									break;
+								}
+
+								if (node.id === 'container' || node === document.body) {
+									break;
+								}
+							}
+						}
+
+					} else {
+						break;
+					}
 				}
 			}
+		} catch (e) {
+			console.log(e);
 		}
 
-		for (let i = matches.length - 1; i >= 0; i--) {
-			const match = matches[i];
-			const ret = highlightRange(match.originalRange, true, 'mark', match.isShadow ? {
-				'style': 'background-color: ' + matchColor + ';',
-			} : {
-				'class': 'find-match'
-			});
-			match.highlightResult = ret;
+		if (matches.length && CSS.highlights) {
+			_highlighter = new CSSHighlighter(matches);
+		} else {
+			_highlighter = new JSHighlighter(matches);
 		}
 
-		document.designMode = 'Off';
-		document.getSelection()?.collapseToStart();
+		viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 
-		_findingMatches = matches as IFindMatch[];
 		postNotebookMessage('didFind', {
 			matches: matches.map((match, index) => ({
 				type: match.type,
@@ -926,52 +1052,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 				index
 			}))
 		});
-	};
-
-	const highlightCurrentMatch = (index: number) => {
-		const oldMatch = _findingMatches[_findMatchIndex];
-		if (oldMatch) {
-			oldMatch.highlightResult.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
-		}
-
-		const match = _findingMatches[index];
-		_findMatchIndex = index;
-		const sel = window.getSelection();
-		if (!!match && !!sel) {
-			let offset = 0;
-			try {
-				const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
-				const tempRange = document.createRange();
-				tempRange.selectNode(match.highlightResult.range.startContainer);
-				const rangeOffset = tempRange.getBoundingClientRect().top;
-				tempRange.detach();
-				offset = rangeOffset - outputOffset;
-			} catch (e) {
-			}
-
-			match.highlightResult.update(currentMatchColor, match.isShadow ? undefined : 'current-find-match');
-
-			document.getSelection()?.removeAllRanges();
-			postNotebookMessage('didFindHighlight', {
-				offset
-			});
-		}
-	};
-
-	const unHighlightCurrentMatch = (index: number) => {
-		const oldMatch = _findingMatches[index];
-		if (oldMatch) {
-			oldMatch.highlightResult.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
-		}
-	};
-
-	const clearFindMatches = () => {
-		_findingMatches.forEach(match => {
-			match.highlightResult.dispose();
-		});
-
-		_findingMatches = [];
-		_findMatchIndex = -1;
 	};
 
 	window.addEventListener('message', async rawEvent => {
@@ -1136,20 +1216,20 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'find': {
-				clearFindMatches();
-				find(event.data.query);
+				_highlighter?.dispose();
+				find(event.data.query, event.data.options);
 				break;
 			}
 			case 'findHighlight': {
-				highlightCurrentMatch(event.data.index);
+				_highlighter?.highlightCurrentMatch(event.data.index);
 				break;
 			}
 			case 'findUnHighlight': {
-				unHighlightCurrentMatch(event.data.index);
+				_highlighter?.unHighlightCurrentMatch(event.data.index);
 				break;
 			}
 			case 'findStop': {
-				clearFindMatches();
+				_highlighter?.dispose();
 				break;
 			}
 		}
