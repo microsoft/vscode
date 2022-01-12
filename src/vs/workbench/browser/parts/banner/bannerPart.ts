@@ -42,7 +42,8 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`
 			.monaco-workbench .part.banner,
 			.monaco-workbench .part.banner .action-container .codicon,
-			.monaco-workbench .part.banner .message-actions-container .monaco-link
+			.monaco-workbench .part.banner .message-actions-container .monaco-link,
+			.monaco-workbench .part.banner .message-container a
 			{ color: ${foregroundColor}; }
 		`);
 	}
