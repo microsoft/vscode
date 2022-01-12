@@ -859,6 +859,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		dispose() {
+			document.getSelection()?.removeAllRanges();
+
 			this.matches.forEach(match => {
 				match.highlightResult?.dispose();
 			});
@@ -912,6 +914,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		dispose(): void {
+			document.getSelection()?.removeAllRanges();
 			this._currentMatchesHighlight.clear();
 			this._matchesHighlight.clear();
 		}
@@ -1041,6 +1044,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		} else {
 			_highlighter = new JSHighlighter(matches);
 		}
+
+		document.getSelection()?.removeAllRanges();
 
 		viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 
