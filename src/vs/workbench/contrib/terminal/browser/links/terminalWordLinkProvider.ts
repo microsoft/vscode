@@ -23,14 +23,16 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 
 const MAX_LENGTH = 2000;
 
 export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	private readonly _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
 	static id: string = 'TerminalWordLinkProvider';
+	private readonly _xterm: Terminal;
 	constructor(
-		private readonly _xterm: Terminal,
+		private _xtermTerminal: XtermTerminal,
 		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -43,13 +45,14 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
+		this._xterm = _xtermTerminal.raw;
 	}
 
 	protected _provideLinks(y: number): TerminalLink[] {
 		// Dispose of all old links if new links are provides, links are only cached for the current line
 		const links: TerminalLink[] = [];
 		const wordSeparators = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).wordSeparators;
-		const activateCallback = this._wrapLinkHandler((_, link) => this._activate(link));
+		const activateCallback = this._wrapLinkHandler((_, link) => this._activate(link, y - 1));
 
 		let startLine = y - 1;
 		let endLine = startLine;
@@ -134,14 +137,15 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		);
 	}
 
-	private async _activate(link: string) {
+	private async _activate(link: string, y: number) {
 		// Remove file:/// and any leading ./ or ../ since quick access doesn't understand that format
 		link = link.replace(/^file:\/\/\/?/, '');
 		link = normalize(link).replace(/^(\.+[\\/])+/, '');
 
 		// Remove `:in` from the end which is how Ruby outputs stack traces
 		link = link.replace(/:in$/, '');
-
+		console.log('link', this._xtermTerminal.commandTracker);
+		console.log(this._xtermTerminal.commandTracker.getCwdForLine(y));
 		// If any of the names of the folders in the workspace matches
 		// a prefix of the link, remove that prefix and continue
 		this._workspaceContextService.getWorkspace().folders.forEach((folder) => {

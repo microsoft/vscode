@@ -32,6 +32,7 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 	abstract get cwds(): string[];
 	abstract activate(terminal: Terminal): void;
 	abstract handleIntegratedShellChange(event: { type: string, value: string }): void;
+	abstract getCwdForLine(line: number): string;
 
 	dispose(): void {
 	}
@@ -312,6 +313,9 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 }
 
 export class NaiveCommandTrackerAddon extends CommandTrackerAddon {
+	getCwdForLine(line: number): string {
+		throw new Error('Method not implemented.');
+	}
 	_terminal: Terminal | undefined;
 	get commands(): TerminalCommand[] {
 		return [];

@@ -377,6 +377,7 @@ export interface TerminalCommand {
 	getOutput: () => string | undefined;
 	cwd?: string;
 	exitCode?: number;
+	range?: { startLine: number, endLine: number }
 }
 
 export interface IShellLaunchConfig {

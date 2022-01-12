@@ -28,6 +28,7 @@ import { TerminalHover, ILinkHoverTargetOptions } from 'vs/workbench/contrib/ter
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { TerminalExternalLinkProviderAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkProviderAdapter';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
@@ -46,9 +47,9 @@ export class TerminalLinkManager extends DisposableStore {
 	private _processCwd: string | undefined;
 	private _standardLinkProviders: Map<string, ILinkProvider> = new Map();
 	private _linkProvidersDisposables: IDisposable[] = [];
-
+	private _xterm: Terminal;
 	constructor(
-		private _xterm: Terminal,
+		private _xtermTerminal: XtermTerminal,
 		private readonly _processManager: ITerminalProcessManager,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -58,7 +59,7 @@ export class TerminalLinkManager extends DisposableStore {
 		@ITunnelService private readonly _tunnelService: ITunnelService
 	) {
 		super();
-
+		this._xterm = _xtermTerminal.raw;
 		// Protocol links
 		const wrappedActivateCallback = this._wrapLinkHandler((_, link) => this._handleProtocolLink(link));
 		const protocolProvider = this._instantiationService.createInstance(TerminalProtocolLinkProvider,
@@ -91,7 +92,7 @@ export class TerminalLinkManager extends DisposableStore {
 		}
 
 		// Word links
-		const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
+		const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xtermTerminal, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
 		this._standardLinkProviders.set(TerminalWordLinkProvider.id, wordProvider);
 
 		this._registerStandardLinkProviders();

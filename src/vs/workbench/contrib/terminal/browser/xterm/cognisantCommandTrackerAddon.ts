@@ -120,7 +120,8 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 						timestamp: Date.now(),
 						cwd: this._cwd,
 						exitCode: this._exitCode,
-						getOutput: () => getOutputForCommand(this._currentCommand.previousCommandMarker!.line! + 1, this._currentCommand.marker!.line!, buffer)
+						getOutput: () => getOutputForCommand(this._currentCommand.previousCommandMarker!.line! + 1, this._currentCommand.marker!.line!, buffer),
+						range: { startLine: this._currentCommand.previousCommandMarker!.line!, endLine: this._currentCommand.marker!.line! + 1 }
 					});
 				}
 
@@ -144,6 +145,13 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 			cwds.push(key);
 		}
 		return cwds;
+	}
+
+	getCwdForLine(line: number): string {
+		console.log(this._commands.map(c => c.range));
+		console.log('line', line);
+		const command = this._commands.find(c => c.range!.startLine <= line && c.range!.endLine > line);
+		return command?.cwd || '';
 	}
 }
 

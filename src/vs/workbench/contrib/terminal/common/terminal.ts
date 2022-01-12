@@ -329,6 +329,7 @@ export interface ICommandTracker {
 	selectToNextLine(): void;
 	get commands(): TerminalCommand[];
 	get cwds(): string[];
+	getCwdForLine(line: number): string;
 	clearMarker(): void;
 }
 
