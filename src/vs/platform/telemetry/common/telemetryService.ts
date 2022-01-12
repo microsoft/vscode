@@ -203,15 +203,17 @@ export class TelemetryService implements ITelemetryService {
 
 		const value = property.toLowerCase();
 
-		// Regex which matches @*.site
-		const emailRegex = /@[a-zA-Z0-9-.]+/;
+		const emailRegex = /@[a-zA-Z0-9-.]+/; // Regex which matches @*.site
 		const secretRegex = /(key|token|sig|signature|password|passwd|pwd)[="':\s]/;
+		const tokenRegex = /xox[pbaors]\-[a-zA-Z0-9]+\-[a-zA-Z0-9\-]+?/; // last +? is lazy as a microoptimization since we don't care about the full value
 
 		// Check for common user data in the telemetry events
 		if (secretRegex.test(value)) {
 			return '<REDACTED: secret>';
 		} else if (emailRegex.test(value)) {
 			return '<REDACTED: email>';
+		} else if (tokenRegex.test(value)) {
+			return '<REDACTED: token>';
 		}
 
 		return property;
