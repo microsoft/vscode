@@ -39,7 +39,7 @@
     precmd() {
       local STATUS="$?"
       if [ -z "${IN_COMMAND_EXECUTION-}" ]; then
-        # ctrl c was = to ""
+        # not in command execution
         command_output_start
       fi
 
