@@ -34,3 +34,37 @@ export class MovingAverage {
 		return this._val;
 	}
 }
+
+export class SlidingWindowAverage {
+
+	private _n: number = 0;
+	private _val = 0;
+
+	private readonly _values: number[] = [];
+	private _index: number = 0;
+	private _sum = 0;
+
+	constructor(size: number) {
+		this._values = new Array(size);
+		this._values.fill(0, 0, size);
+	}
+
+	update(value: number) {
+		const oldValue = this._values[this._index];
+		this._values[this._index] = value;
+		this._index = (this._index + 1) % this._values.length;
+
+		this._sum -= oldValue;
+		this._sum += value;
+
+		if (this._n < this._values.length) {
+			this._n += 1;
+		}
+
+		this._val = this._sum / this._n;
+	}
+
+	get value(): number {
+		return this._val;
+	}
+}
