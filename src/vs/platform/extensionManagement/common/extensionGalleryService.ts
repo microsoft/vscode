@@ -456,9 +456,11 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 	};
 }
 
+type PreReleaseMigrationInfo = { id: string, displayName: string, migrateStorage?: boolean, engine?: string };
 interface IRawExtensionsControlManifest {
 	malicious: string[];
-	unsupported: IStringDictionary<boolean | { preReleaseExtension: { id: string, displayName: string; }; }>;
+	unsupported?: IStringDictionary<boolean | { preReleaseExtension: { id: string, displayName: string }; }>;
+	migrateToPreRelease?: IStringDictionary<PreReleaseMigrationInfo>;
 }
 
 abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
@@ -1011,7 +1013,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 		const result = await asJson<IRawExtensionsControlManifest>(context);
 		const malicious: IExtensionIdentifier[] = [];
-		const unsupportedPreReleaseExtensions: IStringDictionary<{ id: string, displayName: string; }> = {};
+		const unsupportedPreReleaseExtensions: IStringDictionary<{ id: string, displayName: string, migrateStorage?: boolean }> = {};
 
 		if (result) {
 			for (const id of result.malicious) {
@@ -1022,6 +1024,13 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 					const value = result.unsupported[extensionId];
 					if (!isBoolean(value)) {
 						unsupportedPreReleaseExtensions[extensionId.toLowerCase()] = value.preReleaseExtension;
+					}
+				}
+			}
+			if (result.migrateToPreRelease) {
+				for (const [unsupportedPreReleaseExtensionId, preReleaseExtensionInfo] of Object.entries(result.migrateToPreRelease)) {
+					if (!preReleaseExtensionInfo.engine || isEngineValid(preReleaseExtensionInfo.engine, this.productService.version, this.productService.date)) {
+						unsupportedPreReleaseExtensions[unsupportedPreReleaseExtensionId.toLowerCase()] = preReleaseExtensionInfo;
 					}
 				}
 			}

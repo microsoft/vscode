@@ -14,11 +14,6 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-// TODO: @sandy081 - Remove it after 6 months
-export function getMigrateFromLowerCaseStorageKey(extensionId: string) {
-	return `extension.storage.migrateFromLowerCaseKey.${extensionId.toLowerCase()}`;
-}
-
 /**
  * An extension storage has following
  * 	- State: Stored using storage service with extension id as key and state as value.
