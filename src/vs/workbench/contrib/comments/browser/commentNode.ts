@@ -36,8 +36,6 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
 import { MarshalledId } from 'vs/base/common/marshalling';
-import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class CommentNode extends Disposable {
 	private _domNode: HTMLElement;
@@ -55,8 +53,6 @@ export class CommentNode extends Disposable {
 	private _commentEditorDisposables: IDisposable[] = [];
 	private _commentEditorModel: ITextModel | null = null;
 	private _isPendingLabel!: HTMLElement;
-	private _detail: HTMLElement | undefined;
-	private _timestamp: TimestampWidget | undefined;
 	private _contextKeyService: IContextKeyService;
 	private _commentContextValue: IContextKey<string>;
 
@@ -87,8 +83,7 @@ export class CommentNode extends Disposable {
 		@ILanguageService private languageService: ILanguageService,
 		@INotificationService private notificationService: INotificationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -126,38 +121,11 @@ export class CommentNode extends Disposable {
 		return this._onDidClick.event;
 	}
 
-	private createDetail(container: HTMLElement) {
-		this._detail = dom.append(container, dom.$('span.detail'));
-		this.updateDetail(this.comment.detail);
-	}
-
-	private updateDetail(detail?: Date | string) {
-		if (!this._detail) {
-			return;
-		}
-
-		if (!detail) {
-			this._timestamp?.dispose();
-			this._detail.innerText = '';
-		} else if (typeof detail === 'string') {
-			this._timestamp?.dispose();
-			this._detail.innerText = detail;
-		} else {
-			this._detail.innerText = '';
-			if (!this._timestamp) {
-				this._timestamp = new TimestampWidget(this.configurationService, this._detail, detail);
-				this._register(this._timestamp);
-			} else {
-				this._timestamp.setTimestamp(detail);
-			}
-		}
-	}
-
 	private createHeader(commentDetailsContainer: HTMLElement): void {
 		const header = dom.append(commentDetailsContainer, dom.$(`div.comment-title.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
 		const author = dom.append(header, dom.$('strong.author'));
 		author.innerText = this.comment.userName;
-		this.createDetail(header);
+
 		this._isPendingLabel = dom.append(header, dom.$('span.isPending'));
 
 		if (this.comment.label) {
@@ -547,10 +515,6 @@ export class CommentNode extends Disposable {
 			this._commentContextValue.set(this.comment.contextValue);
 		} else {
 			this._commentContextValue.reset();
-		}
-
-		if (this.comment.detail) {
-			this.updateDetail(this.comment.detail);
 		}
 	}
 

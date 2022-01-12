@@ -568,9 +568,7 @@
 					"vscode-oniguruma",
 					"iconv-lite-umd",
 					"tas-client-umd",
-					"jschardet",
-					"dayjs",
-					"dayjs/plugin/*"
+					"jschardet"
 				]
 			},
 			{
@@ -602,8 +600,6 @@
 					"vscode-oniguruma",
 					"iconv-lite-umd",
 					"jschardet",
-					"dayjs",
-					"dayjs/plugin/*",
 					"@vscode/vscode-languagedetection",
 					"@microsoft/applicationinsights-web"
 				]
@@ -637,9 +633,7 @@
 					"vscode-textmate",
 					"vscode-oniguruma",
 					"iconv-lite-umd",
-					"jschardet",
-					"dayjs",
-					"dayjs/plugin/*"
+					"jschardet"
 				]
 			},
 			{
@@ -759,9 +753,7 @@
 					"vscode-textmate",
 					"vscode-oniguruma",
 					"iconv-lite-umd",
-					"jschardet",
-					"dayjs",
-					"dayjs/plugin/*"
+					"jschardet"
 				]
 			},
 			{
@@ -796,9 +788,7 @@
 					"vscode-textmate",
 					"vscode-oniguruma",
 					"iconv-lite-umd",
-					"jschardet",
-					"dayjs",
-					"dayjs/plugin/*"
+					"jschardet"
 				]
 			},
 			{
