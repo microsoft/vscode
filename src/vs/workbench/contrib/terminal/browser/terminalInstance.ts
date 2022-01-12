@@ -1279,7 +1279,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
 			if (error && this._enableShellIntegration) {
 				this._enableShellIntegration = false;
-				//TODO: mention setting?
 				this._configHelper.config.enableShellIntegration = false;
 				error = { message: 'Terminal shell integration failed, disabling it now' };
 			}
