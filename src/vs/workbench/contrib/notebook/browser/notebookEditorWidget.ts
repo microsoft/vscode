@@ -2414,11 +2414,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		const findMatches = this._notebookViewModel.find(query, options).filter(match => match.matches.length > 0);
-		// if (!options.includePreview) {
-		// 	// clear output matches
-		// 	await this._webview?.findStop();
-		// 	return findMatches;
-		// }
+
+		if (!options.includePreview && !options.includeOutput) {
+			return findMatches;
+		}
 
 		const matchMap: { [key: string]: CellFindMatchWithIndex } = {};
 		findMatches.forEach(match => {
@@ -2429,11 +2428,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		if (this._webview) {
 			// request all outputs to be rendered
-			await this._warmupAll(!!options.includePreview);
-			const webviewMatches = await this._webview.find(query);
+			await this._warmupAll(!!options.includeOutput);
+			const webviewMatches = await this._webview.find(query, { includeMarkup: !!options.includePreview, includeOutput: !!options.includeOutput });
 			// attach webview matches to model find matches
 			webviewMatches.forEach(match => {
-				if (!options.includePreview && match.type === 'output') {
+				if (!options.includePreview && match.type === 'preview') {
+					// skip outputs if not included
+					return;
+				}
+
+				if (!options.includeOutput && match.type === 'output') {
 					// skip outputs if not included
 					return;
 				}

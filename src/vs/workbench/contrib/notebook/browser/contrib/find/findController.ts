@@ -40,7 +40,6 @@ export interface INotebookFindFilter {
 	findInMarkdownPreview: boolean;
 	findInOutput: boolean;
 }
-
 export const FindInPreviewFilterContext = new RawContextKey<boolean>('notebookFindMarkdownPreview', false);
 export const FindInOutputFilterContext = new RawContextKey<boolean>('notebookFindOutputPreview', false);
 
@@ -50,9 +49,8 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget<INotebookFindFil
 	private _showTimeout: number | null = null;
 	private _hideTimeout: number | null = null;
 	private _previousFocusElement?: HTMLElement;
-	private _findModel: FindModel<INotebookFindFilter>;
+	private _findModel: FindModel;
 	private _styleElement!: HTMLStyleElement;
-	private _scopedContextKeyService: IContextKeyService;
 	private _findInPreview: IContextKey<boolean>;
 	private _findInOutput: IContextKey<boolean>;
 
@@ -70,7 +68,6 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget<INotebookFindFil
 		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
-		this._scopedContextKeyService = contextKeyService.createScoped(this.getDomNode());
 		this._findInPreview = FindInPreviewFilterContext.bindTo(this._scopedContextKeyService);
 		this._findInOutput = FindInOutputFilterContext.bindTo(this._scopedContextKeyService);
 		this._findWidgetFocused = KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
