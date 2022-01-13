@@ -404,8 +404,8 @@ export interface ITerminalProcessManager extends IDisposable {
 
 export interface ITerminalCapabilityStore {
 	readonly items: readonly TerminalCapability[];
-	readonly onDidDisableCapability: Event<TerminalCapability>;
-	readonly onDidEnableCapability: Event<TerminalCapability>;
+	readonly onDidRemoveCapability: Event<TerminalCapability>;
+	readonly onDidAddCapability: Event<TerminalCapability>;
 	has(capability: TerminalCapability): boolean;
 }
 
