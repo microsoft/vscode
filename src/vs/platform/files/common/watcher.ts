@@ -98,6 +98,27 @@ export interface IRecursiveWatcher extends IWatcher {
 	watch(requests: IRecursiveWatchRequest[]): Promise<void>;
 }
 
+export interface IRecursiveWatcherOptions {
+
+	/**
+	 * If `true`, will enable polling for all watchers, otherwise
+	 * will enable it for paths included in the string array.
+	 *
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
+	 */
+	usePolling: boolean | string[];
+
+	/**
+	 * If polling is enabled (via `usePolling`), defines the duration
+	 * in which the watcher will poll for changes.
+	 *
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
+	 */
+	pollingInterval?: number;
+}
+
 export interface INonRecursiveWatcher extends IWatcher {
 	watch(requests: INonRecursiveWatchRequest[]): Promise<void>;
 }

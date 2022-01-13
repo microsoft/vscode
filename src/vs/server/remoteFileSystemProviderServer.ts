@@ -11,10 +11,11 @@ import { IFileChange, IWatchOptions } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { DiskFileSystemProvider, IWatcherOptions } from 'vs/platform/files/node/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { posix, delimiter } from 'vs/base/common/path';
 import { IServerEnvironmentService } from 'vs/server/serverEnvironmentService';
 import { AbstractDiskFileSystemProviderChannel, ISessionFileWatcher } from 'vs/platform/files/node/diskFileSystemProviderServer';
+import { IRecursiveWatcherOptions } from 'vs/platform/files/common/watcher';
 
 export class RemoteAgentFileSystemProviderChannel extends AbstractDiskFileSystemProviderChannel<RemoteAgentConnectionContext> {
 
@@ -90,7 +91,7 @@ class SessionFileWatcher extends Disposable implements ISessionFileWatcher {
 		this._register(this.fileWatcher.onDidWatchError(error => sessionEmitter.fire(error)));
 	}
 
-	private getWatcherOptions(): IWatcherOptions | undefined {
+	private getWatcherOptions(): IRecursiveWatcherOptions | undefined {
 		const fileWatcherPolling = this.environmentService.args['file-watcher-polling'];
 		if (fileWatcherPolling) {
 			const segments = fileWatcherPolling.split(delimiter);

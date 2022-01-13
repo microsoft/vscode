@@ -11,13 +11,18 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { normalize } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IFileChange, IWatchOptions } from 'vs/platform/files/common/files';
-import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, INonRecursiveWatchRequest, IUniversalWatcheRequest, toFileChanges } from 'vs/platform/files/common/watcher';
+import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, INonRecursiveWatchRequest, IRecursiveWatcherOptions, isRecursiveWatchRequest, IUniversalWatcheRequest, toFileChanges } from 'vs/platform/files/common/watcher';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+
+export interface IDiskFileSystemProviderOptions {
+	watcher?: IRecursiveWatcherOptions;
+}
 
 export abstract class AbstractDiskFileSystemProvider extends Disposable {
 
 	constructor(
-		protected readonly logService: ILogService
+		protected readonly logService: ILogService,
+		private readonly options?: IDiskFileSystemProviderOptions
 	) {
 		super();
 	}
@@ -87,15 +92,26 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 			}));
 		}
 
-		// Allow subclasses to override watch requests
-		this.massageWatchRequests(this.universalPathsToWatch);
+		// Adjust for polling
+		const usePolling = this.options?.watcher?.usePolling;
+		if (usePolling === true) {
+			for (const request of this.universalPathsToWatch) {
+				if (isRecursiveWatchRequest(request)) {
+					request.pollingInterval = this.options?.watcher?.pollingInterval ?? 5000;
+				}
+			}
+		} else if (Array.isArray(usePolling)) {
+			for (const request of this.universalPathsToWatch) {
+				if (isRecursiveWatchRequest(request)) {
+					if (usePolling.includes(request.path)) {
+						request.pollingInterval = this.options?.watcher?.pollingInterval ?? 5000;
+					}
+				}
+			}
+		}
 
 		// Ask to watch the provided paths
 		return this.universalWatcher.watch(this.universalPathsToWatch);
-	}
-
-	protected massageWatchRequests(requests: IUniversalWatcheRequest[]): void {
-		// subclasses can override to alter behaviour
 	}
 
 	protected abstract createUniversalWatcher(
