@@ -329,34 +329,40 @@ export namespace CoreNavigationCommands {
 
 	class BaseMoveToCommand extends CoreEditorCommand {
 
+		private readonly _minimalReveal: boolean;
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { minimalReveal: boolean; inSelectionMode: boolean; }) {
 			super(opts);
+			this._minimalReveal = opts.minimalReveal;
 			this._inSelectionMode = opts.inSelectionMode;
 		}
 
 		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
 			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
+			const cursorStateChanged = viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				[
 					CursorMoveCommands.moveTo(viewModel, viewModel.getPrimaryCursorState(), this._inSelectionMode, args.position, args.viewPosition)
 				]
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			if (cursorStateChanged) {
+				viewModel.revealPrimaryCursor(args.source, true, this._minimalReveal);
+			}
 		}
 	}
 
 	export const MoveTo: CoreEditorCommand = registerEditorCommand(new BaseMoveToCommand({
 		id: '_moveTo',
+		minimalReveal: true,
 		inSelectionMode: false,
 		precondition: undefined
 	}));
 
 	export const MoveToSelect: CoreEditorCommand = registerEditorCommand(new BaseMoveToCommand({
 		id: '_moveToSelect',
+		minimalReveal: false,
 		inSelectionMode: true,
 		precondition: undefined
 	}));
