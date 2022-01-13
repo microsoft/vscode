@@ -206,7 +206,7 @@ export class Code {
 						this.logger.log('Smoke test exit call did not terminate process after 10s, forcefully exiting the application...');
 
 						// no need to await since we're polling for the process to die anyways
-						treekill(this.mainProcess.pid, err => {
+						treekill(this.mainProcess.pid!, err => {
 							this.logger.log('Failed to kill Electron process tree:', err?.message);
 						});
 					}
@@ -217,7 +217,7 @@ export class Code {
 					}
 
 					try {
-						process.kill(this.mainProcess.pid, 0); // throws an exception if the process doesn't exist anymore.
+						process.kill(this.mainProcess.pid!, 0); // throws an exception if the process doesn't exist anymore.
 						await new Promise(resolve => setTimeout(resolve, 500));
 					} catch (error) {
 						done = true;
