@@ -7,4 +7,6 @@ import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
 
 export class CwdDetectionCapability {
 	readonly type = TerminalCapability.CwdDetection;
+
+	// TODO: Encapsulate the functionality the capability brings here
 }

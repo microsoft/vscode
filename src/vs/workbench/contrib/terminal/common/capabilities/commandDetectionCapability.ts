@@ -7,4 +7,6 @@ import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
 
 export class CommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
+
+	// TODO: Encapsulate the functionality the capability brings here
 }
