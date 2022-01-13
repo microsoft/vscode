@@ -56,7 +56,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	//#region File Capabilities
 
-	readonly onDidChangeCapabilities: Event<void> = Event.None;
+	readonly onDidChangeCapabilities = Event.None;
 
 	private _capabilities: FileSystemProviderCapabilities | undefined;
 	get capabilities(): FileSystemProviderCapabilities {

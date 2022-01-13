@@ -13,17 +13,16 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { basename, normalize } from 'vs/base/common/path';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractDiskFileSystemProviderChannel, ISessionFileWatcher } from 'vs/platform/files/node/diskFileSystemProviderServer';
+import { AbstractDiskFileSystemProviderChannel, AbstractSessionFileWatcher, ISessionFileWatcher } from 'vs/platform/files/node/diskFileSystemProviderServer';
 import { DefaultURITransformer, IURITransformer } from 'vs/base/common/uriIpc';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
-/**
- * A server implementation for a IPC based file system provider client.
- */
 export class DiskFileSystemProviderChannel extends AbstractDiskFileSystemProviderChannel<unknown> {
 
 	constructor(
 		provider: DiskFileSystemProvider,
-		logService: ILogService
+		logService: ILogService,
+		private readonly environmentService: IEnvironmentService
 	) {
 		super(provider, logService);
 	}
@@ -54,17 +53,23 @@ export class DiskFileSystemProviderChannel extends AbstractDiskFileSystemProvide
 
 	//#endregion
 
-	//#region File Watching (unsupported from main process for client connections)
+	//#region File Watching
 
 	protected createSessionFileWatcher(uriTransformer: IURITransformer, emitter: Emitter<IFileChange[] | string>): ISessionFileWatcher {
-		return {
-			watch(req: number, resource: URI, opts: IWatchOptions): IDisposable {
-				throw createFileSystemProviderError('File watcher is not supported from main process', FileSystemProviderErrorCode.Unavailable);
-			},
-			dispose: () => { }
-		};
+		return new SessionFileWatcher(uriTransformer, emitter, this.logService, this.environmentService);
 	}
 
 	//#endregion
 
+}
+
+class SessionFileWatcher extends AbstractSessionFileWatcher {
+
+	override watch(req: number, resource: URI, opts: IWatchOptions): IDisposable {
+		if (opts.recursive) {
+			throw createFileSystemProviderError('Recursive watcher is not supported from main process', FileSystemProviderErrorCode.Unavailable);
+		}
+
+		return super.watch(req, resource, opts);
+	}
 }
