@@ -111,8 +111,8 @@ export class RemoteExtensionEnvironmentChannelClient {
 		return channel.call<IDiagnosticInfo>('getDiagnosticInfo', options);
 	}
 
-	static updateTelemetryLevel(channel: IChannel, telmetryLevel: TelemetryLevel): Promise<void> {
-		return channel.call<void>('updateTelemetryLevel', { telmetryLevel });
+	static updateTelemetryLevel(channel: IChannel, telemetryLevel: TelemetryLevel): Promise<void> {
+		return channel.call<void>('updateTelemetryLevel', { telemetryLevel });
 	}
 
 	static logTelemetry(channel: IChannel, eventName: string, data: ITelemetryData): Promise<void> {

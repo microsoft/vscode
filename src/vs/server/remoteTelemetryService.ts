@@ -38,7 +38,8 @@ export class RemoteTelemetryService extends TelemetryService implements IRemoteT
 
 	override publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {
 		if (this._injectedTelemetryLevel === undefined) {
-			this._telemetryCache.push({ eventName, data, anonymizeFilePaths, eventType: 'usage' });
+			// Undefined safety with cache in case super class calls log before cache is initialized in subclass constructor
+			this._telemetryCache?.push({ eventName, data, anonymizeFilePaths, eventType: 'usage' });
 			return Promise.resolve();
 		}
 		if (this._injectedTelemetryLevel < TelemetryLevel.USAGE) {
@@ -54,7 +55,8 @@ export class RemoteTelemetryService extends TelemetryService implements IRemoteT
 
 	override publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void> {
 		if (this._injectedTelemetryLevel === undefined) {
-			this._telemetryCache.push({ eventName: errorEventName, data, eventType: 'error' });
+			// Undefined safety with cache in case super class calls log before cache is initialized in subclass constructor
+			this._telemetryCache?.push({ eventName: errorEventName, data, eventType: 'error' });
 			return Promise.resolve();
 		}
 		if (this._injectedTelemetryLevel < TelemetryLevel.ERROR) {
@@ -70,7 +72,7 @@ export class RemoteTelemetryService extends TelemetryService implements IRemoteT
 
 	// Flushes all the cached events with the new level
 	async flushTelemetryCache(): Promise<void> {
-		if (this._telemetryCache.length === 0) {
+		if (this._telemetryCache?.length === 0) {
 			return;
 		}
 		for (const cacheItem of this._telemetryCache) {
@@ -84,6 +86,10 @@ export class RemoteTelemetryService extends TelemetryService implements IRemoteT
 	}
 
 	async updateInjectedTelemetryLevel(telemetryLevel: TelemetryLevel): Promise<void> {
+		if (telemetryLevel === undefined) {
+			this._injectedTelemetryLevel = TelemetryLevel.NONE;
+			throw new Error('Telemetry level cannot be undefined. This will cause infinite looping!');
+		}
 		// We always take the most restrictive level because we don't want multiple clients to connect and send data when one client does not consent
 		this._injectedTelemetryLevel = this._injectedTelemetryLevel ? Math.min(this._injectedTelemetryLevel, telemetryLevel) : telemetryLevel;
 		if (this._injectedTelemetryLevel === TelemetryLevel.NONE) {
