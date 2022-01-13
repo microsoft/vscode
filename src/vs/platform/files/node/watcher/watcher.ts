@@ -5,7 +5,7 @@
 
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IDiskFileChange, ILogMessage, INonRecursiveWatcher, INonRecursiveWatchRequest, IRecursiveWatcher, IRecursiveWatchRequest, IUniversalWatcher } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, ILogMessage, INonRecursiveWatcher, INonRecursiveWatchRequest, IRecursiveWatcher, IRecursiveWatchRequest, IUniversalWatcher, IUniversalWatcheRequest } from 'vs/platform/files/common/watcher';
 import { Emitter } from 'vs/base/common/event';
 import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
@@ -47,7 +47,7 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 		this.nonRecursiveWatcher.onDidError(error => this._onDidError.fire(error));
 	}
 
-	async watch(requests: (IRecursiveWatchRequest | INonRecursiveWatchRequest)[]): Promise<void> {
+	async watch(requests: IUniversalWatcheRequest[]): Promise<void> {
 		const recursiveWatcheRequests: IRecursiveWatchRequest[] = [];
 		const nonRecursiveWatchRequests: INonRecursiveWatchRequest[] = [];
 

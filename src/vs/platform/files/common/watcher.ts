@@ -17,14 +17,14 @@ export interface IWatchRequest {
 	path: string;
 
 	/**
-	 * A set of glob patterns or paths to exclude from watching.
-	 */
-	excludes: string[];
-
-	/**
 	 * Whether to watch recursively or not.
 	 */
 	recursive: boolean;
+
+	/**
+	 * A set of glob patterns or paths to exclude from watching.
+	 */
+	excludes: string[];
 }
 
 export interface INonRecursiveWatchRequest extends IWatchRequest {
@@ -48,6 +48,8 @@ export interface IRecursiveWatchRequest extends IWatchRequest {
 	 */
 	pollingInterval?: number;
 }
+
+export type IUniversalWatcheRequest = IRecursiveWatchRequest | INonRecursiveWatchRequest;
 
 export interface IWatcher {
 
@@ -97,7 +99,7 @@ export interface INonRecursiveWatcher extends IWatcher {
 }
 
 export interface IUniversalWatcher extends IWatcher {
-	watch(requests: (IRecursiveWatchRequest | INonRecursiveWatchRequest)[]): Promise<void>;
+	watch(requests: IUniversalWatcheRequest[]): Promise<void>;
 }
 
 export interface INonRecursiveWatcherLibrary extends IDisposable {
@@ -120,7 +122,7 @@ export abstract class AbstractUniversalWatcherClient extends Disposable {
 	private watcher: IUniversalWatcher | undefined;
 	private readonly watcherDisposables = this._register(new MutableDisposable());
 
-	private requests: (IRecursiveWatchRequest | INonRecursiveWatchRequest)[] | undefined = undefined;
+	private requests: IUniversalWatcheRequest[] | undefined = undefined;
 
 	private restartCounter = 0;
 
@@ -164,14 +166,14 @@ export abstract class AbstractUniversalWatcherClient extends Disposable {
 		}
 	}
 
-	private restart(requests: (IRecursiveWatchRequest | INonRecursiveWatchRequest)[]): void {
+	private restart(requests: IUniversalWatcheRequest[]): void {
 		this.restartCounter++;
 
 		this.init();
 		this.watch(requests);
 	}
 
-	async watch(requests: (IRecursiveWatchRequest | INonRecursiveWatchRequest)[]): Promise<void> {
+	async watch(requests: IUniversalWatcheRequest[]): Promise<void> {
 		this.requests = requests;
 
 		await this.watcher?.watch(requests);
