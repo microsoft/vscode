@@ -920,7 +920,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	}
 
-	const find = (query: string, options: { includeMarkup: boolean; includeOutput: boolean; }) => {
+	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; }) => {
 		let find = true;
 		let matches: IFindMatch[] = [];
 
@@ -936,10 +936,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 			document.designMode = 'On';
 
 			while (find && matches.length < 500) {
-				find = (window as any).find(query, /* caseSensitive*/ false,
+				find = (window as any).find(query, /* caseSensitive*/ !!options.caseSensitive,
 				/* backwards*/ false,
 				/* wrapAround*/ false,
-				/* wholeWord */ false,
+				/* wholeWord */ !!options.wholeWord,
 				/* searchInFrames*/ true,
 					false);
 

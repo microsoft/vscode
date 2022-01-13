@@ -2429,7 +2429,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		if (this._webview) {
 			// request all outputs to be rendered
 			await this._warmupAll(!!options.includeOutput);
-			const webviewMatches = await this._webview.find(query, { includeMarkup: !!options.includePreview, includeOutput: !!options.includeOutput });
+			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includePreview, includeOutput: !!options.includeOutput });
 			// attach webview matches to model find matches
 			webviewMatches.forEach(match => {
 				if (!options.includePreview && match.type === 'preview') {
