@@ -38,7 +38,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap, WindowsShellType, TerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalLocation, ProcessPropertyType, IProcessPropertyMap, WindowsShellType, TerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AutoOpenBarrier, Promises } from 'vs/base/common/async';
@@ -180,8 +180,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly statusList: ITerminalStatusList;
 	disableLayout: boolean = false;
 
-	// TODO: Replace with capabilities2
-	private _capabilities: ProcessCapability[] = [];
 	private _description?: string;
 	private _processName: string = '';
 	private _sequence?: string;
@@ -260,7 +258,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get workspaceFolder(): string | undefined { return this._workspaceFolder; }
 	get cwd(): string | undefined { return this._cwd; }
 	get initialCwd(): string | undefined { return this._initialCwd; }
-	get capabilities(): ProcessCapability[] { return this._capabilities; }
 	get description(): string | undefined { return this._description || this.shellLaunchConfig.description; }
 	get userHome(): string | undefined { return this._userHome; }
 	// The onExit event is special in that it fires and is disposed after the terminal instance
@@ -940,7 +937,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._widgetManager.attachToElement(xterm.raw.element);
 		this._processManager.onProcessReady((e) => {
 			this._linkManager?.setWidgetManager(this._widgetManager);
-			this._capabilities = e.capabilities;
 			this._workspaceFolder = path.basename(e.cwd.toString());
 		});
 
@@ -1182,7 +1178,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		processManager.onProcessReady(async (e) => {
 			this._onProcessIdReady.fire(this);
 			this._initialCwd = await this.getInitialCwd();
-			this._capabilities = e.capabilities;
 			// Set the initial name based on the _resolved_ shell launch config, this will also
 			// ensure the resolved icon gets shown
 			if (!this._labelComputer) {
@@ -2238,7 +2233,7 @@ export class TerminalLabelComputer extends Disposable {
 		if (!reset && this._instance.staticTitle && labelType === TerminalLabelType.Title) {
 			return this._instance.staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process?.replace(/[\n\r\t]/g, '') || '';
 		}
-		const detection = this._instance.capabilities2.has(TerminalCapability.CwdDetection);
+		const detection = this._instance.capabilities2.has(TerminalCapability.CwdDetection) || this._instance.capabilities2.has(TerminalCapability.NaiveCwdDetection);
 		const zeroRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 0 && this.pathsEqual(templateProperties.cwd, this._instance.userHome || this._configHelper.config.cwd);
 		const singleRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 1 && this.pathsEqual(templateProperties.cwd, this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath);
 		templateProperties.cwdFolder = (!templateProperties.cwd || !detection || zeroRootWorkspace || singleRootWorkspace) ? '' : path.basename(templateProperties.cwd);

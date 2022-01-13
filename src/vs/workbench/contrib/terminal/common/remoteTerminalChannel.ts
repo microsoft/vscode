@@ -18,7 +18,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, ProcessCapability, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -78,8 +78,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	get onProcessExit(): Event<{ id: number, event: number | undefined }> {
 		return this._channel.listen<{ id: number, event: number | undefined }>('$onProcessExitEvent');
 	}
-	get onProcessReady(): Event<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[], requireWindowsMode?: boolean } }> {
-		return this._channel.listen<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[], requiresWindowsMode?: boolean } }>('$onProcessReadyEvent');
+	get onProcessReady(): Event<{ id: number, event: { pid: number, cwd: string, requireWindowsMode?: boolean } }> {
+		return this._channel.listen<{ id: number, event: { pid: number, cwd: string, requiresWindowsMode?: boolean } }>('$onProcessReadyEvent');
 	}
 	get onProcessReplay(): Event<{ id: number, event: IPtyHostProcessReplayEvent }> {
 		return this._channel.listen<{ id: number, event: IPtyHostProcessReplayEvent }>('$onProcessReplayEvent');
