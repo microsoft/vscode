@@ -9,7 +9,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
-export interface IWatchRequest {
+interface IWatchRequest {
 
 	/**
 	 * The path to watch.
@@ -55,7 +55,7 @@ export function isRecursiveWatchRequest(request: IWatchRequest): request is IRec
 
 export type IUniversalWatcheRequest = IRecursiveWatchRequest | INonRecursiveWatchRequest;
 
-export interface IWatcher {
+interface IWatcher {
 
 	/**
 	 * A normalized file change event from the raw events

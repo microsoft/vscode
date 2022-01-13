@@ -3,49 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IDiskFileChange, ILogMessage, INonRecursiveWatcher, INonRecursiveWatchRequest, IRecursiveWatcher, IRecursiveWatchRequest, IUniversalWatcher, IUniversalWatcheRequest } from 'vs/platform/files/common/watcher';
-import { Emitter } from 'vs/base/common/event';
+import { INonRecursiveWatchRequest, IRecursiveWatchRequest, IUniversalWatcher, IUniversalWatcheRequest } from 'vs/platform/files/common/watcher';
+import { Event } from 'vs/base/common/event';
 import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { Promises } from 'vs/base/common/async';
 
 export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 
-	private readonly _onDidChangeFile = this._register(new Emitter<IDiskFileChange[]>());
-	readonly onDidChangeFile = this._onDidChangeFile.event;
+	private readonly recursiveWatcher = this._register(new ParcelWatcher());
+	private readonly nonRecursiveWatcher = this._register(new NodeJSWatcher());
 
-	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
-	readonly onDidLogMessage = this._onDidLogMessage.event;
-
-	private readonly _onDidError = this._register(new Emitter<string>());
-	readonly onDidError = this._onDidError.event;
-
-	private readonly recursiveWatcher: IRecursiveWatcher;
-	private readonly nonRecursiveWatcher: INonRecursiveWatcher;
-
-	constructor() {
-		super();
-
-		this.recursiveWatcher = this._register(new ParcelWatcher());
-		this.nonRecursiveWatcher = this._register(new NodeJSWatcher());
-
-		this.registerListeners();
-	}
-
-	registerListeners() {
-
-		// Recursive watcher
-		this.recursiveWatcher.onDidChangeFile(changes => this._onDidChangeFile.fire(changes));
-		this.recursiveWatcher.onDidLogMessage(msg => this._onDidLogMessage.fire(msg));
-		this.recursiveWatcher.onDidError(error => this._onDidError.fire(error));
-
-		// Non-Recursive watcher
-		this.nonRecursiveWatcher.onDidChangeFile(changes => this._onDidChangeFile.fire(changes));
-		this.nonRecursiveWatcher.onDidLogMessage(msg => this._onDidLogMessage.fire(msg));
-		this.nonRecursiveWatcher.onDidError(error => this._onDidError.fire(error));
-	}
+	readonly onDidChangeFile = Event.any(this.recursiveWatcher.onDidChangeFile, this.nonRecursiveWatcher.onDidChangeFile);
+	readonly onDidLogMessage = Event.any(this.recursiveWatcher.onDidLogMessage, this.nonRecursiveWatcher.onDidLogMessage);
+	readonly onDidError = Event.any(this.recursiveWatcher.onDidError, this.nonRecursiveWatcher.onDidError);
 
 	async watch(requests: IUniversalWatcheRequest[]): Promise<void> {
 		const recursiveWatcheRequests: IRecursiveWatchRequest[] = [];
