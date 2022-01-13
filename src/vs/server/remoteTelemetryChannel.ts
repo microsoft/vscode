@@ -6,6 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IRemoteTelemetryService } from 'vs/server/remoteTelemetryService';
 
@@ -58,6 +59,7 @@ export class RemoteTelemetryChannel extends Disposable implements IServerChannel
 	 * no longer a way to control it
 	 */
 	public override dispose(): void {
+		this.telemetryService.updateInjectedTelemetryLevel(TelemetryLevel.NONE);
 		super.dispose();
 	}
 }

@@ -112,7 +112,7 @@ export class RemoteExtensionEnvironmentChannelClient {
 	}
 
 	static updateTelemetryLevel(channel: IChannel, telmetryLevel: TelemetryLevel): Promise<void> {
-		return channel.call<void>('disableTelemetry', { telmetryLevel });
+		return channel.call<void>('updateTelemetryLevel', { telmetryLevel });
 	}
 
 	static logTelemetry(channel: IChannel, eventName: string, data: ITelemetryData): Promise<void> {
