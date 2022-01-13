@@ -89,9 +89,7 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 		for (const capability of store.items) {
 			this._onDidAddCapability.fire(capability);
 		}
-		store.onDidAddCapability(e => {
-			this._onDidAddCapability.fire(e);
-		});
+		store.onDidAddCapability(e => this._onDidAddCapability.fire(e));
 		store.onDidRemoveCapability(e => this._onDidRemoveCapability.fire(e));
 	}
 }
