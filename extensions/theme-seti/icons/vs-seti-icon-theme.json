@@ -1841,6 +1841,7 @@
 		"npm-debug.log": "_npm_ignored"
 	},
 	"languageIds": {
+		"azure-pipelines": "_yml",
 		"bat": "_windows",
 		"clojure": "_clojure",
 		"coffeescript": "_coffee",
@@ -2154,6 +2155,7 @@
 			"ds_store": "_ignored_light"
 		},
 		"languageIds": {
+			"azure-pipelines": "_yml_light",
 			"bat": "_windows_light",
 			"clojure": "_clojure_light",
 			"coffeescript": "_coffee_light",
