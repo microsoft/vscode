@@ -90,7 +90,7 @@ export class BrowserKeyboardMapperFactoryBase {
 						return;
 					}
 
-					this.onKeyboardLayoutChanged();
+					this.setLayoutFromBrowserAPI();
 				});
 			});
 		}
@@ -252,7 +252,7 @@ export class BrowserKeyboardMapperFactoryBase {
 		this._setKeyboardData(this._activeKeymapInfo);
 	}
 
-	public onKeyboardLayoutChanged(): void {
+	public setLayoutFromBrowserAPI(): void {
 		this._updateKeyboardLayoutAsync(this._initialized);
 	}
 
@@ -355,7 +355,7 @@ export class BrowserKeyboardMapperFactoryBase {
 							return;
 						}
 
-						this.onKeyboardLayoutChanged();
+						this.setLayoutFromBrowserAPI();
 					});
 				}, 350);
 			}
@@ -447,7 +447,7 @@ export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBa
 			this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
 			this._mru = this._keymapInfos;
 			this._initialized = true;
-			this.onKeyboardLayoutChanged();
+			this.setLayoutFromBrowserAPI();
 		});
 	}
 }
@@ -544,7 +544,7 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 				this._keyboardLayoutMode = layout;
 
 				if (layout === 'autodetect') {
-					this._factory.onKeyboardLayoutChanged();
+					this._factory.setLayoutFromBrowserAPI();
 				} else {
 					this._factory.setKeyboardLayout(layout);
 				}
