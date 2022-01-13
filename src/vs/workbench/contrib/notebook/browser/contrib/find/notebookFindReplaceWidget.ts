@@ -78,7 +78,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 			{
 				checked: this.filters.markupInput,
 				class: undefined,
-				enabled: true,
+				enabled: !this.filters.markupPreview,
 				id: 'findInMarkdownInput',
 				label: NOTEBOOK_FIND_IN_MARKUP_INPUT,
 				run: async () => {
@@ -88,19 +88,6 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 				dispose: () => null
 			},
 			{
-				checked: this.filters.codeInput,
-				class: undefined,
-				enabled: true,
-				id: 'findInCodeInput',
-				label: NOTEBOOK_FIND_IN_CODE_INPUT,
-				run: async () => {
-					this.filters.codeInput = !this.filters.codeInput;
-				},
-				tooltip: '',
-				dispose: () => null
-			},
-			new Separator(),
-			{
 				checked: this.filters.markupPreview,
 				class: undefined,
 				enabled: true,
@@ -108,6 +95,19 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 				label: NOTEBOOK_FIND_IN_MARKUP_PREVIEW,
 				run: async () => {
 					this.filters.markupPreview = !this.filters.markupPreview;
+				},
+				tooltip: '',
+				dispose: () => null
+			},
+			new Separator(),
+			{
+				checked: this.filters.codeInput,
+				class: undefined,
+				enabled: true,
+				id: 'findInCodeInput',
+				label: NOTEBOOK_FIND_IN_CODE_INPUT,
+				run: async () => {
+					this.filters.codeInput = !this.filters.codeInput;
 				},
 				tooltip: '',
 				dispose: () => null
