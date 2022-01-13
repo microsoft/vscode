@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from 'vs/base/common/arrays';
-import { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinux } from 'vs/base/common/platform';
 import { IDiskFileChange, ILogMessage, INonRecursiveWatchRequest, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
@@ -31,8 +31,7 @@ export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
 	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
 	readonly onDidLogMessage = this._onDidLogMessage.event;
 
-	private readonly _onDidError = this._register(new Emitter<string>());
-	readonly onDidError = this._onDidError.event;
+	readonly onDidError = Event.None;
 
 	protected readonly watchers = new Map<string, INodeJSWatcherInstance>();
 
