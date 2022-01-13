@@ -129,11 +129,11 @@ function tryRevealLineUsingLineFragment(editor: vscode.TextEditor, fragment: str
 	return false;
 }
 
-export async function resolveLinkToMarkdownFile(resource: vscode.Uri): Promise<vscode.Uri | undefined> {
+export async function resolveUriToMarkdownFile(resource: vscode.Uri): Promise<vscode.TextDocument | undefined> {
 	try {
-		const standardLink = await tryResolveLinkToMarkdownFile(resource);
-		if (standardLink) {
-			return standardLink;
+		const doc = await tryResolveUriToMarkdownFile(resource);
+		if (doc) {
+			return doc;
 		}
 	} catch {
 		// Noop
@@ -141,13 +141,13 @@ export async function resolveLinkToMarkdownFile(resource: vscode.Uri): Promise<v
 
 	// If no extension, try with `.md` extension
 	if (extname(resource.path) === '') {
-		return tryResolveLinkToMarkdownFile(resource.with({ path: resource.path + '.md' }));
+		return tryResolveUriToMarkdownFile(resource.with({ path: resource.path + '.md' }));
 	}
 
 	return undefined;
 }
 
-async function tryResolveLinkToMarkdownFile(resource: vscode.Uri): Promise<vscode.Uri | undefined> {
+async function tryResolveUriToMarkdownFile(resource: vscode.Uri): Promise<vscode.TextDocument | undefined> {
 	let document: vscode.TextDocument;
 	try {
 		document = await vscode.workspace.openTextDocument(resource);
@@ -155,7 +155,7 @@ async function tryResolveLinkToMarkdownFile(resource: vscode.Uri): Promise<vscod
 		return undefined;
 	}
 	if (isMarkdownFile(document)) {
-		return document.uri;
+		return document;
 	}
 	return undefined;
 }

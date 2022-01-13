@@ -1504,7 +1504,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private setPanelAlignment(alignment: PanelAlignment, skipLayout?: boolean): void {
+	setPanelAlignment(alignment: PanelAlignment, skipLayout?: boolean): void {
 		// Panel alignment only applies to a panel in the bottom position
 		if (this.getPanelPosition() !== Position.BOTTOM) {
 			return;

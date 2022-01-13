@@ -10,7 +10,7 @@ import { SerializedError } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
+import { MarshalledId, revive } from 'vs/base/common/marshalling';
 import * as performance from 'vs/base/common/performance';
 import Severity from 'vs/base/common/severity';
 import { Dto } from 'vs/base/common/types';
@@ -160,11 +160,25 @@ export interface CommentProviderFeatures {
 	options?: modes.CommentOptions;
 }
 
+export interface CommentChanges {
+	readonly uniqueIdInThread: number;
+	readonly body: IMarkdownString;
+	readonly userName: string;
+	readonly userIconPath?: string;
+	readonly contextValue?: string;
+	readonly commentReactions?: modes.CommentReaction[];
+	readonly label?: string;
+	readonly mode?: modes.CommentMode;
+	readonly detail?: {
+		$mid: MarshalledId.Date
+	} | string;
+}
+
 export type CommentThreadChanges = Partial<{
 	range: IRange,
 	label: string,
 	contextValue: string | null,
-	comments: modes.Comment[],
+	comments: CommentChanges[],
 	collapseState: modes.CommentThreadCollapsibleState;
 	canReply: boolean;
 }>;
@@ -1029,6 +1043,9 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$mkdir(resource: UriComponents): Promise<void>;
 	$delete(resource: UriComponents, opts: files.FileDeleteOptions): Promise<void>;
 
+	$watch(extensionId: string, session: number, resource: UriComponents, opts: files.IWatchOptions): void;
+	$unwatch(session: number): void;
+
 	$ensureActivation(scheme: string): Promise<void>;
 }
 
@@ -1191,7 +1208,7 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$openTunnel(tunnelOptions: TunnelOptions, source: string | undefined): Promise<TunnelDto | undefined>;
 	$closeTunnel(remote: { host: string, port: number; }): Promise<void>;
 	$getTunnels(): Promise<TunnelDescription[]>;
-	$setTunnelProvider(features: TunnelProviderFeatures): Promise<void>;
+	$setTunnelProvider(features?: TunnelProviderFeatures): Promise<void>;
 	$setRemoteTunnelService(processId: number): Promise<void>;
 	$setCandidateFilter(): Promise<void>;
 	$onFoundNewCandidates(candidates: CandidatePort[]): Promise<void>;

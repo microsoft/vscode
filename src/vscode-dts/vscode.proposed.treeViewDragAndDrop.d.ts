@@ -23,7 +23,7 @@ declare module 'vscode' {
 		/**
 		* An optional interface to implement drag and drop in the tree view.
 		*/
-		dragAndDropController?: DragAndDropController<T>;
+		dragAndDropController?: TreeDragAndDropController<T>;
 	}
 
 	/**
@@ -79,7 +79,7 @@ declare module 'vscode' {
 	/**
 	 * Provides support for drag and drop in `TreeView`.
 	 */
-	export interface DragAndDropController<T> {
+	export interface TreeDragAndDropController<T> {
 
 		/**
 		 * The mime types that the `drop` method of this `DragAndDropController` supports. This could be well-defined, existing, mime types,

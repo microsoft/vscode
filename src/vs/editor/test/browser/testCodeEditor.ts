@@ -45,6 +45,7 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { EditorConfiguration } from 'vs/editor/browser/config/editorConfiguration';
+import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
 export interface ITestCodeEditor extends IActiveCodeEditor {
 	getViewModel(): ViewModel | undefined;
@@ -171,6 +172,7 @@ export function createCodeEditorServices(disposables: DisposableStore, services:
 	define(IContextKeyService, MockContextKeyService);
 	define(ICommandService, TestCommandService);
 	define(ITelemetryService, NullTelemetryServiceShape);
+	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
 
 	const instantiationService = new TestInstantiationService(services);
 	disposables.add(toDisposable(() => {

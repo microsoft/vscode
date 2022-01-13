@@ -43,7 +43,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 
 	async $initializeExtensionStorage(shared: boolean, extensionId: string): Promise<object | undefined> {
 
-		await this.checkAndMigrateExtensionStorage(extensionId);
+		await this.checkAndMigrateExtensionStorage(extensionId, shared);
 
 		if (shared) {
 			this._sharedStorageKeysToWatch.set(extensionId, true);
@@ -59,7 +59,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		this._extensionStorageService.setKeysForSync(extension, keys);
 	}
 
-	private async checkAndMigrateExtensionStorage(extensionId: string): Promise<void> {
+	private async checkAndMigrateExtensionStorage(extensionId: string, shared: boolean): Promise<void> {
 		try {
 			let sourceExtensionId = this._extensionStorageService.getSourceExtensionToMigrate(extensionId);
 
@@ -76,10 +76,10 @@ export class MainThreadStorage implements MainThreadStorageShape {
 				// In Web, extension state was used to be stored in lower case extension id.
 				// Hence check that if the lower cased source extension was not yet migrated in web
 				// If not take the lower cased source extension id for migration
-				if (isWeb && sourceExtensionId !== sourceExtensionId.toLowerCase() && this._extensionStorageService.hasExtensionState(sourceExtensionId.toLowerCase()) && !this._extensionStorageService.hasExtensionState(sourceExtensionId)) {
+				if (isWeb && sourceExtensionId !== sourceExtensionId.toLowerCase() && this._extensionStorageService.getExtensionState(sourceExtensionId.toLowerCase(), shared) && !this._extensionStorageService.getExtensionState(sourceExtensionId, shared)) {
 					sourceExtensionId = sourceExtensionId.toLowerCase();
 				}
-				await migrateExtensionStorage(sourceExtensionId, extensionId, this._instantiationService);
+				await migrateExtensionStorage(sourceExtensionId, extensionId, shared, this._instantiationService);
 			}
 		} catch (error) {
 			this._logService.error(error);

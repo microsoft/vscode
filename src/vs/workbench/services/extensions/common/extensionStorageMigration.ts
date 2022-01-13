@@ -19,7 +19,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
  * 	- State: Stored using storage service with extension id as key and state as value.
  *  - Resources: Stored under a location scoped to the extension.
  */
-export async function migrateExtensionStorage(fromExtensionId: string, toExtensionId: string, instantionService: IInstantiationService): Promise<void> {
+export async function migrateExtensionStorage(fromExtensionId: string, toExtensionId: string, global: boolean, instantionService: IInstantiationService): Promise<void> {
 	return instantionService.invokeFunction(async serviceAccessor => {
 		const environmentService = serviceAccessor.get(IEnvironmentService);
 		const extensionStorageService = serviceAccessor.get(IExtensionStorageService);
@@ -42,7 +42,8 @@ export async function migrateExtensionStorage(fromExtensionId: string, toExtensi
 			return uriIdentityService.extUri.joinPath(environmentService.workspaceStorageHome, workspaceContextService.getWorkspace().id, extensionId);
 		};
 
-		const migrateStorage = async (global: boolean) => {
+		const storageScope = global ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
+		if (!storageService.getBoolean(storageMigratedKey, storageScope, false) && !(migrateLowerCaseStorageKey && storageService.getBoolean(migrateLowerCaseStorageKey, storageScope, false))) {
 			logService.info(`Migrating ${global ? 'global' : 'workspace'} extension storage from ${fromExtensionId} to ${toExtensionId}...`);
 			// Migrate state
 			const value = extensionStorageService.getExtensionState(fromExtensionId, global);
@@ -64,18 +65,7 @@ export async function migrateExtensionStorage(fromExtensionId: string, toExtensi
 				}
 			}
 			logService.info(`Migrated ${global ? 'global' : 'workspace'} extension storage from ${fromExtensionId} to ${toExtensionId}`);
-		};
-
-		// Migrate Global Storage
-		if (!storageService.getBoolean(storageMigratedKey, StorageScope.GLOBAL, false) && !(migrateLowerCaseStorageKey && storageService.getBoolean(migrateLowerCaseStorageKey, StorageScope.GLOBAL, false))) {
-			await migrateStorage(true);
-			storageService.store(storageMigratedKey, true, StorageScope.GLOBAL, StorageTarget.MACHINE);
-		}
-
-		// Migrate Workspace Storage
-		if (!storageService.getBoolean(storageMigratedKey, StorageScope.WORKSPACE, false) && !(migrateLowerCaseStorageKey && storageService.getBoolean(migrateLowerCaseStorageKey, StorageScope.WORKSPACE, false))) {
-			await migrateStorage(false);
-			storageService.store(storageMigratedKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			storageService.store(storageMigratedKey, true, storageScope, StorageTarget.MACHINE);
 		}
 	});
 }

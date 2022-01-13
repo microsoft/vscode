@@ -192,38 +192,38 @@ export class ViewRevealRangeRequestEvent {
 
 	public readonly type = ViewEventType.ViewRevealRangeRequest;
 
-	/**
-	 * Range to be reavealed.
-	 */
-	public readonly range: Range | null;
 
-	/**
-	 * Selections to be revealed.
-	 */
-	public readonly selections: Selection[] | null;
-
-	public readonly verticalType: VerticalRevealType;
-	/**
-	 * If true: there should be a horizontal & vertical revealing
-	 * If false: there should be just a vertical revealing
-	 */
-	public readonly revealHorizontal: boolean;
-
-	public readonly scrollType: ScrollType;
-
-	/**
-	 * Source of the call that caused the event.
-	 */
-	readonly source: string | null | undefined;
-
-	constructor(source: string | null | undefined, range: Range | null, selections: Selection[] | null, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: ScrollType) {
-		this.source = source;
-		this.range = range;
-		this.selections = selections;
-		this.verticalType = verticalType;
-		this.revealHorizontal = revealHorizontal;
-		this.scrollType = scrollType;
-	}
+	constructor(
+		/**
+		 * Source of the call that caused the event.
+		 */
+		public readonly source: string | null | undefined,
+		/**
+		 * Reduce the revealing to a minimum (e.g. avoid scrolling if the bounding box is visible and near the viewport edge).
+		 */
+		public readonly minimalReveal: boolean,
+		/**
+		 * Range to be reavealed.
+		 */
+		public readonly range: Range | null,
+		/**
+		 * Selections to be revealed.
+		 */
+		public readonly selections: Selection[] | null,
+		/**
+		 * The vertical reveal strategy.
+		 */
+		public readonly verticalType: VerticalRevealType,
+		/**
+		 * If true: there should be a horizontal & vertical revealing.
+		 * If false: there should be just a vertical revealing.
+		 */
+		public readonly revealHorizontal: boolean,
+		/**
+		 * The scroll type.
+		 */
+		public readonly scrollType: ScrollType
+	) { }
 }
 
 export class ViewScrollChangedEvent {

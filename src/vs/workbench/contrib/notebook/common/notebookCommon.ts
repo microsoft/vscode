@@ -116,6 +116,8 @@ export interface NotebookCellDefaultCollapseConfig {
 	markupCell?: NotebookCellCollapseState;
 }
 
+export type InteractiveWindowCollapseCodeCells = 'always' | 'never' | 'fromEditor';
+
 export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
 export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
 
@@ -824,7 +826,9 @@ export interface INotebookSearchOptions {
 	wholeWord?: boolean;
 	caseSensitive?: boolean;
 	wordSeparators?: string;
-	includePreview?: boolean;
+	includeMarkupInput?: boolean;
+	includeMarkupPreview?: boolean;
+	includeCodeInput?: boolean;
 	includeOutput?: boolean;
 }
 
@@ -944,6 +948,7 @@ export const NotebookSetting = {
 	textOutputLineLimit: 'notebook.output.textLineLimit',
 	globalToolbarShowLabel: 'notebook.globalToolbarShowLabel',
 	markupFontSize: 'notebook.markup.fontSize',
+	interactiveWindowCollapseCodeCells: 'notebook.interactiveWindow.collapseCellInputCode'
 } as const;
 
 export const enum CellStatusbarAlignment {

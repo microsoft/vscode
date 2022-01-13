@@ -8,16 +8,10 @@ import 'mocha';
 import * as vscode from 'vscode';
 import LinkProvider from '../features/documentLinkProvider';
 import { InMemoryDocument } from './inMemoryDocument';
+import { noopToken } from './util';
 
 
 const testFile = vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'x.md');
-
-const noopToken = new class implements vscode.CancellationToken {
-	private _onCancellationRequestedEmitter = new vscode.EventEmitter<void>();
-	public onCancellationRequested = this._onCancellationRequestedEmitter.event;
-
-	get isCancellationRequested() { return false; }
-};
 
 function getLinksForFile(fileContents: string) {
 	const doc = new InMemoryDocument(testFile, fileContents);

@@ -151,7 +151,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.loadAddon(this._shellIntegrationAddon);
 
 		// Hook up co-dependent addon events
-		this._shellIntegrationAddon.onCapabilityEnabled(e => {
+		this._shellIntegrationAddon.capabilities.onDidAddCapability(e => {
 			if (e === TerminalCapability.CommandDetection) {
 				this.upgradeCommandTracker();
 			}

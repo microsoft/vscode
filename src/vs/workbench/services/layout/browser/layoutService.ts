@@ -35,7 +35,7 @@ export const enum PanelOpensMaximizedOptions {
 	REMEMBER_LAST
 }
 
-export type PanelAlignment = 'left' | 'center' | 'right' | 'justified';
+export type PanelAlignment = 'left' | 'center' | 'right' | 'justify';
 
 export function positionToString(position: Position): string {
 	switch (position) {
@@ -210,6 +210,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Sets the panel position.
 	 */
 	setPanelPosition(position: Position): void;
+
+	/**
+	 * Sets the panel alignment.
+	 */
+	setPanelAlignment(alignment: PanelAlignment): void;
 
 	/**
 	 * Gets the maximum possible size for editor.

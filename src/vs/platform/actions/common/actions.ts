@@ -102,6 +102,8 @@ export class MenuId {
 	static readonly ExtensionContext = new MenuId('ExtensionContext');
 	static readonly GlobalActivity = new MenuId('GlobalActivity');
 	static readonly LayoutControlMenu = new MenuId('LayoutControlMenu');
+	static readonly LayoutControlPanelPositionMenu = new MenuId('LayoutControlPanelPositionMenu');
+	static readonly LayoutControlPanelAlignmentMenu = new MenuId('LayoutControlPanelAlignmentMenu');
 	static readonly MenubarMainMenu = new MenuId('MenubarMainMenu');
 	static readonly MenubarAppearanceMenu = new MenuId('MenubarAppearanceMenu');
 	static readonly MenubarDebugMenu = new MenuId('MenubarDebugMenu');
@@ -169,8 +171,6 @@ export class MenuId {
 	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
 	static readonly NotebookOutputToolbar = new MenuId('NotebookOutputToolbar');
 	static readonly NotebookEditorLayoutConfigure = new MenuId('NotebookEditorLayoutConfigure');
-	static readonly NotebookFindToolbar = new MenuId('NotebookFindToolbar');
-	static readonly NotebookFindFilter = new MenuId('NotebookFindFilter');
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
 	static readonly BulkEditContext = new MenuId('BulkEditContext');
 	static readonly TimelineItemContext = new MenuId('TimelineItemContext');

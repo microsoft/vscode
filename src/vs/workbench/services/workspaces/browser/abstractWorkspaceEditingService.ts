@@ -13,8 +13,8 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { distinct } from 'vs/base/common/arrays';
-import { isEqual, isEqualAuthority } from 'vs/base/common/resources';
+import { distinct, firstOrDefault } from 'vs/base/common/arrays';
+import { basename, isEqual, isEqualAuthority } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -27,8 +27,6 @@ import { Schemas } from 'vs/base/common/network';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-
-const UNTITLED_WORKSPACE_FILENAME = `workspace.${WORKSPACE_EXTENSION}`;
 
 export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -60,7 +58,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			saveLabel: mnemonicButtonLabel(localize('save', "Save")),
 			title: localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultUri: await this.fileDialogService.defaultWorkspacePath(undefined, UNTITLED_WORKSPACE_FILENAME),
+			defaultUri: await this.fileDialogService.defaultWorkspacePath(undefined, this.getNewWorkspaceName()),
 			availableFileSystems
 		});
 
@@ -75,6 +73,27 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		}
 
 		return workspacePath;
+	}
+
+	private getNewWorkspaceName(): string {
+		switch (this.contextService.getWorkbenchState()) {
+			case WorkbenchState.FOLDER: {
+				const folder = firstOrDefault(this.contextService.getWorkspace().folders);
+				if (folder) {
+					return `${basename(folder.uri)}.${WORKSPACE_EXTENSION}`;
+				}
+				break;
+			}
+			case WorkbenchState.WORKSPACE: {
+				const configPathURI = this.getCurrentWorkspaceIdentifier()?.configPath;
+				if (configPathURI && !isUntitledWorkspace(configPathURI, this.environmentService)) {
+					return basename(configPathURI);
+				}
+				break;
+			}
+		}
+
+		return `workspace.${WORKSPACE_EXTENSION}`;
 	}
 
 	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {

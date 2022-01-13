@@ -71,7 +71,7 @@ export class FindInput extends Widget {
 	protected inputValidationErrorForeground?: Color;
 
 	protected controls: HTMLDivElement;
-	private regex: RegexCheckbox;
+	protected regex: RegexCheckbox;
 	private wholeWords: WholeWordsCheckbox;
 	private caseSensitive: CaseSensitiveCheckbox;
 	public domNode: HTMLElement;

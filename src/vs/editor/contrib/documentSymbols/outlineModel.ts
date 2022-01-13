@@ -14,8 +14,8 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/languages';
-import { LanguageFeatureRequestDelays } from 'vs/editor/common/languages/languageFeatureRegistry';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { FeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
 
 export abstract class TreeElement {
 
@@ -206,7 +206,7 @@ export class OutlineGroup extends TreeElement {
 
 export class OutlineModel extends TreeElement {
 
-	private static readonly _requestDurations = new LanguageFeatureRequestDelays(DocumentSymbolProviderRegistry, 350);
+	private static readonly _requestDurations = new FeatureDebounceInformation(DocumentSymbolProviderRegistry, () => 350, 350); // todo@jrieken ADOPT debounce service
 	private static readonly _requests = new LRUCache<string, { promiseCnt: number, source: CancellationTokenSource, promise: Promise<any>, model: OutlineModel | undefined }>(9, 0.75);
 	private static readonly _keys = new class {
 
@@ -281,8 +281,8 @@ export class OutlineModel extends TreeElement {
 		});
 	}
 
-	static getRequestDelay(textModel: ITextModel | null): number {
-		return textModel ? this._requestDurations.get(textModel) : this._requestDurations.min;
+	static getRequestDelay(textModel: ITextModel): number {
+		return this._requestDurations.get(textModel);
 	}
 
 	private static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
