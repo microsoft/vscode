@@ -28,7 +28,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { FileService } from 'vs/platform/files/common/fileService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 import { RemoteFileSystemProviderClient } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/common/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
@@ -217,7 +217,7 @@ export class DesktopMain extends Disposable {
 
 		// Files
 		const fileService = this._register(new FileService(logService));
-		serviceCollection.set(IFileService, fileService);
+		serviceCollection.set(IWorkbenchFileService, fileService);
 
 		// Local Files
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(mainProcessService, sharedProcessWorkerWorkbenchService, logService));

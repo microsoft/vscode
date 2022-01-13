@@ -14,7 +14,7 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 
 suite('OpenerService', function () {
 	const themeService = new TestThemeService();
-	const editorService = new TestCodeEditorService(null, themeService);
+	const editorService = new TestCodeEditorService(themeService);
 
 	let lastCommand: { id: string; args: any[] } | undefined;
 

@@ -84,7 +84,7 @@ function findGitDarwin(onValidate: (path: string) => boolean): Promise<IGit> {
 				return e('git not found');
 			}
 
-			const path = gitPathBuffer.toString().replace(/^\s+|\s+$/g, '');
+			const path = gitPathBuffer.toString().trim();
 
 			function getVersion(path: string) {
 				if (!onValidate(path)) {
@@ -1794,10 +1794,13 @@ export class Repository {
 	}
 
 	async dropStash(index?: number): Promise<void> {
-		const args = ['stash', 'drop'];
+		const args = ['stash'];
 
 		if (typeof index === 'number') {
+			args.push('drop');
 			args.push(`stash@{${index}}`);
+		} else {
+			args.push('clear');
 		}
 
 		try {
@@ -1839,7 +1842,7 @@ export class Repository {
 				c({ status: parser.status, didHitLimit: false });
 			};
 
-			const limit = opts?.limit ?? 5000;
+			const limit = opts?.limit ?? 10000;
 			const onStdoutData = (raw: string) => {
 				parser.update(raw);
 

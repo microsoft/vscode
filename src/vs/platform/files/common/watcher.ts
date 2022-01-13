@@ -4,12 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
-export interface IRecursiveWatcher {
+export interface IWatchRequest {
+
+	/**
+	 * The path to watch.
+	 */
+	path: string;
+
+	/**
+	 * A set of glob patterns or paths to exclude from watching.
+	 */
+	excludes: string[];
+}
+
+export interface INonRecursiveWatchRequest extends IWatchRequest { }
+
+export interface IRecursiveWatchRequest extends IWatchRequest {
+
+	/**
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
+	 */
+	pollingInterval?: number;
+}
+
+export interface IRecursiveWatcher extends IDisposable {
 
 	/**
 	 * A normalized file change event from the raw events
@@ -35,7 +59,7 @@ export interface IRecursiveWatcher {
 	 * in the array, will be removed from watching and
 	 * any new path will be added to watching.
 	 */
-	watch(requests: IWatchRequest[]): Promise<void>;
+	watch(requests: IRecursiveWatchRequest[]): Promise<void>;
 
 	/**
 	 * Enable verbose logging in the watcher.
@@ -48,6 +72,19 @@ export interface IRecursiveWatcher {
 	stop(): Promise<void>;
 }
 
+export interface INonRecursiveWatcher extends IDisposable {
+
+	/**
+	 * A promise that indicates when the watcher is ready.
+	 */
+	readonly ready: Promise<void>;
+
+	/**
+	 * Enable verbose logging in the watcher.
+	 */
+	setVerboseLogging(enabled: boolean): void;
+}
+
 export abstract class AbstractRecursiveWatcherClient extends Disposable {
 
 	private static readonly MAX_RESTARTS = 5;
@@ -55,7 +92,7 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 	private watcher: IRecursiveWatcher | undefined;
 	private readonly watcherDisposables = this._register(new MutableDisposable());
 
-	private requests: IWatchRequest[] | undefined = undefined;
+	private requests: IRecursiveWatchRequest[] | undefined = undefined;
 
 	private restartCounter = 0;
 
@@ -99,14 +136,14 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 		}
 	}
 
-	private restart(requests: IWatchRequest[]): void {
+	private restart(requests: IRecursiveWatchRequest[]): void {
 		this.restartCounter++;
 
 		this.init();
 		this.watch(requests);
 	}
 
-	async watch(requests: IWatchRequest[]): Promise<void> {
+	async watch(requests: IRecursiveWatchRequest[]): Promise<void> {
 		this.requests = requests;
 
 		await this.watcher?.watch(requests);
@@ -129,25 +166,6 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 
 		return super.dispose();
 	}
-}
-
-export interface IWatchRequest {
-
-	/**
-	 * The path to watch.
-	 */
-	path: string;
-
-	/**
-	 * A set of glob patterns or paths to exclude from watching.
-	 */
-	excludes: string[];
-
-	/**
-	 * @deprecated this only exists for WSL1 support and should never
-	 * be used in any other case.
-	 */
-	pollingInterval?: number;
 }
 
 export interface IDiskFileChange {
@@ -201,13 +219,9 @@ class EventCoalescer {
 			const currentChangeType = existingEvent.type;
 			const newChangeType = event.type;
 
-			// macOS/Windows: track renames to different case but
-			// same name by changing current event to DELETED
-			// this encodes some underlying knowledge about the
-			// file watcher being used by assuming we first get
-			// an event for the CREATE and then an event that we
-			// consider as DELETE if same name / different case.
-			if (existingEvent.path !== event.path && event.type === FileChangeType.DELETED) {
+			// macOS/Windows: track renames to different case
+			// by keeping both CREATE and DELETE events
+			if (existingEvent.path !== event.path && (event.type === FileChangeType.DELETED || event.type === FileChangeType.ADDED)) {
 				keepEvent = true;
 			}
 

@@ -578,13 +578,20 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	get hasTaskSystemInfo(): boolean {
+		// If there's a remoteAuthority, then we end up with 2 taskSystemInfos,
+		// one for each extension host.
+		if (this.environmentService.remoteAuthority) {
+			return this._taskSystemInfos.size > 1;
+		}
 		return this._taskSystemInfos.size > 0;
 	}
 
 	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
 		if (!this._taskSystemInfos.has(key) || info.platform !== Platform.Platform.Web) {
 			this._taskSystemInfos.set(key, info);
-			this._onDidChangeTaskSystemInfo.fire();
+			if (this.hasTaskSystemInfo) {
+				this._onDidChangeTaskSystemInfo.fire();
+			}
 		}
 	}
 

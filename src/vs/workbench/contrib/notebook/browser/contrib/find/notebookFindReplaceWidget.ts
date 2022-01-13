@@ -4,29 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
+import { FindInput, IFindInputOptions, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
 import { IReplaceInputStyles, ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import 'vs/css!./simpleFindReplaceWidget';
+import 'vs/css!./notebookFindReplaceWidget';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
 import { findNextMatchIcon, findPreviousMatchIcon, findReplaceAllIcon, findReplaceIcon, SimpleButton } from 'vs/editor/contrib/find/findWidget';
 import * as nls from 'vs/nls';
-import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { ContextScopedReplaceInput, createAndBindHistoryNavigationWidgetScopedContextKeyService, IContextScopedHistoryNavigationWidget } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { editorWidgetBackground, editorWidgetForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
+import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/replacePattern';
+import { Codicon } from 'vs/base/common/codicons';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { IAction } from 'vs/base/common/actions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
 const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
+// const NLS_FILTER_BTN_LABEL = nls.localize('label.findFilterButton', "Search in View");
 const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace");
@@ -35,9 +44,91 @@ const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Repla
 const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
 
+export const findFilterButton = registerIcon('find-filter', Codicon.filter, nls.localize('findFilterIcon', 'Icon for Find Filter in find widget.'));
 
-export abstract class SimpleFindReplaceWidget extends Widget {
-	protected readonly _findInput: FindInput;
+class NotebookFindInput extends FindInput {
+
+	protected readonly filterToolbar: ToolBar;
+	private _filterButtonContainer: HTMLElement;
+	private _filterChecked: boolean = false;
+
+	constructor(
+		contextKeyService: IContextKeyService,
+		themeService: IThemeService,
+		menuService: IMenuService,
+		contextMenuService: IContextMenuService,
+		instantiationService: IInstantiationService,
+		scopedContextKeyService: IContextKeyService,
+		parent: HTMLElement | null, contextViewProvider: IContextViewProvider, showOptionButtons: boolean, options: IFindInputOptions) {
+		super(parent, contextViewProvider, showOptionButtons, options);
+
+		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.inputBox.element, historyNavigator: this.inputBox }).scopedContextKeyService);
+
+		this._filterButtonContainer = dom.$('.find-filter-button');
+		this._filterButtonContainer.classList.add('monaco-custom-checkbox');
+		const primaryMenu = menuService.createMenu(MenuId.NotebookFindToolbar, scopedContextKeyService);
+
+		this.filterToolbar = this._register(new ToolBar(this._filterButtonContainer, contextMenuService, {
+			actionViewItemProvider: action => {
+				return createActionViewItem(instantiationService, action);
+			}
+		}));
+
+		const actions = this.getCellToolbarActions(primaryMenu);
+		this.filterToolbar.setActions([...actions.primary, ...actions.secondary]);
+
+		this._register(primaryMenu.onDidChange(() => {
+			const actions = this.getCellToolbarActions(primaryMenu);
+			this.filterToolbar.setActions([...actions.primary, ...actions.secondary]);
+		}));
+
+		this.controls.appendChild(this._filterButtonContainer);
+	}
+
+	override setEnabled(enabled: boolean) {
+		super.setEnabled(enabled);
+		if (enabled && !this._filterChecked) {
+			this.regex.enable();
+		} else {
+			this.regex.disable();
+		}
+	}
+
+	updateFilterState(changed: boolean) {
+		this._filterChecked = changed;
+		if (this._filterChecked) {
+			this.regex.disable();
+			this.regex.domNode.tabIndex = -1;
+			this.regex.domNode.classList.toggle('disabled', true);
+		} else {
+			this.regex.enable();
+			this.regex.domNode.tabIndex = 0;
+			this.regex.domNode.classList.toggle('disabled', false);
+		}
+		this.applyStyles();
+	}
+
+	override applyStyles(): void {
+		super.applyStyles();
+
+		this._filterButtonContainer.style.borderColor = this._filterChecked && this.inputActiveOptionBorder ? this.inputActiveOptionBorder.toString() : '';
+		this._filterButtonContainer.style.color = this._filterChecked && this.inputActiveOptionForeground ? this.inputActiveOptionForeground.toString() : 'inherit';
+		this._filterButtonContainer.style.backgroundColor = this._filterChecked && this.inputActiveOptionBackground ? this.inputActiveOptionBackground.toString() : '';
+	}
+
+	getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[]; } {
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+		const result = { primary, secondary };
+
+		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
+
+		return result;
+	}
+}
+
+export abstract class SimpleFindReplaceWidget<T> extends Widget {
+	protected readonly _findInput: NotebookFindInput;
 	private readonly _domNode: HTMLElement;
 	private readonly _innerFindDomNode: HTMLElement;
 	private readonly _focusTracker: dom.IFocusTracker;
@@ -51,8 +142,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private readonly _innerReplaceDomNode!: HTMLElement;
 	private _toggleReplaceBtn!: SimpleButton;
 	private readonly _replaceInputFocusTracker!: dom.IFocusTracker;
-	private _replaceBtn!: SimpleButton;
-	private _replaceAllBtn!: SimpleButton;
+	protected _replaceBtn!: SimpleButton;
+	protected _replaceAllBtn!: SimpleButton;
 
 
 	private _isVisible: boolean = false;
@@ -60,20 +151,25 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private foundMatch: boolean = false;
 
 	protected _progressBar!: ProgressBar;
+	protected _scopedContextKeyService: IContextKeyService;
 
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private readonly _themeService: IThemeService,
-		protected readonly _state: FindReplaceState = new FindReplaceState(),
-		showOptionButtons?: boolean
+		@IConfigurationService protected readonly _configurationService: IConfigurationService,
+		@IMenuService readonly menuService: IMenuService,
+		@IContextMenuService readonly contextMenuService: IContextMenuService,
+		@IInstantiationService readonly instantiationService: IInstantiationService,
+		protected readonly _state: FindReplaceState<T> = new FindReplaceState<T>()
 	) {
 		super();
 
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('simple-fr-find-part-wrapper');
 		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
+		this._scopedContextKeyService = contextKeyService.createScoped(this._domNode);
 
 		let progressContainer = dom.$('.find-replace-progress');
 		this._progressBar = new ProgressBar(progressContainer);
@@ -101,23 +197,34 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._innerFindDomNode = document.createElement('div');
 		this._innerFindDomNode.classList.add('simple-fr-find-part');
 
-		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewService, {
-			label: NLS_FIND_INPUT_LABEL,
-			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
-			validation: (value: string): InputBoxMessage | null => {
-				if (value.length === 0 || !this._findInput.getRegex()) {
-					return null;
-				}
-				try {
-					new RegExp(value);
-					return null;
-				} catch (e) {
-					this.foundMatch = false;
-					this.updateButtons(this.foundMatch);
-					return { content: e.message };
+		this._findInput = this._register(new NotebookFindInput(
+			this._scopedContextKeyService,
+			this._themeService,
+			this.menuService,
+			this.contextMenuService,
+			this.instantiationService,
+			this._scopedContextKeyService,
+			null,
+			this._contextViewService,
+			true,
+			{
+				label: NLS_FIND_INPUT_LABEL,
+				placeholder: NLS_FIND_INPUT_PLACEHOLDER,
+				validation: (value: string): InputBoxMessage | null => {
+					if (value.length === 0 || !this._findInput.getRegex()) {
+						return null;
+					}
+					try {
+						new RegExp(value);
+						return null;
+					} catch (e) {
+						this.foundMatch = false;
+						this.updateButtons(this.foundMatch);
+						return { content: e.message };
+					}
 				}
 			}
-		}, contextKeyService, showOptionButtons));
+		));
 
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
@@ -246,8 +353,16 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this._innerReplaceDomNode.appendChild(this._replaceBtn.domNode);
 		this._innerReplaceDomNode.appendChild(this._replaceAllBtn.domNode);
+	}
 
+	getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[]; } {
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+		const result = { primary, secondary };
 
+		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
+
+		return result;
 	}
 
 	protected abstract onInputChanged(): boolean;
@@ -334,6 +449,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this._domNode.classList.toggle('replaceToggled', this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
+
 	}
 
 	protected _updateMatchesCount(): void {

@@ -8,7 +8,7 @@ import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { MetadataConsts } from 'vs/editor/common/languages';
-import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/test/common/core/viewLineToken';
+import { TestLineToken, TestLineTokenFactory } from 'vs/editor/test/common/core/testLineToken';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 interface ILineEdit {
@@ -20,7 +20,7 @@ interface ILineEdit {
 function assertLineTokens(__actual: LineTokens, _expected: TestToken[]): void {
 	let tmp = TestToken.toTokens(_expected);
 	LineTokens.convertToEndOffset(tmp, __actual.getLineContent().length);
-	let expected = ViewLineTokenFactory.inflateArr(tmp);
+	let expected = TestLineTokenFactory.inflateArr(tmp);
 	let _actual = __actual.inflate();
 	interface ITestToken {
 		endIndex: number;
@@ -33,7 +33,7 @@ function assertLineTokens(__actual: LineTokens, _expected: TestToken[]): void {
 			type: _actual.getClassName(i)
 		};
 	}
-	let decode = (token: ViewLineToken) => {
+	let decode = (token: TestLineToken) => {
 		return {
 			endIndex: token.endIndex,
 			type: token.getType()

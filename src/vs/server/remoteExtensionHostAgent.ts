@@ -27,8 +27,8 @@ const errorReporter: ErrorReporter = {
 		console.error(`Ignoring option ${id}: not supported for server.`);
 	},
 
-	onDeprecatedOption: (deprecatedOption: string, actualOption: string) => {
-		console.warn(`Option '${deprecatedOption}' is deprecated, please use '${actualOption}' instead`);
+	onDeprecatedOption: (deprecatedOption: string, message) => {
+		console.warn(`Option '${deprecatedOption}' is deprecated: ${message}`);
 	}
 };
 
@@ -48,7 +48,7 @@ args['extensions-dir'] = args['extensions-dir'] || join(REMOTE_DATA_FOLDER, 'ext
 [REMOTE_DATA_FOLDER, args['extensions-dir'], USER_DATA_PATH, APP_SETTINGS_HOME, MACHINE_SETTINGS_HOME, GLOBAL_STORAGE_HOME].forEach(f => {
 	try {
 		if (!fs.existsSync(f)) {
-			fs.mkdirSync(f);
+			fs.mkdirSync(f, { mode: 0o700 });
 		}
 	} catch (err) { console.error(err); }
 });

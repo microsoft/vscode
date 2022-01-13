@@ -5,6 +5,7 @@
 
 import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
 import { ICommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalCommand } from 'vs/platform/terminal/common/terminal';
 
 /**
  * The minimum size of the prompt in which to assume the line is a command.
@@ -21,38 +22,25 @@ export const enum ScrollPosition {
 	Middle
 }
 
-export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
+export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 	private _currentMarker: IMarker | Boundary = Boundary.Bottom;
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
-	private _terminal: Terminal | undefined;
+	protected abstract _terminal: Terminal | undefined;
 
-	activate(terminal: Terminal): void {
-		this._terminal = terminal;
-		terminal.onKey(e => this._onKey(e.key));
-	}
+	abstract get commands(): TerminalCommand[];
+	abstract get cwds(): string[];
+	abstract activate(terminal: Terminal): void;
+	abstract handleIntegratedShellChange(event: { type: string, value: string }): void;
 
 	dispose(): void {
 	}
 
-	private _onKey(key: string): void {
-		if (key === '\x0d') {
-			this._onEnter();
-		}
-
+	clearMarker(): void {
 		// Clear the current marker so successive focus/selection actions are performed from the
 		// bottom of the buffer
 		this._currentMarker = Boundary.Bottom;
 		this._selectionStart = null;
-	}
-
-	private _onEnter(): void {
-		if (!this._terminal) {
-			return;
-		}
-		if (this._terminal.buffer.active.cursorX >= MINIMUM_PROMPT_LENGTH) {
-			this._terminal.registerMarker(0);
-		}
 	}
 
 	scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
@@ -233,13 +221,13 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		}
 
 		if (this._currentMarker === Boundary.Bottom) {
-			this._currentMarker = this._addMarkerOrThrow(xterm, this._getOffset(xterm) - 1);
+			this._currentMarker = this._registerMarkerOrThrow(xterm, this._getOffset(xterm) - 1);
 		} else {
 			const offset = this._getOffset(xterm);
 			if (this._isDisposable) {
 				this._currentMarker.dispose();
 			}
-			this._currentMarker = this._addMarkerOrThrow(xterm, offset - 1);
+			this._currentMarker = this._registerMarkerOrThrow(xterm, offset - 1);
 		}
 		this._isDisposable = true;
 		this._scrollToMarker(this._currentMarker, scrollPosition);
@@ -256,20 +244,20 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		}
 
 		if (this._currentMarker === Boundary.Top) {
-			this._currentMarker = this._addMarkerOrThrow(xterm, this._getOffset(xterm) + 1);
+			this._currentMarker = this._registerMarkerOrThrow(xterm, this._getOffset(xterm) + 1);
 		} else {
 			const offset = this._getOffset(xterm);
 			if (this._isDisposable) {
 				this._currentMarker.dispose();
 			}
-			this._currentMarker = this._addMarkerOrThrow(xterm, offset + 1);
+			this._currentMarker = this._registerMarkerOrThrow(xterm, offset + 1);
 		}
 		this._isDisposable = true;
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
-	private _addMarkerOrThrow(xterm: Terminal, cursorYOffset: number): IMarker {
-		const marker = xterm.addMarker(cursorYOffset);
+	private _registerMarkerOrThrow(xterm: Terminal, cursorYOffset: number): IMarker {
+		const marker = xterm.registerMarker(cursorYOffset);
 		if (!marker) {
 			throw new Error(`Could not create marker for ${cursorYOffset}`);
 		}
@@ -320,5 +308,40 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		}
 
 		return xterm.markers.length;
+	}
+}
+
+export class NaiveCommandTrackerAddon extends CommandTrackerAddon {
+	_terminal: Terminal | undefined;
+	get commands(): TerminalCommand[] {
+		return [];
+	}
+	get cwds(): string[] {
+		return [];
+	}
+
+	activate(terminal: Terminal): void {
+		this._terminal = terminal;
+		terminal.onKey(e => this._onKey(e.key));
+	}
+
+	private _onKey(key: string): void {
+		if (key === '\x0d') {
+			this._onEnter();
+		}
+
+		this.clearMarker();
+	}
+
+	private _onEnter(): void {
+		if (!this._terminal) {
+			return;
+		}
+		if (this._terminal.buffer.active.cursorX >= MINIMUM_PROMPT_LENGTH) {
+			this._terminal.registerMarker(0);
+		}
+	}
+
+	handleIntegratedShellChange(event: { type: string; value: string; }): void {
 	}
 }

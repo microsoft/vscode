@@ -202,6 +202,25 @@ export interface InjectedTextOptions {
 	 * If there is an `inlineClassName` which affects letter spacing.
 	 */
 	readonly inlineClassNameAffectsLetterSpacing?: boolean;
+
+	/**
+	 * This field allows to attach data to this injected text.
+	 * The data can be read when injected texts at a given position are queried.
+	 */
+	readonly attachedData?: unknown;
+
+	/**
+	 * Configures cursor stops around injected text.
+	 * Defaults to {@link InjectedTextCursorStops.Both}.
+	*/
+	readonly cursorStops?: InjectedTextCursorStops | null;
+}
+
+export enum InjectedTextCursorStops {
+	Both,
+	Right,
+	Left,
+	None
 }
 
 /**

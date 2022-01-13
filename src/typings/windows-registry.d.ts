@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// empty placeholder declaration for the `icon` property of the language contribution point
-
-// https://github.com/microsoft/vscode/issues/14662 @aeschli
-
+declare module '@vscode/windows-registry' {
+	export type HKEY = 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG';
+	export function GetStringRegKey(hive: HKEY, path: string, name: string): string | undefined;
+}

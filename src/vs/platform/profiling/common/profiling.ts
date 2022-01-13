@@ -48,7 +48,7 @@ export namespace Utils {
 	export function rewriteAbsolutePaths(profile: IV8Profile, replace: string = 'noAbsolutePaths') {
 		for (const node of profile.nodes) {
 			if (node.callFrame && node.callFrame.url) {
-				if (isAbsolute(node.callFrame.url)) {
+				if (isAbsolute(node.callFrame.url) || /^\w[\w\d+.-]*:\/\/\//.test(node.callFrame.url)) {
 					node.callFrame.url = join(replace, basename(node.callFrame.url));
 				}
 			}

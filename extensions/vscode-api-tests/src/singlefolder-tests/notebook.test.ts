@@ -136,7 +136,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	}
 };
 
-suite('Notebook API tests', function () {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('Notebook API tests', function () {
 
 	const testDisposables: vscode.Disposable[] = [];
 	const suiteDisposables: vscode.Disposable[] = [];
@@ -190,7 +190,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(selectionRedo[0].end, 2);
 	});
 
-	test('editor editing event', async function () {
+	test.skip('editor editing event', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/140200
 		const notebook = await openRandomNotebookDocument();
 		const editor = await vscode.window.showNotebookDocument(notebook);
 
@@ -311,7 +311,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(secondCell.executionSummary?.success, true);
 	});
 
-	test('notebook cell actions', async function () {
+	test.skip('notebook cell actions', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/140201
 		const notebook = await openRandomNotebookDocument();
 		const editor = await vscode.window.showNotebookDocument(notebook);
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
@@ -625,7 +625,7 @@ suite('Notebook API tests', function () {
 		});
 	});
 
-	test('multiple tabs: dirty + clean', async function () {
+	test.skip('multiple tabs: dirty + clean', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/140285
 		const notebook = await openRandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');

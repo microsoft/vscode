@@ -16,10 +16,10 @@ function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): Nativ
 			console.warn(localize('unknownOption', "Warning: '{0}' is not in the list of known options, but still passed to Electron/Chromium.", id));
 		},
 		onMultipleValues: (id, val) => {
-			console.warn(localize('multipleValues', "Option '{0}' is defined more than once. Using value '{1}.'", id, val));
+			console.warn(localize('multipleValues', "Option '{0}' is defined more than once. Using value '{1}'.", id, val));
 		},
-		onDeprecatedOption: (deprecatedOption: string, actualOption: string) => {
-			console.warn(localize('deprecatedArgument', "Option '{0}' is deprecated, please use '{1}' instead", deprecatedOption, actualOption));
+		onDeprecatedOption: (deprecatedOption: string, message: string) => {
+			console.warn(localize('deprecatedArgument', "Option '{0}' is deprecated: {1}", deprecatedOption, message));
 		}
 	};
 

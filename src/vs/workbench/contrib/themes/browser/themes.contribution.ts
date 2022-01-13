@@ -16,7 +16,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Color } from 'vs/base/common/color';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
-import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { DEFAULT_PRODUCT_ICON_THEME_ID, ProductIconThemeData } from 'vs/workbench/services/themes/browser/productIconThemeData';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
@@ -128,7 +128,7 @@ class MarketplaceThemesPicker {
 				}
 			}
 		} catch (e) {
-			if (!isPromiseCanceledError(e)) {
+			if (!isCancellationError(e)) {
 				this.logService.error(`Error while searching for themes:`, e);
 			}
 		} finally {
@@ -453,7 +453,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async function (accessor: ServicesAccessor, extension: { publisher: string, name: string, version: string }, themeSettingsId?: string) {
+CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async function (accessor: ServicesAccessor, extension: { publisher: string, name: string, version: string; }, themeSettingsId?: string) {
 	const themeService = accessor.get(IWorkbenchThemeService);
 
 	const themes = await themeService.getMarketplaceColorThemes(extension.publisher, extension.name, extension.version);
@@ -540,7 +540,7 @@ registerAction2(class extends Action2 {
 		const theme = themeService.getColorTheme();
 		const colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
 		const colorIds = colors.map(c => c.id).sort();
-		const resultingColors: { [key: string]: string | null } = {};
+		const resultingColors: { [key: string]: string | null; } = {};
 		const inherited: string[] = [];
 		for (const colorId of colorIds) {
 			const color = theme.getColor(colorId, false);

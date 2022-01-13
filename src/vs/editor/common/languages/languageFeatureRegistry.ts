@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { doHash } from 'vs/base/common/hash';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
-import { MovingAverage } from 'vs/base/common/numbers';
+import { SlidingWindowAverage } from 'vs/base/common/numbers';
 import { ITextModel } from 'vs/editor/common/model';
 import { LanguageFilter, LanguageSelector, score } from 'vs/editor/common/languages/languageSelector';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/model';
@@ -197,7 +197,7 @@ function weakHash(obj: object): number {
  */
 export class LanguageFeatureRequestDelays {
 
-	private readonly _cache = new LRUCache<string, MovingAverage>(50, 0.7);
+	private readonly _cache = new LRUCache<string, SlidingWindowAverage>(50, 0.7);
 
 
 	constructor(
@@ -228,7 +228,7 @@ export class LanguageFeatureRequestDelays {
 		const key = this._key(model);
 		let avg = this._cache.get(key);
 		if (!avg) {
-			avg = new MovingAverage();
+			avg = new SlidingWindowAverage(12);
 			this._cache.set(key, avg);
 		}
 		avg.update(value);

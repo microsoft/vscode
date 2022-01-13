@@ -25,6 +25,7 @@ const pluginSourceMap: MarkdownIt.PluginSimple = (md): void => {
 			if (token.map && token.type !== 'inline') {
 				token.attrSet('data-line', String(token.map[0]));
 				token.attrJoin('class', 'code-line');
+				token.attrJoin('dir', 'auto');
 			}
 		}
 	});
@@ -178,7 +179,7 @@ export class MarkdownEngine {
 
 		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
 	}
-	
+
 	public resetSlugCount(): void {
 		this._slugCount = new Map<string, number>();
 	}

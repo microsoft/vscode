@@ -42,11 +42,7 @@ export const enum PartFingerprint {
 export class PartFingerprints {
 
 	public static write(target: Element | FastDomNode<HTMLElement>, partId: PartFingerprint) {
-		if (target instanceof FastDomNode) {
-			target.setAttribute('data-mprt', String(partId));
-		} else {
-			target.setAttribute('data-mprt', String(partId));
-		}
+		target.setAttribute('data-mprt', String(partId));
 	}
 
 	public static read(target: Element): PartFingerprint {

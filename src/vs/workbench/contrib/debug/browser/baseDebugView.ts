@@ -9,7 +9,7 @@ import { Expression, Variable, ExpressionContainer } from 'vs/workbench/contrib/
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -19,6 +19,7 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
 import { once } from 'vs/base/common/functional';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 export const twistiePixels = 20;
@@ -131,7 +132,8 @@ export interface IExpressionTemplateData {
 	name: HTMLSpanElement;
 	value: HTMLSpanElement;
 	inputBoxContainer: HTMLElement;
-	toDispose: IDisposable;
+	actionBar?: ActionBar;
+	elementDisposable: IDisposable[];
 	label: HighlightedLabel;
 }
 
@@ -153,20 +155,26 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 
 		const inputBoxContainer = dom.append(expression, $('.inputBoxContainer'));
 
-		return { expression, name, value, label, inputBoxContainer, toDispose: Disposable.None };
+		let actionBar: ActionBar | undefined;
+		if (this.renderActionBar) {
+			dom.append(expression, $('.span.actionbar-spacer'));
+			actionBar = new ActionBar(expression);
+		}
+
+		return { expression, name, value, label, inputBoxContainer, actionBar, elementDisposable: [] };
 	}
 
 	renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
-		data.toDispose.dispose();
-		data.toDispose = Disposable.None;
 		const { element } = node;
 		this.renderExpression(element, data, createMatches(node.filterData));
+		if (data.actionBar) {
+			this.renderActionBar!(data.actionBar, element, data);
+		}
 		const selectedExpression = this.debugService.getViewModel().getSelectedExpression();
 		if (element === selectedExpression?.expression || (element instanceof Variable && element.errorMessage)) {
 			const options = this.getInputBoxOptions(element, !!selectedExpression?.settingWatch);
 			if (options) {
-				data.toDispose = this.renderInputBox(data.name, data.value, data.inputBoxContainer, options);
-				return;
+				data.elementDisposable.push(this.renderInputBox(data.name, data.value, data.inputBoxContainer, options));
 			}
 		}
 	}
@@ -226,11 +234,15 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 	protected abstract renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void;
 	protected abstract getInputBoxOptions(expression: IExpression, settingValue: boolean): IInputBoxOptions | undefined;
 
+	protected renderActionBar?(actionBar: ActionBar, expression: IExpression, data: IExpressionTemplateData): void;
+
 	disposeElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, templateData: IExpressionTemplateData): void {
-		templateData.toDispose.dispose();
+		dispose(templateData.elementDisposable);
+		templateData.elementDisposable = [];
 	}
 
 	disposeTemplate(templateData: IExpressionTemplateData): void {
-		templateData.toDispose.dispose();
+		dispose(templateData.elementDisposable);
+		templateData.actionBar?.dispose();
 	}
 }

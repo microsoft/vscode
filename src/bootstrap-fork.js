@@ -161,6 +161,9 @@ function pipeLoggingToParent() {
 	 * as well. This is needed since the console methods are "magic" in V8 and
 	 * are the only methods that allow later introspection of logged variables.
 	 *
+	 * The wrapped property is not defined with `writable: false` to avoid
+	 * throwing errors, but rather a no-op setting. See https://github.com/microsoft/vscode-extension-telemetry/issues/88
+	 *
 	 * @param {'log' | 'info' | 'warn' | 'error'} method
 	 * @param {'log' | 'warn' | 'error'} severity
 	 */
@@ -168,17 +171,22 @@ function pipeLoggingToParent() {
 		if (process.env['VSCODE_LOG_NATIVE'] === 'true') {
 			const original = console[method];
 			const stream = method === 'error' || method === 'warn' ? process.stderr : process.stdout;
-			console[method] = function () {
-				safeSendConsoleMessage(severity, safeToArray(arguments));
-
-				isMakingConsoleCall = true;
-				stream.write('\nSTART_NATIVE_LOG\n');
-				original.apply(console, arguments);
-				stream.write('\nEND_NATIVE_LOG\n');
-				isMakingConsoleCall = false;
-			};
+			Object.defineProperty(console, method, {
+				set: () => { },
+				get: () => function () {
+					safeSendConsoleMessage(severity, safeToArray(arguments));
+					isMakingConsoleCall = true;
+					stream.write('\nSTART_NATIVE_LOG\n');
+					original.apply(console, arguments);
+					stream.write('\nEND_NATIVE_LOG\n');
+					isMakingConsoleCall = false;
+				},
+			});
 		} else {
-			console[method] = function () { safeSendConsoleMessage(severity, safeToArray(arguments)); };
+			Object.defineProperty(console, method, {
+				set: () => { },
+				get: () => function () { safeSendConsoleMessage(severity, safeToArray(arguments)); },
+			});
 		}
 	}
 

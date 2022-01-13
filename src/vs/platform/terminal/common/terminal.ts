@@ -102,6 +102,7 @@ export const enum TerminalSettingId {
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
 	IgnoreProcessNames = 'terminal.integrated.ignoreProcessNames',
 	AutoReplies = 'terminal.integrated.autoReplies',
+	EnableShellIntegration = 'terminal.integrated.enableShellIntegration'
 }
 
 export enum WindowsShellType {
@@ -370,6 +371,14 @@ export interface IHeartbeatService {
 	readonly onBeat: Event<void>;
 }
 
+export interface TerminalCommand {
+	command: string;
+	timestamp: number;
+	getOutput: () => string | undefined;
+	cwd?: string;
+	exitCode?: number;
+}
+
 export interface IShellLaunchConfig {
 	/**
 	 * The name of the terminal, if this is not set the name of the process will be used.
@@ -548,7 +557,34 @@ export interface IProcessReadyEvent {
 }
 
 export const enum ProcessCapability {
+	// TODO: Migrate this to use TerminalCapability.NaiveCwdDetection
 	CwdDetection = 'cwdDetection'
+}
+
+/**
+ * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
+ * progressively enhancing various features that may not be supported in all terminals/shells.
+ */
+export const enum TerminalCapability {
+	/**
+	 * The terminal can reliably detect the current working directory as soon as the change happens
+	 * within the buffer.
+	 */
+	CwdDetection,
+	/**
+	 * The terminal can reliably detect the current working directory when requested.
+	 */
+	NaiveCwdDetection,
+	/**
+	 * The terminal can reliably identify prompts, commands and command outputs within the buffer.
+	 */
+	CommandDetection,
+	/**
+	 * The terminal can often identify prompts, commands and command outputs within the buffer. It
+	 * may not be so good at remembering the position of commands that ran in the past. This state
+	 * may be enabled when something goes wrong or when using conpty for example.
+	 */
+	PartialCommandDetection
 }
 
 /**
@@ -689,6 +725,11 @@ export interface ITerminalProfile {
 	path: string;
 	isDefault: boolean;
 	isAutoDetected?: boolean;
+	/**
+	 * Whether the profile path was found on the `$PATH` environment variable, if so it will be
+	 * cleaner to display this profile in the UI using only `basename(path)`.
+	 */
+	isFromPath?: boolean;
 	args?: string | string[] | undefined;
 	env?: ITerminalEnvironment;
 	overrideName?: boolean;

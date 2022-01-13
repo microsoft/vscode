@@ -852,7 +852,7 @@ export class ModelSemanticColoring extends Disposable {
 				this._setDocumentSemanticTokens(provider, tokens || null, styling, pendingChanges);
 			}
 		}, (err) => {
-			const isExpectedError = err && (errors.isPromiseCanceledError(err) || (typeof err.message === 'string' && err.message.indexOf('busy') !== -1));
+			const isExpectedError = err && (errors.isCancellationError(err) || (typeof err.message === 'string' && err.message.indexOf('busy') !== -1));
 			if (!isExpectedError) {
 				errors.onUnexpectedError(err);
 			}

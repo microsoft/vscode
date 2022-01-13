@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { MainThreadStorageShape, MainContext, IExtHostContext, ExtHostStorageShape, ExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionIdWithVersion, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
+import { isWeb } from 'vs/base/common/platform';
+import { IExtensionIdWithVersion, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
+import { migrateExtensionStorage } from 'vs/workbench/services/extensions/common/extensionStorageMigration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 
 @extHostNamedCustomer(MainContext.MainThreadStorage)
 export class MainThreadStorage implements MainThreadStorageShape {
 
-	private readonly _storageService: IStorageService;
-	private readonly _extensionsStorageSyncService: IExtensionsStorageSyncService;
 	private readonly _proxy: ExtHostStorageShape;
 	private readonly _storageListener: IDisposable;
 	private readonly _sharedStorageKeysToWatch: Map<string, boolean> = new Map<string, boolean>();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IStorageService storageService: IStorageService,
-		@IExtensionsStorageSyncService extensionsStorageSyncService: IExtensionsStorageSyncService,
-		@ILogService private readonly _logService: ILogService
+		@IExtensionStorageService private readonly _extensionStorageService: IExtensionStorageService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
-		this._storageService = storageService;
-		this._extensionsStorageSyncService = extensionsStorageSyncService;
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostStorage);
 
 		this._storageListener = this._storageService.onDidChangeValue(e => {
 			const shared = e.scope === StorageScope.GLOBAL;
 			if (shared && this._sharedStorageKeysToWatch.has(e.key)) {
-				this._proxy.$acceptValue(shared, e.key, this._getValue(shared, e.key));
+				this._proxy.$acceptValue(shared, e.key, this._extensionStorageService.getExtensionState(e.key, shared));
 			}
 		});
 	}
@@ -41,33 +41,48 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		this._storageListener.dispose();
 	}
 
-	async $getValue<T>(shared: boolean, key: string): Promise<T | undefined> {
+	async $initializeExtensionStorage(shared: boolean, extensionId: string): Promise<object | undefined> {
+
+		await this.checkAndMigrateExtensionStorage(extensionId, shared);
+
 		if (shared) {
-			this._sharedStorageKeysToWatch.set(key, true);
+			this._sharedStorageKeysToWatch.set(extensionId, true);
 		}
-		return this._getValue<T>(shared, key);
-	}
-
-	private _getValue<T>(shared: boolean, key: string): T | undefined {
-		const jsonValue = this._storageService.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
-		if (jsonValue) {
-			try {
-				return JSON.parse(jsonValue);
-			} catch (error) {
-				// Do not fail this call but log it for diagnostics
-				// https://github.com/microsoft/vscode/issues/132777
-				this._logService.error(`[mainThreadStorage] unexpected error parsing storage contents (key: ${key}, shared: ${shared}): ${error}`);
-			}
-		}
-
-		return undefined;
+		return this._extensionStorageService.getExtensionState(extensionId, shared);
 	}
 
 	async $setValue(shared: boolean, key: string, value: object): Promise<void> {
-		this._storageService.store(key, JSON.stringify(value), shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE, StorageTarget.MACHINE /* Extension state is synced separately through extensions */);
+		this._extensionStorageService.setExtensionState(key, value, shared);
 	}
 
 	$registerExtensionStorageKeysToSync(extension: IExtensionIdWithVersion, keys: string[]): void {
-		this._extensionsStorageSyncService.setKeysForSync(extension, keys);
+		this._extensionStorageService.setKeysForSync(extension, keys);
+	}
+
+	private async checkAndMigrateExtensionStorage(extensionId: string, shared: boolean): Promise<void> {
+		try {
+			let sourceExtensionId = this._extensionStorageService.getSourceExtensionToMigrate(extensionId);
+
+			// TODO: @sandy081 - Remove it after 6 months
+			// If current extension does not have any migration requested
+			// Then check if the extension has to be migrated for using lower case in web
+			// If so, migrate the extension state from lower case id to its normal id.
+			if (!sourceExtensionId && isWeb && extensionId !== extensionId.toLowerCase()) {
+				sourceExtensionId = extensionId.toLowerCase();
+			}
+
+			if (sourceExtensionId) {
+				// TODO: @sandy081 - Remove it after 6 months
+				// In Web, extension state was used to be stored in lower case extension id.
+				// Hence check that if the lower cased source extension was not yet migrated in web
+				// If not take the lower cased source extension id for migration
+				if (isWeb && sourceExtensionId !== sourceExtensionId.toLowerCase() && this._extensionStorageService.getExtensionState(sourceExtensionId.toLowerCase(), shared) && !this._extensionStorageService.getExtensionState(sourceExtensionId, shared)) {
+					sourceExtensionId = sourceExtensionId.toLowerCase();
+				}
+				await migrateExtensionStorage(sourceExtensionId, extensionId, shared, this._instantiationService);
+			}
+		} catch (error) {
+			this._logService.error(error);
+		}
 	}
 }

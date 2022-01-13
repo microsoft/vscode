@@ -12,7 +12,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { activeContrastBorder, contrastBorder, editorBackground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Extensions as PaneCompositeExtensions } from 'vs/workbench/browser/panecomposite';
 import { BasePanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
@@ -143,31 +143,17 @@ registerThemingParticipant((theme, collector) => {
 
 	// Title Active
 	const titleActive = theme.getColor(SIDE_BAR_TITLE_FOREGROUND);
-	const titleActiveBorder = theme.getColor(SIDE_BAR_TITLE_FOREGROUND);
-	if (titleActive || titleActiveBorder) {
+	if (titleActive) {
 		collector.addRule(`
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
-				color: ${titleActive} !important;
-				border-bottom-color: ${titleActiveBorder} !important;
-			}
+		.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+			color: ${titleActive} !important;
+		}
 		`);
-	}
-
-	// Title focus
-	const focusBorderColor = theme.getColor(focusBorder);
-	if (focusBorderColor) {
 		collector.addRule(`
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
-				color: ${titleActive} !important;
-				border-bottom-color: ${focusBorderColor} !important;
-				border-bottom: 1px solid;
-			}
-			`);
-		collector.addRule(`
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
-				outline: none;
-			}
-			`);
+		.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
+			color: ${titleActive} !important;
+		}
+		`);
 	}
 
 	// Styling with Outline color (e.g. high contrast theme)

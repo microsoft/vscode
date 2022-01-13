@@ -8,7 +8,7 @@ import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { ColorId, FontStyle, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
 import { tokenizeLineToHTML, _tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
-import { ViewLineToken, ViewLineTokens } from 'vs/editor/test/common/core/viewLineToken';
+import { TestLineToken, TestLineTokens } from 'vs/editor/test/common/core/testLineToken';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
@@ -69,33 +69,33 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 	test('tokenizeLineToHTML', () => {
 		const text = 'Ciao hello world!';
-		const lineTokens = new ViewLineTokens([
-			new ViewLineToken(
+		const lineTokens = new TestLineTokens([
+			new TestLineToken(
 				4,
 				(
 					(3 << MetadataConsts.FOREGROUND_OFFSET)
 					| ((FontStyle.Bold | FontStyle.Italic) << MetadataConsts.FONT_STYLE_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				5,
 				(
 					(1 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				10,
 				(
 					(4 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				11,
 				(
 					(1 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				17,
 				(
 					(5 << MetadataConsts.FOREGROUND_OFFSET)
@@ -196,39 +196,39 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 	});
 	test('tokenizeLineToHTML handle spaces #35954', () => {
 		const text = '  Ciao   hello world!';
-		const lineTokens = new ViewLineTokens([
-			new ViewLineToken(
+		const lineTokens = new TestLineTokens([
+			new TestLineToken(
 				2,
 				(
 					(1 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				6,
 				(
 					(3 << MetadataConsts.FOREGROUND_OFFSET)
 					| ((FontStyle.Bold | FontStyle.Italic) << MetadataConsts.FONT_STYLE_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				9,
 				(
 					(1 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				14,
 				(
 					(4 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				15,
 				(
 					(1 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				21,
 				(
 					(5 << MetadataConsts.FOREGROUND_OFFSET)

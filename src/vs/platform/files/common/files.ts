@@ -91,15 +91,6 @@ export interface IFileService {
 	readonly onDidFilesChange: Event<FileChangesEvent>;
 
 	/**
-	 *
-	 * Raw access to all file events emitted from file system providers.
-	 *
-	 * @deprecated use this method only if you know what you are doing. use the other watch related events
-	 * and APIs for more efficient file watching.
-	 */
-	readonly onDidChangeFilesRaw: Event<IRawFileChangesEvent>;
-
-	/**
 	 * An event that is fired upon successful completion of a certain file operation.
 	 */
 	readonly onDidRunOperation: Event<FileOperationEvent>;
@@ -215,10 +206,10 @@ export interface IFileService {
 	/**
 	 * Allows to start a watcher that reports file/folder change events on the provided resource.
 	 *
-	 * Note: watching a folder does not report events recursively unless the provided options
-	 * explicitly opt-in to recursive watching.
+	 * Note: recursive file watching is not supported from this method. Only events from files
+	 * that are direct children of the provided resource will be reported.
 	 */
-	watch(resource: URI, options?: IWatchOptions): IDisposable;
+	watch(resource: URI): IDisposable;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -704,14 +695,6 @@ export interface IFileChange {
 	readonly resource: URI;
 }
 
-export interface IRawFileChangesEvent {
-
-	/**
-	 * @deprecated use `FileChangesEvent` instead unless you know what you are doing
-	 */
-	readonly changes: readonly IFileChange[];
-}
-
 export class FileChangesEvent {
 
 	private readonly added: TernarySearchTree<URI, IFileChange> | undefined = undefined;
@@ -719,6 +702,7 @@ export class FileChangesEvent {
 	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
 
 	constructor(changes: readonly IFileChange[], ignorePathCasing: boolean) {
+		this.rawChanges = changes;
 
 		const entriesByType = new Map<FileChangeType, [URI, IFileChange][]>();
 
@@ -728,6 +712,18 @@ export class FileChangesEvent {
 				array.push([change.resource, change]);
 			} else {
 				entriesByType.set(change.type, [[change.resource, change]]);
+			}
+
+			switch (change.type) {
+				case FileChangeType.ADDED:
+					this.rawAdded.push(change.resource);
+					break;
+				case FileChangeType.UPDATED:
+					this.rawUpdated.push(change.resource);
+					break;
+				case FileChangeType.DELETED:
+					this.rawDeleted.push(change.resource);
+					break;
 			}
 		}
 
@@ -837,7 +833,7 @@ export class FileChangesEvent {
 	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
 	 * - correctly handles `FileChangeType.DELETED` events
 	 */
-	get rawAdded(): TernarySearchTree<URI, IFileChange> | undefined { return this.added; }
+	readonly rawChanges: readonly IFileChange[] = [];
 
 	/**
 	 * @deprecated use the `contains` or `affects` method to efficiently find
@@ -845,16 +841,23 @@ export class FileChangesEvent {
 	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
 	 * - correctly handles `FileChangeType.DELETED` events
 	 */
-	get rawUpdated(): TernarySearchTree<URI, IFileChange> | undefined { return this.updated; }
+	readonly rawAdded: URI[] = [];
 
 	/**
-	 * @deprecated use the `contains` or `affects` method to efficiently find
-	 * out if the event relates to a given resource. these methods ensure:
-	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
-	 * - correctly handles `FileChangeType.DELETED` events
-	 */
-	get rawDeleted(): TernarySearchTree<URI, IFileChange> | undefined { return this.deleted; }
+	* @deprecated use the `contains` or `affects` method to efficiently find
+	* out if the event relates to a given resource. these methods ensure:
+	* - that there is no expensive lookup needed (by using a `TernarySearchTree`)
+	* - correctly handles `FileChangeType.DELETED` events
+	*/
+	readonly rawUpdated: URI[] = [];
 
+	/**
+	* @deprecated use the `contains` or `affects` method to efficiently find
+	* out if the event relates to a given resource. these methods ensure:
+	* - that there is no expensive lookup needed (by using a `TernarySearchTree`)
+	* - correctly handles `FileChangeType.DELETED` events
+	*/
+	readonly rawDeleted: URI[] = [];
 }
 
 export function isParent(path: string, candidate: string, ignoreCase?: boolean): boolean {

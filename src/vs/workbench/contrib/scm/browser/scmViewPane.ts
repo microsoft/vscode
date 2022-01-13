@@ -113,6 +113,9 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 	) { }
 
 	renderTemplate(container: HTMLElement): ActionButtonTemplate {
+		// hack
+		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+
 		// Disable hover for list item
 		container.parentElement!.parentElement!.classList.add('force-no-hover');
 
@@ -1042,6 +1045,9 @@ class ViewModel {
 	private readonly _onDidChangeMode = new Emitter<ViewModelMode>();
 	readonly onDidChangeMode = this._onDidChangeMode.event;
 
+	private readonly _onDidChangeSortKey = new Emitter<ViewModelSortKey>();
+	readonly onDidChangeSortKey = this._onDidChangeSortKey.event;
+
 	private visible: boolean = false;
 
 	get mode(): ViewModelMode { return this._mode; }
@@ -1069,13 +1075,16 @@ class ViewModel {
 		this.modeContextKey.set(mode);
 	}
 
-	private _sortKey: ViewModelSortKey = ViewModelSortKey.Path;
 	get sortKey(): ViewModelSortKey { return this._sortKey; }
 	set sortKey(sortKey: ViewModelSortKey) {
-		if (sortKey !== this._sortKey) {
-			this._sortKey = sortKey;
-			this.refresh();
+		if (this._sortKey === sortKey) {
+			return;
 		}
+
+		this._sortKey = sortKey;
+
+		this.refresh();
+		this._onDidChangeSortKey.fire(sortKey);
 		this.sortKeyContextKey.set(sortKey);
 	}
 
@@ -1109,6 +1118,7 @@ class ViewModel {
 		private tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>,
 		private inputRenderer: InputRenderer,
 		private _mode: ViewModelMode,
+		private _sortKey: ViewModelSortKey,
 		private _treeViewState: ITreeViewState | undefined,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IEditorService protected editorService: IEditorService,
@@ -1120,7 +1130,7 @@ class ViewModel {
 		this.modeContextKey = ContextKeys.ViewModelMode.bindTo(contextKeyService);
 		this.modeContextKey.set(_mode);
 		this.sortKeyContextKey = ContextKeys.ViewModelSortKey.bindTo(contextKeyService);
-		this.sortKeyContextKey.set(this._sortKey);
+		this.sortKeyContextKey.set(_sortKey);
 		this.areAllRepositoriesCollapsedContextKey = ContextKeys.ViewModelAreAllRepositoriesCollapsed.bindTo(contextKeyService);
 		this.isAnyRepositoryCollapsibleContextKey = ContextKeys.ViewModelIsAnyRepositoryCollapsible.bindTo(contextKeyService);
 		this.scmProviderContextKey = ContextKeys.SCMProvider.bindTo(contextKeyService);
@@ -2143,6 +2153,25 @@ export class SCMViewPane extends ViewPane {
 			viewMode = storageMode;
 		}
 
+		let viewSortKey: ViewModelSortKey;
+		const viewSortKeyString = this.configurationService.getValue<'path' | 'name' | 'status'>('scm.defaultViewSortKey');
+		switch (viewSortKeyString) {
+			case 'name':
+				viewSortKey = ViewModelSortKey.Name;
+				break;
+			case 'status':
+				viewSortKey = ViewModelSortKey.Status;
+				break;
+			default:
+				viewSortKey = ViewModelSortKey.Path;
+				break;
+		}
+
+		const storageSortKey = this.storageService.get(`scm.viewSortKey`, StorageScope.WORKSPACE) as ViewModelSortKey;
+		if (typeof storageSortKey === 'string') {
+			viewSortKey = storageSortKey;
+		}
+
 		let viewState: ITreeViewState | undefined;
 
 		const storageViewState = this.storageService.get(`scm.viewState`, StorageScope.WORKSPACE);
@@ -2154,7 +2183,7 @@ export class SCMViewPane extends ViewPane {
 
 		this._register(this.instantiationService.createInstance(RepositoryVisibilityActionController));
 
-		this._viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, viewMode, viewState);
+		this._viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, viewMode, viewSortKey, viewState);
 		this._register(this._viewModel);
 
 		this.listContainer.classList.add('file-icon-themable-tree');
@@ -2163,6 +2192,7 @@ export class SCMViewPane extends ViewPane {
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
 		this._register(this._viewModel.onDidChangeMode(this.onDidChangeMode, this));
+		this._register(this._viewModel.onDidChangeSortKey(this.onDidChangeSortKey, this));
 
 		this._register(this.onDidChangeBodyVisibility(this._viewModel.setVisible, this._viewModel));
 
@@ -2186,6 +2216,10 @@ export class SCMViewPane extends ViewPane {
 	private onDidChangeMode(): void {
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 		this.storageService.store(`scm.viewMode`, this._viewModel.mode, StorageScope.WORKSPACE, StorageTarget.USER);
+	}
+
+	private onDidChangeSortKey(): void {
+		this.storageService.store(`scm.viewSortKey`, this._viewModel.sortKey, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	override layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {

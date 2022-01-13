@@ -86,7 +86,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerDefaultConfigurations([{
 		overrides: {
 			'[plaintext]': {
-				'editor.unicodeHighlight.ambiguousCharacters': false
+				'editor.unicodeHighlight.ambiguousCharacters': false,
+				'editor.unicodeHighlight.invisibleCharacters': false
 			}
 		}
 	}]);

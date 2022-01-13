@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
@@ -157,7 +157,7 @@ export namespace CodeActionsState {
 			private readonly _cancellablePromise: CancelablePromise<CodeActionSet>,
 		) {
 			this.actions = _cancellablePromise.catch((e): CodeActionSet => {
-				if (isPromiseCanceledError(e)) {
+				if (isCancellationError(e)) {
 					return emptyCodeActionSet;
 				}
 				throw e;

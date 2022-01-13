@@ -117,11 +117,23 @@ export class ViewCursor {
 		return true;
 	}
 
+	/**
+	 * If `this._position` is inside a grapheme, returns the position where the grapheme starts.
+	 * Also returns the next grapheme.
+	 */
+	private _getGraphemeAwarePosition(): [Position, string] {
+		const { lineNumber, column } = this._position;
+		const lineContent = this._context.model.getLineContent(lineNumber);
+		const [startOffset, endOffset] = strings.getCharContainingOffset(lineContent, column - 1);
+		return [new Position(lineNumber, startOffset + 1), lineContent.substring(startOffset, endOffset)];
+	}
+
 	private _prepareRender(ctx: RenderingContext): ViewCursorRenderData | null {
 		let textContent = '';
+		const [position, nextGrapheme] = this._getGraphemeAwarePosition();
 
 		if (this._cursorStyle === TextEditorCursorStyle.Line || this._cursorStyle === TextEditorCursorStyle.LineThin) {
-			const visibleRange = ctx.visibleRangeForPosition(this._position);
+			const visibleRange = ctx.visibleRangeForPosition(position);
 			if (!visibleRange || visibleRange.outsideRenderedLine) {
 				// Outside viewport
 				return null;
@@ -131,9 +143,7 @@ export class ViewCursor {
 			if (this._cursorStyle === TextEditorCursorStyle.Line) {
 				width = dom.computeScreenAwareSize(this._lineCursorWidth > 0 ? this._lineCursorWidth : 2);
 				if (width > 2) {
-					const lineContent = this._context.model.getLineContent(this._position.lineNumber);
-					const nextCharLength = strings.nextCharLength(lineContent, this._position.column - 1);
-					textContent = lineContent.substr(this._position.column - 1, nextCharLength);
+					textContent = nextGrapheme;
 				}
 			} else {
 				width = dom.computeScreenAwareSize(1);
@@ -145,13 +155,11 @@ export class ViewCursor {
 				left -= 1;
 			}
 
-			const top = ctx.getVerticalOffsetForLineNumber(this._position.lineNumber) - ctx.bigNumbersDelta;
+			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
 			return new ViewCursorRenderData(top, left, width, this._lineHeight, textContent, '');
 		}
 
-		const lineContent = this._context.model.getLineContent(this._position.lineNumber);
-		const nextCharLength = strings.nextCharLength(lineContent, this._position.column - 1);
-		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(this._position.lineNumber, this._position.column, this._position.lineNumber, this._position.column + nextCharLength), false);
+		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(position.lineNumber, position.column, position.lineNumber, position.column + nextGrapheme.length), false);
 		if (!visibleRangeForCharacter || visibleRangeForCharacter.length === 0) {
 			// Outside viewport
 			return null;
@@ -168,13 +176,13 @@ export class ViewCursor {
 
 		let textContentClassName = '';
 		if (this._cursorStyle === TextEditorCursorStyle.Block) {
-			const lineData = this._context.model.getViewLineData(this._position.lineNumber);
-			textContent = lineContent.substr(this._position.column - 1, nextCharLength);
-			const tokenIndex = lineData.tokens.findTokenIndexAtOffset(this._position.column - 1);
+			const lineData = this._context.model.getViewLineData(position.lineNumber);
+			textContent = nextGrapheme;
+			const tokenIndex = lineData.tokens.findTokenIndexAtOffset(position.column - 1);
 			textContentClassName = lineData.tokens.getClassName(tokenIndex);
 		}
 
-		let top = ctx.getVerticalOffsetForLineNumber(this._position.lineNumber) - ctx.bigNumbersDelta;
+		let top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
 		let height = this._lineHeight;
 
 		// Underline might interfere with clicking

@@ -1248,7 +1248,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(value.length, 1);
 
 		const [first] = value;
-		assert.strictEqual(first.text, 'Foo');
+		assert.strictEqual(first.label, 'Foo');
 		assert.strictEqual(first.position.line, 0);
 		assert.strictEqual(first.position.character, 1);
 	});
@@ -1273,11 +1273,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(value.length, 2);
 
 		const [first, second] = value;
-		assert.strictEqual(first.text, 'Foo');
+		assert.strictEqual(first.label, 'Foo');
 		assert.strictEqual(first.position.line, 0);
 		assert.strictEqual(first.position.character, 1);
 
-		assert.strictEqual(second.text, 'Bar');
+		assert.strictEqual(second.label, 'Bar');
 		assert.strictEqual(second.position.line, 10);
 		assert.strictEqual(second.position.character, 11);
 	});
@@ -1300,7 +1300,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(value.length, 1);
 
 		const [first] = value;
-		assert.strictEqual(first.text, 'Foo');
+		assert.strictEqual(first.label, 'Foo');
 		assert.strictEqual(first.position.line, 0);
 		assert.strictEqual(first.position.character, 1);
 	});

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { distinct } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -43,7 +44,8 @@ const category = CATEGORIES.Test;
 
 const enum ActionOrder {
 	// Navigation:
-	Run = 10,
+	Refresh = 10,
+	Run,
 	Debug,
 	Coverage,
 	RunUsing,
@@ -1143,10 +1145,91 @@ export class ToggleInlineTestOutput extends Action2 {
 	}
 }
 
+const refreshMenus = (whenIsRefreshing: boolean): IAction2Options['menu'] => [
+	{
+		id: MenuId.TestItem,
+		group: 'inline',
+		order: ActionOrder.Refresh,
+		when: ContextKeyExpr.and(
+			TestingContextKeys.canRefreshTests.isEqualTo(true),
+			TestingContextKeys.isRefreshingTests.isEqualTo(whenIsRefreshing),
+		),
+	},
+	{
+		id: MenuId.ViewTitle,
+		group: 'navigation',
+		order: ActionOrder.Refresh,
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals('view', Testing.ExplorerViewId),
+			TestingContextKeys.canRefreshTests.isEqualTo(true),
+			TestingContextKeys.isRefreshingTests.isEqualTo(whenIsRefreshing),
+		),
+	},
+	{
+		id: MenuId.CommandPalette,
+		when: TestingContextKeys.canRefreshTests.isEqualTo(true),
+	},
+];
+
+export class RefreshTestsAction extends Action2 {
+	public static readonly ID = 'testing.refreshTests';
+	constructor() {
+		super({
+			id: RefreshTestsAction.ID,
+			title: localize('testing.refreshTests', "Refresh Tests"),
+			category,
+			icon: icons.testingRefreshTests,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyR),
+				when: TestingContextKeys.canRefreshTests.isEqualTo(true),
+			},
+			menu: refreshMenus(false),
+		});
+	}
+
+	public async run(accessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]) {
+		const testService = accessor.get(ITestService);
+		const progressService = accessor.get(IProgressService);
+
+		const controllerIds = distinct(
+			elements
+				.filter((e): e is TestItemTreeElement => e instanceof TestItemTreeElement)
+				.map(e => e.test.controllerId)
+		);
+
+		return progressService.withProgress({ location: Testing.ViewletId }, async () => {
+			if (controllerIds.length) {
+				await Promise.all(controllerIds.map(id => testService.refreshTests(id)));
+			} else {
+				await testService.refreshTests();
+			}
+		});
+	}
+}
+
+export class CancelTestRefreshAction extends Action2 {
+	public static readonly ID = 'testing.cancelTestRefresh';
+	constructor() {
+		super({
+			id: CancelTestRefreshAction.ID,
+			title: localize('testing.cancelTestRefresh', "Cancel Test Refresh"),
+			category,
+			icon: icons.testingCancelRefreshTests,
+			menu: refreshMenus(true),
+		});
+	}
+
+	public async run(accessor: ServicesAccessor) {
+		accessor.get(ITestService).cancelRefreshTests();
+	}
+}
+
 export const allTestActions = [
 	// todo: these are disabled until we figure out how we want autorun to work
 	// AutoRunOffAction,
 	// AutoRunOnAction,
+	CancelTestRefreshAction,
 	CancelTestRunAction,
 	ClearTestResultsAction,
 	CollapseAllAction,
@@ -1161,6 +1244,7 @@ export const allTestActions = [
 	GoToTest,
 	HideTestAction,
 	OpenOutputPeek,
+	RefreshTestsAction,
 	ReRunFailedTests,
 	ReRunLastRun,
 	RunAction,
@@ -1172,9 +1256,9 @@ export const allTestActions = [
 	SearchForTestExtension,
 	SelectDefaultTestProfiles,
 	ShowMostRecentOutputAction,
+	TestingSortByDurationAction,
 	TestingSortByLocationAction,
 	TestingSortByStatusAction,
-	TestingSortByDurationAction,
 	TestingViewAsListAction,
 	TestingViewAsTreeAction,
 	ToggleInlineTestOutput,

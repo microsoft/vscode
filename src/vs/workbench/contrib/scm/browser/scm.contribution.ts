@@ -209,6 +209,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.defaultViewMode', "Controls the default Source Control repository view mode."),
 			default: 'list'
 		},
+		'scm.defaultViewSortKey': {
+			type: 'string',
+			enum: ['name', 'path', 'status'],
+			enumDescriptions: [
+				localize('scm.defaultViewSortKey.name', "Sort the repository changes by file name."),
+				localize('scm.defaultViewSortKey.path', "Sort the repository changes by path."),
+				localize('scm.defaultViewSortKey.status', "Sort the repository changes by SCM status.")
+			],
+			description: localize('scm.defaultViewSortKey', "Controls the default Source Control repository sort mode."),
+			default: 'path'
+		},
 		'scm.autoReveal': {
 			type: 'boolean',
 			description: localize('autoReveal', "Controls whether the SCM view should automatically reveal and select files when opening them."),

@@ -31,7 +31,7 @@ import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { memoize } from 'vs/base/common/decorators';
 import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
-import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from 'vs/editor/common/model';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { basename } from 'vs/base/common/path';
@@ -68,29 +68,48 @@ class InlineSegment {
 	}
 }
 
-function createInlineValueDecoration(lineNumber: number, contentText: string, column = Constants.MAX_SAFE_SMALL_INTEGER): IModelDeltaDecoration {
+function createInlineValueDecoration(lineNumber: number, contentText: string, column = Constants.MAX_SAFE_SMALL_INTEGER): IModelDeltaDecoration[] {
 	// If decoratorText is too long, trim and add ellipses. This could happen for minified files with everything on a single line
 	if (contentText.length > MAX_INLINE_DECORATOR_LENGTH) {
 		contentText = contentText.substring(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
 	}
 
-	return {
-		range: {
-			startLineNumber: lineNumber,
-			endLineNumber: lineNumber,
-			startColumn: column,
-			endColumn: column
-		},
-		options: {
-			description: 'debug-inline-value-decoration',
-			after: {
-				content: replaceWsWithNoBreakWs(contentText),
-				inlineClassName: 'debug-inline-value',
-				inlineClassNameAffectsLetterSpacing: true,
+	return [
+		{
+			range: {
+				startLineNumber: lineNumber,
+				endLineNumber: lineNumber,
+				startColumn: column,
+				endColumn: column
 			},
-			showIfCollapsed: true
-		}
-	};
+			options: {
+				description: 'debug-inline-value-decoration-spacer',
+				after: {
+					content: strings.noBreakWhitespace,
+					cursorStops: InjectedTextCursorStops.None
+				},
+				showIfCollapsed: true,
+			}
+		},
+		{
+			range: {
+				startLineNumber: lineNumber,
+				endLineNumber: lineNumber,
+				startColumn: column,
+				endColumn: column
+			},
+			options: {
+				description: 'debug-inline-value-decoration',
+				after: {
+					content: replaceWsWithNoBreakWs(contentText),
+					inlineClassName: 'debug-inline-value',
+					inlineClassNameAffectsLetterSpacing: true,
+					cursorStops: InjectedTextCursorStops.None
+				},
+				showIfCollapsed: true,
+			}
+		},
+	];
 }
 
 function replaceWsWithNoBreakWs(str: string): string {
@@ -134,7 +153,7 @@ function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExp
 			const content = model.getLineContent(line);
 			return content.indexOf(first) - content.indexOf(second);
 		}).map(name => `${name} = ${nameValueMap.get(name)}`).join(', ');
-		decorations.push(createInlineValueDecoration(line, contentText));
+		decorations.push(...createInlineValueDecoration(line, contentText));
 	});
 
 	return decorations;
@@ -409,16 +428,16 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 
-		const targetType = mouseEvent.target.type;
+		const target = mouseEvent.target;
 		const stopKey = env.isMacintosh ? 'metaKey' : 'ctrlKey';
 
-		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
+		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
 			// mouse moved on top of debug hover widget
 			return;
 		}
-		if (targetType === MouseTargetType.CONTENT_TEXT) {
-			if (mouseEvent.target.range && !mouseEvent.target.range.equalsRange(this.hoverRange)) {
-				this.hoverRange = mouseEvent.target.range;
+		if (target.type === MouseTargetType.CONTENT_TEXT) {
+			if (target.range && !target.range.equalsRange(this.hoverRange)) {
+				this.hoverRange = target.range;
 				this.hideHoverScheduler.cancel();
 				this.showHoverScheduler.schedule();
 			}
@@ -699,7 +718,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				if (segments.length > 0) {
 					segments = segments.sort((a, b) => a.column - b.column);
 					const text = segments.map(s => s.text).join(separator);
-					allDecorations.push(createInlineValueDecoration(line, text));
+					allDecorations.push(...createInlineValueDecoration(line, text));
 				}
 			});
 

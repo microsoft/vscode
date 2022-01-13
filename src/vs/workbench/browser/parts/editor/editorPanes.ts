@@ -28,7 +28,7 @@ export interface IOpenEditorResult {
 	 * placeholder in certain cases, e.g. when workspace trust
 	 * is required, or an editor fails to restore.
 	 *
-	 * Will be `undefined` if an error occured while trying to
+	 * Will be `undefined` if an error occurred while trying to
 	 * open the editor and in cases where no placeholder is being
 	 * used.
 	 */

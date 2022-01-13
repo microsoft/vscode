@@ -34,12 +34,13 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 	}
 
 	const binFolder = environmentService.isBuilt ? join(environmentService.appRoot, 'bin') : join(environmentService.appRoot, 'resources', 'server', 'bin-dev');
+	const remoteCliBinFolder = join(binFolder, 'remote-cli'); // contains the `code` command that can talk to the remote server
 	const processEnv = process.env;
 	let PATH = startParamsEnv['PATH'] || (userShellEnv ? userShellEnv['PATH'] : undefined) || processEnv['PATH'];
 	if (PATH) {
-		PATH = binFolder + delimiter + PATH;
+		PATH = remoteCliBinFolder + delimiter + PATH;
 	} else {
-		PATH = binFolder;
+		PATH = remoteCliBinFolder;
 	}
 
 	const env: IProcessEnvironment = {
@@ -58,7 +59,7 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 		...startParamsEnv
 	};
 	if (!environmentService.args['without-browser-env-var']) {
-		env.BROWSER = join(binFolder, 'helpers', isWindows ? 'browser.cmd' : 'browser.sh');
+		env.BROWSER = join(binFolder, 'helpers', isWindows ? 'browser.cmd' : 'browser.sh'); // a command that opens a browser on the local machine
 	}
 
 	setCaseInsensitive(env, 'PATH', PATH);
@@ -201,8 +202,8 @@ export class ExtensionHostConnection {
 			// Run Extension Host as fork of current process
 			const args = ['--type=extensionHost', `--uriTransformerPath=${uriTransformerPath}`];
 			const useHostProxy = this._environmentService.args['use-host-proxy'];
-			if (useHostProxy !== undefined) {
-				args.push(`--useHostProxy=${useHostProxy}`);
+			if (useHostProxy) {
+				args.push(`--useHostProxy`);
 			}
 			this._extensionHostProcess = cp.fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, args, opts);
 			const pid = this._extensionHostProcess.pid;

@@ -1501,6 +1501,23 @@ declare namespace monaco.editor {
 		 * If there is an `inlineClassName` which affects letter spacing.
 		 */
 		readonly inlineClassNameAffectsLetterSpacing?: boolean;
+		/**
+		 * This field allows to attach data to this injected text.
+		 * The data can be read when injected texts at a given position are queried.
+		 */
+		readonly attachedData?: unknown;
+		/**
+		 * Configures cursor stops around injected text.
+		 * Defaults to {@link InjectedTextCursorStops.Both}.
+		*/
+		readonly cursorStops?: InjectedTextCursorStops | null;
+	}
+
+	export enum InjectedTextCursorStops {
+		Both = 0,
+		Right = 1,
+		Left = 2,
+		None = 3
 	}
 
 	/**
@@ -3211,6 +3228,11 @@ declare namespace monaco.editor {
 		 */
 		foldingImportsByDefault?: boolean;
 		/**
+		 * Maximum number of foldable regions.
+		 * Defaults to 5000.
+		 */
+		foldingMaximumRegions?: number;
+		/**
 		 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 		 * Defaults to 'mouseover'.
 		 */
@@ -4175,97 +4197,98 @@ declare namespace monaco.editor {
 		foldingStrategy = 38,
 		foldingHighlight = 39,
 		foldingImportsByDefault = 40,
-		unfoldOnClickAfterEndOfLine = 41,
-		fontFamily = 42,
-		fontInfo = 43,
-		fontLigatures = 44,
-		fontSize = 45,
-		fontWeight = 46,
-		formatOnPaste = 47,
-		formatOnType = 48,
-		glyphMargin = 49,
-		gotoLocation = 50,
-		hideCursorInOverviewRuler = 51,
-		hover = 52,
-		inDiffEditor = 53,
-		inlineSuggest = 54,
-		letterSpacing = 55,
-		lightbulb = 56,
-		lineDecorationsWidth = 57,
-		lineHeight = 58,
-		lineNumbers = 59,
-		lineNumbersMinChars = 60,
-		linkedEditing = 61,
-		links = 62,
-		matchBrackets = 63,
-		minimap = 64,
-		mouseStyle = 65,
-		mouseWheelScrollSensitivity = 66,
-		mouseWheelZoom = 67,
-		multiCursorMergeOverlapping = 68,
-		multiCursorModifier = 69,
-		multiCursorPaste = 70,
-		occurrencesHighlight = 71,
-		overviewRulerBorder = 72,
-		overviewRulerLanes = 73,
-		padding = 74,
-		parameterHints = 75,
-		peekWidgetDefaultFocus = 76,
-		definitionLinkOpensInPeek = 77,
-		quickSuggestions = 78,
-		quickSuggestionsDelay = 79,
-		readOnly = 80,
-		renameOnType = 81,
-		renderControlCharacters = 82,
-		renderFinalNewline = 83,
-		renderLineHighlight = 84,
-		renderLineHighlightOnlyWhenFocus = 85,
-		renderValidationDecorations = 86,
-		renderWhitespace = 87,
-		revealHorizontalRightPadding = 88,
-		roundedSelection = 89,
-		rulers = 90,
-		scrollbar = 91,
-		scrollBeyondLastColumn = 92,
-		scrollBeyondLastLine = 93,
-		scrollPredominantAxis = 94,
-		selectionClipboard = 95,
-		selectionHighlight = 96,
-		selectOnLineNumbers = 97,
-		showFoldingControls = 98,
-		showUnused = 99,
-		snippetSuggestions = 100,
-		smartSelect = 101,
-		smoothScrolling = 102,
-		stickyTabStops = 103,
-		stopRenderingLineAfter = 104,
-		suggest = 105,
-		suggestFontSize = 106,
-		suggestLineHeight = 107,
-		suggestOnTriggerCharacters = 108,
-		suggestSelection = 109,
-		tabCompletion = 110,
-		tabIndex = 111,
-		unicodeHighlighting = 112,
-		unusualLineTerminators = 113,
-		useShadowDOM = 114,
-		useTabStops = 115,
-		wordSeparators = 116,
-		wordWrap = 117,
-		wordWrapBreakAfterCharacters = 118,
-		wordWrapBreakBeforeCharacters = 119,
-		wordWrapColumn = 120,
-		wordWrapOverride1 = 121,
-		wordWrapOverride2 = 122,
-		wrappingIndent = 123,
-		wrappingStrategy = 124,
-		showDeprecated = 125,
-		inlayHints = 126,
-		editorClassName = 127,
-		pixelRatio = 128,
-		tabFocusMode = 129,
-		layoutInfo = 130,
-		wrappingInfo = 131
+		foldingMaximumRegions = 41,
+		unfoldOnClickAfterEndOfLine = 42,
+		fontFamily = 43,
+		fontInfo = 44,
+		fontLigatures = 45,
+		fontSize = 46,
+		fontWeight = 47,
+		formatOnPaste = 48,
+		formatOnType = 49,
+		glyphMargin = 50,
+		gotoLocation = 51,
+		hideCursorInOverviewRuler = 52,
+		hover = 53,
+		inDiffEditor = 54,
+		inlineSuggest = 55,
+		letterSpacing = 56,
+		lightbulb = 57,
+		lineDecorationsWidth = 58,
+		lineHeight = 59,
+		lineNumbers = 60,
+		lineNumbersMinChars = 61,
+		linkedEditing = 62,
+		links = 63,
+		matchBrackets = 64,
+		minimap = 65,
+		mouseStyle = 66,
+		mouseWheelScrollSensitivity = 67,
+		mouseWheelZoom = 68,
+		multiCursorMergeOverlapping = 69,
+		multiCursorModifier = 70,
+		multiCursorPaste = 71,
+		occurrencesHighlight = 72,
+		overviewRulerBorder = 73,
+		overviewRulerLanes = 74,
+		padding = 75,
+		parameterHints = 76,
+		peekWidgetDefaultFocus = 77,
+		definitionLinkOpensInPeek = 78,
+		quickSuggestions = 79,
+		quickSuggestionsDelay = 80,
+		readOnly = 81,
+		renameOnType = 82,
+		renderControlCharacters = 83,
+		renderFinalNewline = 84,
+		renderLineHighlight = 85,
+		renderLineHighlightOnlyWhenFocus = 86,
+		renderValidationDecorations = 87,
+		renderWhitespace = 88,
+		revealHorizontalRightPadding = 89,
+		roundedSelection = 90,
+		rulers = 91,
+		scrollbar = 92,
+		scrollBeyondLastColumn = 93,
+		scrollBeyondLastLine = 94,
+		scrollPredominantAxis = 95,
+		selectionClipboard = 96,
+		selectionHighlight = 97,
+		selectOnLineNumbers = 98,
+		showFoldingControls = 99,
+		showUnused = 100,
+		snippetSuggestions = 101,
+		smartSelect = 102,
+		smoothScrolling = 103,
+		stickyTabStops = 104,
+		stopRenderingLineAfter = 105,
+		suggest = 106,
+		suggestFontSize = 107,
+		suggestLineHeight = 108,
+		suggestOnTriggerCharacters = 109,
+		suggestSelection = 110,
+		tabCompletion = 111,
+		tabIndex = 112,
+		unicodeHighlighting = 113,
+		unusualLineTerminators = 114,
+		useShadowDOM = 115,
+		useTabStops = 116,
+		wordSeparators = 117,
+		wordWrap = 118,
+		wordWrapBreakAfterCharacters = 119,
+		wordWrapBreakBeforeCharacters = 120,
+		wordWrapColumn = 121,
+		wordWrapOverride1 = 122,
+		wordWrapOverride2 = 123,
+		wrappingIndent = 124,
+		wrappingStrategy = 125,
+		showDeprecated = 126,
+		inlayHints = 127,
+		editorClassName = 128,
+		pixelRatio = 129,
+		tabFocusMode = 130,
+		layoutInfo = 131,
+		wrappingInfo = 132
 	}
 
 	export const EditorOptions: {
@@ -4311,6 +4334,7 @@ declare namespace monaco.editor {
 		foldingStrategy: IEditorOption<EditorOption.foldingStrategy, 'auto' | 'indentation'>;
 		foldingHighlight: IEditorOption<EditorOption.foldingHighlight, boolean>;
 		foldingImportsByDefault: IEditorOption<EditorOption.foldingImportsByDefault, boolean>;
+		foldingMaximumRegions: IEditorOption<EditorOption.foldingMaximumRegions, number>;
 		unfoldOnClickAfterEndOfLine: IEditorOption<EditorOption.unfoldOnClickAfterEndOfLine, boolean>;
 		fontFamily: IEditorOption<EditorOption.fontFamily, string>;
 		fontInfo: IEditorOption<EditorOption.fontInfo, FontInfo>;
@@ -4537,6 +4561,9 @@ declare namespace monaco.editor {
 		 * Render this content widget in a location where it could overflow the editor's view dom node.
 		 */
 		allowEditorOverflow?: boolean;
+		/**
+		 * Call preventDefault() on mousedown events that target the content widget.
+		 */
 		suppressMouseDown?: boolean;
 		/**
 		 * Get a unique identifier of the content widget.
@@ -4674,18 +4701,11 @@ declare namespace monaco.editor {
 		OUTSIDE_EDITOR = 13
 	}
 
-	/**
-	 * Target hit with the mouse in the editor.
-	 */
-	export interface IMouseTarget {
+	export interface IBaseMouseTarget {
 		/**
 		 * The target element
 		 */
 		readonly element: Element | null;
-		/**
-		 * The target type
-		 */
-		readonly type: MouseTargetType;
 		/**
 		 * The 'approximate' editor position
 		 */
@@ -4698,11 +4718,103 @@ declare namespace monaco.editor {
 		 * The 'approximate' editor range
 		 */
 		readonly range: Range | null;
-		/**
-		 * Some extra detail.
-		 */
-		readonly detail: any;
 	}
+
+	export interface IMouseTargetUnknown extends IBaseMouseTarget {
+		readonly type: MouseTargetType.UNKNOWN;
+	}
+
+	export interface IMouseTargetTextarea extends IBaseMouseTarget {
+		readonly type: MouseTargetType.TEXTAREA;
+		readonly position: null;
+		readonly range: null;
+	}
+
+	export interface IMouseTargetMarginData {
+		readonly isAfterLines: boolean;
+		readonly glyphMarginLeft: number;
+		readonly glyphMarginWidth: number;
+		readonly lineNumbersWidth: number;
+		readonly offsetX: number;
+	}
+
+	export interface IMouseTargetMargin extends IBaseMouseTarget {
+		readonly type: MouseTargetType.GUTTER_GLYPH_MARGIN | MouseTargetType.GUTTER_LINE_NUMBERS | MouseTargetType.GUTTER_LINE_DECORATIONS;
+		readonly position: Position;
+		readonly range: Range;
+		readonly detail: IMouseTargetMarginData;
+	}
+
+	export interface IMouseTargetViewZoneData {
+		readonly viewZoneId: string;
+		readonly positionBefore: Position | null;
+		readonly positionAfter: Position | null;
+		readonly position: Position;
+		readonly afterLineNumber: number;
+	}
+
+	export interface IMouseTargetViewZone extends IBaseMouseTarget {
+		readonly type: MouseTargetType.GUTTER_VIEW_ZONE | MouseTargetType.CONTENT_VIEW_ZONE;
+		readonly position: Position;
+		readonly range: Range;
+		readonly detail: IMouseTargetViewZoneData;
+	}
+
+	export interface IMouseTargetContentTextData {
+		readonly mightBeForeignElement: boolean;
+	}
+
+	export interface IMouseTargetContentText extends IBaseMouseTarget {
+		readonly type: MouseTargetType.CONTENT_TEXT;
+		readonly position: Position;
+		readonly range: Range;
+		readonly detail: IMouseTargetContentTextData;
+	}
+
+	export interface IMouseTargetContentEmptyData {
+		readonly isAfterLines: boolean;
+		readonly horizontalDistanceToText?: number;
+	}
+
+	export interface IMouseTargetContentEmpty extends IBaseMouseTarget {
+		readonly type: MouseTargetType.CONTENT_EMPTY;
+		readonly position: Position;
+		readonly range: Range;
+		readonly detail: IMouseTargetContentEmptyData;
+	}
+
+	export interface IMouseTargetContentWidget extends IBaseMouseTarget {
+		readonly type: MouseTargetType.CONTENT_WIDGET;
+		readonly position: null;
+		readonly range: null;
+		readonly detail: string;
+	}
+
+	export interface IMouseTargetOverlayWidget extends IBaseMouseTarget {
+		readonly type: MouseTargetType.OVERLAY_WIDGET;
+		readonly position: null;
+		readonly range: null;
+		readonly detail: string;
+	}
+
+	export interface IMouseTargetScrollbar extends IBaseMouseTarget {
+		readonly type: MouseTargetType.SCROLLBAR;
+		readonly position: Position;
+		readonly range: Range;
+	}
+
+	export interface IMouseTargetOverviewRuler extends IBaseMouseTarget {
+		readonly type: MouseTargetType.OVERVIEW_RULER;
+	}
+
+	export interface IMouseTargetOutsideEditor extends IBaseMouseTarget {
+		readonly type: MouseTargetType.OUTSIDE_EDITOR;
+	}
+
+	/**
+	 * Target hit with the mouse in the editor.
+	 */
+	export type IMouseTarget = (IMouseTargetUnknown | IMouseTargetTextarea | IMouseTargetMargin | IMouseTargetViewZone | IMouseTargetContentText | IMouseTargetContentEmpty | IMouseTargetContentWidget | IMouseTargetOverlayWidget | IMouseTargetScrollbar | IMouseTargetOverviewRuler | IMouseTargetOutsideEditor);
 
 	/**
 	 * A mouse event originating from the editor.
@@ -5038,6 +5150,10 @@ declare namespace monaco.editor {
 		 */
 		getLineDecorations(lineNumber: number): IModelDecoration[] | null;
 		/**
+		 * Get all the decorations for a range (filtering out decorations from other editors).
+		 */
+		getDecorationsInRange(range: Range): IModelDecoration[] | null;
+		/**
 		 * All decorations added through this call will get the ownerId of this editor.
 		 * @see {@link ITextModel.deltaDecorations}
 		 */
@@ -5218,7 +5334,6 @@ declare namespace monaco.editor {
 
 	export class BareFontInfo {
 		readonly _bareFontInfoBrand: void;
-		readonly zoomLevel: number;
 		readonly pixelRatio: number;
 		readonly fontFamily: string;
 		readonly fontWeight: string;
@@ -6747,17 +6862,30 @@ declare namespace monaco.languages {
 		Parameter = 2
 	}
 
+	export interface InlayHintLabelPart {
+		label: string;
+		collapsible?: boolean;
+		action?: Command | Location;
+	}
+
 	export interface InlayHint {
-		text: string;
+		label: string | InlayHintLabelPart[];
+		tooltip?: string | IMarkdownString;
 		position: IPosition;
 		kind: InlayHintKind;
 		whitespaceBefore?: boolean;
 		whitespaceAfter?: boolean;
 	}
 
+	export interface InlayHintList {
+		hints: InlayHint[];
+		dispose(): void;
+	}
+
 	export interface InlayHintsProvider {
 		onDidChangeInlayHints?: IEvent<void>;
-		provideInlayHints(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
+		provideInlayHints(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHintList>;
+		resolveInlayHint?(hint: InlayHint, token: CancellationToken): ProviderResult<InlayHint>;
 	}
 
 	export interface SemanticTokensLegend {

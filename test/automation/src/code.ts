@@ -11,6 +11,7 @@ import { launch as launchElectron } from './electronDriver';
 import { launch as launchPlaywright } from './playwrightDriver';
 import { Logger, measureAndLog } from './logger';
 import { copyExtension } from './extensions';
+import * as treekill from 'tree-kill';
 
 const repoPath = path.join(__dirname, '../../..');
 
@@ -201,17 +202,22 @@ export class Code {
 				while (!done) {
 					retries++;
 
-					if (retries > 20) {
-						this.logger.log('Smoke test exit call did not terminate process after 10s, still trying...');
+					if (retries === 20) {
+						this.logger.log('Smoke test exit call did not terminate process after 10s, forcefully exiting the application...');
+
+						// no need to await since we're polling for the process to die anyways
+						treekill(this.mainProcess.pid, err => {
+							this.logger.log('Failed to kill Electron process tree:', err?.message);
+						});
 					}
 
-					if (retries > 40) {
+					if (retries === 40) {
 						done = true;
 						reject(new Error('Smoke test exit call did not terminate process after 20s, giving up'));
 					}
 
 					try {
-						process.kill(this.mainProcess.pid!, 0); // throws an exception if the process doesn't exist anymore.
+						process.kill(this.mainProcess.pid, 0); // throws an exception if the process doesn't exist anymore.
 						await new Promise(resolve => setTimeout(resolve, 500));
 					} catch (error) {
 						done = true;

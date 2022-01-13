@@ -3,28 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI as uri } from 'vs/base/common/uri';
-import * as resources from 'vs/base/common/resources';
-import { Event, Emitter } from 'vs/base/common/event';
-import { generateUuid } from 'vs/base/common/uuid';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { isString, isUndefinedOrNull } from 'vs/base/common/types';
 import { distinct, lastIndex } from 'vs/base/common/arrays';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import {
-	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel,
-	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State, IDataBreakpoint, IInstructionBreakpoint
-} from 'vs/workbench/contrib/debug/common/debug';
-import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { mixin } from 'vs/base/common/objects';
+import * as resources from 'vs/base/common/resources';
+import { isString, isUndefinedOrNull } from 'vs/base/common/types';
+import { URI, URI as uri } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import * as nls from 'vs/nls';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IEditorPane } from 'vs/workbench/common/editor';
+import { DEBUG_MEMORY_SCHEME, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointsChangeEvent, IBreakpointUpdateData, IDataBreakpoint, IDebugModel, IDebugSession, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
+import { getUriFromSource, Source, UNKNOWN_SOURCE_LABEL } from 'vs/workbench/contrib/debug/common/debugSource';
+import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
+import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { mixin } from 'vs/base/common/objects';
-import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 
 interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
 	__vscodeVariableMenuContext?: string;
@@ -48,6 +47,7 @@ export class ExpressionContainer implements IExpressionContainer {
 		private id: string,
 		public namedVariables: number | undefined = 0,
 		public indexedVariables: number | undefined = 0,
+		public memoryReference: string | undefined = undefined,
 		private startOfVariables: number | undefined = 0
 	) { }
 
@@ -92,7 +92,7 @@ export class ExpressionContainer implements IExpressionContainer {
 			for (let i = 0; i < numberOfChunks; i++) {
 				const start = (this.startOfVariables || 0) + i * chunkSize;
 				const count = Math.min(chunkSize, this.indexedVariables - i * chunkSize);
-				children.push(new Variable(this.session, this.threadId, this, this.reference, `[${start}..${start + count - 1}]`, '', '', undefined, count, { kind: 'virtual' }, undefined, undefined, true, start));
+				children.push(new Variable(this.session, this.threadId, this, this.reference, `[${start}..${start + count - 1}]`, '', '', undefined, count, undefined, { kind: 'virtual' }, undefined, undefined, true, start));
 			}
 
 			return children;
@@ -132,12 +132,12 @@ export class ExpressionContainer implements IExpressionContainer {
 					const count = nameCount.get(v.name) || 0;
 					const idDuplicationIndex = count > 0 ? count.toString() : '';
 					nameCount.set(v.name, count + 1);
-					return new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type, v.__vscodeVariableMenuContext, true, 0, idDuplicationIndex);
+					return new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.memoryReference, v.presentationHint, v.type, v.__vscodeVariableMenuContext, true, 0, idDuplicationIndex);
 				}
-				return new Variable(this.session, this.threadId, this, 0, '', undefined, nls.localize('invalidVariableAttributes', "Invalid variable attributes"), 0, 0, { kind: 'virtual' }, undefined, undefined, false);
+				return new Variable(this.session, this.threadId, this, 0, '', undefined, nls.localize('invalidVariableAttributes', "Invalid variable attributes"), 0, 0, undefined, { kind: 'virtual' }, undefined, undefined, false);
 			});
 		} catch (e) {
-			return [new Variable(this.session, this.threadId, this, 0, '', undefined, e.message, 0, 0, { kind: 'virtual' }, undefined, undefined, false)];
+			return [new Variable(this.session, this.threadId, this, 0, '', undefined, e.message, 0, 0, undefined, { kind: 'virtual' }, undefined, undefined, false)];
 		}
 	}
 
@@ -178,6 +178,7 @@ export class ExpressionContainer implements IExpressionContainer {
 				this.reference = response.body.variablesReference;
 				this.namedVariables = response.body.namedVariables;
 				this.indexedVariables = response.body.indexedVariables;
+				this.memoryReference = response.body.memoryReference;
 				this.type = response.body.type || this.type;
 				return true;
 			}
@@ -197,6 +198,7 @@ function handleSetResponse(expression: ExpressionContainer, response: DebugProto
 		expression.reference = response.body.variablesReference;
 		expression.namedVariables = response.body.namedVariables;
 		expression.indexedVariables = response.body.indexedVariables;
+		// todo @weinand: the set responses contain most properties, but not memory references. Should they?
 	}
 }
 
@@ -248,6 +250,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		value: string | undefined,
 		namedVariables: number | undefined,
 		indexedVariables: number | undefined,
+		memoryReference: string | undefined,
 		public presentationHint: DebugProtocol.VariablePresentationHint | undefined,
 		type: string | undefined = undefined,
 		public variableMenuContext: string | undefined = undefined,
@@ -255,7 +258,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		startOfVariables = 0,
 		idDuplicationIndex = '',
 	) {
-		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, startOfVariables);
+		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, memoryReference, startOfVariables);
 		this.value = value || '';
 		this.type = type;
 	}
@@ -295,6 +298,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		return {
 			name: this.name,
 			variablesReference: this.reference || 0,
+			memoryReference: this.memoryReference,
 			value: this.value,
 			evaluateName: this.evaluateName
 		};
@@ -585,6 +589,93 @@ export class Thread implements IThread {
 
 	reverseContinue(): Promise<any> {
 		return this.session.reverseContinue(this.threadId);
+	}
+}
+
+/**
+ * Gets a URI to a memory in the given session ID.
+ */
+export const getUriForDebugMemory = (
+	sessionId: string,
+	memoryReference: string,
+	range?: { fromOffset: number, toOffset: number },
+	displayName = 'memory'
+) => {
+	return URI.from({
+		scheme: DEBUG_MEMORY_SCHEME,
+		authority: sessionId,
+		path: '/' + encodeURIComponent(memoryReference) + `/${encodeURIComponent(displayName)}.bin`,
+		query: range ? `?range=${range.fromOffset}:${range.toOffset}` : undefined,
+	});
+};
+
+export class MemoryRegion extends Disposable implements IMemoryRegion {
+	private readonly invalidateEmitter = this._register(new Emitter<IMemoryInvalidationEvent>());
+
+	/** @inheritdoc */
+	public readonly onDidInvalidate = this.invalidateEmitter.event;
+
+	/** @inheritdoc */
+	public readonly writable = !!this.session.capabilities.supportsWriteMemoryRequest;
+
+	constructor(private readonly memoryReference: string, private readonly session: IDebugSession) {
+		super();
+		this._register(session.onDidInvalidateMemory(e => {
+			if (e.body.memoryReference === memoryReference) {
+				this.invalidate(e.body.offset, e.body.count - e.body.offset);
+			}
+		}));
+	}
+
+	public async read(fromOffset: number, toOffset: number): Promise<MemoryRange[]> {
+		const length = toOffset - fromOffset;
+		const offset = fromOffset;
+		const result = await this.session.readMemory(this.memoryReference, offset, length);
+
+		if (result === undefined || !result.body?.data) {
+			return [{ type: MemoryRangeType.Unreadable, offset, length }];
+		}
+
+		let data: VSBuffer;
+		try {
+			data = decodeBase64(result.body.data);
+		} catch {
+			return [{ type: MemoryRangeType.Error, offset, length, error: 'Invalid base64 data from debug adapter' }];
+		}
+
+		const unreadable = result.body.unreadableBytes || 0;
+		const dataLength = length - unreadable;
+		if (data.byteLength < dataLength) {
+			const pad = VSBuffer.alloc(dataLength - data.byteLength);
+			pad.buffer.fill(0);
+			data = VSBuffer.concat([data, pad], dataLength);
+		} else if (data.byteLength > dataLength) {
+			data = data.slice(0, dataLength);
+		}
+
+		if (!unreadable) {
+			return [{ type: MemoryRangeType.Valid, offset, length, data }];
+		}
+
+		return [
+			{ type: MemoryRangeType.Valid, offset, length: dataLength, data },
+			{ type: MemoryRangeType.Unreadable, offset: offset + dataLength, length: unreadable },
+		];
+	}
+
+	public async write(offset: number, data: VSBuffer): Promise<number> {
+		const result = await this.session.writeMemory(this.memoryReference, offset, encodeBase64(data), true);
+		const written = result?.body?.bytesWritten ?? data.byteLength;
+		this.invalidate(offset, offset + written);
+		return written;
+	}
+
+	public override dispose() {
+		super.dispose();
+	}
+
+	private invalidate(fromOffset: number, toOffset: number) {
+		this.invalidateEmitter.fire({ fromOffset, toOffset });
 	}
 }
 
@@ -987,6 +1078,10 @@ export class ThreadAndSessionIds implements ITreeElement {
 	getId(): string {
 		return `${this.sessionId}:${this.threadId}`;
 	}
+}
+
+export class Memory {
+
 }
 
 export class DebugModel implements IDebugModel {

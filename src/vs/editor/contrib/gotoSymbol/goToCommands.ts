@@ -63,16 +63,34 @@ function registerGoToAction<T extends EditorAction>(ctor: { new(): T; }): T {
 	return result;
 }
 
-abstract class SymbolNavigationAction extends EditorAction {
+export class SymbolNavigationAnchor {
 
-	private readonly _configuration: SymbolNavigationActionConfig;
+	static is(thing: any): thing is SymbolNavigationAnchor {
+		if (!thing || typeof thing !== 'object') {
+			return false;
+		}
+		if (thing instanceof SymbolNavigationAnchor) {
+			return true;
+		}
+		if (corePosition.Position.isIPosition((<SymbolNavigationAnchor>thing).position) && (<SymbolNavigationAnchor>thing).model) {
+			return true;
+		}
+		return false;
+	}
+
+	constructor(readonly model: ITextModel, readonly position: corePosition.Position) { }
+}
+
+export abstract class SymbolNavigationAction extends EditorAction {
+
+	readonly configuration: SymbolNavigationActionConfig;
 
 	constructor(configuration: SymbolNavigationActionConfig, opts: IActionOptions) {
 		super(opts);
-		this._configuration = configuration;
+		this.configuration = configuration;
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor, arg?: SymbolNavigationAnchor | unknown): Promise<void> {
 		if (!editor.hasModel()) {
 			return Promise.resolve(undefined);
 		}
@@ -82,11 +100,12 @@ abstract class SymbolNavigationAction extends EditorAction {
 		const symbolNavService = accessor.get(ISymbolNavigationService);
 
 		const model = editor.getModel();
-		const pos = editor.getPosition();
+		const position = editor.getPosition();
+		const anchor = SymbolNavigationAnchor.is(arg) ? arg : new SymbolNavigationAnchor(model, position);
 
 		const cts = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
-		const promise = raceCancellation(this._getLocationModel(model, pos, cts.token), cts.token).then(async references => {
+		const promise = raceCancellation(this._getLocationModel(anchor.model, anchor.position, cts.token), cts.token).then(async references => {
 
 			if (!references || cts.token.isCancellationRequested) {
 				return;
@@ -95,7 +114,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 			alert(references.ariaMessage);
 
 			let altAction: IEditorAction | null | undefined;
-			if (references.referenceAt(model.uri, pos)) {
+			if (references.referenceAt(model.uri, position)) {
 				const altActionId = this._getAlternativeCommand(editor);
 				if (altActionId !== this.id && _goToActionIds.has(altActionId)) {
 					altAction = editor.getAction(altActionId);
@@ -106,9 +125,9 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 			if (referenceCount === 0) {
 				// no result -> show message
-				if (!this._configuration.muteMessage) {
-					const info = model.getWordAtPosition(pos);
-					MessageController.get(editor)?.showMessage(this._getNoResultFoundMessage(info), pos);
+				if (!this.configuration.muteMessage) {
+					const info = model.getWordAtPosition(position);
+					MessageController.get(editor)?.showMessage(this._getNoResultFoundMessage(info), position);
 				}
 			} else if (referenceCount === 1 && altAction) {
 				// already at the only result, run alternative
@@ -141,13 +160,13 @@ abstract class SymbolNavigationAction extends EditorAction {
 	private async _onResult(editorService: ICodeEditorService, symbolNavService: ISymbolNavigationService, editor: IActiveCodeEditor, model: ReferencesModel): Promise<void> {
 
 		const gotoLocation = this._getGoToPreference(editor);
-		if (!(editor instanceof EmbeddedCodeEditorWidget) && (this._configuration.openInPeek || (gotoLocation === 'peek' && model.references.length > 1))) {
+		if (!(editor instanceof EmbeddedCodeEditorWidget) && (this.configuration.openInPeek || (gotoLocation === 'peek' && model.references.length > 1))) {
 			this._openInPeek(editor, model);
 
 		} else {
 			const next = model.firstReference()!;
 			const peek = model.references.length > 1 && gotoLocation === 'gotoAndPeek';
-			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide, !peek);
+			const targetEditor = await this._openReference(editor, editorService, next, this.configuration.openToSide, !peek);
 			if (peek && targetEditor) {
 				this._openInPeek(targetEditor, model);
 			} else {
@@ -204,7 +223,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 	private _openInPeek(target: ICodeEditor, model: ReferencesModel) {
 		const controller = ReferencesController.get(target);
 		if (controller && target.hasModel()) {
-			controller.toggleWidget(target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), this._configuration.openInPeek);
+			controller.toggleWidget(target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), this.configuration.openInPeek);
 		} else {
 			model.dispose();
 		}

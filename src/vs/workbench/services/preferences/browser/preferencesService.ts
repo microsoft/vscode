@@ -54,11 +54,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private readonly _onDispose = this._register(new Emitter<void>());
 
-	private _defaultUserSettingsUriCounter = 0;
 	private _defaultUserSettingsContentModel: DefaultSettings | undefined;
-	private _defaultWorkspaceSettingsUriCounter = 0;
 	private _defaultWorkspaceSettingsContentModel: DefaultSettings | undefined;
-	private _defaultFolderSettingsUriCounter = 0;
 	private _defaultFolderSettingsContentModel: DefaultSettings | undefined;
 
 	constructor(
@@ -120,7 +117,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	resolveModel(uri: URI): ITextModel | null {
 		if (this.isDefaultSettingsResource(uri)) {
-
+			// We opened a split json editor in this case,
+			// and this half shows the default settings.
 			const target = this.getConfigurationTargetFromDefaultSettingsResource(uri);
 			const languageSelection = this.languageService.createById('jsonc');
 			const model = this._register(this.modelService.createModel('', languageSelection, uri));
@@ -134,7 +132,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 						return;
 					}
 					defaultSettings = this.getDefaultSettings(target);
-					this.modelService.updateModel(model, defaultSettings.getContent(true));
+					this.modelService.updateModel(model, defaultSettings.getContentWithoutMostCommonlyUsed(true));
 					defaultSettings._onDidChange.fire();
 				}
 			});
@@ -142,7 +140,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			// Check if Default settings is already created and updated in above promise
 			if (!defaultSettings) {
 				defaultSettings = this.getDefaultSettings(target);
-				this.modelService.updateModel(model, defaultSettings.getContent(true));
+				this.modelService.updateModel(model, defaultSettings.getContentWithoutMostCommonlyUsed(true));
 			}
 
 			return model;
@@ -397,11 +395,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private getDefaultSettingsResource(configurationTarget: ConfigurationTarget): URI {
 		switch (configurationTarget) {
 			case ConfigurationTarget.WORKSPACE:
-				return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultWorkspaceSettingsUriCounter++}/workspaceSettings.json` });
+				return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/workspaceSettings.json` });
 			case ConfigurationTarget.WORKSPACE_FOLDER:
-				return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultFolderSettingsUriCounter++}/resourceSettings.json` });
+				return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/resourceSettings.json` });
 		}
-		return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultUserSettingsUriCounter++}/settings.json` });
+		return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/settings.json` });
 	}
 
 	private async getOrCreateEditableSettingsEditorInput(target: ConfigurationTarget, resource: URI): Promise<EditorInput> {

@@ -23,7 +23,7 @@ import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbe
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { FileOperationEvent, IFileService, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IRawFileChangesEvent } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ModelService } from 'vs/editor/common/services/modelService';
@@ -934,9 +934,6 @@ export class TestFileService implements IFileService {
 	get onDidFilesChange(): Event<FileChangesEvent> { return this._onDidFilesChange.event; }
 	fireFileChanges(event: FileChangesEvent): void { this._onDidFilesChange.fire(event); }
 
-	private readonly _onDidChangeFilesRaw = new Emitter<IRawFileChangesEvent>();
-	get onDidChangeFilesRaw(): Event<IRawFileChangesEvent> { return this._onDidChangeFilesRaw.event; }
-
 	private readonly _onDidRunOperation = new Emitter<FileOperationEvent>();
 	get onDidRunOperation(): Event<FileOperationEvent> { return this._onDidRunOperation.event; }
 	fireAfterOperation(event: FileOperationEvent): void { this._onDidRunOperation.fire(event); }
@@ -1680,8 +1677,14 @@ export class TestPathService implements IPathService {
 
 	constructor(private readonly fallbackUserHome: URI = URI.from({ scheme: Schemas.vscodeRemote, path: '/' })) { }
 
-	async hasValidBasename(resource: URI): Promise<boolean> {
-		return isValidBasename(basename(resource));
+	hasValidBasename(resource: URI, basename?: string): Promise<boolean>;
+	hasValidBasename(resource: URI, os: OperatingSystem, basename?: string): boolean;
+	hasValidBasename(resource: URI, arg2?: string | OperatingSystem, name?: string): boolean | Promise<boolean> {
+		if (typeof arg2 === 'string' || typeof arg2 === 'undefined') {
+			return isValidBasename(arg2 ?? basename(resource));
+		}
+
+		return isValidBasename(name ?? basename(resource));
 	}
 
 	get path() { return Promise.resolve(isWindows ? win32 : posix); }

@@ -680,7 +680,7 @@ abstract class RunTestDecoration {
 	/**
 	 * Called when the decoration is clicked on.
 	 */
-	protected abstract getContextMenuActions(e: IEditorMouseEvent): IReference<IAction[]>;
+	protected abstract getContextMenuActions(): IReference<IAction[]>;
 
 	protected defaultRun() {
 		return this.testService.runTests({
@@ -697,7 +697,7 @@ abstract class RunTestDecoration {
 	}
 
 	private showContextMenu(e: IEditorMouseEvent) {
-		let actions = this.getContextMenuActions(e);
+		let actions = this.getContextMenuActions();
 		const editor = this.codeEditorService.listCodeEditors().find(e => e.getModel() === this.model);
 		if (editor) {
 			const contribution = editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID);
@@ -844,7 +844,7 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 		super([{ test, resultItem }], visible, model, codeEditorService, testService, contextMenuService, commandService, configurationService, testProfiles, contextKeyService, menuService);
 	}
 
-	protected override getContextMenuActions(e: IEditorMouseEvent) {
+	protected override getContextMenuActions() {
 		return this.getTestContextMenuActions(this.tests[0].test, this.tests[0].resultItem);
 	}
 }

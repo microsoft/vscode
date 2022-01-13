@@ -222,7 +222,7 @@ class OrthogonalPointerEventFactory implements IPointerEventFactory {
 	}
 }
 
-const PointerEventsDisabledCssClass = 'pointerEventsDisabled';
+const PointerEventsDisabledCssClass = 'pointer-events-disabled';
 
 /**
  * The {@link Sash} is the UI component which allows the user to resize other

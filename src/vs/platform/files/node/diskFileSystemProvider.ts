@@ -23,7 +23,7 @@ import { createFileSystemProviderError, FileAtomicReadOptions, FileDeleteOptions
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { NodeJSFileWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { ParcelWatcherClient } from 'vs/platform/files/node/watcher/parcel/parcelWatcherClient';
-import { AbstractRecursiveWatcherClient, IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/common/watcher';
+import { AbstractRecursiveWatcherClient, IDiskFileChange, ILogMessage, INonRecursiveWatcher, INonRecursiveWatchRequest, IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -410,13 +410,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		let bytesRead: number | null = null;
 		try {
-			const result = await Promises.read(fd, data, offset, length, normalizedPos);
-
-			if (typeof result === 'number') {
-				bytesRead = result; // node.d.ts fail
-			} else {
-				bytesRead = result.bytesRead;
-			}
+			const { bytesRead } = await Promises.read(fd, data, offset, length, normalizedPos);
 
 			return bytesRead;
 		} catch (error) {
@@ -496,13 +490,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		let bytesWritten: number | null = null;
 		try {
-			const result = await Promises.write(fd, data, offset, length, normalizedPos);
-
-			if (typeof result === 'number') {
-				bytesWritten = result; // node.d.ts fail
-			} else {
-				bytesWritten = result.bytesWritten;
-			}
+			const { bytesWritten } = await Promises.write(fd, data, offset, length, normalizedPos);
 
 			return bytesWritten;
 		} catch (error) {
@@ -633,7 +621,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		);
 	}
 
-	protected override doWatch(watcher: AbstractRecursiveWatcherClient, requests: IWatchRequest[]): Promise<void> {
+	protected override massageRecursiveWatchRequests(requests: IRecursiveWatchRequest[]): void {
 		const usePolling = this.options?.watcher?.usePolling;
 		if (usePolling === true) {
 			for (const request of requests) {
@@ -646,20 +634,16 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				}
 			}
 		}
-
-		return super.doWatch(watcher, requests);
 	}
 
 	protected createNonRecursiveWatcher(
-		path: string,
-		excludes: string[],
+		request: INonRecursiveWatchRequest,
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
-	): IDisposable & { setVerboseLogging: (verboseLogging: boolean) => void } {
+	): INonRecursiveWatcher {
 		return new NodeJSFileWatcher(
-			path,
-			excludes,
+			request,
 			changes => onChange(changes),
 			msg => onLogMessage(msg),
 			verboseLogging

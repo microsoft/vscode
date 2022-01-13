@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorId, FontStyle, ILanguageIdCodec, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/languages';
+import { ColorId, FontStyle, ILanguageIdCodec, ITokenPresentation, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/languages';
 
 export interface IViewLineTokens {
 	equals(other: IViewLineTokens): boolean;
@@ -12,6 +12,7 @@ export interface IViewLineTokens {
 	getEndOffset(tokenIndex: number): number;
 	getClassName(tokenIndex: number): string;
 	getInlineStyle(tokenIndex: number, colorMap: string[]): string;
+	getPresentation(tokenIndex: number): ITokenPresentation;
 	findTokenIndexAtOffset(offset: number): number;
 	getLineContent(): string;
 }
@@ -115,6 +116,11 @@ export class LineTokens implements IViewLineTokens {
 	public getInlineStyle(tokenIndex: number, colorMap: string[]): string {
 		const metadata = this._tokens[(tokenIndex << 1) + 1];
 		return TokenMetadata.getInlineStyleFromMetadata(metadata, colorMap);
+	}
+
+	public getPresentation(tokenIndex: number): ITokenPresentation {
+		const metadata = this._tokens[(tokenIndex << 1) + 1];
+		return TokenMetadata.getPresentationFromMetadata(metadata);
 	}
 
 	public getEndOffset(tokenIndex: number): number {
@@ -282,6 +288,10 @@ class SliceLineTokens implements IViewLineTokens {
 
 	public getInlineStyle(tokenIndex: number, colorMap: string[]): string {
 		return this._source.getInlineStyle(this._firstTokenIndex + tokenIndex, colorMap);
+	}
+
+	public getPresentation(tokenIndex: number): ITokenPresentation {
+		return this._source.getPresentation(this._firstTokenIndex + tokenIndex);
 	}
 
 	public findTokenIndexAtOffset(offset: number): number {

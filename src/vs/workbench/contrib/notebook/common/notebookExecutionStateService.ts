@@ -16,6 +16,7 @@ export interface ICellExecutionStateUpdate {
 	editType: CellExecutionUpdateType.ExecutionState;
 	executionOrder?: number;
 	runStartTime?: number;
+	didPause?: boolean;
 }
 
 export interface ICellExecutionComplete {
@@ -27,6 +28,7 @@ export interface ICellExecutionEntry {
 	notebook: URI;
 	cellHandle: number;
 	state: NotebookCellExecutionState;
+	didPause: boolean;
 }
 
 export interface ICellExecutionStateChangedEvent {

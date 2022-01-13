@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
-import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, EditorInputCapabilities, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, SIDE_BY_SIDE_EDITOR_ID, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, EditorTabsVisibleContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, EditorInputCapabilities, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, SIDE_BY_SIDE_EDITOR_ID, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { trackFocus, addDisposableListener, EventType, WebFileSystemAccess } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -86,6 +86,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private panelVisibleContext: IContextKey<boolean>;
 	private panelMaximizedContext: IContextKey<boolean>;
 	private auxiliaryBarVisibleContext: IContextKey<boolean>;
+	private editorTabsVisibleContext: IContextKey<boolean>;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -191,6 +192,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		// Editor Area
 		this.editorAreaVisibleContext = EditorAreaVisibleContext.bindTo(this.contextKeyService);
+		this.editorTabsVisibleContext = EditorTabsVisibleContext.bindTo(this.contextKeyService);
 
 		// Sidebar
 		this.sideBarVisibleContext = SideBarVisibleContext.bindTo(this.contextKeyService);
@@ -203,7 +205,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.panelMaximizedContext = PanelMaximizedContext.bindTo(this.contextKeyService);
 		this.panelMaximizedContext.set(this.layoutService.isPanelMaximized());
 
-		// Auxiliarybar
+		// Auxiliary Bar
 		this.auxiliaryBarVisibleContext = AuxiliaryBarVisibleContext.bindTo(this.contextKeyService);
 		this.auxiliaryBarVisibleContext.set(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART));
 
@@ -211,7 +213,10 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this.editorGroupService.whenReady.then(() => this.updateEditorContextKeys());
+		this.editorGroupService.whenReady.then(() => {
+			this.updateEditorAreaContextKeys();
+			this.updateEditorContextKeys();
+		});
 
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateEditorContextKeys()));
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.updateEditorContextKeys()));
@@ -222,6 +227,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		this._register(this.editorGroupService.onDidChangeActiveGroup(() => this.updateEditorGroupContextKeys()));
 		this._register(this.editorGroupService.onDidChangeGroupLocked(() => this.updateEditorGroupContextKeys()));
+
+		this._register(this.editorGroupService.onDidChangeEditorPartOptions(() => this.updateEditorAreaContextKeys()));
 
 		this._register(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(), true));
 
@@ -253,6 +260,10 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		}));
 
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.dirtyWorkingCopiesContext.set(workingCopy.isDirty() || this.workingCopyService.hasDirty)));
+	}
+
+	private updateEditorAreaContextKeys(): void {
+		this.editorTabsVisibleContext.set(!!this.editorGroupService.partOptions.showTabs);
 	}
 
 	private updateEditorContextKeys(): void {

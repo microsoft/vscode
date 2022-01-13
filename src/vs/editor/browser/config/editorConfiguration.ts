@@ -73,7 +73,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 		this._register(TabFocus.onDidChangeTabFocus(() => this._recomputeOptions()));
 		this._register(this._containerObserver.onDidChange(() => this._recomputeOptions()));
 		this._register(FontMeasurements.onDidChange(() => this._recomputeOptions()));
-		this._register(browser.onDidChangeZoomLevel(() => this._recomputeOptions()));
+		this._register(browser.PixelRatio.onDidChange(() => this._recomputeOptions()));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
 	}
 
@@ -92,7 +92,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 
 	private _computeOptions(): ComputedEditorOptions {
 		const partialEnv = this._readEnvConfiguration();
-		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.zoomLevel, partialEnv.pixelRatio, this.isSimpleWidget);
+		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.pixelRatio, this.isSimpleWidget);
 		const fontInfo = this._readFontInfo(bareFontInfo);
 		const env: IEnvironmentalOptions = {
 			memory: this._computeOptionsMemory,
@@ -117,8 +117,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			outerWidth: this._containerObserver.getWidth(),
 			outerHeight: this._containerObserver.getHeight(),
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
-			pixelRatio: browser.getPixelRatio(),
-			zoomLevel: browser.getZoomLevel(),
+			pixelRatio: browser.PixelRatio.value,
 			accessibilitySupport: (
 				this._accessibilityService.isScreenReaderOptimized()
 					? AccessibilitySupport.Enabled
@@ -149,10 +148,6 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 
 	public observeContainer(dimension?: IDimension): void {
 		this._containerObserver.observe(dimension);
-	}
-
-	public observePixelRatio(): void {
-		this._recomputeOptions();
 	}
 
 	public setIsDominatedByLongLines(isDominatedByLongLines: boolean): void {
@@ -220,7 +215,6 @@ export interface IEnvConfiguration {
 	outerHeight: number;
 	emptySelectionClipboard: boolean;
 	pixelRatio: number;
-	zoomLevel: number;
 	accessibilitySupport: AccessibilitySupport;
 }
 
