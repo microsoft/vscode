@@ -822,6 +822,43 @@ registerAction2(class extends Action2 {
 	}
 });
 
+// --- Swap Panel View Locations
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.swapPanelViews',
+			title: {
+				value: localize('swapPanelViews', "Swap Panel View Containers"),
+				original: 'Swap Panel View Containers'
+			},
+			category: CATEGORIES.View,
+			f1: true,
+			precondition: ContextKeyExpr.equals('config.workbench.experimental.sidePanel.enabled', true)
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const viewDescriptorService = accessor.get(IViewDescriptorService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+
+		const panelContainers = viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.Panel);
+		const auxiliaryBarContainers = viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar);
+
+		panelContainers.forEach(viewContainer => viewDescriptorService.moveViewContainerToLocation(viewContainer, ViewContainerLocation.AuxiliaryBar));
+		auxiliaryBarContainers.forEach(viewContainer => viewDescriptorService.moveViewContainerToLocation(viewContainer, ViewContainerLocation.Panel));
+
+		if (panelContainers.length) {
+			layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		}
+
+		if (auxiliaryBarContainers.length) {
+			layoutService.setPartHidden(false, Parts.PANEL_PART);
+		}
+	}
+
+});
+
 // --- Resize View
 
 abstract class BaseResizeViewAction extends Action2 {
