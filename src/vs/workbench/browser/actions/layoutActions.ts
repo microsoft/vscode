@@ -254,11 +254,12 @@ registerAction2(class extends Action2 {
 			category: CATEGORIES.View,
 			f1: true,
 			toggled: EditorAreaVisibleContext,
-			menu: [{
-				id: MenuId.MenubarAppearanceMenu,
-				group: '2_workbench_layout',
-				order: 5
-			}]
+			// Remove from appearance menu
+			// menu: [{
+			// 	id: MenuId.MenubarAppearanceMenu,
+			// 	group: '2_workbench_layout',
+			// 	order: 5
+			// }]
 		});
 	}
 
