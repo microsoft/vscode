@@ -306,8 +306,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}
 
 		let shellIntegrationString = '';
-		const capabilities = instance.xterm?.shellIntegration.capabilities;
-		if (capabilities?.length) {
+		const capabilities = instance.xterm?.shellIntegration.capabilities.items;
+		if (capabilities) {
 			shellIntegrationString += `\n\n---\n\n$(plug) ${localize('shellIntegration.enabled', "Shell integration is enabled")}`;
 			for (const capability of capabilities) {
 				shellIntegrationString += `\n- ${this._getShellIntegrationCapabilityName(capability)}`;

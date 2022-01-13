@@ -332,10 +332,9 @@ export interface ICommandTracker {
 	clearMarker(): void;
 }
 
+// TODO: Replace IShellIntegration with ITerminalCapabilityStore
 export interface IShellIntegration {
-	readonly capabilities: readonly TerminalCapability[];
-	readonly onCapabilityEnabled: Event<TerminalCapability>;
-	readonly onCapabilityDisabled: Event<TerminalCapability>;
+	capabilities: ITerminalCapabilityStore;
 	// TODO: Fire more fine-grained and stronger typed events
 	readonly onIntegratedShellChange: Event<{ type: string, value: string }>;
 }
@@ -373,6 +372,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly hasWrittenData: boolean;
 	readonly hasChildProcesses: boolean;
 	readonly backend: ITerminalBackend | undefined;
+	readonly capabilities: ITerminalCapabilityStore;
 
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
@@ -401,6 +401,18 @@ export interface ITerminalProcessManager extends IDisposable {
 	getLatency(): Promise<number>;
 	refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]>;
 	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): void;
+}
+
+export interface ITerminalCapabilityStore {
+	readonly items: readonly TerminalCapability[];
+	readonly onDidRemoveCapability: Event<TerminalCapability>;
+	readonly onDidAddCapability: Event<TerminalCapability>;
+	has(capability: TerminalCapability): boolean;
+}
+
+export interface ITerminalCapabilityStoreController {
+	addCapability(capability: TerminalCapability): void;
+	removeCapability(capability: TerminalCapability): void;
 }
 
 export const enum ProcessState {

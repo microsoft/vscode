@@ -21,13 +21,14 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ITerminalDimensions, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ITerminalDimensions, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TerminalCapability } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -60,6 +61,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	isDisconnected: boolean = false;
 	environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	backend: ITerminalBackend | undefined;
+	readonly capabilities = new TerminalCapabilityStore();
 
 	private _isDisposed: boolean = false;
 	private _process: ITerminalChildProcess | null = null;
@@ -100,6 +102,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly onEnvironmentVariableInfoChanged = this._onEnvironmentVariableInfoChange.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	readonly onProcessExit = this._onProcessExit.event;
+
+	private readonly _onCapabilityDisabled = new Emitter<TerminalCapability>();
+	readonly onCapabilityDisabled = this._onCapabilityDisabled.event;
+	private readonly _onCapabilityEnabled = new Emitter<TerminalCapability>();
+	readonly onCapabilityEnabled = this._onCapabilityEnabled.event;
 
 	get persistentProcessId(): number | undefined { return this._process?.id; }
 	get shouldPersist(): boolean { return this._process ? this._process.shouldPersist : false; }
@@ -286,6 +293,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._process = newProcess;
 
 		this._setProcessState(ProcessState.Launching);
+
+		// Add any capabilities inherit to the backend
+		if (this.os === OperatingSystem.Linux || this.os === OperatingSystem.Macintosh) {
+			this.capabilities.addCapability(TerminalCapability.NaiveCwdDetection);
+		}
 
 		this._dataFilter.newProcess(this._process, reset);
 
