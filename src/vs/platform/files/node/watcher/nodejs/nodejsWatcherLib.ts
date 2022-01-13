@@ -15,9 +15,9 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { realcase } from 'vs/base/node/extpath';
 import { Promises } from 'vs/base/node/pfs';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { IDiskFileChange, ILogMessage, coalesceEvents, INonRecursiveWatcherLibrary, INonRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, ILogMessage, coalesceEvents, INonRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 
-export class NodeJSFileWatcherLibrary extends Disposable implements INonRecursiveWatcherLibrary {
+export class NodeJSFileWatcherLibrary extends Disposable {
 
 	// A delay in reacting to file deletes to support
 	// atomic save operations where a tool may chose

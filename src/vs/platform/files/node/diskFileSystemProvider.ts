@@ -21,12 +21,12 @@ import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs'
 import { localize } from 'vs/nls';
 import { createFileSystemProviderError, FileAtomicReadOptions, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
-import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
-import { AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, INonRecursiveWatcherLibrary, INonRecursiveWatchRequest, IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
+import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { UniversalWatcherClient } from 'vs/platform/files/node/watcher/watcherClient';
+import { NodeJSWatcherClient } from 'vs/platform/files/node/watcher/nodejs/nodejsClient';
 
 /**
  * Enable graceful-fs very early from here to have it enabled
@@ -637,13 +637,11 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	}
 
 	protected createNonRecursiveWatcher(
-		request: INonRecursiveWatchRequest,
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
-	): INonRecursiveWatcherLibrary {
-		return new NodeJSFileWatcherLibrary(
-			request,
+	): AbstractNonRecursiveWatcherClient {
+		return new NodeJSWatcherClient(
 			changes => onChange(changes),
 			msg => onLogMessage(msg),
 			verboseLogging

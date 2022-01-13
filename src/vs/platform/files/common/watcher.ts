@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
@@ -102,39 +102,27 @@ export interface IUniversalWatcher extends IWatcher {
 	watch(requests: IUniversalWatcheRequest[]): Promise<void>;
 }
 
-export interface INonRecursiveWatcherLibrary extends IDisposable {
-
-	/**
-	 * A promise that indicates when the watcher is ready.
-	 */
-	readonly ready: Promise<void>;
-
-	/**
-	 * Enable verbose logging in the watcher.
-	 */
-	setVerboseLogging(enabled: boolean): void;
-}
-
-export abstract class AbstractUniversalWatcherClient extends Disposable {
+export abstract class AbstractWatcherClient extends Disposable {
 
 	private static readonly MAX_RESTARTS = 5;
 
-	private watcher: IUniversalWatcher | undefined;
+	private watcher: IWatcher | undefined;
 	private readonly watcherDisposables = this._register(new MutableDisposable());
 
-	private requests: IUniversalWatcheRequest[] | undefined = undefined;
+	private requests: IWatchRequest[] | undefined = undefined;
 
 	private restartCounter = 0;
 
 	constructor(
 		private readonly onFileChanges: (changes: IDiskFileChange[]) => void,
 		private readonly onLogMessage: (msg: ILogMessage) => void,
-		private verboseLogging: boolean
+		private verboseLogging: boolean,
+		private type: string
 	) {
 		super();
 	}
 
-	protected abstract createWatcher(disposables: DisposableStore): IUniversalWatcher;
+	protected abstract createWatcher(disposables: DisposableStore): IWatcher;
 
 	protected init(): void {
 
@@ -155,7 +143,7 @@ export abstract class AbstractUniversalWatcherClient extends Disposable {
 	protected onError(error: string): void {
 
 		// Restart up to N times
-		if (this.restartCounter < AbstractUniversalWatcherClient.MAX_RESTARTS && this.requests) {
+		if (this.restartCounter < AbstractWatcherClient.MAX_RESTARTS && this.requests) {
 			this.error(`restarting watcher after error: ${error}`);
 			this.restart(this.requests);
 		}
@@ -186,7 +174,7 @@ export abstract class AbstractUniversalWatcherClient extends Disposable {
 	}
 
 	private error(message: string) {
-		this.onLogMessage({ type: 'error', message: `[File Watcher (universal)] ${message}` });
+		this.onLogMessage({ type: 'error', message: `[File Watcher (${this.type})] ${message}` });
 	}
 
 	override dispose(): void {
@@ -196,6 +184,32 @@ export abstract class AbstractUniversalWatcherClient extends Disposable {
 
 		return super.dispose();
 	}
+}
+
+export abstract class AbstractNonRecursiveWatcherClient extends AbstractWatcherClient {
+
+	constructor(
+		onFileChanges: (changes: IDiskFileChange[]) => void,
+		onLogMessage: (msg: ILogMessage) => void,
+		verboseLogging: boolean
+	) {
+		super(onFileChanges, onLogMessage, verboseLogging, 'node.js');
+	}
+
+	protected abstract override createWatcher(disposables: DisposableStore): INonRecursiveWatcher;
+}
+
+export abstract class AbstractUniversalWatcherClient extends AbstractWatcherClient {
+
+	constructor(
+		onFileChanges: (changes: IDiskFileChange[]) => void,
+		onLogMessage: (msg: ILogMessage) => void,
+		verboseLogging: boolean
+	) {
+		super(onFileChanges, onLogMessage, verboseLogging, 'universal');
+	}
+
+	protected abstract override createWatcher(disposables: DisposableStore): IUniversalWatcher;
 }
 
 export interface IDiskFileChange {
