@@ -283,7 +283,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		}
 	}
 
-	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
+	async setTunnelFactory(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
 		// Do not wait for any of the proxy promises here.
 		// It will delay startup and there is nothing that needs to be waited for.
 		if (provider) {
@@ -312,11 +312,13 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 					];
 				}
 
-				this._proxy.$setTunnelProvider({
+				const tunnelFeatures = provider.tunnelFeatures ? {
 					elevation: !!provider.tunnelFeatures?.elevation,
 					public: !!provider.tunnelFeatures?.public,
 					privacyOptions
-				});
+				} : undefined;
+
+				this._proxy.$setTunnelProvider(tunnelFeatures);
 			}
 		} else {
 			this._forwardPortProvider = undefined;

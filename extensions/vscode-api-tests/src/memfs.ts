@@ -222,7 +222,7 @@ export class TestFS implements vscode.FileSystemProvider {
 
 	readonly onDidChangeFile: vscode.Event<vscode.FileChangeEvent[]> = this._emitter.event;
 
-	watch(_resource: vscode.Uri): vscode.Disposable {
+	watch(_resource: vscode.Uri, _options: { recursive: boolean; excludes: string[] }): vscode.Disposable {
 		// ignore, fires for all changes...
 		return new vscode.Disposable(() => { });
 	}

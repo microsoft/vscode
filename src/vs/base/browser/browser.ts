@@ -79,19 +79,9 @@ class PixelRatioImpl extends Disposable {
 		// See https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio#monitoring_screen_resolution_or_zoom_level_changes
 		const mediaQueryList = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
 		const listener = () => this._updateValue();
-		if (typeof mediaQueryList.addEventListener === 'function') {
-			mediaQueryList.addEventListener('change', listener);
-		} else {
-			// Safari 13.x
-			mediaQueryList.addListener(listener);
-		}
+		mediaQueryList.addEventListener('change', listener);
 		return () => {
-			if (typeof mediaQueryList.addEventListener === 'function') {
-				mediaQueryList.removeEventListener('change', listener);
-			} else {
-				// Safari 13.x
-				mediaQueryList.removeListener(listener);
-			}
+			mediaQueryList.removeEventListener('change', listener);
 		};
 	}
 

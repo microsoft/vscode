@@ -2370,15 +2370,26 @@ export enum ConfigurationTarget {
 
 @es5ClassCompat
 export class RelativePattern implements IRelativePattern {
-	base: string;
+
 	pattern: string;
 
-	// expose a `baseFolder: URI` property as a workaround for the short-coming
-	// of `IRelativePattern` only supporting `base: string` which always translates
-	// to a `file://` URI. With `baseFolder` we can support non-file based folders
-	// in searches
-	// (https://github.com/microsoft/vscode/commit/6326543b11cf4998c8fd1564cab5c429a2416db3)
-	readonly baseFolder?: URI;
+	private _base!: string;
+	get base(): string {
+		return this._base;
+	}
+	set base(base: string) {
+		this._base = base;
+		this._baseUri = URI.file(base);
+	}
+
+	private _baseUri!: URI;
+	get baseUri(): URI {
+		return this._baseUri;
+	}
+	set baseUri(baseUri: URI) {
+		this._baseUri = baseUri;
+		this._base = baseUri.fsPath;
+	}
 
 	constructor(base: vscode.WorkspaceFolder | URI | string, pattern: string) {
 		if (typeof base !== 'string') {
@@ -2392,14 +2403,11 @@ export class RelativePattern implements IRelativePattern {
 		}
 
 		if (typeof base === 'string') {
-			this.baseFolder = URI.file(base);
-			this.base = base;
+			this.baseUri = URI.file(base);
 		} else if (URI.isUri(base)) {
-			this.baseFolder = base;
-			this.base = base.fsPath;
+			this.baseUri = base;
 		} else {
-			this.baseFolder = base.uri;
-			this.base = base.uri.fsPath;
+			this.baseUri = base.uri;
 		}
 
 		this.pattern = pattern;

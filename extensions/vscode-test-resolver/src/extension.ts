@@ -227,6 +227,26 @@ export function activate(context: vscode.ExtensionContext) {
 					const port = (<net.AddressInfo>proxyServer.address()).port;
 					outputChannel.appendLine(`Going through proxy at port ${port}`);
 					const r: vscode.ResolverResult = new vscode.ResolvedAuthority('127.0.0.1', port, connectionToken);
+					r.tunnelFeatures = {
+						elevation: true,
+						privacyOptions: vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') ? [
+							{
+								id: 'public',
+								label: 'Public',
+								themeIcon: 'eye'
+							},
+							{
+								id: 'other',
+								label: 'Other',
+								themeIcon: 'circuit-board'
+							},
+							{
+								id: 'private',
+								label: 'Private',
+								themeIcon: 'eye-closed'
+							}
+						] : []
+					};
 					res(r);
 				});
 				context.subscriptions.push({
@@ -253,27 +273,6 @@ export function activate(context: vscode.ExtensionContext) {
 			}, (progress) => doResolve(_authority, progress));
 		},
 		tunnelFactory,
-		tunnelFeatures: {
-			elevation: true,
-			public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts'),
-			privacyOptions: vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') ? [
-				{
-					id: 'public',
-					label: 'Public',
-					themeIcon: 'eye'
-				},
-				{
-					id: 'other',
-					label: 'Other',
-					themeIcon: 'circuit-board'
-				},
-				{
-					id: 'private',
-					label: 'Private',
-					themeIcon: 'eye-closed'
-				}
-			] : []
-		},
 		showCandidatePort
 	});
 	context.subscriptions.push(authorityResolverDisposable);

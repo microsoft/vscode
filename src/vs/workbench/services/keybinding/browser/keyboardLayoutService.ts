@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { KeymapInfo, IRawMixedKeyboardMapping, IKeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
@@ -90,7 +90,7 @@ export class BrowserKeyboardMapperFactoryBase {
 						return;
 					}
 
-					this.onKeyboardLayoutChanged();
+					this.setLayoutFromBrowserAPI();
 				});
 			});
 		}
@@ -252,7 +252,7 @@ export class BrowserKeyboardMapperFactoryBase {
 		this._setKeyboardData(this._activeKeymapInfo);
 	}
 
-	public onKeyboardLayoutChanged(): void {
+	public setLayoutFromBrowserAPI(): void {
 		this._updateKeyboardLayoutAsync(this._initialized);
 	}
 
@@ -355,7 +355,7 @@ export class BrowserKeyboardMapperFactoryBase {
 							return;
 						}
 
-						this.onKeyboardLayoutChanged();
+						this.setLayoutFromBrowserAPI();
 					});
 				}, 350);
 			}
@@ -447,7 +447,7 @@ export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBa
 			this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
 			this._mru = this._keymapInfos;
 			this._initialized = true;
-			this.onKeyboardLayoutChanged();
+			this.setLayoutFromBrowserAPI();
 		});
 	}
 }
@@ -511,7 +511,6 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 
 	private _userKeyboardLayout: UserKeyboardLayout;
 
-	private readonly layoutChangeListener = this._register(new MutableDisposable());
 	private readonly _factory: BrowserKeyboardMapperFactory;
 	private _keyboardLayoutMode: string;
 
@@ -529,7 +528,9 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 		this._keyboardLayoutMode = layout ?? 'autodetect';
 		this._factory = new BrowserKeyboardMapperFactory(notificationService, storageService, commandService);
 
-		this.registerKeyboardListener();
+		this._register(this._factory.onDidChangeKeyboardMapper(() => {
+			this._onDidChangeKeyboardLayout.fire();
+		}));
 
 		if (layout && layout !== 'autodetect') {
 			// set keyboard layout
@@ -543,11 +544,9 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 				this._keyboardLayoutMode = layout;
 
 				if (layout === 'autodetect') {
-					this.registerKeyboardListener();
-					this._factory.onKeyboardLayoutChanged();
+					this._factory.setLayoutFromBrowserAPI();
 				} else {
 					this._factory.setKeyboardLayout(layout);
-					this.layoutChangeListener.clear();
 				}
 			}
 		}));
@@ -592,12 +591,6 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 				}
 			}
 		}
-	}
-
-	registerKeyboardListener() {
-		this.layoutChangeListener.value = this._factory.onDidChangeKeyboardMapper(() => {
-			this._onDidChangeKeyboardLayout.fire();
-		});
 	}
 
 	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {
