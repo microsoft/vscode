@@ -399,7 +399,7 @@ export class InteractiveEditor extends EditorPane {
 
 		const viewState = options?.viewState ?? this._loadNotebookEditorViewState(input);
 		await this.#notebookWidget.value!.setModel(model.notebook, viewState?.notebook);
-		model.notebook.setCellCollapseDefault(this.#notebookOptions.getCellDefaultCollapseConfig());
+		model.notebook.setCellCollapseDefault(this.#notebookOptions.getCellCollapseDefault());
 		this.#notebookWidget.value!.setOptions({
 			isReadOnly: true
 		});
@@ -416,6 +416,10 @@ export class InteractiveEditor extends EditorPane {
 
 			if (this.#dimension && this.isVisible()) {
 				this.layout(this.#dimension);
+			}
+
+			if (e.interactiveWindowCollapseCodeCells) {
+				model.notebook.setCellCollapseDefault(this.#notebookOptions.getCellCollapseDefault());
 			}
 		}));
 
