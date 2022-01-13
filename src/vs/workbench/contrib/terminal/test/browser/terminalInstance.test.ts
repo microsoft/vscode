@@ -22,7 +22,7 @@ import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/ca
 function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
 	const capabilities = new TerminalCapabilityStore();
 	if (!isWindows) {
-		capabilities.addCapability(TerminalCapability.NaiveCwdDetection);
+		capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
 	}
 	return {
 		shellLaunchConfig: {},
@@ -169,7 +169,7 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
 			capabilities = new TerminalCapabilityStore();
 			if (!isWindows) {
-				capabilities.addCapability(TerminalCapability.NaiveCwdDetection);
+				capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
 			}
 
 			const ROOT_1_URI = getUri(ROOT_1);

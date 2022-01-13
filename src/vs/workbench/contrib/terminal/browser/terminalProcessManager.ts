@@ -29,6 +29,7 @@ import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem, OS } from
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/naiveCwdDetectionCapability';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -102,11 +103,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly onEnvironmentVariableInfoChanged = this._onEnvironmentVariableInfoChange.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	readonly onProcessExit = this._onProcessExit.event;
-
-	private readonly _onCapabilityDisabled = new Emitter<TerminalCapability>();
-	readonly onCapabilityDisabled = this._onCapabilityDisabled.event;
-	private readonly _onCapabilityEnabled = new Emitter<TerminalCapability>();
-	readonly onCapabilityEnabled = this._onCapabilityEnabled.event;
 
 	get persistentProcessId(): number | undefined { return this._process?.id; }
 	get shouldPersist(): boolean { return this._process ? this._process.shouldPersist : false; }
@@ -296,7 +292,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		// Add any capabilities inherit to the backend
 		if (this.os === OperatingSystem.Linux || this.os === OperatingSystem.Macintosh) {
-			this.capabilities.addCapability(TerminalCapability.NaiveCwdDetection);
+			this.capabilities.add(TerminalCapability.NaiveCwdDetection, new NaiveCwdDetectionCapability());
 		}
 
 		this._dataFilter.newProcess(this._process, reset);

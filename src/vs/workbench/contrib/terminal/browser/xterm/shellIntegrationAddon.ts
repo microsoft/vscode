@@ -9,6 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/commandDetectionCapability';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -104,7 +105,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				type = ShellIntegrationInteraction.CommandFinished;
 				break;
 			case ShellIntegrationOscPt.EnableShellIntegration:
-				this.capabilities.addCapability(TerminalCapability.CommandDetection);
+				this.capabilities.add(TerminalCapability.CommandDetection, new CommandDetectionCapability());
 				return true;
 			default:
 				return false;
