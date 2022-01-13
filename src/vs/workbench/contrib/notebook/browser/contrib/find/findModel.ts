@@ -308,7 +308,16 @@ export class FindModel extends Disposable {
 		const val = this._state.searchString;
 		const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
 
-		const options: INotebookSearchOptions = { regex: this._state.isRegex, wholeWord: this._state.wholeWord, caseSensitive: this._state.matchCase, wordSeparators: wordSeparators, includePreview: !!this._state.filters?.markupPreview, includeOutput: !!this._state.filters?.codeOutput };
+		const options: INotebookSearchOptions = {
+			regex: this._state.isRegex,
+			wholeWord: this._state.wholeWord,
+			caseSensitive: this._state.matchCase,
+			wordSeparators: wordSeparators,
+			includeMarkupInput: this._state.filters?.markupInput ?? true,
+			includeCodeInput: this._state.filters?.codeInput ?? true,
+			includeMarkupPreview: !!this._state.filters?.markupPreview,
+			includeOutput: !!this._state.filters?.codeOutput
+		};
 		if (!val) {
 			ret = null;
 		} else if (!this._notebookEditor.hasModel()) {
