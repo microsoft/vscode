@@ -24,21 +24,40 @@ interface CompletionContext {
 	/**
 	 * Text of the link before the current position
 	 *
-	 * For `[abc](xy#z|abc)` this would be `xy#z`
+	 * For `[text](xy#z|abc)` this is `xy#z`.
 	 */
 	readonly linkPrefix: string;
 
-	/** Text of the link before the current position */
+	/**
+	 * Position of the start of the link.
+	 *
+	 * For `[text](xy#z|abc)` this is the position before `xy`.
+	 */
 	readonly linkTextStartPosition: vscode.Position;
+
+	/**
+	 * Text of the link after the current position.
+	 *
+	 * For `[text](xy#z|abc)` this is `abc`.
+	 */
+	readonly linkSuffix: string;
 
 	/**
 	 * Info if the link looks like it is for an anchor: `[](#header)`
 	 */
 	readonly anchorInfo?: {
-		/** Text before the `#` */
+		/**
+		 * Link text before the `#`.
+		 *
+		 * For `[text](xy#z|abc)` this is `xy`.
+		 */
 		readonly beforeAnchor: string;
 
-		/** Text of the anchor before the current position. */
+		/**
+		 * Text of the anchor before the current position.
+		 *
+		 * For `[text](xy#z|abc)` this is `z`.
+		 */
 		readonly anchorPrefix: string;
 	}
 }
@@ -63,44 +82,48 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 			return [];
 		}
 
-		if (context.kind === CompletionContextKind.ReferenceLink) {
-			const completionRange = new vscode.Range(context.linkTextStartPosition, position);
-			return this.provideReferenceSuggestions(document, completionRange);
-		}
+		switch (context.kind) {
+			case CompletionContextKind.ReferenceLink: {
+				const insertRange = new vscode.Range(context.linkTextStartPosition, position);
+				return this.provideReferenceSuggestions(document, position, context, insertRange);
+			}
 
-		if (context.kind === CompletionContextKind.LinkDefinition) {
-			return [];
-		}
+			case CompletionContextKind.LinkDefinition: {
+				return [];
+			}
 
-		const items: vscode.CompletionItem[] = [];
+			case CompletionContextKind.Link: {
+				const items: vscode.CompletionItem[] = [];
 
-		const isAnchorInCurrentDoc = context.anchorInfo && context.anchorInfo.beforeAnchor.length === 0;
+				const isAnchorInCurrentDoc = context.anchorInfo && context.anchorInfo.beforeAnchor.length === 0;
 
-		// Add anchor #links in current doc
-		if (context.linkPrefix.length === 0 || isAnchorInCurrentDoc) {
-			const completionRange = new vscode.Range(context.linkTextStartPosition, position);
-			items.push(...(await this.provideHeaderSuggestions(document, completionRange)));
-		}
+				// Add anchor #links in current doc
+				if (context.linkPrefix.length === 0 || isAnchorInCurrentDoc) {
+					const insertRange = new vscode.Range(context.linkTextStartPosition, position);
+					items.push(...(await this.provideHeaderSuggestions(document, position, context, insertRange)));
+				}
 
-		if (!isAnchorInCurrentDoc) {
-			if (context.anchorInfo) { // Anchor to a different document
-				const rawUri = this.resolveReference(document, context.anchorInfo.beforeAnchor);
-				if (rawUri) {
-					const otherDoc = await resolveUriToMarkdownFile(rawUri);
-					if (otherDoc) {
-						const anchorStartPosition = position.translate({ characterDelta: -(context.anchorInfo.anchorPrefix.length + 1) });
-						const range = new vscode.Range(anchorStartPosition, position);
+				if (!isAnchorInCurrentDoc) {
+					if (context.anchorInfo) { // Anchor to a different document
+						const rawUri = this.resolveReference(document, context.anchorInfo.beforeAnchor);
+						if (rawUri) {
+							const otherDoc = await resolveUriToMarkdownFile(rawUri);
+							if (otherDoc) {
+								const anchorStartPosition = position.translate({ characterDelta: -(context.anchorInfo.anchorPrefix.length + 1) });
+								const range = new vscode.Range(anchorStartPosition, position);
 
-						items.push(...(await this.provideHeaderSuggestions(otherDoc, range)));
+								items.push(...(await this.provideHeaderSuggestions(otherDoc, position, context, range)));
+							}
+						}
+					} else { // Normal path suggestions
+						const pathSuggestions = await this.providePathSuggestions(document, position, context);
+						items.push(...pathSuggestions);
 					}
 				}
-			} else { // Normal path suggestions
-				const pathSuggestions = await this.providePathSuggestions(document, position, context);
-				items.push(...pathSuggestions);
+
+				return items;
 			}
 		}
-
-		return items;
 	}
 
 	private arePathSuggestionEnabled(document: vscode.TextDocument): boolean {
@@ -115,10 +138,12 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 	private readonly referenceLinkStartPattern = /\[([^\]]*?)\]\[\s*([^\s\(\)]*)$/;
 
 	private getPathCompletionContext(document: vscode.TextDocument, position: vscode.Position): CompletionContext | undefined {
-		const prefixRange = new vscode.Range(position.with({ character: 0 }), position);
-		const linePrefix = document.getText(prefixRange);
+		const line = document.lineAt(position.line).text;
 
-		const linkPrefixMatch = linePrefix.match(this.linkStartPattern);
+		const linePrefixText = line.slice(0, position.character);
+		const lineSuffixText = line.slice(position.character);
+
+		const linkPrefixMatch = linePrefixText.match(this.linkStartPattern);
 		if (linkPrefixMatch) {
 			const prefix = linkPrefixMatch[2];
 			if (/^\s*[\w\d\-]+:/.test(prefix)) { // Check if this looks like a 'http:' style uri
@@ -127,10 +152,15 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 
 			const anchorMatch = prefix.match(/^(.*)#([\w\d\-]*)$/);
 
+			const suffix = lineSuffixText.match(/^[^\)\s]*/);
+
 			return {
 				kind: CompletionContextKind.Link,
 				linkPrefix: prefix,
 				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
+
+				linkSuffix: suffix ? suffix[0] : '',
+
 				anchorInfo: anchorMatch ? {
 					beforeAnchor: anchorMatch[1],
 					anchorPrefix: anchorMatch[2],
@@ -138,44 +168,56 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 			};
 		}
 
-		const referenceLinkPrefixMatch = linePrefix.match(this.referenceLinkStartPattern);
+		const referenceLinkPrefixMatch = linePrefixText.match(this.referenceLinkStartPattern);
 		if (referenceLinkPrefixMatch) {
 			const prefix = referenceLinkPrefixMatch[2];
+			const suffix = lineSuffixText.match(/^[^\]\s]*/);
 			return {
 				kind: CompletionContextKind.ReferenceLink,
 				linkPrefix: prefix,
 				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
+
+				linkSuffix: suffix ? suffix[0] : '',
 			};
 		}
 
 		return undefined;
 	}
 
-	private provideReferenceSuggestions(document: vscode.TextDocument, completionRange: vscode.Range): vscode.CompletionItem[] {
+	private provideReferenceSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext, insertionRange: vscode.Range): vscode.CompletionItem[] {
 		const items: vscode.CompletionItem[] = [];
+
+		const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
 
 		const definitions = LinkProvider.getDefinitions(document.getText(), document);
 		for (const def of definitions) {
 			items.push({
 				kind: vscode.CompletionItemKind.Reference,
 				label: def[0],
-				range: completionRange,
+				range: {
+					inserting: insertionRange,
+					replacing: replacementRange,
+				},
 			});
 		}
 
 		return items;
 	}
 
-	private async provideHeaderSuggestions(document: vscode.TextDocument, completionRange: vscode.Range): Promise<vscode.CompletionItem[]> {
+	private async provideHeaderSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext, insertionRange: vscode.Range): Promise<vscode.CompletionItem[]> {
 		const items: vscode.CompletionItem[] = [];
 
 		const tocProvider = new TableOfContentsProvider(this.engine, document);
 		const toc = await tocProvider.getToc();
 		for (const entry of toc) {
+			const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
 			items.push({
 				kind: vscode.CompletionItemKind.Reference,
 				label: '#' + entry.slug.value,
-				range: completionRange,
+				range: {
+					inserting: insertionRange,
+					replacing: replacementRange,
+				},
 			});
 		}
 
@@ -185,12 +227,16 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 	private async providePathSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext): Promise<vscode.CompletionItem[]> {
 		const valueBeforeLastSlash = context.linkPrefix.substring(0, context.linkPrefix.lastIndexOf('/') + 1); // keep the last slash
 
-		const pathSegmentStart = position.translate({ characterDelta: valueBeforeLastSlash.length - context.linkPrefix.length });
-
 		const parentDir = this.resolveReference(document, valueBeforeLastSlash || '.');
 		if (!parentDir) {
 			return [];
 		}
+
+		const pathSegmentStart = position.translate({ characterDelta: valueBeforeLastSlash.length - context.linkPrefix.length });
+		const insertRange = new vscode.Range(pathSegmentStart, position);
+
+		const pathSegmentEnd = position.translate({ characterDelta: context.linkSuffix.length });
+		const replacementRange = new vscode.Range(pathSegmentStart, pathSegmentEnd);
 
 		try {
 			const result: vscode.CompletionItem[] = [];
@@ -205,7 +251,10 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 				result.push({
 					label: isDir ? name + '/' : name,
 					kind: isDir ? vscode.CompletionItemKind.Folder : vscode.CompletionItemKind.File,
-					range: new vscode.Range(pathSegmentStart, position),
+					range: {
+						inserting: insertRange,
+						replacing: replacementRange,
+					},
 					command: isDir ? { command: 'editor.action.triggerSuggest', title: '' } : undefined,
 				});
 			}
@@ -213,9 +262,8 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 			return result;
 		} catch (e) {
 			// ignore
+			return [];
 		}
-
-		return [];
 	}
 
 	private resolveReference(document: vscode.TextDocument, ref: string): vscode.Uri | undefined {
