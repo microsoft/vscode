@@ -491,11 +491,15 @@ if (isWindows || isLinux || isWeb) {
 				category: CATEGORIES.View,
 				f1: true,
 				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact')),
-				menu: {
+				menu: [{
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
 					order: 0
-				}
+				}, {
+						id: MenuId.LayoutControlMenu,
+						group: '0_workbench_layout',
+						order: -1
+					}]
 			});
 		}
 
