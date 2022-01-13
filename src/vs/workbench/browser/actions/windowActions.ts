@@ -383,7 +383,7 @@ class NewWindowAction extends Action2 {
 			menu: {
 				id: MenuId.MenubarFileMenu,
 				group: '1_new',
-				order: 2
+				order: 3
 			}
 		});
 	}
