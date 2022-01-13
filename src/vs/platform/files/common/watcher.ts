@@ -33,7 +33,7 @@ export interface IRecursiveWatchRequest extends IWatchRequest {
 	pollingInterval?: number;
 }
 
-export interface IRecursiveWatcher extends IDisposable {
+export interface IWatcher {
 
 	/**
 	 * A normalized file change event from the raw events
@@ -59,7 +59,7 @@ export interface IRecursiveWatcher extends IDisposable {
 	 * in the array, will be removed from watching and
 	 * any new path will be added to watching.
 	 */
-	watch(requests: IRecursiveWatchRequest[]): Promise<void>;
+	watch(requests: IWatchRequest[]): Promise<void>;
 
 	/**
 	 * Enable verbose logging in the watcher.
@@ -72,7 +72,15 @@ export interface IRecursiveWatcher extends IDisposable {
 	stop(): Promise<void>;
 }
 
-export interface INonRecursiveWatcher extends IDisposable {
+export interface IRecursiveWatcher extends IWatcher {
+	watch(requests: IRecursiveWatchRequest[]): Promise<void>;
+}
+
+export interface INonRecursiveWatcher extends IWatcher {
+	watch(requests: INonRecursiveWatchRequest[]): Promise<void>;
+}
+
+export interface INonRecursiveWatcherLibrary extends IDisposable {
 
 	/**
 	 * A promise that indicates when the watcher is ready.
