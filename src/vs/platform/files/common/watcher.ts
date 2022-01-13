@@ -142,7 +142,10 @@ export abstract class AbstractWatcherClient extends Disposable {
 		private readonly onFileChanges: (changes: IDiskFileChange[]) => void,
 		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
-		private type: string
+		private options: {
+			type: string,
+			restartOnError: boolean
+		}
 	) {
 		super();
 	}
@@ -160,22 +163,26 @@ export abstract class AbstractWatcherClient extends Disposable {
 		this.watcher.setVerboseLogging(this.verboseLogging);
 
 		// Wire in event handlers
-		disposables.add(this.watcher.onDidChangeFile(e => this.onFileChanges(e)));
-		disposables.add(this.watcher.onDidLogMessage(e => this.onLogMessage(e)));
-		disposables.add(this.watcher.onDidError(e => this.onError(e)));
+		disposables.add(this.watcher.onDidChangeFile(changes => this.onFileChanges(changes)));
+		disposables.add(this.watcher.onDidLogMessage(msg => this.onLogMessage(msg)));
+		disposables.add(this.watcher.onDidError(error => this.onError(error)));
 	}
 
 	protected onError(error: string): void {
 
-		// Restart up to N times
-		if (this.restartCounter < AbstractWatcherClient.MAX_RESTARTS && this.requests) {
-			this.error(`restarting watcher after error: ${error}`);
-			this.restart(this.requests);
+		// Restart on error (up to N times, if enabled)
+		if (this.options.restartOnError) {
+			if (this.restartCounter < AbstractWatcherClient.MAX_RESTARTS && this.requests) {
+				this.error(`restarting watcher after error: ${error}`);
+				this.restart(this.requests);
+			} else {
+				this.error(`gave up attempting to restart watcher after error: ${error}`);
+			}
 		}
 
-		// Otherwise log that we have given up to restart
+		// Do not attempt to restart if not enabled
 		else {
-			this.error(`gave up attempting to restart watcher after error: ${error}`);
+			this.error(error);
 		}
 	}
 
@@ -199,7 +206,7 @@ export abstract class AbstractWatcherClient extends Disposable {
 	}
 
 	private error(message: string) {
-		this.onLogMessage({ type: 'error', message: `[File Watcher (${this.type})] ${message}` });
+		this.onLogMessage({ type: 'error', message: `[File Watcher (${this.options.type})] ${message}` });
 	}
 
 	override dispose(): void {
@@ -218,7 +225,7 @@ export abstract class AbstractNonRecursiveWatcherClient extends AbstractWatcherC
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	) {
-		super(onFileChanges, onLogMessage, verboseLogging, 'node.js');
+		super(onFileChanges, onLogMessage, verboseLogging, { type: 'node.js', restartOnError: false });
 	}
 
 	protected abstract override createWatcher(disposables: DisposableStore): INonRecursiveWatcher;
@@ -231,7 +238,7 @@ export abstract class AbstractUniversalWatcherClient extends AbstractWatcherClie
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	) {
-		super(onFileChanges, onLogMessage, verboseLogging, 'universal');
+		super(onFileChanges, onLogMessage, verboseLogging, { type: 'universal', restartOnError: true });
 	}
 
 	protected abstract override createWatcher(disposables: DisposableStore): IUniversalWatcher;
