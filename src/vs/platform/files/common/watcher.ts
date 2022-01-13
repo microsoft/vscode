@@ -53,7 +53,7 @@ export function isRecursiveWatchRequest(request: IWatchRequest): request is IRec
 	return request.recursive === true;
 }
 
-export type IUniversalWatcheRequest = IRecursiveWatchRequest | INonRecursiveWatchRequest;
+export type IUniversalWatchRequest = IRecursiveWatchRequest | INonRecursiveWatchRequest;
 
 interface IWatcher {
 
@@ -124,7 +124,7 @@ export interface INonRecursiveWatcher extends IWatcher {
 }
 
 export interface IUniversalWatcher extends IWatcher {
-	watch(requests: IUniversalWatcheRequest[]): Promise<void>;
+	watch(requests: IUniversalWatchRequest[]): Promise<void>;
 }
 
 export abstract class AbstractWatcherClient extends Disposable {
@@ -179,14 +179,14 @@ export abstract class AbstractWatcherClient extends Disposable {
 		}
 	}
 
-	private restart(requests: IUniversalWatcheRequest[]): void {
+	private restart(requests: IUniversalWatchRequest[]): void {
 		this.restartCounter++;
 
 		this.init();
 		this.watch(requests);
 	}
 
-	async watch(requests: IUniversalWatcheRequest[]): Promise<void> {
+	async watch(requests: IUniversalWatchRequest[]): Promise<void> {
 		this.requests = requests;
 
 		await this.watcher?.watch(requests);

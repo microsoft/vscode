@@ -130,6 +130,6 @@ export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
 	}
 
 	private toMessage(message: string, watcher?: INodeJSWatcherInstance): string {
-		return watcher ? `[File Watcher (node.js)] ${message} (path: ${watcher.request.path})` : `[File Watcher (parcel)] ${message}`;
+		return watcher ? `[File Watcher (node.js)] ${message} (path: ${watcher.request.path})` : `[File Watcher (node.js)] ${message}`;
 	}
 }

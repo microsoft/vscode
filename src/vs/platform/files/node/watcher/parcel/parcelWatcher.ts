@@ -620,6 +620,8 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 	private async stopWatching(path: string): Promise<void> {
 		const watcher = this.watchers.get(path);
 		if (watcher) {
+			this.trace(`stopping file watcher on ${watcher.request.path}`);
+
 			this.watchers.delete(path);
 
 			try {

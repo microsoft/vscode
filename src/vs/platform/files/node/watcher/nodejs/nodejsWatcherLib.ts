@@ -137,6 +137,8 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				watcher.close();
 			}));
 
+			this.trace(`Started watching: '${path}'`);
+
 			// Folder: resolve children to emit proper events
 			const folderChildren = new Set<string>();
 			if (isDirectory) {
@@ -453,7 +455,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	}
 
 	override dispose(): void {
-		this.trace('stopping file watcher');
+		this.trace(`stopping file watcher on ${this.request.path}`);
 
 		this.cts.dispose(true);
 

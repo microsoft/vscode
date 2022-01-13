@@ -11,7 +11,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { normalize } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IFileChange, IWatchOptions } from 'vs/platform/files/common/files';
-import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, INonRecursiveWatchRequest, IRecursiveWatcherOptions, isRecursiveWatchRequest, IUniversalWatcheRequest, toFileChanges } from 'vs/platform/files/common/watcher';
+import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, INonRecursiveWatchRequest, IRecursiveWatcherOptions, isRecursiveWatchRequest, IUniversalWatchRequest, toFileChanges } from 'vs/platform/files/common/watcher';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 export interface IDiskFileSystemProviderOptions {
@@ -48,13 +48,13 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 
 	private universalWatcher: AbstractUniversalWatcherClient | undefined;
 
-	private readonly universalPathsToWatch: IUniversalWatcheRequest[] = [];
+	private readonly universalPathsToWatch: IUniversalWatchRequest[] = [];
 	private readonly universalWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
 
 	private watchUniversal(resource: URI, opts: IWatchOptions): IDisposable {
 
 		// Add to list of paths to watch universally
-		const pathToWatch: IUniversalWatcheRequest = { path: this.toFilePath(resource), excludes: opts.excludes, recursive: opts.recursive };
+		const pathToWatch: IUniversalWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, recursive: opts.recursive };
 		const remove = insert(this.universalPathsToWatch, pathToWatch);
 
 		// Trigger update
