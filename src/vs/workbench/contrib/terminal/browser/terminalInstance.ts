@@ -1283,7 +1283,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		});
 		if (enableShellIntegration && this.xterm?.shellIntegration) {
-			console.log('adding to capabilities');
 			this.capabilities.add(this.xterm?.shellIntegration.capabilities);
 		}
 		if (!hadIcon && this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {

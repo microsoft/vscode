@@ -21,7 +21,6 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 	}
 
 	add<T extends TerminalCapability>(capability: T, impl: ITerminalCapabilityImplMap[T]) {
-		console.log('setting', capability);
 		this._map.set(capability, impl);
 		this._onDidAddCapability.fire(capability);
 	}
@@ -40,7 +39,6 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 	}
 
 	has(capability: TerminalCapability) {
-		console.log('has', this._map.has(capability));
 		return this._map.has(capability);
 	}
 }
@@ -66,8 +64,6 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 	}
 
 	has(capability: TerminalCapability): boolean {
-		console.log('looking for ', capability);
-		console.log('in stores, ', this._stores.map(s => s.items));
 		for (const store of this._stores) {
 			for (const c of store.items) {
 				if (c === capability) {
@@ -80,7 +76,6 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 
 	get<T extends TerminalCapability>(capability: T): ITerminalCapabilityImplMap[T] | undefined {
 		for (const store of this._stores) {
-			console.log('store', store);
 			const c = store.get(capability);
 			if (c) {
 				return c;
@@ -95,7 +90,6 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 			this._onDidAddCapability.fire(capability);
 		}
 		store.onDidAddCapability(e => {
-			console.log('store added capability', e);
 			this._onDidAddCapability.fire(e);
 		});
 		store.onDidRemoveCapability(e => this._onDidRemoveCapability.fire(e));

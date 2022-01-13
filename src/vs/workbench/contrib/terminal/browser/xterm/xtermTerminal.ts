@@ -176,7 +176,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this._commandTrackerAddon.dispose();
 		this._commandTrackerAddon = this._instantiationService.createInstance(CognisantCommandTrackerAddon);
 		this._commandTrackerAddon.activate(this.raw);
-		console.log('upgraded command tracker');
 	}
 
 	attachToElement(container: HTMLElement) {
