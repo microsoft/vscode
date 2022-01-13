@@ -1014,6 +1014,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return new Dimension(availableWidth, availableHeight);
 	}
 
+	isInZenMode(): boolean {
+		return this.stateModel.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE);
+	}
+
 	toggleZenMode(skipLayout?: boolean, restoring = false): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE, !this.stateModel.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE));
 		this.windowState.runtime.zenMode.transitionDisposables.clear();
@@ -1144,13 +1148,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Event
 		this._onDidChangeZenMode.fire(this.stateModel.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE));
-	}
-
-	toggleZenModeOff(skipLayout?: boolean, restoring = false): void {
-		// Zen Mode Active
-		if (this.stateModel.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE)) {
-			return this.toggleZenMode(skipLayout, restoring);
-		}
 	}
 
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {

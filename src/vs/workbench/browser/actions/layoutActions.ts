@@ -463,7 +463,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.EditorContrib - 1000,
 	handler(accessor: ServicesAccessor) {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
-		layoutService.toggleZenModeOff();
+		if (layoutService.isInZenMode()) {
+			layoutService.toggleZenMode();
+		}
 	},
 	when: InEditorZenModeContext,
 	primary: KeyChord(KeyCode.Escape, KeyCode.Escape)

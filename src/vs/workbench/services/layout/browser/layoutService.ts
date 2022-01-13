@@ -217,14 +217,14 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	getMaximumEditorDimensions(): Dimension;
 
 	/**
+	 * Returns whether the workbench is in zen mode.
+	 */
+	isInZenMode(): boolean;
+
+	/**
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
 	 */
 	toggleZenMode(): void;
-
-	/**
-	 * Toggles the workbench out of zen mode if it is in zen mode.
-	 */
-	toggleZenModeOff(): void;
 
 	/**
 	 * Returns whether the centered editor layout is active.
