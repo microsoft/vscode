@@ -31,6 +31,7 @@ export const enum MarshalledId {
 	TimelineActionContext,
 	NotebookCellActionContext,
 	TestItemContext,
+	Date,
 }
 
 export interface MarshalledObject {
@@ -68,6 +69,7 @@ export function revive<T = any>(obj: any, depth = 0): Revived<T> {
 		switch ((<MarshalledObject>obj).$mid) {
 			case MarshalledId.Uri: return <any>URI.revive(obj);
 			case MarshalledId.Regexp: return <any>new RegExp(obj.source, obj.flags);
+			case MarshalledId.Date: return <any>new Date(obj.source);
 		}
 
 		if (
