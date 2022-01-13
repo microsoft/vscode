@@ -84,8 +84,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 
 		switch (context.kind) {
 			case CompletionContextKind.ReferenceLink: {
-				const insertRange = new vscode.Range(context.linkTextStartPosition, position);
-				return this.provideReferenceSuggestions(document, position, context, insertRange);
+				return Array.from(this.provideReferenceSuggestions(document, position, context));
 			}
 
 			case CompletionContextKind.LinkDefinition: {
@@ -100,7 +99,9 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 				// Add anchor #links in current doc
 				if (context.linkPrefix.length === 0 || isAnchorInCurrentDoc) {
 					const insertRange = new vscode.Range(context.linkTextStartPosition, position);
-					items.push(...(await this.provideHeaderSuggestions(document, position, context, insertRange)));
+					for await (const item of this.provideHeaderSuggestions(document, position, context, insertRange)) {
+						items.push(item);
+					}
 				}
 
 				if (!isAnchorInCurrentDoc) {
@@ -111,13 +112,15 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 							if (otherDoc) {
 								const anchorStartPosition = position.translate({ characterDelta: -(context.anchorInfo.anchorPrefix.length + 1) });
 								const range = new vscode.Range(anchorStartPosition, position);
-
-								items.push(...(await this.provideHeaderSuggestions(otherDoc, position, context, range)));
+								for await (const item of this.provideHeaderSuggestions(otherDoc, position, context, range)) {
+									items.push(item);
+								}
 							}
 						}
 					} else { // Normal path suggestions
-						const pathSuggestions = await this.providePathSuggestions(document, position, context);
-						items.push(...pathSuggestions);
+						for await (const item of this.providePathSuggestions(document, position, context)) {
+							items.push(item);
+						}
 					}
 				}
 
@@ -184,52 +187,45 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 		return undefined;
 	}
 
-	private provideReferenceSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext, insertionRange: vscode.Range): vscode.CompletionItem[] {
-		const items: vscode.CompletionItem[] = [];
-
+	private *provideReferenceSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext): Iterable<vscode.CompletionItem> {
+		const insertionRange = new vscode.Range(context.linkTextStartPosition, position);
 		const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
 
 		const definitions = LinkProvider.getDefinitions(document.getText(), document);
 		for (const def of definitions) {
-			items.push({
+			yield {
 				kind: vscode.CompletionItemKind.Reference,
 				label: def[0],
 				range: {
 					inserting: insertionRange,
 					replacing: replacementRange,
 				},
-			});
+			};
 		}
-
-		return items;
 	}
 
-	private async provideHeaderSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext, insertionRange: vscode.Range): Promise<vscode.CompletionItem[]> {
-		const items: vscode.CompletionItem[] = [];
-
+	private async *provideHeaderSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext, insertionRange: vscode.Range): AsyncIterable<vscode.CompletionItem> {
 		const tocProvider = new TableOfContentsProvider(this.engine, document);
 		const toc = await tocProvider.getToc();
 		for (const entry of toc) {
 			const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
-			items.push({
+			yield {
 				kind: vscode.CompletionItemKind.Reference,
 				label: '#' + entry.slug.value,
 				range: {
 					inserting: insertionRange,
 					replacing: replacementRange,
 				},
-			});
+			};
 		}
-
-		return items;
 	}
 
-	private async providePathSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext): Promise<vscode.CompletionItem[]> {
+	private async *providePathSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext): AsyncIterable<vscode.CompletionItem> {
 		const valueBeforeLastSlash = context.linkPrefix.substring(0, context.linkPrefix.lastIndexOf('/') + 1); // keep the last slash
 
 		const parentDir = this.resolveReference(document, valueBeforeLastSlash || '.');
 		if (!parentDir) {
-			return [];
+			return;
 		}
 
 		const pathSegmentStart = position.translate({ characterDelta: valueBeforeLastSlash.length - context.linkPrefix.length });
@@ -238,31 +234,29 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 		const pathSegmentEnd = position.translate({ characterDelta: context.linkSuffix.length });
 		const replacementRange = new vscode.Range(pathSegmentStart, pathSegmentEnd);
 
+		let dirInfo: Array<[string, vscode.FileType]>;
 		try {
-			const result: vscode.CompletionItem[] = [];
-			const infos = await vscode.workspace.fs.readDirectory(parentDir);
-			for (const [name, type] of infos) {
-				// Exclude paths that start with `.`
-				if (name.startsWith('.')) {
-					continue;
-				}
+			dirInfo = await vscode.workspace.fs.readDirectory(parentDir);
+		} catch {
+			return;
+		}
 
-				const isDir = type === vscode.FileType.Directory;
-				result.push({
-					label: isDir ? name + '/' : name,
-					kind: isDir ? vscode.CompletionItemKind.Folder : vscode.CompletionItemKind.File,
-					range: {
-						inserting: insertRange,
-						replacing: replacementRange,
-					},
-					command: isDir ? { command: 'editor.action.triggerSuggest', title: '' } : undefined,
-				});
+		for (const [name, type] of dirInfo) {
+			// Exclude paths that start with `.`
+			if (name.startsWith('.')) {
+				continue;
 			}
 
-			return result;
-		} catch (e) {
-			// ignore
-			return [];
+			const isDir = type === vscode.FileType.Directory;
+			yield {
+				label: isDir ? name + '/' : name,
+				kind: isDir ? vscode.CompletionItemKind.Folder : vscode.CompletionItemKind.File,
+				range: {
+					inserting: insertRange,
+					replacing: replacementRange,
+				},
+				command: isDir ? { command: 'editor.action.triggerSuggest', title: '' } : undefined,
+			};
 		}
 	}
 
