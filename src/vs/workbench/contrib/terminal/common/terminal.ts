@@ -402,17 +402,33 @@ export interface ITerminalProcessManager extends IDisposable {
 	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): void;
 }
 
+// TODO: Move to capabilities/
 export interface ITerminalCapabilityStore {
-	readonly items: readonly TerminalCapability[];
+	readonly items: IterableIterator<TerminalCapability>;
 	readonly onDidRemoveCapability: Event<TerminalCapability>;
 	readonly onDidAddCapability: Event<TerminalCapability>;
 	has(capability: TerminalCapability): boolean;
+	get<T extends TerminalCapability>(capability: T): ITerminalCapabilityImplMap[T] | undefined;
+}
+export interface ITerminalCapabilityImplMap {
+	[TerminalCapability.CwdDetection]: ICwdDetectionCapability;
+	[TerminalCapability.CommandDetection]: ICommandDetectionCapability;
+	[TerminalCapability.NaiveCwdDetection]: INaiveCwdDetectionCapability;
+	[TerminalCapability.PartialCommandDetection]: IPartialCommandDetectionCapability;
+}
+export interface ICwdDetectionCapability {
+	readonly type: TerminalCapability.CwdDetection;
+}
+export interface ICommandDetectionCapability {
+	readonly type: TerminalCapability.CommandDetection;
+}
+export interface INaiveCwdDetectionCapability {
+	readonly type: TerminalCapability.NaiveCwdDetection;
+}
+export interface IPartialCommandDetectionCapability {
+	readonly type: TerminalCapability.PartialCommandDetection;
 }
 
-export interface ITerminalCapabilityStoreController {
-	addCapability(capability: TerminalCapability): void;
-	removeCapability(capability: TerminalCapability): void;
-}
 
 export const enum ProcessState {
 	// The process has not been initialized yet.

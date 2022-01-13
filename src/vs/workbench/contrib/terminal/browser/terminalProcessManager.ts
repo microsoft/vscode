@@ -29,6 +29,7 @@ import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem, OS } from
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/naiveCwdDetectionCapability';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -296,7 +297,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		// Add any capabilities inherit to the backend
 		if (this.os === OperatingSystem.Linux || this.os === OperatingSystem.Macintosh) {
-			this.capabilities.addCapability(TerminalCapability.NaiveCwdDetection);
+			this.capabilities.add(TerminalCapability.NaiveCwdDetection, new NaiveCwdDetectionCapability());
 		}
 
 		this._dataFilter.newProcess(this._process, reset);
