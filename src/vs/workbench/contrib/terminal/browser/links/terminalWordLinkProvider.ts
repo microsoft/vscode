@@ -156,6 +156,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			}
 		});
 
+		//TODO: check capability
 		if (this._xtermTerminal.commandTracker instanceof CognisantCommandTrackerAddon) {
 			link = this._updateLinkWithRelativeCwd(y, link, pathSeparator);
 		}
@@ -189,21 +190,21 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		if (cwd && !link.includes(pathSeparator)) {
 			link = cwd + pathSeparator + link;
 		} else {
-			let newLink = '';
+			let strippedLink = '';
+			let commonParts = 0;
 			let i = 0;
-			const fileParts = cwd.split(pathSeparator);
-			const linkParts = link.split(pathSeparator);
-			for (const part of linkParts) {
-				if (!fileParts.includes(part)) {
-					if (i !== linkParts.length - 1) {
-						newLink += part + pathSeparator;
-					} else {
-						newLink += part;
-					}
+			const cwdPath = cwd.split(pathSeparator).reverse();
+			const linkPath = link.split(pathSeparator);
+			while (i < cwdPath.length) {
+				if (cwdPath[i] === linkPath[i]) {
+					commonParts++;
 				}
 				i++;
-				link = cwd + pathSeparator + newLink;
 			}
+			for (let j = commonParts; j < linkPath.length; j++) {
+				strippedLink += linkPath[j] + ((j !== linkPath.length - 1) ? pathSeparator : '');
+			}
+			link = cwd + pathSeparator + strippedLink;
 		}
 		return link;
 	}
