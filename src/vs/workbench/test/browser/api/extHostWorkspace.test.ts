@@ -631,7 +631,7 @@ suite('ExtHostWorkspace', function () {
 			override $startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
 				mainThreadCalled = true;
 				assert.strictEqual(includePattern, 'glob/**');
-				assert.deepStrictEqual(_includeFolder, URI.file('/other/folder').toJSON());
+				assert.deepStrictEqual(URI.revive(_includeFolder!).toString(), URI.file('/other/folder').toString());
 				assert.strictEqual(excludePatternOrDisregardExcludes, false);
 				return Promise.resolve(null);
 			}
@@ -733,7 +733,7 @@ suite('ExtHostWorkspace', function () {
 			override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
 				mainThreadCalled = true;
 				assert.strictEqual(query.pattern, 'foo');
-				assert.deepStrictEqual(folder, URI.file('/other/folder').toJSON());
+				assert.deepStrictEqual(URI.revive(folder!).toString(), URI.file('/other/folder').toString());
 				assert.strictEqual(options.includePattern, 'glob/**');
 				assert.strictEqual(options.excludePattern, undefined);
 				return null;

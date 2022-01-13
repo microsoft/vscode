@@ -1944,6 +1944,18 @@ declare module 'vscode' {
 		/**
 		 * A base file path to which this pattern will be matched against relatively.
 		 */
+		baseUri: Uri;
+
+		/**
+		 * A base file path to which this pattern will be matched against relatively.
+		 *
+		 * This matches the `fsPath` value of {@link RelativePattern.baseUri}.
+		 *
+		 * *Note:* updating this value will update {@link RelativePattern.baseUri} to
+		 * be a uri with `file` scheme.
+		 *
+		 * @deprecated This property is deprecated, please use {@link RelativePattern.baseUri} instead.
+		 */
 		base: string;
 
 		/**
@@ -10942,21 +10954,97 @@ declare module 'vscode' {
 		export function updateWorkspaceFolders(start: number, deleteCount: number | undefined | null, ...workspaceFoldersToAdd: { uri: Uri, name?: string }[]): boolean;
 
 		/**
-		 * Creates a file system watcher.
+		 * Creates a file system watcher to be notified on file events (create, change, delete)
+		 * depending on the parameters provided.
 		 *
-		 * A glob pattern that filters the file events on their absolute path must be provided. Optionally,
-		 * flags to ignore certain kinds of events can be provided. To stop listening to events the watcher must be disposed.
+		 * By default, all opened {@link workspace.workspaceFolders workspace folders} will be watched
+		 * for file changes recursively.
 		 *
-		 * *Note* that only files within the current {@link workspace.workspaceFolders workspace folders} can be watched.
-		 * *Note* that when watching for file changes such as '**​/*.js', notifications will not be sent when a parent folder is
-		 * moved or deleted (this is a known limitation of the current implementation and may change in the future).
+		 * Additional folders can be added for file watching by providing a {@link RelativePattern} with
+		 * a `base` that is outside of any of the currently opened workspace folders. If the `pattern` is
+		 * complex (e.g. contains `**` or path segments), the folder will be watched recursively and
+		 * otherwise will be watched non-recursively (i.e. only changes to the first level of the path
+		 * will be reported).
 		 *
-		 * @param globPattern A {@link GlobPattern glob pattern} that is applied to the absolute paths of created, changed,
-		 * and deleted files. Use a {@link RelativePattern relative pattern} to limit events to a certain {@link WorkspaceFolder workspace folder}.
+		 * Providing a `string` as `globPattern` acts as convenience method for watching file events in
+		 * all opened workspace folders. This method should be used if you only care about file events
+		 * from the workspace and not from any other folder. It cannot be used to add more folders for
+		 * file watching.
+		 *
+		 * Optionally, flags to ignore certain kinds of events can be provided.
+		 *
+		 * To stop listening to events the watcher must be disposed.
+		 *
+		 * *Note* that file events from file watchers may be excluded based on user configuration.
+		 * The setting `files.watcherExclude` helps to reduce the overhead of file events from folders
+		 * that are known to produce many file changes at once (such as `node_modules` folders). As such,
+		 * it is highly recommended to watch with simple patterns that do not require recursive watchers.
+		 *
+		 * *Note* that symbolic links are not automatically followed for file watching unless the path to
+		 * watch itself is a symbolic link.
+		 *
+		 * *Note* that file changes for the path to be watched may not be delivered when the path itself
+		 * changes. For example, when watching a path `/Users/somename/Desktop` and the path itself is
+		 * being deleted, the watcher may not report an event and may not work anymore from that moment on.
+		 * If you are interested in being notified when the watched path itself is being deleted, you have
+		 * to watch it's parent folder.
+		 *
+		 * ### Examples
+		 *
+		 * The basic anatomy of a file watcher is as follows:
+		 *
+		 * ```ts
+		 * const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(<folder>, <pattern>));
+		 *
+		 * watcher.onDidChange(uri => { ... }); // listen to files being changed
+		 * watcher.onDidCreate(uri => { ... }); // listen to files/folders being created
+		 * watcher.onDidDelete(uri => { ... }); // listen to files/folders getting deleted
+		 *
+		 * watcher.dispose(); // dispose after usage
+		 * ```
+		 *
+		 * #### Workspace file watching
+		 *
+		 * If you only care about file events in a specific workspace folder:
+		 *
+		 * ```ts
+		 * vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.workspace.workspaceFolders[0], '**​/*.js'));
+		 * ```
+		 *
+		 * If you want to monitor file events across all opened workspace folders:
+		 *
+		 * ```ts
+		 * vscode.workspace.createFileSystemWatcher('**​/*.js'));
+		 * ```
+		 *
+		 * *Note:* the array of workspace folders can be empy if no workspace is opened (empty window).
+		 *
+		 * #### Out of workspace file watching
+		 *
+		 * To watch a folder for changes to *.js files outside the workspace (non recursively), pass in a `Uri` to such
+		 * a folder:
+		 *
+		 * ```ts
+		 * vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(<path to folder outside workspace>), '*.js'));
+		 * ```
+		 *
+		 * And use a complex glob pattern to watch recursively:
+		 *
+		 * ```ts
+		 * vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(<path to folder outside workspace>), '**​/*.js'));
+		 * ```
+		 *
+		 * Here is an example for watching the active editor for file changes:
+		 *
+		 * ```ts
+		 * vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.window.activeTextEditor.document.uri, '*'));
+		 * ```
+		 *
+		 * @param globPattern A {@link GlobPattern glob pattern} that controls which file events the watcher should report.
 		 * @param ignoreCreateEvents Ignore when files have been created.
 		 * @param ignoreChangeEvents Ignore when files have been changed.
 		 * @param ignoreDeleteEvents Ignore when files have been deleted.
-		 * @return A new file system watcher instance.
+		 * @return A new file system watcher instance. Must be disposed when no longer needed.
 		 */
 		export function createFileSystemWatcher(globPattern: GlobPattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): FileSystemWatcher;
 
