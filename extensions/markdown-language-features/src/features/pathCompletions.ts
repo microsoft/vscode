@@ -8,19 +8,23 @@ import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContentsProvider } from '../tableOfContentsProvider';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
+import LinkProvider from './documentLinkProvider';
 
-enum LinkKind {
-	Link, // [...](...)
-	ReferenceLink, // [...][...]
+enum CompletionContextKind {
+	Link, // [...](|)
+
+	ReferenceLink, // [...][|]
+
+	LinkDefinition, // []: | // TODO: not implemented
 }
 
 interface CompletionContext {
-	readonly linkKind: LinkKind;
+	readonly kind: CompletionContextKind;
 
 	/**
 	 * Text of the link before the current position
 	 *
-	 * For `[abc](xy|z)` this would be `xy`
+	 * For `[abc](xy#z|abc)` this would be `xy#z`
 	 */
 	readonly linkPrefix: string;
 
@@ -28,7 +32,7 @@ interface CompletionContext {
 	readonly linkTextStartPosition: vscode.Position;
 
 	/**
-	 * Info if the link looks like its for an anchor: `[](#header)`
+	 * Info if the link looks like it is for an anchor: `[](#header)`
 	 */
 	readonly anchorInfo?: {
 		/** Text before the `#` */
@@ -59,14 +63,23 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 			return [];
 		}
 
+		if (context.kind === CompletionContextKind.ReferenceLink) {
+			const completionRange = new vscode.Range(context.linkTextStartPosition, position);
+			return this.provideReferenceSuggestions(document, completionRange);
+		}
+
+		if (context.kind === CompletionContextKind.LinkDefinition) {
+			return [];
+		}
+
 		const items: vscode.CompletionItem[] = [];
 
 		const isAnchorInCurrentDoc = context.anchorInfo && context.anchorInfo.beforeAnchor.length === 0;
 
 		// Add anchor #links in current doc
 		if (context.linkPrefix.length === 0 || isAnchorInCurrentDoc) {
-			const range = new vscode.Range(context.linkTextStartPosition, position);
-			items.push(...(await this.provideHeaderSuggestions(document, range)));
+			const completionRange = new vscode.Range(context.linkTextStartPosition, position);
+			items.push(...(await this.provideHeaderSuggestions(document, completionRange)));
 		}
 
 		if (!isAnchorInCurrentDoc) {
@@ -98,6 +111,9 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 	/// [...](...|
 	private readonly linkStartPattern = /\[([^\]]*?)\]\(\s*([^\s\(\)]*)$/;
 
+	/// [...][...|
+	private readonly referenceLinkStartPattern = /\[([^\]]*?)\]\[\s*([^\s\(\)]*)$/;
+
 	private getPathCompletionContext(document: vscode.TextDocument, position: vscode.Position): CompletionContext | undefined {
 		const prefixRange = new vscode.Range(position.with({ character: 0 }), position);
 		const linePrefix = document.getText(prefixRange);
@@ -112,7 +128,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 			const anchorMatch = prefix.match(/^(.*)#([\w\d\-]*)$/);
 
 			return {
-				linkKind: LinkKind.Link,
+				kind: CompletionContextKind.Link,
 				linkPrefix: prefix,
 				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
 				anchorInfo: anchorMatch ? {
@@ -122,10 +138,35 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 			};
 		}
 
+		const referenceLinkPrefixMatch = linePrefix.match(this.referenceLinkStartPattern);
+		if (referenceLinkPrefixMatch) {
+			const prefix = referenceLinkPrefixMatch[2];
+			return {
+				kind: CompletionContextKind.ReferenceLink,
+				linkPrefix: prefix,
+				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
+			};
+		}
+
 		return undefined;
 	}
 
-	private async provideHeaderSuggestions(document: vscode.TextDocument, range: vscode.Range,): Promise<vscode.CompletionItem[]> {
+	private provideReferenceSuggestions(document: vscode.TextDocument, completionRange: vscode.Range): vscode.CompletionItem[] {
+		const items: vscode.CompletionItem[] = [];
+
+		const definitions = LinkProvider.getDefinitions(document.getText(), document);
+		for (const def of definitions) {
+			items.push({
+				kind: vscode.CompletionItemKind.Reference,
+				label: def[0],
+				range: completionRange,
+			});
+		}
+
+		return items;
+	}
+
+	private async provideHeaderSuggestions(document: vscode.TextDocument, completionRange: vscode.Range): Promise<vscode.CompletionItem[]> {
 		const items: vscode.CompletionItem[] = [];
 
 		const tocProvider = new TableOfContentsProvider(this.engine, document);
@@ -134,7 +175,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 			items.push({
 				kind: vscode.CompletionItemKind.Reference,
 				label: '#' + entry.slug.value,
-				range: range,
+				range: completionRange,
 			});
 		}
 

@@ -27,7 +27,7 @@ function getCompletionsAtCursor(resource: vscode.Uri, fileContents: string) {
 }
 
 
-suite('markdown.PathCompletionProvider', () => {
+suite('Markdown path completion provider', () => {
 
 	setup(async () => {
 		// These tests assume that the markdown completion provider is already registered
@@ -108,5 +108,18 @@ suite('markdown.PathCompletionProvider', () => {
 
 		assert.ok(completions.some(x => x.label === '#b'), 'Has #b header completion');
 		assert.ok(completions.some(x => x.label === '#header1'), 'Has #header1 header completion');
+	});
+
+	test('Should reference links for current file', async () => {
+		const completions = await getCompletionsAtCursor(workspaceFile('sub', 'new.md'), joinLines(
+			`[][${CURSOR}`,
+			``,
+			`[ref-1]: bla`,
+			`[ref-2]: bla`,
+		));
+
+		assert.strictEqual(completions.length, 2);
+		assert.ok(completions.some(x => x.label === 'ref-1'), 'Has ref-1 reference completion');
+		assert.ok(completions.some(x => x.label === 'ref-2'), 'Has ref-2 reference completion');
 	});
 });
