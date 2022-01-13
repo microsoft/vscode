@@ -2329,12 +2329,15 @@ export function parseExitResult(
 					commandLine += shellLaunchConfig.args.map(a => ` '${a}'`).join();
 				}
 			}
-
-			if (processState === ProcessState.KilledDuringLaunch) {
+			if (shellIntegrationAttempted) {
+				if (commandLine) {
+					message = nls.localize('launchFailed.exitCodeAndCommandLineShellIntegration', "The terminal process \"{0}\" failed to launch (exit code: {1}). Disable shell integration with `terminal.integrated.enableShellIntegration`.", commandLine, code);
+				} else {
+					message = nls.localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch (exit code: {0}). Disable shell integration with `terminal.integrated.enableShellIntegration`.", code);
+				}
+			} else if (processState === ProcessState.KilledDuringLaunch) {
 				if (commandLine) {
 					message = nls.localize('launchFailed.exitCodeAndCommandLine', "The terminal process \"{0}\" failed to launch (exit code: {1}).", commandLine, code);
-				} else if (shellIntegrationAttempted) {
-					message = nls.localize('launchFailed.shellIntegrationAttempted', "The terminal process \"{0}\" failed to launch (exit code: {1}). Shell integration failed; disable it with `terminal.integrated.enableShellIntegration`", commandLine, code);
 				} else {
 					message = nls.localize('launchFailed.exitCodeOnly', "The terminal process failed to launch (exit code: {0}).", code);
 				}
