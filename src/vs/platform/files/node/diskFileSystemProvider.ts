@@ -21,7 +21,7 @@ import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs'
 import { localize } from 'vs/nls';
 import { createFileSystemProviderError, FileAtomicReadOptions, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
-import { NodeJSFileWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
+import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { ParcelWatcherClient } from 'vs/platform/files/node/watcher/parcel/parcelWatcherClient';
 import { AbstractRecursiveWatcherClient, IDiskFileChange, ILogMessage, INonRecursiveWatcher, INonRecursiveWatchRequest, IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -642,7 +642,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): INonRecursiveWatcher {
-		return new NodeJSFileWatcher(
+		return new NodeJSFileWatcherLibrary(
 			request,
 			changes => onChange(changes),
 			msg => onLogMessage(msg),

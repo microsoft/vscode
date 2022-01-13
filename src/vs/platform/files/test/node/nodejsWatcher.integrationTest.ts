@@ -10,7 +10,7 @@ import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IDiskFileChange } from 'vs/platform/files/common/watcher';
-import { NodeJSFileWatcher, watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
+import { NodeJSFileWatcherLibrary, watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { ltrim } from 'vs/base/common/strings';
@@ -25,7 +25,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 ((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (node.js)', () => {
 
 	let testDir: string;
-	let watcher: TestNodeJSFileWatcher;
+	let watcher: TestNodeJSFileWatcherLibrary;
 	let event: Event<IDiskFileChange[]>;
 
 	let loggingEnabled = false;
@@ -37,7 +37,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 	enableLogging(false);
 
-	class TestNodeJSFileWatcher extends NodeJSFileWatcher {
+	class TestNodeJSFileWatcherLibrary extends NodeJSFileWatcherLibrary {
 
 		private readonly _whenDisposed = new DeferredPromise<void>();
 		readonly whenDisposed = this._whenDisposed.p;
@@ -67,7 +67,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 		const emitter = new Emitter<IDiskFileChange[]>();
 		event = emitter.event;
 
-		watcher = new TestNodeJSFileWatcher({ path, excludes }, changes => emitter.fire(changes), msg => {
+		watcher = new TestNodeJSFileWatcherLibrary({ path, excludes }, changes => emitter.fire(changes), msg => {
 			if (loggingEnabled) {
 				console.log(`[recursive watcher test message] ${msg.type}: ${msg.message}`);
 			}

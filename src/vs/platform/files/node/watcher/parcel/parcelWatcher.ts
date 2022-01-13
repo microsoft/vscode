@@ -19,7 +19,7 @@ import { dirname, isAbsolute, join, normalize, sep } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { rtrim } from 'vs/base/common/strings';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
-import { NodeJSFileWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
+import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IDiskFileChange, ILogMessage, coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
 
@@ -531,7 +531,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 		const parentPath = dirname(watcher.request.path);
 		if (existsSync(parentPath)) {
-			const nodeWatcher = new NodeJSFileWatcher({ path: parentPath, excludes: [] }, changes => {
+			const nodeWatcher = new NodeJSFileWatcherLibrary({ path: parentPath, excludes: [] }, changes => {
 				if (watcher.token.isCancellationRequested) {
 					return; // return early when disposed
 				}

@@ -17,7 +17,7 @@ import { Promises } from 'vs/base/node/pfs';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IDiskFileChange, ILogMessage, coalesceEvents, INonRecursiveWatcher, INonRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 
-export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatcher {
+export class NodeJSFileWatcherLibrary extends Disposable implements INonRecursiveWatcher {
 
 	// A delay in reacting to file deletes to support
 	// atomic save operations where a tool may chose
@@ -44,7 +44,7 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 		events => this.onDidFilesChange(events)
 	);
 
-	private readonly fileChangesDelayer = this._register(new ThrottledDelayer<void>(NodeJSFileWatcher.FILE_CHANGES_HANDLER_DELAY));
+	private readonly fileChangesDelayer = this._register(new ThrottledDelayer<void>(NodeJSFileWatcherLibrary.FILE_CHANGES_HANDLER_DELAY));
 	private fileChangesBuffer: IDiskFileChange[] = [];
 
 	private readonly excludes = this.request.excludes.map(exclude => parse(exclude));
@@ -260,7 +260,7 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 							}
 
 							this.onFileChange({ path: join(this.request.path, changedFileName), type });
-						}, NodeJSFileWatcher.FILE_DELETE_HANDLER_DELAY);
+						}, NodeJSFileWatcherLibrary.FILE_DELETE_HANDLER_DELAY);
 
 						mapPathToStatDisposable.set(changedFileName, toDisposable(() => clearTimeout(timeoutHandle)));
 					}
@@ -332,7 +332,7 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
 								await eventPromise;
 								this.dispose();
 							}
-						}, NodeJSFileWatcher.FILE_DELETE_HANDLER_DELAY);
+						}, NodeJSFileWatcherLibrary.FILE_DELETE_HANDLER_DELAY);
 
 						// Very important to dispose the watcher which now points to a stale inode
 						// and wire in a new disposable that tracks our timeout that is installed
@@ -475,7 +475,7 @@ export async function watchFileContents(path: string, onData: (chunk: Uint8Array
 	let isReading = false;
 
 	const request: INonRecursiveWatchRequest = { path, excludes: [] };
-	const watcher = new NodeJSFileWatcher(request, changes => {
+	const watcher = new NodeJSFileWatcherLibrary(request, changes => {
 		(async () => {
 			for (const { type } of changes) {
 				if (type === FileChangeType.UPDATED) {
