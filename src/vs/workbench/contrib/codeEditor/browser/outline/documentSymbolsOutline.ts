@@ -188,8 +188,11 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		const updateSoon = new TimeoutTimer();
 		this._disposables.add(updateSoon);
 		this._disposables.add(this._editor.onDidChangeModelContent(event => {
-			const timeout = OutlineModel.getRequestDelay(this._editor!.getModel());
-			updateSoon.cancelAndSet(() => this._createOutline(event), timeout);
+			const model = this._editor.getModel();
+			if (model) {
+				const timeout = OutlineModel.getRequestDelay(model);
+				updateSoon.cancelAndSet(() => this._createOutline(event), timeout);
+			}
 		}));
 
 		// stop when editor dies

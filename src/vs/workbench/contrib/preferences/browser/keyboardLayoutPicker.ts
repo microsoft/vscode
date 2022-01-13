@@ -51,7 +51,7 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 			);
 		}
 
-		this._register(keyboardLayoutService.onDidChangeKeyboardLayout(() => {
+		this._register(this.keyboardLayoutService.onDidChangeKeyboardLayout(() => {
 			let layout = this.keyboardLayoutService.getCurrentKeyboardLayout();
 			let layoutInfo = parseKeyboardLayoutDescription(layout);
 

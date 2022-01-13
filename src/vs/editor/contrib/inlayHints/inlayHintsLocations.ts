@@ -14,14 +14,14 @@ import { Command, Location } from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { DefinitionAction, SymbolNavigationAction, SymbolNavigationAnchor } from 'vs/editor/contrib/gotoSymbol/goToCommands';
 import { ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
-import { InlayHintLabelPart } from 'vs/editor/contrib/inlayHints/inlayHintsController';
+import { RenderedInlayHintLabelPart } from 'vs/editor/contrib/inlayHints/inlayHintsController';
 import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
 import { isIMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
-export async function showGoToContextMenu(accessor: ServicesAccessor, editor: ICodeEditor, anchor: HTMLElement, part: InlayHintLabelPart) {
+export async function showGoToContextMenu(accessor: ServicesAccessor, editor: ICodeEditor, anchor: HTMLElement, part: RenderedInlayHintLabelPart) {
 
 	const resolverService = accessor.get(ITextModelService);
 	const contextMenuService = accessor.get(IContextMenuService);

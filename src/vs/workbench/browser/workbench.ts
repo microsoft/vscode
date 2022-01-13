@@ -7,7 +7,7 @@ import 'vs/workbench/browser/style';
 import { localize } from 'vs/nls';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { RunOnceScheduler, runWhenIdle, timeout } from 'vs/base/common/async';
-import { getZoomLevel, isFirefox, isSafari, isChrome, getPixelRatio } from 'vs/base/browser/browser';
+import { isFirefox, isSafari, isChrome, PixelRatio } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -296,7 +296,7 @@ export class Workbench extends Layout {
 			}
 		}
 
-		FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio()));
+		FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), PixelRatio.value));
 	}
 
 	private storeFontInfo(storageService: IStorageService): void {

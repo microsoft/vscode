@@ -36,9 +36,13 @@ declare module 'vscode' {
 
 	export class InlayHintLabelPart {
 		label: string;
+
+		// todo@API implement this!
 		collapsible?: boolean;
+
 		// todo@api better name!
 		action?: Command | Location; // invokes provider
+
 		constructor(label: string);
 	}
 
@@ -65,10 +69,12 @@ declare module 'vscode' {
 		/**
 		 * Whitespace before the hint.
 		 */
+		// todo@API better name
 		whitespaceBefore?: boolean;
 		/**
 		 * Whitespace after the hint.
 		 */
+		// todo@API better name
 		whitespaceAfter?: boolean;
 
 		// todo@API make range first argument
@@ -97,6 +103,6 @@ declare module 'vscode' {
 		 */
 		provideInlayHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<T[]>;
 
-		resolveInlayHint?(hint: T, token: CancellationToken): ProviderResult<T>
+		resolveInlayHint?(hint: T, token: CancellationToken): ProviderResult<T>;
 	}
 }

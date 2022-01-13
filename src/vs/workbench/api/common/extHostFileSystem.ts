@@ -128,20 +128,17 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._linkProviderRegistration?.dispose();
 	}
 
-	private _registerLinkProviderIfNotYetRegistered(): void {
-		if (!this._linkProviderRegistration) {
-			this._linkProviderRegistration = this._extHostLanguageFeatures.registerDocumentLinkProvider(undefined, '*', this._linkProvider);
-		}
-	}
 
-	registerFileSystemProvider(extension: IExtensionDescription, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean, isReadonly?: boolean } = {}) {
+	registerFileSystemProvider(extension: IExtensionDescription, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean, isReadonly?: boolean; } = {}) {
 
 		if (this._registeredSchemes.has(scheme)) {
 			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
 		}
 
 		//
-		this._registerLinkProviderIfNotYetRegistered();
+		if (!this._linkProviderRegistration) {
+			this._linkProviderRegistration = this._extHostLanguageFeatures.registerDocumentLinkProvider(extension, '*', this._linkProvider);
+		}
 
 		const handle = this._handlePool++;
 		this._linkProvider.add(scheme);

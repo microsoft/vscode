@@ -233,10 +233,10 @@ export class TitlebarPart extends BrowserTitleBarPart {
 					if (this.appIcon) {
 						(this.appIcon.style as any).zoom = `${1 / getZoomFactor()}`;
 					}
+				}
 
-					if (this.windowControls) {
-						(this.windowControls.style as any).zoom = `${1 / getZoomFactor()}`;
-					}
+				if (this.windowControls) {
+					(this.windowControls.style as any).zoom = `${1 / getZoomFactor()}`;
 				}
 			} else {
 				(this.title.style as any).zoom = '';
@@ -244,10 +244,10 @@ export class TitlebarPart extends BrowserTitleBarPart {
 					if (this.appIcon) {
 						(this.appIcon.style as any).zoom = '';
 					}
+				}
 
-					if (this.windowControls) {
-						(this.windowControls.style as any).zoom = '';
-					}
+				if (this.windowControls) {
+					(this.windowControls.style as any).zoom = '';
 				}
 			}
 

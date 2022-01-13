@@ -22,14 +22,12 @@ export class TestConfiguration extends EditorConfiguration {
 			outerHeight: 100,
 			emptySelectionClipboard: true,
 			pixelRatio: 1,
-			zoomLevel: 0,
 			accessibilitySupport: AccessibilitySupport.Unknown
 		};
 	}
 
 	protected override _readFontInfo(styling: BareFontInfo): FontInfo {
 		return new FontInfo({
-			zoomLevel: 0,
 			pixelRatio: 1,
 			fontFamily: 'mockFont',
 			fontWeight: 'normal',

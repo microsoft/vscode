@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICredentialsService, ICredentialsProvider, ICredentialsChangeEvent } from 'vs/workbench/services/credentials/common/credentials';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ICredentialsService, ICredentialsProvider, ICredentialsChangeEvent } from 'vs/platform/credentials/common/credentials';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -113,5 +112,3 @@ class InMemoryCredentialsProvider implements ICredentialsProvider {
 		this.credentials = [];
 	}
 }
-
-registerSingleton(ICredentialsService, BrowserCredentialsService, true);

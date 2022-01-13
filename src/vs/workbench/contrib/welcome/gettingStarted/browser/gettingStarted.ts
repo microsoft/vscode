@@ -926,9 +926,8 @@ export class GettingStartedPage extends EditorPane {
 			title: localize('checkboxTitle', "When checked, this page will be shown on startup."),
 		});
 		showOnStartupCheckbox.domNode.id = 'showOnStartup';
-
-		this.categoriesSlideDisposables.add(showOnStartupCheckbox);
-		this.categoriesSlideDisposables.add(showOnStartupCheckbox.onChange(() => {
+		const showOnStartupLabel = $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"));
+		const onShowOnStartupChanged = () => {
 			if (showOnStartupCheckbox.checked) {
 				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupChecked', argument: undefined });
 				this.configurationService.updateValue(configurationKey, 'welcomePage');
@@ -936,6 +935,14 @@ export class GettingStartedPage extends EditorPane {
 				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupUnchecked', argument: undefined });
 				this.configurationService.updateValue(configurationKey, 'none');
 			}
+		};
+		this.categoriesSlideDisposables.add(showOnStartupCheckbox);
+		this.categoriesSlideDisposables.add(showOnStartupCheckbox.onChange(() => {
+			onShowOnStartupChanged();
+		}));
+		this.categoriesSlideDisposables.add(addDisposableListener(showOnStartupLabel, 'click', () => {
+			showOnStartupCheckbox.checked = !showOnStartupCheckbox.checked;
+			onShowOnStartupChanged();
 		}));
 
 		const header = $('.header', {},
@@ -954,7 +961,7 @@ export class GettingStartedPage extends EditorPane {
 		const footer = $('.footer', {},
 			$('p.showOnStartup', {},
 				showOnStartupCheckbox.domNode,
-				$('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))
+				showOnStartupLabel,
 			));
 
 		const layoutLists = () => {

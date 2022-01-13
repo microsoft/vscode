@@ -37,7 +37,6 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 	sandbox: boolean;
 	driverVerbose: boolean;
 	disableUpdates: boolean;
-	disableKeytar: boolean;
 }
 
 export class EnvironmentMainService extends NativeEnvironmentService implements IEnvironmentMainService {

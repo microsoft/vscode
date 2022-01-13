@@ -6,7 +6,7 @@
 import { distinct } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { canceled, getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
+import { canceled, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { getOrDefault } from 'vs/base/common/objects';
 import { IPager } from 'vs/base/common/paging';
 import { isWeb, platform } from 'vs/base/common/platform';
@@ -89,7 +89,7 @@ interface IRawGalleryQueryResult {
 				readonly name: string;
 				readonly count: number;
 			}[];
-		}[]
+		}[];
 	}[];
 }
 
@@ -170,17 +170,17 @@ const DefaultQueryState: IQueryState = {
 };
 
 type GalleryServiceQueryClassification = {
-	readonly filterTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly flags: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly sortBy: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly sortOrder: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', 'isMeasurement': true };
-	readonly success: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly requestBodySize: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly responseBodySize?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly statusCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly errorCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly count?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	readonly filterTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly flags: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly sortBy: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly sortOrder: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', 'isMeasurement': true; };
+	readonly success: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly requestBodySize: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly responseBodySize?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly statusCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly errorCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly count?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 };
 
 type QueryTelemetryData = {
@@ -201,8 +201,8 @@ type GalleryServiceQueryEvent = QueryTelemetryData & {
 };
 
 type GalleryServicePreReleaseQueryClassification = {
-	readonly duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', 'isMeasurement': true };
-	readonly count: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	readonly duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', 'isMeasurement': true; };
+	readonly count: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 };
 
 type GalleryServicePreReleasesQueryEvent = {
@@ -456,9 +456,11 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 	};
 }
 
+type PreReleaseMigrationInfo = { id: string, displayName: string, migrateStorage?: boolean, engine?: string };
 interface IRawExtensionsControlManifest {
 	malicious: string[];
-	unsupported: IStringDictionary<boolean | { preReleaseExtension: { id: string, displayName: string } }>;
+	unsupported?: IStringDictionary<boolean | { preReleaseExtension: { id: string, displayName: string }; }>;
+	migrateToPreRelease?: IStringDictionary<PreReleaseMigrationInfo>;
 }
 
 abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
@@ -494,8 +496,8 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return !!this.extensionsGalleryUrl;
 	}
 
-	getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, token: CancellationToken): Promise<IGalleryExtension[]>
-	getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, includePreRelease: boolean, token: CancellationToken): Promise<IGalleryExtension[]>
+	getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, token: CancellationToken): Promise<IGalleryExtension[]>;
+	getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, includePreRelease: boolean, token: CancellationToken): Promise<IGalleryExtension[]>;
 	async getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, arg1: any, arg2?: any): Promise<IGalleryExtension[]> {
 		const includePreRelease = isBoolean(arg1) ? arg1 : false;
 		const token: CancellationToken = isBoolean(arg1) ? arg2 : arg1;
@@ -698,7 +700,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return { firstPage: extensions, total, pageSize: query.pageSize, getPage } as IPager<IGalleryExtension>;
 	}
 
-	private async converToGalleryExtensions(rawGalleryExtensions: { rawGalleryExtension: IRawGalleryExtension, preRelease: boolean, version?: string }[], query: Query, targetPlatform: TargetPlatform, telemetryData: (index: number) => IStringDictionary<any> | undefined, token: CancellationToken): Promise<IGalleryExtension[]> {
+	private async converToGalleryExtensions(rawGalleryExtensions: { rawGalleryExtension: IRawGalleryExtension, preRelease: boolean, version?: string; }[], query: Query, targetPlatform: TargetPlatform, telemetryData: (index: number) => IStringDictionary<any> | undefined, token: CancellationToken): Promise<IGalleryExtension[]> {
 		const toExtensionWithLatestVersion = (galleryExtension: IRawGalleryExtension, index: number, query: Query, hasReleaseVersion: boolean, preRelease: boolean): IGalleryExtension => {
 			const hasAllVersions: boolean = !(query.flags & Flags.IncludeLatestVersionOnly);
 			const allTargetPlatforms = getAllTargetPlatforms(galleryExtension);
@@ -710,7 +712,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			return toExtension(galleryExtension, latestVersion, allTargetPlatforms, hasReleaseVersion, telemetryData(index));
 		};
 		const result: [number, IGalleryExtension][] = [];
-		const preReleaseVersions = new Map<string, { index: number, preRelease: boolean }>();
+		const preReleaseVersions = new Map<string, { index: number, preRelease: boolean; }>();
 		for (let index = 0; index < rawGalleryExtensions.length; index++) {
 			const { rawGalleryExtension, version, preRelease } = rawGalleryExtensions[index];
 			const hasReleaseVersion = rawGalleryExtension.versions.some(version => !isPreReleaseVersion(version));
@@ -815,7 +817,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				responseBodySize: context?.res.headers['Content-Length'],
 				statusCode: context ? String(context.res.statusCode) : undefined,
 				errorCode: error
-					? isPromiseCanceledError(error) ? 'canceled' : getErrorMessage(error).startsWith('XHR timeout') ? 'timeout' : 'failed'
+					? isCancellationError(error) ? 'canceled' : getErrorMessage(error).startsWith('XHR timeout') ? 'timeout' : 'failed'
 					: undefined,
 				count: String(total)
 			});
@@ -963,14 +965,14 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			const message = await asText(context);
 			throw new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`);
 		} catch (err) {
-			if (isPromiseCanceledError(err)) {
+			if (isCancellationError(err)) {
 				throw err;
 			}
 
 			const message = getErrorMessage(err);
 			type GalleryServiceCDNFallbackClassification = {
-				url: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				message: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				url: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+				message: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 			};
 			type GalleryServiceCDNFallbackEvent = {
 				url: string;
@@ -1011,7 +1013,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 		const result = await asJson<IRawExtensionsControlManifest>(context);
 		const malicious: IExtensionIdentifier[] = [];
-		const unsupportedPreReleaseExtensions: IStringDictionary<{ id: string, displayName: string }> = {};
+		const unsupportedPreReleaseExtensions: IStringDictionary<{ id: string, displayName: string, migrateStorage?: boolean }> = {};
 
 		if (result) {
 			for (const id of result.malicious) {
@@ -1022,6 +1024,13 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 					const value = result.unsupported[extensionId];
 					if (!isBoolean(value)) {
 						unsupportedPreReleaseExtensions[extensionId.toLowerCase()] = value.preReleaseExtension;
+					}
+				}
+			}
+			if (result.migrateToPreRelease) {
+				for (const [unsupportedPreReleaseExtensionId, preReleaseExtensionInfo] of Object.entries(result.migrateToPreRelease)) {
+					if (!preReleaseExtensionInfo.engine || isEngineValid(preReleaseExtensionInfo.engine, this.productService.version, this.productService.date)) {
+						unsupportedPreReleaseExtensions[unsupportedPreReleaseExtensionId.toLowerCase()] = preReleaseExtensionInfo;
 					}
 				}
 			}

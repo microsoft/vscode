@@ -410,13 +410,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		let bytesRead: number | null = null;
 		try {
-			const result = await Promises.read(fd, data, offset, length, normalizedPos);
-
-			if (typeof result === 'number') {
-				bytesRead = result; // node.d.ts fail
-			} else {
-				bytesRead = result.bytesRead;
-			}
+			const { bytesRead } = await Promises.read(fd, data, offset, length, normalizedPos);
 
 			return bytesRead;
 		} catch (error) {
@@ -496,13 +490,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		let bytesWritten: number | null = null;
 		try {
-			const result = await Promises.write(fd, data, offset, length, normalizedPos);
-
-			if (typeof result === 'number') {
-				bytesWritten = result; // node.d.ts fail
-			} else {
-				bytesWritten = result.bytesWritten;
-			}
+			const { bytesWritten } = await Promises.write(fd, data, offset, length, normalizedPos);
 
 			return bytesWritten;
 		} catch (error) {

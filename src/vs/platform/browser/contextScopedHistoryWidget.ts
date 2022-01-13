@@ -33,7 +33,7 @@ interface IContextScopedWidget {
 	readonly target: IContextKeyServiceTarget;
 }
 
-interface IContextScopedHistoryNavigationWidget extends IContextScopedWidget {
+export interface IContextScopedHistoryNavigationWidget extends IContextScopedWidget {
 	historyNavigator: IHistoryNavigationWidget;
 }
 

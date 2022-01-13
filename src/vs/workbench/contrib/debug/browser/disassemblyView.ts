@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/browser';
 import { Dimension, append, $, addStandardDisposableListener } from 'vs/base/browser/dom';
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -85,10 +85,10 @@ export class DisassemblyView extends EditorPane {
 		this._disassembledInstructions = undefined;
 		this._onDidChangeStackFrame = new Emitter<void>();
 		this._previousDebuggingState = _debugService.state;
-		this._fontInfo = BareFontInfo.createFromRawSettings(_configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
+		this._fontInfo = BareFontInfo.createFromRawSettings(_configurationService.getValue('editor'), PixelRatio.value);
 		this._register(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor')) {
-				this._fontInfo = BareFontInfo.createFromRawSettings(_configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
+				this._fontInfo = BareFontInfo.createFromRawSettings(_configurationService.getValue('editor'), PixelRatio.value);
 			}
 
 			if (e.affectsConfiguration('debug')) {

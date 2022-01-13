@@ -130,14 +130,6 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 		? element.defaultValue ?? {}
 		: {};
 
-	const elementScopeValue: Record<string, unknown> = typeof element.scopeValue === 'object'
-		? element.scopeValue ?? {}
-		: {};
-
-	const data = element.isConfigured ?
-		{ ...elementDefaultValue, ...elementScopeValue } :
-		elementDefaultValue;
-
 	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
 	const patternsAndSchemas = Object
 		.entries(objectPatternProperties ?? {})
@@ -150,10 +142,13 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 		([key, schema]) => ({ value: key, description: schema.description })
 	);
 
+	let data: Record<string, unknown> = element.value ?? {};
+	if (element.setting.allKeysAreBoolean) {
+		// Add on default values, because we want to display all checkboxes.
+		data = { ...elementDefaultValue, ...data };
+	}
 	return Object.keys(data).map(key => {
 		if (isDefined(objectProperties) && key in objectProperties) {
-			const defaultValue = elementDefaultValue[key];
-
 			if (element.setting.allKeysAreBoolean) {
 				return {
 					key: {
@@ -169,6 +164,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 				} as IObjectDataItem;
 			}
 
+			const defaultValue = elementDefaultValue[key];
 			const valueEnumOptions = getEnumOptionsFromSchema(objectProperties[key]);
 			return {
 				key: {
@@ -592,6 +588,8 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	deprecationWarningElement: HTMLElement;
 	otherOverridesElement: HTMLElement;
 	syncIgnoredElement: HTMLElement;
+	defaultOverrideIndicator: HTMLElement;
+	defaultOverrideLabel: SimpleIconLabel;
 	toolbar: ToolBar;
 	elementDisposables: DisposableStore;
 }
@@ -781,6 +779,12 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		return syncIgnoredElement;
 	}
 
+	protected createDefaultOverrideIndicator(container: HTMLElement): { element: HTMLElement, label: SimpleIconLabel } {
+		const defaultOverrideIndicator = DOM.append(container, $('span.setting-item-default-overridden'));
+		const defaultOverrideLabel = new SimpleIconLabel(defaultOverrideIndicator);
+		return { element: defaultOverrideIndicator, label: defaultOverrideLabel };
+	}
+
 	protected renderCommonTemplate(tree: any, _container: HTMLElement, typeClass: string): ISettingItemTemplate {
 		_container.classList.add('setting-item');
 		_container.classList.add('setting-item-' + typeClass);
@@ -792,6 +796,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
 		const labelElement = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
+		const { element: defaultOverrideIndicator, label: defaultOverrideLabel } = this.createDefaultOverrideIndicator(titleElement);
 		const syncIgnoredElement = this.createSyncIgnoredElement(titleElement);
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
@@ -820,6 +825,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			deprecationWarningElement,
 			otherOverridesElement,
 			syncIgnoredElement,
+			defaultOverrideIndicator,
+			defaultOverrideLabel,
 			toolbar
 		};
 
@@ -943,12 +950,28 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
-		const update = () => {
+		const defaultValueSource = element.setting.defaultValueSource;
+		const updateSyncIgnoredElement = () => {
 			template.syncIgnoredElement.style.display = this.ignoredSettings.includes(element.setting.key) ? 'inline' : 'none';
 		};
-		update();
+		const updateTitleElements = () => {
+			updateSyncIgnoredElement();
+			template.defaultOverrideIndicator.style.display = 'none';
+			if (defaultValueSource) {
+				template.defaultOverrideIndicator.style.display = 'inline';
+				if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
+					const extensionSource = defaultValueSource.displayName ?? defaultValueSource.id;
+					template.defaultOverrideIndicator.title = localize('defaultOverriddenDetails', "Default value overridden by {0}", extensionSource);
+					template.defaultOverrideLabel.text = localize('defaultOverrideLabelText', "($(wrench) Overridden by: {0})", extensionSource);
+				} else if (typeof defaultValueSource === 'string') {
+					template.defaultOverrideIndicator.title = localize('defaultOverriddenDetails', "Default value overridden by {0}", defaultValueSource);
+					template.defaultOverrideLabel.text = localize('defaultOverrideLabelText', "($(wrench) Overridden by: {0})", defaultValueSource);
+				}
+			}
+		};
+		updateTitleElements();
 		template.elementDisposables.add(this.onDidChangeIgnoredSettings(() => {
-			update();
+			updateSyncIgnoredElement();
 		}));
 
 		this.updateSettingTabbable(element, template);
@@ -1334,23 +1357,21 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 				newItems.push(e.item);
 			}
 
-			Object.entries(newValue).forEach(([key, value]) => {
-				// value from the scope has changed back to the default
-				if (scopeValue[key] !== value && defaultValue[key] === value) {
-					delete newValue[key];
-				}
-			});
-
-			const newObject = Object.keys(newValue).length === 0 ? undefined : newValue;
-
 			if (template.objectCheckboxWidget) {
+				Object.entries(newValue).forEach(([key, value]) => {
+					// A value from the scope has changed back to the default.
+					// For the bool object renderer, we don't want to save these values.
+					if (scopeValue[key] !== value && defaultValue[key] === value) {
+						delete newValue[key];
+					}
+				});
 				template.objectCheckboxWidget.setValue(newItems);
 			} else {
 				template.objectDropdownWidget!.setValue(newItems);
 			}
 
 			if (template.onChange) {
-				template.onChange(newObject);
+				template.onChange(newValue);
 			}
 		}
 	}
@@ -1808,6 +1829,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
+		const { element: defaultOverrideIndicator, label: defaultOverrideLabel } = this.createDefaultOverrideIndicator(titleElement);
 		const syncIgnoredElement = this.createSyncIgnoredElement(titleElement);
 
 		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
@@ -1859,6 +1881,8 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 			deprecationWarningElement,
 			otherOverridesElement,
 			syncIgnoredElement,
+			defaultOverrideIndicator,
+			defaultOverrideLabel,
 			toolbar
 		};
 

@@ -120,7 +120,7 @@ export function makeAddress(host: string, port: number): string {
 }
 
 export function parseAddress(address: string): { host: string, port: number } | undefined {
-	const matches = address.match(/^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\:|localhost:|[a-zA-Z]+:)?([0-9]+)$/);
+	const matches = address.match(/^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\:|localhost:|[a-zA-Z\-]+:)?([0-9]+)$/);
 	if (!matches) {
 		return undefined;
 	}
@@ -920,7 +920,7 @@ class RemoteExplorerService implements IRemoteExplorerService {
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
-		@ITunnelService tunnelService: ITunnelService,
+		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
@@ -960,6 +960,9 @@ class RemoteExplorerService implements IRemoteExplorerService {
 	}
 
 	setTunnelInformation(tunnelInformation: TunnelInformation | undefined): void {
+		if (tunnelInformation?.features) {
+			this.tunnelService.setTunnelFeatures(tunnelInformation.features);
+		}
 		this.tunnelModel.addEnvironmentTunnels(tunnelInformation?.environmentTunnels);
 	}
 

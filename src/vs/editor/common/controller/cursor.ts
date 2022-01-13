@@ -138,31 +138,18 @@ export class CursorsController extends Disposable {
 		this._columnSelectData = columnSelectData;
 	}
 
-	public revealPrimary(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
+	public revealPrimary(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, minimalReveal: boolean, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
 		const viewPositions = this._cursors.getViewPositions();
-		if (viewPositions.length > 1) {
-			this._emitCursorRevealRange(eventsCollector, source, null, this._cursors.getViewSelections(), VerticalRevealType.Simple, revealHorizontal, scrollType);
-			return;
-		} else {
-			const viewPosition = viewPositions[0];
-			const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-			this._emitCursorRevealRange(eventsCollector, source, viewRange, null, VerticalRevealType.Simple, revealHorizontal, scrollType);
-		}
-	}
 
-	private _revealPrimaryCursor(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
-		const viewPositions = this._cursors.getViewPositions();
+		let revealViewRange: Range | null = null;
+		let revealViewSelections: Selection[] | null = null;
 		if (viewPositions.length > 1) {
-			this._emitCursorRevealRange(eventsCollector, source, null, this._cursors.getViewSelections(), verticalType, revealHorizontal, scrollType);
+			revealViewSelections = this._cursors.getViewSelections();
 		} else {
-			const viewPosition = viewPositions[0];
-			const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-			this._emitCursorRevealRange(eventsCollector, source, viewRange, null, verticalType, revealHorizontal, scrollType);
+			revealViewRange = Range.fromPositions(viewPositions[0], viewPositions[0]);
 		}
-	}
 
-	private _emitCursorRevealRange(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, viewRange: Range | null, viewSelections: Selection[] | null, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType) {
-		eventsCollector.emitViewEvent(new ViewRevealRangeRequestEvent(source, viewRange, viewSelections, verticalType, revealHorizontal, scrollType));
+		eventsCollector.emitViewEvent(new ViewRevealRangeRequestEvent(source, minimalReveal, revealViewRange, revealViewSelections, verticalType, revealHorizontal, scrollType));
 	}
 
 	public saveState(): editorCommon.ICursorState[] {
@@ -227,7 +214,7 @@ export class CursorsController extends Disposable {
 		}
 
 		this.setStates(eventsCollector, 'restoreState', CursorChangeReason.NotSet, CursorState.fromModelSelections(desiredSelections));
-		this.revealPrimary(eventsCollector, 'restoreState', true, editorCommon.ScrollType.Immediate);
+		this.revealPrimary(eventsCollector, 'restoreState', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Immediate);
 	}
 
 	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent): void {
@@ -266,7 +253,7 @@ export class CursorsController extends Disposable {
 				if (this._hasFocus && e.resultingSelection && e.resultingSelection.length > 0) {
 					const cursorState = CursorState.fromModelSelections(e.resultingSelection);
 					if (this.setStates(eventsCollector, 'modelChange', e.isUndoing ? CursorChangeReason.Undo : e.isRedoing ? CursorChangeReason.Redo : CursorChangeReason.RecoverFromMarkers, cursorState)) {
-						this._revealPrimaryCursor(eventsCollector, 'modelChange', VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
+						this.revealPrimary(eventsCollector, 'modelChange', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
 					}
 				} else {
 					const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
@@ -533,7 +520,7 @@ export class CursorsController extends Disposable {
 		this._cursors.startTrackingSelections();
 		this._validateAutoClosedActions();
 		if (this._emitStateChangedIfNecessary(eventsCollector, source, cursorChangeReason, oldState, false)) {
-			this._revealPrimaryCursor(eventsCollector, source, VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
+			this.revealPrimary(eventsCollector, source, false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
 		}
 	}
 

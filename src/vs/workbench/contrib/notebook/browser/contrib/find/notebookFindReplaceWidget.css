@@ -9,7 +9,7 @@
 	position: absolute;
 	top: -45px;
 	right: 18px;
-	width: 341px;
+	width: 318px;
 	max-width: calc(100% - 28px - 28px - 8px);
 	pointer-events: none;
 	transition: top 200ms linear;
@@ -117,4 +117,21 @@
 .monaco-workbench .simple-fr-find-part-wrapper .button.disabled {
 	opacity: 0.3;
 	cursor: default;
+}
+
+.monaco-workbench .simple-fr-find-part-wrapper .monaco-custom-checkbox.disabled {
+	opacity: 0.3;
+	cursor: default;
+	user-select: none;
+	-webkit-user-select: none;
+	pointer-events: none;
+	background-color: inherit !important;
+}
+
+.find-filter-button .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
+	background-color: inherit !important;
+}
+
+.find-filter-button .monaco-action-bar .action-label {
+	padding: 0;
 }

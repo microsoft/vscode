@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
+import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
@@ -27,7 +27,7 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 		const subscription = source.token.onCancellationRequested(() => {
 			subscription.dispose();
 			source.dispose();
-			reject(canceled());
+			reject(new CancellationError());
 		});
 		Promise.resolve(thenable).then(value => {
 			subscription.dispose();
@@ -56,10 +56,40 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 	};
 }
 
+/**
+ * Returns a promise that resolves with `undefined` as soon as the passed token is cancelled.
+ * @see {@link raceCancellationError}
+ */
 export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken): Promise<T | undefined>;
+
+/**
+ * Returns a promise that resolves with `defaultValue` as soon as the passed token is cancelled.
+ * @see {@link raceCancellationError}
+ */
 export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken, defaultValue: T): Promise<T>;
+
 export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken, defaultValue?: T): Promise<T | undefined> {
-	return Promise.race([promise, new Promise<T | undefined>(resolve => token.onCancellationRequested(() => resolve(defaultValue)))]);
+	return new Promise((resolve, reject) => {
+		const ref = token.onCancellationRequested(() => {
+			ref.dispose();
+			resolve(defaultValue);
+		});
+		promise.then(resolve, reject).finally(() => ref.dispose());
+	});
+}
+
+/**
+ * Returns a promise that rejects with an {@CancellationError} as soon as the passed token is cancelled.
+ * @see {@link raceCancellation}
+ */
+export function raceCancellationError<T>(promise: Promise<T>, token: CancellationToken): Promise<T> {
+	return new Promise((resolve, reject) => {
+		const ref = token.onCancellationRequested(() => {
+			ref.dispose();
+			reject(new CancellationError());
+		});
+		promise.then(resolve, reject).finally(() => ref.dispose());
+	});
 }
 
 /**
@@ -325,7 +355,7 @@ export class Delayer<T> implements IDisposable {
 
 		if (this.completionPromise) {
 			if (this.doReject) {
-				this.doReject(canceled());
+				this.doReject(new CancellationError());
 			}
 			this.completionPromise = null;
 		}
@@ -441,7 +471,7 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 		const disposable = token.onCancellationRequested(() => {
 			clearTimeout(handle);
 			disposable.dispose();
-			reject(canceled());
+			reject(new CancellationError());
 		});
 	});
 }
@@ -1085,7 +1115,7 @@ export interface IdleDeadline {
  */
 export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
 
-declare function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
+declare function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number; }): number;
 declare function cancelIdleCallback(handle: number): void;
 
 (function () {
@@ -1386,7 +1416,7 @@ export class DeferredPromise<T> {
 
 	public cancel() {
 		new Promise<void>(resolve => {
-			this.errorCallback(canceled());
+			this.errorCallback(new CancellationError());
 			this.rejected = true;
 			resolve();
 		});
@@ -1489,7 +1519,7 @@ export interface AyncIterableExecutor<T> {
 	/**
 	 * @param emitter An object that allows to emit async values valid only for the duration of the executor.
 	 */
-	(emitter: AsyncIterableEmitter<T>): void | Promise<void>
+	(emitter: AsyncIterableEmitter<T>): void | Promise<void>;
 }
 
 /**
@@ -1704,7 +1734,7 @@ export function createCancelableAsyncIterable<T>(callback: (token: CancellationT
 		const subscription = source.token.onCancellationRequested(() => {
 			subscription.dispose();
 			source.dispose();
-			emitter.reject(canceled());
+			emitter.reject(new CancellationError());
 		});
 		try {
 			for await (const item of innerIterable) {

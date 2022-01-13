@@ -13,7 +13,7 @@ import type { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick
 import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickInput, TransferQuickInputButton, TransferQuickPickItemOrSeparator } from './extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { ThemeIcon, QuickInputButtons, QuickPickItemKind } from 'vs/workbench/api/common/extHostTypes';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { coalesce } from 'vs/base/common/arrays';
 import Severity from 'vs/base/common/severity';
@@ -30,7 +30,7 @@ export interface ExtHostQuickOpen {
 
 	showInput(options?: InputBoxOptions, token?: CancellationToken): Promise<string | undefined>;
 
-	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token?: CancellationToken): Promise<WorkspaceFolder | undefined>
+	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token?: CancellationToken): Promise<WorkspaceFolder | undefined>;
 
 	createQuickPick<T extends QuickPickItem>(extensionId: IExtensionDescription): QuickPick<T>;
 
@@ -127,7 +127,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 					});
 				});
 			}).then(undefined, err => {
-				if (isPromiseCanceledError(err)) {
+				if (isCancellationError(err)) {
 					return undefined;
 				}
 
@@ -152,7 +152,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 			return proxy.$input(options, typeof this._validateInput === 'function', token)
 				.then(undefined, err => {
-					if (isPromiseCanceledError(err)) {
+					if (isCancellationError(err)) {
 						return undefined;
 					}
 
@@ -469,7 +469,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 	}
 
-	function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI, light?: URI } | { id: string } {
+	function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI, light?: URI; } | { id: string; } {
 		if (iconPath instanceof ThemeIcon) {
 			return { id: iconPath.id };
 		}

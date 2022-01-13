@@ -1392,15 +1392,25 @@ export namespace GlobPattern {
 			return pattern;
 		}
 
-		if (isRelativePattern(pattern)) {
-			return new types.RelativePattern(pattern.base, pattern.pattern);
+		if (isRelativePattern(pattern) || isLegacyRelativePattern(pattern)) {
+			return new types.RelativePattern(pattern.baseUri ?? pattern.base, pattern.pattern);
 		}
 
 		return pattern; // preserve `undefined` and `null`
 	}
 
-	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
+	export function isRelativePattern(obj: any): obj is vscode.RelativePattern {
 		const rp = obj as vscode.RelativePattern;
+		return rp && URI.isUri(rp.baseUri) && typeof rp.pattern === 'string';
+	}
+
+	function isLegacyRelativePattern(obj: any): obj is { base: string, pattern: string } {
+
+		// Before 1.64.x, `RelativePattern` did not have any `baseUri: Uri`
+		// property. To preserve backwards compatibility with older extensions
+		// we allow this old format when creating the `vscode.RelativePattern`.
+
+		const rp = obj as { base: string, pattern: string };
 		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
 	}
 }
@@ -1581,8 +1591,8 @@ export namespace NotebookExclusiveDocumentPattern {
 		}
 
 
-		if (isRelativePattern(pattern)) {
-			return new types.RelativePattern(pattern.base, pattern.pattern);
+		if (GlobPattern.isRelativePattern(pattern)) {
+			return new types.RelativePattern(pattern.baseUri, pattern.pattern);
 		}
 
 		if (isExclusivePattern(pattern)) {
@@ -1601,11 +1611,8 @@ export namespace NotebookExclusiveDocumentPattern {
 			return pattern;
 		}
 
-		if (isRelativePattern(pattern)) {
-			return {
-				base: pattern.base,
-				pattern: pattern.pattern
-			};
+		if (GlobPattern.isRelativePattern(pattern)) {
+			return new types.RelativePattern(pattern.baseUri, pattern.pattern);
 		}
 
 		return {
@@ -1627,11 +1634,6 @@ export namespace NotebookExclusiveDocumentPattern {
 		}
 
 		return true;
-	}
-
-	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
-		const rp = obj as vscode.RelativePattern;
-		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
 	}
 }
 

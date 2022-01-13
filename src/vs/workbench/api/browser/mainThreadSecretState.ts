@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
 import { ExtHostContext, ExtHostSecretStateShape, IExtHostContext, MainContext, MainThreadSecretStateShape } from '../common/extHost.protocol';
 
