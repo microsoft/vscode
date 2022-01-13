@@ -104,9 +104,9 @@ registerAction2(class extends Action2 {
 				group: '1_toggle_view',
 				order: 3
 			}, {
-					id: MenuId.LayoutControlMenu,
-					group: '1_toggle_view',
-					order: 3
+				id: MenuId.LayoutControlMenu,
+				group: '1_quick_layout',
+				order: 1
 				}]
 		});
 	}

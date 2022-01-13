@@ -769,7 +769,11 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: '4_flip',
 	command: {
 		id: toggleEditorGroupLayoutId,
-		title: nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout")
+		title: {
+			original: 'Flip Layout',
+			value: nls.localize('miToggleEditorLayoutWithoutMnemonic', "Flip Layout"),
+			mnemonicTitle: nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout")
+		}
 	},
 	order: 1
 });
