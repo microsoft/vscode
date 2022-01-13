@@ -1299,27 +1299,29 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		const shell = path.basename(shellLaunchConfig.executable);
 		let newArgs: string | string[] | undefined;
-		let enableShellIntegration = false;
-		if (isWindows && shell === 'pwsh' && !originalArgs) {
-			newArgs = [
-				'-noexit',
-				'-command',
-				'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
-			];
-			enableShellIntegration = true;
-		} else if (!isWindows) {
-			if (shell === 'zsh') {
-				newArgs = ['-c', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh; zsh -il'];
-				enableShellIntegration = true;
-			} else if (shell === 'bash') {
+		if (isWindows) {
+			if (shell === 'pwsh' && !originalArgs) {
 				newArgs = [
-					'--init-file',
-					'${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-bash.sh'
+					'-noexit',
+					'-command',
+					'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
 				];
-				enableShellIntegration = true;
+			}
+		} else {
+			// TODO: Read current args, only enable if they are recognized (ie. [] and ["-l"]), warn otherwise
+			switch (shell) {
+				case 'bash':
+					newArgs = ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-bash.sh'];
+					break;
+				case 'pwsh':
+					newArgs = ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"'];
+					break;
+				case 'zsh':
+					newArgs = ['-c', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh; zsh -il'];
+					break;
 			}
 		}
-		return { args: newArgs || originalArgs, enableShellIntegration };
+		return { args: newArgs || originalArgs, enableShellIntegration: newArgs !== undefined };
 	}
 	private _onProcessData(ev: IProcessDataEvent): void {
 		const messageId = ++this._latestXtermWriteData;
