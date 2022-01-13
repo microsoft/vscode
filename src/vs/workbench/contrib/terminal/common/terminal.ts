@@ -8,12 +8,13 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap, ITerminalEnvironment, TerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap, ITerminalEnvironment, TerminalCommand } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -401,34 +402,6 @@ export interface ITerminalProcessManager extends IDisposable {
 	refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]>;
 	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): void;
 }
-
-// TODO: Move to capabilities/
-export interface ITerminalCapabilityStore {
-	readonly items: IterableIterator<TerminalCapability>;
-	readonly onDidRemoveCapability: Event<TerminalCapability>;
-	readonly onDidAddCapability: Event<TerminalCapability>;
-	has(capability: TerminalCapability): boolean;
-	get<T extends TerminalCapability>(capability: T): ITerminalCapabilityImplMap[T] | undefined;
-}
-export interface ITerminalCapabilityImplMap {
-	[TerminalCapability.CwdDetection]: ICwdDetectionCapability;
-	[TerminalCapability.CommandDetection]: ICommandDetectionCapability;
-	[TerminalCapability.NaiveCwdDetection]: INaiveCwdDetectionCapability;
-	[TerminalCapability.PartialCommandDetection]: IPartialCommandDetectionCapability;
-}
-export interface ICwdDetectionCapability {
-	readonly type: TerminalCapability.CwdDetection;
-}
-export interface ICommandDetectionCapability {
-	readonly type: TerminalCapability.CommandDetection;
-}
-export interface INaiveCwdDetectionCapability {
-	readonly type: TerminalCapability.NaiveCwdDetection;
-}
-export interface IPartialCommandDetectionCapability {
-	readonly type: TerminalCapability.PartialCommandDetection;
-}
-
 
 export const enum ProcessState {
 	// The process has not been initialized yet.

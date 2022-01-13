@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
-import { ICommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/terminal';
 
-export class CommandDetectionCapability implements ICommandDetectionCapability {
+export class CommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
 }
