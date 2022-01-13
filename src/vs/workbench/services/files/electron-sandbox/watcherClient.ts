@@ -8,7 +8,7 @@ import { getDelayedChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
 import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
 
-export class ParcelWatcherClient extends AbstractUniversalWatcherClient {
+export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 
 	constructor(
 		onFileChanges: (changes: IDiskFileChange[]) => void,
@@ -33,8 +33,8 @@ export class ParcelWatcherClient extends AbstractUniversalWatcherClient {
 			// The shared process worker services ensures to terminate
 			// the process automatically when the window closes or reloads.
 			const { client, onDidTerminate } = await this.sharedProcessWorkerWorkbenchService.createWorker({
-				moduleId: 'vs/platform/files/node/watcher/parcel/parcelWatcherMain',
-				type: 'parcelWatcher'
+				moduleId: 'vs/platform/files/node/watcher/watcherMain',
+				type: 'watcher'
 			});
 
 			// React on unexpected termination of the watcher process

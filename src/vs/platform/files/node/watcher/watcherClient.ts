@@ -9,7 +9,7 @@ import { getNextTickChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, IUniversalWatcher } from 'vs/platform/files/common/watcher';
 
-export class WatcherClient extends AbstractUniversalWatcherClient {
+export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 
 	constructor(
 		onFileChanges: (changes: IDiskFileChange[]) => void,
