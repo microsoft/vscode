@@ -22,6 +22,7 @@ import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebo
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Schemas } from 'vs/base/common/network';
 
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
@@ -551,6 +552,15 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 					),
 					group: 'navigation/execute',
 					order: 0
+				},
+				{
+					id: MenuId.InteractiveToolbar,
+					when: ContextKeyExpr.and(
+						NOTEBOOK_HAS_RUNNING_CELL,
+						ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive)
+					),
+					group: 'navigation',
+					order: 10
 				}
 			],
 			icon: ThemeIcon.modify(icons.executingStateIcon, 'spin')
