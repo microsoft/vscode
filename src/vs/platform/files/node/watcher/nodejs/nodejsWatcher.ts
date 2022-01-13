@@ -86,10 +86,7 @@ export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
 		const instance = new NodeJSFileWatcherLibrary(request, changes => this._onDidChangeFile.fire(changes), msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
 
 		// Remember as watcher instance
-		const watcher: INodeJSWatcherInstance = {
-			request,
-			instance: instance
-		};
+		const watcher: INodeJSWatcherInstance = { request, instance };
 		this.watchers.set(request.path, watcher);
 	}
 

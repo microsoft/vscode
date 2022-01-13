@@ -92,6 +92,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 	teardown(async () => {
 		await watcher.stop();
+		watcher.dispose();
 
 		// Possible that the file watcher is still holding
 		// onto the folders on Windows specifically and the
