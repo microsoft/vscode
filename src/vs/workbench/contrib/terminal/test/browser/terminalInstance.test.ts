@@ -167,7 +167,7 @@ suite('Workbench - TerminalInstance', () => {
 		setup(async () => {
 			instantiationService = new TestInstantiationService();
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
-			const capabilities2 = new TerminalCapabilityStore();
+			capabilities2 = new TerminalCapabilityStore();
 			if (!isWindows) {
 				// TODO: Replace all these with Naive
 				capabilities2.addCapability(TerminalCapability.CwdDetection);
