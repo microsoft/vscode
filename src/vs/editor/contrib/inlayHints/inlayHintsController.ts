@@ -17,9 +17,9 @@ import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/edit
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
-import { LanguageFeatureRequestDelays } from 'vs/editor/common/languages/languageFeatureRegistry';
 import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
 import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/inlayHints';
@@ -74,7 +74,7 @@ export class InlayHintsController implements IEditorContribution {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
-	private readonly _getInlayHintsDelays = new LanguageFeatureRequestDelays(languages.InlayHintsProviderRegistry, 25, 500);
+	private readonly _debounceInfo: IFeatureDebounceInformation;
 	private readonly _cache = new InlayHintsCache();
 	private readonly _decorationsMetadata = new Map<string, { item: InlayHintItem, classNameRef: IDisposable; }>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
@@ -83,10 +83,12 @@ export class InlayHintsController implements IEditorContribution {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@ILanguageFeatureDebounceService _featureDebounce: ILanguageFeatureDebounceService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
+		this._debounceInfo = _featureDebounce.for(languages.InlayHintsProviderRegistry, { min: 25 });
 		this._disposables.add(languages.InlayHintsProviderRegistry.onDidChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModelLanguage(() => this._update()));
@@ -133,7 +135,7 @@ export class InlayHintsController implements IEditorContribution {
 			cts = new CancellationTokenSource();
 
 			const inlayHints = await InlayHintsFragments.create(model, this._getHintsRanges(), cts.token);
-			scheduler.delay = this._getInlayHintsDelays.update(model, Date.now() - t1);
+			scheduler.delay = this._debounceInfo.update(model, Date.now() - t1);
 			if (cts.token.isCancellationRequested) {
 				inlayHints.dispose();
 				return;
@@ -150,7 +152,7 @@ export class InlayHintsController implements IEditorContribution {
 			this._updateHintsDecorators(inlayHints.ranges, inlayHints.items);
 			this._cacheHintsForFastRestore(model);
 
-		}, this._getInlayHintsDelays.get(model));
+		}, this._debounceInfo.get(model));
 
 		this._sessionDisposables.add(scheduler);
 		this._sessionDisposables.add(toDisposable(() => cts?.dispose(true)));

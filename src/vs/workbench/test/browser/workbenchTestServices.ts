@@ -148,6 +148,7 @@ import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupMo
 import { env } from 'vs/base/common/process';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -233,6 +234,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IAccessibilityService, accessibilityService);
 	instantiationService.stub(IFileDialogService, instantiationService.createInstance(TestFileDialogService));
 	instantiationService.stub(ILanguageService, disposables.add(instantiationService.createInstance(LanguageService)));
+	instantiationService.stub(ILanguageFeatureDebounceService, instantiationService.createInstance(LanguageFeatureDebounceService));
 	instantiationService.stub(IHistoryService, new TestHistoryService());
 	instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(configService));
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
