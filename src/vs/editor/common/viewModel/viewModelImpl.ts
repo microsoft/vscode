@@ -1050,7 +1050,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._executeCursorEdit(eventsCollector => this._cursor.executeCommands(eventsCollector, commands, source));
 	}
 	public revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean): void {
-		this._withViewEventsCollector(eventsCollector => this._cursor.revealPrimary(eventsCollector, source, revealHorizontal, ScrollType.Smooth));
+		this._withViewEventsCollector(eventsCollector => this._cursor.revealPrimary(eventsCollector, source, viewEvents.VerticalRevealType.Simple, revealHorizontal, ScrollType.Smooth));
 	}
 	public revealTopMostCursor(source: string | null | undefined): void {
 		const viewPosition = this._cursor.getTopMostViewPosition();
