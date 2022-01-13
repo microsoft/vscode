@@ -105,7 +105,7 @@ registerAction2(class extends Action2 {
 				order: 3
 			}, {
 				id: MenuId.LayoutControlMenu,
-				group: '1_quick_layout',
+				group: '9_quick_layout',
 				order: 3
 				}]
 		});
@@ -452,7 +452,7 @@ registerAction2(class extends Action2 {
 				order: 2
 			}, {
 					id: MenuId.LayoutControlMenu,
-					group: '1_quick_layout',
+				group: '9_quick_layout',
 					order: 2
 			}
 			]

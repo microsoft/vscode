@@ -575,10 +575,10 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
-	group: '1_quick_layout',
+	group: '9_quick_layout',
 	title: localize({ key: 'miEditorLayoutLayoutControl', comment: ['&& denotes a mnemonic'] }, "Editor Layout"),
 	submenu: MenuId.MenubarLayoutMenu,
-	order: 4
+	order: 0
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
