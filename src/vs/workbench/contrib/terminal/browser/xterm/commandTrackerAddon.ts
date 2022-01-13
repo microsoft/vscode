@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ICommandTracker, TerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
-import { ICommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalCommand } from 'vs/platform/terminal/common/terminal';
 
 /**
  * The minimum size of the prompt in which to assume the line is a command.

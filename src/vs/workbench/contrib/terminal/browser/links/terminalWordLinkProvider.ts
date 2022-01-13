@@ -24,6 +24,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
+import { CognisantCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/cognisantCommandTrackerAddon';
 
 const MAX_LENGTH = 2000;
 
@@ -52,7 +53,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		// Dispose of all old links if new links are provides, links are only cached for the current line
 		const links: TerminalLink[] = [];
 		const wordSeparators = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).wordSeparators;
-		const activateCallback = this._wrapLinkHandler((_, link) => this._activate(link, y - 1));
+		const activateCallback = this._wrapLinkHandler((_, link) => this._activate(link, y));
 
 		let startLine = y - 1;
 		let endLine = startLine;
@@ -138,22 +139,26 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	}
 
 	private async _activate(link: string, y: number) {
+		const pathSeparator = (isWindows ? '\\' : '/');
 		// Remove file:/// and any leading ./ or ../ since quick access doesn't understand that format
 		link = link.replace(/^file:\/\/\/?/, '');
 		link = normalize(link).replace(/^(\.+[\\/])+/, '');
 
 		// Remove `:in` from the end which is how Ruby outputs stack traces
 		link = link.replace(/:in$/, '');
-		console.log('link', this._xtermTerminal.commandTracker);
-		console.log(this._xtermTerminal.commandTracker.getCwdForLine(y));
+
 		// If any of the names of the folders in the workspace matches
 		// a prefix of the link, remove that prefix and continue
 		this._workspaceContextService.getWorkspace().folders.forEach((folder) => {
-			if (link.substr(0, folder.name.length + 1) === folder.name + (isWindows ? '\\' : '/')) {
+			if (link.substr(0, folder.name.length + 1) === folder.name + pathSeparator) {
 				link = link.substring(folder.name.length + 1);
 				return;
 			}
 		});
+
+		if (this._xtermTerminal.commandTracker instanceof CognisantCommandTrackerAddon) {
+			link = this._updateLinkWithRelativeCwd(y, link, pathSeparator);
+		}
 
 		const sanitizedLink = link.replace(/:\d+(:\d+)?$/, '');
 		let exactMatch = await this._getExactMatch(sanitizedLink, link);
@@ -177,6 +182,30 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		}
 		// Fallback to searching quick access
 		return this._quickInputService.quickAccess.show(link);
+	}
+
+	private _updateLinkWithRelativeCwd(y: number, link: string, pathSeparator: string): string {
+		const cwd = this._xtermTerminal.commandTracker.getCwdForLine(y);
+		if (cwd && !link.includes(pathSeparator)) {
+			link = cwd + pathSeparator + link;
+		} else {
+			let newLink = '';
+			let i = 0;
+			const fileParts = cwd.split(pathSeparator);
+			const linkParts = link.split(pathSeparator);
+			for (const part of linkParts) {
+				if (!fileParts.includes(part)) {
+					if (i !== linkParts.length - 1) {
+						newLink += part + pathSeparator;
+					} else {
+						newLink += part;
+					}
+				}
+				i++;
+				link = cwd + pathSeparator + newLink;
+			}
+		}
+		return link;
 	}
 
 	private async _getExactMatch(sanitizedLink: string, link: string): Promise<URI | undefined> {

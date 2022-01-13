@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal, IMarker, IBuffer } from 'xterm';
-import { TerminalCommand } from 'vs/platform/terminal/common/terminal';
 import { Emitter } from 'vs/base/common/event';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ShellIntegrationInfo, ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
 import { isWindows } from 'vs/base/common/platform';
+import { TerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 interface ICurrentPartialCommand {
 	marker?: IMarker;
@@ -121,10 +121,9 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 						cwd: this._cwd,
 						exitCode: this._exitCode,
 						getOutput: () => getOutputForCommand(this._currentCommand.previousCommandMarker!.line! + 1, this._currentCommand.marker!.line!, buffer),
-						range: { startLine: this._currentCommand.previousCommandMarker!.line!, endLine: this._currentCommand.marker!.line! + 1 }
+						marker: this._currentCommand.marker
 					});
 				}
-
 				this._currentCommand.previousCommandMarker?.dispose();
 				this._currentCommand.previousCommandMarker = this._currentCommand.marker;
 				this._currentCommand.marker = undefined;
@@ -139,19 +138,13 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 	}
 
 	get cwds(): string[] {
-		const cwds = [];
-		const sorted = new Map([...this._cwds.entries()].sort((a, b) => b[1] - a[1]));
-		for (const [key,] of sorted.entries()) {
-			cwds.push(key);
-		}
-		return cwds;
+		return Array.from(new Map([...this._cwds.entries()].sort((a, b) => a[1] - b[1]))).map(s => s[0]);
 	}
 
 	getCwdForLine(line: number): string {
-		console.log(this._commands.map(c => c.range));
-		console.log('line', line);
-		const command = this._commands.find(c => c.range!.startLine <= line && c.range!.endLine > line);
-		return command?.cwd || '';
+		const command = this._commands.sort((a, b) => b.marker!.line - a.marker!.line);
+		const cwd = command.find(c => c.marker!.line <= line - 1)?.cwd || '';
+		return cwd;
 	}
 }
 
