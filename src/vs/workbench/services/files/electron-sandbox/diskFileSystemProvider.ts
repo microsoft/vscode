@@ -134,17 +134,12 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		return this.provider.watch(resource, opts);
 	}
 
-	protected createRecursiveWatcher(
+	protected createUniversalWatcher(
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): AbstractUniversalWatcherClient {
-		return new UniversalWatcherClient(
-			changes => onChange(changes),
-			msg => onLogMessage(msg),
-			verboseLogging,
-			this.sharedProcessWorkerWorkbenchService
-		);
+		return new UniversalWatcherClient(changes => onChange(changes), msg => onLogMessage(msg), verboseLogging, this.sharedProcessWorkerWorkbenchService);
 	}
 
 	protected createNonRecursiveWatcher(): never {

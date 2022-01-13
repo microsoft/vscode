@@ -49,6 +49,10 @@ export interface IRecursiveWatchRequest extends IWatchRequest {
 	pollingInterval?: number;
 }
 
+export function isRecursiveWatchRequest(request: IWatchRequest): request is IRecursiveWatchRequest {
+	return request.recursive === true;
+}
+
 export type IUniversalWatcheRequest = IRecursiveWatchRequest | INonRecursiveWatchRequest;
 
 export interface IWatcher {

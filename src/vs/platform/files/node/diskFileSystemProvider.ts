@@ -21,7 +21,7 @@ import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs'
 import { localize } from 'vs/nls';
 import { createFileSystemProviderError, FileAtomicReadOptions, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
-import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
+import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, isRecursiveWatchRequest, IUniversalWatcheRequest } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -609,28 +609,28 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	//#region File Watching
 
-	protected createRecursiveWatcher(
+	protected createUniversalWatcher(
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): AbstractUniversalWatcherClient {
-		return new UniversalWatcherClient(
-			changes => onChange(changes),
-			msg => onLogMessage(msg),
-			verboseLogging
-		);
+		return new UniversalWatcherClient(changes => onChange(changes), msg => onLogMessage(msg), verboseLogging);
 	}
 
-	protected override massageRecursiveWatchRequests(requests: IRecursiveWatchRequest[]): void {
+	protected override massageWatchRequests(requests: IUniversalWatcheRequest[]): void {
 		const usePolling = this.options?.watcher?.usePolling;
 		if (usePolling === true) {
 			for (const request of requests) {
-				request.pollingInterval = this.options?.watcher?.pollingInterval ?? 5000;
+				if (isRecursiveWatchRequest(request)) {
+					request.pollingInterval = this.options?.watcher?.pollingInterval ?? 5000;
+				}
 			}
 		} else if (Array.isArray(usePolling)) {
 			for (const request of requests) {
-				if (usePolling.includes(request.path)) {
-					request.pollingInterval = this.options?.watcher?.pollingInterval ?? 5000;
+				if (isRecursiveWatchRequest(request)) {
+					if (usePolling.includes(request.path)) {
+						request.pollingInterval = this.options?.watcher?.pollingInterval ?? 5000;
+					}
 				}
 			}
 		}
@@ -641,11 +641,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): AbstractNonRecursiveWatcherClient {
-		return new NodeJSWatcherClient(
-			changes => onChange(changes),
-			msg => onLogMessage(msg),
-			verboseLogging
-		);
+		return new NodeJSWatcherClient(changes => onChange(changes), msg => onLogMessage(msg), verboseLogging);
 	}
 
 	//#endregion
