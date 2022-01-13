@@ -24,7 +24,7 @@ export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 	protected override createWatcher(disposables: DisposableStore): IRecursiveWatcher {
 		const watcher = ProxyChannel.toService<IRecursiveWatcher>(getDelayedChannel((async () => {
 
-			// Acquire parcel watcher via shared process worker
+			// Acquire universal watcher via shared process worker
 			//
 			// We explicitly do not add the worker as a disposable
 			// because we need to call `stop` on disposal to prevent
@@ -49,10 +49,10 @@ export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 			return client.getChannel('watcher');
 		})()));
 
-		// Looks like parcel needs an explicit stop to prevent
-		// access on data structures after process exit. This
-		// only seem to be happening when used from Electron,
-		// not pure node.js.
+		// Looks like universal watcher needs an explicit stop
+		// to prevent access on data structures after process
+		// exit. This only seem to be happening when used from
+		// Electron, not pure node.js.
 		// https://github.com/microsoft/vscode/issues/136264
 		disposables.add(toDisposable(() => watcher.stop()));
 
