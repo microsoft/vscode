@@ -42,13 +42,13 @@ suite('TerminalCapabilityStore', () => {
 		deepStrictEqual(store.has(TerminalCapability.CwdDetection), false);
 	});
 	test('items should reflect current state', () => {
-		deepStrictEqual(store.items, []);
+		deepStrictEqual(Array.from(store.items), []);
 		store.add(TerminalCapability.CwdDetection, null!);
-		deepStrictEqual(store.items, [TerminalCapability.CwdDetection]);
+		deepStrictEqual(Array.from(store.items), [TerminalCapability.CwdDetection]);
 		store.add(TerminalCapability.NaiveCwdDetection, null!);
-		deepStrictEqual(store.items, [TerminalCapability.CwdDetection, TerminalCapability.NaiveCwdDetection]);
+		deepStrictEqual(Array.from(store.items), [TerminalCapability.CwdDetection, TerminalCapability.NaiveCwdDetection]);
 		store.remove(TerminalCapability.CwdDetection);
-		deepStrictEqual(store.items, [TerminalCapability.NaiveCwdDetection]);
+		deepStrictEqual(Array.from(store.items), [TerminalCapability.NaiveCwdDetection]);
 	});
 });
 
@@ -102,16 +102,16 @@ suite('TerminalCapabilityStoreMultiplexer', () => {
 		assertEvents(addEvents, [TerminalCapability.CwdDetection, TerminalCapability.NaiveCwdDetection]);
 	});
 	test('items should return items from all stores', () => {
-		deepStrictEqual(multiplexer.items, []);
+		deepStrictEqual(Array.from(multiplexer.items).sort(), [].sort());
 		multiplexer.add(store1);
 		multiplexer.add(store2);
 		store1.add(TerminalCapability.CwdDetection, null!);
-		deepStrictEqual(multiplexer.items, [TerminalCapability.CwdDetection]);
+		deepStrictEqual(Array.from(multiplexer.items).sort(), [TerminalCapability.CwdDetection].sort());
 		store1.add(TerminalCapability.CommandDetection, null!);
 		store2.add(TerminalCapability.NaiveCwdDetection, null!);
-		deepStrictEqual(multiplexer.items, [TerminalCapability.CwdDetection, TerminalCapability.CommandDetection, TerminalCapability.NaiveCwdDetection]);
+		deepStrictEqual(Array.from(multiplexer.items).sort(), [TerminalCapability.CwdDetection, TerminalCapability.CommandDetection, TerminalCapability.NaiveCwdDetection].sort());
 		store2.remove(TerminalCapability.NaiveCwdDetection);
-		deepStrictEqual(multiplexer.items, [TerminalCapability.CwdDetection, TerminalCapability.CommandDetection]);
+		deepStrictEqual(Array.from(multiplexer.items).sort(), [TerminalCapability.CwdDetection, TerminalCapability.CommandDetection].sort());
 	});
 	test('has should return whether a capability is present', () => {
 		deepStrictEqual(multiplexer.has(TerminalCapability.CwdDetection), false);
