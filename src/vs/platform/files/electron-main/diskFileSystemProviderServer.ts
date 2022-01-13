@@ -90,7 +90,8 @@ class SessionFileWatcher extends Disposable implements ISessionFileWatcher {
 		const watcher = disposable.add(new NodeJSFileWatcherLibrary(
 			{
 				path: normalize(resource.fsPath),
-				excludes: opts.excludes
+				excludes: opts.excludes,
+				recursive: false
 			},
 			changes => this.sessionEmitter.fire(toFileChanges(changes)),
 			msg => this.onWatcherLogMessage(msg),

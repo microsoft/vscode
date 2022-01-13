@@ -474,7 +474,7 @@ export async function watchFileContents(path: string, onData: (chunk: Uint8Array
 	let error: Error | undefined = undefined;
 	let isReading = false;
 
-	const request: INonRecursiveWatchRequest = { path, excludes: [] };
+	const request: INonRecursiveWatchRequest = { path, excludes: [], recursive: false };
 	const watcher = new NodeJSFileWatcherLibrary(request, changes => {
 		(async () => {
 			for (const { type } of changes) {

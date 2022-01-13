@@ -13,7 +13,7 @@ import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { DiskFileSystemProviderClient, LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IDiskFileChange, ILogMessage, AbstractRecursiveWatcherClient } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, ILogMessage, AbstractUniversalWatcherClient } from 'vs/platform/files/common/watcher';
 import { ParcelWatcherClient } from 'vs/workbench/services/files/electron-sandbox/parcelWatcherClient';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
@@ -138,7 +138,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
-	): AbstractRecursiveWatcherClient {
+	): AbstractUniversalWatcherClient {
 		return new ParcelWatcherClient(
 			changes => onChange(changes),
 			msg => onLogMessage(msg),

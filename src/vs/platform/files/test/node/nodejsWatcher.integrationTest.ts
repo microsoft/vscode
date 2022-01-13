@@ -67,7 +67,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 		const emitter = new Emitter<IDiskFileChange[]>();
 		event = emitter.event;
 
-		watcher = new TestNodeJSFileWatcherLibrary({ path, excludes }, changes => emitter.fire(changes), msg => {
+		watcher = new TestNodeJSFileWatcherLibrary({ path, excludes, recursive: false }, changes => emitter.fire(changes), msg => {
 			if (loggingEnabled) {
 				console.log(`[recursive watcher test message] ${msg.type}: ${msg.message}`);
 			}

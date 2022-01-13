@@ -5,10 +5,10 @@
 
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { getDelayedChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { AbstractRecursiveWatcherClient, IDiskFileChange, ILogMessage, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
 import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
 
-export class ParcelWatcherClient extends AbstractRecursiveWatcherClient {
+export class ParcelWatcherClient extends AbstractUniversalWatcherClient {
 
 	constructor(
 		onFileChanges: (changes: IDiskFileChange[]) => void,

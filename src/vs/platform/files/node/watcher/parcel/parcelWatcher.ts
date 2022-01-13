@@ -531,7 +531,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 		const parentPath = dirname(watcher.request.path);
 		if (existsSync(parentPath)) {
-			const nodeWatcher = new NodeJSFileWatcherLibrary({ path: parentPath, excludes: [] }, changes => {
+			const nodeWatcher = new NodeJSFileWatcherLibrary({ path: parentPath, excludes: [], recursive: false }, changes => {
 				if (watcher.token.isCancellationRequested) {
 					return; // return early when disposed
 				}
@@ -665,7 +665,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		return Array.from(requestTrie).map(([, request]) => request);
 	}
 
-	 setVerboseLogging(enabled: boolean): void {
+	setVerboseLogging(enabled: boolean): void {
 		this.verboseLogging = enabled;
 	}
 

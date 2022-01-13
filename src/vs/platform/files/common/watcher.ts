@@ -20,11 +20,27 @@ export interface IWatchRequest {
 	 * A set of glob patterns or paths to exclude from watching.
 	 */
 	excludes: string[];
+
+	/**
+	 * Whether to watch recursively or not.
+	 */
+	recursive: boolean;
 }
 
-export interface INonRecursiveWatchRequest extends IWatchRequest { }
+export interface INonRecursiveWatchRequest extends IWatchRequest {
+
+	/**
+	 * The watcher will be non-recursive.
+	 */
+	recursive: false;
+}
 
 export interface IRecursiveWatchRequest extends IWatchRequest {
+
+	/**
+	 * The watcher will be recursive.
+	 */
+	recursive: true;
 
 	/**
 	 * @deprecated this only exists for WSL1 support and should never
@@ -80,6 +96,10 @@ export interface INonRecursiveWatcher extends IWatcher {
 	watch(requests: INonRecursiveWatchRequest[]): Promise<void>;
 }
 
+export interface IUniversalWatcher extends IWatcher {
+	watch(requests: (IRecursiveWatchRequest | INonRecursiveWatchRequest)[]): Promise<void>;
+}
+
 export interface INonRecursiveWatcherLibrary extends IDisposable {
 
 	/**
@@ -93,14 +113,14 @@ export interface INonRecursiveWatcherLibrary extends IDisposable {
 	setVerboseLogging(enabled: boolean): void;
 }
 
-export abstract class AbstractRecursiveWatcherClient extends Disposable {
+export abstract class AbstractUniversalWatcherClient extends Disposable {
 
 	private static readonly MAX_RESTARTS = 5;
 
-	private watcher: IRecursiveWatcher | undefined;
+	private watcher: IUniversalWatcher | undefined;
 	private readonly watcherDisposables = this._register(new MutableDisposable());
 
-	private requests: IRecursiveWatchRequest[] | undefined = undefined;
+	private requests: (IRecursiveWatchRequest | INonRecursiveWatchRequest)[] | undefined = undefined;
 
 	private restartCounter = 0;
 
@@ -112,7 +132,7 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 		super();
 	}
 
-	protected abstract createWatcher(disposables: DisposableStore): IRecursiveWatcher;
+	protected abstract createWatcher(disposables: DisposableStore): IUniversalWatcher;
 
 	protected init(): void {
 
@@ -133,7 +153,7 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 	protected onError(error: string): void {
 
 		// Restart up to N times
-		if (this.restartCounter < AbstractRecursiveWatcherClient.MAX_RESTARTS && this.requests) {
+		if (this.restartCounter < AbstractUniversalWatcherClient.MAX_RESTARTS && this.requests) {
 			this.error(`restarting watcher after error: ${error}`);
 			this.restart(this.requests);
 		}
@@ -144,14 +164,14 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 		}
 	}
 
-	private restart(requests: IRecursiveWatchRequest[]): void {
+	private restart(requests: (IRecursiveWatchRequest | INonRecursiveWatchRequest)[]): void {
 		this.restartCounter++;
 
 		this.init();
 		this.watch(requests);
 	}
 
-	async watch(requests: IRecursiveWatchRequest[]): Promise<void> {
+	async watch(requests: (IRecursiveWatchRequest | INonRecursiveWatchRequest)[]): Promise<void> {
 		this.requests = requests;
 
 		await this.watcher?.watch(requests);
@@ -164,7 +184,7 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 	}
 
 	private error(message: string) {
-		this.onLogMessage({ type: 'error', message: `[File Watcher (parcel)] ${message}` });
+		this.onLogMessage({ type: 'error', message: `[File Watcher (universal)] ${message}` });
 	}
 
 	override dispose(): void {
