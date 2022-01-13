@@ -106,7 +106,7 @@ registerAction2(class extends Action2 {
 			}, {
 				id: MenuId.LayoutControlMenu,
 				group: '1_quick_layout',
-				order: 1
+				order: 3
 				}]
 		});
 	}
@@ -445,11 +445,16 @@ registerAction2(class extends Action2 {
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyZ)
 			},
 			toggled: InEditorZenModeContext,
-			menu: {
+			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
 				order: 2
+			}, {
+					id: MenuId.LayoutControlMenu,
+					group: '1_quick_layout',
+					order: 2
 			}
+			]
 		});
 	}
 

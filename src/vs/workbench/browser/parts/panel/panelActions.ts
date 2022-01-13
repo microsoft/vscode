@@ -340,6 +340,17 @@ function registerPositionPanelActionById(config: PanelActionConfig<Position>) {
 			order: 5
 		}
 	}, {
+			id: MenuId.LayoutControlMenu,
+			item: {
+				group: '3_workbench_layout_move',
+				command: {
+					id,
+					title: label
+				},
+				when,
+				order: 5
+			}
+		}, {
 		id: MenuId.ViewTitleContext,
 		item: {
 			group: '3_workbench_layout_move',

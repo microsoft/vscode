@@ -296,11 +296,15 @@ class ToggleFullScreenAction extends Action2 {
 			},
 			precondition: IsIOSContext.toNegated(),
 			toggled: IsFullscreenContext,
-			menu: {
+			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
 				order: 1
-			}
+			}, {
+					id: MenuId.LayoutControlMenu,
+					group: '1_quick_layout',
+					order: 1
+				}]
 		});
 	}
 
