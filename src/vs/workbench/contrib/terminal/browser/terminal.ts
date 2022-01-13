@@ -408,7 +408,7 @@ export interface ITerminalInstance {
 	readonly workspaceFolder?: string;
 	readonly cwd?: string;
 	readonly initialCwd?: string;
-	readonly capabilities2: ITerminalCapabilityStore;
+	readonly capabilities: ITerminalCapabilityStore;
 
 	readonly statusList: ITerminalStatusList;
 

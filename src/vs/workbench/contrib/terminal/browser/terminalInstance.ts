@@ -119,7 +119,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _instanceIdCounter = 1;
 
 	xterm?: XtermTerminal;
-	readonly capabilities2 = new TerminalCapabilityStoreMultiplexer();
+	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 
 	private _xtermReadyPromise: Promise<XtermTerminal>;
 	private _xtermTypeAheadAddon: TypeAheadAddon | undefined;
@@ -1174,7 +1174,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	protected _createProcessManager(): TerminalProcessManager {
 		const processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper);
-		this.capabilities2.addCapabilityStore(this._processManager.capabilities);
+		this.capabilities.addCapabilityStore(this._processManager.capabilities);
 		processManager.onProcessReady(async (e) => {
 			this._onProcessIdReady.fire(this);
 			this._initialCwd = await this.getInitialCwd();
@@ -2194,7 +2194,7 @@ export class TerminalLabelComputer extends Disposable {
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 	constructor(
 		private readonly _configHelper: TerminalConfigHelper,
-		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities2' | 'title' | 'description'>,
+		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		super();
@@ -2233,7 +2233,7 @@ export class TerminalLabelComputer extends Disposable {
 		if (!reset && this._instance.staticTitle && labelType === TerminalLabelType.Title) {
 			return this._instance.staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process?.replace(/[\n\r\t]/g, '') || '';
 		}
-		const detection = this._instance.capabilities2.has(TerminalCapability.CwdDetection) || this._instance.capabilities2.has(TerminalCapability.NaiveCwdDetection);
+		const detection = this._instance.capabilities.has(TerminalCapability.CwdDetection) || this._instance.capabilities.has(TerminalCapability.NaiveCwdDetection);
 		const zeroRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 0 && this.pathsEqual(templateProperties.cwd, this._instance.userHome || this._configHelper.config.cwd);
 		const singleRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 1 && this.pathsEqual(templateProperties.cwd, this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath);
 		templateProperties.cwdFolder = (!templateProperties.cwd || !detection || zeroRootWorkspace || singleRootWorkspace) ? '' : path.basename(templateProperties.cwd);
