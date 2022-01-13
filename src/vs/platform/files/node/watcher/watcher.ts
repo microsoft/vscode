@@ -65,9 +65,11 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 		]);
 	}
 
-	setVerboseLogging(enabled: boolean): void {
-		this.recursiveWatcher.setVerboseLogging(enabled);
-		this.nonRecursiveWatcher.setVerboseLogging(enabled);
+	async setVerboseLogging(enabled: boolean): Promise<void> {
+		await Promises.settled([
+			this.recursiveWatcher.setVerboseLogging(enabled),
+			this.nonRecursiveWatcher.setVerboseLogging(enabled)
+		]);
 	}
 
 	async stop(): Promise<void> {

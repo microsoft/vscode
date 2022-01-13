@@ -115,7 +115,7 @@ export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
 		return Array.from(requestsMap.values());
 	}
 
-	setVerboseLogging(enabled: boolean): void {
+	async setVerboseLogging(enabled: boolean): Promise<void> {
 		this.verboseLogging = enabled;
 
 		for (const [, watcher] of this.watchers) {
@@ -123,7 +123,7 @@ export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
 		}
 	}
 
-	private trace(message: string) {
+	private trace(message: string): void {
 		if (this.verboseLogging) {
 			this._onDidLogMessage.fire({ type: 'trace', message: this.toMessage(message) });
 		}

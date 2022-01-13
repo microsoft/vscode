@@ -82,7 +82,7 @@ export interface IWatcher {
 	/**
 	 * Enable verbose logging in the watcher.
 	 */
-	setVerboseLogging(enabled: boolean): void;
+	setVerboseLogging(enabled: boolean): Promise<void>;
 
 	/**
 	 * Stop all watchers.
@@ -182,7 +182,7 @@ export abstract class AbstractUniversalWatcherClient extends Disposable {
 	async setVerboseLogging(verboseLogging: boolean): Promise<void> {
 		this.verboseLogging = verboseLogging;
 
-		this.watcher?.setVerboseLogging(verboseLogging);
+		await this.watcher?.setVerboseLogging(verboseLogging);
 	}
 
 	private error(message: string) {
