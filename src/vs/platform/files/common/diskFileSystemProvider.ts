@@ -15,7 +15,10 @@ import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDis
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 export interface IDiskFileSystemProviderOptions {
-	watcher?: IRecursiveWatcherOptions;
+	watcher?: {
+		recursive?: IRecursiveWatcherOptions;
+		forceUniversal?: boolean;
+	};
 }
 
 export abstract class AbstractDiskFileSystemProvider extends Disposable {
@@ -34,7 +37,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 	readonly onDidWatchError = this._onDidWatchError.event;
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
-		if (opts.recursive) {
+		if (opts.recursive || this.options?.watcher?.forceUniversal) {
 			return this.watchUniversal(resource, opts);
 		}
 
@@ -93,18 +96,18 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 		}
 
 		// Adjust for polling
-		const usePolling = this.options?.watcher?.usePolling;
+		const usePolling = this.options?.watcher?.recursive?.usePolling;
 		if (usePolling === true) {
 			for (const request of this.universalPathsToWatch) {
 				if (isRecursiveWatchRequest(request)) {
-					request.pollingInterval = this.options?.watcher?.pollingInterval ?? 5000;
+					request.pollingInterval = this.options?.watcher?.recursive?.pollingInterval ?? 5000;
 				}
 			}
 		} else if (Array.isArray(usePolling)) {
 			for (const request of this.universalPathsToWatch) {
 				if (isRecursiveWatchRequest(request)) {
 					if (usePolling.includes(request.path)) {
-						request.pollingInterval = this.options?.watcher?.pollingInterval ?? 5000;
+						request.pollingInterval = this.options?.watcher?.recursive?.pollingInterval ?? 5000;
 					}
 				}
 			}

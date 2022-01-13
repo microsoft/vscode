@@ -62,7 +62,7 @@ export class RemoteAgentFileSystemProviderChannel extends AbstractDiskFileSystem
 class SessionFileWatcher extends Disposable implements ISessionFileWatcher {
 
 	private readonly watcherRequests = new Map<number, IDisposable>();
-	private readonly fileWatcher = this._register(new DiskFileSystemProvider(this.logService, { watcher: this.getWatcherOptions() }));
+	private readonly fileWatcher = this._register(new DiskFileSystemProvider(this.logService, { watcher: { recursive: this.getRecursiveWatcherOptions() } }));
 
 	constructor(
 		private readonly uriTransformer: IURITransformer,
@@ -91,7 +91,7 @@ class SessionFileWatcher extends Disposable implements ISessionFileWatcher {
 		this._register(this.fileWatcher.onDidWatchError(error => sessionEmitter.fire(error)));
 	}
 
-	private getWatcherOptions(): IRecursiveWatcherOptions | undefined {
+	private getRecursiveWatcherOptions(): IRecursiveWatcherOptions | undefined {
 		const fileWatcherPolling = this.environmentService.args['file-watcher-polling'];
 		if (fileWatcherPolling) {
 			const segments = fileWatcherPolling.split(delimiter);

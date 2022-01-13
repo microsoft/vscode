@@ -5,14 +5,13 @@
 
 import { Event } from 'vs/base/common/event';
 import { isLinux } from 'vs/base/common/platform';
-import { FileSystemProviderCapabilities, FileDeleteOptions, IStat, FileType, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IWatchOptions, IFileSystemProviderWithFileAtomicReadCapability, FileAtomicReadOptions } from 'vs/platform/files/common/files';
+import { FileSystemProviderCapabilities, FileDeleteOptions, IStat, FileType, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, FileAtomicReadOptions } from 'vs/platform/files/common/files';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { DiskFileSystemProviderClient, LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IDiskFileChange, ILogMessage, AbstractUniversalWatcherClient } from 'vs/platform/files/common/watcher';
 import { UniversalWatcherClient } from 'vs/workbench/services/files/electron-sandbox/watcherClient';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -37,7 +36,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		private readonly sharedProcessWorkerWorkbenchService: ISharedProcessWorkerWorkbenchService,
 		logService: ILogService
 	) {
-		super(logService);
+		super(logService, { watcher: { forceUniversal: true /* send all requests to universal watcher process */ } });
 
 		this.registerListeners();
 	}
@@ -123,17 +122,6 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	//#region File Watching
 
-	override watch(resource: URI, opts: IWatchOptions): IDisposable {
-
-		// Recursive: via parcel file watcher from `createRecursiveWatcher`
-		if (opts.recursive) {
-			return super.watch(resource, opts);
-		}
-
-		// Non-recursive: via main process services
-		return this.provider.watch(resource, opts);
-	}
-
 	protected createUniversalWatcher(
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
@@ -143,7 +131,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	}
 
 	protected createNonRecursiveWatcher(): never {
-		throw new Error('Method not implemented in sandbox.');
+		throw new Error('Method not implemented in sandbox.'); // we never expect this to be called given we set `forceUniversal: true`
 	}
 
 	//#endregion
