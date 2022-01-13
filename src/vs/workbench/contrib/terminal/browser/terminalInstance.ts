@@ -1299,6 +1299,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		const shell = path.basename(shellLaunchConfig.executable);
 		let newArgs: string | string[] | undefined;
+		// TODO: Use backend OS
 		if (isWindows) {
 			if (shell === 'pwsh' && !originalArgs) {
 				newArgs = [
