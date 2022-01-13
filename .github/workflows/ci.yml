@@ -14,7 +14,7 @@ jobs:
   windows:
     name: Windows
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     env:
       CHILD_CONCURRENCY: "1"
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
