@@ -64,7 +64,7 @@ export interface IRecursiveWatcher extends IDisposable {
 	/**
 	 * Enable verbose logging in the watcher.
 	 */
-	setVerboseLogging(enabled: boolean): Promise<void>;
+	setVerboseLogging(enabled: boolean): void;
 
 	/**
 	 * Stop all watchers.
@@ -152,7 +152,7 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 	async setVerboseLogging(verboseLogging: boolean): Promise<void> {
 		this.verboseLogging = verboseLogging;
 
-		await this.watcher?.setVerboseLogging(verboseLogging);
+		this.watcher?.setVerboseLogging(verboseLogging);
 	}
 
 	private error(message: string) {

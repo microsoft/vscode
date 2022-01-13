@@ -665,7 +665,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		return Array.from(requestTrie).map(([, request]) => request);
 	}
 
-	async setVerboseLogging(enabled: boolean): Promise<void> {
+	 setVerboseLogging(enabled: boolean): void {
 		this.verboseLogging = enabled;
 	}
 
