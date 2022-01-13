@@ -34,7 +34,7 @@ export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 			// the process automatically when the window closes or reloads.
 			const { client, onDidTerminate } = await this.sharedProcessWorkerWorkbenchService.createWorker({
 				moduleId: 'vs/platform/files/node/watcher/watcherMain',
-				type: 'watcher'
+				type: 'fileWatcher'
 			});
 
 			// React on unexpected termination of the watcher process
