@@ -35,6 +35,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 
 export const IUserDataInitializationService = createDecorator<IUserDataInitializationService>('IUserDataInitializationService');
 export interface IUserDataInitializationService {
@@ -57,6 +58,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ICredentialsService private readonly credentialsService: ICredentialsService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IFileService private readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -92,14 +94,9 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 						return;
 					}
 
-					if (!this.environmentService.options?.credentialsProvider) {
-						this.logService.trace(`Skipping initializing user data as credentials provider is not provided`);
-						return;
-					}
-
 					let authenticationSession;
 					try {
-						authenticationSession = await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService);
+						authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
 					} catch (error) {
 						this.logService.error(error);
 					}

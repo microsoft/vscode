@@ -63,7 +63,7 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 
 		const isCollapsed = (element: T) => {
 			const id = this.identityProvider!.getId(element).toString();
-			return !viewState.expanded.has(id);
+			return !viewState.expanded[id];
 		};
 
 		const onDidCreateNode = (node: ITreeNode<T, TFilterData>) => {

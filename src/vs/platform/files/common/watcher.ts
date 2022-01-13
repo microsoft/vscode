@@ -9,6 +9,30 @@ import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
+export interface IWatchRequest {
+
+	/**
+	 * The path to watch.
+	 */
+	path: string;
+
+	/**
+	 * A set of glob patterns or paths to exclude from watching.
+	 */
+	excludes: string[];
+}
+
+export interface INonRecursiveWatchRequest extends IWatchRequest { }
+
+export interface IRecursiveWatchRequest extends IWatchRequest {
+
+	/**
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
+	 */
+	pollingInterval?: number;
+}
+
 export interface IRecursiveWatcher extends IDisposable {
 
 	/**
@@ -142,30 +166,6 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 
 		return super.dispose();
 	}
-}
-
-export interface IWatchRequest {
-
-	/**
-	 * The path to watch.
-	 */
-	path: string;
-
-	/**
-	 * A set of glob patterns or paths to exclude from watching.
-	 */
-	excludes: string[];
-}
-
-export interface INonRecursiveWatchRequest extends IWatchRequest { }
-
-export interface IRecursiveWatchRequest extends IWatchRequest {
-
-	/**
-	 * @deprecated this only exists for WSL1 support and should never
-	 * be used in any other case.
-	 */
-	pollingInterval?: number;
 }
 
 export interface IDiskFileChange {

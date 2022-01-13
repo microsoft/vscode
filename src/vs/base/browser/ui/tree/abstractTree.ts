@@ -237,14 +237,14 @@ interface ITreeListTemplateData<T> {
 export interface IAbstractTreeViewState {
 	readonly focus: Iterable<string>;
 	readonly selection: Iterable<string>;
-	readonly expanded: Iterable<string>;
+	readonly expanded: { [id: string]: 1 | 0 };
 	readonly scrollTop: number;
 }
 
 export class AbstractTreeViewState implements IAbstractTreeViewState {
 	public readonly focus: Set<string>;
 	public readonly selection: Set<string>;
-	public readonly expanded: Set<string>;
+	public readonly expanded: { [id: string]: 1 | 0 };
 	public scrollTop: number;
 
 	public static lift(state: IAbstractTreeViewState) {
@@ -255,7 +255,7 @@ export class AbstractTreeViewState implements IAbstractTreeViewState {
 		return new AbstractTreeViewState({
 			focus: [],
 			selection: [],
-			expanded: [],
+			expanded: Object.create(null),
 			scrollTop,
 		});
 	}
@@ -263,7 +263,15 @@ export class AbstractTreeViewState implements IAbstractTreeViewState {
 	protected constructor(state: IAbstractTreeViewState) {
 		this.focus = new Set(state.focus);
 		this.selection = new Set(state.selection);
-		this.expanded = new Set(state.expanded);
+		if (state.expanded instanceof Array) { // old format
+			this.expanded = Object.create(null);
+			for (const id of state.expanded as string[]) {
+				this.expanded[id] = 1;
+			}
+		} else {
+			this.expanded = state.expanded;
+		}
+		this.expanded = state.expanded;
 		this.scrollTop = state.scrollTop;
 	}
 
@@ -271,7 +279,7 @@ export class AbstractTreeViewState implements IAbstractTreeViewState {
 		return {
 			focus: Array.from(this.focus),
 			selection: Array.from(this.selection),
-			expanded: Array.from(this.expanded),
+			expanded: this.expanded,
 			scrollTop: this.scrollTop,
 		};
 	}
@@ -1747,8 +1755,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		while (queue.length > 0) {
 			const node = queue.shift()!;
 
-			if (node !== root && node.collapsible && !node.collapsed) {
-				state.expanded.add(getId(node.element!));
+			if (node !== root && node.collapsible) {
+				state.expanded[getId(node.element!)] = node.collapsed ? 0 : 1;
 			}
 
 			queue.push(...node.children);

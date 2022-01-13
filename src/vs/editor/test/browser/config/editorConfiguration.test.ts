@@ -61,7 +61,6 @@ suite('Common Editor Config', () => {
 				outerHeight: 100,
 				emptySelectionClipboard: true,
 				pixelRatio: 1,
-				zoomLevel: 0,
 				accessibilitySupport: AccessibilitySupport.Unknown
 			};
 		}

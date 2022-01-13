@@ -262,7 +262,6 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 						height: 100,
 						width: 100,
 						fontInfo: new FontInfo({
-							zoomLevel: 0,
 							pixelRatio: 1,
 							fontFamily: 'mockFont',
 							fontWeight: 'normal',

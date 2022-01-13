@@ -967,6 +967,14 @@
   resolved "https://registry.yarnpkg.com/@vscode/debugprotocol/-/debugprotocol-1.51.0.tgz#1d28a8581f8ea74b8e2fd465d4448717589a0ae3"
   integrity sha512-39ShbKzI+0r53haLZQVEhY4XhdMJVSqfcliaDFigQjqiWattno5Ex0jXq2WRHrAtPf+W5Un9/HtED0K3pAiqZg==
 
+"@vscode/ripgrep@^1.14.1":
+  version "1.14.1"
+  resolved "https://registry.yarnpkg.com/@vscode/ripgrep/-/ripgrep-1.14.1.tgz#66b104a6c7283d17672eb01c02b1c1294d4bb2ae"
+  integrity sha512-f2N/iPZhxP9bho7iK0DibJDprU+spE8hTIvQg1fi8v82oWIWU9IB4a92444GyxSaFgb+hWpQe46QkFDh5W1VpQ==
+  dependencies:
+    https-proxy-agent "^4.0.0"
+    proxy-from-env "^1.1.0"
+
 "@vscode/sqlite3@4.0.12":
   version "4.0.12"
   resolved "https://registry.yarnpkg.com/@vscode/sqlite3/-/sqlite3-4.0.12.tgz#50b36c788b5d130c02612b27eaf6905dc2156a43"
@@ -6154,10 +6162,10 @@ just-extend@^4.0.2:
   resolved "https://registry.yarnpkg.com/just-extend/-/just-extend-4.2.1.tgz#ef5e589afb61e5d66b24eca749409a8939a8c744"
   integrity sha512-g3UB796vUFIY90VIv/WX3L2c8CS2MdWUww3CNrYmqza1Fg0DURc2K/O4YrnklBdQarSJ/y8JnJYDGc+1iumQjg==
 
-keytar@7.2.0:
-  version "7.2.0"
-  resolved "https://registry.yarnpkg.com/keytar/-/keytar-7.2.0.tgz#4db2bec4f9700743ffd9eda22eebb658965c8440"
-  integrity sha512-ECSaWvoLKI5SI0pGpZQeUV1/lpBYfkaxvoSp3zkiPOz05VavwSfLi8DdEaa9N2ekQZv3Chy+o7aP6n9mairBgw==
+keytar@7.6.0:
+  version "7.6.0"
+  resolved "https://registry.yarnpkg.com/keytar/-/keytar-7.6.0.tgz#498e796443cb543d31722099443f29d7b5c44100"
+  integrity sha512-H3cvrTzWb11+iv0NOAnoNAPgEapVZnYLVHZQyxmh7jdmVfR/c0jNNFEZ6AI38W/4DeTGTaY66ZX4Z1SbfKPvCQ==
   dependencies:
     node-addon-api "^3.0.0"
     prebuild-install "^6.0.0"
@@ -6991,10 +6999,10 @@ native-is-elevated@0.4.3:
   resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.4.3.tgz#f1071c4a821acc71d43f36ff8051d3816d832e1c"
   integrity sha512-bHS3sCoh+raqFGIxmL/plER3eBQ+IEBy4RH/4uahhToZneTvqNKQrL0PgOTtnpL55XjBd3dy0pNtZMkCk0J48g==
 
-native-keymap@3.0.3:
-  version "3.0.3"
-  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-3.0.3.tgz#7f846f2136ea31785ac06cd917c84abac1c88bfb"
-  integrity sha512-XBKD3jpRI4GsrVIe5TB1PAk2ZLEJY/HcH4N9ZssnzP3+HD5V+ABqXs37VLQtiUF/EsmQ1xEeWquPyWFFpeeIpg==
+native-keymap@3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-3.1.0.tgz#4ad8350f9253d0ae13c77f37d4a34ab4773e305f"
+  integrity sha512-h67B9n/L0DRGAftZqO7ZTlgGy7UY8r7N/GOAnnDibmRqFoenjbd9IdkN9uCf1Xs+vGW4BDJn9ZtO6xwJAbDmEA==
 
 native-watchdog@1.3.0:
   version "1.3.0"
@@ -10538,7 +10546,7 @@ vscode-regexpp@^3.1.0:
   resolved "https://registry.yarnpkg.com/vscode-regexpp/-/vscode-regexpp-3.1.0.tgz#42d059b6fffe99bd42939c0d013f632f0cad823f"
   integrity sha512-pqtN65VC1jRLawfluX4Y80MMG0DHJydWhe5ZwMHewZD6sys4LbU6lHwFAHxeuaVE6Y6+xZOtAw+9hvq7/0ejkg==
 
-vscode-ripgrep@^1.12.1, vscode-ripgrep@^1.13.2:
+vscode-ripgrep@^1.12.1:
   version "1.13.2"
   resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.13.2.tgz#8ccebc33f14d54442c4b11962aead163c55b506e"
   integrity sha512-RlK9U87EokgHfiOjDQ38ipQQX936gWOcWPQaJpYf+kAkz1PQ1pK2n7nhiscdOmLu6XGjTs7pWFJ/ckonpN7twQ==

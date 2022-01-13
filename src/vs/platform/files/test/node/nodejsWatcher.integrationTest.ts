@@ -10,11 +10,12 @@ import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IDiskFileChange } from 'vs/platform/files/common/watcher';
-import { NodeJSFileWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
+import { NodeJSFileWatcher, watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { ltrim } from 'vs/base/common/strings';
 import { DeferredPromise } from 'vs/base/common/async';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -453,5 +454,25 @@ import { DeferredPromise } from 'vs/base/common/async';
 
 		// Ensure watcher is now disposed
 		await watcher.whenDisposed;
+	});
+
+	test('watchFileContents', async function () {
+		const watchedPath = join(testDir, 'lorem.txt');
+
+		const cts = new CancellationTokenSource();
+
+		const readyPromise = new DeferredPromise<void>();
+		const chunkPromise = new DeferredPromise<void>();
+		const watchPromise = watchFileContents(watchedPath, () => chunkPromise.complete(), () => readyPromise.complete(), cts.token);
+
+		await readyPromise.p;
+
+		Promises.writeFile(watchedPath, 'Hello World');
+
+		await chunkPromise.p;
+
+		cts.cancel(); // this will resolve `watchPromise`
+
+		return watchPromise;
 	});
 });

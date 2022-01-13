@@ -76,6 +76,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'help': OPTIONS['help'],
 	'version': OPTIONS['version'],
 
+	'compatibility': { type: 'string' },
 
 	_: OPTIONS['_']
 };
@@ -174,6 +175,8 @@ export interface ServerParsedArgs {
 	/* ----- server cli ----- */
 	help: boolean;
 	version: boolean;
+
+	compatibility: string
 
 	_: string[];
 }

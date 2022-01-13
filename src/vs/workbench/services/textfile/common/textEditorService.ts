@@ -243,4 +243,4 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 	}
 }
 
-registerSingleton(ITextEditorService, TextEditorService, false);
+registerSingleton(ITextEditorService, TextEditorService, false /* do not change: https://github.com/microsoft/vscode/issues/137675 */);

@@ -3,7 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// empty placeholder declaration for the `icon` property of the language contribution point
-
-// https://github.com/microsoft/vscode/issues/14662 @aeschli
-
+declare module 'vscode' {
+	export interface Comment {
+		/**
+		 * An optional detail that will be displayed less prominently than the `author`.
+		 * If a date is provided, then the date will be formatted according to the user's
+		 * locale and settings.
+		 */
+		detail?: Date | string
+	}
+}

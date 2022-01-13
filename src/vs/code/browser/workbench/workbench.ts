@@ -191,7 +191,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 
 	create(options: Partial<UriComponents> = {}): URI {
 		const id = ++LocalStorageURLCallbackProvider.REQUEST_ID;
-		const queryParams: string[] = [`vscode-requestId=${id}`];
+		const queryParams: string[] = [`vscode-reqid=${id}`];
 
 		for (const key of LocalStorageURLCallbackProvider.QUERY_KEYS) {
 			const value = options[key];
@@ -462,6 +462,7 @@ function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 		} : undefined,
 		workspaceProvider: WorkspaceProvider.create(config),
 		urlCallbackProvider: new LocalStorageURLCallbackProvider(),
-		credentialsProvider: new LocalStorageCredentialsProvider()
+		// if we have a remote authority, we will use the remote side for storing secrets
+		credentialsProvider: config.remoteAuthority ? undefined : new LocalStorageCredentialsProvider()
 	});
 })();

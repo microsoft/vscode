@@ -9,11 +9,11 @@ import { Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
+import { IEncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { ICredentialsMainService } from 'vs/platform/credentials/node/credentialsMainService';
 
 interface ElectronAuthenticationResponseDetails extends AuthenticationResponseDetails {
 	firstAuthAttempt?: boolean; // https://github.com/electron/electron/blob/84a42a050e7d45225e69df5bd2d2bf9f1037ea41/shell/browser/login_handler.cc#L70
@@ -67,7 +67,7 @@ export class ProxyAuthHandler extends Disposable {
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
+		@ICredentialsMainService private readonly credentialsService: ICredentialsMainService,
 		@IEncryptionMainService private readonly encryptionMainService: IEncryptionMainService,
 		@IProductService private readonly productService: IProductService
 	) {
@@ -154,7 +154,7 @@ export class ProxyAuthHandler extends Disposable {
 		let storedUsername: string | undefined = undefined;
 		let storedPassword: string | undefined = undefined;
 		try {
-			const encryptedSerializedProxyCredentials = await this.nativeHostMainService.getPassword(undefined, this.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
+			const encryptedSerializedProxyCredentials = await this.credentialsService.getPassword(this.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
 			if (encryptedSerializedProxyCredentials) {
 				const credentials: Credentials = JSON.parse(await this.encryptionMainService.decrypt(encryptedSerializedProxyCredentials));
 
@@ -212,9 +212,9 @@ export class ProxyAuthHandler extends Disposable {
 						try {
 							if (reply.remember) {
 								const encryptedSerializedCredentials = await this.encryptionMainService.encrypt(JSON.stringify(credentials));
-								await this.nativeHostMainService.setPassword(undefined, this.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash, encryptedSerializedCredentials);
+								await this.credentialsService.setPassword(this.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash, encryptedSerializedCredentials);
 							} else {
-								await this.nativeHostMainService.deletePassword(undefined, this.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
+								await this.credentialsService.deletePassword(this.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
 							}
 						} catch (error) {
 							this.logService.error(error); // handle gracefully

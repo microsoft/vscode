@@ -16,19 +16,12 @@ perf.mark('code/server/start');
 global.vscodeServerStartTime = performance.now();
 
 async function start() {
-	if (process.argv[2] === '--exec') {
-		console.warn('--exec is deprecated and will be removed.');
-		process.argv.splice(1, 2);
-		require(process.argv[1]);
-		return;
-	}
-
 	const minimist = require('minimist');
 
 	// Do a quick parse to determine if a server or the cli needs to be started
 	const parsedArgs = minimist(process.argv.slice(2), {
 		boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version', 'accept-server-license-terms'],
-		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port']
+		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port', 'compatibility']
 	});
 
 	const extensionLookupArgs = ['list-extensions', 'locate-extension'];
@@ -41,6 +34,12 @@ async function start() {
 			mod.spawnCli();
 		});
 		return;
+	}
+
+	if (parsedArgs['compatibility'] === '1.63') {
+		console.warn(`server.sh is being replaced by 'bin/${product.serverApplicationName}'. Please migrate to the new command and adopt the following new default behaviors:`);
+		console.warn('* connection token is mandatody unless --without-connection-token is used');
+		console.warn('* host defaults to 127.0.0.1');
 	}
 
 	/**
@@ -102,10 +101,11 @@ async function start() {
 		const remoteExtensionHostAgentServer = await getRemoteExtensionHostAgentServer();
 		return remoteExtensionHostAgentServer.handleServerError(err);
 	});
+	const host = parsedArgs['host'] || (parsedArgs['compatibility'] !== '1.63' ? '127.0.0.1' : undefined);
 	const nodeListenOptions = (
 		parsedArgs['socket-path']
 			? { path: parsedArgs['socket-path'] }
-			: { host: parsedArgs['host'], port: await parsePort(parsedArgs['port'], parsedArgs['pick-port']) }
+			: { host, port: await parsePort(host, parsedArgs['port'], parsedArgs['pick-port']) }
 	);
 	server.listen(nodeListenOptions, async () => {
 		const serverGreeting = product.serverGreeting.join('\n');
@@ -147,21 +147,22 @@ async function start() {
 }
 
 /**
- * If `--pick-port` and `--port` is specified, connect to that port.
+ * If `--pick - port` and `--port` is specified, connect to that port.
  *
- * If not and a port range is specified through `--pick-port`
+ * If not and a port range is specified through `--pick - port`
  * then find a free port in that range. Throw error if no
  * free port available in range.
  *
  * If only `--port` is provided then connect to that port.
  *
  * In absence of specified ports, connect to port 8000.
+ * @param {string | undefined} host
  * @param {string | undefined} strPort
  * @param {string | undefined} strPickPort
  * @returns {Promise<number>}
  * @throws
  */
-async function parsePort(strPort, strPickPort) {
+async function parsePort(host, strPort, strPickPort) {
 	let specificPort;
 	if (strPort) {
 		let range;
@@ -171,15 +172,15 @@ async function parsePort(strPort, strPickPort) {
 				return specificPort;
 			}
 		} else if (range = parseRange(strPort)) {
-			const port = await findFreePort(range.start, range.end);
+			const port = await findFreePort(host, range.start, range.end);
 			if (port !== undefined) {
 				return port;
 			}
-			console.warn(`--port: Could not find free port in range: ${range.start}-${range.end}.`);
+			console.warn(`--port: Could not find free port in range: ${range.start} - ${range.end}.`);
 			process.exit(1);
 
 		} else {
-			console.warn('--port "${strPort}" is not a valid number or range.');
+			console.warn(`--port "${strPort}" is not a valid number or range.`);
 			process.exit(1);
 		}
 	}
@@ -189,15 +190,15 @@ async function parsePort(strPort, strPickPort) {
 			if (range.start <= specificPort && specificPort <= range.end) {
 				return specificPort;
 			} else {
-				const port = await findFreePort(range.start, range.end);
+				const port = await findFreePort(host, range.start, range.end);
 				if (port !== undefined) {
 					return port;
 				}
-				console.log(`--pick-port: Could not find free port in range: ${range.start}-${range.end}.`);
+				console.log(`--pick - port: Could not find free port in range: ${range.start} - ${range.end}.`);
 				process.exit(1);
 			}
 		} else {
-			console.log(`--pick-port "${strPickPort}" is not properly formatted.`);
+			console.log(`--pick - port "${strPickPort}" is not properly formatted.`);
 			process.exit(1);
 		}
 	}
@@ -220,16 +221,17 @@ function parseRange(strRange) {
  * Starting at the `start` port, look for a free port incrementing
  * by 1 until `end` inclusive. If no free port is found, undefined is returned.
  *
+ * @param {string | undefined} host
  * @param {number} start
  * @param {number} end
  * @returns {Promise<number | undefined>}
  * @throws
  */
-async function findFreePort(start, end) {
+async function findFreePort(host, start, end) {
 	const testPort = (port) => {
 		return new Promise((resolve) => {
 			const server = http.createServer();
-			server.listen(port, '127.0.0.1', () => {
+			server.listen(port, host, () => {
 				server.close();
 				resolve(true);
 			}).on('error', () => {

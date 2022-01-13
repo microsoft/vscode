@@ -7,7 +7,7 @@ import { multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -225,7 +225,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		modelType: CustomEditorModelType,
 		resource: URI,
 		viewType: string,
-		options: { backupId?: string },
+		options: { backupId?: string; },
 		cancellation: CancellationToken,
 	): Promise<IReference<ICustomEditorModel>> {
 		const existingModel = this._customEditorService.models.tryRetain(resource, viewType);
@@ -347,7 +347,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		proxy: extHostProtocol.ExtHostCustomEditorsShape,
 		viewType: string,
 		resource: URI,
-		options: { backupId?: string },
+		options: { backupId?: string; },
 		getEditors: () => CustomEditorInput[],
 		cancellation: CancellationToken,
 	): Promise<MainThreadCustomEditorModel> {
@@ -686,7 +686,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 				this._backupId = backupId;
 			}
 		} catch (e) {
-			if (isPromiseCanceledError(e)) {
+			if (isCancellationError(e)) {
 				// This is expected
 				throw e;
 			}

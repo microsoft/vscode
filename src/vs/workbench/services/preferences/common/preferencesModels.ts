@@ -15,7 +15,7 @@ import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/mod
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, IExtensionInfo, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, IExtensionInfo, IRegisteredConfigurationPropertySchema, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
@@ -669,6 +669,12 @@ export class DefaultSettings extends Disposable {
 					});
 				}
 
+				const registeredConfigurationProp = prop as IRegisteredConfigurationPropertySchema;
+				let defaultValueSource: string | IExtensionInfo | undefined;
+				if (registeredConfigurationProp && registeredConfigurationProp.defaultValueSource) {
+					defaultValueSource = registeredConfigurationProp.defaultValueSource;
+				}
+
 				result.push({
 					key,
 					value,
@@ -699,7 +705,8 @@ export class DefaultSettings extends Disposable {
 					enumItemLabels: prop.enumItemLabels,
 					allKeysAreBoolean,
 					editPresentation: prop.editPresentation,
-					order: prop.order
+					order: prop.order,
+					defaultValueSource
 				});
 			}
 		}

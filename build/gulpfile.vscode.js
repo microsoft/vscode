@@ -235,7 +235,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(jsFilter.restore)
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
 				'**/*.node',
-				'**/vscode-ripgrep/bin/*',
+				'**/@vscode/ripgrep/bin/*',
 				'**/node-pty/build/Release/*',
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',

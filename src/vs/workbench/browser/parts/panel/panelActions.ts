@@ -10,7 +10,7 @@ import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
 import { ActivePanelContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/panel';
@@ -78,31 +78,58 @@ const PositionPanelActionId = {
 	BOTTOM: 'workbench.action.positionPanelBottom',
 };
 
+const AlignPanelActionId = {
+	LEFT: 'workbench.action.alignPanelLeft',
+	RIGHT: 'workbench.action.alignPanelRight',
+	CENTER: 'workbench.action.alignPanelCenter',
+	JUSTIFY: 'workbench.action.alignPanelJustify',
+};
+
 interface PanelActionConfig<T> {
 	id: string;
 	when: ContextKeyExpression;
 	alias: string;
 	label: string;
+	shortLabel: string;
 	value: T;
 }
 
-function createPositionPanelActionConfig(id: string, alias: string, label: string, position: Position): PanelActionConfig<Position> {
+function createPanelActionConfig<T>(id: string, alias: string, label: string, shortLabel: string, value: T, when: ContextKeyExpression): PanelActionConfig<T> {
 	return {
 		id,
 		alias,
 		label,
-		value: position,
-		when: PanelPositionContext.notEqualsTo(positionToString(position))
+		shortLabel,
+		value,
+		when,
 	};
 }
 
+function createPositionPanelActionConfig(id: string, alias: string, label: string, shortLabel: string, position: Position): PanelActionConfig<Position> {
+	return createPanelActionConfig<Position>(id, alias, label, shortLabel, position, PanelPositionContext.notEqualsTo(positionToString(position)));
+}
+
+function createAlignmentPanelActionConfig(id: string, alias: string, label: string, shortLabel: string, alignment: PanelAlignment): PanelActionConfig<PanelAlignment> {
+	return createPanelActionConfig<PanelAlignment>(id, alias, label, shortLabel, alignment, ContextKeyExpr.notEquals('config.workbench.experimental.panel.alignment', alignment));
+}
+
+
 export const PositionPanelActionConfigs: PanelActionConfig<Position>[] = [
-	createPositionPanelActionConfig(PositionPanelActionId.LEFT, 'View: Move Panel Left', localize('positionPanelLeft', 'Move Panel Left'), Position.LEFT),
-	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, 'View: Move Panel Right', localize('positionPanelRight', 'Move Panel Right'), Position.RIGHT),
-	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, 'View: Move Panel To Bottom', localize('positionPanelBottom', 'Move Panel To Bottom'), Position.BOTTOM),
+	createPositionPanelActionConfig(PositionPanelActionId.LEFT, 'View: Move Panel Left', localize('positionPanelLeft', 'Move Panel Left'), localize('positionPanelLeftShort', "Left"), Position.LEFT),
+	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, 'View: Move Panel Right', localize('positionPanelRight', 'Move Panel Right'), localize('positionPanelRightShort', "Right"), Position.RIGHT),
+	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, 'View: Move Panel To Bottom', localize('positionPanelBottom', 'Move Panel To Bottom'), localize('positionPanelBottomShort', "Bottom"), Position.BOTTOM),
+];
+
+
+export const AlignPanelActionConfigs: PanelActionConfig<PanelAlignment>[] = [
+	createAlignmentPanelActionConfig(AlignPanelActionId.LEFT, 'View: Align Panel Left', localize('alignPanelLeft', 'Align Panel Left'), localize('alignPanelLeftShort', "Left"), 'left'),
+	createAlignmentPanelActionConfig(AlignPanelActionId.RIGHT, 'View: Align Panel Right', localize('alignPanelRight', 'Align Panel Right'), localize('alignPanelRightShort', "Right"), 'right'),
+	createAlignmentPanelActionConfig(AlignPanelActionId.CENTER, 'View: Center Panel', localize('alignPanelCenter', 'Center Panel'), localize('alignPanelCenterShort', "Center"), 'center'),
+	createAlignmentPanelActionConfig(AlignPanelActionId.JUSTIFY, 'View: Justify Panel', localize('alignPanelJustify', 'Justify Panel'), localize('alignPanelJustifyShort', "Justify"), 'justify'),
 ];
 
 const positionByActionId = new Map(PositionPanelActionConfigs.map(config => [config.id, config.value]));
+const alignmentByActionId = new Map(AlignPanelActionConfigs.map(config => [config.id, config.value]));
 
 export class SetPanelPositionAction extends Action {
 	constructor(
@@ -116,6 +143,21 @@ export class SetPanelPositionAction extends Action {
 	override async run(): Promise<void> {
 		const position = positionByActionId.get(this.id);
 		this.layoutService.setPanelPosition(position === undefined ? Position.BOTTOM : position);
+	}
+}
+
+export class SetPanelAlignmentAction extends Action {
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		const alignment = alignmentByActionId.get(this.id);
+		this.layoutService.setPanelAlignment(alignment === undefined ? 'center' : alignment);
 	}
 }
 
@@ -323,10 +365,25 @@ MenuRegistry.appendMenuItems([
 	}
 ]);
 
-function registerPositionPanelActionById(config: PanelActionConfig<Position>) {
-	const { id, label, alias, when } = config;
+MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
+	title: localize('miMovePanel', "Move Panel"),
+	submenu: MenuId.LayoutControlPanelPositionMenu,
+	group: '3_workbench_layout_move',
+	order: 5
+});
+
+MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
+	title: localize('miAlignPanel', "Align Panel"),
+	submenu: MenuId.LayoutControlPanelAlignmentMenu,
+	group: '3_workbench_layout_move',
+	order: 6,
+	when: PanelPositionContext.isEqualTo(positionToString(Position.BOTTOM))
+});
+
+function registerPanelActionById(config: PanelActionConfig<PanelAlignment | Position>, descriptor: SyncActionDescriptor, parentMenu: MenuId) {
+	const { id, label, shortLabel, alias, when } = config;
 	// register the workbench action
-	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SetPanelPositionAction, id, label), alias, CATEGORIES.View.value, when);
+	actionRegistry.registerWorkbenchAction(descriptor, alias, CATEGORIES.View.value, when);
 	// register as a menu item
 	MenuRegistry.appendMenuItems([{
 		id: MenuId.MenubarAppearanceMenu,
@@ -340,6 +397,16 @@ function registerPositionPanelActionById(config: PanelActionConfig<Position>) {
 			order: 5
 		}
 	}, {
+		id: parentMenu,
+		item: {
+			command: {
+				id,
+				title: shortLabel,
+				toggled: when.negate()
+			},
+			order: 5
+		},
+		}, {
 		id: MenuId.ViewTitleContext,
 		item: {
 			group: '3_workbench_layout_move',
@@ -354,4 +421,5 @@ function registerPositionPanelActionById(config: PanelActionConfig<Position>) {
 }
 
 // register each position panel action
-PositionPanelActionConfigs.forEach(registerPositionPanelActionById);
+PositionPanelActionConfigs.forEach(config => registerPanelActionById(config, SyncActionDescriptor.create(SetPanelPositionAction, config.id, config.label), MenuId.LayoutControlPanelPositionMenu));
+AlignPanelActionConfigs.forEach(config => registerPanelActionById(config, SyncActionDescriptor.create(SetPanelAlignmentAction, config.id, config.label), MenuId.LayoutControlPanelAlignmentMenu));

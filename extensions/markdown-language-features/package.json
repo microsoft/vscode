@@ -296,6 +296,12 @@
             "%configuration.markdown.links.openLocation.beside%"
           ]
         },
+        "markdown.suggest.paths.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.markdown.suggest.paths.enabled.description%",
+          "scope": "resource"
+        },
         "markdown.trace": {
           "type": "string",
           "enum": [

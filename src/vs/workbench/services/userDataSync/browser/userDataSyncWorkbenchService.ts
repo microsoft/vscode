@@ -34,6 +34,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncStoreTypeSynchronizer } from 'vs/platform/userDataSync/common/globalStateSync';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
@@ -106,6 +107,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IProductService private readonly productService: IProductService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ICredentialsService private readonly credentialsService: ICredentialsService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -167,7 +169,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async initialize(): Promise<void> {
-		const authenticationSession = this.environmentService.options?.credentialsProvider ? await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService) : undefined;
+		const authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
 		if (this.currentSessionId === undefined && this.useWorkbenchSessionId && (authenticationSession?.id)) {
 			this.currentSessionId = authenticationSession?.id;
 			this.useWorkbenchSessionId = false;

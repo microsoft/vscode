@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as aria from 'vs/base/browser/ui/aria/aria';
@@ -637,7 +637,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _generateFontInfo(): void {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		this._fontInfo = FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()));
+		this._fontInfo = FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value));
 	}
 
 	private _createBody(parent: HTMLElement): void {
@@ -2414,11 +2414,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		const findMatches = this._notebookViewModel.find(query, options).filter(match => match.matches.length > 0);
-		// if (!options.includePreview) {
-		// 	// clear output matches
-		// 	await this._webview?.findStop();
-		// 	return findMatches;
-		// }
+
+		if (!options.includePreview && !options.includeOutput) {
+			return findMatches;
+		}
 
 		const matchMap: { [key: string]: CellFindMatchWithIndex } = {};
 		findMatches.forEach(match => {
@@ -2429,11 +2428,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		if (this._webview) {
 			// request all outputs to be rendered
-			await this._warmupAll(!!options.includePreview);
-			const webviewMatches = await this._webview.find(query);
+			await this._warmupAll(!!options.includeOutput);
+			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includePreview, includeOutput: !!options.includeOutput });
 			// attach webview matches to model find matches
 			webviewMatches.forEach(match => {
-				if (!options.includePreview && match.type === 'output') {
+				if (!options.includePreview && match.type === 'preview') {
+					// skip outputs if not included
+					return;
+				}
+
+				if (!options.includeOutput && match.type === 'output') {
 					// skip outputs if not included
 					return;
 				}

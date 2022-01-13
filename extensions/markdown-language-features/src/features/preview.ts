@@ -10,7 +10,7 @@ import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
-import { openDocumentLink, resolveDocumentLink, resolveLinkToMarkdownFile } from '../util/openDocumentLink';
+import { openDocumentLink, resolveDocumentLink, resolveUriToMarkdownFile } from '../util/openDocumentLink';
 import * as path from '../util/path';
 import { WebviewResourceProvider } from '../util/resources';
 import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from '../util/topmostLineMonitor';
@@ -463,13 +463,12 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			if (workspaceRoots) {
 				baseRoots.push(...workspaceRoots);
 			}
-		} else if (!this._resource.scheme || this._resource.scheme === 'file') {
-			baseRoots.push(vscode.Uri.file(path.dirname(this._resource.fsPath)));
+		} else {
+			baseRoots.push(this._resource.with({ path: path.dirname(this._resource.path) }));
 		}
 
 		return baseRoots;
 	}
-
 
 	private async onDidClickPreviewLink(href: string) {
 		const targetResource = resolveDocumentLink(href, this.resource);
@@ -477,9 +476,9 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		const config = vscode.workspace.getConfiguration('markdown', this.resource);
 		const openLinks = config.get<string>('preview.openMarkdownLinks', 'inPreview');
 		if (openLinks === 'inPreview') {
-			const markdownLink = await resolveLinkToMarkdownFile(targetResource);
-			if (markdownLink) {
-				this.delegate.openPreviewLinkToMarkdownFile(markdownLink, targetResource.fragment);
+			const linkedDoc = await resolveUriToMarkdownFile(targetResource);
+			if (linkedDoc) {
+				this.delegate.openPreviewLinkToMarkdownFile(linkedDoc.uri, targetResource.fragment);
 				return;
 			}
 		}

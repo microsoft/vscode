@@ -5,7 +5,6 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -82,21 +81,24 @@ export class InlayHintsFragments {
 
 		await Promise.all(promises.flat());
 
-		return new InlayHintsFragments(data, model);
+		return new InlayHintsFragments(ranges, data, model);
 	}
 
 	private readonly _disposables = new DisposableStore();
-	private readonly _onDidChange = new Emitter<void>();
 
-	readonly onDidReceiveProviderSignal: Event<void> = this._onDidChange.event;
 	readonly items: readonly InlayHintItem[];
+	readonly ranges: readonly Range[];
+	readonly provider: Set<InlayHintsProvider>;
 
-	private constructor(data: [InlayHintList, InlayHintsProvider][], model: ITextModel) {
+	private constructor(ranges: Range[], data: [InlayHintList, InlayHintsProvider][], model: ITextModel) {
+		this.ranges = ranges;
+		this.provider = new Set();
 		const items: InlayHintItem[] = [];
 		for (const [list, provider] of data) {
 			this._disposables.add(list);
-			for (let hint of list.hints) {
+			this.provider.add(provider);
 
+			for (const hint of list.hints) {
 				// compute the range to which the item should be attached to
 				let position = model.validatePosition(hint.position);
 				let direction: 'before' | 'after' = 'before';
@@ -114,15 +116,11 @@ export class InlayHintsFragments {
 
 				items.push(new InlayHintItem(hint, new InlayHintAnchor(range, direction), provider));
 			}
-			if (provider.onDidChangeInlayHints) {
-				provider.onDidChangeInlayHints(this._onDidChange.fire, this._onDidChange, this._disposables);
-			}
 		}
 		this.items = items.sort((a, b) => Position.compare(a.hint.position, b.hint.position));
 	}
 
 	dispose(): void {
-		this._onDidChange.dispose();
 		this._disposables.dispose();
 	}
 

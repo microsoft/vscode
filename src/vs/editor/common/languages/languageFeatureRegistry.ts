@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { doHash } from 'vs/base/common/hash';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LRUCache } from 'vs/base/common/map';
-import { MovingAverage } from 'vs/base/common/numbers';
 import { ITextModel } from 'vs/editor/common/model';
 import { LanguageFilter, LanguageSelector, score } from 'vs/editor/common/languages/languageSelector';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/model';
@@ -175,63 +172,5 @@ export class LanguageFeatureRegistry<T> {
 		} else {
 			return 0;
 		}
-	}
-}
-
-
-const _hashes = new WeakMap<object, number>();
-let pool = 0;
-function weakHash(obj: object): number {
-	let value = _hashes.get(obj);
-	if (value === undefined) {
-		value = ++pool;
-		_hashes.set(obj, value);
-	}
-	return value;
-}
-
-
-/**
- * Keeps moving average per model and set of providers so that requests
- * can be debounce according to the provider performance
- */
-export class LanguageFeatureRequestDelays {
-
-	private readonly _cache = new LRUCache<string, MovingAverage>(50, 0.7);
-
-
-	constructor(
-		private readonly _registry: LanguageFeatureRegistry<object>,
-		readonly min: number,
-		readonly max: number = Number.MAX_SAFE_INTEGER,
-	) { }
-
-	private _key(model: ITextModel): string {
-		return model.id + this._registry.all(model).reduce((hashVal, obj) => doHash(weakHash(obj), hashVal), 0);
-	}
-
-	private _clamp(value: number | undefined): number {
-		if (value === undefined) {
-			return this.min;
-		} else {
-			return Math.min(this.max, Math.max(this.min, Math.floor(value * 1.3)));
-		}
-	}
-
-	get(model: ITextModel): number {
-		const key = this._key(model);
-		const avg = this._cache.get(key);
-		return this._clamp(avg?.value);
-	}
-
-	update(model: ITextModel, value: number): number {
-		const key = this._key(model);
-		let avg = this._cache.get(key);
-		if (!avg) {
-			avg = new MovingAverage();
-			this._cache.set(key, avg);
-		}
-		avg.update(value);
-		return this.get(model);
 	}
 }

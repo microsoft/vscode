@@ -321,7 +321,7 @@ export const enum StatisticType {
 
 export interface IExtensionsControlManifest {
 	malicious: IExtensionIdentifier[];
-	unsupportedPreReleaseExtensions?: IStringDictionary<{ id: string, displayName: string }>;
+	unsupportedPreReleaseExtensions?: IStringDictionary<{ id: string, displayName: string, migrateStorage?: boolean }>;
 }
 
 export const enum InstallOperation {
@@ -397,7 +397,7 @@ export class ExtensionManagementError extends Error {
 	}
 }
 
-export type InstallOptions = { isBuiltin?: boolean, isMachineScoped?: boolean, donotIncludePackAndDependencies?: boolean, installGivenVersion?: boolean, installPreReleaseVersion?: boolean };
+export type InstallOptions = { isBuiltin?: boolean, isMachineScoped?: boolean, donotIncludePackAndDependencies?: boolean, installGivenVersion?: boolean, installPreReleaseVersion?: boolean, operation?: InstallOperation };
 export type InstallVSIXOptions = Omit<InstallOptions, 'installGivenVersion'> & { installOnlyNewlyAddedFromExtensionPack?: boolean };
 export type UninstallOptions = { donotIncludePack?: boolean, donotCheckDependents?: boolean };
 

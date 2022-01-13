@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { canceled, isCancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { DisposableStore, IDisposable, isDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -131,7 +131,7 @@ export class CompletionItem {
 				this._isResolved = true;
 				sub.dispose();
 			}, err => {
-				if (isPromiseCanceledError(err)) {
+				if (isCancellationError(err)) {
 					// the IPC queue will reject the request with the
 					// cancellation error -> reset cached
 					this._resolveCache = undefined;

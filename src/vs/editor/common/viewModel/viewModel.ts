@@ -89,13 +89,13 @@ export interface IViewModel extends ICursorSimpleModel {
 	getPrimaryCursorState(): CursorState;
 	getLastAddedCursorIndex(): number;
 	getCursorStates(): CursorState[];
-	setCursorStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
+	setCursorStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): boolean;
 	getCursorColumnSelectData(): IColumnSelectData;
 	getCursorAutoClosedCharacters(): Range[];
 	setCursorColumnSelectData(columnSelectData: IColumnSelectData): void;
 	getPrevEditOperationType(): EditOperationType;
 	setPrevEditOperationType(type: EditOperationType): void;
-	revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean): void;
+	revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean, minimalReveal?: boolean): void;
 	revealTopMostCursor(source: string | null | undefined): void;
 	revealBottomMostCursor(source: string | null | undefined): void;
 	revealRange(source: string | null | undefined, revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;

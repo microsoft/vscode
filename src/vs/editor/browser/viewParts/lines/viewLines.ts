@@ -47,6 +47,7 @@ class HorizontalRevealRangeRequest {
 	public readonly maxLineNumber: number;
 
 	constructor(
+		public readonly minimalReveal: boolean,
 		public readonly lineNumber: number,
 		public readonly startColumn: number,
 		public readonly endColumn: number,
@@ -65,6 +66,7 @@ class HorizontalRevealSelectionsRequest {
 	public readonly maxLineNumber: number;
 
 	constructor(
+		public readonly minimalReveal: boolean,
 		public readonly selections: Selection[],
 		public readonly startScrollTop: number,
 		public readonly stopScrollTop: number,
@@ -100,6 +102,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	private _typicalHalfwidthCharacterWidth: number;
 	private _isViewportWrapping: boolean;
 	private _revealHorizontalRightPadding: number;
+	private _horizontalScrollbarHeight: number;
 	private _cursorSurroundingLines: number;
 	private _cursorSurroundingLinesStyle: 'default' | 'all';
 	private _canUseLayerHinting: boolean;
@@ -124,11 +127,13 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._isViewportWrapping = wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = options.get(EditorOption.revealHorizontalRightPadding);
+		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
 		this._cursorSurroundingLines = options.get(EditorOption.cursorSurroundingLines);
 		this._cursorSurroundingLinesStyle = options.get(EditorOption.cursorSurroundingLinesStyle);
 		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
@@ -181,11 +186,13 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._isViewportWrapping = wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = options.get(EditorOption.revealHorizontalRightPadding);
+		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
 		this._cursorSurroundingLines = options.get(EditorOption.cursorSurroundingLines);
 		this._cursorSurroundingLinesStyle = options.get(EditorOption.cursorSurroundingLinesStyle);
 		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
@@ -253,7 +260,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	public override onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
 		// Using the future viewport here in order to handle multiple
 		// incoming reveal range requests that might all desire to be animated
-		const desiredScrollTop = this._computeScrollTopToRevealRange(this._context.viewLayout.getFutureViewport(), e.source, e.range, e.selections, e.verticalType);
+		const desiredScrollTop = this._computeScrollTopToRevealRange(this._context.viewLayout.getFutureViewport(), e.source, e.minimalReveal, e.range, e.selections, e.verticalType);
 
 		if (desiredScrollTop === -1) {
 			// marker to abort the reveal range request
@@ -272,9 +279,9 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 				};
 			} else if (e.range) {
 				// We don't necessarily know the horizontal offset of this range since the line might not be in the view...
-				this._horizontalRevealRequest = new HorizontalRevealRangeRequest(e.range.startLineNumber, e.range.startColumn, e.range.endColumn, this._context.viewLayout.getCurrentScrollTop(), newScrollPosition.scrollTop, e.scrollType);
+				this._horizontalRevealRequest = new HorizontalRevealRangeRequest(e.minimalReveal, e.range.startLineNumber, e.range.startColumn, e.range.endColumn, this._context.viewLayout.getCurrentScrollTop(), newScrollPosition.scrollTop, e.scrollType);
 			} else if (e.selections && e.selections.length > 0) {
-				this._horizontalRevealRequest = new HorizontalRevealSelectionsRequest(e.selections, this._context.viewLayout.getCurrentScrollTop(), newScrollPosition.scrollTop, e.scrollType);
+				this._horizontalRevealRequest = new HorizontalRevealSelectionsRequest(e.minimalReveal, e.selections, this._context.viewLayout.getCurrentScrollTop(), newScrollPosition.scrollTop, e.scrollType);
 			}
 		} else {
 			this._horizontalRevealRequest = null;
@@ -630,7 +637,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		}
 	}
 
-	private _computeScrollTopToRevealRange(viewport: Viewport, source: string | null | undefined, range: Range | null, selections: Selection[] | null, verticalType: viewEvents.VerticalRevealType): number {
+	private _computeScrollTopToRevealRange(viewport: Viewport, source: string | null | undefined, minimalReveal: boolean, range: Range | null, selections: Selection[] | null, verticalType: viewEvents.VerticalRevealType): number {
 		const viewportStartY = viewport.top;
 		const viewportHeight = viewport.height;
 		const viewportEndY = viewportStartY + viewportHeight;
@@ -638,7 +645,6 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		let boxStartY: number;
 		let boxEndY: number;
 
-		// Have a box that includes one extra line height (for the horizontal scrollbar)
 		if (selections && selections.length > 0) {
 			let minLineNumber = selections[0].startLineNumber;
 			let maxLineNumber = selections[0].endLineNumber;
@@ -658,17 +664,22 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			return -1;
 		}
 
-		const shouldIgnoreScrollOff = source === 'mouse' && this._cursorSurroundingLinesStyle === 'default';
+		const shouldIgnoreScrollOff = (source === 'mouse' || minimalReveal) && this._cursorSurroundingLinesStyle === 'default';
 
 		if (!shouldIgnoreScrollOff) {
 			const context = Math.min((viewportHeight / this._lineHeight) / 2, this._cursorSurroundingLines);
 			boxStartY -= context * this._lineHeight;
 			boxEndY += Math.max(0, (context - 1)) * this._lineHeight;
+		} else {
+			if (!minimalReveal) {
+				// Reveal one more line above (this case is hit when dragging)
+				boxStartY -= this._lineHeight;
+			}
 		}
 
 		if (verticalType === viewEvents.VerticalRevealType.Simple || verticalType === viewEvents.VerticalRevealType.Bottom) {
 			// Reveal one line more when the last line would be covered by the scrollbar - arrow down case or revealing a line explicitly at bottom
-			boxEndY += this._lineHeight;
+			boxEndY += (minimalReveal ? this._horizontalScrollbarHeight : this._lineHeight);
 		}
 
 		let newScrollTop: number;
@@ -742,8 +753,10 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			}
 		}
 
-		boxStartX = Math.max(0, boxStartX - ViewLines.HORIZONTAL_EXTRA_PX);
-		boxEndX += this._revealHorizontalRightPadding;
+		if (!horizontalRevealRequest.minimalReveal) {
+			boxStartX = Math.max(0, boxStartX - ViewLines.HORIZONTAL_EXTRA_PX);
+			boxEndX += this._revealHorizontalRightPadding;
+		}
 
 		if (horizontalRevealRequest.type === 'selections' && boxEndX - boxStartX > viewport.width) {
 			return null;

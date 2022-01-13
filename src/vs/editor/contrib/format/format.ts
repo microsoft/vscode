@@ -407,7 +407,8 @@ export function getOnTypeFormattingEdits(
 	model: ITextModel,
 	position: Position,
 	ch: string,
-	options: FormattingOptions
+	options: FormattingOptions,
+	token: CancellationToken
 ): Promise<TextEdit[] | null | undefined> {
 
 	const providers = OnTypeFormattingEditProviderRegistry.ordered(model);
@@ -420,7 +421,7 @@ export function getOnTypeFormattingEdits(
 		return Promise.resolve(undefined);
 	}
 
-	return Promise.resolve(providers[0].provideOnTypeFormattingEdits(model, position, ch, options, CancellationToken.None)).catch(onUnexpectedExternalError).then(edits => {
+	return Promise.resolve(providers[0].provideOnTypeFormattingEdits(model, position, ch, options, token)).catch(onUnexpectedExternalError).then(edits => {
 		return workerService.computeMoreMinimalEdits(model.uri, edits);
 	});
 }
@@ -464,7 +465,7 @@ CommandsRegistry.registerCommand('_executeFormatOnTypeProvider', async function 
 	const workerService = accessor.get(IEditorWorkerService);
 	const reference = await resolverService.createModelReference(resource);
 	try {
-		return getOnTypeFormattingEdits(workerService, reference.object.textEditorModel, Position.lift(position), ch, options);
+		return getOnTypeFormattingEdits(workerService, reference.object.textEditorModel, Position.lift(position), ch, options, CancellationToken.None);
 	} finally {
 		reference.dispose();
 	}

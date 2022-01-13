@@ -30,12 +30,10 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { basename } from 'vs/base/common/path';
 import { flatten } from 'vs/base/common/arrays';
-import { getMigrateFromLowerCaseStorageKey, migrateExtensionStorage } from 'vs/workbench/services/extensions/common/extensionStorageMigration';
 import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 type GalleryExtensionInfo = { readonly id: string, preRelease?: boolean, migrateStorageFrom?: string };
 
@@ -86,9 +84,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionStorageService private readonly extensionStorageService: IExtensionStorageService,
-		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this.cutomBuiltinExtensions = this.environmentService.options && Array.isArray(this.environmentService.options.additionalBuiltinExtensions)
@@ -162,18 +158,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						const fromExtension = fromExtensions.find(extension => areSameExtensions(extension.identifier, { id: from }));
 						const fromExtensionManifest = fromExtension ? await this.galleryService.getManifest(fromExtension, CancellationToken.None) : null;
 						const fromExtensionId = fromExtensionManifest ? getExtensionId(fromExtensionManifest.publisher, fromExtensionManifest.name) : from;
-						if (!this.extensionStorageService.hasExtensionState(fromExtensionId) && fromExtensionId !== fromExtensionId.toLowerCase() && this.extensionStorageService.hasExtensionState(fromExtensionId.toLowerCase())) {
-							await migrateExtensionStorage(fromExtensionId.toLowerCase(), fromExtensionId, getMigrateFromLowerCaseStorageKey(fromExtensionId), this.instantiationService);
-						}
-
 						const toExtensionId = getExtensionId(toExtension.manifest.publisher, toExtension.manifest.name);
-						await migrateExtensionStorage(fromExtensionId, toExtensionId, `additionalBuiltinExtensions.migrateStorage.${fromExtensionId}-${toExtensionId}`, this.instantiationService);
-
-						if (toExtensionId !== toExtensionId.toLowerCase()) {
-							// Remember and do not trigger migrating from lower case storage key
-							this.storageService.store(getMigrateFromLowerCaseStorageKey(toExtensionId), true, StorageScope.GLOBAL, StorageTarget.MACHINE);
-							this.storageService.store(getMigrateFromLowerCaseStorageKey(toExtensionId), true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-						}
+						this.extensionStorageService.addToMigrationList(fromExtensionId, toExtensionId);
 					} else {
 						this.logService.info(`Skipped migrating extension storage from '${from}' to '${to}', because the '${to}' extension is not found.`);
 					}

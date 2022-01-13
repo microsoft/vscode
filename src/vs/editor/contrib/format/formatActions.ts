@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -31,30 +31,34 @@ class FormatOnType implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.autoFormat';
 
-	private readonly _editor: ICodeEditor;
-	private readonly _callOnDispose = new DisposableStore();
-	private readonly _callOnModel = new DisposableStore();
+
+	private readonly _disposables = new DisposableStore();
+	private readonly _sessionDisposables = new DisposableStore();
 
 	constructor(
-		editor: ICodeEditor,
+		private readonly _editor: ICodeEditor,
 		@IEditorWorkerService private readonly _workerService: IEditorWorkerService
 	) {
-		this._editor = editor;
-		this._callOnDispose.add(editor.onDidChangeConfiguration(() => this._update()));
-		this._callOnDispose.add(editor.onDidChangeModel(() => this._update()));
-		this._callOnDispose.add(editor.onDidChangeModelLanguage(() => this._update()));
-		this._callOnDispose.add(OnTypeFormattingEditProviderRegistry.onDidChange(this._update, this));
+
+		this._disposables.add(OnTypeFormattingEditProviderRegistry.onDidChange(this._update, this));
+		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
+		this._disposables.add(_editor.onDidChangeModelLanguage(() => this._update()));
+		this._disposables.add(_editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.formatOnType)) {
+				this._update();
+			}
+		}));
 	}
 
 	dispose(): void {
-		this._callOnDispose.dispose();
-		this._callOnModel.dispose();
+		this._disposables.dispose();
+		this._sessionDisposables.dispose();
 	}
 
 	private _update(): void {
 
 		// clean up
-		this._callOnModel.clear();
+		this._sessionDisposables.clear();
 
 		// we are disabled
 		if (!this._editor.getOption(EditorOption.formatOnType)) {
@@ -79,7 +83,7 @@ class FormatOnType implements IEditorContribution {
 		for (let ch of support.autoFormatTriggerCharacters) {
 			triggerChars.add(ch.charCodeAt(0));
 		}
-		this._callOnModel.add(this._editor.onDidType((text: string) => {
+		this._sessionDisposables.add(this._editor.onDidType((text: string) => {
 			let lastCharCode = text.charCodeAt(text.length - 1);
 			if (triggerChars.has(lastCharCode)) {
 				this._trigger(String.fromCharCode(lastCharCode));
@@ -98,7 +102,7 @@ class FormatOnType implements IEditorContribution {
 
 		const model = this._editor.getModel();
 		const position = this._editor.getPosition();
-		let canceled = false;
+		const cts = new CancellationTokenSource();
 
 		// install a listener that checks if edits happens before the
 		// position on which we format right now. If so, we won't
@@ -107,7 +111,7 @@ class FormatOnType implements IEditorContribution {
 			if (e.isFlush) {
 				// a model.setValue() was called
 				// cancel only once
-				canceled = true;
+				cts.cancel();
 				unbind.dispose();
 				return;
 			}
@@ -116,12 +120,11 @@ class FormatOnType implements IEditorContribution {
 				const change = e.changes[i];
 				if (change.range.endLineNumber <= position.lineNumber) {
 					// cancel only once
-					canceled = true;
+					cts.cancel();
 					unbind.dispose();
 					return;
 				}
 			}
-
 		});
 
 		getOnTypeFormattingEdits(
@@ -129,23 +132,18 @@ class FormatOnType implements IEditorContribution {
 			model,
 			position,
 			ch,
-			model.getFormattingOptions()
+			model.getFormattingOptions(),
+			cts.token
 		).then(edits => {
-
-			unbind.dispose();
-
-			if (canceled) {
+			if (cts.token.isCancellationRequested) {
 				return;
 			}
-
 			if (isNonEmptyArray(edits)) {
 				FormattingEdit.execute(this._editor, edits, true);
 				alertFormattingEdits(edits);
 			}
-
-		}, (err) => {
+		}).finally(() => {
 			unbind.dispose();
-			throw err;
 		});
 	}
 }

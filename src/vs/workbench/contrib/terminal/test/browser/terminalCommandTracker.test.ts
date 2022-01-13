@@ -70,9 +70,6 @@ suite('Workbench - TerminalCommandTracker', function () {
 	suite('Commands', () => {
 		let container: HTMLElement;
 		setup(() => {
-			(<any>window).matchMedia = () => {
-				return { addListener: () => { } };
-			};
 			container = document.createElement('div');
 			document.body.appendChild(container);
 			xterm.open(container);

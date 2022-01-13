@@ -12,7 +12,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { distinct } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
-import { isString } from 'vs/base/common/types';
+import { isArray, isString } from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
@@ -26,13 +26,15 @@ export const IExtensionStorageService = createDecorator<IExtensionStorageService
 export interface IExtensionStorageService {
 	readonly _serviceBrand: undefined;
 
-	hasExtensionState(extension: IExtension | IGalleryExtension | string): boolean;
 	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<any> | undefined;
 	setExtensionState(extension: IExtension | IGalleryExtension | string, state: IStringDictionary<any> | undefined, global: boolean): void;
 
 	readonly onDidChangeExtensionStorageToSync: Event<void>;
 	setKeysForSync(extensionIdWithVersion: IExtensionIdWithVersion, keys: string[]): void;
 	getKeysForSync(extensionIdWithVersion: IExtensionIdWithVersion): string[] | undefined;
+
+	addToMigrationList(from: string, to: string): void;
+	getSourceExtensionToMigrate(target: string): string | undefined;
 }
 
 const EXTENSION_KEYS_ID_VERSION_REGEX = /^extensionKeys\/([^.]+\..+)@(\d+\.\d+\.\d+(-.*)?)$/;
@@ -107,10 +109,6 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 		return getExtensionId(publisher, name);
 	}
 
-	hasExtensionState(extension: IExtension | IGalleryExtension | string): boolean {
-		return !!this.getExtensionState(extension, true) || !!this.getExtensionState(extension, false);
-	}
-
 	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<any> | undefined {
 		const extensionId = this.getExtensionId(extension);
 		const jsonValue = this.storageService.get(extensionId, global ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
@@ -150,4 +148,36 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 			: (extensionKeysForSyncFromStorage || extensionKeysForSyncFromProduct);
 	}
 
+	addToMigrationList(from: string, to: string): void {
+		if (from !== to) {
+			// remove the duplicates
+			const migrationList: [string, string][] = this.migrationList.filter(entry => !entry.includes(from) && !entry.includes(to));
+			migrationList.push([from, to]);
+			this.migrationList = migrationList;
+		}
+	}
+
+	getSourceExtensionToMigrate(toExtensionId: string): string | undefined {
+		const entry = this.migrationList.find(([, to]) => toExtensionId === to);
+		return entry ? entry[0] : undefined;
+	}
+
+	private get migrationList(): [string, string][] {
+		const value = this.storageService.get('extensionStorage.migrationList', StorageScope.GLOBAL, '[]');
+		try {
+			const migrationList = JSON.parse(value);
+			if (isArray(migrationList)) {
+				return migrationList;
+			}
+		} catch (error) { /* ignore */ }
+		return [];
+	}
+
+	private set migrationList(migrationList: [string, string][]) {
+		if (migrationList.length) {
+			this.storageService.store('extensionStorage.migrationList', JSON.stringify(migrationList), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove('extensionStorage.migrationList', StorageScope.GLOBAL);
+		}
+	}
 }

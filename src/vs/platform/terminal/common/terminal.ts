@@ -102,6 +102,7 @@ export const enum TerminalSettingId {
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
 	IgnoreProcessNames = 'terminal.integrated.ignoreProcessNames',
 	AutoReplies = 'terminal.integrated.autoReplies',
+	EnableShellIntegration = 'terminal.integrated.enableShellIntegration'
 }
 
 export enum WindowsShellType {

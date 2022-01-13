@@ -811,6 +811,12 @@ configurationRegistry.registerConfiguration({
 			default: 0,
 			tags: ['notebookLayout']
 		},
-		[NotebookSetting.cellEditorOptionsCustomizations]: editorOptionsCustomizationSchema
+		[NotebookSetting.cellEditorOptionsCustomizations]: editorOptionsCustomizationSchema,
+		[NotebookSetting.interactiveWindowCollapseCodeCells]: {
+			markdownDescription: nls.localize('notebook.interactiveWindow.collapseCodeCells', "Controls whether code cells in the interactive window are collapsed by default."),
+			type: 'string',
+			enum: ['always', 'never', 'fromEditor'],
+			default: 'fromEditor'
+		},
 	}
 });
