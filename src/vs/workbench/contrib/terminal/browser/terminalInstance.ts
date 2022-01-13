@@ -131,7 +131,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _latestXtermWriteData: number = 0;
 	private _latestXtermParseData: number = 0;
 	private _isExiting: boolean;
-	private _enableShellIntegration: boolean = false;
 	private _hadFocusOnExit: boolean;
 	private _isVisible: boolean;
 	private _isDisposed: boolean;
@@ -628,7 +627,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._processManager.os === OperatingSystem.Windows) {
 				xterm.raw.options.windowsMode = processTraits.requiresWindowsMode || false;
 			}
-			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm, this._processManager!);
+			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm, this._processManager!, this.capabilities);
 			this._areLinksReady = true;
 			this._onLinksReady.fire(this);
 		});
@@ -1254,6 +1253,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			this.statusList.remove(TerminalStatus.Disconnected);
 		});
+
 		return processManager;
 	}
 
@@ -1276,17 +1276,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const hadIcon = !!this.shellLaunchConfig.icon;
 		const shellIntegration = this._updateArgsForShellIntegration(this.shellLaunchConfig);
 		this.shellLaunchConfig.args = shellIntegration.args;
-		this._enableShellIntegration = shellIntegration.enableShellIntegration;
+		const enableShellIntegration = shellIntegration.enableShellIntegration;
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
-			if (error && this._enableShellIntegration) {
-				this._enableShellIntegration = false;
-				this._configHelper.config.enableShellIntegration = false;
-				error = { message: 'Terminal shell integration failed, disabling it now' };
-			}
 			if (error) {
-				this._onProcessExit(error);
+				this._onProcessExit(error, enableShellIntegration);
 			}
 		});
+		if (enableShellIntegration && this.xterm?.shellIntegration) {
+			console.log('adding to capabilities');
+			this.capabilities.add(this.xterm?.shellIntegration.capabilities);
+		}
 		if (!hadIcon && this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
 			this._onIconChanged.fire(this);
 		}
@@ -1299,29 +1298,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		const shell = path.basename(shellLaunchConfig.executable);
 		let newArgs: string | string[] | undefined;
-		let enableShellIntegration = false;
 		if (isWindows && shell === 'pwsh' && !originalArgs) {
 			newArgs = [
 				'-noexit',
 				'-command',
 				'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
 			];
-			enableShellIntegration = true;
 		} else if (!isWindows) {
-			//TODO:
-			// if the args = ["-l"] or [] or undefined, do this
-			// handle by adding or not adding this l
-			if (shell === 'zsh') {
-				newArgs = ['-c', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh; zsh -il'];
-				enableShellIntegration = true;
-			} else if (shell === 'bash') {
-				newArgs = [
-					'-noexit',
-					'-command',
-					'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
-				];
-			}
-		} else {
 			// TODO: Read current args, only enable if they are recognized (ie. [] and ["-l"]), warn otherwise
 			switch (shell) {
 				case 'bash':
@@ -1361,7 +1344,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * @param exitCode The exit code of the process, this is undefined when the terminal was exited
 	 * through user action.
 	 */
-	private async _onProcessExit(exitCodeOrError?: number | ITerminalLaunchError): Promise<void> {
+	private async _onProcessExit(exitCodeOrError?: number | ITerminalLaunchError, shellIntegrationAttempted?: boolean): Promise<void> {
 		// Prevent dispose functions being triggered multiple times
 		if (this._isExiting) {
 			return;
@@ -1372,7 +1355,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		await this._flushXtermData();
 		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) with code ${this._exitCode}`);
 
-		const parsedExitResult = parseExitResult(exitCodeOrError, this.shellLaunchConfig, this._processManager.processState, this._initialCwd);
+		const parsedExitResult = parseExitResult(exitCodeOrError, this.shellLaunchConfig, this._processManager.processState, this._initialCwd, shellIntegrationAttempted);
 		this._exitCode = parsedExitResult?.code;
 		const exitMessage = parsedExitResult?.message;
 
@@ -2323,7 +2306,8 @@ export function parseExitResult(
 	exitCodeOrError: ITerminalLaunchError | number | undefined,
 	shellLaunchConfig: IShellLaunchConfig,
 	processState: ProcessState,
-	initialCwd: string | undefined
+	initialCwd: string | undefined,
+	shellIntegrationAttempted?: boolean
 ): { code: number | undefined, message: string | undefined } | undefined {
 	// Only return a message if the exit code is non-zero
 	if (exitCodeOrError === undefined || exitCodeOrError === 0) {
@@ -2349,6 +2333,8 @@ export function parseExitResult(
 			if (processState === ProcessState.KilledDuringLaunch) {
 				if (commandLine) {
 					message = nls.localize('launchFailed.exitCodeAndCommandLine', "The terminal process \"{0}\" failed to launch (exit code: {1}).", commandLine, code);
+				} else if (shellIntegrationAttempted) {
+					message = nls.localize('launchFailed.shellIntegrationAttempted', "The terminal process \"{0}\" failed to launch (exit code: {1}). Shell integration failed; disable it with `terminal.integrated.enableShellIntegration`", commandLine, code);
 				} else {
 					message = nls.localize('launchFailed.exitCodeOnly', "The terminal process failed to launch (exit code: {0}).", code);
 				}

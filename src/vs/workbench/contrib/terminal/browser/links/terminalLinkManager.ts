@@ -29,6 +29,7 @@ import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/termin
 import { TerminalExternalLinkProviderAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkProviderAdapter';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
+import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
@@ -51,6 +52,7 @@ export class TerminalLinkManager extends DisposableStore {
 	constructor(
 		private _xtermTerminal: XtermTerminal,
 		private readonly _processManager: ITerminalProcessManager,
+		private readonly _capabilities: TerminalCapabilityStoreMultiplexer,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -92,7 +94,7 @@ export class TerminalLinkManager extends DisposableStore {
 		}
 
 		// Word links
-		const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xtermTerminal, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
+		const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xtermTerminal, this._capabilities, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
 		this._standardLinkProviders.set(TerminalWordLinkProvider.id, wordProvider);
 
 		this._registerStandardLinkProviders();

@@ -20,10 +20,6 @@ command_complete() {
     update_cwd
 }
 
-set_shell_integration_enabled() {
-    printf "\033]133;E\007"
-}
-
 update_prompt() {
     PRIOR_PROMPT="$PS1"
     IN_COMMAND_EXECUTION=""
@@ -55,4 +51,3 @@ update_prompt
 PROMPT_COMMAND=${PROMPT_COMMAND:+"$PROMPT_COMMAND; "}'precmd'
 trap 'preexec' DEBUG
 update_cwd
-set_shell_integration_enabled

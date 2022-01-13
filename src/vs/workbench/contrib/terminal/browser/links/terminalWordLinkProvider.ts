@@ -24,7 +24,8 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { CognisantCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/cognisantCommandTrackerAddon';
+import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
+import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 
 const MAX_LENGTH = 2000;
 
@@ -34,6 +35,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	private readonly _xterm: Terminal;
 	constructor(
 		private _xtermTerminal: XtermTerminal,
+		private _capabilities: TerminalCapabilityStoreMultiplexer,
 		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -43,7 +45,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		@ISearchService private readonly _searchService: ISearchService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IFileService private readonly _fileService: IFileService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._xterm = _xtermTerminal.raw;
@@ -156,8 +158,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			}
 		});
 
-		//TODO: check capability
-		if (this._xtermTerminal.commandTracker instanceof CognisantCommandTrackerAddon) {
+		if (this._capabilities.has(TerminalCapability.CwdDetection)) {
 			link = this._updateLinkWithRelativeCwd(y, link, pathSeparator);
 		}
 
