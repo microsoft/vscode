@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from 'vs/base/common/arrays';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinux } from 'vs/base/common/platform';
@@ -50,17 +51,23 @@ export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
 			}
 
 			// Re-watch path if excludes have changed
-			return watcher.request.excludes !== request.excludes;
+			return !equals(watcher.request.excludes, request.excludes);
 		});
 
 		// Gather paths that we should stop watching
 		const pathsToStopWatching = Array.from(this.watchers.values()).filter(({ request }) => {
-			return !normalizedRequests.find(normalizedRequest => normalizedRequest.path === request.path && normalizedRequest.excludes === request.excludes);
+			return !normalizedRequests.find(normalizedRequest => normalizedRequest.path === request.path && equals(normalizedRequest.excludes, request.excludes));
 		}).map(({ request }) => request.path);
 
 		// Logging
-		this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes})`).join(',')}`);
-		this.trace(`Request to stop watching: ${pathsToStopWatching.join(',')}`);
+
+		if (requestsToStartWatching.length) {
+			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes})`).join(',')}`);
+		}
+
+		if (pathsToStopWatching.length) {
+			this.trace(`Request to stop watching: ${pathsToStopWatching.join(',')}`);
+		}
 
 		// Stop watching as instructed
 		for (const pathToStopWatching of pathsToStopWatching) {
