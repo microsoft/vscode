@@ -9,12 +9,10 @@ import { isWindows } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { FileDeleteOptions, IFileChange, IWatchOptions, createFileSystemProviderError, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
-import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { basename, normalize } from 'vs/base/common/path';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ILogMessage, toFileChanges } from 'vs/platform/files/common/watcher';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractDiskFileSystemProviderChannel, ISessionFileWatcher } from 'vs/platform/files/node/diskFileSystemProviderServer';
 import { DefaultURITransformer, IURITransformer } from 'vs/base/common/uriIpc';
 
@@ -56,69 +54,17 @@ export class DiskFileSystemProviderChannel extends AbstractDiskFileSystemProvide
 
 	//#endregion
 
-	//#region File Watching
+	//#region File Watching (unsupported from main process for client connections)
 
 	protected createSessionFileWatcher(uriTransformer: IURITransformer, emitter: Emitter<IFileChange[] | string>): ISessionFileWatcher {
-		return new SessionFileWatcher(emitter, this.logService);
+		return {
+			watch(req: number, resource: URI, opts: IWatchOptions): IDisposable {
+				throw createFileSystemProviderError('File watcher is not supported from main process', FileSystemProviderErrorCode.Unavailable);
+			},
+			dispose: () => { }
+		};
 	}
 
 	//#endregion
 
-}
-
-class SessionFileWatcher extends Disposable implements ISessionFileWatcher {
-
-	private readonly watcherRequests = new Map<number /* request ID */, IDisposable>();
-
-	constructor(
-		private readonly sessionEmitter: Emitter<IFileChange[] | string>,
-		private readonly logService: ILogService
-	) {
-		super();
-	}
-
-	watch(req: number, resource: URI, opts: IWatchOptions): IDisposable {
-		if (opts.recursive) {
-			throw createFileSystemProviderError('Recursive watcher is not supported from main process', FileSystemProviderErrorCode.Unavailable);
-		}
-
-		const disposable = new DisposableStore();
-
-		this.watcherRequests.set(req, disposable);
-		disposable.add(toDisposable(() => this.watcherRequests.delete(req)));
-
-		const watcher = disposable.add(new NodeJSFileWatcherLibrary(
-			{
-				path: normalize(resource.fsPath),
-				excludes: opts.excludes,
-				recursive: false
-			},
-			changes => this.sessionEmitter.fire(toFileChanges(changes)),
-			msg => this.onWatcherLogMessage(msg),
-			this.logService.getLevel() === LogLevel.Trace
-		));
-
-		disposable.add(this.logService.onDidChangeLogLevel(() => {
-			watcher.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
-		}));
-
-		return disposable;
-	}
-
-	private onWatcherLogMessage(msg: ILogMessage): void {
-		if (msg.type === 'error') {
-			this.sessionEmitter.fire(msg.message);
-		}
-
-		this.logService[msg.type](msg.message);
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		for (const [, disposable] of this.watcherRequests) {
-			disposable.dispose();
-		}
-		this.watcherRequests.clear();
-	}
 }
