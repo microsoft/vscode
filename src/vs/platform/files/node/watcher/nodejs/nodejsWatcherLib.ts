@@ -70,8 +70,6 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				return;
 			}
 
-			this.trace(`Request to start watching: ${realPath} (excludes: ${this.request.excludes}))}`);
-
 			// Watch via node.js
 			const stat = await Promises.stat(realPath);
 			this._register(await this.doWatch(realPath, stat.isDirectory()));

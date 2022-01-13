@@ -62,7 +62,7 @@ export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
 		// Logging
 
 		if (requestsToStartWatching.length) {
-			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes})`).join(',')}`);
+			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'})`).join(',')}`);
 		}
 
 		if (pathsToStopWatching.length) {
