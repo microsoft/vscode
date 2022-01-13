@@ -17,11 +17,11 @@ import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/edit
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
-import { LanguageFeatureRequestDelays } from 'vs/editor/common/languages/languageFeatureRegistry';
 import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
+import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
 import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/inlayHints';
 import { goToDefinitionWithLocation, showGoToContextMenu } from 'vs/editor/contrib/inlayHints/inlayHintsLocations';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -51,7 +51,7 @@ class InlayHintsCache {
 	}
 }
 
-export class InlayHintLabelPart {
+export class RenderedInlayHintLabelPart {
 	constructor(readonly item: InlayHintItem, readonly index: number) { }
 
 	get part() {
@@ -74,19 +74,21 @@ export class InlayHintsController implements IEditorContribution {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
-	private readonly _getInlayHintsDelays = new LanguageFeatureRequestDelays(languages.InlayHintsProviderRegistry, 25, 500);
+	private readonly _debounceInfo: IFeatureDebounceInformation;
 	private readonly _cache = new InlayHintsCache();
 	private readonly _decorationsMetadata = new Map<string, { item: InlayHintItem, classNameRef: IDisposable; }>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
-	private _activeInlayHintPart?: InlayHintLabelPart;
+	private _activeInlayHintPart?: RenderedInlayHintLabelPart;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@ILanguageFeatureDebounceService _featureDebounce: ILanguageFeatureDebounceService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
+		this._debounceInfo = _featureDebounce.for(languages.InlayHintsProviderRegistry, { min: 25 });
 		this._disposables.add(languages.InlayHintsProviderRegistry.onDidChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModelLanguage(() => this._update()));
@@ -124,6 +126,7 @@ export class InlayHintsController implements IEditorContribution {
 		}
 
 		let cts: CancellationTokenSource | undefined;
+		let watchedProviders = new Set<languages.InlayHintsProvider>();
 
 		const scheduler = new RunOnceScheduler(async () => {
 			const t1 = Date.now();
@@ -131,20 +134,25 @@ export class InlayHintsController implements IEditorContribution {
 			cts?.dispose(true);
 			cts = new CancellationTokenSource();
 
-			const ranges = this._getHintsRanges();
-			const inlayHints = await InlayHintsFragments.create(model, ranges, cts.token);
-			scheduler.delay = this._getInlayHintsDelays.update(model, Date.now() - t1);
+			const inlayHints = await InlayHintsFragments.create(model, this._getHintsRanges(), cts.token);
+			scheduler.delay = this._debounceInfo.update(model, Date.now() - t1);
 			if (cts.token.isCancellationRequested) {
 				inlayHints.dispose();
 				return;
 			}
-			this._sessionDisposables.add(inlayHints);
-			this._sessionDisposables.add(inlayHints.onDidReceiveProviderSignal(() => scheduler.schedule()));
 
-			this._updateHintsDecorators(ranges, inlayHints.items);
+			// listen to provider changes
+			for (const provider of inlayHints.provider) {
+				if (typeof provider.onDidChangeInlayHints === 'function' && !watchedProviders.has(provider)) {
+					this._sessionDisposables.add(provider.onDidChangeInlayHints(() => scheduler.schedule()));
+				}
+			}
+
+			this._sessionDisposables.add(inlayHints);
+			this._updateHintsDecorators(inlayHints.ranges, inlayHints.items);
 			this._cacheHintsForFastRestore(model);
 
-		}, this._getInlayHintsDelays.get(model));
+		}, this._debounceInfo.get(model));
 
 		this._sessionDisposables.add(scheduler);
 		this._sessionDisposables.add(toDisposable(() => cts?.dispose(true)));
@@ -166,31 +174,27 @@ export class InlayHintsController implements IEditorContribution {
 
 		gesture.onMouseMoveOrRelevantKeyDown(e => {
 			const [mouseEvent] = e;
-			if (mouseEvent.target.type !== MouseTargetType.CONTENT_TEXT || !mouseEvent.hasTriggerModifier) {
-				removeHighlight();
-				return;
-			}
-			const model = this._editor.getModel()!;
-			const options = mouseEvent.target.detail.injectedText?.options;
+			const labelPart = this._getInlayHintLabelPart(mouseEvent);
+			const model = this._editor.getModel();
 
-			if (!(options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLabelPart)) {
+			if (!labelPart || !mouseEvent.hasTriggerModifier || !model) {
 				removeHighlight();
 				return;
 			}
 
 			// render link => when the modifier is pressed and when there is an action
-			if (mouseEvent.hasTriggerModifier && options.attachedData.part.action) {
+			if (mouseEvent.hasTriggerModifier && labelPart.part.action) {
 
 				// resolve the item
 				const cts = new CancellationTokenSource();
-				options.attachedData.item.resolve(cts.token);
+				labelPart.item.resolve(cts.token);
 
-				this._activeInlayHintPart = options.attachedData;
+				this._activeInlayHintPart = labelPart;
 
 				const lineNumber = this._activeInlayHintPart.item.hint.position.lineNumber;
 				const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
 				const lineHints = new Set<InlayHintItem>();
-				for (let data of this._decorationsMetadata.values()) {
+				for (const data of this._decorationsMetadata.values()) {
 					if (range.containsRange(data.item.anchor.range)) {
 						lineHints.add(data.item);
 					}
@@ -205,12 +209,9 @@ export class InlayHintsController implements IEditorContribution {
 		});
 		gesture.onCancel(removeHighlight);
 		gesture.onExecute(e => {
-			if (e.target.type !== MouseTargetType.CONTENT_TEXT) {
-				return;
-			}
-			const options = e.target.detail?.injectedText?.options;
-			if (options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLabelPart && options.attachedData.part.action) {
-				const part = options.attachedData.part;
+			const label = this._getInlayHintLabelPart(e);
+			if (label) {
+				const part = label.part;
 				if (languages.Command.is(part.action)) {
 					// command -> execute it
 					this._commandService.executeCommand(part.action.id, ...(part.action.arguments ?? [])).catch(err => this._notificationService.error(err));
@@ -236,12 +237,12 @@ export class InlayHintsController implements IEditorContribution {
 		});
 	}
 
-	private _getInlayHintLabelPart(e: IEditorMouseEvent) {
+	private _getInlayHintLabelPart(e: IEditorMouseEvent | ClickLinkMouseEvent): RenderedInlayHintLabelPart | undefined {
 		if (e.target.type !== MouseTargetType.CONTENT_TEXT) {
 			return undefined;
 		}
 		const options = e.target.detail.injectedText?.options;
-		if (options instanceof ModelDecorationInjectedTextOptions && options?.attachedData instanceof InlayHintLabelPart) {
+		if (options instanceof ModelDecorationInjectedTextOptions && options?.attachedData instanceof RenderedInlayHintLabelPart) {
 			return options.attachedData;
 		}
 		return undefined;
@@ -283,11 +284,11 @@ export class InlayHintsController implements IEditorContribution {
 		return result;
 	}
 
-	private _updateHintsDecorators(ranges: Range[], items: readonly InlayHintItem[]): void {
+	private _updateHintsDecorators(ranges: readonly Range[], items: readonly InlayHintItem[]): void {
 
 		// utils to collect/create injected text decorations
 		const newDecorationsData: { item: InlayHintItem, decoration: IModelDeltaDecoration, classNameRef: IDisposable; }[] = [];
-		const addInjectedText = (item: InlayHintItem, ref: ClassNameReference, content: string, cursorStops: InjectedTextCursorStops, attachedData?: InlayHintLabelPart): void => {
+		const addInjectedText = (item: InlayHintItem, ref: ClassNameReference, content: string, cursorStops: InjectedTextCursorStops, attachedData?: RenderedInlayHintLabelPart): void => {
 			newDecorationsData.push({
 				item,
 				classNameRef: ref,
@@ -379,7 +380,7 @@ export class InlayHintsController implements IEditorContribution {
 					this._ruleFactory.createClassNameRef(cssProperties),
 					fixSpace(part.label),
 					isLast && !item.hint.whitespaceAfter ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None,
-					new InlayHintLabelPart(item, i)
+					new RenderedInlayHintLabelPart(item, i)
 				);
 			}
 

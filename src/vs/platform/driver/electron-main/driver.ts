@@ -64,13 +64,9 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	}
 
 	async getWindowIds(): Promise<number[]> {
-		this.logService.info(`[driver] getWindowIds(): begin`);
-
 		const windowIds = this.windowsMainService.getWindows()
 			.map(window => window.id)
 			.filter(windowId => this.registeredWindowIds.has(windowId) && !this.reloadingWindowIds.has(windowId));
-
-		this.logService.info(`[driver] getWindowIds(): end (windowIds: ${windowIds.join(', ')})`);
 
 		return windowIds;
 	}

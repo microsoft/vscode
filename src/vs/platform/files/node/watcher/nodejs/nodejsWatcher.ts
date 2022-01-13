@@ -465,7 +465,7 @@ export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatche
  * Watch the provided `path` for changes and return
  * the data in chunks of `Uint8Array` for further use.
  */
-export async function watchFileContents(path: string, onData: (chunk: Uint8Array) => void, token: CancellationToken, bufferSize = 512): Promise<void> {
+export async function watchFileContents(path: string, onData: (chunk: Uint8Array) => void, onReady: () => void, token: CancellationToken, bufferSize = 512): Promise<void> {
 	const handle = await Promises.open(path, 'r');
 	const buffer = Buffer.allocUnsafe(bufferSize);
 
@@ -507,6 +507,9 @@ export async function watchFileContents(path: string, onData: (chunk: Uint8Array
 			}
 		})();
 	});
+
+	await watcher.ready;
+	onReady();
 
 	return new Promise<void>((resolve, reject) => {
 		cts.token.onCancellationRequested(async () => {

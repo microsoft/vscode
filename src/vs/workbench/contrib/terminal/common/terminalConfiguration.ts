@@ -514,7 +514,12 @@ const terminalConfiguration: IConfigurationNode = {
 			default: {
 				'Terminate batch job (Y/N)': 'Y\r'
 			}
-		}
+		},
+		[TerminalSettingId.EnableShellIntegration]: {
+			description: localize('terminal.integrated.enableShellIntegration', "For supported shells, use shell integration (zsh & bash on mac/linux, pwsh on windows)"),
+			type: 'boolean',
+			default: false
+		},
 	}
 };
 

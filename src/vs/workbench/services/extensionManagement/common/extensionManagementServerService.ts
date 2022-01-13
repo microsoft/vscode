@@ -47,7 +47,6 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 				extensionManagementService,
 				label: localize('browser', "Browser"),
 			};
-			extensionManagementService.migrateUnsupportedExtensions();
 		}
 	}
 

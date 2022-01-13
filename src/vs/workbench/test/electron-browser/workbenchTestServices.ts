@@ -253,11 +253,6 @@ export class TestNativeHostService implements INativeHostService {
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async sendInputEvent(event: MouseInputEvent): Promise<void> { }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
-	async getPassword(service: string, account: string): Promise<string | null> { return null; }
-	async setPassword(service: string, account: string, password: string): Promise<void> { }
-	async deletePassword(service: string, account: string): Promise<boolean> { return false; }
-	async findPassword(service: string): Promise<string | null> { return null; }
-	async findCredentials(service: string): Promise<{ account: string; password: string; }[]> { return []; }
 }
 
 export function workbenchInstantiationService(disposables = new DisposableStore()): ITestInstantiationService {

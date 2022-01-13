@@ -86,6 +86,7 @@ export interface ISetting {
 	enumItemLabels?: string[];
 	allKeysAreBoolean?: boolean;
 	editPresentation?: EditPresentationTypes;
+	defaultValueSource?: string | IExtensionInfo;
 }
 
 export interface IExtensionSetting extends ISetting {

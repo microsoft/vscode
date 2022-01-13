@@ -1661,12 +1661,7 @@ export function getCookieValue(name: string): string | undefined {
 
 export function addMatchMediaChangeListener(query: string, callback: () => void): void {
 	const mediaQueryList = window.matchMedia(query);
-	if (typeof mediaQueryList.addEventListener === 'function') {
-		mediaQueryList.addEventListener('change', callback);
-	} else {
-		// Safari 13.x
-		mediaQueryList.addListener(callback);
-	}
+	mediaQueryList.addEventListener('change', callback);
 }
 
 export const enum ZIndex {

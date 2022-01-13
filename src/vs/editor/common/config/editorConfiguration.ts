@@ -40,10 +40,6 @@ export interface IEditorConfiguration extends IDisposable {
 	 */
 	observeContainer(dimension?: IDimension): void;
 	/**
-	 * Recompute options with new pixel ratio.
-	 */
-	observePixelRatio(): void;
-	/**
 	 * Set if the current model is dominated by long lines.
 	 */
 	setIsDominatedByLongLines(isDominatedByLongLines: boolean): void;

@@ -1291,7 +1291,7 @@ var requirejs = (function() {
 		}, 50);
 	}
 
-	async find(query: string, options: { includeMarkup: boolean, includeOutput: boolean }): Promise<IFindMatch[]> {
+	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; }): Promise<IFindMatch[]> {
 		if (query === '') {
 			return [];
 		}

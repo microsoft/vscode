@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 class WindowManager {
 
@@ -12,25 +12,15 @@ class WindowManager {
 
 	// --- Zoom Level
 	private _zoomLevel: number = 0;
-	private _lastZoomLevelChangeTime: number = 0;
-	private readonly _onDidChangeZoomLevel = new Emitter<number>();
 
-	public readonly onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
 	public getZoomLevel(): number {
 		return this._zoomLevel;
-	}
-	public getTimeSinceLastZoomLevelChanged(): number {
-		return Date.now() - this._lastZoomLevelChangeTime;
 	}
 	public setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
 		if (this._zoomLevel === zoomLevel) {
 			return;
 		}
-
 		this._zoomLevel = zoomLevel;
-		// See https://github.com/microsoft/vscode/issues/26151
-		this._lastZoomLevelChangeTime = isTrusted ? 0 : Date.now();
-		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
 
 	// --- Zoom Factor
@@ -41,18 +31,6 @@ class WindowManager {
 	}
 	public setZoomFactor(zoomFactor: number): void {
 		this._zoomFactor = zoomFactor;
-	}
-
-	// --- Pixel Ratio
-	public getPixelRatio(): number {
-		let ctx: any = document.createElement('canvas').getContext('2d');
-		let dpr = window.devicePixelRatio || 1;
-		let bsr = ctx.webkitBackingStorePixelRatio ||
-			ctx.mozBackingStorePixelRatio ||
-			ctx.msBackingStorePixelRatio ||
-			ctx.oBackingStorePixelRatio ||
-			ctx.backingStorePixelRatio || 1;
-		return dpr / bsr;
 	}
 
 	// --- Fullscreen
@@ -73,19 +51,98 @@ class WindowManager {
 	}
 }
 
+class PixelRatioImpl extends Disposable {
+
+	private readonly _onDidChange = this._register(new Emitter<number>());
+	public readonly onDidChange = this._onDidChange.event;
+
+	private _value: number;
+	private _removeListener: () => void;
+
+	public get value(): number {
+		return this._value;
+	}
+
+	constructor() {
+		super();
+
+		this._value = this._getPixelRatio();
+		this._removeListener = this._installResolutionListener();
+	}
+
+	public override dispose() {
+		this._removeListener();
+		super.dispose();
+	}
+
+	private _installResolutionListener(): () => void {
+		// See https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio#monitoring_screen_resolution_or_zoom_level_changes
+		const mediaQueryList = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+		const listener = () => this._updateValue();
+		mediaQueryList.addEventListener('change', listener);
+		return () => {
+			mediaQueryList.removeEventListener('change', listener);
+		};
+	}
+
+	private _updateValue(): void {
+		this._value = this._getPixelRatio();
+		this._onDidChange.fire(this._value);
+		this._removeListener = this._installResolutionListener();
+	}
+
+	private _getPixelRatio(): number {
+		const ctx: any = document.createElement('canvas').getContext('2d');
+		const dpr = window.devicePixelRatio || 1;
+		const bsr = ctx.webkitBackingStorePixelRatio ||
+			ctx.mozBackingStorePixelRatio ||
+			ctx.msBackingStorePixelRatio ||
+			ctx.oBackingStorePixelRatio ||
+			ctx.backingStorePixelRatio || 1;
+		return dpr / bsr;
+	}
+}
+
+class PixelRatioFacade {
+
+	private _pixelRatioMonitor: PixelRatioImpl | null = null;
+	private _getOrCreatePixelRatioMonitor(): PixelRatioImpl {
+		if (!this._pixelRatioMonitor) {
+			this._pixelRatioMonitor = new PixelRatioImpl();
+		}
+		return this._pixelRatioMonitor;
+	}
+
+	/**
+	 * Get the current value.
+	 */
+	public get value(): number {
+		return this._getOrCreatePixelRatioMonitor().value;
+	}
+
+	/**
+	 * Listen for changes.
+	 */
+	public get onDidChange(): Event<number> {
+		return this._getOrCreatePixelRatioMonitor().onDidChange;
+	}
+}
+
+/**
+ * Returns the pixel ratio.
+ *
+ * This is useful for rendering <canvas> elements at native screen resolution or for being used as
+ * a cache key when storing font measurements. Fonts might render differently depending on resolution
+ * and any measurements need to be discarded for example when a window is moved from a monitor to another.
+ */
+export const PixelRatio = new PixelRatioFacade();
+
 /** A zoom index, e.g. 1, 2, 3 */
 export function setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
 	WindowManager.INSTANCE.setZoomLevel(zoomLevel, isTrusted);
 }
 export function getZoomLevel(): number {
 	return WindowManager.INSTANCE.getZoomLevel();
-}
-/** Returns the time (in ms) since the zoom level was changed */
-export function getTimeSinceLastZoomLevelChanged(): number {
-	return WindowManager.INSTANCE.getTimeSinceLastZoomLevelChanged();
-}
-export function onDidChangeZoomLevel(callback: (zoomLevel: number) => void): IDisposable {
-	return WindowManager.INSTANCE.onDidChangeZoomLevel(callback);
 }
 
 /** The zoom scale for an index, e.g. 1, 1.2, 1.4 */
@@ -94,10 +151,6 @@ export function getZoomFactor(): number {
 }
 export function setZoomFactor(zoomFactor: number): void {
 	WindowManager.INSTANCE.setZoomFactor(zoomFactor);
-}
-
-export function getPixelRatio(): number {
-	return WindowManager.INSTANCE.getPixelRatio();
 }
 
 export function setFullscreen(fullscreen: boolean): void {

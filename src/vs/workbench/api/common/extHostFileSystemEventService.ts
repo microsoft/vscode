@@ -4,23 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event, AsyncEmitter, IWaitUntil, IWaitUntilData } from 'vs/base/common/event';
-import { IRelativePattern, parse } from 'vs/base/common/glob';
+import { GLOBSTAR, GLOB_SPLIT, parse } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import type * as vscode from 'vscode';
-import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, SourceTargetPair, IWorkspaceEditDto, IWillRunFileOperationParticipation } from './extHost.protocol';
+import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, SourceTargetPair, IWorkspaceEditDto, IWillRunFileOperationParticipation, MainContext } from './extHost.protocol';
 import * as typeConverter from './extHostTypeConverters';
-import { Disposable, WorkspaceEdit } from './extHostTypes';
+import { Disposable, RelativePattern, WorkspaceEdit } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { FileOperation } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
 
 	private readonly _onDidCreate = new Emitter<vscode.Uri>();
 	private readonly _onDidChange = new Emitter<vscode.Uri>();
 	private readonly _onDidDelete = new Emitter<vscode.Uri>();
+
 	private _disposable: Disposable;
 	private _config: number;
 
@@ -36,7 +38,8 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		return Boolean(this._config & 0b100);
 	}
 
-	constructor(dispatcher: Event<FileSystemEvents>, globPattern: string | IRelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean) {
+	constructor(mainContext: IMainContext, workspace: IExtHostWorkspace, extension: IExtensionDescription, dispatcher: Event<FileSystemEvents>, globPattern: string | RelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean) {
+		const watcherDisposable = this.ensureWatching(mainContext, extension, globPattern);
 
 		this._config = 0;
 		if (ignoreCreateEvents) {
@@ -51,11 +54,18 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 
 		const parsedPattern = parse(globPattern);
 
+		// 1.64.x behaviour change: given the new support to watch any folder
+		// we start to ignore events outside the workspace when only a string
+		// pattern is provided to avoid sending events to extensions that are
+		// unexpected.
+		// https://github.com/microsoft/vscode/issues/3025
+		const excludeOutOfWorkspaceEvents = typeof globPattern === 'string';
+
 		const subscription = dispatcher(events => {
 			if (!ignoreCreateEvents) {
 				for (let created of events.created) {
 					const uri = URI.revive(created);
-					if (parsedPattern(uri.fsPath)) {
+					if (parsedPattern(uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
 						this._onDidCreate.fire(uri);
 					}
 				}
@@ -63,7 +73,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			if (!ignoreChangeEvents) {
 				for (let changed of events.changed) {
 					const uri = URI.revive(changed);
-					if (parsedPattern(uri.fsPath)) {
+					if (parsedPattern(uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
 						this._onDidChange.fire(uri);
 					}
 				}
@@ -71,14 +81,34 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			if (!ignoreDeleteEvents) {
 				for (let deleted of events.deleted) {
 					const uri = URI.revive(deleted);
-					if (parsedPattern(uri.fsPath)) {
+					if (parsedPattern(uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
 						this._onDidDelete.fire(uri);
 					}
 				}
 			}
 		});
 
-		this._disposable = Disposable.from(this._onDidCreate, this._onDidChange, this._onDidDelete, subscription);
+		this._disposable = Disposable.from(watcherDisposable, this._onDidCreate, this._onDidChange, this._onDidDelete, subscription);
+	}
+
+	private ensureWatching(mainContext: IMainContext, extension: IExtensionDescription, globPattern: string | RelativePattern): Disposable {
+		let disposable = Disposable.from();
+
+		if (typeof globPattern === 'string') {
+			return disposable; // a pattern alone does not carry sufficient information to start watching anything
+		}
+
+		const proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
+
+		let recursive = false;
+		if (globPattern.pattern.includes(GLOBSTAR) || globPattern.pattern.includes(GLOB_SPLIT)) {
+			recursive = true; // only watch recursively if pattern indicates the need for it
+		}
+
+		const session = Math.random();
+		proxy.$watch(extension.identifier.value, session, globPattern.baseUri, { recursive, excludes: [] /* excludes are not yet surfaced in the API */ });
+
+		return Disposable.from({ dispose: () => proxy.$unwatch(session) });
 	}
 
 	dispose() {
@@ -118,9 +148,8 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	readonly onDidCreateFile: Event<vscode.FileCreateEvent> = this._onDidCreateFile.event;
 	readonly onDidDeleteFile: Event<vscode.FileDeleteEvent> = this._onDidDeleteFile.event;
 
-
 	constructor(
-		mainContext: IMainContext,
+		private readonly _mainContext: IMainContext,
 		private readonly _logService: ILogService,
 		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors
 	) {
@@ -129,8 +158,8 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 	//--- file events
 
-	createFileSystemWatcher(globPattern: string | IRelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): vscode.FileSystemWatcher {
-		return new FileSystemWatcher(this._onFileSystemEvent.event, globPattern, ignoreCreateEvents, ignoreChangeEvents, ignoreDeleteEvents);
+	createFileSystemWatcher(workspace: IExtHostWorkspace, extension: IExtensionDescription, globPattern: string | RelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): vscode.FileSystemWatcher {
+		return new FileSystemWatcher(this._mainContext, workspace, extension, this._onFileSystemEvent.event, globPattern, ignoreCreateEvents, ignoreChangeEvents, ignoreDeleteEvents);
 	}
 
 	$onFileEvent(events: FileSystemEvents) {

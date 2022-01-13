@@ -99,44 +99,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		}
 	}
 
-	async migrateUnsupportedExtensions(): Promise<void> {
-		try {
-			const extensionsControlManifest = await this.getExtensionsControlManifest();
-			if (!extensionsControlManifest.unsupportedPreReleaseExtensions) {
-				return;
-			}
-			const installed = await this.getInstalled(ExtensionType.User);
-			for (const [unsupportedPreReleaseExtensionId, preReleaseExtension] of Object.entries(extensionsControlManifest.unsupportedPreReleaseExtensions)) {
-				const local = installed.find(i => areSameExtensions(i.identifier, { id: unsupportedPreReleaseExtensionId }));
-				if (!local) {
-					continue;
-				}
-				const gallery = await this.galleryService.getCompatibleExtension({ id: preReleaseExtension.id }, true, await this.getTargetPlatform());
-				if (!gallery) {
-					this.logService.info(`Skipping migrating '${local.identifier.id}' extension because, the comaptible target '${preReleaseExtension.id}' extension is not found`);
-					continue;
-				}
-				const manifest = await this.galleryService.getManifest(gallery, CancellationToken.None);
-				if (!manifest) {
-					this.logService.info(`Skipping migrating '${local.identifier.id}' extension because, the manifest for '${preReleaseExtension.id}' extension is not found`);
-					continue;
-				}
-				try {
-					this.logService.info(`Migrating '${local.identifier.id}' extension to '${preReleaseExtension.id}' extension...`);
-					await Promise.allSettled([
-						this.uninstall(local),
-						this.installExtension(manifest, gallery, { installPreReleaseVersion: true, isMachineScoped: local.isMachineScoped, operation: InstallOperation.Migrate })
-					]);
-					this.logService.info(`Migrated '${local.identifier.id}' extension to '${preReleaseExtension.id}' extension.`);
-				} catch (error) {
-					this.logService.error(error);
-				}
-			}
-		} catch (error) {
-			this.logService.error(error);
-		}
-	}
-
 	async uninstall(extension: ILocalExtension, options: UninstallOptions = {}): Promise<void> {
 		this.logService.trace('ExtensionManagementService#uninstall', extension.identifier.id);
 		return this.unininstallExtension(extension, options);
@@ -172,7 +134,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		this.participants.push(participant);
 	}
 
-	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions & { operation?: InstallOperation }): Promise<ILocalExtension> {
+	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions): Promise<ILocalExtension> {
 		// only cache gallery extensions tasks
 		if (!URI.isUri(extension)) {
 			let installExtensionTask = this.installingExtensions.get(new ExtensionIdentifierWithVersion(extension.identifier, extension.version).key());

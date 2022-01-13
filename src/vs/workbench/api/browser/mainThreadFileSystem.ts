@@ -6,10 +6,14 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
+import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission, toFileSystemProviderErrorCode, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -17,10 +21,14 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	private readonly _proxy: ExtHostFileSystemShape;
 	private readonly _fileProvider = new Map<number, RemoteFileSystemProvider>();
 	private readonly _disposables = new DisposableStore();
+	private readonly _watches = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IFileService private readonly _fileService: IFileService,
+		@IWorkbenchFileService private readonly _fileService: IWorkbenchFileService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
+		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 
@@ -36,6 +44,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	dispose(): void {
 		this._disposables.dispose();
 		dispose(this._fileProvider.values());
+		dispose(this._watches.values());
 		this._fileProvider.clear();
 	}
 
@@ -152,6 +161,46 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	$ensureActivation(scheme: string): Promise<void> {
 		return this._fileService.activateProvider(scheme);
+	}
+
+	$watch(extensionId: string, session: number, resource: UriComponents, opts: IWatchOptions): void {
+		const uri = URI.revive(resource);
+
+		// refuse to watch anything that is already watched via
+		// our workspace watchers
+		if (this._contextService.isInsideWorkspace(uri)) {
+			this._logService.trace(`MainThreadFileSystem#$watch(): ignoring request to start watching because path is inside workspace (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
+			return;
+		}
+
+		this._logService.trace(`MainThreadFileSystem#$watch(): request to start watching (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
+
+		// automatically add `files.watcherExclude` patterns when watching
+		// recursively to give users a chance to configure exclude rules
+		// for reducing the overhead of watching recursively
+		if (opts.recursive) {
+			const config = this._configurationService.getValue<IFilesConfiguration>();
+			if (config.files?.watcherExclude) {
+				for (const key in config.files.watcherExclude) {
+					if (config.files.watcherExclude[key] === true) {
+						opts.excludes.push(key);
+					}
+				}
+			}
+		}
+
+		const subscription = this._fileService.watch(uri, opts);
+		this._watches.set(session, subscription);
+	}
+
+	$unwatch(session: number): void {
+		const subscription = this._watches.get(session);
+		if (subscription) {
+			this._logService.trace(`MainThreadFileSystem#$unwatch(): request to stop watching (session: ${session})`);
+
+			subscription.dispose();
+			this._watches.delete(session);
+		}
 	}
 }
 

@@ -7,7 +7,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, Delayer, first } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
-import { isPromiseCanceledError, onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { isCancellationError, onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -330,7 +330,7 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 				this._visibleContextKey.set(true);
 				this._currentDecorations = this._editor.deltaDecorations(this._currentDecorations, decorations);
 			} catch (err) {
-				if (!isPromiseCanceledError(err)) {
+				if (!isCancellationError(err)) {
 					onUnexpectedError(err);
 				}
 				if (this._currentRequest === request || !this._currentRequest) {

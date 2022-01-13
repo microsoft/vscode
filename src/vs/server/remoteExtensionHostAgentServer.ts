@@ -52,7 +52,7 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IPCServer, ClientConnectionEvent, IMessagePassingProtocol, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
+import { IPCServer, ClientConnectionEvent, IMessagePassingProtocol, StaticRouter, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Emitter, Event } from 'vs/base/common/event';
 import { RemoteAgentEnvironmentChannel } from 'vs/server/remoteAgentEnvironmentImpl';
 import { RemoteAgentFileSystemProviderChannel } from 'vs/server/remoteFileSystemProviderServer';
@@ -79,6 +79,10 @@ import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { IRemoteTelemetryService, RemoteNullTelemetryService, RemoteTelemetryService } from 'vs/server/remoteTelemetryService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { CredentialsMainService } from 'vs/platform/credentials/node/credentialsMainService';
+import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
+import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -288,13 +292,13 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
 		let appInsightsAppender: ITelemetryAppender = NullAppender;
+		const machineId = await getMachineId();
 		if (supportsTelemetry(this._productService, this._environmentService)) {
 			if (this._productService.aiConfig && this._productService.aiConfig.asimovKey) {
 				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, this._productService.aiConfig.asimovKey);
 				this._register(toDisposable(() => appInsightsAppender!.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 			}
 
-			const machineId = await getMachineId();
 			const config: ITelemetryServiceConfig = {
 				appenders: [appInsightsAppender],
 				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, this._productService.commit, this._productService.version + '-remote', machineId, this._productService.msftInternalDomains, this._environmentService.installSourcePath, 'remoteAgent'),
@@ -329,6 +333,12 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		);
 		services.set(IPtyService, ptyService);
 
+		const encryptionService = instantiationService.createInstance(EncryptionMainService, machineId);
+		services.set(IEncryptionService, encryptionService);
+
+		const credentialsService = instantiationService.createInstance(CredentialsMainService);
+		services.set(ICredentialsService, credentialsService);
+
 		return instantiationService.invokeFunction(accessor => {
 			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._connectionToken, this._environmentService, extensionManagementCLIService, this._logService, accessor.get(IRemoteTelemetryService), appInsightsAppender, this._productService);
 			this._socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
@@ -344,11 +354,14 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			const channel = new ExtensionManagementChannel(extensionManagementService, (ctx: RemoteAgentConnectionContext) => this._getUriTransformer(ctx.remoteAuthority));
 			this._socketServer.registerChannel('extensions', channel);
 
+			const encryptionChannel = ProxyChannel.fromService<RemoteAgentConnectionContext>(accessor.get(IEncryptionService));
+			this._socketServer.registerChannel('encryption', encryptionChannel);
+
+			const credentialsChannel = ProxyChannel.fromService<RemoteAgentConnectionContext>(accessor.get(ICredentialsService));
+			this._socketServer.registerChannel('credentials', credentialsChannel);
+
 			// clean up deprecated extensions
 			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
-
-			// migrate unsupported extensions
-			(extensionManagementService as ExtensionManagementService).migrateUnsupportedExtensions();
 
 			this._register(new ErrorTelemetry(accessor.get(ITelemetryService)));
 

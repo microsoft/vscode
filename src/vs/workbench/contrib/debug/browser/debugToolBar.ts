@@ -121,7 +121,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this._register(this.debugToolBarMenu.onDidChange(() => this.updateScheduler.schedule()));
 		this._register(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
 			// check for error
-			if (e.error && !errors.isPromiseCanceledError(e.error)) {
+			if (e.error && !errors.isCancellationError(e.error)) {
 				this.notificationService.error(e.error);
 			}
 
@@ -161,7 +161,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}));
 
 		this._register(this.layoutService.onDidChangePartVisibility(() => this.setYCoordinate()));
-		this._register(browser.onDidChangeZoomLevel(() => this.setYCoordinate()));
+		this._register(browser.PixelRatio.onDidChange(() => this.setYCoordinate()));
 	}
 
 	private storePosition(): void {
@@ -258,7 +258,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 // Debug toolbar
 
 const debugViewTitleItems: IDisposable[] = [];
-const registerDebugToolBarItem = (id: string, title: string, order: number, icon?: { light?: URI, dark?: URI } | ThemeIcon, when?: ContextKeyExpression, precondition?: ContextKeyExpression, alt?: ICommandAction) => {
+const registerDebugToolBarItem = (id: string, title: string, order: number, icon?: { light?: URI, dark?: URI; } | ThemeIcon, when?: ContextKeyExpression, precondition?: ContextKeyExpression, alt?: ICommandAction) => {
 	MenuRegistry.appendMenuItem(MenuId.DebugToolBar, {
 		group: 'navigation',
 		when,

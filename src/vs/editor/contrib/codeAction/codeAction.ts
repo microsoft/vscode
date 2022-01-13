@@ -5,7 +5,7 @@
 
 import { coalesce, equals, flatten, isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { illegalArgument, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { illegalArgument, isCancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorState';
@@ -136,7 +136,7 @@ export function getCodeActions(
 				documentation
 			};
 		} catch (err) {
-			if (isPromiseCanceledError(err)) {
+			if (isCancellationError(err)) {
 				throw err;
 			}
 			onUnexpectedExternalError(err);
@@ -189,7 +189,7 @@ function getDocumentation(
 	const documentation = provider.documentation.map(entry => ({ kind: new CodeActionKind(entry.kind), command: entry.command }));
 
 	if (only) {
-		let currentBest: { readonly kind: CodeActionKind, readonly command: modes.Command } | undefined;
+		let currentBest: { readonly kind: CodeActionKind, readonly command: modes.Command; } | undefined;
 		for (const entry of documentation) {
 			if (entry.kind.contains(only)) {
 				if (!currentBest) {

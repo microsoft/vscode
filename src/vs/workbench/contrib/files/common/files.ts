@@ -83,7 +83,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 	explorer: {
 		openEditors: {
 			visible: number;
-			sortOrder: 'editorOrder' | 'alphabetical';
+			sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath';
 		};
 		autoReveal: boolean | 'focusNoScroll';
 		enableDragAndDrop: boolean;

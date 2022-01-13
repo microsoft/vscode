@@ -16,12 +16,12 @@ import { ILanguageService } from 'vs/editor/common/services/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { MarkdownHover, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
-import { InlayHintLabelPart, InlayHintsController } from 'vs/editor/contrib/inlayHints/inlayHintsController';
+import { RenderedInlayHintLabelPart, InlayHintsController } from 'vs/editor/contrib/inlayHints/inlayHintsController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
-	constructor(readonly part: InlayHintLabelPart, owner: InlayHintsHover) {
+	constructor(readonly part: RenderedInlayHintLabelPart, owner: InlayHintsHover) {
 		super(10, owner, part.item.anchor.range);
 	}
 }
@@ -47,7 +47,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 			return null;
 		}
 		const options = mouseEvent.target.detail.injectedText?.options;
-		if (!(options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof InlayHintLabelPart)) {
+		if (!(options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof RenderedInlayHintLabelPart)) {
 			return null;
 		}
 		return new InlayHintsHoverAnchor(options.attachedData, this);
@@ -90,7 +90,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		});
 	}
 
-	private async _resolveInlayHintLabelPartHover(part: InlayHintLabelPart, token: CancellationToken): Promise<AsyncIterableObject<MarkdownHover>> {
+	private async _resolveInlayHintLabelPartHover(part: RenderedInlayHintLabelPart, token: CancellationToken): Promise<AsyncIterableObject<MarkdownHover>> {
 		if (typeof part.item.hint.label === 'string') {
 			return AsyncIterableObject.EMPTY;
 		}

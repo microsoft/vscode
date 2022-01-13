@@ -8,7 +8,7 @@ import { basename } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
+import { canceled, isCancellationError } from 'vs/base/common/errors';
 import { IProcessEnvironment, isWindows, OS } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { getSystemShell } from 'vs/base/node/shell';
@@ -82,7 +82,7 @@ export async function getResolvedShellEnv(logService: ILogService, args: NativeP
 				try {
 					resolve(await doResolveUnixShellEnv(logService, cts.token));
 				} catch (error) {
-					if (!isPromiseCanceledError(error) && !cts.token.isCancellationRequested) {
+					if (!isCancellationError(error) && !cts.token.isCancellationRequested) {
 						reject(new Error(localize('resolveShellEnvError', "Unable to resolve your shell environment: {0}", toErrorMessage(error))));
 					} else {
 						resolve({});
