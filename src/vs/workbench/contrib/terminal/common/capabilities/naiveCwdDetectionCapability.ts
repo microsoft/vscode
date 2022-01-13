@@ -3,10 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
+import { ITerminalChildProcess, TerminalCapability } from 'vs/platform/terminal/common/terminal';
 
 export class NaiveCwdDetectionCapability {
+	constructor(private readonly _process: ITerminalChildProcess) { }
 	readonly type = TerminalCapability.NaiveCwdDetection;
 
-	// TODO: Encapsulate the functionality the capability brings here
+	getCwd(): Promise<string> {
+		if (!this._process) {
+			return Promise.resolve('');
+		}
+		return this._process.getCwd();
+	}
 }

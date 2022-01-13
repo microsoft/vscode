@@ -7,6 +7,13 @@ import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
 
 export class CwdDetectionCapability {
 	readonly type = TerminalCapability.CwdDetection;
+	private _cwd = '';
+	//TODO: move shell integration addon in here
+	async getCwd(): Promise<string> {
+		return this._cwd;
+	}
 
-	// TODO: Encapsulate the functionality the capability brings here
+	updateCwd(cwd: string): void {
+		this._cwd = cwd;
+	}
 }

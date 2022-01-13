@@ -1941,6 +1941,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async getCwd(): Promise<string> {
+		if (this.capabilities.has(TerminalCapability.CwdDetection)) {
+			this.capabilities.get(TerminalCapability.CwdDetection)!.getCwd();
+		} else if (this.capabilities.has(TerminalCapability.NaiveCwdDetection)) {
+			this.capabilities.get(TerminalCapability.NaiveCwdDetection)!.getCwd();
+		}
 		return await this._processManager.getInitialCwd();
 	}
 
