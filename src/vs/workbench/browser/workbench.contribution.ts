@@ -362,12 +362,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('layoutControlEnabled', "Controls whether the layout control button in the custom title bar is enabled."),
 			},
-			'workbench.experimental.sidePanel.enabled': {
-				'type': 'boolean',
-				'default': false,
-				'description': localize('auxiliaryBarEnabled', "Controls whether the side panel opposite the side bar is enabled."),
-				'included': product.quality !== 'stable'
-			},
 			'workbench.experimental.panel.alignment': {
 				'type': 'string',
 				'enum': ['left', 'center', 'right', 'justify'],

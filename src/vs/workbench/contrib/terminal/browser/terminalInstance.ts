@@ -1298,13 +1298,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		const shell = path.basename(shellLaunchConfig.executable);
 		let newArgs: string | string[] | undefined;
-		if (isWindows && shell === 'pwsh' && !originalArgs) {
-			newArgs = [
-				'-noexit',
-				'-command',
-				'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
-			];
-		} else if (!isWindows) {
+		// TODO: Use backend OS
+		if (isWindows) {
+			if (shell === 'pwsh' && !originalArgs) {
+				newArgs = [
+					'-noexit',
+					'-command',
+					'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
+				];
+			}
+		} else {
 			// TODO: Read current args, only enable if they are recognized (ie. [] and ["-l"]), warn otherwise
 			switch (shell) {
 				case 'bash':

@@ -828,10 +828,10 @@ registerAction2(class extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.swapPanelViews',
+			id: 'workbench.action.movePanelToSidePanel',
 			title: {
-				value: localize('swapPanelViews', "Swap Panel View Containers"),
-				original: 'Swap Panel View Containers'
+				value: localize('movePanelToSidePanel', "Move Panel To Side Panel"),
+				original: 'Move Panel To Side Panel'
 			},
 			category: CATEGORIES.View,
 			f1: true,
