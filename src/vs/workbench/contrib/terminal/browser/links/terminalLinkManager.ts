@@ -49,6 +49,7 @@ export class TerminalLinkManager extends DisposableStore {
 	private _standardLinkProviders: Map<string, ILinkProvider> = new Map();
 	private _linkProvidersDisposables: IDisposable[] = [];
 	private _xterm: Terminal;
+
 	constructor(
 		private _xtermTerminal: XtermTerminal,
 		private readonly _processManager: ITerminalProcessManager,
