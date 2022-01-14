@@ -9,31 +9,25 @@ import { TerminalWordLinkProvider } from 'vs/workbench/contrib/terminal/browser/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions, IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { AbstractLogger, DEFAULT_LOG_LEVEL, ILogger, ILogService, LogLevel, LogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { QuickAccessController } from 'vs/platform/quickinput/browser/quickAccess';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { ITerminalConfigHelper, ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TerminalCapability, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
 import { CognisantCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/cognisantCommandTrackerAddon';
 import { TestViewDescriptorService } from 'vs/workbench/contrib/terminal/test/browser/xterm/xtermTerminal.test';
-import { TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IEditorService, PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IUntypedEditorInput, IEditorPane, IResourceDiffEditorInput, ITextDiffEditorPane, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IQuickAccessController, IQuickAccessOptions } from 'vs/platform/quickinput/common/quickAccess';
-import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IQuickPickItem } from 'vs/base/parts/quickinput/common/quickInput';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -56,52 +50,6 @@ class TestCommandTracker extends CognisantCommandTrackerAddon {
 		this._currentCwd = cwd;
 	}
 }
-class TestQuickAccess extends QuickAccessController {
-	private _value: string | undefined;
-	override show(value?: string, options?: IQuickAccessOptions): void {
-		this._value = value;
-	}
-	override async pick(value = '', options?: IQuickAccessOptions): Promise<IQuickPickItem[] | undefined> {
-		return this._value ? [{ label: this._value }] : undefined;
-	}
-}
-
-class TestQuickInput extends QuickInputService {
-	private _quick: IQuickAccessController | undefined;
-	override get quickAccess(): IQuickAccessController {
-		if (this._quick) {
-			return this._quick;
-		} else {
-			this._quick = new TestQuickAccess(this, new InstantiationService());
-			return this._quick;
-		}
-	}
-	async getText(): Promise<string | undefined> {
-		const pick = await this.quickAccess.pick();
-		if (pick && pick.length > 0) {
-			return pick[0].label;
-		}
-		return undefined;
-	}
-}
-
-class TermEditorService extends TestEditorService {
-	private _editor: EditorInput | undefined;
-	public override get activeEditor(): EditorInput | undefined { return this._editor; }
-	override openEditor(editor: EditorInput, options?: IEditorOptions, group?: PreferredGroup): Promise<IEditorPane | undefined>;
-	override openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
-	override openEditor(editor: IResourceDiffEditorInput, group?: PreferredGroup): Promise<ITextDiffEditorPane | undefined>;
-	override async openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | PreferredGroup, group?: PreferredGroup): Promise<IEditorPane | undefined> {
-		if (editor instanceof EditorInput) {
-			this._editor = editor;
-		}
-		return undefined;
-	}
-	getEditor(): EditorInput | IUntypedEditorInput | undefined {
-		return this._editor;
-	}
-}
-
 
 class TestLogger extends AbstractLogger implements ILogger {
 
@@ -164,8 +112,7 @@ suite.only('Workbench - TerminalWordLinkProvider', () => {
 	let xterm: TestXtermTerminal;
 	let configHelper: ITerminalConfigHelper;
 	let capabilities: TerminalCapabilityStore;
-	let editorService: TermEditorService;
-	let quickInputService: TestQuickInput;
+	let activateResult: ITerminalLinkActivationResult | undefined;
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
@@ -180,19 +127,34 @@ suite.only('Workbench - TerminalWordLinkProvider', () => {
 				integrated: defaultTerminalConfig
 			}
 		});
-		editorService = new TermEditorService();
 		themeService = new TestThemeService();
 		viewDescriptorService = new TestViewDescriptorService();
 		capabilities = new TerminalCapabilityStore();
 		instantiationService = new TestInstantiationService();
-		quickInputService = instantiationService.createInstance(TestQuickInput);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
-		instantiationService.stub(IQuickInputService, quickInputService);
-		instantiationService.stub(IEditorService, editorService);
+		instantiationService.stub(IWorkspaceContextService, new TestContextService());
+
+		// Allow intercepting link activations
+		activateResult = undefined;
+		instantiationService.stub(IQuickInputService, {
+			quickAccess: {
+				show(link: string) {
+					activateResult = { link, source: 'quickpick' };
+				}
+			}
+		} as Partial<IQuickInputService>);
+		instantiationService.stub(IEditorService, {
+			async openEditor(editor: ITextResourceEditorInput): Promise<any> {
+				activateResult = {
+					source: 'editor',
+					link: editor.resource?.toString()
+				};
+			}
+		} as Partial<IEditorService>);
 
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
@@ -206,18 +168,34 @@ suite.only('Workbench - TerminalWordLinkProvider', () => {
 			capabilities = new TerminalCapabilityStore();
 			capabilities.add(TerminalCapability.CwdDetection, new CwdDetectionCapability());
 		}
-		const provider: TerminalWordLinkProvider = instantiationService.createInstance(TerminalWordLinkProvider, xterm, capabilities, () => { }, () => { });
+		// We don't want to cancel the event or anything from the tests so just pass in a wrapped
+		// link handler that does nothing.
+		const testWrappedLinkHandler: () => XtermLinkMatcherHandler = () => {
+			return async () => { };
+		};
+		const provider: TerminalWordLinkProvider = instantiationService.createInstance(TerminalWordLinkProvider,
+			xterm,
+			capabilities,
+			testWrappedLinkHandler,
+			() => { }
+		);
 
 		// Write the text and wait for the parser to finish
 		await new Promise<void>(r => xterm.raw.write(text, r));
 
 		// Ensure all links are provided
 		const links = (await new Promise<ILink[] | undefined>(r => provider.provideLinks(1, r)))!;
-		const actualLinks = await Promise.all(links.map(async e => ({
-			text: e.text,
-			range: e.range,
-			activateText: registerCwdDetectionCapability ? await activateAndReturnResult(e, editorService, quickInputService) : undefined
-		})));
+		const actualLinks = await Promise.all(links.map(async e => {
+			if (registerCwdDetectionCapability) {
+				// HACK: Xterm.js works on sync links only but we use async links
+				await e.activate(new MouseEvent('click'), e.text);
+			}
+			return {
+				text: e.text,
+				range: e.range,
+				activateText: registerCwdDetectionCapability ? activateResult : undefined
+			};
+		}));
 
 		const expectedVerbose = expected.map(e => ({
 			text: e.text,
@@ -307,19 +285,7 @@ suite.only('Workbench - TerminalWordLinkProvider', () => {
 	});
 });
 
-async function activateAndReturnResult(e: ILink, editorService: TermEditorService, quickInputService: TestQuickInput): Promise<ITerminalLinkActivationResult | undefined> {
-	await e.activate(new MouseEvent('click'), e.text);
-	const editor = await editorService.activeEditor;
-	const quickpick = await quickInputService.getText();
-	if (editor) {
-		return { source: 'editor', text: editor.resource?.toString() };
-	} else if (quickpick) {
-		return { source: 'quickpick', text: quickpick };
-	}
-	return undefined;
-}
-
 interface ITerminalLinkActivationResult {
 	source: 'editor' | 'quickpick',
-	text?: string
+	link: string
 }
