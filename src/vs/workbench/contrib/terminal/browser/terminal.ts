@@ -91,14 +91,14 @@ export interface TerminalCommand {
 }
 
 export interface ICommandTracker {
+	readonly commands: TerminalCommand[];
+	readonly cwds: string[];
 	scrollToPreviousCommand(): void;
 	scrollToNextCommand(): void;
 	selectToPreviousCommand(): void;
 	selectToNextCommand(): void;
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
-	get commands(): TerminalCommand[];
-	get cwds(): string[];
 	getCwdForLine(line: number): string;
 	clearMarker(): void;
 }
