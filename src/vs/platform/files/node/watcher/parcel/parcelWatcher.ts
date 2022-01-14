@@ -19,9 +19,10 @@ import { dirname, isAbsolute, join, normalize, sep } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { rtrim } from 'vs/base/common/strings';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
-import { NodeJSFileWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
+import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IDiskFileChange, ILogMessage, coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { equals } from 'vs/base/common/arrays';
 
 export interface IParcelWatcherInstance {
 
@@ -128,17 +129,28 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 			}
 
 			// Re-watch path if excludes have changed or polling interval
-			return watcher.request.excludes !== request.excludes || watcher.request.pollingInterval !== request.pollingInterval;
+			return !equals(watcher.request.excludes, request.excludes) || watcher.request.pollingInterval !== request.pollingInterval;
 		});
 
 		// Gather paths that we should stop watching
 		const pathsToStopWatching = Array.from(this.watchers.values()).filter(({ request }) => {
-			return !normalizedRequests.find(normalizedRequest => normalizedRequest.path === request.path && normalizedRequest.excludes === request.excludes && normalizedRequest.pollingInterval === request.pollingInterval);
+			return !normalizedRequests.find(normalizedRequest => {
+				return normalizedRequest.path === request.path &&
+					equals(normalizedRequest.excludes, request.excludes) &&
+					normalizedRequest.pollingInterval === request.pollingInterval;
+
+			});
 		}).map(({ request }) => request.path);
 
 		// Logging
-		this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes})`).join(',')}`);
-		this.trace(`Request to stop watching: ${pathsToStopWatching.join(',')}`);
+
+		if (requestsToStartWatching.length) {
+			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'})`).join(',')}`);
+		}
+
+		if (pathsToStopWatching.length) {
+			this.trace(`Request to stop watching: ${pathsToStopWatching.join(',')}`);
+		}
 
 		// Stop watching as instructed
 		for (const pathToStopWatching of pathsToStopWatching) {
@@ -531,7 +543,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 		const parentPath = dirname(watcher.request.path);
 		if (existsSync(parentPath)) {
-			const nodeWatcher = new NodeJSFileWatcher({ path: parentPath, excludes: [] }, changes => {
+			const nodeWatcher = new NodeJSFileWatcherLibrary({ path: parentPath, excludes: [], recursive: false }, changes => {
 				if (watcher.token.isCancellationRequested) {
 					return; // return early when disposed
 				}
@@ -620,6 +632,8 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 	private async stopWatching(path: string): Promise<void> {
 		const watcher = this.watchers.get(path);
 		if (watcher) {
+			this.trace(`stopping file watcher on ${watcher.request.path}`);
+
 			this.watchers.delete(path);
 
 			try {

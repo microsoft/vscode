@@ -102,6 +102,7 @@ export interface MessagePortLike {
 	postMessage(message: any, transfer?: any[]): void;
 	addEventListener(type: 'message', listener: (e: any) => any): void;
 	removeEventListener(type: 'message', listener: (e: any) => any): void;
+	start(): void;
 }
 
 export interface IInitData {

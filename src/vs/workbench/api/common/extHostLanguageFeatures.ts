@@ -1180,6 +1180,8 @@ class InlayHintsAdapter {
 		private readonly _documents: ExtHostDocuments,
 		private readonly _commands: CommandsConverter,
 		private readonly _provider: vscode.InlayHintsProvider,
+		private readonly _logService: ILogService,
+		private readonly _extension: IExtensionDescription
 	) { }
 
 	async provideInlayHints(resource: URI, ran: IRange, token: CancellationToken): Promise<extHostProtocol.IInlayHintsDto | undefined> {
@@ -1189,6 +1191,7 @@ class InlayHintsAdapter {
 		const hints = await this._provider.provideInlayHints(doc, range, token);
 		if (!Array.isArray(hints) || hints.length === 0) {
 			// bad result
+			this._logService.trace(`[InlayHints] NO inlay hints from '${this._extension.identifier.value}' for ${ran}`);
 			return undefined;
 		}
 		if (token.isCancellationRequested) {
@@ -1204,6 +1207,7 @@ class InlayHintsAdapter {
 				result.hints.push(this._convertInlayHint(hints[i], [pid, i]));
 			}
 		}
+		this._logService.trace(`[InlayHints] ${result.hints.length} inlay hints from '${this._extension.identifier.value}' for ${ran}`);
 		return result;
 	}
 
@@ -1237,7 +1241,7 @@ class InlayHintsAdapter {
 			return false;
 		}
 		if (range && !range.contains(hint.position)) {
-			console.log('INVALID inlay hint, position outside range', hint);
+			// console.log('INVALID inlay hint, position outside range', range, hint);
 			return false;
 		}
 		return true;
@@ -2079,7 +2083,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	registerInlayHintsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlayHintsProvider): vscode.Disposable {
 
 		const eventHandle = typeof provider.onDidChangeInlayHints === 'function' ? this._nextHandle() : undefined;
-		const handle = this._addNewAdapter(new InlayHintsAdapter(this._documents, this._commands.converter, provider), extension);
+		const handle = this._addNewAdapter(new InlayHintsAdapter(this._documents, this._commands.converter, provider, this._logService, extension), extension);
 
 		this._proxy.$registerInlayHintsProvider(handle, this._transformDocumentSelector(selector), typeof provider.resolveInlayHint === 'function', eventHandle);
 		let result = this._createDisposable(handle);

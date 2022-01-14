@@ -231,8 +231,6 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	}
 
 	private async getWindowDriver(windowId: number): Promise<IWindowDriver> {
-		this.logService.info(`[driver] getWindowDriver(${windowId})`);
-
 		await this.whenUnfrozen(windowId);
 
 		const id = `window:${windowId}`;

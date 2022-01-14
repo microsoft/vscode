@@ -566,7 +566,7 @@
 					"**/vs/workbench/api/**/common/**",
 					"vscode-textmate",
 					"vscode-oniguruma",
-					"iconv-lite-umd",
+					"@vscode/iconv-lite-umd",
 					"tas-client-umd",
 					"jschardet"
 				]
@@ -598,7 +598,7 @@
 					"**/vs/workbench/services/**/{common,browser}/**",
 					"vscode-textmate",
 					"vscode-oniguruma",
-					"iconv-lite-umd",
+					"@vscode/iconv-lite-umd",
 					"jschardet",
 					"@vscode/vscode-languagedetection",
 					"@microsoft/applicationinsights-web"
@@ -632,7 +632,7 @@
 					"**/vs/workbench/services/**/{common,browser,electron-sandbox}/**",
 					"vscode-textmate",
 					"vscode-oniguruma",
-					"iconv-lite-umd",
+					"@vscode/iconv-lite-umd",
 					"jschardet"
 				]
 			},
@@ -752,7 +752,7 @@
 					"**/vs/workbench/contrib/**/{common,browser}/**",
 					"vscode-textmate",
 					"vscode-oniguruma",
-					"iconv-lite-umd",
+					"@vscode/iconv-lite-umd",
 					"jschardet"
 				]
 			},
@@ -787,7 +787,7 @@
 					"**/vs/workbench/contrib/**/{common,browser,electron-sandbox}/**",
 					"vscode-textmate",
 					"vscode-oniguruma",
-					"iconv-lite-umd",
+					"@vscode/iconv-lite-umd",
 					"jschardet"
 				]
 			},

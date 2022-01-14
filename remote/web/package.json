@@ -4,8 +4,8 @@
 	"private": true,
 	"dependencies": {
 		"@microsoft/applicationinsights-web": "^2.6.4",
+		"@vscode/iconv-lite-umd": "0.7.0",
 		"@vscode/vscode-languagedetection": "1.0.21",
-		"iconv-lite-umd": "0.6.10",
 		"jschardet": "3.0.0",
 		"tas-client-umd": "0.1.4",
 		"vscode-oniguruma": "1.6.1",

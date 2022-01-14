@@ -377,13 +377,6 @@ MenuRegistry.appendMenuItems([
 	}
 ]);
 
-MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
-	title: localize('miAlignPanel', "Align Panel"),
-	submenu: MenuId.LayoutControlPanelAlignmentMenu,
-	group: '3_workbench_layout_move',
-	order: 6,
-});
-
 function registerPanelActionById(config: PanelActionConfig<PanelAlignment | Position>, descriptor: SyncActionDescriptor, parentMenu: MenuId) {
 	const { id, label, shortLabel, alias, when } = config;
 	// register the workbench action

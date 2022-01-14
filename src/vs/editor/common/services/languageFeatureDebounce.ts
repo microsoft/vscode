@@ -46,7 +46,7 @@ export class FeatureDebounceInformation implements IFeatureDebounceInformation {
 
 	constructor(
 		private readonly _registry: LanguageFeatureRegistry<object>,
-		private readonly _default: () => number,
+		private readonly _default: number,
 		private readonly _min: number,
 		private readonly _max: number = Number.MAX_SAFE_INTEGER,
 	) { }
@@ -81,20 +81,9 @@ export class FeatureDebounceInformation implements IFeatureDebounceInformation {
 		return result.value;
 	}
 
-	private _inDefault = false;
-
 	default() {
-		if (this._inDefault) {
-			// avoid recursion
-			return this._min;
-		}
-		try {
-			this._inDefault = true;
-			const value = (this._overall() | 0) || this._default();
-			return clamp(value, this._min, this._max);
-		} finally {
-			this._inDefault = false;
-		}
+		const value = (this._overall() | 0) || this._default;
+		return clamp(value, this._min, this._max);
 	}
 }
 
@@ -112,7 +101,7 @@ export class LanguageFeatureDebounceService implements ILanguageFeatureDebounceS
 		let info = this._data.get(key);
 		if (!info) {
 			info = new FeatureDebounceInformation(feature,
-				() => (this._overallAverage() | 0) || (min * 1.5), // default is overall default or derived from min-value
+				(this._overallAverage() | 0) || (min * 1.5), // default is overall default or derived from min-value
 				min
 			);
 			this._data.set(key, info);

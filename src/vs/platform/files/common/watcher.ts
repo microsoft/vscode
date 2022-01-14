@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
-export interface IWatchRequest {
+interface IWatchRequest {
 
 	/**
 	 * The path to watch.
@@ -17,14 +17,30 @@ export interface IWatchRequest {
 	path: string;
 
 	/**
+	 * Whether to watch recursively or not.
+	 */
+	recursive: boolean;
+
+	/**
 	 * A set of glob patterns or paths to exclude from watching.
 	 */
 	excludes: string[];
 }
 
-export interface INonRecursiveWatchRequest extends IWatchRequest { }
+export interface INonRecursiveWatchRequest extends IWatchRequest {
+
+	/**
+	 * The watcher will be non-recursive.
+	 */
+	recursive: false;
+}
 
 export interface IRecursiveWatchRequest extends IWatchRequest {
+
+	/**
+	 * The watcher will be recursive.
+	 */
+	recursive: true;
 
 	/**
 	 * @deprecated this only exists for WSL1 support and should never
@@ -33,7 +49,13 @@ export interface IRecursiveWatchRequest extends IWatchRequest {
 	pollingInterval?: number;
 }
 
-export interface IRecursiveWatcher extends IDisposable {
+export function isRecursiveWatchRequest(request: IWatchRequest): request is IRecursiveWatchRequest {
+	return request.recursive === true;
+}
+
+export type IUniversalWatchRequest = IRecursiveWatchRequest | INonRecursiveWatchRequest;
+
+interface IWatcher {
 
 	/**
 	 * A normalized file change event from the raw events
@@ -59,7 +81,7 @@ export interface IRecursiveWatcher extends IDisposable {
 	 * in the array, will be removed from watching and
 	 * any new path will be added to watching.
 	 */
-	watch(requests: IRecursiveWatchRequest[]): Promise<void>;
+	watch(requests: IWatchRequest[]): Promise<void>;
 
 	/**
 	 * Enable verbose logging in the watcher.
@@ -72,39 +94,63 @@ export interface IRecursiveWatcher extends IDisposable {
 	stop(): Promise<void>;
 }
 
-export interface INonRecursiveWatcher extends IDisposable {
-
-	/**
-	 * A promise that indicates when the watcher is ready.
-	 */
-	readonly ready: Promise<void>;
-
-	/**
-	 * Enable verbose logging in the watcher.
-	 */
-	setVerboseLogging(enabled: boolean): void;
+export interface IRecursiveWatcher extends IWatcher {
+	watch(requests: IRecursiveWatchRequest[]): Promise<void>;
 }
 
-export abstract class AbstractRecursiveWatcherClient extends Disposable {
+export interface IRecursiveWatcherOptions {
+
+	/**
+	 * If `true`, will enable polling for all watchers, otherwise
+	 * will enable it for paths included in the string array.
+	 *
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
+	 */
+	usePolling: boolean | string[];
+
+	/**
+	 * If polling is enabled (via `usePolling`), defines the duration
+	 * in which the watcher will poll for changes.
+	 *
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
+	 */
+	pollingInterval?: number;
+}
+
+export interface INonRecursiveWatcher extends IWatcher {
+	watch(requests: INonRecursiveWatchRequest[]): Promise<void>;
+}
+
+export interface IUniversalWatcher extends IWatcher {
+	watch(requests: IUniversalWatchRequest[]): Promise<void>;
+}
+
+export abstract class AbstractWatcherClient extends Disposable {
 
 	private static readonly MAX_RESTARTS = 5;
 
-	private watcher: IRecursiveWatcher | undefined;
+	private watcher: IWatcher | undefined;
 	private readonly watcherDisposables = this._register(new MutableDisposable());
 
-	private requests: IRecursiveWatchRequest[] | undefined = undefined;
+	private requests: IWatchRequest[] | undefined = undefined;
 
 	private restartCounter = 0;
 
 	constructor(
 		private readonly onFileChanges: (changes: IDiskFileChange[]) => void,
 		private readonly onLogMessage: (msg: ILogMessage) => void,
-		private verboseLogging: boolean
+		private verboseLogging: boolean,
+		private options: {
+			type: string,
+			restartOnError: boolean
+		}
 	) {
 		super();
 	}
 
-	protected abstract createWatcher(disposables: DisposableStore): IRecursiveWatcher;
+	protected abstract createWatcher(disposables: DisposableStore): IWatcher;
 
 	protected init(): void {
 
@@ -117,33 +163,37 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 		this.watcher.setVerboseLogging(this.verboseLogging);
 
 		// Wire in event handlers
-		disposables.add(this.watcher.onDidChangeFile(e => this.onFileChanges(e)));
-		disposables.add(this.watcher.onDidLogMessage(e => this.onLogMessage(e)));
-		disposables.add(this.watcher.onDidError(e => this.onError(e)));
+		disposables.add(this.watcher.onDidChangeFile(changes => this.onFileChanges(changes)));
+		disposables.add(this.watcher.onDidLogMessage(msg => this.onLogMessage(msg)));
+		disposables.add(this.watcher.onDidError(error => this.onError(error)));
 	}
 
 	protected onError(error: string): void {
 
-		// Restart up to N times
-		if (this.restartCounter < AbstractRecursiveWatcherClient.MAX_RESTARTS && this.requests) {
-			this.error(`restarting watcher after error: ${error}`);
-			this.restart(this.requests);
+		// Restart on error (up to N times, if enabled)
+		if (this.options.restartOnError) {
+			if (this.restartCounter < AbstractWatcherClient.MAX_RESTARTS && this.requests) {
+				this.error(`restarting watcher after error: ${error}`);
+				this.restart(this.requests);
+			} else {
+				this.error(`gave up attempting to restart watcher after error: ${error}`);
+			}
 		}
 
-		// Otherwise log that we have given up to restart
+		// Do not attempt to restart if not enabled
 		else {
-			this.error(`gave up attempting to restart watcher after error: ${error}`);
+			this.error(error);
 		}
 	}
 
-	private restart(requests: IRecursiveWatchRequest[]): void {
+	private restart(requests: IUniversalWatchRequest[]): void {
 		this.restartCounter++;
 
 		this.init();
 		this.watch(requests);
 	}
 
-	async watch(requests: IRecursiveWatchRequest[]): Promise<void> {
+	async watch(requests: IUniversalWatchRequest[]): Promise<void> {
 		this.requests = requests;
 
 		await this.watcher?.watch(requests);
@@ -156,7 +206,7 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 	}
 
 	private error(message: string) {
-		this.onLogMessage({ type: 'error', message: `[File Watcher (parcel)] ${message}` });
+		this.onLogMessage({ type: 'error', message: `[File Watcher (${this.options.type})] ${message}` });
 	}
 
 	override dispose(): void {
@@ -166,6 +216,32 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 
 		return super.dispose();
 	}
+}
+
+export abstract class AbstractNonRecursiveWatcherClient extends AbstractWatcherClient {
+
+	constructor(
+		onFileChanges: (changes: IDiskFileChange[]) => void,
+		onLogMessage: (msg: ILogMessage) => void,
+		verboseLogging: boolean
+	) {
+		super(onFileChanges, onLogMessage, verboseLogging, { type: 'node.js', restartOnError: false });
+	}
+
+	protected abstract override createWatcher(disposables: DisposableStore): INonRecursiveWatcher;
+}
+
+export abstract class AbstractUniversalWatcherClient extends AbstractWatcherClient {
+
+	constructor(
+		onFileChanges: (changes: IDiskFileChange[]) => void,
+		onLogMessage: (msg: ILogMessage) => void,
+		verboseLogging: boolean
+	) {
+		super(onFileChanges, onLogMessage, verboseLogging, { type: 'universal', restartOnError: true });
+	}
+
+	protected abstract override createWatcher(disposables: DisposableStore): IUniversalWatcher;
 }
 
 export interface IDiskFileChange {

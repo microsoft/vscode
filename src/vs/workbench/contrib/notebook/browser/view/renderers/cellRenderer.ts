@@ -222,6 +222,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 
 		templateData.elementDisposables.add(templateData.instantiationService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, [
 			templateData.betweenCellToolbar,
+			templateData.titleToolbar,
 			templateData.statusBar,
 			templateData.focusIndicator
 		], this.renderedEditors));
