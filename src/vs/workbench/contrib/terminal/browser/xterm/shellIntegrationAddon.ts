@@ -74,7 +74,6 @@ export const enum ShellIntegrationInteraction {
 export class ShellIntegrationAddon extends Disposable implements IShellIntegration, ITerminalAddon {
 	private _terminal?: Terminal;
 	readonly capabilities = new TerminalCapabilityStore();
-	private _cwd: string | undefined;
 	private readonly _onIntegratedShellChange = new Emitter<{ type: string, value: string }>();
 	readonly onIntegratedShellChange = this._onIntegratedShellChange.event;
 
@@ -124,8 +123,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		const [type, info] = data.split('=');
 		switch (type) {
 			case ShellIntegrationInfo.CurrentDir:
-				this._cwd = info;
-				this.capabilities.get(TerminalCapability.CwdDetection)?.updateCwd(this._cwd);
+				this.capabilities.get(TerminalCapability.CwdDetection)?.updateCwd(info);
 				value = info;
 				break;
 			default:

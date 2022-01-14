@@ -30,6 +30,7 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 	private _exitCode: number | undefined;
 	private _cwd: string | undefined;
 	private _currentCommand: ICurrentPartialCommand = {};
+	private _initialCwd: string | undefined;
 
 	protected _terminal: Terminal | undefined;
 
@@ -52,6 +53,9 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 		}
 		switch (event.type) {
 			case ShellIntegrationInfo.CurrentDir: {
+				if (!this._initialCwd) {
+					this._initialCwd = event.value;
+				}
 				this._cwd = event.value;
 				const freq = this._cwds.get(this._cwd) || 0;
 				this._cwds.set(this._cwd, freq + 1);
@@ -156,7 +160,7 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 
 	getCwdForLine(line: number): string {
 		const command = this._commands.sort((a, b) => b.marker!.line - a.marker!.line);
-		const cwd = command.find(c => c.marker!.line <= line - 1)?.cwd || '';
+		const cwd = command.find(c => c.marker!.line <= line - 1)?.cwd || this._initialCwd!;
 		return cwd;
 	}
 }

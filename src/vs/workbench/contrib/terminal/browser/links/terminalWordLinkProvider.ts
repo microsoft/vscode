@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal, IViewportRange, IBufferLine, IBufferRange } from 'xterm';
+import type { IViewportRange, IBufferLine, IBufferRange } from 'xterm';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
@@ -32,10 +32,9 @@ const MAX_LENGTH = 2000;
 export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	private readonly _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
 	static id: string = 'TerminalWordLinkProvider';
-	private readonly _xterm: Terminal;
 
 	constructor(
-		private _xtermTerminal: XtermTerminal,
+		private _xterm: XtermTerminal,
 		private _capabilities: ITerminalCapabilityStore,
 		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
@@ -49,7 +48,6 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
-		this._xterm = _xtermTerminal.raw;
 	}
 
 	protected _provideLinks(y: number): TerminalLink[] {
@@ -62,20 +60,20 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		let endLine = startLine;
 
 		const lines: IBufferLine[] = [
-			this._xterm.buffer.active.getLine(startLine)!
+			this._xterm.raw.buffer.active.getLine(startLine)!
 		];
 
-		while (startLine >= 0 && this._xterm.buffer.active.getLine(startLine)?.isWrapped) {
-			lines.unshift(this._xterm.buffer.active.getLine(startLine - 1)!);
+		while (startLine >= 0 && this._xterm.raw.buffer.active.getLine(startLine)?.isWrapped) {
+			lines.unshift(this._xterm.raw.buffer.active.getLine(startLine - 1)!);
 			startLine--;
 		}
 
-		while (endLine < this._xterm.buffer.active.length && this._xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
-			lines.push(this._xterm.buffer.active.getLine(endLine + 1)!);
+		while (endLine < this._xterm.raw.buffer.active.length && this._xterm.raw.buffer.active.getLine(endLine + 1)?.isWrapped) {
+			lines.push(this._xterm.raw.buffer.active.getLine(endLine + 1)!);
 			endLine++;
 		}
 
-		const text = getXtermLineContent(this._xterm.buffer.active, startLine, endLine, this._xterm.cols);
+		const text = getXtermLineContent(this._xterm.raw.buffer.active, startLine, endLine, this._xterm.raw.cols);
 		if (text === '' || text.length > MAX_LENGTH) {
 			return [];
 		}
@@ -89,7 +87,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			const bufferRange = convertLinkRangeToBuffer
 				(
 					lines,
-					this._xterm.cols,
+					this._xterm.raw.cols,
 					{
 						startColumn: word.startIndex + 1,
 						startLineNumber: 1,
@@ -130,10 +128,10 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			bufferRange.end.x--;
 		}
 		return this._instantiationService.createInstance(TerminalLink,
-			this._xterm,
+			this._xterm.raw,
 			bufferRange,
 			text,
-			this._xterm.buffer.active.viewportY,
+			this._xterm.raw.buffer.active.viewportY,
 			activateCallback,
 			this._tooltipCallback,
 			false,
@@ -190,8 +188,12 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		return this._quickInputService.quickAccess.show(link);
 	}
 
+	/*
+	* For shells with the CwdDetection capability, the cwd relative to the line
+	* of the particular link is used to narrow down the result for an exact file match, if possible.
+	*/
 	private _updateLinkWithRelativeCwd(y: number, link: string, pathSeparator: string): string {
-		const cwd = this._xtermTerminal.commandTracker.getCwdForLine(y);
+		const cwd = this._xterm.commandTracker.getCwdForLine(y);
 		if (cwd && !link.includes(pathSeparator)) {
 			link = cwd + pathSeparator + link;
 		} else {

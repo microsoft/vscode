@@ -102,10 +102,6 @@ class TermEditorService extends TestEditorService {
 	}
 }
 
-class TestLogService extends LogService {
-
-}
-
 
 class TestLogger extends AbstractLogger implements ILogger {
 
@@ -157,7 +153,7 @@ class TestLogger extends AbstractLogger implements ILogger {
 }
 
 class TestXtermTerminal extends XtermTerminal {
-	override get commandTracker(): TestCommandTracker { return new TestCommandTracker(new TestLogService(new TestLogger())); }
+	override get commandTracker(): TestCommandTracker { return new TestCommandTracker(new LogService(new TestLogger())); }
 }
 
 suite.only('Workbench - TerminalWordLinkProvider', () => {
