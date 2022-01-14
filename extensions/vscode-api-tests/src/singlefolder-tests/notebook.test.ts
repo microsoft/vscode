@@ -311,7 +311,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		assert.strictEqual(secondCell.executionSummary?.success, true);
 	});
 
-	test.skip('notebook cell actions', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/140201
+	test('notebook cell actions', async function () {
 		const notebook = await openRandomNotebookDocument();
 		const editor = await vscode.window.showNotebookDocument(notebook);
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
