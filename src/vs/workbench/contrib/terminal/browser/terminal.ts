@@ -84,10 +84,10 @@ export interface IQuickPickTerminalObject {
 export interface TerminalCommand {
 	command: string;
 	timestamp: number;
-	getOutput: () => string | undefined;
 	cwd?: string;
 	exitCode?: number;
 	marker?: IMarker;
+	getOutput(): string | undefined;
 }
 
 export interface ICommandTracker {
