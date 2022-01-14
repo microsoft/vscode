@@ -10,7 +10,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { isDefined, isEmptyObject, isNumber, isString } from 'vs/base/common/types';
+import { isDefined, isEmptyObject, isNumber, isString, withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -1399,7 +1399,7 @@ export namespace GlobPattern {
 		return pattern; // preserve `undefined` and `null`
 	}
 
-	export function isRelativePattern(obj: any): obj is vscode.RelativePattern {
+	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
 		const rp = obj as vscode.RelativePattern;
 		return rp && URI.isUri(rp.baseUri) && typeof rp.pattern === 'string';
 	}
@@ -1578,62 +1578,46 @@ export namespace NotebookExclusiveDocumentPattern {
 	export function from(pattern: undefined): undefined;
 	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | types.RelativePattern | { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined } | undefined;
 	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | types.RelativePattern | { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined } | undefined {
-		if (pattern === null || pattern === undefined) {
-			return undefined;
-		}
-
-		if (pattern instanceof types.RelativePattern) {
-			return pattern;
-		}
-
-		if (typeof pattern === 'string') {
-			return pattern;
-		}
-
-
-		if (GlobPattern.isRelativePattern(pattern)) {
-			return new types.RelativePattern(pattern.baseUri, pattern.pattern);
-		}
-
-		if (isExclusivePattern(pattern)) {
+		if (isExclusiveAPIPattern(pattern)) {
 			return {
-				include: GlobPattern.from(pattern.include) || undefined,
-				exclude: GlobPattern.from(pattern.exclude) || undefined
+				include: withNullAsUndefined(GlobPattern.from(pattern.include)),
+				exclude: withNullAsUndefined(GlobPattern.from(pattern.exclude))
 			};
 		}
 
-		return undefined; // preserve `undefined`
-
+		return withNullAsUndefined(GlobPattern.from(pattern as vscode.GlobPattern | undefined /* TS narrowing problem */));
 	}
 
 	export function to(pattern: string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern }): { include: vscode.GlobPattern, exclude: vscode.GlobPattern } | vscode.GlobPattern {
-		if (typeof pattern === 'string') {
-			return pattern;
+		if (isExclusiveInternalPattern(pattern)) {
+			return {
+				include: pattern.include,
+				exclude: pattern.exclude
+			};
 		}
 
-		if (GlobPattern.isRelativePattern(pattern)) {
-			return new types.RelativePattern(pattern.baseUri, pattern.pattern);
-		}
-
-		return {
-			include: pattern.include,
-			exclude: pattern.exclude
-		};
+		return GlobPattern.from(pattern as string | types.RelativePattern /* TS narrowing problem */);
 	}
 
-	function isExclusivePattern(obj: any): obj is { include: types.RelativePattern | undefined | null, exclude: types.RelativePattern | undefined | null } {
-		const ep = obj as { include: vscode.GlobPattern, exclude: vscode.GlobPattern };
-		const include = GlobPattern.from(ep.include);
+	function isExclusiveAPIPattern(obj: any): obj is { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined | null } {
+		const ep = obj as { include?: vscode.GlobPattern, exclude?: vscode.GlobPattern } | undefined;
+		const include = GlobPattern.from(ep?.include);
 		if (!(include && include instanceof types.RelativePattern || typeof include === 'string')) {
 			return false;
 		}
 
-		const exclude = GlobPattern.from(ep.exclude);
+		const exclude = GlobPattern.from(ep?.exclude);
 		if (!(exclude && exclude instanceof types.RelativePattern || typeof exclude === 'string')) {
 			return false;
 		}
 
 		return true;
+	}
+
+	function isExclusiveInternalPattern(obj: any): obj is { include: string | types.RelativePattern, exclude: string | types.RelativePattern } {
+		const ep = obj as { include?: string | types.RelativePattern, exclude?: string | types.RelativePattern } | undefined;
+
+		return (typeof ep?.include === 'string' || ep?.include instanceof types.RelativePattern) && (typeof ep?.exclude === 'string' || ep?.exclude instanceof types.RelativePattern);
 	}
 }
 
