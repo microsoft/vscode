@@ -269,9 +269,13 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 		}
 
 		try {
-			return document.uri.with({
-				path: resolve(dirname(document.uri.path), ref),
-			});
+			if (document.uri.scheme === 'file') {
+				return vscode.Uri.file(resolve(dirname(document.uri.fsPath), ref));
+			} else {
+				return document.uri.with({
+					path: resolve(dirname(document.uri.path), ref),
+				});
+			}
 		} catch (e) {
 			return undefined;
 		}
