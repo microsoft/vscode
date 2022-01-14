@@ -107,7 +107,7 @@ export class AuxiliaryBarPart extends BasePanelPart {
 	protected fillExtraContextMenuActions(actions: IAction[]): void {
 		actions.push(...[
 			new Separator(),
-			toAction({ id: MoveSidePanelToPanelAction.ID, label: localize('moveToPanel', "Move to Panel"), run: () => this.instantiationService.invokeFunction(accessor => new MoveSidePanelToPanelAction().run(accessor)) }),
+			toAction({ id: MoveSidePanelToPanelAction.ID, label: localize('moveToPanel', "Move Views to Panel"), run: () => this.instantiationService.invokeFunction(accessor => new MoveSidePanelToPanelAction().run(accessor)) }),
 			this.instantiationService.createInstance(ToggleAuxiliaryBarAction, ToggleAuxiliaryBarAction.ID, localize('hideAuxiliaryBar', "Hide Side Panel"))
 		]);
 	}

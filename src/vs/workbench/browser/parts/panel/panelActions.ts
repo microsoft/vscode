@@ -148,7 +148,7 @@ PositionPanelActionConfigs.forEach(positionPanelAction => {
 			const notificationService = accessor.get(INotificationService);
 			const commandService = accessor.get(ICommandService);
 
-			notificationService.warn(localize('deprecatedPanelMoveMessage', "Moving the panel with this command has been deprecated in favor of \"Move Panel To Side Panel\" and \"Move Side Panel To Panel\" for similar functionality."));
+			notificationService.warn(localize('deprecatedPanelMoveMessage', "Moving the panel with this command has been deprecated in favor of \"Move Views From Panel To Side Panel\" and \"Move Views From Side Panel To Panel\" for similar functionality."));
 			if (positionPanelAction.value === Position.BOTTOM) {
 				commandService.executeCommand('workbench.action.moveSidePanelToPanel');
 			} else {
@@ -428,8 +428,8 @@ export class MovePanelToSidePanelAction extends Action2 {
 		super({
 			id: MovePanelToSidePanelAction.ID,
 			title: {
-				value: localize('movePanelToSidePanel', "Move Panel To Side Panel"),
-				original: 'Move Panel To Side Panel'
+				value: localize('movePanelToSidePanel', "Move Views From Panel To Side Panel"),
+				original: 'Move Views From Panel To Side Panel'
 			},
 			category: CATEGORIES.View,
 			f1: true,
@@ -466,8 +466,8 @@ export class MoveSidePanelToPanelAction extends Action2 {
 		super({
 			id: MoveSidePanelToPanelAction.ID,
 			title: {
-				value: localize('moveSidePanelToPanel', "Move Side Panel To Panel"),
-				original: 'Move Side Panel To Panel'
+				value: localize('moveSidePanelToPanel', "Move Views From Side Panel To Panel"),
+				original: 'Move Views From Side Panel To Panel'
 			},
 			category: CATEGORIES.View,
 			f1: true

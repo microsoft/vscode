@@ -927,7 +927,7 @@ export class PanelPart extends BasePanelPart {
 
 		actions.push(...[
 			new Separator(),
-			toAction({ id: MovePanelToSidePanelAction.ID, label: localize('moveToSidePanel', "Move to Side Panel"), run: () => this.instantiationService.invokeFunction(accessor => new MovePanelToSidePanelAction().run(accessor)) }),
+			toAction({ id: MovePanelToSidePanelAction.ID, label: localize('moveToSidePanel', "Move Views to Side Panel"), run: () => this.instantiationService.invokeFunction(accessor => new MovePanelToSidePanelAction().run(accessor)) }),
 			this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
 		]);
 	}
