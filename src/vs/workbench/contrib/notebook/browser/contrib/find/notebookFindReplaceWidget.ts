@@ -21,16 +21,19 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { editorWidgetBackground, editorWidgetForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/replacePattern';
 import { Codicon } from 'vs/base/common/codicons';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction } from 'vs/base/common/actions';
+import { Action, ActionRunner, IAction, IActionRunner, Separator } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { AnchorAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { filterIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -45,44 +48,130 @@ const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
 
 export const findFilterButton = registerIcon('find-filter', Codicon.filter, nls.localize('findFilterIcon', 'Icon for Find Filter in find widget.'));
+const NOTEBOOK_FIND_FILTERS = nls.localize('notebook.find.filter.filterAction', "Find Filters");
+const NOTEBOOK_FIND_IN_MARKUP_INPUT = nls.localize('notebook.find.filter.findInMarkupInput', "Markdown Source");
+const NOTEBOOK_FIND_IN_MARKUP_PREVIEW = nls.localize('notebook.find.filter.findInMarkupPreview', "Markdown Preview");
+const NOTEBOOK_FIND_IN_CODE_INPUT = nls.localize('notebook.find.filter.findInCodeInput', "Code Cell Source");
+const NOTEBOOK_FIND_IN_CODE_OUTPUT = nls.localize('notebook.find.filter.findInCodeOutput', "Code Cell Outputs");
+
+class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
+	constructor(readonly filters: NotebookFindFilters, action: IAction, actionRunner: IActionRunner, @IContextMenuService contextMenuService: IContextMenuService) {
+		super(action,
+			{ getActions: () => this.getActions() },
+			contextMenuService,
+			{
+				actionRunner,
+				classNames: action.class,
+				anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
+				menuAsChild: true
+			}
+		);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this.updateChecked();
+	}
+
+	private getActions(): IAction[] {
+		return [
+			{
+				checked: this.filters.markupInput,
+				class: undefined,
+				enabled: !this.filters.markupPreview,
+				id: 'findInMarkdownInput',
+				label: NOTEBOOK_FIND_IN_MARKUP_INPUT,
+				run: async () => {
+					this.filters.markupInput = !this.filters.markupInput;
+				},
+				tooltip: '',
+				dispose: () => null
+			},
+			{
+				checked: this.filters.markupPreview,
+				class: undefined,
+				enabled: true,
+				id: 'findInMarkdownInput',
+				label: NOTEBOOK_FIND_IN_MARKUP_PREVIEW,
+				run: async () => {
+					this.filters.markupPreview = !this.filters.markupPreview;
+				},
+				tooltip: '',
+				dispose: () => null
+			},
+			new Separator(),
+			{
+				checked: this.filters.codeInput,
+				class: undefined,
+				enabled: true,
+				id: 'findInCodeInput',
+				label: NOTEBOOK_FIND_IN_CODE_INPUT,
+				run: async () => {
+					this.filters.codeInput = !this.filters.codeInput;
+				},
+				tooltip: '',
+				dispose: () => null
+			},
+			{
+				checked: this.filters.codeOutput,
+				class: undefined,
+				enabled: true,
+				id: 'findInCodeOutput',
+				label: NOTEBOOK_FIND_IN_CODE_OUTPUT,
+				run: async () => {
+					this.filters.codeOutput = !this.filters.codeOutput;
+				},
+				tooltip: '',
+				dispose: () => null
+			},
+		];
+	}
+
+	override updateChecked(): void {
+		this.element!.classList.toggle('checked', this._action.checked);
+	}
+}
 
 class NotebookFindInput extends FindInput {
-
-	protected readonly filterToolbar: ToolBar;
 	private _filterButtonContainer: HTMLElement;
+	private _actionbar: ActionBar | null = null;
 	private _filterChecked: boolean = false;
+	private _filtersAction: IAction;
 
 	constructor(
+		readonly filters: NotebookFindFilters,
 		contextKeyService: IContextKeyService,
-		themeService: IThemeService,
-		menuService: IMenuService,
-		contextMenuService: IContextMenuService,
-		instantiationService: IInstantiationService,
-		scopedContextKeyService: IContextKeyService,
+		readonly contextMenuService: IContextMenuService,
+		readonly instantiationService: IInstantiationService,
 		parent: HTMLElement | null, contextViewProvider: IContextViewProvider, showOptionButtons: boolean, options: IFindInputOptions) {
 		super(parent, contextViewProvider, showOptionButtons, options);
 
 		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.inputBox.element, historyNavigator: this.inputBox }).scopedContextKeyService);
-
+		this._filtersAction = new Action('notebookFindFilterAction', NOTEBOOK_FIND_FILTERS, 'notebook-filters ' + ThemeIcon.asClassName(filterIcon));
+		this._filtersAction.checked = false;
 		this._filterButtonContainer = dom.$('.find-filter-button');
-		this._filterButtonContainer.classList.add('monaco-custom-checkbox');
-		const primaryMenu = menuService.createMenu(MenuId.NotebookFindToolbar, scopedContextKeyService);
+		this.controls.appendChild(this._filterButtonContainer);
+		this.createFilters(this._filterButtonContainer);
 
-		this.filterToolbar = this._register(new ToolBar(this._filterButtonContainer, contextMenuService, {
-			actionViewItemProvider: action => {
-				return createActionViewItem(instantiationService, action);
+		this._register(this.filters.onDidChange(() => {
+			if (this.filters.codeInput !== true || this.filters.codeOutput !== false || this.filters.markupInput !== true || this.filters.markupPreview !== false) {
+				this._filtersAction.checked = true;
+			} else {
+				this._filtersAction.checked = false;
 			}
 		}));
+	}
 
-		const actions = this.getCellToolbarActions(primaryMenu);
-		this.filterToolbar.setActions([...actions.primary, ...actions.secondary]);
-
-		this._register(primaryMenu.onDidChange(() => {
-			const actions = this.getCellToolbarActions(primaryMenu);
-			this.filterToolbar.setActions([...actions.primary, ...actions.secondary]);
+	private createFilters(container: HTMLElement): void {
+		this._actionbar = this._register(new ActionBar(container, {
+			actionViewItemProvider: action => {
+				if (action.id === this._filtersAction.id) {
+					return this.instantiationService.createInstance(NotebookFindFilterActionViewItem, this.filters, action, new ActionRunner());
+				}
+				return undefined;
+			}
 		}));
-
-		this.controls.appendChild(this._filterButtonContainer);
+		this._actionbar.push(this._filtersAction, { icon: true, label: false });
 	}
 
 	override setEnabled(enabled: boolean) {
@@ -127,7 +216,7 @@ class NotebookFindInput extends FindInput {
 	}
 }
 
-export abstract class SimpleFindReplaceWidget<T> extends Widget {
+export abstract class SimpleFindReplaceWidget extends Widget {
 	protected readonly _findInput: NotebookFindInput;
 	private readonly _domNode: HTMLElement;
 	private readonly _innerFindDomNode: HTMLElement;
@@ -153,6 +242,7 @@ export abstract class SimpleFindReplaceWidget<T> extends Widget {
 	protected _progressBar!: ProgressBar;
 	protected _scopedContextKeyService: IContextKeyService;
 
+	private _filters: NotebookFindFilters;
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -162,9 +252,16 @@ export abstract class SimpleFindReplaceWidget<T> extends Widget {
 		@IMenuService readonly menuService: IMenuService,
 		@IContextMenuService readonly contextMenuService: IContextMenuService,
 		@IInstantiationService readonly instantiationService: IInstantiationService,
-		protected readonly _state: FindReplaceState<T> = new FindReplaceState<T>()
+		protected readonly _state: FindReplaceState<NotebookFindFilters> = new FindReplaceState<NotebookFindFilters>()
 	) {
 		super();
+
+		this._filters = new NotebookFindFilters(true, false, true, false);
+		this._state.change({ filters: this._filters }, false);
+
+		this._filters.onDidChange(() => {
+			this._state.change({ filters: this._filters }, false);
+		});
 
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('simple-fr-find-part-wrapper');
@@ -198,12 +295,10 @@ export abstract class SimpleFindReplaceWidget<T> extends Widget {
 		this._innerFindDomNode.classList.add('simple-fr-find-part');
 
 		this._findInput = this._register(new NotebookFindInput(
+			this._filters,
 			this._scopedContextKeyService,
-			this._themeService,
-			this.menuService,
 			this.contextMenuService,
 			this.instantiationService,
-			this._scopedContextKeyService,
 			null,
 			this._contextViewService,
 			true,
@@ -588,5 +683,18 @@ registerThemingParticipant((theme, collector) => {
 	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
 		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
+	}
+
+	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
+	if (inputActiveOptionBorderColor) {
+		collector.addRule(`.simple-fr-find-part .find-filter-button > .monaco-action-bar .action-label.notebook-filters.checked { border-color: ${inputActiveOptionBorderColor}; }`);
+	}
+	const inputActiveOptionForegroundColor = theme.getColor(inputActiveOptionForeground);
+	if (inputActiveOptionForegroundColor) {
+		collector.addRule(`.simple-fr-find-part .find-filter-button > .monaco-action-bar .action-label.notebook-filters.checked { color: ${inputActiveOptionForegroundColor}; }`);
+	}
+	const inputActiveOptionBackgroundColor = theme.getColor(inputActiveOptionBackground);
+	if (inputActiveOptionBackgroundColor) {
+		collector.addRule(`.simple-fr-find-part .find-filter-button > .monaco-action-bar .action-label.notebook-filters.checked { background-color: ${inputActiveOptionBackgroundColor}; }`);
 	}
 });

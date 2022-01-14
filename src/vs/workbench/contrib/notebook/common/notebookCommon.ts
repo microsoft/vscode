@@ -826,7 +826,9 @@ export interface INotebookSearchOptions {
 	wholeWord?: boolean;
 	caseSensitive?: boolean;
 	wordSeparators?: string;
-	includePreview?: boolean;
+	includeMarkupInput?: boolean;
+	includeMarkupPreview?: boolean;
+	includeCodeInput?: boolean;
 	includeOutput?: boolean;
 }
 

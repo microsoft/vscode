@@ -38,7 +38,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap, WindowsShellType, TerminalCommand } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalLocation, ProcessPropertyType, IProcessPropertyMap, WindowsShellType, TerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AutoOpenBarrier, Promises } from 'vs/base/common/async';
@@ -70,6 +70,7 @@ import { isFirefox } from 'vs/base/browser/browser';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 import { fromNow } from 'vs/base/common/date';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 
 const enum Constants {
 	/**
@@ -118,10 +119,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _instanceIdCounter = 1;
 
 	xterm?: XtermTerminal;
+	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
+
 	private _xtermReadyPromise: Promise<XtermTerminal>;
 	private _xtermTypeAheadAddon: TypeAheadAddon | undefined;
 
-	private _processManager!: ITerminalProcessManager;
+	private readonly _processManager: ITerminalProcessManager;
 	private _pressAnyKeyToCloseListener: IDisposable | undefined;
 
 	private _instanceId: number;
@@ -178,7 +181,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly statusList: ITerminalStatusList;
 	disableLayout: boolean = false;
 
-	private _capabilities: ProcessCapability[] = [];
 	private _description?: string;
 	private _processName: string = '';
 	private _sequence?: string;
@@ -257,7 +259,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get workspaceFolder(): string | undefined { return this._workspaceFolder; }
 	get cwd(): string | undefined { return this._cwd; }
 	get initialCwd(): string | undefined { return this._initialCwd; }
-	get capabilities(): ProcessCapability[] { return this._capabilities; }
 	get description(): string | undefined { return this._description || this.shellLaunchConfig.description; }
 	get userHome(): string | undefined { return this._userHome; }
 	// The onExit event is special in that it fires and is disposed after the terminal instance
@@ -369,7 +370,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this.statusList = this._instantiationService.createInstance(TerminalStatusList);
 		this._initDimensions();
-		this._createProcessManager();
+		this._processManager = this._createProcessManager();
 
 		this._register(toDisposable(() => this._dndObserver?.dispose()));
 
@@ -937,7 +938,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._widgetManager.attachToElement(xterm.raw.element);
 		this._processManager.onProcessReady((e) => {
 			this._linkManager?.setWidgetManager(this._widgetManager);
-			this._capabilities = e.capabilities;
 			this._workspaceFolder = path.basename(e.cwd.toString());
 		});
 
@@ -1173,12 +1173,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalHasTextContextKey.set((isActive || isEditorActive) && this.hasSelection());
 	}
 
-	protected _createProcessManager(): void {
-		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper);
-		this._processManager.onProcessReady(async (e) => {
+	protected _createProcessManager(): TerminalProcessManager {
+		const processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper);
+		this.capabilities.add(processManager.capabilities);
+		processManager.onProcessReady(async (e) => {
 			this._onProcessIdReady.fire(this);
 			this._initialCwd = await this.getInitialCwd();
-			this._capabilities = e.capabilities;
 			// Set the initial name based on the _resolved_ shell launch config, this will also
 			// ensure the resolved icon gets shown
 			if (!this._labelComputer) {
@@ -1202,8 +1202,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.refreshTabLabels(this._shellLaunchConfig.executable, TitleEventSource.Process);
 			}
 		});
-		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
-		this._processManager.onDidChangeProperty(({ type, value }) => {
+		processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
+		processManager.onDidChangeProperty(({ type, value }) => {
 			switch (type) {
 				case ProcessPropertyType.Cwd:
 					this._cwd = value;
@@ -1232,12 +1232,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		});
 
-		this._processManager.onProcessData(ev => {
+		processManager.onProcessData(ev => {
 			this._initialDataEvents?.push(ev.data);
 			this._onData.fire(ev.data);
 		});
-		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
-		this._processManager.onPtyDisconnect(() => {
+		processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
+		processManager.onPtyDisconnect(() => {
 			if (this.xterm) {
 				this.xterm.raw.options.disableStdin = true;
 			}
@@ -1248,12 +1248,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				tooltip: nls.localize('disconnectStatus', "Lost connection to process")
 			});
 		});
-		this._processManager.onPtyReconnect(() => {
+		processManager.onPtyReconnect(() => {
 			if (this.xterm) {
 				this.xterm.raw.options.disableStdin = false;
 			}
 			this.statusList.remove(TerminalStatus.Disconnected);
 		});
+		return processManager;
 	}
 
 	private async _createProcess(): Promise<void> {
@@ -1298,27 +1299,30 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		const shell = path.basename(shellLaunchConfig.executable);
 		let newArgs: string | string[] | undefined;
-		let enableShellIntegration = false;
-		if (isWindows && shell === 'pwsh' && !originalArgs) {
-			newArgs = [
-				'-noexit',
-				'-command',
-				'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
-			];
-			enableShellIntegration = true;
-		} else if (!isWindows) {
-			if (shell === 'zsh') {
-				newArgs = ['-c', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh; zsh -il'];
-				enableShellIntegration = true;
-			} else if (shell === 'bash') {
+		// TODO: Use backend OS
+		if (isWindows) {
+			if (shell === 'pwsh' && !originalArgs) {
 				newArgs = [
-					'--init-file',
-					'${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-bash.sh'
+					'-noexit',
+					'-command',
+					'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
 				];
-				enableShellIntegration = true;
+			}
+		} else {
+			// TODO: Read current args, only enable if they are recognized (ie. [] and ["-l"]), warn otherwise
+			switch (shell) {
+				case 'bash':
+					newArgs = ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-bash.sh'];
+					break;
+				case 'pwsh':
+					newArgs = ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"'];
+					break;
+				case 'zsh':
+					newArgs = ['-c', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh; zsh -il'];
+					break;
 			}
 		}
-		return { args: newArgs || originalArgs, enableShellIntegration };
+		return { args: newArgs || originalArgs, enableShellIntegration: newArgs !== undefined };
 	}
 	private _onProcessData(ev: IProcessDataEvent): void {
 		const messageId = ++this._latestXtermWriteData;
@@ -2270,7 +2274,7 @@ export class TerminalLabelComputer extends Disposable {
 		if (!reset && this._instance.staticTitle && labelType === TerminalLabelType.Title) {
 			return this._instance.staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process?.replace(/[\n\r\t]/g, '') || '';
 		}
-		const detection = this._instance.capabilities.includes(ProcessCapability.CwdDetection);
+		const detection = this._instance.capabilities.has(TerminalCapability.CwdDetection) || this._instance.capabilities.has(TerminalCapability.NaiveCwdDetection);
 		const zeroRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 0 && this.pathsEqual(templateProperties.cwd, this._instance.userHome || this._configHelper.config.cwd);
 		const singleRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 1 && this.pathsEqual(templateProperties.cwd, this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath);
 		templateProperties.cwdFolder = (!templateProperties.cwd || !detection || zeroRootWorkspace || singleRootWorkspace) ? '' : path.basename(templateProperties.cwd);

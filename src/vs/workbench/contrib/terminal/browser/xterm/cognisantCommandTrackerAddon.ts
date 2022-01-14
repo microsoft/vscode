@@ -18,6 +18,8 @@ interface ICurrentPartialCommand {
 	commandStartY?: number;
 	commandStartX?: number;
 	commandExecutedY?: number;
+	commandExecutedMarker?: IMarker;
+	commandExecutedX?: number;
 	commandFinishedY?: number;
 	command?: string;
 }
@@ -65,9 +67,20 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 				this._currentCommand.marker = this._terminal.registerMarker(0);
 				break;
 			case ShellIntegrationInteraction.CommandExecuted:
+				this._currentCommand.commandExecutedMarker = this._terminal.registerMarker(0);
 				// TODO: Make sure this only runs on Windows backends (not frontends)
-				if (!isWindows && this._currentCommand.marker && this._currentCommand.commandStartX) {
-					this._currentCommand.command = this._terminal.buffer.active.getLine(this._currentCommand.marker.line)?.translateToString().substring(this._currentCommand.commandStartX);
+				if (!isWindows) {
+					// TODO: Ensure these exist
+					//  && this._currentCommand.marker && this._currentCommand.commandStartX) {
+					// TODO: ! is unsafe
+					this._currentCommand.command = this._terminal.buffer.active.getLine(this._currentCommand.marker!.line)?.translateToString().substring(this._currentCommand.commandStartX!);
+					let y = this._currentCommand.marker!.line + 1;
+					for (; y < this._currentCommand.commandExecutedMarker!.line; y++) {
+						this._currentCommand.command += this._terminal.buffer.active.getLine(y)!.translateToString(true);
+					}
+					if (y === this._currentCommand.commandExecutedMarker!.line) {
+						this._currentCommand.command += this._terminal.buffer.active.getLine(this._currentCommand.commandExecutedMarker!.line)!.translateToString(true, undefined, this._currentCommand.commandExecutedX);
+					}
 					break;
 				}
 				this._currentCommand.commandExecutedY = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
@@ -108,7 +121,7 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 				break;
 			case ShellIntegrationInteraction.CommandFinished: {
 				const command = this._currentCommand.command;
-				this._logService.trace('Terminal Command Finished', command);
+				this._logService.debug('Terminal Command Finished', this._currentCommand.command, this._currentCommand);
 				this._exitCode = Number.parseInt(event.value);
 				if (!this._currentCommand.marker?.line || !this._terminal.buffer.active) {
 					break;
@@ -126,7 +139,7 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 
 				this._currentCommand.previousCommandMarker?.dispose();
 				this._currentCommand.previousCommandMarker = this._currentCommand.marker;
-				this._currentCommand.marker = undefined;
+				this._currentCommand = {};
 				break;
 			} default:
 				return;

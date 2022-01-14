@@ -552,13 +552,7 @@ export interface ITerminalLaunchError {
 export interface IProcessReadyEvent {
 	pid: number,
 	cwd: string,
-	capabilities: ProcessCapability[],
 	requiresWindowsMode?: boolean
-}
-
-export const enum ProcessCapability {
-	// TODO: Migrate this to use TerminalCapability.NaiveCwdDetection
-	CwdDetection = 'cwdDetection'
 }
 
 /**
@@ -603,11 +597,6 @@ export interface ITerminalChildProcess {
 	 * Whether the process should be persisted across reloads.
 	 */
 	shouldPersist: boolean;
-
-	/**
-	 * Capabilities of the process, designated when it starts
-	 */
-	capabilities: ProcessCapability[];
 
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessReady: Event<IProcessReadyEvent>;

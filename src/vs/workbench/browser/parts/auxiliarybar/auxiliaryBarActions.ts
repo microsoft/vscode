@@ -71,7 +71,6 @@ MenuRegistry.appendMenuItems([
 				title: localize({ key: 'miShowAuxiliaryBar', comment: ['&& denotes a mnemonic'] }, "Show Si&&de Panel"),
 				toggled: AuxiliaryBarVisibleContext
 			},
-			when: ContextKeyExpr.equals('config.workbench.experimental.sidePanel.enabled', true),
 			order: 4
 		}
 	},
@@ -84,7 +83,6 @@ MenuRegistry.appendMenuItems([
 				title: localize({ key: 'miShowAuxiliaryBar', comment: ['&& denotes a mnemonic'] }, "Show Si&&de Panel"),
 				toggled: AuxiliaryBarVisibleContext
 			},
-			when: ContextKeyExpr.equals('config.workbench.experimental.sidePanel.enabled', true),
 			order: 5
 		}
 	}, {
@@ -102,5 +100,5 @@ MenuRegistry.appendMenuItems([
 ]);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAuxiliaryBarAction), 'View: Toggle Side Panel', CATEGORIES.View.value, ContextKeyExpr.equals('config.workbench.experimental.sidePanel.enabled', true));
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusAuxiliaryBarAction), 'View: Focus into Side Panel', CATEGORIES.View.value, ContextKeyExpr.equals('config.workbench.experimental.sidePanel.enabled', true));
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAuxiliaryBarAction), 'View: Toggle Side Panel', CATEGORIES.View.value);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusAuxiliaryBarAction), 'View: Focus into Side Panel', CATEGORIES.View.value);

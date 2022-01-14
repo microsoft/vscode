@@ -254,6 +254,7 @@ stages:
 
           - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true)) }}:
               - job: LinuxAlpineArm64
+                timeoutInMinutes: 120
                 variables:
                   VSCODE_ARCH: arm64
                 steps:
