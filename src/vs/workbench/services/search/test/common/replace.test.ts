@@ -160,6 +160,12 @@ suite('Replace Pattern test', () => {
 		assert.strictEqual('\\left ern', actual);
 	});
 
+	test('case operations and newline', () => { // #140734
+		let testObject = new ReplacePattern('$1\n\\U$2', { pattern: '(multi)(line)', isRegExp: true });
+		let actual = testObject.getReplaceString('multiline');
+		assert.strictEqual(actual, 'multi\nLINE');
+	});
+
 	test('get replace string for no matches', () => {
 		let testObject = new ReplacePattern('hello', { pattern: 'bla', isRegExp: true });
 		let actual = testObject.getReplaceString('foo');
