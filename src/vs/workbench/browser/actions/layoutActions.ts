@@ -451,9 +451,9 @@ registerAction2(class extends Action2 {
 				group: '1_toggle_view',
 				order: 2
 			}, {
-					id: MenuId.LayoutControlMenu,
+				id: MenuId.LayoutControlMenu,
 				group: '9_quick_layout',
-					order: 2
+				order: 2
 			}
 			]
 		});
@@ -820,43 +820,6 @@ registerAction2(class extends Action2 {
 		viewDescriptorService.moveViewsToContainer([viewDescriptor], defaultContainer);
 		viewsService.openView(viewDescriptor.id, true);
 	}
-});
-
-// --- Swap Panel View Locations
-
-registerAction2(class extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.movePanelToSidePanel',
-			title: {
-				value: localize('movePanelToSidePanel', "Move Panel To Side Panel"),
-				original: 'Move Panel To Side Panel'
-			},
-			category: CATEGORIES.View,
-			f1: true,
-			precondition: ContextKeyExpr.equals('config.workbench.experimental.sidePanel.enabled', true)
-		});
-	}
-	run(accessor: ServicesAccessor, ...args: any[]): void {
-		const viewDescriptorService = accessor.get(IViewDescriptorService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-
-		const panelContainers = viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.Panel);
-		const auxiliaryBarContainers = viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar);
-
-		panelContainers.forEach(viewContainer => viewDescriptorService.moveViewContainerToLocation(viewContainer, ViewContainerLocation.AuxiliaryBar));
-		auxiliaryBarContainers.forEach(viewContainer => viewDescriptorService.moveViewContainerToLocation(viewContainer, ViewContainerLocation.Panel));
-
-		if (panelContainers.length) {
-			layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-		}
-
-		if (auxiliaryBarContainers.length) {
-			layoutService.setPartHidden(false, Parts.PANEL_PART);
-		}
-	}
-
 });
 
 // --- Resize View
