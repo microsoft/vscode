@@ -33,6 +33,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	private readonly _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
 	static id: string = 'TerminalWordLinkProvider';
 	private readonly _xterm: Terminal;
+
 	constructor(
 		private _xtermTerminal: XtermTerminal,
 		private _capabilities: ITerminalCapabilityStore,
