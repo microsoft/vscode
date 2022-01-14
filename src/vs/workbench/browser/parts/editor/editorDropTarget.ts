@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editordroptarget';
-import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType, CodeDataTransfers, extractFilesDropData } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType, CodeDataTransfers, extractFilesDropData, DraggedExtensionTreeItemsIdentifier } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
 import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState } from 'vs/workbench/browser/parts/editor/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
@@ -21,6 +21,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { ITreeViewsDragAndDropService } from 'vs/workbench/services/views/common/treeViewsDragAndDropService';
+import { ITreeDataTransfer } from 'vs/workbench/common/views';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -40,6 +42,7 @@ class DropOverlay extends Themable {
 
 	private readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 	private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
+	private readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedExtensionTreeItemsIdentifier>();
 
 	constructor(
 		private accessor: IEditorGroupsAccessor,
@@ -47,7 +50,8 @@ class DropOverlay extends Themable {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@ITreeViewsDragAndDropService private readonly treeViewsDragAndDropService: ITreeViewsDragAndDropService<ITreeDataTransfer>
 	) {
 		super(themeService);
 
@@ -290,6 +294,24 @@ class DropOverlay extends Themable {
 
 				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 			}
+		}
+
+		// Check for tree items
+		else if (this.treeItemsTransfer.hasData(DraggedExtensionTreeItemsIdentifier.prototype)) {
+			const data = this.treeItemsTransfer.getData(DraggedExtensionTreeItemsIdentifier.prototype);
+			if (Array.isArray(data)) {
+				const treeData = Promise.all(
+					data.map(id => this.treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier)));
+				treeData.then(dataTransferItems => {
+					const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true /* open workspace instead of file if dropped */ });
+					dataTransferItems.forEach(dataTransferItem => {
+						if (dataTransferItem) {
+							dropHandler.handleDrop(dataTransferItem, () => ensureTargetGroup(), targetGroup => targetGroup?.focus());
+						}
+					});
+				});
+			}
+			this.treeItemsTransfer.clearData(DraggedExtensionTreeItemsIdentifier.prototype);
 		}
 
 		// Web: check for file transfer
