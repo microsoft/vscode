@@ -25,7 +25,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
-import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 const MAX_LENGTH = 2000;
 
@@ -35,7 +35,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	private readonly _xterm: Terminal;
 	constructor(
 		private _xtermTerminal: XtermTerminal,
-		private _capabilities: TerminalCapabilityStoreMultiplexer,
+		private _capabilities: ITerminalCapabilityStore,
 		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -148,7 +148,6 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 
 		// Remove `:in` from the end which is how Ruby outputs stack traces
 		link = link.replace(/:in$/, '');
-
 		// If any of the names of the folders in the workspace matches
 		// a prefix of the link, remove that prefix and continue
 		this._workspaceContextService.getWorkspace().folders.forEach((folder) => {
@@ -157,7 +156,6 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 				return;
 			}
 		});
-
 		let matchLink = link;
 		if (this._capabilities.has(TerminalCapability.CwdDetection)) {
 			matchLink = this._updateLinkWithRelativeCwd(y, link, pathSeparator);
@@ -187,6 +185,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			// Fallback to searching quick access
 			return this._quickInputService.quickAccess.show(link);
 		}
+		// Fallback to searching quick access
 		return this._quickInputService.quickAccess.show(link);
 	}
 
