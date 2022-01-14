@@ -129,9 +129,8 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		for (let item of all) {
 			if (this._dedicated.has(item.id)) {
 				dedicated.push(item);
-			} else {
-				combined.push(item);
 			}
+			combined.push(item);
 		}
 		return new LanguageStatusViewModel(combined, dedicated);
 	}
@@ -164,7 +163,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			const ariaLabels: string[] = [];
 			const element = document.createElement('div');
 			for (const status of model.combined) {
-				element.appendChild(this._renderStatus(status, showSeverity, this._renderDisposables));
+				element.appendChild(this._renderStatus(status, showSeverity, model.dedicated.includes(status), this._renderDisposables));
 				ariaLabels.push(this._asAriaLabel(status));
 				isOneBusy = isOneBusy || status.busy;
 			}
@@ -199,7 +198,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		this._dedicatedEntries = newDedicatedEntries;
 	}
 
-	private _renderStatus(status: ILanguageStatus, showSeverity: boolean, store: DisposableStore): HTMLElement {
+	private _renderStatus(status: ILanguageStatus, showSeverity: boolean, isPinned: boolean, store: DisposableStore): HTMLElement {
 
 		const parent = document.createElement('div');
 		parent.classList.add('hover-language-status');
@@ -248,12 +247,22 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		// -- pin
 		const actionBar = new ActionBar(right, {});
 		store.add(actionBar);
-		const action = new Action('pin', localize('pin', "Pin to Status Bar"), Codicon.pin.classNames, true, () => {
-			this._dedicated.add(status.id);
-			this._statusBarService.updateEntryVisibility(status.id, true);
-			this._update();
-			this._storeState();
-		});
+		let action: Action;
+		if (!isPinned) {
+			action = new Action('pin', localize('pin', "Add to Status Bar"), Codicon.pin.classNames, true, () => {
+				this._dedicated.add(status.id);
+				this._statusBarService.updateEntryVisibility(status.id, true);
+				this._update();
+				this._storeState();
+			});
+		} else {
+			action = new Action('unpin', localize('unpin', "Remove from Status Bar"), Codicon.pinned.classNames, true, () => {
+				this._dedicated.delete(status.id);
+				this._statusBarService.updateEntryVisibility(status.id, false);
+				this._update();
+				this._storeState();
+			});
+		}
 		actionBar.push(action, { icon: true, label: false });
 		store.add(action);
 
