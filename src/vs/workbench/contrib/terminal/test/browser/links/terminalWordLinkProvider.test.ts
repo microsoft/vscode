@@ -104,7 +104,7 @@ class TestXtermTerminal extends XtermTerminal {
 	override get commandTracker(): TestCommandTracker { return new TestCommandTracker(new LogService(new TestLogger())); }
 }
 
-suite.only('Workbench - TerminalWordLinkProvider', () => {
+suite('Workbench - TerminalWordLinkProvider', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let themeService: TestThemeService;
