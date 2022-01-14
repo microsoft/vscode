@@ -145,6 +145,7 @@ export class InlayHintsController implements IEditorContribution {
 			for (const provider of inlayHints.provider) {
 				if (typeof provider.onDidChangeInlayHints === 'function' && !watchedProviders.has(provider)) {
 					this._sessionDisposables.add(provider.onDidChangeInlayHints(() => scheduler.schedule()));
+					watchedProviders.add(provider);
 				}
 			}
 
