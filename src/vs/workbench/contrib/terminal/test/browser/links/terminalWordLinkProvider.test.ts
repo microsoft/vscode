@@ -18,10 +18,10 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { ITerminalConfigHelper, ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TerminalLocation } from 'vscode';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
+import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
