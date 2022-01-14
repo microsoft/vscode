@@ -35,8 +35,8 @@ export const enum CellToolbarOrder {
 	EditCell,
 	ExecuteAboveCells,
 	ExecuteCellAndBelow,
-	SplitCell,
 	SaveCell,
+	SplitCell,
 	ClearCellOutput
 }
 
