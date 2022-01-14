@@ -77,7 +77,7 @@ export async function getCwdForSplit(configHelper: ITerminalConfigHelper, instan
 		case 'initial':
 			return instance.getInitialCwd();
 		case 'inherited':
-			return await instance.getCwd();
+			return instance.getCwd();
 	}
 }
 

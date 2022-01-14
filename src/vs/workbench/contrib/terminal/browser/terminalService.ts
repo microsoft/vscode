@@ -942,7 +942,6 @@ export class TerminalService implements ITerminalService {
 		}
 
 		if (options?.cwd) {
-			console.log('setting cwd', options.cwd);
 			shellLaunchConfig.cwd = options.cwd;
 		}
 
