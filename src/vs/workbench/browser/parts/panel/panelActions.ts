@@ -158,6 +158,41 @@ PositionPanelActionConfigs.forEach(positionPanelAction => {
 	});
 });
 
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	submenu: MenuId.MenubarPanelAlignmentMenu,
+	title: localize('alignPanel', "Align Panel"),
+	group: '3_workbench_layout_move',
+	order: 5
+});
+
+AlignPanelActionConfigs.forEach(alignPanelAction => {
+	const { id, label, shortLabel, value, when } = alignPanelAction;
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id,
+				title: label,
+				category: CATEGORIES.View,
+				toggled: when.negate(),
+				f1: true
+			});
+		}
+		run(accessor: ServicesAccessor): void {
+			const layoutService = accessor.get(IWorkbenchLayoutService);
+			layoutService.setPanelAlignment(value === undefined ? 'center' : value);
+		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarPanelAlignmentMenu, {
+		command: {
+			id,
+			title: shortLabel,
+			toggled: when.negate()
+		},
+		order: 5
+	});
+});
+
 export class SetPanelAlignmentAction extends Action {
 	constructor(
 		id: string,
@@ -376,49 +411,6 @@ MenuRegistry.appendMenuItems([
 		}
 	}
 ]);
-
-function registerPanelActionById(config: PanelActionConfig<PanelAlignment | Position>, descriptor: SyncActionDescriptor, parentMenu: MenuId) {
-	const { id, label, shortLabel, alias, when } = config;
-	// register the workbench action
-	actionRegistry.registerWorkbenchAction(descriptor, alias, CATEGORIES.View.value, when);
-	// register as a menu item
-	MenuRegistry.appendMenuItems([{
-		id: MenuId.MenubarAppearanceMenu,
-		item: {
-			group: '3_workbench_layout_move',
-			command: {
-				id,
-				title: label
-			},
-			when,
-			order: 5
-		}
-	}, {
-		id: parentMenu,
-		item: {
-			command: {
-				id,
-				title: shortLabel,
-				toggled: when.negate()
-			},
-			order: 5
-		},
-		}, {
-		id: MenuId.ViewTitleContext,
-		item: {
-			group: '3_workbench_layout_move',
-			command: {
-				id: id,
-				title: label,
-			},
-			when: ContextKeyExpr.and(when, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Panel))),
-			order: 1
-		}
-	}]);
-}
-
-// register each position panel action
-AlignPanelActionConfigs.forEach(config => registerPanelActionById(config, SyncActionDescriptor.create(SetPanelAlignmentAction, config.id, config.label), MenuId.LayoutControlPanelAlignmentMenu));
 
 // --- Move Panel Views To Side Panel
 
