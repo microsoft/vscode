@@ -2412,6 +2412,13 @@ export class RelativePattern implements IRelativePattern {
 
 		this.pattern = pattern;
 	}
+
+	toJSON(): IRelativePattern {
+		return {
+			pattern: this.pattern,
+			base: this.base
+		};
+	}
 }
 
 @es5ClassCompat
