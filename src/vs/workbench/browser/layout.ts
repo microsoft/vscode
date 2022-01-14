@@ -405,7 +405,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
-		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.parent);
+		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, this.parent);
 		this.stateModel.load();
 
 		// Both editor and panel should not be hidden on startup

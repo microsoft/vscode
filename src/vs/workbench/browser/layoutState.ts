@@ -8,6 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { PanelAlignment, Position, positionFromString, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 
 interface IWorkbenchLayoutStateKey {
@@ -22,7 +23,7 @@ interface IWorkbenchLayoutStateKey {
 type StorageKeyType = string | boolean | number | object;
 abstract class WorkbenchLayoutStateKey<T extends StorageKeyType> implements IWorkbenchLayoutStateKey {
 	abstract readonly runtime: boolean;
-	constructor(readonly name: string, readonly scope: StorageScope, readonly target: StorageTarget, readonly defaultValue: T) { }
+	constructor(readonly name: string, readonly scope: StorageScope, readonly target: StorageTarget, public defaultValue: T) { }
 }
 
 class RuntimeStateKey<T extends StorageKeyType> extends WorkbenchLayoutStateKey<T> {
@@ -90,6 +91,7 @@ export class LayoutStateModel extends Disposable {
 	constructor(
 		private readonly storageService: IStorageService,
 		private readonly configurationService: IConfigurationService,
+		private readonly contextService: IWorkspaceContextService,
 		private readonly container: HTMLElement) {
 		super();
 		this.configurationService.onDidChangeConfiguration(configurationChange => this.updateStateFromLegacySettings(configurationChange));
@@ -151,20 +153,14 @@ export class LayoutStateModel extends Disposable {
 		this.stateCache.set(LayoutStateKeys.PANEL_ALIGNMENT.name, this.configurationService.getValue(LegacyWorkbenchLayoutSettings.PANEL_ALIGNMENT));
 		this.stateCache.set(LayoutStateKeys.SIDEBAR_POSITON.name, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left'));
 
-		// Apply sizing defaults
+		// Set dynamic defaults: part sizing and side bar visibility
 		const workbenchDimensions = getClientArea(this.container);
-		const applySizingIfUndefined = <T extends StorageKeyType>(key: WorkbenchLayoutStateKey<T>, value: T) => {
-			if (this.stateCache.get(key.name) === undefined) {
-				this.stateCache.set(key.name, value);
-			}
-		};
+		LayoutStateKeys.GRID_SIZE.defaultValue = { height: workbenchDimensions.height, width: workbenchDimensions.width };
+		LayoutStateKeys.SIDEBAR_SIZE.defaultValue = Math.min(300, workbenchDimensions.width / 4);
+		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, workbenchDimensions.width / 4);
+		LayoutStateKeys.PANEL_SIZE.defaultValue = workbenchDimensions.height / 3;
+		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 
-		applySizingIfUndefined(LayoutStateKeys.GRID_SIZE, { height: workbenchDimensions.height, width: workbenchDimensions.width });
-		applySizingIfUndefined(LayoutStateKeys.SIDEBAR_SIZE, Math.min(300, workbenchDimensions.width / 4));
-		applySizingIfUndefined(LayoutStateKeys.AUXILIARYBAR_SIZE, Math.min(300, workbenchDimensions.width / 4));
-		applySizingIfUndefined(LayoutStateKeys.PANEL_SIZE, workbenchDimensions.height / 3);
-
-		// Apply legacy settings
 
 		// Apply all defaults
 		for (key in LayoutStateKeys) {
