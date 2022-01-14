@@ -190,7 +190,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		assert.strictEqual(selectionRedo[0].end, 2);
 	});
 
-	test.skip('editor editing event', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/140200
+	test('editor editing event', async function () {
 		const notebook = await openRandomNotebookDocument();
 		const editor = await vscode.window.showNotebookDocument(notebook);
 
