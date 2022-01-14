@@ -41,7 +41,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TerminalProfileQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
 import { IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
-import { ConsoleLogger, ILogService } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 
 export class TerminalService implements ITerminalService {

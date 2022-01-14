@@ -71,7 +71,6 @@ import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/lin
 import { fromNow } from 'vs/base/common/date';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
-import { cmp } from 'vs/base/common/semver/semver';
 
 const enum Constants {
 	/**
