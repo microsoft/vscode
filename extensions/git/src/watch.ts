@@ -20,6 +20,9 @@ export function watch(location: string): IFileWatcher {
 
 	return new class implements IFileWatcher {
 		event = onDotGitFileChangeEmitter.event;
-		dispose() { watcher.dispose(); }
+		dispose() {
+			watcher.dispose();
+			onDotGitFileChangeEmitter.dispose();
+		}
 	};
 }
