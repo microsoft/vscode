@@ -132,14 +132,15 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 				}
 				if (command && !command.startsWith('\\') && command !== '') {
 					const buffer = this._terminal.buffer.active;
-					this._commands.push({
+					const newCommand = {
 						command,
 						timestamp: Date.now(),
 						cwd: this._cwd,
 						exitCode: this._exitCode,
-						getOutput: () => getOutputForCommand(this._currentCommand.previousCommandMarker!.line! + 1, this._currentCommand.marker!.line!, buffer),
+						getOutput: () => getOutputForCommand(this._currentCommand, buffer),
 						marker: this._currentCommand.marker
-					});
+					};
+					this._commands.push(newCommand);
 				}
 				this._currentCommand.previousCommandMarker?.dispose();
 				this._currentCommand.previousCommandMarker = this._currentCommand.marker;
@@ -159,13 +160,13 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 	}
 
 	getCwdForLine(line: number): string {
-		const command = this._commands.sort((a, b) => b.marker!.line - a.marker!.line);
-		const cwd = command.find(c => c.marker!.line <= line - 1)?.cwd || this._initialCwd!;
-		return cwd;
+		return this._commands.reverse().find(c => c.marker!.line <= line - 1)?.cwd || this._initialCwd!;
 	}
 }
 
-function getOutputForCommand(startLine: number, endLine: number, buffer: IBuffer): string | undefined {
+function getOutputForCommand(command: ICurrentPartialCommand, buffer: IBuffer): string | undefined {
+	const startLine = command.previousCommandMarker!.line! + 1;
+	const endLine = command.marker!.line!;
 	let output = '';
 	for (let i = startLine; i < endLine; i++) {
 		output += buffer.getLine(i)?.translateToString() + '\n';
