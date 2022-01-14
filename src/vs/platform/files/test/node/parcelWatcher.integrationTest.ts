@@ -30,7 +30,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 			// Work with strings as paths to simplify testing
 			const requests: IRecursiveWatchRequest[] = paths.map(path => {
-				return { path, excludes: [] };
+				return { path, excludes: [], recursive: true };
 			});
 
 			return this.normalizeRequests(requests).map(request => request.path);
@@ -92,6 +92,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 	teardown(async () => {
 		await watcher.stop();
+		watcher.dispose();
 
 		// Possible that the file watcher is still holding
 		// onto the folders on Windows specifically and the
@@ -154,7 +155,7 @@ import { ltrim } from 'vs/base/common/strings';
 	}
 
 	test('basics', async function () {
-		await watcher.watch([{ path: testDir, excludes: [] }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]);
 
 		// New file
 		const newFilePath = join(testDir, 'deep', 'newFile.txt');
@@ -280,7 +281,7 @@ import { ltrim } from 'vs/base/common/strings';
 	});
 
 	(isMacintosh /* this test seems not possible with fsevents backend */ ? test.skip : test)('basics (atomic writes)', async function () {
-		await watcher.watch([{ path: testDir, excludes: [] }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]);
 
 		// Delete + Recreate file
 		const newFilePath = join(testDir, 'deep', 'conway.js');
@@ -291,7 +292,7 @@ import { ltrim } from 'vs/base/common/strings';
 	});
 
 	(!isLinux /* polling is only used in linux environments (WSL) */ ? test.skip : test)('basics (polling)', async function () {
-		await watcher.watch([{ path: testDir, excludes: [], pollingInterval: 100 }]);
+		await watcher.watch([{ path: testDir, excludes: [], pollingInterval: 100, recursive: true }]);
 
 		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
 	});
@@ -315,7 +316,7 @@ import { ltrim } from 'vs/base/common/strings';
 	}
 
 	test('multiple events', async function () {
-		await watcher.watch([{ path: testDir, excludes: [] }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]);
 		await Promises.mkdir(join(testDir, 'deep-multiple'));
 
 		// multiple add
@@ -407,7 +408,7 @@ import { ltrim } from 'vs/base/common/strings';
 	});
 
 	test('subsequent watch updates watchers (path)', async function () {
-		await watcher.watch([{ path: testDir, excludes: [join(realpathSync(testDir), 'unrelated')] }]);
+		await watcher.watch([{ path: testDir, excludes: [join(realpathSync(testDir), 'unrelated')], recursive: true }]);
 
 		// New file (*.txt)
 		let newTextFilePath = join(testDir, 'deep', 'newFile.txt');
@@ -415,14 +416,14 @@ import { ltrim } from 'vs/base/common/strings';
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
 
-		await watcher.watch([{ path: join(testDir, 'deep'), excludes: [join(realpathSync(testDir), 'unrelated')] }]);
+		await watcher.watch([{ path: join(testDir, 'deep'), excludes: [join(realpathSync(testDir), 'unrelated')], recursive: true }]);
 		newTextFilePath = join(testDir, 'deep', 'newFile2.txt');
 		changeFuture = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
 
-		await watcher.watch([{ path: join(testDir, 'deep'), excludes: [realpathSync(testDir)] }]);
-		await watcher.watch([{ path: join(testDir, 'deep'), excludes: [] }]);
+		await watcher.watch([{ path: join(testDir, 'deep'), excludes: [realpathSync(testDir)], recursive: true }]);
+		await watcher.watch([{ path: join(testDir, 'deep'), excludes: [], recursive: true }]);
 		newTextFilePath = join(testDir, 'deep', 'newFile3.txt');
 		changeFuture = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
@@ -430,8 +431,8 @@ import { ltrim } from 'vs/base/common/strings';
 	});
 
 	test('subsequent watch updates watchers (excludes)', async function () {
-		await watcher.watch([{ path: testDir, excludes: [realpathSync(testDir)] }]);
-		await watcher.watch([{ path: testDir, excludes: [] }]);
+		await watcher.watch([{ path: testDir, excludes: [realpathSync(testDir)], recursive: true }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]);
 
 		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
 	});
@@ -441,7 +442,7 @@ import { ltrim } from 'vs/base/common/strings';
 		const linkTarget = join(testDir, 'deep');
 		await Promises.symlink(linkTarget, link);
 
-		await watcher.watch([{ path: link, excludes: [] }]);
+		await watcher.watch([{ path: link, excludes: [], recursive: true }]);
 
 		return basicCrudTest(join(link, 'newFile.txt'));
 	});
@@ -451,7 +452,7 @@ import { ltrim } from 'vs/base/common/strings';
 		const linkTarget = join(testDir, 'deep');
 		await Promises.symlink(linkTarget, link);
 
-		await watcher.watch([{ path: testDir, excludes: [] }, { path: link, excludes: [] }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: true }, { path: link, excludes: [], recursive: true }]);
 
 		return basicCrudTest(join(link, 'newFile.txt'));
 	});
@@ -461,7 +462,7 @@ import { ltrim } from 'vs/base/common/strings';
 		// Local UNC paths are in the form of: \\localhost\c$\my_dir
 		const uncPath = `\\\\localhost\\${getDriveLetter(testDir)?.toLowerCase()}$\\${ltrim(testDir.substr(testDir.indexOf(':') + 1), '\\')}`;
 
-		await watcher.watch([{ path: uncPath, excludes: [] }]);
+		await watcher.watch([{ path: uncPath, excludes: [], recursive: true }]);
 
 		return basicCrudTest(join(uncPath, 'deep', 'newFile.txt'));
 	});
@@ -469,7 +470,7 @@ import { ltrim } from 'vs/base/common/strings';
 	(isLinux /* linux: is case sensitive */ ? test.skip : test)('wrong casing', async function () {
 		const deepWrongCasedPath = join(testDir, 'DEEP');
 
-		await watcher.watch([{ path: deepWrongCasedPath, excludes: [] }]);
+		await watcher.watch([{ path: deepWrongCasedPath, excludes: [], recursive: true }]);
 
 		return basicCrudTest(join(deepWrongCasedPath, 'newFile.txt'));
 	});
@@ -477,13 +478,13 @@ import { ltrim } from 'vs/base/common/strings';
 	test('invalid folder does not explode', async function () {
 		const invalidPath = join(testDir, 'invalid');
 
-		await watcher.watch([{ path: invalidPath, excludes: [] }]);
+		await watcher.watch([{ path: invalidPath, excludes: [], recursive: true }]);
 	});
 
 	test('deleting watched path is handled properly', async function () {
 		const watchedPath = join(testDir, 'deep');
 
-		await watcher.watch([{ path: watchedPath, excludes: [] }]);
+		await watcher.watch([{ path: watchedPath, excludes: [], recursive: true }]);
 
 		// Delete watched path and await
 		const warnFuture = awaitMessage(watcher, 'warn');
