@@ -160,7 +160,8 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 	}
 
 	getCwdForLine(line: number): string {
-		return this._commands.reverse().find(c => c.marker!.line <= line - 1)?.cwd || this._initialCwd!;
+		const reversed = [...this._commands].reverse();
+		return reversed.find(c => c.marker!.line <= line - 1)?.cwd || this._initialCwd!;
 	}
 }
 
