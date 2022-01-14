@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, EventEmitter, Uri } from 'vscode';
-import { join } from 'path';
-import * as fs from 'fs';
+import { Event, EventEmitter, RelativePattern, Uri, workspace } from 'vscode';
 import { IDisposable } from './util';
 
 export interface IFileWatcher extends IDisposable {
@@ -13,13 +11,15 @@ export interface IFileWatcher extends IDisposable {
 }
 
 export function watch(location: string): IFileWatcher {
-	const dotGitWatcher = fs.watch(location);
+	const watcher = workspace.createFileSystemWatcher(new RelativePattern(location, '*'));
+
 	const onDotGitFileChangeEmitter = new EventEmitter<Uri>();
-	dotGitWatcher.on('change', (_, e) => onDotGitFileChangeEmitter.fire(Uri.file(join(location, e as string))));
-	dotGitWatcher.on('error', err => console.error(err));
+	watcher.onDidCreate(e => onDotGitFileChangeEmitter.fire(e));
+	watcher.onDidChange(e => onDotGitFileChangeEmitter.fire(e));
+	watcher.onDidDelete(e => onDotGitFileChangeEmitter.fire(e));
 
 	return new class implements IFileWatcher {
 		event = onDotGitFileChangeEmitter.event;
-		dispose() { dotGitWatcher.close(); }
+		dispose() { watcher.dispose(); }
 	};
 }
