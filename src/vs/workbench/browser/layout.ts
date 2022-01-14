@@ -93,6 +93,7 @@ enum WorkbenchLayoutClasses {
 	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
 	STATUSBAR_HIDDEN = 'nostatusbar',
 	FULLSCREEN = 'fullscreen',
+	MAXIMIZED = 'maximized',
 	WINDOW_BORDER = 'border'
 }
 
@@ -1712,6 +1713,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	updateWindowMaximizedState(maximized: boolean) {
+		this.container.classList.toggle(WorkbenchLayoutClasses.MAXIMIZED, maximized);
+
 		if (this.windowState.runtime.maximized === maximized) {
 			return;
 		}
