@@ -161,7 +161,7 @@ suite.only('Workbench - TerminalWordLinkProvider', () => {
 		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
 	});
 
-	async function assertLink(text: string, expected: { text: string, range: [number, number][], activateText?: string }[], registerCwdDetectionCapability?: boolean) {
+	async function assertLink(text: string, expected: { text: string, range: [number, number][], linkActivationResult?: ITerminalLinkActivationResult }[], registerCwdDetectionCapability?: boolean) {
 		xterm?.dispose();
 		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
 		if (registerCwdDetectionCapability) {
@@ -170,8 +170,11 @@ suite.only('Workbench - TerminalWordLinkProvider', () => {
 		}
 		// We don't want to cancel the event or anything from the tests so just pass in a wrapped
 		// link handler that does nothing.
-		const testWrappedLinkHandler: () => XtermLinkMatcherHandler = () => {
-			return async () => { };
+
+		const testWrappedLinkHandler = (handler: (event: MouseEvent | undefined, link: string) => void): XtermLinkMatcherHandler => {
+			return async (event: MouseEvent | undefined, link: string) => {
+				handler(event, link);
+			};
 		};
 		const provider: TerminalWordLinkProvider = instantiationService.createInstance(TerminalWordLinkProvider,
 			xterm,
@@ -203,7 +206,7 @@ suite.only('Workbench - TerminalWordLinkProvider', () => {
 				start: { x: e.range[0][0], y: e.range[0][1] },
 				end: { x: e.range[1][0], y: e.range[1][1] },
 			},
-			activateText: e.activateText
+			activateText: e.linkActivationResult
 		}));
 		assert.deepStrictEqual(actualLinks, expectedVerbose);
 		assert.strictEqual(links.length, expected.length);
@@ -279,9 +282,9 @@ suite.only('Workbench - TerminalWordLinkProvider', () => {
 		await assertLink('file:///C:/users/test/file.txt ', [{ range: [[1, 1], [30, 1]], text: 'file:///C:/users/test/file.txt' }]);
 		await assertLink('file:///C:/users/test/file.txt:1:10 ', [{ range: [[1, 1], [35, 1]], text: 'file:///C:/users/test/file.txt:1:10' }]);
 	});
-	test('should add cwd to link', async () => {
+	test.skip('should add cwd to link', async () => {
 		xterm.commandTracker.setCwd('/Users/home/folder');
-		await assertLink('file.txt ', [{ range: [[1, 1], [30, 1]], text: 'file.txt', activateText: '/Users/home/folder/file.txt' }], true);
+		await assertLink('file.txt ', [{ range: [[1, 1], [8, 1]], text: 'file.txt', linkActivationResult: { link: '/Users/home/folder/file.txt', source: 'editor' } }], true);
 	});
 });
 
