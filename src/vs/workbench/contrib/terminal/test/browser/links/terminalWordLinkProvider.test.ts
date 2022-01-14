@@ -9,24 +9,82 @@ import { TerminalWordLinkProvider } from 'vs/workbench/contrib/terminal/browser/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
+import { ITerminalConfigHelper, ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TerminalLocation } from 'vscode';
+import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
+
+const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
+	fontFamily: 'monospace',
+	fontWeight: 'normal',
+	fontWeightBold: 'normal',
+	gpuAcceleration: 'off',
+	scrollback: 1000,
+	fastScrollSensitivity: 2,
+	mouseWheelScrollSensitivity: 1,
+	unicodeVersion: '11'
+};
+
+export class TestXtermTerminal extends XtermTerminal {
+
+}
+
+export class TestViewDescriptorService implements Partial<IViewDescriptorService> {
+
+}
 
 suite('Workbench - TerminalWordLinkProvider', () => {
-
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
+	let themeService: TestThemeService;
+	let viewDescriptorService: TestViewDescriptorService;
+	let xterm: TestXtermTerminal;
+	let configHelper: ITerminalConfigHelper;
+	let capabilities: ITerminalCapabilityStore;
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
+		configurationService = new TestConfigurationService({
+			editor: {
+				fastScrollSensitivity: 2,
+				mouseWheelScrollSensitivity: 1
+			} as Partial<IEditorOptions>,
+			terminal: {
+				integrated: defaultTerminalConfig
+			}
+		});
+		themeService = new TestThemeService();
+		viewDescriptorService = new TestViewDescriptorService();
+		capabilities = new TerminalCapabilityStoreMultiplexer();
+		instantiationService = new TestInstantiationService();
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IStorageService, new TestStorageService());
+		instantiationService.stub(IThemeService, themeService);
+		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
+
+		configHelper = instantiationService.createInstance(TerminalConfigHelper);
+		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
+		configHelper = instantiationService.createInstance(TerminalConfigHelper);
+		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
 	});
 
 	async function assertLink(text: string, expected: { text: string, range: [number, number][] }[]) {
-		const xterm = new Terminal();
-		const provider: TerminalWordLinkProvider = instantiationService.createInstance(TerminalWordLinkProvider, xterm, () => { }, () => { });
+		const provider: TerminalWordLinkProvider = instantiationService.createInstance(TerminalWordLinkProvider, xterm, capabilities, () => { }, () => { });
 
 		// Write the text and wait for the parser to finish
-		await new Promise<void>(r => xterm.write(text, r));
+		await new Promise<void>(r => xterm.raw.write(text, r));
 
 		// Ensure all links are provided
 		const links = (await new Promise<ILink[] | undefined>(r => provider.provideLinks(1, r)))!;
