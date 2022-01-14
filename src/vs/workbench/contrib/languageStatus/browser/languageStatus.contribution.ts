@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -118,8 +118,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 	// --- language status model and UI
 
-	private _createViewModel(): LanguageStatusViewModel {
-		const editor = getCodeEditor(this._editorService.activeTextEditorControl);
+	private _createViewModel(editor: ICodeEditor | null): LanguageStatusViewModel {
 		if (!editor?.hasModel()) {
 			return new LanguageStatusViewModel([], []);
 		}
@@ -136,16 +135,18 @@ class EditorStatusContribution implements IWorkbenchContribution {
 	}
 
 	private _update(): void {
-
-		const model = this._createViewModel();
+		const editor = getCodeEditor(this._editorService.activeTextEditorControl);
+		const model = this._createViewModel(editor);
 
 		if (this._model?.isEqual(model)) {
 			return;
 		}
+		this._renderDisposables.clear();
 
 		this._model = model;
 
-		this._renderDisposables.clear();
+		// update when editor language changes
+		editor?.onDidChangeModelLanguage(this._update, this, this._renderDisposables);
 
 		// combined status bar item is a single item which hover shows
 		// each status item
