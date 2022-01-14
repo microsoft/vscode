@@ -29,7 +29,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand, RemoteFileDialogContext } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { TelemetryLevel, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 
 class RemoteChannelsContribution implements IWorkbenchContribution {
@@ -113,11 +113,7 @@ class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchC
 	}
 
 	private updateRemoteTelemetryEnablement(): Promise<void> {
-		if (getTelemetryLevel(this.configurationService) === TelemetryLevel.NONE) {
-			return this.remoteAgentService.disableTelemetry();
-		}
-
-		return Promise.resolve();
+		return this.remoteAgentService.updateTelemetryLevel(getTelemetryLevel(this.configurationService));
 	}
 }
 

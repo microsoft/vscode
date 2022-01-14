@@ -975,8 +975,8 @@ export class ViewModel extends Disposable implements IViewModel {
 	public getCursorStates(): CursorState[] {
 		return this._cursor.getCursorStates();
 	}
-	public setCursorStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): void {
-		this._withViewEventsCollector(eventsCollector => this._cursor.setStates(eventsCollector, source, reason, states));
+	public setCursorStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): boolean {
+		return this._withViewEventsCollector(eventsCollector => this._cursor.setStates(eventsCollector, source, reason, states));
 	}
 	public getCursorColumnSelectData(): IColumnSelectData {
 		return this._cursor.getCursorColumnSelectData();
@@ -1049,21 +1049,21 @@ export class ViewModel extends Disposable implements IViewModel {
 	public executeCommands(commands: ICommand[], source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.executeCommands(eventsCollector, commands, source));
 	}
-	public revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean): void {
-		this._withViewEventsCollector(eventsCollector => this._cursor.revealPrimary(eventsCollector, source, revealHorizontal, ScrollType.Smooth));
+	public revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean, minimalReveal: boolean = false): void {
+		this._withViewEventsCollector(eventsCollector => this._cursor.revealPrimary(eventsCollector, source, minimalReveal, viewEvents.VerticalRevealType.Simple, revealHorizontal, ScrollType.Smooth));
 	}
 	public revealTopMostCursor(source: string | null | undefined): void {
 		const viewPosition = this._cursor.getTopMostViewPosition();
 		const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-		this._withViewEventsCollector(eventsCollector => eventsCollector.emitViewEvent(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, null, viewEvents.VerticalRevealType.Simple, true, ScrollType.Smooth)));
+		this._withViewEventsCollector(eventsCollector => eventsCollector.emitViewEvent(new viewEvents.ViewRevealRangeRequestEvent(source, false, viewRange, null, viewEvents.VerticalRevealType.Simple, true, ScrollType.Smooth)));
 	}
 	public revealBottomMostCursor(source: string | null | undefined): void {
 		const viewPosition = this._cursor.getBottomMostViewPosition();
 		const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-		this._withViewEventsCollector(eventsCollector => eventsCollector.emitViewEvent(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, null, viewEvents.VerticalRevealType.Simple, true, ScrollType.Smooth)));
+		this._withViewEventsCollector(eventsCollector => eventsCollector.emitViewEvent(new viewEvents.ViewRevealRangeRequestEvent(source, false, viewRange, null, viewEvents.VerticalRevealType.Simple, true, ScrollType.Smooth)));
 	}
 	public revealRange(source: string | null | undefined, revealHorizontal: boolean, viewRange: Range, verticalType: viewEvents.VerticalRevealType, scrollType: ScrollType): void {
-		this._withViewEventsCollector(eventsCollector => eventsCollector.emitViewEvent(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, null, verticalType, revealHorizontal, scrollType)));
+		this._withViewEventsCollector(eventsCollector => eventsCollector.emitViewEvent(new viewEvents.ViewRevealRangeRequestEvent(source, false, viewRange, null, verticalType, revealHorizontal, scrollType)));
 	}
 
 	//#endregion
@@ -1096,10 +1096,10 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 	//#endregion
 
-	private _withViewEventsCollector(callback: (eventsCollector: ViewModelEventsCollector) => void): void {
+	private _withViewEventsCollector<T>(callback: (eventsCollector: ViewModelEventsCollector) => T): T {
 		try {
 			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-			callback(eventsCollector);
+			return callback(eventsCollector);
 		} finally {
 			this._eventDispatcher.endEmitViewEvents();
 		}

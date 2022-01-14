@@ -35,7 +35,7 @@ export const enum FindOptionOverride {
 	False = 2
 }
 
-export interface INewFindReplaceState<T = null> {
+export interface INewFindReplaceState<T extends { update: (value: T) => void; } = { update: () => {} }> {
 	searchString?: string;
 	replaceString?: string;
 	isRevealed?: boolean;
@@ -64,7 +64,7 @@ function effectiveOptionValue(override: FindOptionOverride, value: boolean): boo
 	return value;
 }
 
-export class FindReplaceState<T = null> extends Disposable {
+export class FindReplaceState<T extends { update: (value: T) => void; } = { update: () => {} }> extends Disposable {
 	private _searchString: string;
 	private _replaceString: string;
 	private _isRevealed: boolean;
@@ -279,11 +279,14 @@ export class FindReplaceState<T = null> extends Disposable {
 		}
 
 		if (typeof newState.filters !== 'undefined') {
-			if (this._filters !== newState.filters) {
+			if (this._filters) {
+				this._filters.update(newState.filters);
+			} else {
 				this._filters = newState.filters;
-				changeEvent.filters = true;
-				somethingChanged = true;
 			}
+
+			changeEvent.filters = true;
+			somethingChanged = true;
 		}
 
 		// Overrides get set when they explicitly come in and get reset anytime something else changes

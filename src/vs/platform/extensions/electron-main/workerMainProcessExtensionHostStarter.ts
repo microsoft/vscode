@@ -13,10 +13,15 @@ import { Worker } from 'worker_threads';
 import { IWorker, IWorkerCallback, IWorkerFactory, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import type { ExtensionHostStarter, IExtensionHostStarterWorkerHost } from 'vs/platform/extensions/node/extensionHostStarterWorker';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 class NodeWorker implements IWorker {
 
 	private readonly _worker: Worker;
+
+	public readonly onError: Event<Error>;
+	public readonly onExit: Event<number>;
+	public readonly onMessageError: Event<Error>;
 
 	constructor(callback: IWorkerCallback, onErrorCallback: (err: any) => void) {
 		this._worker = new Worker(
@@ -24,9 +29,9 @@ class NodeWorker implements IWorker {
 		);
 		this._worker.on('message', callback);
 		this._worker.on('error', onErrorCallback);
-		// this._worker.on('exit', (code) => {
-		// 	console.log(`worker exited with code `, code);
-		// });
+		this.onError = Event.fromNodeEventEmitter(this._worker, 'error');
+		this.onExit = Event.fromNodeEventEmitter(this._worker, 'exit');
+		this.onMessageError = Event.fromNodeEventEmitter(this._worker, 'messageerror');
 	}
 
 	getId(): number {
@@ -68,6 +73,15 @@ export class WorkerMainProcessExtensionHostStarter implements IDisposable, IExte
 		const workerFactory: IWorkerFactory = {
 			create: (moduleId: string, callback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker => {
 				const worker = new NodeWorker(callback, onErrorCallback);
+				worker.onError((err) => {
+					this._logService.error(`ExtensionHostStarterWorker has encountered an error:`);
+					this._logService.error(err);
+				});
+				worker.onMessageError((err) => {
+					this._logService.error(`ExtensionHostStarterWorker has encountered a message error:`);
+					this._logService.error(err);
+				});
+				worker.onExit((exitCode) => this._logService.info(`ExtensionHostStarterWorker exited with code ${exitCode}.`));
 				worker.postMessage(moduleId, []);
 				return worker;
 			}
@@ -126,11 +140,19 @@ export class WorkerMainProcessExtensionHostStarter implements IDisposable, IExte
 	}
 
 	async start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number; }> {
+		const sw = StopWatch.create(false);
 		const proxy = await this._worker.getProxyObject();
 		if (this._shutdown) {
 			throw canceled();
 		}
-		return proxy.start(id, opts);
+		const timeout = setTimeout(() => {
+			this._logService.info(`ExtensionHostStarterWorker.start() did not return within 30s. This might be a problem.`);
+		}, 30000);
+		const result = await proxy.start(id, opts);
+		const duration = sw.elapsed();
+		this._logService.info(`ExtensionHostStarterWorker.start() took ${duration} ms.`);
+		clearTimeout(timeout);
+		return result;
 	}
 
 	async enableInspectPort(id: string): Promise<boolean> {

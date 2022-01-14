@@ -26,8 +26,7 @@ function getCompletionsAtCursor(resource: vscode.Uri, fileContents: string) {
 	});
 }
 
-
-suite.skip('Markdown path completion provider', () => {
+suite('Markdown path completion provider', () => {
 
 	setup(async () => {
 		// These tests assume that the markdown completion provider is already registered

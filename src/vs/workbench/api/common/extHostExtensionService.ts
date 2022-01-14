@@ -678,6 +678,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
+		this._logService.info(`$resolveAuthority invoked for authority (${getRemoteAuthorityPrefix(remoteAuthority)})`);
 
 		const { authorityPrefix, resolver } = await this._activateAndGetResolver(remoteAuthority);
 		if (!resolver) {
@@ -738,6 +739,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $getCanonicalURI(remoteAuthority: string, uriComponents: UriComponents): Promise<UriComponents> {
+		this._logService.info(`$getCanonicalURI invoked for authority (${getRemoteAuthorityPrefix(remoteAuthority)})`);
 
 		const { authorityPrefix, resolver } = await this._activateAndGetResolver(remoteAuthority);
 		if (!resolver) {
@@ -916,4 +918,12 @@ export class Extension<T> implements vscode.Extension<T> {
 	activate(): Thenable<T> {
 		return this.#extensionService.activateByIdWithErrors(this.#identifier, { startup: false, extensionId: this.#originExtensionId, activationEvent: 'api' }).then(() => this.exports);
 	}
+}
+
+function getRemoteAuthorityPrefix(remoteAuthority: string): string {
+	const plusIndex = remoteAuthority.indexOf('+');
+	if (plusIndex === -1) {
+		return remoteAuthority;
+	}
+	return remoteAuthority.substring(0, plusIndex);
 }

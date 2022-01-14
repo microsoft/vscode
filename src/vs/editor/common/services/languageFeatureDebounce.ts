@@ -81,9 +81,20 @@ export class FeatureDebounceInformation implements IFeatureDebounceInformation {
 		return result.value;
 	}
 
+	private _inDefault = false;
+
 	default() {
-		const value = (this._overall() | 0) || this._default();
-		return clamp(value, this._min, this._max);
+		if (this._inDefault) {
+			// avoid recursion
+			return this._min;
+		}
+		try {
+			this._inDefault = true;
+			const value = (this._overall() | 0) || this._default();
+			return clamp(value, this._min, this._max);
+		} finally {
+			this._inDefault = false;
+		}
 	}
 }
 
