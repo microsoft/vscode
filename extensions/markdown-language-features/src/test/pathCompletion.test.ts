@@ -121,4 +121,26 @@ suite('Markdown path completion provider', () => {
 		assert.ok(completions.some(x => x.label === 'ref-1'), 'Has ref-1 reference completion');
 		assert.ok(completions.some(x => x.label === 'ref-2'), 'Has ref-2 reference completion');
 	});
+
+	test('Should complete headers in link definitions', async () => {
+		const completions = await getCompletionsAtCursor(workspaceFile('sub', 'new.md'), joinLines(
+			`# a B c`,
+			`# x y    Z`,
+			`[ref-1]: ${CURSOR}`,
+		));
+
+		assert.ok(completions.some(x => x.label === '#a-b-c'), 'Has #a-b-c header completion');
+		assert.ok(completions.some(x => x.label === '#x-y-z'), 'Has #x-y-z header completion');
+	});
+
+	test('Should complete relative paths in link definitions', async () => {
+		const completions = await getCompletionsAtCursor(workspaceFile('new.md'), joinLines(
+			`# a B c`,
+			`[ref-1]: ${CURSOR}`,
+		));
+
+		assert.ok(completions.some(x => x.label === 'a.md'), 'Has a.md file completion');
+		assert.ok(completions.some(x => x.label === 'b.md'), 'Has b.md file completion');
+		assert.ok(completions.some(x => x.label === 'sub/'), 'Has sub folder completion');
+	});
 });
