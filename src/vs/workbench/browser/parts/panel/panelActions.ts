@@ -365,21 +365,6 @@ MenuRegistry.appendMenuItems([
 	}
 ]);
 
-MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
-	title: localize('miMovePanel', "Move Panel"),
-	submenu: MenuId.LayoutControlPanelPositionMenu,
-	group: '3_workbench_layout_move',
-	order: 5
-});
-
-MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
-	title: localize('miAlignPanel', "Align Panel"),
-	submenu: MenuId.LayoutControlPanelAlignmentMenu,
-	group: '3_workbench_layout_move',
-	order: 6,
-	when: PanelPositionContext.isEqualTo(positionToString(Position.BOTTOM))
-});
-
 function registerPanelActionById(config: PanelActionConfig<PanelAlignment | Position>, descriptor: SyncActionDescriptor, parentMenu: MenuId) {
 	const { id, label, shortLabel, alias, when } = config;
 	// register the workbench action
