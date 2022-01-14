@@ -16,19 +16,24 @@
 	is still broken. putting sticky-tabs above tabs bottom border would not render this
 	border at all for sticky tabs.
 
-	On top of that there is 2 borders with a z-index for a general border below tabs
+	On top of that there is 3 borders with a z-index for a general border below or above tabs
 	- tabs bottom border
 	- editor title bottom border (when breadcrumbs are disabled, this border will appear
 	same as tabs bottom border)
+	- editor group border
+
+	Finally, we show a drop overlay that should always be on top of everything.
 
 	The following tabls shows the current stacking order:
 
 	[z-index] 	[kind]
-			7 	scrollbar
-			6	active-tab border-bottom
-			5	tabs, title border bottom
-			4	sticky-tab
-			2  	active/dirty-tab border top
+			12  drag and drop overlay
+			11 	scrollbar
+			10	active-tab border-bottom
+			9	tabs, title border bottom
+			8	sticky-tab
+			6  	active/dirty-tab border top
+			5   editor group border
 			0   tab
 
 	##########################################################################################
@@ -46,7 +51,7 @@
 	position: absolute;
 	bottom: 0;
 	left: 0;
-	z-index: 5;
+	z-index: 9;
 	pointer-events: none;
 	background-color: var(--tabs-border-bottom-color);
 	width: 100%;
@@ -58,7 +63,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
-	z-index: 7;
+	z-index: 11;
 	cursor: default;
 }
 
@@ -136,7 +141,7 @@
 
 	/** Sticky compact/shrink tabs do not scroll in case of overflow and are always above unsticky tabs which scroll under */
 	position: sticky;
-	z-index: 4;
+	z-index: 8;
 
 	/** Sticky compact/shrink tabs are even and never grow */
 	flex-basis: 0;
@@ -217,21 +222,21 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container {
-	z-index: 2;
+	z-index: 6;
 	top: 0;
 	height: 1px;
 	background-color: var(--tab-border-top-color);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container {
-	z-index: 6;
+	z-index: 10;
 	bottom: 0;
 	height: 1px;
 	background-color: var(--tab-border-bottom-color);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
-	z-index: 2;
+	z-index: 6;
 	top: 0;
 	height: 2px;
 	background-color: var(--tab-dirty-border-top-color);
