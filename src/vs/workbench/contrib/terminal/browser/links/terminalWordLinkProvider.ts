@@ -158,31 +158,35 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			}
 		});
 
+		let matchLink = link;
 		if (this._capabilities.has(TerminalCapability.CwdDetection)) {
-			link = this._updateLinkWithRelativeCwd(y, link, pathSeparator);
+			matchLink = this._updateLinkWithRelativeCwd(y, link, pathSeparator);
 		}
-
-		const sanitizedLink = link.replace(/:\d+(:\d+)?$/, '');
-		let exactMatch = await this._getExactMatch(sanitizedLink, link);
-		if (exactMatch) {
-			// If there was exactly one match, open it
-			const match = link.match(/:(\d+)?(:(\d+))?$/);
-			const startLineNumber = match?.[1];
-			const startColumn = match?.[3];
-			await this._editorService.openEditor({
-				resource: exactMatch,
-				options: {
-					pinned: true,
-					revealIfOpened: true,
-					selection: startLineNumber ? {
-						startLineNumber: parseInt(startLineNumber),
-						startColumn: startColumn ? parseInt(startColumn) : 0
-					} : undefined
-				}
-			});
-			return;
+		const sanitizedLink = matchLink.replace(/:\d+(:\d+)?$/, '');
+		try {
+			const exactMatch = await this._getExactMatch(sanitizedLink, matchLink);
+			if (exactMatch) {
+				// If there was exactly one match, open it
+				const match = matchLink.match(/:(\d+)?(:(\d+))?$/);
+				const startLineNumber = match?.[1];
+				const startColumn = match?.[3];
+				await this._editorService.openEditor({
+					resource: exactMatch,
+					options: {
+						pinned: true,
+						revealIfOpened: true,
+						selection: startLineNumber ? {
+							startLineNumber: parseInt(startLineNumber),
+							startColumn: startColumn ? parseInt(startColumn) : 0
+						} : undefined
+					}
+				});
+				return;
+			}
+		} catch {
+			// Fallback to searching quick access
+			return this._quickInputService.quickAccess.show(link);
 		}
-		// Fallback to searching quick access
 		return this._quickInputService.quickAccess.show(link);
 	}
 
@@ -191,21 +195,17 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		if (cwd && !link.includes(pathSeparator)) {
 			link = cwd + pathSeparator + link;
 		} else {
-			let strippedLink = '';
-			let commonParts = 0;
+			let commonDirs = 0;
 			let i = 0;
 			const cwdPath = cwd.split(pathSeparator).reverse();
 			const linkPath = link.split(pathSeparator);
 			while (i < cwdPath.length) {
 				if (cwdPath[i] === linkPath[i]) {
-					commonParts++;
+					commonDirs++;
 				}
 				i++;
 			}
-			for (let j = commonParts; j < linkPath.length; j++) {
-				strippedLink += linkPath[j] + ((j !== linkPath.length - 1) ? pathSeparator : '');
-			}
-			link = cwd + pathSeparator + strippedLink;
+			link = cwd + pathSeparator + linkPath.slice(commonDirs).join(pathSeparator);
 		}
 		return link;
 	}
