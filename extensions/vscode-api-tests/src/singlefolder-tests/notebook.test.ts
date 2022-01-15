@@ -931,7 +931,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	});
 });
 
-suite('statusbar', () => {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('statusbar', () => {
 	const emitter = new vscode.EventEmitter<vscode.NotebookCell>();
 	const onDidCallProvide = emitter.event;
 	const suiteDisposables: vscode.Disposable[] = [];
@@ -969,7 +969,7 @@ suite('statusbar', () => {
 	});
 });
 
-suite('Notebook API tests (metadata)', function () {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('Notebook API tests (metadata)', function () {
 	const testDisposables: vscode.Disposable[] = [];
 	const suiteDisposables: vscode.Disposable[] = [];
 
