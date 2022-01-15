@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
+import { MarkdownEngine } from '../markdownEngine';
 import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/links';
 import { dirname } from '../util/path';
 
@@ -102,18 +103,49 @@ export function stripAngleBrackets(link: string) {
 	return link.replace(angleBracketLinkRe, '$1');
 }
 
-const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*(".*?")?\)/g;
+const inlineCodeAndLinkPattern = /(?:(`+)(?:[^`]|[^`][\s\S]*?[^`])\1(?!`))|(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*(".*?")?\)/g;
 const referenceLinkPattern = /(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]/g;
 const definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>]+>)/gm;
 
+const binarySearchPairs = (pairs: number[][], start: number, end: number, target: number): Boolean => {
+	if (start > end) {
+		return false;
+	}
+	const mid = start + Math.floor((end - start) / 2);
+	const pair = pairs[mid];
+	if (target >= pair[0] && target < pair[1]) {
+		return true;
+	}
+	if (target >= pair[1]) {
+		return binarySearchPairs(pairs, mid + 1, end, target);
+	}
+	return binarySearchPairs(pairs, start, mid - 1, target);
+};
+
 export default class LinkProvider implements vscode.DocumentLinkProvider {
 
-	public provideDocumentLinks(
+	private _codeOrFenceLineIntervals: number[][] = [];
+
+	constructor(
+		private readonly engine: MarkdownEngine
+	) { }
+
+	private isLineInsideIndentedOrFencedCode(line: number): Boolean {
+		return binarySearchPairs(this._codeOrFenceLineIntervals, 0, this._codeOrFenceLineIntervals.length - 1, line);
+	}
+
+	public async provideDocumentLinks(
 		document: vscode.TextDocument,
 		_token: vscode.CancellationToken
-	): vscode.DocumentLink[] {
+	): Promise<vscode.DocumentLink[]> {
 		const text = document.getText();
-
+		const tokens = await this.engine.parse(document);
+		this._codeOrFenceLineIntervals = tokens.reduce<number[][]>((acc, t) => {
+			if ((t.type === 'code_block' || t.type === 'fence') && t.map) {
+				return [...acc, t.map];
+			}
+			return acc;
+		}, []);
 		return [
 			...this.providerInlineLinks(text, document),
 			...this.provideReferenceLinks(text, document)
@@ -122,16 +154,19 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 
 	private providerInlineLinks(
 		text: string,
-		document: vscode.TextDocument,
+		document: vscode.TextDocument
 	): vscode.DocumentLink[] {
 		const results: vscode.DocumentLink[] = [];
-		for (const match of text.matchAll(linkPattern)) {
-			const matchImage = match[4] && extractDocumentLink(document, match[3].length + 1, match[4], match.index);
-			if (matchImage) {
+		for (const match of text.matchAll(inlineCodeAndLinkPattern)) {
+			if (match[1]) {
+				continue;
+			}
+			const matchImage = match[5] && extractDocumentLink(document, match[4].length + 1, match[5], match.index);
+			if (matchImage && !this.isLineInsideIndentedOrFencedCode(matchImage.range.start.line)) {
 				results.push(matchImage);
 			}
-			const matchLink = extractDocumentLink(document, match[1].length, match[5], match.index);
-			if (matchLink) {
+			const matchLink = extractDocumentLink(document, match[2].length, match[6], match.index);
+			if (matchLink && !this.isLineInsideIndentedOrFencedCode(matchLink.range.start.line)) {
 				results.push(matchLink);
 			}
 		}
