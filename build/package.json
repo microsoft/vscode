@@ -62,7 +62,6 @@
     "plist": "^3.0.1",
     "source-map": "0.6.1",
     "tmp": "^0.2.1",
-    "typescript": "^4.6.0-dev.20220110",
     "vsce": "^1.100.0",
     "vscode-universal-bundler": "^0.0.2"
   },

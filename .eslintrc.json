@@ -944,6 +944,7 @@
 					"**/test/smoke/**",
 					"@vscode/*",
 					"@parcel/*",
+					"@playwright/*",
 					"*" // node modules
 				]
 			},
@@ -954,6 +955,7 @@
 					"@vscode/*",
 					"@parcel/*",
 					"playwright-core/**",
+					"@playwright/*",
 					"*" // node modules
 				]
 			},
@@ -963,6 +965,7 @@
 					"**/test/integration/**",
 					"@vscode/*",
 					"@parcel/*",
+					"@playwright/*",
 					"*" // node modules
 				]
 			},
@@ -972,6 +975,7 @@
 					"**/test/monaco/**",
 					"@vscode/*",
 					"@parcel/*",
+					"@playwright/*",
 					"*" // node modules
 				]
 			},
