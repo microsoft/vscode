@@ -142,7 +142,7 @@ export namespace DocumentSelector {
 				$serialized: true,
 				language: selector.language,
 				scheme: _transformScheme(selector.scheme, uriTransformer),
-				pattern: typeof selector.pattern === 'undefined' ? undefined : GlobPattern.from(selector.pattern),
+				pattern: withNullAsUndefined(GlobPattern.from(selector.pattern)),
 				exclusive: selector.exclusive
 			};
 		}
@@ -1432,7 +1432,7 @@ export namespace LanguageSelector {
 			return <languageSelector.LanguageFilter>{
 				language: filter.language,
 				scheme: filter.scheme,
-				pattern: typeof filter.pattern === 'undefined' ? undefined : GlobPattern.from(filter.pattern),
+				pattern: GlobPattern.from(filter.pattern),
 				exclusive: filter.exclusive
 			};
 		}
