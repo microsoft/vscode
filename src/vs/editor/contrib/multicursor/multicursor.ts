@@ -287,22 +287,22 @@ export class MultiCursorSession {
 		//  - and the search string is non-empty
 		if (!editor.hasTextFocus() && findState.isRevealed && findState.searchString.length > 0) {
 			// Find widget owns what is searched for
-			return new MultiCursorSession(editor, findController, false, findState.searchString, findState.wholeWord, findState.matchCase, null);
+			return new MultiCursorSession(editor, findController, false, findState.searchString, findState.wholeWordSelectionMatch, findState.matchCaseSelectionMatch, null);
 		}
 
 		// Otherwise, the selection gives the search text, and the find widget gives the search settings
 		// The exception is the find state disassociation case: when beginning with a single, collapsed selection
 		let isDisconnectedFromFindController = false;
-		let wholeWord: boolean;
-		let matchCase: boolean;
+		let wholeWordSelectionMatch: boolean;
+		let matchCaseSelectionMatch: boolean;
 		const selections = editor.getSelections();
 		if (selections.length === 1 && selections[0].isEmpty()) {
 			isDisconnectedFromFindController = true;
-			wholeWord = true;
-			matchCase = true;
+			wholeWordSelectionMatch = true;
+			matchCaseSelectionMatch = true;
 		} else {
-			wholeWord = findState.wholeWord;
-			matchCase = findState.matchCase;
+			wholeWordSelectionMatch = findState.wholeWordSelectionMatch;
+			matchCaseSelectionMatch = findState.matchCaseSelectionMatch;
 		}
 
 		// Selection owns what is searched for
@@ -323,7 +323,7 @@ export class MultiCursorSession {
 			searchText = editor.getModel().getValueInRange(s).replace(/\r\n/g, '\n');
 		}
 
-		return new MultiCursorSession(editor, findController, isDisconnectedFromFindController, searchText, wholeWord, matchCase, currentMatch);
+		return new MultiCursorSession(editor, findController, isDisconnectedFromFindController, searchText, wholeWordSelectionMatch, matchCaseSelectionMatch, currentMatch);
 	}
 
 	constructor(
@@ -331,8 +331,8 @@ export class MultiCursorSession {
 		public readonly findController: CommonFindController,
 		public readonly isDisconnectedFromFindController: boolean,
 		public readonly searchText: string,
-		public readonly wholeWord: boolean,
-		public readonly matchCase: boolean,
+		public readonly wholeWordSelectionMatch: boolean,
+		public readonly matchCaseSelectionMatch: boolean,
 		public currentMatch: Selection | null
 	) { }
 
@@ -375,11 +375,11 @@ export class MultiCursorSession {
 			return result;
 		}
 
-		this.findController.highlightFindOptions();
+		this.findController.highlightFindOptions(true);
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
-		const nextMatch = this._editor.getModel().findNextMatch(this.searchText, lastAddedSelection.getEndPosition(), false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
+		const nextMatch = this._editor.getModel().findNextMatch(this.searchText, lastAddedSelection.getEndPosition(), false, this.matchCaseSelectionMatch, this.wholeWordSelectionMatch ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
 
 		if (!nextMatch) {
 			return null;
@@ -426,11 +426,11 @@ export class MultiCursorSession {
 			return result;
 		}
 
-		this.findController.highlightFindOptions();
+		this.findController.highlightFindOptions(true);
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
-		const previousMatch = this._editor.getModel().findPreviousMatch(this.searchText, lastAddedSelection.getStartPosition(), false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
+		const previousMatch = this._editor.getModel().findPreviousMatch(this.searchText, lastAddedSelection.getStartPosition(), false, this.matchCaseSelectionMatch, this.wholeWordSelectionMatch ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
 
 		if (!previousMatch) {
 			return null;
@@ -443,9 +443,9 @@ export class MultiCursorSession {
 			return [];
 		}
 
-		this.findController.highlightFindOptions();
+		this.findController.highlightFindOptions(true);
 
-		return this._editor.getModel().findMatches(this.searchText, true, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+		return this._editor.getModel().findMatches(this.searchText, true, false, this.matchCaseSelectionMatch, this.wholeWordSelectionMatch ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 	}
 }
 
@@ -502,7 +502,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 				this._endSession();
 			}));
 			this._sessionDispose.add(findController.getState().onFindReplaceStateChange((e) => {
-				if (e.matchCase || e.wholeWord) {
+				if (e.matchCaseSelectionMatch || e.wholeWordSelectionMatch) {
 					this._endSession();
 				}
 			}));
@@ -562,8 +562,8 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			const allSelections = this._editor.getSelections();
 			if (allSelections.length > 1) {
 				const findState = findController.getState();
-				const matchCase = findState.matchCase;
-				const selectionsContainSameText = modelRangesContainSameText(this._editor.getModel(), allSelections, matchCase);
+				const matchCaseSelectionMatch = findState.matchCaseSelectionMatch;
+				const selectionsContainSameText = modelRangesContainSameText(this._editor.getModel(), allSelections, matchCaseSelectionMatch);
 				if (!selectionsContainSameText) {
 					const model = this._editor.getModel();
 					let resultingSelections: Selection[] = [];
@@ -616,9 +616,9 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		// - and the search widget is visible
 		// - and the search string is non-empty
 		// - and we're searching for a regex
-		if (findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
+		if (findState.isRevealed && findState.searchString.length > 0 && findState.isRegexSelectionMatch) {
 
-			matches = this._editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+			matches = this._editor.getModel().findMatches(findState.searchString, true, findState.isRegexSelectionMatch, findState.matchCaseSelectionMatch, findState.wholeWordSelectionMatch ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 
 		} else {
 
@@ -934,8 +934,8 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			const allSelections = editor.getSelections();
 			if (allSelections.length > 1) {
 				const findState = findController.getState();
-				const matchCase = findState.matchCase;
-				const selectionsContainSameText = modelRangesContainSameText(editor.getModel(), allSelections, matchCase);
+				const matchCaseSelectionMatch = findState.matchCaseSelectionMatch;
+				const selectionsContainSameText = modelRangesContainSameText(editor.getModel(), allSelections, matchCaseSelectionMatch);
 				if (!selectionsContainSameText) {
 					return null;
 				}
@@ -963,7 +963,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 
 		// TODO: better handling of this case
 		const findState = findController.getState();
-		const caseSensitive = findState.matchCase;
+		const caseSensitive = findState.matchCaseSelectionMatch;
 
 		// Return early if the find widget shows the exact same matches
 		if (findState.isRevealed) {
@@ -977,12 +977,12 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 				mySearchString = mySearchString.toLowerCase();
 			}
 
-			if (findStateSearchString === mySearchString && r.matchCase === findState.matchCase && r.wholeWord === findState.wholeWord && !findState.isRegex) {
+			if (findStateSearchString === mySearchString && r.matchCaseSelectionMatch === findState.matchCaseSelectionMatch && r.wholeWordSelectionMatch === findState.wholeWordSelectionMatch && !findState.isRegexSelectionMatch) {
 				return null;
 			}
 		}
 
-		return new SelectionHighlighterState(editor.getModel(), r.searchText, r.matchCase, r.wholeWord ? editor.getOption(EditorOption.wordSeparators) : null, oldState);
+		return new SelectionHighlighterState(editor.getModel(), r.searchText, r.matchCaseSelectionMatch, r.wholeWordSelectionMatch ? editor.getOption(EditorOption.wordSeparators) : null, oldState);
 	}
 
 	private _setState(newState: SelectionHighlighterState | null): void {
@@ -1074,14 +1074,14 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	}
 }
 
-function modelRangesContainSameText(model: ITextModel, ranges: Range[], matchCase: boolean): boolean {
-	const selectedText = getValueInRange(model, ranges[0], !matchCase);
+function modelRangesContainSameText(model: ITextModel, ranges: Range[], matchCaseSelectionMatch: boolean): boolean {
+	const selectedText = getValueInRange(model, ranges[0], !matchCaseSelectionMatch);
 	for (let i = 1, len = ranges.length; i < len; i++) {
 		const range = ranges[i];
 		if (range.isEmpty()) {
 			return false;
 		}
-		const thisSelectedText = getValueInRange(model, range, !matchCase);
+		const thisSelectedText = getValueInRange(model, range, !matchCaseSelectionMatch);
 		if (selectedText !== thisSelectedText) {
 			return false;
 		}

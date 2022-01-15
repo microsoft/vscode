@@ -52,7 +52,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
 		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
-			isChecked: this._state.matchCase,
+			isChecked: this._state.matchCaseSelectionMatch,
 			inputActiveOptionBorder: inputActiveOptionBorderColor,
 			inputActiveOptionForeground: inputActiveOptionForegroundColor,
 			inputActiveOptionBackground: inputActiveOptionBackgroundColor
@@ -60,13 +60,13 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._domNode.appendChild(this.caseSensitive.domNode);
 		this._register(this.caseSensitive.onChange(() => {
 			this._state.change({
-				matchCase: this.caseSensitive.checked
+				matchCaseSelectionMatch: this.caseSensitive.checked
 			}, false);
 		}));
 
 		this.wholeWords = this._register(new WholeWordsCheckbox({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
-			isChecked: this._state.wholeWord,
+			isChecked: this._state.wholeWordSelectionMatch,
 			inputActiveOptionBorder: inputActiveOptionBorderColor,
 			inputActiveOptionForeground: inputActiveOptionForegroundColor,
 			inputActiveOptionBackground: inputActiveOptionBackgroundColor
@@ -74,13 +74,13 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._domNode.appendChild(this.wholeWords.domNode);
 		this._register(this.wholeWords.onChange(() => {
 			this._state.change({
-				wholeWord: this.wholeWords.checked
+				wholeWordSelectionMatch: this.wholeWords.checked
 			}, false);
 		}));
 
 		this.regex = this._register(new RegexCheckbox({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
-			isChecked: this._state.isRegex,
+			isChecked: this._state.isRegexSelectionMatch,
 			inputActiveOptionBorder: inputActiveOptionBorderColor,
 			inputActiveOptionForeground: inputActiveOptionForegroundColor,
 			inputActiveOptionBackground: inputActiveOptionBackgroundColor
@@ -88,7 +88,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._domNode.appendChild(this.regex.domNode);
 		this._register(this.regex.onChange(() => {
 			this._state.change({
-				isRegex: this.regex.checked
+				isRegexSelectionMatch: this.regex.checked
 			}, false);
 		}));
 
@@ -96,16 +96,16 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
 		this._register(this._state.onFindReplaceStateChange((e) => {
 			let somethingChanged = false;
-			if (e.isRegex) {
-				this.regex.checked = this._state.isRegex;
+			if (e.isRegexSelectionMatch) {
+				this.regex.checked = this._state.isRegexSelectionMatch;
 				somethingChanged = true;
 			}
-			if (e.wholeWord) {
-				this.wholeWords.checked = this._state.wholeWord;
+			if (e.wholeWordSelectionMatch) {
+				this.wholeWords.checked = this._state.wholeWordSelectionMatch;
 				somethingChanged = true;
 			}
-			if (e.matchCase) {
-				this.caseSensitive.checked = this._state.matchCase;
+			if (e.matchCaseSelectionMatch) {
+				this.caseSensitive.checked = this._state.matchCaseSelectionMatch;
 				somethingChanged = true;
 			}
 			if (!this._state.isRevealed && somethingChanged) {

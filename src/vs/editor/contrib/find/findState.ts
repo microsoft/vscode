@@ -17,8 +17,11 @@ export interface FindReplaceStateChangedEvent {
 	isRevealed: boolean;
 	isReplaceRevealed: boolean;
 	isRegex: boolean;
+	isRegexSelectionMatch: boolean;
 	wholeWord: boolean;
+	wholeWordSelectionMatch: boolean;
 	matchCase: boolean;
+	matchCaseSelectionMatch: boolean;
 	preserveCase: boolean;
 	searchScope: boolean;
 	matchesPosition: boolean;
@@ -41,10 +44,13 @@ export interface INewFindReplaceState<T extends { update: (value: T) => void; } 
 	isRevealed?: boolean;
 	isReplaceRevealed?: boolean;
 	isRegex?: boolean;
+	isRegexSelectionMatch?: boolean;
 	isRegexOverride?: FindOptionOverride;
 	wholeWord?: boolean;
+	wholeWordSelectionMatch?: boolean;
 	wholeWordOverride?: FindOptionOverride;
 	matchCase?: boolean;
+	matchCaseSelectionMatch?: boolean;
 	matchCaseOverride?: FindOptionOverride;
 	preserveCase?: boolean;
 	preserveCaseOverride?: FindOptionOverride;
@@ -70,10 +76,13 @@ export class FindReplaceState<T extends { update: (value: T) => void; } = { upda
 	private _isRevealed: boolean;
 	private _isReplaceRevealed: boolean;
 	private _isRegex: boolean;
+	private _isRegexSelectionMatch: boolean;
 	private _isRegexOverride: FindOptionOverride;
 	private _wholeWord: boolean;
+	private _wholeWordSelectionMatch: boolean;
 	private _wholeWordOverride: FindOptionOverride;
 	private _matchCase: boolean;
+	private _matchCaseSelectionMatch: boolean;
 	private _matchCaseOverride: FindOptionOverride;
 	private _preserveCase: boolean;
 	private _preserveCaseOverride: FindOptionOverride;
@@ -91,8 +100,11 @@ export class FindReplaceState<T extends { update: (value: T) => void; } = { upda
 	public get isRevealed(): boolean { return this._isRevealed; }
 	public get isReplaceRevealed(): boolean { return this._isReplaceRevealed; }
 	public get isRegex(): boolean { return effectiveOptionValue(this._isRegexOverride, this._isRegex); }
+	public get isRegexSelectionMatch(): boolean { return effectiveOptionValue(this._isRegexOverride, this._isRegexSelectionMatch); }
 	public get wholeWord(): boolean { return effectiveOptionValue(this._wholeWordOverride, this._wholeWord); }
+	public get wholeWordSelectionMatch(): boolean { return effectiveOptionValue(this._wholeWordOverride, this._wholeWordSelectionMatch); }
 	public get matchCase(): boolean { return effectiveOptionValue(this._matchCaseOverride, this._matchCase); }
+	public get matchCaseSelectionMatch(): boolean { return effectiveOptionValue(this._matchCaseOverride, this._matchCaseSelectionMatch); }
 	public get preserveCase(): boolean { return effectiveOptionValue(this._preserveCaseOverride, this._preserveCase); }
 
 	public get actualIsRegex(): boolean { return this._isRegex; }
@@ -115,10 +127,13 @@ export class FindReplaceState<T extends { update: (value: T) => void; } = { upda
 		this._isRevealed = false;
 		this._isReplaceRevealed = false;
 		this._isRegex = false;
+		this._isRegexSelectionMatch = false;
 		this._isRegexOverride = FindOptionOverride.NotSet;
 		this._wholeWord = false;
+		this._wholeWordSelectionMatch = false;
 		this._wholeWordOverride = FindOptionOverride.NotSet;
 		this._matchCase = false;
+		this._matchCaseSelectionMatch = false;
 		this._matchCaseOverride = FindOptionOverride.NotSet;
 		this._preserveCase = false;
 		this._preserveCaseOverride = FindOptionOverride.NotSet;
@@ -140,8 +155,11 @@ export class FindReplaceState<T extends { update: (value: T) => void; } = { upda
 			isRevealed: false,
 			isReplaceRevealed: false,
 			isRegex: false,
+			isRegexSelectionMatch: false,
 			wholeWord: false,
+			wholeWordSelectionMatch: false,
 			matchCase: false,
+			matchCaseSelectionMatch: false,
 			preserveCase: false,
 			searchScope: false,
 			matchesPosition: false,
@@ -193,8 +211,11 @@ export class FindReplaceState<T extends { update: (value: T) => void; } = { upda
 			isRevealed: false,
 			isReplaceRevealed: false,
 			isRegex: false,
+			isRegexSelectionMatch: false,
 			wholeWord: false,
+			wholeWordSelectionMatch: false,
 			matchCase: false,
+			matchCaseSelectionMatch: false,
 			preserveCase: false,
 			searchScope: false,
 			matchesPosition: false,
@@ -242,11 +263,20 @@ export class FindReplaceState<T extends { update: (value: T) => void; } = { upda
 		if (typeof newState.isRegex !== 'undefined') {
 			this._isRegex = newState.isRegex;
 		}
+		if (typeof newState.isRegexSelectionMatch !== 'undefined') {
+			this._isRegexSelectionMatch = newState.isRegexSelectionMatch;
+		}
 		if (typeof newState.wholeWord !== 'undefined') {
 			this._wholeWord = newState.wholeWord;
 		}
+		if (typeof newState.wholeWordSelectionMatch !== 'undefined') {
+			this._wholeWordSelectionMatch = newState.wholeWordSelectionMatch;
+		}
 		if (typeof newState.matchCase !== 'undefined') {
 			this._matchCase = newState.matchCase;
+		}
+		if (typeof newState.matchCaseSelectionMatch !== 'undefined') {
+			this._matchCaseSelectionMatch = newState.matchCaseSelectionMatch;
 		}
 		if (typeof newState.preserveCase !== 'undefined') {
 			this._preserveCase = newState.preserveCase;
