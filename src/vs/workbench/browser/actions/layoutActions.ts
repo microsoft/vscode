@@ -63,11 +63,7 @@ export class ToggleActivityBarVisibilityAction extends Action2 {
 				id: MenuId.MenubarAppearanceMenu,
 				group: '2_workbench_layout',
 				order: 4
-			}, {
-					id: MenuId.LayoutControlMenu,
-					group: '0_workbench_layout',
-					order: 3
-				}]
+			}]
 		});
 	}
 
@@ -103,11 +99,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
 				order: 3
-			}, {
-				id: MenuId.LayoutControlMenu,
-				group: '9_quick_layout',
-				order: 3
-				}]
+			}]
 		});
 	}
 
@@ -209,31 +201,11 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	order: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
-	group: '3_workbench_layout_move',
-	command: {
-		id: ToggleSidebarPositionAction.ID,
-		title: localize({ key: 'miMoveSidebarRightNoMnemonic', comment: ['&& denotes a mnemonic'] }, "Move Side Bar Right")
-	},
-	when: ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'),
-	order: 2
-});
-
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '3_workbench_layout_move',
 	command: {
 		id: ToggleSidebarPositionAction.ID,
 		title: localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left")
-	},
-	when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
-	order: 2
-});
-
-MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
-	group: '3_workbench_layout_move',
-	command: {
-		id: ToggleSidebarPositionAction.ID,
-		title: localize({ key: 'miMoveSidebarLeftNoMnemonic', comment: ['&& denotes a mnemonic'] }, "Move Side Bar Left")
 	},
 	when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
 	order: 2
@@ -374,11 +346,7 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 				id: MenuId.MenubarAppearanceMenu,
 				group: '2_workbench_layout',
 				order: 3
-			}, {
-					id: MenuId.LayoutControlMenu,
-					group: '0_workbench_layout',
-					order: 1
-				}]
+			}]
 		});
 	}
 
@@ -450,12 +418,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
 				order: 2
-			}, {
-					id: MenuId.LayoutControlMenu,
-				group: '9_quick_layout',
-					order: 2
-			}
-			]
+			}]
 		});
 	}
 
@@ -495,11 +458,7 @@ if (isWindows || isLinux || isWeb) {
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
 					order: 0
-				}, {
-						id: MenuId.LayoutControlMenu,
-						group: '0_workbench_layout',
-						order: -1
-					}]
+				}]
 			});
 		}
 
@@ -820,43 +779,6 @@ registerAction2(class extends Action2 {
 		viewDescriptorService.moveViewsToContainer([viewDescriptor], defaultContainer);
 		viewsService.openView(viewDescriptor.id, true);
 	}
-});
-
-// --- Swap Panel View Locations
-
-registerAction2(class extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.movePanelToSidePanel',
-			title: {
-				value: localize('movePanelToSidePanel', "Move Panel To Side Panel"),
-				original: 'Move Panel To Side Panel'
-			},
-			category: CATEGORIES.View,
-			f1: true,
-			precondition: ContextKeyExpr.equals('config.workbench.experimental.sidePanel.enabled', true)
-		});
-	}
-	run(accessor: ServicesAccessor, ...args: any[]): void {
-		const viewDescriptorService = accessor.get(IViewDescriptorService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-
-		const panelContainers = viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.Panel);
-		const auxiliaryBarContainers = viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar);
-
-		panelContainers.forEach(viewContainer => viewDescriptorService.moveViewContainerToLocation(viewContainer, ViewContainerLocation.AuxiliaryBar));
-		auxiliaryBarContainers.forEach(viewContainer => viewDescriptorService.moveViewContainerToLocation(viewContainer, ViewContainerLocation.Panel));
-
-		if (panelContainers.length) {
-			layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-		}
-
-		if (auxiliaryBarContainers.length) {
-			layoutService.setPartHidden(false, Parts.PANEL_PART);
-		}
-	}
-
 });
 
 // --- Resize View

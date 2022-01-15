@@ -236,7 +236,7 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 	private updateContextKey(): void {
 		const activeResource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
 
-		if (activeResource && activeResource.scheme === Schemas.file) {
+		if (activeResource?.scheme === Schemas.file || activeResource?.scheme === Schemas.vscodeRemote) {
 			for (const repository of this.scmService.repositories) {
 				for (const resourceGroup of repository.provider.groups.elements) {
 					if (resourceGroup.elements.find(scmResource => {

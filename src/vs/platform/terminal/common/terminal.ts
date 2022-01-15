@@ -371,13 +371,6 @@ export interface IHeartbeatService {
 	readonly onBeat: Event<void>;
 }
 
-export interface TerminalCommand {
-	command: string;
-	timestamp: number;
-	getOutput: () => string | undefined;
-	cwd?: string;
-	exitCode?: number;
-}
 
 export interface IShellLaunchConfig {
 	/**

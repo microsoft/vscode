@@ -201,7 +201,7 @@ class Extension implements IExtension {
 	}
 
 	get outdated(): boolean {
-		return !!this.gallery && this.type === ExtensionType.User && semver.gt(this.latestVersion, this.version) && (this.local?.isPreReleaseVersion || !this.gallery?.properties.isPreReleaseVersion);
+		return !!this.gallery && this.type === ExtensionType.User && semver.gt(this.latestVersion, this.version) && (this.local?.preRelease || !this.gallery?.properties.isPreReleaseVersion);
 	}
 
 	get telemetryData(): any {
@@ -424,7 +424,7 @@ class Extensions extends Disposable {
 			hasChanged = true;
 		}
 
-		const compatible = await this.getCompatibleExtension(gallery, extension.local.isPreReleaseVersion);
+		const compatible = await this.getCompatibleExtension(gallery, extension.local.preRelease);
 		if (compatible) {
 			extension.gallery = compatible;
 			hasChanged = true;
@@ -480,7 +480,7 @@ class Extensions extends Disposable {
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-		const compatible = await this.getCompatibleExtension(extension.identifier, !!extension.local?.isPreReleaseVersion);
+		const compatible = await this.getCompatibleExtension(extension.identifier, !!extension.local?.preRelease);
 		if (compatible) {
 			extension.gallery = compatible;
 			this._onChange.fire({ extension });
@@ -1010,7 +1010,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		for (const installed of this.local) {
 			if (installed.type === ExtensionType.User) {
 				if (installed.identifier.uuid) {
-					identifiers.push({ ...installed.identifier, preRelease: !!installed.local?.isPreReleaseVersion || !!installed.local?.preRelease });
+					identifiers.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
 				} else {
 					names.push(installed.identifier.id);
 				}

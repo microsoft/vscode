@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal, IMarker, IBuffer } from 'xterm';
-import { TerminalCommand } from 'vs/platform/terminal/common/terminal';
 import { Emitter } from 'vs/base/common/event';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ShellIntegrationInfo, ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
 import { isWindows } from 'vs/base/common/platform';
+import { TerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 interface ICurrentPartialCommand {
 	marker?: IMarker;
@@ -30,6 +30,7 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 	private _exitCode: number | undefined;
 	private _cwd: string | undefined;
 	private _currentCommand: ICurrentPartialCommand = {};
+	private _initialCwd: string | undefined;
 
 	protected _terminal: Terminal | undefined;
 
@@ -52,6 +53,9 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 		}
 		switch (event.type) {
 			case ShellIntegrationInfo.CurrentDir: {
+				if (!this._initialCwd) {
+					this._initialCwd = event.value;
+				}
 				this._cwd = event.value;
 				const freq = this._cwds.get(this._cwd) || 0;
 				this._cwds.set(this._cwd, freq + 1);
@@ -128,15 +132,16 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 				}
 				if (command && !command.startsWith('\\') && command !== '') {
 					const buffer = this._terminal.buffer.active;
-					this._commands.push({
+					const newCommand = {
 						command,
 						timestamp: Date.now(),
 						cwd: this._cwd,
 						exitCode: this._exitCode,
-						getOutput: () => getOutputForCommand(this._currentCommand.previousCommandMarker!.line! + 1, this._currentCommand.marker!.line!, buffer)
-					});
+						getOutput: () => getOutputForCommand(this._currentCommand, buffer),
+						marker: this._currentCommand.marker
+					};
+					this._commands.push(newCommand);
 				}
-
 				this._currentCommand.previousCommandMarker?.dispose();
 				this._currentCommand.previousCommandMarker = this._currentCommand.marker;
 				this._currentCommand = {};
@@ -151,16 +156,18 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 	}
 
 	get cwds(): string[] {
-		const cwds = [];
-		const sorted = new Map([...this._cwds.entries()].sort((a, b) => b[1] - a[1]));
-		for (const [key,] of sorted.entries()) {
-			cwds.push(key);
-		}
-		return cwds;
+		return Array.from(new Map([...this._cwds.entries()].sort((a, b) => a[1] - b[1]))).map(s => s[0]);
+	}
+
+	getCwdForLine(line: number): string {
+		const reversed = [...this._commands].reverse();
+		return reversed.find(c => c.marker!.line <= line - 1)?.cwd || this._initialCwd!;
 	}
 }
 
-function getOutputForCommand(startLine: number, endLine: number, buffer: IBuffer): string | undefined {
+function getOutputForCommand(command: ICurrentPartialCommand, buffer: IBuffer): string | undefined {
+	const startLine = command.previousCommandMarker!.line! + 1;
+	const endLine = command.marker!.line!;
 	let output = '';
 	for (let i = startLine; i < endLine; i++) {
 		output += buffer.getLine(i)?.translateToString() + '\n';
