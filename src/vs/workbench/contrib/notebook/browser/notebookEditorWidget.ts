@@ -1833,6 +1833,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			this._list.domFocus();
 		}
+
+		if (this._currentProgress) {
+			// The editor forces progress to hide when switching editors. So if progress should be visible, force it to show when the editor is focused.
+			this.showProgress();
+		}
 	}
 
 	private focusEditor(activeElement: CellViewModel): void {
