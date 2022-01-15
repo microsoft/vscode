@@ -2034,6 +2034,12 @@
           "default": false,
           "description": "%config.ignoreSubmodules%"
         },
+        "git.ignoreUntrackedDirFiles": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.ignoreUntrackedDirFiles%"
+        },
         "git.ignoredRepositories": {
           "type": "array",
           "items": {

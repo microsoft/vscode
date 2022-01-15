@@ -1814,11 +1814,15 @@ export class Repository {
 		}
 	}
 
-	getStatus(opts?: { limit?: number, ignoreSubmodules?: boolean }): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
+	getStatus(opts?: { limit?: number, ignoreSubmodules?: boolean, ignoreUntrackedDirFiles?: boolean }): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
 		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
 			const parser = new GitStatusParser();
 			const env = { GIT_OPTIONAL_LOCKS: '0' };
-			const args = ['status', '-z', '-u'];
+			const args = ['status', '-z'];
+
+			if (!opts?.ignoreUntrackedDirFiles) {
+				args.push('-u');
+			}
 
 			if (opts?.ignoreSubmodules) {
 				args.push('--ignore-submodules');

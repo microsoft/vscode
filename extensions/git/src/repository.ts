@@ -916,6 +916,7 @@ export class Repository implements Disposable {
 			e.affectsConfiguration('git.branchSortOrder', root)
 			|| e.affectsConfiguration('git.untrackedChanges', root)
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
+			|| e.affectsConfiguration('git.ignoreUntrackedDirFiles', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
 			|| e.affectsConfiguration('git.rebaseWhenSync', root)
 			|| e.affectsConfiguration('git.showUnpublishedCommitsButton', root)
@@ -1802,7 +1803,9 @@ export class Repository implements Disposable {
 
 		const limit = scopedConfig.get<number>('statusLimit', 10000);
 
-		const { status, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules });
+		const ignoreUntrackedDirFiles = scopedConfig.get<boolean>('ignoreUntrackedDirFiles', false);
+
+		const { status, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, ignoreUntrackedDirFiles });
 
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
