@@ -862,7 +862,15 @@ export class Repository implements Disposable {
 
 		const onWorkspaceFileChange = anyEvent(workspaceWatcher.onDidChange, workspaceWatcher.onDidCreate, workspaceWatcher.onDidDelete);
 		const onWorkspaceRepositoryFileChange = filterEvent(onWorkspaceFileChange, uri => isDescendant(repository.root, uri.fsPath));
-		const onWorkspaceWorkingTreeFileChange = filterEvent(onWorkspaceRepositoryFileChange, uri => !/\/\.git($|\/)/.test(uri.path));
+		const onWorkspaceWorkingTreeFileChange = filterEvent(onWorkspaceRepositoryFileChange, uri => {
+			if (/\/\.git$/.test(uri.path)) {
+				return false;
+			}
+
+			// Normalize the uri to be relative to the workspace, if possible
+			const folder = workspace.getWorkspaceFolder(uri);
+			return !/\/\.git\//.test(folder ? path.posix.relative(folder.uri.path, uri.path) : uri.path);
+		});
 
 		let onDotGitFileChange: Event<Uri>;
 
