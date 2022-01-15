@@ -49,7 +49,7 @@ class TestXtermTerminal extends XtermTerminal {
 	}
 }
 
-class TestViewDescriptorService implements Partial<IViewDescriptorService> {
+export class TestViewDescriptorService implements Partial<IViewDescriptorService> {
 	private _location = ViewContainerLocation.Panel;
 	private _onDidChangeLocation = new Emitter<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>();
 	onDidChangeLocation = this._onDidChangeLocation.event;

@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
-	'`\${cwdFolder}`: ' + localize('cwdFolder', "the terminal's current working directory, displayed for multi-root workspaces or in a single root workspace when the value differs from the initial working directory. This will not be displayed for Windows."),
+	'`\${cwdFolder}`: ' + localize('cwdFolder', "the terminal's current working directory, displayed for multi-root workspaces or in a single root workspace when the value differs from the initial working directory. On Windows, this will only be displayed when shell integration is enabled."),
 	'`\${workspaceFolder}`: ' + localize('workspaceFolder', "the workspace in which the terminal was launched"),
 	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace"),
 	'`\${process}`: ' + localize('process', "the name of the terminal process"),
@@ -21,11 +21,11 @@ const terminalDescriptors = '\n- ' + [
 	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task"),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
-let terminalTitleDescription = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
-terminalTitleDescription += terminalDescriptors;
+let terminalTitle = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
+terminalTitle += terminalDescriptors;
 
-let terminalDescriptionDescription = localize('terminalDescription', "Controls the terminal description, which appears to the right of the title. Variables are substituted based on the context:");
-terminalDescriptionDescription += terminalDescriptors;
+let terminalDescription = localize('terminalDescription', "Controls the terminal description, which appears to the right of the title. Variables are substituted based on the context:");
+terminalDescription += terminalDescriptors;
 
 const terminalConfiguration: IConfigurationNode = {
 	id: 'terminal',
@@ -269,17 +269,17 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.TerminalTitleSeparator]: {
 			'type': 'string',
 			'default': ' - ',
-			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by `terminal.integrated.title` and `terminal.integrated.description`.")
+			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by {0} and {0}.", `\`${TerminalSettingId.TerminalTitle}\``, `\`${TerminalSettingId.TerminalDescription}\``)
 		},
 		[TerminalSettingId.TerminalTitle]: {
 			'type': 'string',
 			'default': '${process}',
-			'markdownDescription': terminalTitleDescription
+			'markdownDescription': terminalTitle
 		},
 		[TerminalSettingId.TerminalDescription]: {
 			'type': 'string',
 			'default': '${task}${separator}${local}${separator}${cwdFolder}',
-			'markdownDescription': terminalDescriptionDescription
+			'markdownDescription': terminalDescription
 		},
 		[TerminalSettingId.RightClickBehavior]: {
 			type: 'string',

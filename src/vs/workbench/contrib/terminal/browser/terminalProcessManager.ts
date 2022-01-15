@@ -292,7 +292,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		// Add any capabilities inherit to the backend
 		if (this.os === OperatingSystem.Linux || this.os === OperatingSystem.Macintosh) {
-			this.capabilities.add(TerminalCapability.NaiveCwdDetection, new NaiveCwdDetectionCapability());
+			this.capabilities.add(TerminalCapability.NaiveCwdDetection, new NaiveCwdDetectionCapability(this._process));
 		}
 
 		this._dataFilter.newProcess(this._process, reset);
@@ -524,13 +524,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	getInitialCwd(): Promise<string> {
 		return Promise.resolve(this._initialCwd ? this._initialCwd : '');
-	}
-
-	getCwd(): Promise<string> {
-		if (!this._process) {
-			return Promise.resolve('');
-		}
-		return this._process.getCwd();
 	}
 
 	async getLatency(): Promise<number> {
