@@ -34,6 +34,10 @@ module.exports = withBrowserDefaults({
 	entry: {
 		extension: './src/extension.browser.ts',
 	},
+	module: {
+		noParse: [require.resolve('typescript/lib/typescript.js')],
+
+	},
 	plugins: [
 		...browserPlugins, // add plugins, don't replace inherited
 

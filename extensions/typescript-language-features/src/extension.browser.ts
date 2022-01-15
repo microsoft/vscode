@@ -13,6 +13,7 @@ import { noopRequestCancellerFactory } from './tsServer/cancellation';
 import { noopLogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { WorkerServerProcess } from './tsServer/serverProcess.browser';
 import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './tsServer/versionProvider';
+import { BrowserAtaManager } from './typingsInstaller.browser';
 import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
@@ -80,6 +81,8 @@ export function activate(
 	import('./languageFeatures/tsconfig').then(module => {
 		context.subscriptions.push(module.register());
 	});
+
+	context.subscriptions.push(new BrowserAtaManager(lazyClientHost));
 
 	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker));
 

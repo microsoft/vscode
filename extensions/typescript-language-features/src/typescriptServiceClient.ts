@@ -317,6 +317,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private readonly _onSurveyReady = this._register(new vscode.EventEmitter<Proto.SurveyReadyEventBody>());
 	public readonly onSurveyReady = this._onSurveyReady.event;
 
+	private readonly _onInstallTypings = this._register(new vscode.EventEmitter<{ unresolvedImports: string[] }>());
+	public readonly onInstallTypings = this._onInstallTypings.event;
+
 	public get apiVersion(): API {
 		if (this.serverState.type === ServerState.Type.Running) {
 			return this.serverState.apiVersion;
@@ -747,23 +750,28 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return undefined;
 		}
 
+		// Try to find the best workspace for a resource
 		switch (resource.scheme) {
 			case fileSchemes.file:
 			case fileSchemes.untitled:
 			case fileSchemes.vscodeNotebookCell:
 			case fileSchemes.memFs:
 			case fileSchemes.vscodeVfs:
-			case fileSchemes.officeScript:
 				for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
 					if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
 						return root.uri.fsPath;
 					}
 				}
-				return roots[0].uri.fsPath;
-
-			default:
-				return undefined;
+				break;
 		}
+
+		const vsCodePreferredWorkspace = vscode.workspace.getWorkspaceFolder(resource);
+		if (vsCodePreferredWorkspace) {
+			return vsCodePreferredWorkspace.uri.fsPath;
+		}
+
+		// Otherwise default to the first workspace we find
+		return roots[0].uri.fsPath;
 	}
 
 	public execute(command: keyof TypeScriptRequests, args: any, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {
@@ -931,6 +939,16 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 			case EventName.projectLoadingFinish:
 				this.loadingIndicator.finishedLoadingProject((event as Proto.ProjectLoadingFinishEvent).body.projectName);
+				break;
+
+			case 'installTypings': {
+				this._onInstallTypings.fire({
+					unresolvedImports: event.body.unresolvedImports,
+				});
+				break;
+			}
+			default:
+				console.log('xxx', event);
 				break;
 		}
 	}

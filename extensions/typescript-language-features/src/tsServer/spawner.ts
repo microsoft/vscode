@@ -191,13 +191,13 @@ export class TypeScriptServerSpawner {
 		let tsServerLogFile: string | undefined;
 		let tsServerTraceDirectory: string | undefined;
 
-		if (kind === TsServerProcessKind.Syntax) {
-			if (apiVersion.gte(API.v401)) {
-				args.push('--serverMode', 'partialSemantic');
-			} else {
-				args.push('--syntaxOnly');
-			}
-		}
+		// if (kind === TsServerProcessKind.Syntax) {
+		// 	if (apiVersion.gte(API.v401)) {
+		// 		args.push('--serverMode', 'partialSemantic');
+		// 	} else {
+		// 		args.push('--syntaxOnly');
+		// 	}
+		// }
 
 		if (apiVersion.gte(API.v250)) {
 			args.push('--useInferredProjectPerProjectRoot');
@@ -205,9 +205,9 @@ export class TypeScriptServerSpawner {
 			args.push('--useSingleInferredProject');
 		}
 
-		if (configuration.disableAutomaticTypeAcquisition || kind === TsServerProcessKind.Syntax || kind === TsServerProcessKind.Diagnostics) {
-			args.push('--disableAutomaticTypingAcquisition');
-		}
+		// if (configuration.disableAutomaticTypeAcquisition || kind === TsServerProcessKind.Syntax || kind === TsServerProcessKind.Diagnostics) {
+		// 	args.push('--disableAutomaticTypingAcquisition');
+		// }
 
 		if (kind === TsServerProcessKind.Semantic || kind === TsServerProcessKind.Main) {
 			args.push('--enableTelemetry');

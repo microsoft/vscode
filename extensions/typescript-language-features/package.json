@@ -37,6 +37,7 @@
     "Programming Languages"
   ],
   "dependencies": {
+    "@typescript/ata": "^0.9.3",
     "jsonc-parser": "^2.2.1",
     "semver": "5.5.1",
     "vscode-extension-telemetry": "0.4.4",
