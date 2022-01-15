@@ -275,12 +275,19 @@ async function ensureStableCode(): Promise<void> {
 
 		logger.log(`Found VS Code v${version}, downloading previous VS Code version ${previousVersion.version}...`);
 
+		let lastProgressMessage: string | undefined = undefined;
 		const stableCodeExecutable = await measureAndLog(vscodetest.download({
 			cachePath: path.join(os.tmpdir(), 'vscode-test'),
 			version: previousVersion.version,
 			reporter: {
-				report: r => logger.log(`download stable code progress: ${r}`),
-				error: e => logger.log(`download stable code error: ${e}`)
+				report: report => {
+					const progressMessage = `download stable code progress: ${report.stage}`;
+					if (progressMessage !== lastProgressMessage) {
+						lastProgressMessage = progressMessage;
+						logger.log(progressMessage);
+					}
+				},
+				error: error => logger.log(`download stable code error: ${error}`)
 			}
 		}), 'download stable code', logger);
 
