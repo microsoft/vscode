@@ -18,8 +18,3 @@
 
     // Indented code
     [b](b)
-
-``
-a
-asdf
-``

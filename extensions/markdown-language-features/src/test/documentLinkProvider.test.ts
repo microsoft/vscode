@@ -153,23 +153,26 @@ suite('markdown.DocumentLinkProvider', () => {
 
 	test('Should not consider links in fenced, indented and inline code', async () => {
 		const links = await getLinksForFile(['```',
-			'[b](https://example.com)',
+			'[ignore](https://1.com)',
 			'```',
 			'~~~',
-			'[b](https://example.com)',
+			'[ignore](https://2.com)',
 			'~~~',
-			'    [b](https://example.com)',
-			'``',
-			'[b](https://example.com)',
+			'    [ignore](https://3.com)',
+			'`` ',
+			'[ignore](https://4.com) ',
 			'``',
 			'`` ',
 			'',
-			'[b](https://example.com)',
+			'[link](https://5.com)',
 			'',
 			'``',
-			'`[b](https://example.com)`',
-			'[b](https://example.com)'].join('\n'));
-		assert.strictEqual(links.length, 2);
+			'`[ignore](https://6.com)`',
+			'[link](https://7.com) `[b](https://8.com)',
+			'` [link](https://9.com)',
+			'`',
+			'[ignore](https://10.com)`'].join('\n'));
+		assert.deepStrictEqual(links.map(l => l.target?.authority), ['5.com', '7.com', '9.com']);
 	});
 });
 
