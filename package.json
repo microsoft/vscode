@@ -50,6 +50,7 @@
     "playwright-install": "node build/azure-pipelines/common/installPlaywright.js",
     "compile-build": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-build",
     "compile-extensions-build": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-extensions-build",
+    "compile-integration-tests": "tsc -p test/integration/browser",
     "minify-vscode": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode",
     "minify-vscode-reh": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode-reh",
     "minify-vscode-reh-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode-reh-web",

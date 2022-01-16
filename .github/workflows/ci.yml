@@ -69,6 +69,9 @@ jobs:
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
+      - name: Compile Integration Tests
+        run: yarn compile-integration-tests
+
       - name: Run Unit Tests (Electron)
         run: .\scripts\test.bat
 
@@ -77,9 +80,6 @@ jobs:
 
       - name: Run Unit Tests (Browser, Chromium)
         run: yarn test-browser --browser chromium
-
-      - name: Compile Integration Tests
-        run: yarn --cwd test/integration/browser compile
 
       - name: Run Integration Tests (Electron)
         run: .\scripts\test-integration.bat
@@ -146,6 +146,9 @@ jobs:
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
+      - name: Compile Integration Tests
+        run: yarn compile-integration-tests
+
       - name: Run Unit Tests (Electron)
         id: electron-unit-tests
         run: DISPLAY=:10 ./scripts/test.sh
@@ -157,9 +160,6 @@ jobs:
       - name: Run Unit Tests (Browser, Chromium)
         id: browser-unit-tests
         run: DISPLAY=:10 yarn test-browser --browser chromium
-
-      - name: Compile Integration Tests
-        run: yarn --cwd test/integration/browser compile
 
       - name: Run Integration Tests (Electron)
         id: electron-integration-tests
@@ -218,6 +218,9 @@ jobs:
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
+      - name: Compile Integration Tests
+        run: yarn compile-integration-tests
+
       # This is required for keytar unittests, otherwise we hit
       # https://github.com/atom/node-keytar/issues/76
       - name: Create temporary keychain
@@ -234,9 +237,6 @@ jobs:
 
       - name: Run Unit Tests (Browser, Chromium)
         run: DISPLAY=:10 yarn test-browser --browser chromium
-
-      - name: Compile Integration Tests
-        run: yarn --cwd test/integration/browser compile
 
       - name: Run Integration Tests (Electron)
         run: DISPLAY=:10 ./scripts/test-integration.sh
