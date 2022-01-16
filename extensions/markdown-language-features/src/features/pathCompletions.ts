@@ -18,6 +18,21 @@ enum CompletionContextKind {
 	LinkDefinition, // []: | // TODO: not implemented
 }
 
+interface AnchorContext {
+	/**
+	 * Link text before the `#`.
+	 *
+	 * For `[text](xy#z|abc)` this is `xy`.
+	 */
+	readonly beforeAnchor: string;
+	/**
+	 * Text of the anchor before the current position.
+	 *
+	 * For `[text](xy#z|abc)` this is `z`.
+	 */
+	readonly anchorPrefix: string;
+}
+
 interface CompletionContext {
 	readonly kind: CompletionContextKind;
 
@@ -45,21 +60,7 @@ interface CompletionContext {
 	/**
 	 * Info if the link looks like it is for an anchor: `[](#header)`
 	 */
-	readonly anchorInfo?: {
-		/**
-		 * Link text before the `#`.
-		 *
-		 * For `[text](xy#z|abc)` this is `xy`.
-		 */
-		readonly beforeAnchor: string;
-
-		/**
-		 * Text of the anchor before the current position.
-		 *
-		 * For `[text](xy#z|abc)` this is `z`.
-		 */
-		readonly anchorPrefix: string;
-	}
+	readonly anchorInfo?: AnchorContext
 }
 
 export class PathCompletionProvider implements vscode.CompletionItemProvider {
@@ -87,10 +88,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 				return Array.from(this.provideReferenceSuggestions(document, position, context));
 			}
 
-			case CompletionContextKind.LinkDefinition: {
-				return [];
-			}
-
+			case CompletionContextKind.LinkDefinition:
 			case CompletionContextKind.Link: {
 				const items: vscode.CompletionItem[] = [];
 
@@ -140,6 +138,9 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 	/// [...][...|
 	private readonly referenceLinkStartPattern = /\[([^\]]*?)\]\[\s*([^\s\(\)]*)$/;
 
+	/// [id]: |
+	private readonly definitionPattern = /^\s*\[[\w\-]+\]:\s*([^\s]*)$/m;
+
 	private getPathCompletionContext(document: vscode.TextDocument, position: vscode.Position): CompletionContext | undefined {
 		const line = document.lineAt(position.line).text;
 
@@ -149,25 +150,34 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 		const linkPrefixMatch = linePrefixText.match(this.linkStartPattern);
 		if (linkPrefixMatch) {
 			const prefix = linkPrefixMatch[2];
-			if (/^\s*[\w\d\-]+:/.test(prefix)) { // Check if this looks like a 'http:' style uri
+			if (this.refLooksLikeUrl(prefix)) {
 				return undefined;
 			}
 
-			const anchorMatch = prefix.match(/^(.*)#([\w\d\-]*)$/);
-
 			const suffix = lineSuffixText.match(/^[^\)\s]*/);
-
 			return {
 				kind: CompletionContextKind.Link,
 				linkPrefix: prefix,
 				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
-
 				linkSuffix: suffix ? suffix[0] : '',
+				anchorInfo: this.getAnchorContext(prefix),
+			};
+		}
 
-				anchorInfo: anchorMatch ? {
-					beforeAnchor: anchorMatch[1],
-					anchorPrefix: anchorMatch[2],
-				} : undefined,
+		const definitionLinkPrefixMatch = linePrefixText.match(this.definitionPattern);
+		if (definitionLinkPrefixMatch) {
+			const prefix = definitionLinkPrefixMatch[1];
+			if (this.refLooksLikeUrl(prefix)) {
+				return undefined;
+			}
+
+			const suffix = lineSuffixText.match(/^[^\s]*/);
+			return {
+				kind: CompletionContextKind.LinkDefinition,
+				linkPrefix: prefix,
+				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
+				linkSuffix: suffix ? suffix[0] : '',
+				anchorInfo: this.getAnchorContext(prefix),
 			};
 		}
 
@@ -179,12 +189,29 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 				kind: CompletionContextKind.ReferenceLink,
 				linkPrefix: prefix,
 				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
-
 				linkSuffix: suffix ? suffix[0] : '',
 			};
 		}
 
 		return undefined;
+	}
+
+	/**
+	 * Check if {@param ref} looks like a 'http:' style url.
+	 */
+	private refLooksLikeUrl(prefix: string): boolean {
+		return /^\s*[\w\d\-]+:/.test(prefix);
+	}
+
+	private getAnchorContext(prefix: string): AnchorContext | undefined {
+		const anchorMatch = prefix.match(/^(.*)#([\w\d\-]*)$/);
+		if (!anchorMatch) {
+			return undefined;
+		}
+		return {
+			beforeAnchor: anchorMatch[1],
+			anchorPrefix: anchorMatch[2],
+		};
 	}
 
 	private *provideReferenceSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext): Iterable<vscode.CompletionItem> {

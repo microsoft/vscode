@@ -424,6 +424,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			const that = this;
 			let extension: vscode.Extension<any> | undefined;
 
+			let messagePassingProtocol: vscode.MessagePassingProtocol | undefined;
 			const messagePort = isProposedApiEnabled(extensionDescription, 'ipc')
 				? this._initData.messagePorts?.get(ExtensionIdentifier.toKey(extensionDescription.identifier))
 				: undefined;
@@ -454,9 +455,21 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					return that.extensionRuntime;
 				},
 				get environmentVariableCollection() { return that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription); },
-				messagePassingProtocol: messagePort && {
-					onDidReceiveMessage: Event.fromDOMEventEmitter(messagePort, 'message', e => e.data),
-					postMessage: messagePort.postMessage.bind(messagePort) as any
+				get messagePassingProtocol() {
+					if (!messagePassingProtocol) {
+						if (!messagePort) {
+							return undefined;
+						}
+
+						const onDidReceiveMessage = Event.buffer(Event.fromDOMEventEmitter(messagePort, 'message', e => e.data));
+						messagePort.start();
+						messagePassingProtocol = {
+							onDidReceiveMessage,
+							postMessage: messagePort.postMessage.bind(messagePort) as any
+						};
+					}
+
+					return messagePassingProtocol;
 				}
 			});
 		});

@@ -28,9 +28,14 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from 'vs/editor/contrib/find/findWidget';
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { FindMatch } from 'vs/editor/common/model';
+import { FindMatch, ITextModel } from 'vs/editor/common/model';
 import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { Schemas } from 'vs/base/common/network';
+import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { URI } from 'vs/base/common/uri';
+import { isEqual } from 'vs/base/common/resources';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
@@ -389,6 +394,17 @@ registerAction2(class extends Action2 {
 	}
 });
 
+function notebookContainsTextModel(uri: URI, textModel: ITextModel) {
+	if (textModel.uri.scheme === Schemas.vscodeNotebookCell) {
+		const cellUri = CellUri.parse(textModel.uri);
+		if (cellUri && isEqual(cellUri.notebook, uri)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: ICodeEditor, args: any) => {
 	const editorService = accessor.get(IEditorService);
 	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
@@ -398,7 +414,14 @@ StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: 
 	}
 
 	if (!editor.hasEditorFocus() && !editor.hasWebviewFocus()) {
-		return false;
+		const codeEditorService = accessor.get(ICodeEditorService);
+		// check if the active pane contains the active text editor
+		const textEditor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
+		if (editor.hasModel() && textEditor && textEditor.hasModel() && notebookContainsTextModel(editor.textModel.uri, textEditor.getModel())) {
+			// the active text editor is in notebook editor
+		} else {
+			return false;
+		}
 	}
 
 	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);

@@ -14,7 +14,7 @@ import * as https from 'https';
 import * as gulp from 'gulp';
 import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
-import * as iconv from 'iconv-lite-umd';
+import * as iconv from '@vscode/iconv-lite-umd';
 
 const NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 

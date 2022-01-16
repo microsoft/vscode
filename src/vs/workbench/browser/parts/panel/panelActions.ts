@@ -18,8 +18,10 @@ import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/com
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ViewContainerLocationToString, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ViewContainerLocationToString, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, localize('maximizeIcon', 'Icon to maximize a panel.'));
 const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, localize('restoreIcon', 'Icon to restore a panel.'));
@@ -128,23 +130,68 @@ export const AlignPanelActionConfigs: PanelActionConfig<PanelAlignment>[] = [
 	createAlignmentPanelActionConfig(AlignPanelActionId.JUSTIFY, 'View: Justify Panel', localize('alignPanelJustify', 'Justify Panel'), localize('alignPanelJustifyShort', "Justify"), 'justify'),
 ];
 
-const positionByActionId = new Map(PositionPanelActionConfigs.map(config => [config.id, config.value]));
 const alignmentByActionId = new Map(AlignPanelActionConfigs.map(config => [config.id, config.value]));
 
-export class SetPanelPositionAction extends Action {
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
-	) {
-		super(id, label);
-	}
+PositionPanelActionConfigs.forEach(positionPanelAction => {
+	const { id, label } = positionPanelAction;
 
-	override async run(): Promise<void> {
-		const position = positionByActionId.get(this.id);
-		this.layoutService.setPanelPosition(position === undefined ? Position.BOTTOM : position);
-	}
-}
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id,
+				title: label,
+				category: CATEGORIES.View,
+				f1: true
+			});
+		}
+		run(accessor: ServicesAccessor): void {
+			const notificationService = accessor.get(INotificationService);
+			const commandService = accessor.get(ICommandService);
+
+			notificationService.warn(localize('deprecatedPanelMoveMessage', "Moving the panel with this command has been deprecated in favor of \"Move Views From Panel To Side Panel\" and \"Move Views From Side Panel To Panel\" for similar functionality."));
+			if (positionPanelAction.value === Position.BOTTOM) {
+				commandService.executeCommand('workbench.action.moveSidePanelToPanel');
+			} else {
+				commandService.executeCommand('workbench.action.movePanelToSidePanel');
+			}
+		}
+	});
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	submenu: MenuId.MenubarPanelAlignmentMenu,
+	title: localize('alignPanel', "Align Panel"),
+	group: '3_workbench_layout_move',
+	order: 5
+});
+
+AlignPanelActionConfigs.forEach(alignPanelAction => {
+	const { id, label, shortLabel, value, when } = alignPanelAction;
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id,
+				title: label,
+				category: CATEGORIES.View,
+				toggled: when.negate(),
+				f1: true
+			});
+		}
+		run(accessor: ServicesAccessor): void {
+			const layoutService = accessor.get(IWorkbenchLayoutService);
+			layoutService.setPanelAlignment(value === undefined ? 'center' : value);
+		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarPanelAlignmentMenu, {
+		command: {
+			id,
+			title: shortLabel,
+			toggled: when.negate()
+		},
+		order: 5
+	});
+});
 
 export class SetPanelAlignmentAction extends Action {
 	constructor(
@@ -365,61 +412,70 @@ MenuRegistry.appendMenuItems([
 	}
 ]);
 
-MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
-	title: localize('miMovePanel', "Move Panel"),
-	submenu: MenuId.LayoutControlPanelPositionMenu,
-	group: '3_workbench_layout_move',
-	order: 5
-});
+// --- Move Panel Views To Side Panel
 
-MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
-	title: localize('miAlignPanel', "Align Panel"),
-	submenu: MenuId.LayoutControlPanelAlignmentMenu,
-	group: '3_workbench_layout_move',
-	order: 6,
-	when: PanelPositionContext.isEqualTo(positionToString(Position.BOTTOM))
-});
+export class MovePanelToSidePanelAction extends Action2 {
+	static readonly ID = 'workbench.action.movePanelToSidePanel';
+	constructor() {
+		super({
+			id: MovePanelToSidePanelAction.ID,
+			title: {
+				value: localize('movePanelToSidePanel', "Move Views From Panel To Side Panel"),
+				original: 'Move Views From Panel To Side Panel'
+			},
+			category: CATEGORIES.View,
+			f1: true,
+			menu: [{
+				id: MenuId.ViewContainerTitleContext,
+				group: '3_workbench_layout_move',
+				order: 0,
+				when: ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Panel)),
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const viewDescriptorService = accessor.get(IViewDescriptorService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 
-function registerPanelActionById(config: PanelActionConfig<PanelAlignment | Position>, descriptor: SyncActionDescriptor, parentMenu: MenuId) {
-	const { id, label, shortLabel, alias, when } = config;
-	// register the workbench action
-	actionRegistry.registerWorkbenchAction(descriptor, alias, CATEGORIES.View.value, when);
-	// register as a menu item
-	MenuRegistry.appendMenuItems([{
-		id: MenuId.MenubarAppearanceMenu,
-		item: {
-			group: '3_workbench_layout_move',
-			command: {
-				id,
-				title: label
-			},
-			when,
-			order: 5
+		const panelContainers = viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.Panel);
+
+		if (panelContainers.length) {
+			panelContainers.forEach(viewContainer => viewDescriptorService.moveViewContainerToLocation(viewContainer, ViewContainerLocation.AuxiliaryBar));
+			layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 		}
-	}, {
-		id: parentMenu,
-		item: {
-			command: {
-				id,
-				title: shortLabel,
-				toggled: when.negate()
-			},
-			order: 5
-		},
-		}, {
-		id: MenuId.ViewTitleContext,
-		item: {
-			group: '3_workbench_layout_move',
-			command: {
-				id: id,
-				title: label,
-			},
-			when: ContextKeyExpr.and(when, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Panel))),
-			order: 1
-		}
-	}]);
+	}
+
 }
 
-// register each position panel action
-PositionPanelActionConfigs.forEach(config => registerPanelActionById(config, SyncActionDescriptor.create(SetPanelPositionAction, config.id, config.label), MenuId.LayoutControlPanelPositionMenu));
-AlignPanelActionConfigs.forEach(config => registerPanelActionById(config, SyncActionDescriptor.create(SetPanelAlignmentAction, config.id, config.label), MenuId.LayoutControlPanelAlignmentMenu));
+registerAction2(MovePanelToSidePanelAction);
+
+// --- Move Panel Views To Side Panel
+
+export class MoveSidePanelToPanelAction extends Action2 {
+	static readonly ID = 'workbench.action.moveSidePanelToPanel';
+
+	constructor() {
+		super({
+			id: MoveSidePanelToPanelAction.ID,
+			title: {
+				value: localize('moveSidePanelToPanel', "Move Views From Side Panel To Panel"),
+				original: 'Move Views From Side Panel To Panel'
+			},
+			category: CATEGORIES.View,
+			f1: true
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const viewDescriptorService = accessor.get(IViewDescriptorService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+
+		const auxiliaryBarContainers = viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar);
+
+		if (auxiliaryBarContainers.length) {
+			auxiliaryBarContainers.forEach(viewContainer => viewDescriptorService.moveViewContainerToLocation(viewContainer, ViewContainerLocation.Panel));
+			layoutService.setPartHidden(false, Parts.PANEL_PART);
+		}
+	}
+
+}
+registerAction2(MoveSidePanelToPanelAction);

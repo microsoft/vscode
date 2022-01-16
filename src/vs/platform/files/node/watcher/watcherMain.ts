@@ -5,8 +5,8 @@
 
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
-import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
+import { UniversalWatcher } from 'vs/platform/files/node/watcher/watcher';
 
 const server = new Server('watcher');
-const service = new ParcelWatcher();
+const service = new UniversalWatcher();
 server.registerChannel('watcher', ProxyChannel.fromService(service));

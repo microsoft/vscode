@@ -903,7 +903,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		let lastOpenHorizontalPosition: Position | undefined;
 		let lastOpenVerticalPosition: Position | undefined;
 		const openPartAtPosition = (position: Position) => {
-			if (!this.layoutService.isVisible(Parts.PANEL_PART) && position === this.layoutService.getPanelPosition()) {
+			if (!this.layoutService.isVisible(Parts.PANEL_PART) && position === Position.BOTTOM) {
 				this.layoutService.setPartHidden(false, Parts.PANEL_PART);
 			} else if (!this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) && position === (this.layoutService.getSideBarPosition() === Position.RIGHT ? Position.LEFT : Position.RIGHT)) {
 				this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);

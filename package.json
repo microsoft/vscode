@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.64.0",
-  "distro": "bab90b23354964c22d78484fffd8a39e49bdce29",
+  "distro": "ccb010a2d8baeb168dcc8c712ec7c1b30b9994ed",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -50,6 +50,7 @@
     "playwright-install": "node build/azure-pipelines/common/installPlaywright.js",
     "compile-build": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-build",
     "compile-extensions-build": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-extensions-build",
+    "compile-integration-tests": "tsc -p test/integration/browser",
     "minify-vscode": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode",
     "minify-vscode-reh": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode-reh",
     "minify-vscode-reh-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode-reh-web",
@@ -61,6 +62,7 @@
     "@microsoft/applicationinsights-web": "^2.6.4",
     "@parcel/watcher": "2.0.5",
     "@vscode/debugprotocol": "1.51.0",
+    "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/ripgrep": "^1.14.1",
     "@vscode/sqlite3": "5.0.7",
     "@vscode/sudo-prompt": "9.3.1",
@@ -69,7 +71,6 @@
     "graceful-fs": "4.2.8",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.3",
-    "iconv-lite-umd": "0.6.10",
     "jschardet": "3.0.0",
     "keytar": "7.6.0",
     "minimist": "^1.2.5",
@@ -95,6 +96,7 @@
   },
   "devDependencies": {
     "7zip": "0.0.6",
+    "@playwright/test": "1.18.0-rc1",
     "@types/applicationinsights": "0.20.0",
     "@types/cookie": "^0.3.3",
     "@types/copy-webpack-plugin": "^6.0.3",
@@ -184,7 +186,6 @@
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
     "path-browserify": "^1.0.1",
-    "playwright": "1.17.1",
     "pump": "^1.0.1",
     "queue": "3.0.6",
     "rcedit": "^1.1.0",

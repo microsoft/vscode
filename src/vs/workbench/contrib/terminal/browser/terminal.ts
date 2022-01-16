@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, IExtensionTerminalProfile, TerminalLocation, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
-import { ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalFont, ITerminalBackend, ITerminalProcessExtHostProxy, IRegisterContributedProfileArgs, IShellIntegration } from 'vs/workbench/contrib/terminal/common/terminal';
+import { INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalFont, ITerminalBackend, ITerminalProcessExtHostProxy, IRegisterContributedProfileArgs, IShellIntegration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IEditableData } from 'vs/workbench/common/views';
@@ -17,6 +17,7 @@ import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/b
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
+import { IMarker } from 'xterm';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
@@ -78,6 +79,28 @@ export const enum Direction {
 export interface IQuickPickTerminalObject {
 	config: IRegisterContributedProfileArgs | ITerminalProfile | { profile: IExtensionTerminalProfile, options: { icon?: string, color?: string } } | undefined,
 	keyMods: IKeyMods | undefined
+}
+
+export interface TerminalCommand {
+	command: string;
+	timestamp: number;
+	cwd?: string;
+	exitCode?: number;
+	marker?: IMarker;
+	getOutput(): string | undefined;
+}
+
+export interface ICommandTracker {
+	readonly commands: TerminalCommand[];
+	readonly cwds: string[];
+	scrollToPreviousCommand(): void;
+	scrollToNextCommand(): void;
+	selectToPreviousCommand(): void;
+	selectToNextCommand(): void;
+	selectToPreviousLine(): void;
+	selectToNextLine(): void;
+	getCwdForLine(line: number): string;
+	clearMarker(): void;
 }
 
 export interface ITerminalGroup {

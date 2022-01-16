@@ -134,9 +134,10 @@ export class InlayHintsController implements IEditorContribution {
 			cts?.dispose(true);
 			cts = new CancellationTokenSource();
 
-			const inlayHints = await InlayHintsFragments.create(model, this._getHintsRanges(), cts.token);
+			const myToken = cts.token;
+			const inlayHints = await InlayHintsFragments.create(model, this._getHintsRanges(), myToken);
 			scheduler.delay = this._debounceInfo.update(model, Date.now() - t1);
-			if (cts.token.isCancellationRequested) {
+			if (myToken.isCancellationRequested) {
 				inlayHints.dispose();
 				return;
 			}
@@ -145,6 +146,7 @@ export class InlayHintsController implements IEditorContribution {
 			for (const provider of inlayHints.provider) {
 				if (typeof provider.onDidChangeInlayHints === 'function' && !watchedProviders.has(provider)) {
 					this._sessionDisposables.add(provider.onDidChangeInlayHints(() => scheduler.schedule()));
+					watchedProviders.add(provider);
 				}
 			}
 

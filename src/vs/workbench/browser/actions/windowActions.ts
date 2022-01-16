@@ -300,11 +300,7 @@ class ToggleFullScreenAction extends Action2 {
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
 				order: 1
-			}, {
-					id: MenuId.LayoutControlMenu,
-				group: '9_quick_layout',
-					order: 1
-				}]
+			}]
 		});
 	}
 

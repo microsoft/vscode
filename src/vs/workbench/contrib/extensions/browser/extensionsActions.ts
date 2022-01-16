@@ -2623,7 +2623,7 @@ export class InstallLocalExtensionsInRemoteAction extends AbstractInstallExtensi
 		const targetPlatform = await this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.getTargetPlatform();
 		await Promises.settled(localExtensionsToInstall.map(async extension => {
 			if (this.extensionGalleryService.isEnabled()) {
-				const gallery = await this.extensionGalleryService.getCompatibleExtension(extension.identifier, !!extension.local?.isPreReleaseVersion, targetPlatform);
+				const gallery = await this.extensionGalleryService.getCompatibleExtension(extension.identifier, !!extension.local?.preRelease, targetPlatform);
 				if (gallery) {
 					galleryExtensions.push(gallery);
 					return;
@@ -2672,7 +2672,7 @@ export class InstallRemoteExtensionsInLocalAction extends AbstractInstallExtensi
 		const targetPlatform = await this.extensionManagementServerService.localExtensionManagementServer!.extensionManagementService.getTargetPlatform();
 		await Promises.settled(extensions.map(async extension => {
 			if (this.extensionGalleryService.isEnabled()) {
-				const gallery = await this.extensionGalleryService.getCompatibleExtension(extension.identifier, !!extension.local?.isPreReleaseVersion, targetPlatform);
+				const gallery = await this.extensionGalleryService.getCompatibleExtension(extension.identifier, !!extension.local?.preRelease, targetPlatform);
 				if (gallery) {
 					galleryExtensions.push(gallery);
 					return;

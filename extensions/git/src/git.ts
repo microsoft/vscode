@@ -10,7 +10,7 @@ import * as cp from 'child_process';
 import { fileURLToPath } from 'url';
 import * as which from 'which';
 import { EventEmitter } from 'events';
-import * as iconv from 'iconv-lite-umd';
+import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions } from './util';
 import { CancellationToken, Progress, Uri } from 'vscode';

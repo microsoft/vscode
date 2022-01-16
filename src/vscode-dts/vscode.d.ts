@@ -10954,7 +10954,7 @@ declare module 'vscode' {
 		export function updateWorkspaceFolders(start: number, deleteCount: number | undefined | null, ...workspaceFoldersToAdd: { uri: Uri, name?: string }[]): boolean;
 
 		/**
-		 * Creates a file system watcher to be notified on file events (create, change, delete)
+		 * Creates a file system watcher that is notified on file events (create, change, delete)
 		 * depending on the parameters provided.
 		 *
 		 * By default, all opened {@link workspace.workspaceFolders workspace folders} will be watched

@@ -8,6 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { PanelAlignment, Position, positionFromString, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 
 interface IWorkbenchLayoutStateKey {
@@ -22,7 +23,7 @@ interface IWorkbenchLayoutStateKey {
 type StorageKeyType = string | boolean | number | object;
 abstract class WorkbenchLayoutStateKey<T extends StorageKeyType> implements IWorkbenchLayoutStateKey {
 	abstract readonly runtime: boolean;
-	constructor(readonly name: string, readonly scope: StorageScope, readonly target: StorageTarget, readonly defaultValue: T) { }
+	constructor(readonly name: string, readonly scope: StorageScope, readonly target: StorageTarget, public defaultValue: T) { }
 }
 
 class RuntimeStateKey<T extends StorageKeyType> extends WorkbenchLayoutStateKey<T> {
@@ -64,7 +65,6 @@ export const LayoutStateKeys = {
 
 	// Part Positions
 	SIDEBAR_POSITON: new RuntimeStateKey<Position>('sideBar.position', StorageScope.GLOBAL, StorageTarget.USER, Position.LEFT),
-	PANEL_POSITION: new RuntimeStateKey<Position>('panel.position', StorageScope.GLOBAL, StorageTarget.USER, Position.BOTTOM),
 	PANEL_ALIGNMENT: new RuntimeStateKey<PanelAlignment>('panel.alignment', StorageScope.GLOBAL, StorageTarget.USER, 'center'),
 
 	// Part Visibility
@@ -91,6 +91,7 @@ export class LayoutStateModel extends Disposable {
 	constructor(
 		private readonly storageService: IStorageService,
 		private readonly configurationService: IConfigurationService,
+		private readonly contextService: IWorkspaceContextService,
 		private readonly container: HTMLElement) {
 		super();
 		this.configurationService.onDidChangeConfiguration(configurationChange => this.updateStateFromLegacySettings(configurationChange));
@@ -114,10 +115,6 @@ export class LayoutStateModel extends Disposable {
 		if (configurationChangeEvent.affectsConfiguration(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION)) {
 			this.setRuntimeValueAndFire(LayoutStateKeys.SIDEBAR_POSITON, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left'));
 		}
-
-		if (configurationChangeEvent.affectsConfiguration(LegacyWorkbenchLayoutSettings.PANEL_POSITION)) {
-			this.setRuntimeValueAndFire(LayoutStateKeys.PANEL_POSITION, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.PANEL_POSITION) ?? 'bottom'));
-		}
 	}
 
 	private updateLegacySettingsFromState<T extends StorageKeyType>(key: RuntimeStateKey<T>, value: T): void {
@@ -134,8 +131,6 @@ export class LayoutStateModel extends Disposable {
 			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.PANEL_ALIGNMENT, value);
 		} else if (key === LayoutStateKeys.SIDEBAR_POSITON) {
 			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION, positionToString(value as Position));
-		} else if (key === LayoutStateKeys.PANEL_POSITION) {
-			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.PANEL_POSITION, positionToString(value as Position));
 		}
 	}
 
@@ -157,23 +152,15 @@ export class LayoutStateModel extends Disposable {
 		this.stateCache.set(LayoutStateKeys.STATUSBAR_HIDDEN.name, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE));
 		this.stateCache.set(LayoutStateKeys.PANEL_ALIGNMENT.name, this.configurationService.getValue(LegacyWorkbenchLayoutSettings.PANEL_ALIGNMENT));
 		this.stateCache.set(LayoutStateKeys.SIDEBAR_POSITON.name, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left'));
-		this.stateCache.set(LayoutStateKeys.PANEL_POSITION.name, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.PANEL_POSITION) ?? 'bottom'));
 
-		// Apply sizing defaults
+		// Set dynamic defaults: part sizing and side bar visibility
 		const workbenchDimensions = getClientArea(this.container);
-		const panelPosition = this.stateCache.get(LayoutStateKeys.PANEL_POSITION.name) ?? LayoutStateKeys.PANEL_POSITION.defaultValue;
-		const applySizingIfUndefined = <T extends StorageKeyType>(key: WorkbenchLayoutStateKey<T>, value: T) => {
-			if (this.stateCache.get(key.name) === undefined) {
-				this.stateCache.set(key.name, value);
-			}
-		};
+		LayoutStateKeys.GRID_SIZE.defaultValue = { height: workbenchDimensions.height, width: workbenchDimensions.width };
+		LayoutStateKeys.SIDEBAR_SIZE.defaultValue = Math.min(300, workbenchDimensions.width / 4);
+		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, workbenchDimensions.width / 4);
+		LayoutStateKeys.PANEL_SIZE.defaultValue = workbenchDimensions.height / 3;
+		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 
-		applySizingIfUndefined(LayoutStateKeys.GRID_SIZE, { height: workbenchDimensions.height, width: workbenchDimensions.width });
-		applySizingIfUndefined(LayoutStateKeys.SIDEBAR_SIZE, Math.min(300, workbenchDimensions.width / 4));
-		applySizingIfUndefined(LayoutStateKeys.AUXILIARYBAR_SIZE, Math.min(300, workbenchDimensions.width / 4));
-		applySizingIfUndefined(LayoutStateKeys.PANEL_SIZE, panelPosition === Position.BOTTOM ? workbenchDimensions.height / 3 : workbenchDimensions.width / 4);
-
-		// Apply legacy settings
 
 		// Apply all defaults
 		for (key in LayoutStateKeys) {
@@ -270,7 +257,6 @@ export enum WorkbenchLayoutSettings {
 }
 
 enum LegacyWorkbenchLayoutSettings {
-	PANEL_POSITION = 'workbench.panel.defaultLocation', // Deprecated to UI State
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible', // Deprecated to UI State
 	STATUSBAR_VISIBLE = 'workbench.statusBar.visible', // Deprecated to UI State
 	SIDEBAR_POSITION = 'workbench.sideBar.location', // Deprecated to UI State

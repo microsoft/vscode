@@ -574,13 +574,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	order: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
-	group: '9_quick_layout',
-	title: localize({ key: 'miEditorLayoutLayoutControl', comment: ['&& denotes a mnemonic'] }, "Editor Layout"),
-	submenu: MenuId.MenubarLayoutMenu,
-	order: 0
-});
-
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: '1_split',
 	command: {

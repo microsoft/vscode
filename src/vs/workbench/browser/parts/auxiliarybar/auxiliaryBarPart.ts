@@ -23,9 +23,10 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IAction, Separator } from 'vs/base/common/actions';
+import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
 import { assertIsDefined } from 'vs/base/common/types';
+import { MoveSidePanelToPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 
 export class AuxiliaryBarPart extends BasePanelPart {
 	static readonly activePanelSettingsKey = 'workbench.auxiliarybar.activepanelid';
@@ -106,6 +107,7 @@ export class AuxiliaryBarPart extends BasePanelPart {
 	protected fillExtraContextMenuActions(actions: IAction[]): void {
 		actions.push(...[
 			new Separator(),
+			toAction({ id: MoveSidePanelToPanelAction.ID, label: localize('moveToPanel', "Move Views to Panel"), run: () => this.instantiationService.invokeFunction(accessor => new MoveSidePanelToPanelAction().run(accessor)) }),
 			this.instantiationService.createInstance(ToggleAuxiliaryBarAction, ToggleAuxiliaryBarAction.ID, localize('hideAuxiliaryBar', "Hide Side Panel"))
 		]);
 	}

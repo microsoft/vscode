@@ -49,7 +49,7 @@ class TestXtermTerminal extends XtermTerminal {
 	}
 }
 
-class TestViewDescriptorService implements Partial<IViewDescriptorService> {
+export class TestViewDescriptorService implements Partial<IViewDescriptorService> {
 	private _location = ViewContainerLocation.Panel;
 	private _onDidChangeLocation = new Emitter<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>();
 	onDidChangeLocation = this._onDidChangeLocation.event;
@@ -117,8 +117,8 @@ suite('XtermTerminal', () => {
 	});
 
 	test('should use fallback dimensions of 80x30', () => {
-		strictEqual(xterm.raw.getOption('cols'), 80);
-		strictEqual(xterm.raw.getOption('rows'), 30);
+		strictEqual(xterm.raw.options.cols, 80);
+		strictEqual(xterm.raw.options.rows, 30);
 	});
 
 	suite('theme', () => {
@@ -128,13 +128,13 @@ suite('XtermTerminal', () => {
 				[SIDE_BAR_BACKGROUND]: '#00ff00'
 			}));
 			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
-			strictEqual(xterm.raw.getOption('theme').background, '#ff0000');
+			strictEqual(xterm.raw.options.theme?.background, '#ff0000');
 			viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.Sidebar);
-			strictEqual(xterm.raw.getOption('theme').background, '#00ff00');
+			strictEqual(xterm.raw.options.theme?.background, '#00ff00');
 			viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.Panel);
-			strictEqual(xterm.raw.getOption('theme').background, '#ff0000');
+			strictEqual(xterm.raw.options.theme?.background, '#ff0000');
 			viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.AuxiliaryBar);
-			strictEqual(xterm.raw.getOption('theme').background, '#00ff00');
+			strictEqual(xterm.raw.options.theme?.background, '#00ff00');
 		});
 		test('should react to and apply theme changes', () => {
 			themeService.setTheme(new TestColorTheme({
@@ -161,7 +161,7 @@ suite('XtermTerminal', () => {
 				'terminal.ansiBrightWhite': '#160000',
 			}));
 			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
-			deepStrictEqual(xterm.raw.getOption('theme'), {
+			deepStrictEqual(xterm.raw.options.theme, {
 				background: '#000100',
 				foreground: '#000200',
 				cursor: '#000300',
@@ -207,7 +207,7 @@ suite('XtermTerminal', () => {
 				'terminal.ansiBrightCyan': '#15000f',
 				'terminal.ansiBrightWhite': '#16000f',
 			}));
-			deepStrictEqual(xterm.raw.getOption('theme'), {
+			deepStrictEqual(xterm.raw.options.theme, {
 				background: '#00010f',
 				foreground: '#00020f',
 				cursor: '#00030f',
@@ -236,7 +236,7 @@ suite('XtermTerminal', () => {
 	suite('renderers', () => {
 		test('should re-evaluate gpu acceleration auto when the setting is changed', async () => {
 			// Check initial state
-			strictEqual(xterm.raw.getOption('rendererType'), 'dom');
+			strictEqual(xterm.raw.options.rendererType, 'dom');
 			strictEqual(TestWebglAddon.isEnabled, false);
 
 			// Open xterm as otherwise the webgl addon won't activate
@@ -257,7 +257,7 @@ suite('XtermTerminal', () => {
 			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'off' } });
 			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 			await xterm.webglAddonPromise; // await addon activate
-			strictEqual(xterm.raw.getOption('rendererType'), 'dom');
+			strictEqual(xterm.raw.options.rendererType, 'dom');
 			strictEqual(TestWebglAddon.isEnabled, false);
 
 			// Set to auto again but throw when activating the webgl addon
@@ -265,7 +265,7 @@ suite('XtermTerminal', () => {
 			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'auto' } });
 			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 			await xterm.webglAddonPromise; // await addon activate
-			strictEqual(xterm.raw.getOption('rendererType'), 'canvas');
+			strictEqual(xterm.raw.options.rendererType, 'canvas');
 			strictEqual(TestWebglAddon.isEnabled, false);
 		});
 	});

@@ -83,6 +83,7 @@ import { ICredentialsService } from 'vs/platform/credentials/common/credentials'
 import { CredentialsMainService } from 'vs/platform/credentials/node/credentialsMainService';
 import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
 import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
+import { RemoteTelemetryChannel } from 'vs/server/remoteTelemetryChannel';
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -305,7 +306,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				piiPaths: [this._environmentService.appRoot]
 			};
 
-			services.set(IRemoteTelemetryService, new SyncDescriptor(RemoteTelemetryService, [config]));
+			services.set(IRemoteTelemetryService, new SyncDescriptor(RemoteTelemetryService, [config, undefined]));
 		} else {
 			services.set(IRemoteTelemetryService, RemoteNullTelemetryService);
 		}
@@ -340,8 +341,11 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		services.set(ICredentialsService, credentialsService);
 
 		return instantiationService.invokeFunction(accessor => {
-			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._connectionToken, this._environmentService, extensionManagementCLIService, this._logService, accessor.get(IRemoteTelemetryService), appInsightsAppender, this._productService);
+			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._connectionToken, this._environmentService, extensionManagementCLIService, this._logService, this._productService);
 			this._socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
+
+			const telemetryChannel = new RemoteTelemetryChannel(accessor.get(IRemoteTelemetryService), appInsightsAppender);
+			this._socketServer.registerChannel('telemetry', telemetryChannel);
 
 			this._socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(this._environmentService, this._logService, ptyService, this._productService));
 
