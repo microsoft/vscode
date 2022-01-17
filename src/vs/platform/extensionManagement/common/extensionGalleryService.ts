@@ -474,7 +474,6 @@ export function sortExtensionVersions(versions: IRawGalleryExtensionVersion[], p
 
 function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGalleryExtensionVersion, allTargetPlatforms: TargetPlatform[]): IGalleryExtension {
 	const latestVersion = galleryExtension.versions[0];
-	const hasReleaseVersion = galleryExtension.versions.some(version => !isPreReleaseVersion(version));
 	const assets = <IGalleryExtensionAssets>{
 		manifest: getVersionAsset(version, AssetType.Manifest),
 		readme: getVersionAsset(version, AssetType.Details),
@@ -517,7 +516,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 			isPreReleaseVersion: isPreReleaseVersion(version)
 		},
 		hasPreReleaseVersion: isPreReleaseVersion(latestVersion),
-		hasReleaseVersion,
+		hasReleaseVersion: true,
 		preview: getIsPreview(galleryExtension.flags),
 	};
 }
@@ -774,10 +773,16 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const needAllVersions = new Map<string, number>();
 		for (let index = 0; index < rawGalleryExtensions.length; index++) {
 			const rawGalleryExtension = rawGalleryExtensions[index];
+			const extensionIdentifier = { id: getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName), uuid: rawGalleryExtension.extensionId };
+			const preRelease = isBoolean(criteria.preRelease) ? criteria.preRelease : !!criteria.preRelease.find(extensionIdentifierWithPreRelease => areSameExtensions(extensionIdentifierWithPreRelease, extensionIdentifier))?.preRelease;
 			let extension = await this.toGalleryExtensionWithCriteria(rawGalleryExtension, criteria, false);
 			if (!extension
-				/* Skip if it is a pre-release version. Need all versions to know if there is a release version */
-				|| extension.properties.isPreReleaseVersion
+				/** Skip if the extension is a pre-release version but
+				 * 		- the query is to look for a release version or
+				 * 		- the extension has no release version
+				 * Get all versions to get or check the release version
+				*/
+				|| (extension.properties.isPreReleaseVersion && (!preRelease || !extension.hasReleaseVersion))
 				/**
 				 * Skip if the extension is a release version with a different target platform than requested and also has a pre-release version
 				 * Because, this is a platform specific extension and can have a newer release version supporting this platform.

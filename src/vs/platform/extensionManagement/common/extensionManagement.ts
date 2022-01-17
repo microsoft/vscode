@@ -373,6 +373,7 @@ export enum ExtensionManagementErrorCode {
 	Incompatible = 'Incompatible',
 	IncompatiblePreRelease = 'IncompatiblePreRelease',
 	IncompatibleTargetPlatform = 'IncompatibleTargetPlatform',
+	ReleaseVersionNotFound = 'ReleaseVersionNotFound',
 	Invalid = 'Invalid',
 	Download = 'Download',
 	Extract = 'Extract',
