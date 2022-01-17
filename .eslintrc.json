@@ -496,6 +496,39 @@
 				]
 			},
 			{
+				"target": "**/vs/workbench/api/browser/**",
+				"restrictions": [
+					"vscode",
+					"vs/nls",
+					"**/vs/base/{common,browser}/**",
+					"**/vs/base/parts/*/{common,browser}/**",
+					"**/vs/platform/*/{common,browser}/**",
+					"**/vs/editor/{common,browser}/**",
+					"**/vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
+					"**/vs/workbench/api/{common,browser}/**",
+					"**/vs/workbench/{common,browser}/**",
+					"**/vs/workbench/services/*/{common,browser}/**",
+					"**/vs/workbench/contrib/*/{common,browser}/**"
+				]
+			},
+			{
+				"target": "**/vs/workbench/api/node/**",
+				"restrictions": [
+					"vscode",
+					"vs/nls",
+					"**/vs/base/{common,node}/**",
+					"**/vs/base/parts/*/{common,node}/**",
+					"**/vs/platform/*/{common,node}/**",
+					"**/vs/editor/{common,node}/**",
+					"**/vs/editor/contrib/*/{common,node}/**",
+					"**/vs/workbench/api/{common,node}/**",
+					"**/vs/workbench/{common,node}/**",
+					"**/vs/workbench/services/*/{common,node}/**",
+					"**/vs/workbench/contrib/*/{common,node}/**",
+					"*" // node modules
+				]
+			},
+			{
 				"target": "**/vs/workbench/api/worker/**",
 				"restrictions": [
 					"vscode",
@@ -848,6 +881,20 @@
 				]
 			},
 			{
+				"target": "**/vs/code/electron-sandbox/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"**/vs/base/parts/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"**/vs/platform/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"**/vs/code/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
+				]
+			},
+			{
 				"target": "**/vs/code/electron-main/**",
 				"restrictions": [
 					"vs/nls",
@@ -933,6 +980,10 @@
 					"**/vs/workbench/workbench.common.main",
 					"**/vs/workbench/workbench.sandbox.main"
 				]
+			},
+			{
+				"target": "**/src/vscode-dts/**",
+				"restrictions": []
 			},
 			{
 				"target": "**/extensions/**",
