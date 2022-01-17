@@ -6,7 +6,6 @@
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, ICellExecuteOutputEdit, ICellExecuteOutputItemEdit } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 
@@ -35,7 +34,8 @@ export interface ICellExecutionStateChangedEvent {
 	notebook: URI;
 	cellHandle: number;
 	changed?: ICellExecutionEntry; // undefined -> execution was completed
-	affectsCell(cell: NotebookCellTextModel): boolean;
+	affectsCell(cell: URI): boolean;
+	affectsNotebook(notebook: URI): boolean;
 }
 
 export const INotebookExecutionStateService = createDecorator<INotebookExecutionStateService>('INotebookExecutionStateService');

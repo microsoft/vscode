@@ -93,7 +93,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 
 		this._update();
 		this._register(this._executionStateService.onDidChangeCellExecution(e => {
-			if (e.affectsCell(this._cell.model)) {
+			if (e.affectsCell(this._cell.uri)) {
 				this._update();
 			}
 		}));

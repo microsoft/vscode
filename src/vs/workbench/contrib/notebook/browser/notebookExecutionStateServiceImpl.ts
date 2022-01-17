@@ -10,7 +10,6 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
@@ -128,9 +127,13 @@ class NotebookExecutionEvent implements ICellExecutionStateChangedEvent {
 		readonly changed?: CellExecution
 	) { }
 
-	affectsCell(cell: NotebookCellTextModel): boolean {
-		const parsedUri = CellUri.parse(cell.uri);
+	affectsCell(cell: URI): boolean {
+		const parsedUri = CellUri.parse(cell);
 		return !!parsedUri && isEqual(this.notebook, parsedUri.notebook) && this.cellHandle === parsedUri.handle;
+	}
+
+	affectsNotebook(notebook: URI): boolean {
+		return isEqual(this.notebook, notebook);
 	}
 }
 

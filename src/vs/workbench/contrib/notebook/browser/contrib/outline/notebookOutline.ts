@@ -337,7 +337,11 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 			this._onDidChange.fire({});
 		}));
 
-		this._register(_notebookExecutionStateService.onDidChangeCellExecution(() => this._recomputeState()));
+		this._register(_notebookExecutionStateService.onDidChangeCellExecution(e => {
+			if (!!this._editor.textModel && e.affectsNotebook(this._editor.textModel?.uri)) {
+				this._recomputeState();
+			}
+		}));
 
 		this._recomputeState();
 		installSelectionListener();
