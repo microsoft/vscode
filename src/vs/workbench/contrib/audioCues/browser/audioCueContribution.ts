@@ -13,7 +13,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { raceTimeout } from 'vs/base/common/async';
 import { FileAccess } from 'vs/base/common/network';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { FoldingController } from 'vs/editor/contrib/folding/folding';
 import { FoldingModel } from 'vs/editor/contrib/folding/foldingModel';
 
@@ -122,6 +122,7 @@ export class AudioCueContribution extends DisposableStore implements IWorkbenchC
 								.read({ resource: uri })
 								.some(
 									(m) =>
+										m.severity === MarkerSeverity.Error &&
 										m.startLineNumber <= lineNumber &&
 										lineNumber <= m.endLineNumber
 								);
