@@ -7,7 +7,7 @@ import { IntervalTimer, timeout } from 'vs/base/common/async';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { SimpleWorkerClient, logOnceWebWorkerWarning, IWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
+import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IChange } from 'vs/editor/common/editorCommon';
@@ -24,6 +24,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { canceled } from 'vs/base/common/errors';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/languages/unicodeTextModelHighlighter';
+import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -399,7 +400,7 @@ export interface IEditorWorkerClient {
 	fhr(method: string, args: any[]): Promise<any>;
 }
 
-export class EditorWorkerHost {
+export class EditorWorkerHost implements IEditorWorkerHost {
 
 	private readonly _workerClient: IEditorWorkerClient;
 

@@ -324,7 +324,6 @@
 				"restrictions": [
 					"vs/nls",
 					"**/vs/base/common/**",
-					"**/vs/base/worker/**",
 					"**/vs/platform/*/common/**",
 					"**/vs/editor/common/**"
 				]
@@ -622,7 +621,7 @@
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser,worker}/**",
+					"**/vs/base/**/{common,browser}/**",
 					"**/vs/platform/**/{common,browser}/**",
 					"**/vs/editor/{common,browser}/**",
 					"**/vs/workbench/workbench.web.api",
@@ -657,7 +656,7 @@
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser,worker,electron-sandbox}/**",
+					"**/vs/base/**/{common,browser,electron-sandbox}/**",
 					"**/vs/platform/**/{common,browser,electron-sandbox}/**",
 					"**/vs/editor/**",
 					"**/vs/workbench/{common,browser,electron-sandbox}/**",
@@ -674,7 +673,7 @@
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser,worker,node,electron-sandbox,electron-browser}/**",
+					"**/vs/base/**/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/platform/**/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/editor/**",
 					"**/vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
@@ -748,7 +747,7 @@
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,worker}/**",
+					"**/vs/base/**/common/**",
 					"**/vs/platform/**/common/**",
 					"**/vs/editor/**",
 					"**/vs/workbench/common/**",
@@ -811,7 +810,7 @@
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser,worker,electron-sandbox}/**",
+					"**/vs/base/**/{common,browser,electron-sandbox}/**",
 					"**/vs/platform/**/{common,browser,electron-sandbox}/**",
 					"**/vs/editor/**",
 					"**/vs/workbench/{common,browser,electron-sandbox}/**",
@@ -829,7 +828,7 @@
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser,worker,node,electron-sandbox,electron-browser}/**",
+					"**/vs/base/**/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/platform/**/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/editor/**",
 					"**/vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",

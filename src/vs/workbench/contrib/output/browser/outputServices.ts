@@ -11,7 +11,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_SCHEME, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
 import { IOutputChannelDescriptor, Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
-import { OutputLinkProvider } from 'vs/workbench/contrib/output/common/outputLinkProvider';
+import { OutputLinkProvider } from 'vs/workbench/contrib/output/browser/outputLinkProvider';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILogService } from 'vs/platform/log/common/log';
