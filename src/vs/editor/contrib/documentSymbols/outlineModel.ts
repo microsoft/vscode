@@ -428,7 +428,7 @@ interface CacheEntry {
 	model: OutlineModel | undefined;
 }
 
-export class OutlineModelService {
+export class OutlineModelService implements IOutlineModelService {
 
 	declare _serviceBrand: undefined;
 
