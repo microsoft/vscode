@@ -522,9 +522,12 @@ function listToMap(list: string[]) {
 }
 
 export function isRelativePattern(obj: unknown): obj is IRelativePattern {
-	const rp = obj as IRelativePattern;
+	const rp = obj as IRelativePattern | undefined | null;
+	if (!rp) {
+		return false;
+	}
 
-	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	return typeof rp.base === 'string' && typeof rp.pattern === 'string';
 }
 
 export function getBasenameTerms(patternOrExpression: ParsedPattern | ParsedExpression): string[] {
