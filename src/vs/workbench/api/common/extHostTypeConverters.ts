@@ -142,7 +142,7 @@ export namespace DocumentSelector {
 				$serialized: true,
 				language: selector.language,
 				scheme: _transformScheme(selector.scheme, uriTransformer),
-				pattern: withNullAsUndefined(GlobPattern.from(selector.pattern)),
+				pattern: GlobPattern.from(selector.pattern) ?? undefined,
 				exclusive: selector.exclusive
 			};
 		}
@@ -1432,7 +1432,7 @@ export namespace GlobPattern {
 			return pattern;
 		}
 
-		return new types.RelativePattern(pattern.baseUri, pattern.pattern);
+		return new types.RelativePattern(URI.revive(pattern.baseUri), pattern.pattern);
 	}
 }
 

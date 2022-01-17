@@ -2418,7 +2418,7 @@ export class RelativePattern implements IRelativePattern {
 		return {
 			pattern: this.pattern,
 			base: this.base,
-			baseUri: this.baseUri
+			baseUri: this.baseUri.toJSON()
 		};
 	}
 }

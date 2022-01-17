@@ -388,7 +388,7 @@ export interface ILanguageConfigurationDto {
 export type GlobPattern = string | IRelativePattern;
 
 export interface IRelativePatternDto extends IRelativePattern {
-	baseUri: URI;
+	baseUri: UriComponents;
 }
 
 export interface IDocumentFilterDto {

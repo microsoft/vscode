@@ -588,7 +588,7 @@ function parseSearchInclude(include: string | IRelativePatternDto | undefined | 
 			includePattern = include;
 		} else {
 			includePattern = include.pattern;
-			includeFolder = include.baseUri;
+			includeFolder = URI.revive(include.baseUri);
 		}
 	}
 
