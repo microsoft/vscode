@@ -181,7 +181,7 @@ export class OverviewZoneManager {
 		const heightRatio = totalHeight / outerHeight;
 		const halfMinimumHeight = Math.floor(Constants.MINIMUM_HEIGHT * this._pixelRatio / 2);
 
-		let allColorZones: ColorZone[] = [];
+		const allColorZones: ColorZone[] = [];
 		for (let i = 0, len = this._zones.length; i < len; i++) {
 			const zone = this._zones[i];
 

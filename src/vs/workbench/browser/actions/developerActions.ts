@@ -353,7 +353,7 @@ configurationRegistry.registerConfiguration({
 				localize('keyboardShortcutsFormat.commandAndKeys', "Command title and keys."),
 				localize('keyboardShortcutsFormat.commandWithGroupAndKeys', "Command title and keys, with the command prefixed by its group.")
 			],
-			description: localize('screencastMode.keyboardShortcutsFormat', "Controls what is displayed in the keyboard overlay when showing only shortcuts."),
+			description: localize('screencastMode.keyboardShortcutsFormat', "Controls what is displayed in the keyboard overlay when showing shortcuts."),
 			default: 'commandAndKeys'
 		},
 		'screencastMode.onlyKeyboardShortcuts': {

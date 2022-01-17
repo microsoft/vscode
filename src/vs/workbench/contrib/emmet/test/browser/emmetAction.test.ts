@@ -7,7 +7,7 @@ import { IGrammarContributions, EmmetEditorAction } from 'vs/workbench/contrib/e
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 
 class MockGrammarContributions implements IGrammarContributions {
 	private scopeName: string;

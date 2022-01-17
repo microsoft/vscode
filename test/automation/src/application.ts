@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
 import { Workbench } from './workbench';
-import { Code, spawn, SpawnOptions } from './code';
+import { Code, launch, LaunchOptions } from './code';
 import { Logger } from './logger';
 
 export const enum Quality {
@@ -15,16 +13,19 @@ export const enum Quality {
 	Stable
 }
 
-export interface ApplicationOptions extends SpawnOptions {
+export interface ApplicationOptions extends LaunchOptions {
 	quality: Quality;
 	workspacePath: string;
 	waitTime: number;
-	screenshotsPath: string | null;
 }
 
 export class Application {
 
+	private static INSTANCES = 0;
+
 	constructor(private options: ApplicationOptions) {
+		Application.INSTANCES++;
+
 		this._userDataPath = options.userDataDir;
 		this._workspacePathOrFolder = options.workspacePath;
 	}
@@ -77,8 +78,22 @@ export class Application {
 
 	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<any> {
 		this._workspacePathOrFolder = workspaceOrFolder;
-		await this.startApplication(extraArgs);
-		await this.checkWindowReady();
+
+		// Launch Code...
+		const code = await this.startApplication(extraArgs);
+
+		// ...and make sure the window is ready to interact
+		const windowReady = this.checkWindowReady(code);
+
+		// Make sure to take a screenshot if waiting for window ready
+		// takes unusually long to help diagnose issues when Code does
+		// not seem to startup healthy.
+		const timeoutHandle = setTimeout(() => this.takeScreenshot(`checkWindowReady_instance_${Application.INSTANCES}`), 20000);
+		try {
+			await windowReady;
+		} finally {
+			clearTimeout(timeoutHandle);
+		}
 	}
 
 	async stop(): Promise<any> {
@@ -91,43 +106,57 @@ export class Application {
 		}
 	}
 
-	async captureScreenshot(name: string): Promise<void> {
-		if (this.options.screenshotsPath) {
-			const raw = await this.code.capturePage();
-			const buffer = Buffer.from(raw, 'base64');
-			const screenshotPath = path.join(this.options.screenshotsPath, `${name}.png`);
-			if (this.options.log) {
-				this.logger.log('*** Screenshot recorded:', screenshotPath);
-			}
-
-			fs.writeFileSync(screenshotPath, buffer);
-		}
+	async startTracing(name: string): Promise<void> {
+		await this._code?.startTracing(name);
 	}
 
-	private async startApplication(extraArgs: string[] = []): Promise<any> {
-		this._code = await spawn({
+	async stopTracing(name: string, persist: boolean): Promise<void> {
+		await this._code?.stopTracing(name, persist);
+	}
+
+	private async takeScreenshot(name: string): Promise<void> {
+		if (this.web) {
+			return; // supported only on desktop
+		}
+
+		// Desktop: call `stopTracing` to take a screenshot
+		return this._code?.stopTracing(name, true);
+	}
+
+	private async startApplication(extraArgs: string[] = []): Promise<Code> {
+		const code = this._code = await launch({
 			...this.options,
 			extraArgs: [...(this.options.extraArgs || []), ...extraArgs],
 		});
 
 		this._workbench = new Workbench(this._code, this.userDataPath);
+
+		return code;
 	}
 
-	private async checkWindowReady(): Promise<any> {
-		if (!this.code) {
-			console.error('No code instance found');
-			return;
+	private async checkWindowReady(code: Code): Promise<any> {
+		this.logger.log('checkWindowReady: begin');
+
+		await code.waitForWindowIds(ids => ids.length > 0);
+		await code.waitForElement('.monaco-workbench');
+
+		// Web or remote: wait for a remote connection state change
+		if (this.remote || this.web) {
+			await code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', undefined, s => {
+				this.logger.log(`checkWindowReady: remote indicator text is ${s}`);
+
+				// The absence of "Opening Remote" is not a strict
+				// indicator for a successful connection, but we
+				// want to avoid hanging here until timeout because
+				// this method is potentially called from a location
+				// that has no tracing enabled making it hard to
+				// diagnose this. As such, as soon as the connection
+				// state changes away from the "Opening Remote..." one
+				// we return.
+				return !s.includes('Opening Remote');
+			}, 300 /* = 30s of retry */);
 		}
 
-		await this.code.waitForWindowIds(ids => ids.length > 0);
-		await this.code.waitForElement('.monaco-workbench');
-
-		if (this.remote) {
-			await this.code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', ' TestResolver', undefined, 2000);
-		}
-
-		// wait a bit, since focus might be stolen off widgets
-		// as soon as they open (e.g. quick access)
-		await new Promise(c => setTimeout(c, 1000));
+		this.logger.log('checkWindowReady: end');
 	}
 }

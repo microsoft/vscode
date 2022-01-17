@@ -6,16 +6,16 @@
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown, MarkdownRenderOptions, MarkedOptions } from 'vs/base/browser/markdownRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ILanguageIdCodec, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { URI } from 'vs/base/common/uri';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	element: HTMLElement;
@@ -34,8 +34,8 @@ export interface IMarkdownRendererOptions {
 export class MarkdownRenderer {
 
 	private static _ttpTokenizer = window.trustedTypes?.createPolicy('tokenizeToString', {
-		createHTML(value: string, languageIdCodec: ILanguageIdCodec, tokenizer: ITokenizationSupport | undefined) {
-			return tokenizeToString(value, languageIdCodec, tokenizer);
+		createHTML(html: string) {
+			return html;
 		}
 	});
 
@@ -44,7 +44,7 @@ export class MarkdownRenderer {
 
 	constructor(
 		private readonly _options: IMarkdownRendererOptions,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
@@ -75,24 +75,23 @@ export class MarkdownRenderer {
 				// it is possible no alias is given in which case we fall back to the current editor lang
 				let languageId: string | undefined | null;
 				if (languageAlias) {
-					languageId = this._modeService.getModeIdForLanguageName(languageAlias);
+					languageId = this._languageService.getLanguageIdByLanguageName(languageAlias);
 				} else if (this._options.editor) {
 					languageId = this._options.editor.getModel()?.getLanguageId();
 				}
 				if (!languageId) {
-					languageId = 'plaintext';
+					languageId = PLAINTEXT_LANGUAGE_ID;
 				}
-				this._modeService.triggerMode(languageId);
-				const tokenization = await TokenizationRegistry.getPromise(languageId) ?? undefined;
+				const html = await tokenizeToString(this._languageService, value, languageId);
 
 				const element = document.createElement('span');
 
-				element.innerHTML = (MarkdownRenderer._ttpTokenizer?.createHTML(value, this._modeService.languageIdCodec, tokenization) ?? tokenizeToString(value, this._modeService.languageIdCodec, tokenization)) as string;
+				element.innerHTML = (MarkdownRenderer._ttpTokenizer?.createHTML(html) ?? html) as string;
 
 				// use "good" font
 				if (this._options.editor) {
 					const fontInfo = this._options.editor.getOption(EditorOption.fontInfo);
-					Configuration.applyFontInfoSlow(element, fontInfo);
+					applyFontInfo(element, fontInfo);
 				} else if (this._options.codeBlockFontFamily) {
 					element.style.fontFamily = this._options.codeBlockFontFamily;
 				}

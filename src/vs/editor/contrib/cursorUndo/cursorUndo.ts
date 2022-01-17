@@ -47,7 +47,7 @@ export class CursorUndoRedoController extends Disposable implements IEditorContr
 
 	public static readonly ID = 'editor.contrib.cursorUndoRedoController';
 
-	public static get(editor: ICodeEditor): CursorUndoRedoController {
+	public static get(editor: ICodeEditor): CursorUndoRedoController | null {
 		return editor.getContribution<CursorUndoRedoController>(CursorUndoRedoController.ID);
 	}
 
@@ -141,7 +141,7 @@ export class CursorUndo extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		CursorUndoRedoController.get(editor).cursorUndo();
+		CursorUndoRedoController.get(editor)?.cursorUndo();
 	}
 }
 
@@ -156,7 +156,7 @@ export class CursorRedo extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		CursorUndoRedoController.get(editor).cursorRedo();
+		CursorUndoRedoController.get(editor)?.cursorRedo();
 	}
 }
 

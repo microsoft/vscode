@@ -196,19 +196,17 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
 class SelectionTrait<T> extends Trait<T> {
 
-	constructor(private setAriaSelected: boolean) {
+	constructor() {
 		super('selected');
 	}
 
 	override renderIndex(index: number, container: HTMLElement): void {
 		super.renderIndex(index, container);
 
-		if (this.setAriaSelected) {
-			if (this.contains(index)) {
-				container.setAttribute('aria-selected', 'true');
-			} else {
-				container.setAttribute('aria-selected', 'false');
-			}
+		if (this.contains(index)) {
+			container.setAttribute('aria-selected', 'true');
+		} else {
+			container.setAttribute('aria-selected', 'false');
 		}
 	}
 }
@@ -1317,7 +1315,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		private _options: IListOptions<T> = DefaultOptions
 	) {
 		const role = this._options.accessibilityProvider && this._options.accessibilityProvider.getWidgetRole ? this._options.accessibilityProvider?.getWidgetRole() : 'list';
-		this.selection = new SelectionTrait(role !== 'listbox');
+		this.selection = new SelectionTrait();
 
 		mixin(_options, defaultStyles, false);
 

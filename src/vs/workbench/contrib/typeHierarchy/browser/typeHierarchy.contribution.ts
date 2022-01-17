@@ -38,7 +38,7 @@ function sanitizedDirection(candidate: string): TypeHierarchyDirection {
 class TypeHierarchyController implements IEditorContribution {
 	static readonly Id = 'typeHierarchy';
 
-	static get(editor: ICodeEditor): TypeHierarchyController {
+	static get(editor: ICodeEditor): TypeHierarchyController | null {
 		return editor.getContribution<TypeHierarchyController>(TypeHierarchyController.Id);
 	}
 
@@ -140,7 +140,7 @@ class TypeHierarchyController implements IEditorContribution {
 		const newModel = model.fork(typeItem.item);
 		this._sessionDisposables.clear();
 
-		TypeHierarchyController.get(newEditor)._showTypeHierarchyWidget(
+		TypeHierarchyController.get(newEditor)?._showTypeHierarchyWidget(
 			Range.lift(newModel.root.selectionRange).getStartPosition(),
 			this._widget.direction,
 			Promise.resolve(newModel),
@@ -191,7 +191,7 @@ registerAction2(class extends EditorAction2 {
 	}
 
 	async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		return TypeHierarchyController.get(editor).startTypeHierarchyFromEditor();
+		return TypeHierarchyController.get(editor)?.startTypeHierarchyFromEditor();
 	}
 });
 
@@ -217,7 +217,7 @@ registerAction2(class extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		return TypeHierarchyController.get(editor).showSupertypes();
+		return TypeHierarchyController.get(editor)?.showSupertypes();
 	}
 });
 
@@ -242,7 +242,7 @@ registerAction2(class extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		return TypeHierarchyController.get(editor).showSubtypes();
+		return TypeHierarchyController.get(editor)?.showSubtypes();
 	}
 });
 
@@ -261,7 +261,7 @@ registerAction2(class extends EditorAction2 {
 	}
 
 	async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		return TypeHierarchyController.get(editor).startTypeHierarchyFromTypeHierarchy();
+		return TypeHierarchyController.get(editor)?.startTypeHierarchyFromTypeHierarchy();
 	}
 });
 
@@ -288,6 +288,6 @@ registerAction2(class extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		return TypeHierarchyController.get(editor).endTypeHierarchy();
+		return TypeHierarchyController.get(editor)?.endTypeHierarchy();
 	}
 });

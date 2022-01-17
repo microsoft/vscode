@@ -9,12 +9,11 @@
 
 const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {any} */ (self));
 
-const VERSION = 2;
+const VERSION = 4;
 
 const resourceCacheName = `vscode-resource-cache-${VERSION}`;
 
 const rootPath = sw.location.pathname.replace(/\/service-worker.js$/, '');
-
 
 const searchParams = new URL(location.toString()).searchParams;
 
@@ -99,10 +98,15 @@ class RequestStore {
 }
 
 /**
+ * @typedef {{ readonly status: 200; id: number; path: string; mime: string; data: Uint8Array; etag: string | undefined; mtime: number | undefined; }
+ * 		| { readonly status: 304; id: number; path: string; mime: string; mtime: number | undefined }
+ *		| { readonly status: 401; id: number; path: string }
+ *		| { readonly status: 404; id: number; path: string }} ResourceResponse
+ */
+
+/**
  * Map of requested paths to responses.
- * @typedef {{ type: 'response', body: Uint8Array, mime: string, etag: string | undefined, mtime: number | undefined } |
- *           { type: 'not-modified', mime: string, mtime: number | undefined } |
- *           undefined} ResourceResponse
+ *
  * @type {RequestStore<ResourceResponse>}
  */
 const resourceRequestStore = new RequestStore();
@@ -113,6 +117,9 @@ const resourceRequestStore = new RequestStore();
  * @type {RequestStore<string | undefined>}
  */
 const localhostRequestStore = new RequestStore();
+
+const unauthorized = () =>
+	new Response('Unauthorized', { status: 401, });
 
 const notFound = () =>
 	new Response('Not Found', { status: 404, });
@@ -138,24 +145,9 @@ sw.addEventListener('message', async (event) => {
 		case 'did-load-resource':
 			{
 				/** @type {ResourceResponse} */
-				let response = undefined;
-
-				const data = event.data.data;
-				switch (data.status) {
-					case 200:
-						{
-							response = { type: 'response', body: data.data, mime: data.mime, etag: data.etag, mtime: data.mtime };
-							break;
-						}
-					case 304:
-						{
-							response = { type: 'not-modified', mime: data.mime, mtime: data.mtime };
-							break;
-						}
-				}
-
-				if (!resourceRequestStore.resolve(data.id, response)) {
-					console.log('Could not resolve unknown resource', data.path);
+				const response = event.data.data;
+				if (!resourceRequestStore.resolve(response.id, response)) {
+					console.log('Could not resolve unknown resource', response.path);
 				}
 				return;
 			}
@@ -167,9 +159,10 @@ sw.addEventListener('message', async (event) => {
 				}
 				return;
 			}
+		default:
+			console.log('Unknown message');
+			return;
 	}
-
-	console.log('Unknown message');
 });
 
 sw.addEventListener('fetch', (event) => {
@@ -222,12 +215,8 @@ async function processResourceRequest(event, requestUrl) {
 	 * @param {ResourceResponse} entry
 	 * @param {Response | undefined} cachedResponse
 	 */
-	async function resolveResourceEntry(entry, cachedResponse) {
-		if (!entry) {
-			return notFound();
-		}
-
-		if (entry.type === 'not-modified') {
+	const resolveResourceEntry = (entry, cachedResponse) => {
+		if (entry.status === 304) { // Not modified
 			if (cachedResponse) {
 				return cachedResponse.clone();
 			} else {
@@ -235,10 +224,18 @@ async function processResourceRequest(event, requestUrl) {
 			}
 		}
 
+		if (entry.status === 401) {
+			return unauthorized();
+		}
+
+		if (entry.status !== 200) {
+			return notFound();
+		}
+
 		/** @type {Record<string, string>} */
 		const headers = {
 			'Content-Type': entry.mime,
-			'Content-Length': entry.body.byteLength.toString(),
+			'Content-Length': entry.data.byteLength.toString(),
 			'Access-Control-Allow-Origin': '*',
 		};
 		if (entry.etag) {
@@ -248,7 +245,7 @@ async function processResourceRequest(event, requestUrl) {
 		if (entry.mtime) {
 			headers['Last-Modified'] = new Date(entry.mtime).toUTCString();
 		}
-		const response = new Response(entry.body, {
+		const response = new Response(entry.data, {
 			status: 200,
 			headers
 		});
@@ -259,7 +256,7 @@ async function processResourceRequest(event, requestUrl) {
 			});
 		}
 		return response.clone();
-	}
+	};
 
 	const parentClients = await getOuterIframeClient(webviewId);
 	if (!parentClients.length) {

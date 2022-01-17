@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { QuickInput } from '.';
+import { QuickInput } from './quickinput';
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
 
 export enum Selector {
 	TerminalView = `#terminal`,
 	Xterm = `#terminal .terminal-wrapper`,
+	XtermEditor = `.editor-instance .terminal-wrapper`,
 	TabsEntry = '.terminal-tabs-entry',
 	XtermFocused = '.terminal.xterm.focus',
 	PlusButton = '.codicon-plus',
@@ -17,25 +18,32 @@ export enum Selector {
 	EditorTab = '.terminal-tab',
 	SingleTab = '.single-terminal-tab',
 	Tabs = '.tabs-list .monaco-list-row',
-	SplitButton = '.editor .codicon-split-horizontal'
+	SplitButton = '.editor .codicon-split-horizontal',
+	XtermSplitIndex0 = '#terminal .terminal-groups-container .split-view-view:nth-child(1) .terminal-wrapper',
+	XtermSplitIndex1 = '#terminal .terminal-groups-container .split-view-view:nth-child(2) .terminal-wrapper'
 }
 
+/**
+ * Terminal commands that accept a value in a quick input.
+ */
 export enum TerminalCommandIdWithValue {
 	Rename = 'workbench.action.terminal.rename',
 	ChangeColor = 'workbench.action.terminal.changeColor',
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
 	NewWithProfile = 'workbench.action.terminal.newWithProfile',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
-	AttachToSession = 'workbench.action.terminal.attachToSession',
+	AttachToSession = 'workbench.action.terminal.attachToSession'
 }
 
+/**
+ * Terminal commands that do not present a quick input.
+ */
 export enum TerminalCommandId {
 	Split = 'workbench.action.terminal.split',
 	KillAll = 'workbench.action.terminal.killAll',
 	Unsplit = 'workbench.action.terminal.unsplit',
 	Join = 'workbench.action.terminal.join',
 	Show = 'workbench.action.terminal.toggleTerminal',
-	CreateNew = 'workbench.action.terminal.new',
 	CreateNewEditor = 'workbench.action.createTerminalEditor',
 	SplitEditor = 'workbench.action.createTerminalEditorSide',
 	MoveToPanel = 'workbench.action.terminal.moveToTerminalPanel',
@@ -43,6 +51,7 @@ export enum TerminalCommandId {
 	NewWithProfile = 'workbench.action.terminal.newWithProfile',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
 	DetachSession = 'workbench.action.terminal.detachSession',
+	CreateNew = 'workbench.action.terminal.new'
 }
 interface TerminalLabel {
 	name?: string,
@@ -56,19 +65,27 @@ export class Terminal {
 	constructor(private code: Code, private quickaccess: QuickAccess, private quickinput: QuickInput) { }
 
 	async runCommand(commandId: TerminalCommandId): Promise<void> {
-		await this.quickaccess.runCommand(commandId, commandId === TerminalCommandId.Join);
-		if (commandId === TerminalCommandId.Show || commandId === TerminalCommandId.CreateNew) {
-			return await this._waitForTerminal();
+		const keepOpen = commandId === TerminalCommandId.Join;
+		await this.quickaccess.runCommand(commandId, keepOpen);
+		if (keepOpen) {
+			await this.code.dispatchKeybinding('enter');
+			await this.quickinput.waitForQuickInputClosed();
 		}
-		await this.code.dispatchKeybinding('enter');
-		await this.quickinput.waitForQuickInputClosed();
+		if (commandId === TerminalCommandId.Show) {
+			return await this._waitForTerminal(undefined);
+		}
 	}
 
 	async runCommandWithValue(commandId: TerminalCommandIdWithValue, value?: string, altKey?: boolean): Promise<void> {
 		const shouldKeepOpen = !!value || commandId === TerminalCommandIdWithValue.NewWithProfile || commandId === TerminalCommandIdWithValue.Rename || (commandId === TerminalCommandIdWithValue.SelectDefaultProfile && value !== 'PowerShell');
 		await this.quickaccess.runCommand(commandId, shouldKeepOpen);
+		// Running the command should hide the quick input in the following frame, this next wait
+		// ensures that the quick input is opened again before proceeding to avoid a race condition
+		// where the enter keybinding below would close the quick input if it's triggered before the
+		// new quick input shows.
+		await this.quickinput.waitForQuickInputOpened();
 		if (value) {
-			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
+			await this.quickinput.type(value);
 		} else if (commandId === TerminalCommandIdWithValue.Rename) {
 			// Reset
 			await this.code.dispatchKeybinding('Backspace');
@@ -77,9 +94,20 @@ export class Terminal {
 		await this.quickinput.waitForQuickInputClosed();
 	}
 
-	async runCommandInTerminal(commandText: string): Promise<void> {
+	async runCommandInTerminal(commandText: string, skipEnter?: boolean): Promise<void> {
 		await this.code.writeInTerminal(Selector.Xterm, commandText);
-		await this.code.dispatchKeybinding('enter');
+		if (!skipEnter) {
+			await this.code.dispatchKeybinding('enter');
+		}
+	}
+
+	/**
+	 * Creates a terminal using the new terminal command.
+	 * @param location The location to check the terminal for, defaults to panel.
+	 */
+	async createTerminal(location?: 'editor' | 'panel'): Promise<void> {
+		await this.runCommand(TerminalCommandId.CreateNew);
+		await this._waitForTerminal(location);
 	}
 
 	async assertEditorGroupCount(count: number): Promise<void> {
@@ -174,9 +202,13 @@ export class Terminal {
 		await this.code.waitAndClick(Selector.SingleTab);
 	}
 
-	async waitForTerminalText(accept: (buffer: string[]) => boolean, message?: string): Promise<void> {
+	async waitForTerminalText(accept: (buffer: string[]) => boolean, message?: string, splitIndex?: 0 | 1): Promise<void> {
 		try {
-			await this.code.waitForTerminalBuffer(Selector.Xterm, accept);
+			let selector: string = Selector.Xterm;
+			if (splitIndex !== undefined) {
+				selector = splitIndex === 0 ? Selector.XtermSplitIndex0 : Selector.XtermSplitIndex1;
+			}
+			await this.code.waitForTerminalBuffer(selector, accept);
 		} catch (err: any) {
 			if (message) {
 				throw new Error(`${message} \n\nInner exception: \n${err.message} `);
@@ -189,8 +221,12 @@ export class Terminal {
 		return (this.code.driver as any).page;
 	}
 
-	private async _waitForTerminal(): Promise<void> {
+	/**
+	 * Waits for the terminal to be focused and to contain content.
+	 * @param location The location to check the terminal for, defaults to panel.
+	 */
+	private async _waitForTerminal(location?: 'editor' | 'panel'): Promise<void> {
 		await this.code.waitForElement(Selector.XtermFocused);
-		await this.code.waitForTerminalBuffer(Selector.Xterm, lines => lines.some(line => line.length > 0));
+		await this.code.waitForTerminalBuffer(location === 'editor' ? Selector.XtermEditor : Selector.Xterm, lines => lines.some(line => line.length > 0));
 	}
 }

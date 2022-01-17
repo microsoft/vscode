@@ -39,8 +39,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	closeEmptyGroups: true,
 	labelFormat: 'default',
 	splitSizing: 'distribute',
-	splitOnDragAndDrop: true,
-	experimentalDisableClearInputOnSetInput: false //TODO@bpasero remove this setting in December
+	splitOnDragAndDrop: true
 };
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {

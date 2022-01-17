@@ -682,7 +682,7 @@ class MessageBuffer {
 				case ArgType.VSBuffer:
 					arr[i] = this.readVSBuffer();
 					break;
-				case ArgType.SerializedObjectWithBuffers:
+				case ArgType.SerializedObjectWithBuffers: {
 					const bufferCount = this.readUInt32();
 					const jsonString = this.readLongString();
 					const buffers: VSBuffer[] = [];
@@ -691,6 +691,7 @@ class MessageBuffer {
 					}
 					arr[i] = new SerializableObjectWithBuffers(parseJsonAndRestoreBufferRefs(jsonString, buffers, null));
 					break;
+				}
 				case ArgType.Undefined:
 					arr[i] = undefined;
 					break;

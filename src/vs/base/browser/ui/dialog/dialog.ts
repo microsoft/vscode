@@ -37,6 +37,7 @@ export interface IDialogOptions {
 	readonly icon?: Codicon;
 	readonly buttonDetails?: string[];
 	readonly disableCloseAction?: boolean;
+	readonly disableDefaultAction?: boolean;
 }
 
 export interface IDialogResult {
@@ -91,7 +92,13 @@ export class Dialog extends Disposable {
 		this.element.tabIndex = -1;
 		hide(this.element);
 
-		this.buttons = Array.isArray(buttons) && buttons.length ? buttons : [nls.localize('ok', "OK")]; // If no button is provided, default to OK
+		if (Array.isArray(buttons) && buttons.length > 0) {
+			this.buttons = buttons;
+		} else if (!this.options.disableDefaultAction) {
+			this.buttons = [nls.localize('ok', "OK")];
+		} else {
+			this.buttons = [];
+		}
 		const buttonsRowElement = this.element.appendChild($('.dialog-buttons-row'));
 		this.buttonsContainer = buttonsRowElement.appendChild($('.dialog-buttons'));
 
@@ -483,6 +490,9 @@ export class Dialog extends Disposable {
 
 	private rearrangeButtons(buttons: Array<string>, cancelId: number | undefined): ButtonMapEntry[] {
 		const buttonMap: ButtonMapEntry[] = [];
+		if (buttons.length === 0) {
+			return buttonMap;
+		}
 
 		// Maps each button to its current label and old index so that when we move them around it's not a problem
 		buttons.forEach((button, index) => {

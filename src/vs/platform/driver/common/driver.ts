@@ -41,6 +41,8 @@ export interface IDriver {
 
 	getWindowIds(): Promise<number[]>;
 	capturePage(windowId: number): Promise<string>;
+	startTracing(windowId: number, name: string): Promise<void>;
+	stopTracing(windowId: number, name: string, persist: boolean): Promise<void>;
 	reloadWindow(windowId: number): Promise<void>;
 	exitApplication(): Promise<boolean>;
 	dispatchKeybinding(windowId: number, keybinding: string): Promise<void>;

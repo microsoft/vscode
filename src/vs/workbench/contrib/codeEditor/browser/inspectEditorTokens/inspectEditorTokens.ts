@@ -16,22 +16,22 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { FontStyle, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens, ColorId, DocumentRangeSemanticTokensProviderRegistry } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { FontStyle, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens, ColorId, DocumentRangeSemanticTokensProviderRegistry } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
-import { ITextMateService, IGrammar, IToken, StackElement } from 'vs/workbench/services/textMate/common/textMateService';
+import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
+import type { IGrammar, IToken, StackElement } from 'vscode-textmate';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition, TextMateThemingRuleDefinitions } from 'vs/workbench/services/themes/common/colorThemeData';
 import { SemanticTokenRule, TokenStyleData, TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/common/services/modelServiceImpl';
+import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/common/services/modelService';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { Schemas } from 'vs/base/common/network';
-import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 
 const $ = dom.$;
 
@@ -39,14 +39,14 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 
 	public static readonly ID = 'editor.contrib.inspectEditorTokens';
 
-	public static get(editor: ICodeEditor): InspectEditorTokensController {
+	public static get(editor: ICodeEditor): InspectEditorTokensController | null {
 		return editor.getContribution<InspectEditorTokensController>(InspectEditorTokensController.ID);
 	}
 
 	private _editor: ICodeEditor;
 	private _textMateService: ITextMateService;
 	private _themeService: IWorkbenchThemeService;
-	private _modeService: IModeService;
+	private _languageService: ILanguageService;
 	private _notificationService: INotificationService;
 	private _configurationService: IConfigurationService;
 	private _widget: InspectEditorTokensWidget | null;
@@ -54,7 +54,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 	constructor(
 		editor: ICodeEditor,
 		@ITextMateService textMateService: ITextMateService,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IConfigurationService configurationService: IConfigurationService
@@ -63,7 +63,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 		this._editor = editor;
 		this._textMateService = textMateService;
 		this._themeService = themeService;
-		this._modeService = modeService;
+		this._languageService = languageService;
 		this._notificationService = notificationService;
 		this._configurationService = configurationService;
 		this._widget = null;
@@ -89,7 +89,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 			// disable in notebooks
 			return;
 		}
-		this._widget = new InspectEditorTokensWidget(this._editor, this._textMateService, this._modeService, this._themeService, this._notificationService, this._configurationService);
+		this._widget = new InspectEditorTokensWidget(this._editor, this._textMateService, this._languageService, this._themeService, this._notificationService, this._configurationService);
 	}
 
 	public stop(): void {
@@ -141,13 +141,14 @@ interface ISemanticTokenInfo {
 }
 
 interface IDecodedMetadata {
-	languageId: string;
+	languageId: string | undefined;
 	tokenType: StandardTokenType;
-	bold?: boolean;
-	italic?: boolean;
-	underline?: boolean;
-	foreground?: string;
-	background?: string;
+	bold: boolean | undefined;
+	italic: boolean | undefined;
+	underline: boolean | undefined;
+	strikethrough: boolean | undefined;
+	foreground: string | undefined;
+	background: string | undefined;
 }
 
 function renderTokenText(tokenText: string): string {
@@ -184,7 +185,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 	private _isDisposed: boolean;
 	private readonly _editor: IActiveCodeEditor;
-	private readonly _modeService: IModeService;
+	private readonly _languageService: ILanguageService;
 	private readonly _themeService: IWorkbenchThemeService;
 	private readonly _textMateService: ITextMateService;
 	private readonly _notificationService: INotificationService;
@@ -196,7 +197,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	constructor(
 		editor: IActiveCodeEditor,
 		textMateService: ITextMateService,
-		modeService: IModeService,
+		languageService: ILanguageService,
 		themeService: IWorkbenchThemeService,
 		notificationService: INotificationService,
 		configurationService: IConfigurationService
@@ -204,7 +205,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		super();
 		this._isDisposed = false;
 		this._editor = editor;
-		this._modeService = modeService;
+		this._languageService = languageService;
 		this._themeService = themeService;
 		this._textMateService = textMateService;
 		this._notificationService = notificationService;
@@ -249,7 +250,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			this._notificationService.warn(err);
 
 			setTimeout(() => {
-				InspectEditorTokensController.get(this._editor).stop();
+				InspectEditorTokensController.get(this._editor)?.stop();
 			});
 		});
 
@@ -314,7 +315,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				));
 			}
 			if (semanticTokenInfo.metadata) {
-				const properties: (keyof TokenStyleData)[] = ['foreground', 'bold', 'italic', 'underline'];
+				const properties: (keyof TokenStyleData)[] = ['foreground', 'bold', 'italic', 'underline', 'strikethrough'];
 				const propertiesByDefValue: { [rule: string]: string[] } = {};
 				const allDefValues = new Array<[Array<HTMLElement | string>, string]>(); // remember the order
 				// first collect to detect when the same rule is used for multiple properties
@@ -421,7 +422,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 		const fontStyleLabels = new Array<HTMLElement | string>();
 
-		function addStyle(key: 'bold' | 'italic' | 'underline') {
+		function addStyle(key: 'bold' | 'italic' | 'underline' | 'strikethrough') {
 			let label: HTMLElement | string | undefined;
 			if (semantic && semantic[key]) {
 				label = $('span.tiw-metadata-semantic', undefined, key);
@@ -438,6 +439,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		addStyle('bold');
 		addStyle('italic');
 		addStyle('underline');
+		addStyle('strikethrough');
 		if (fontStyleLabels.length) {
 			elements.push($('tr', undefined,
 				$('td.tiw-metadata-key', undefined, 'font style' as string),
@@ -455,11 +457,12 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		let foreground = TokenMetadata.getForeground(metadata);
 		let background = TokenMetadata.getBackground(metadata);
 		return {
-			languageId: this._modeService.languageIdCodec.decodeLanguageId(languageId),
+			languageId: this._languageService.languageIdCodec.decodeLanguageId(languageId),
 			tokenType: tokenType,
 			bold: (fontStyle & FontStyle.Bold) ? true : undefined,
 			italic: (fontStyle & FontStyle.Italic) ? true : undefined,
 			underline: (fontStyle & FontStyle.Underline) ? true : undefined,
+			strikethrough: (fontStyle & FontStyle.Strikethrough) ? true : undefined,
 			foreground: colorMap[foreground],
 			background: colorMap[background]
 		};
@@ -578,12 +581,14 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				let metadata: IDecodedMetadata | undefined = undefined;
 				if (tokenStyle) {
 					metadata = {
-						languageId: NULL_MODE_ID,
+						languageId: undefined,
 						tokenType: StandardTokenType.Other,
 						bold: tokenStyle?.bold,
 						italic: tokenStyle?.italic,
 						underline: tokenStyle?.underline,
-						foreground: colorMap[tokenStyle?.foreground || ColorId.None]
+						strikethrough: tokenStyle?.strikethrough,
+						foreground: colorMap[tokenStyle?.foreground || ColorId.None],
+						background: undefined
 					};
 				}
 

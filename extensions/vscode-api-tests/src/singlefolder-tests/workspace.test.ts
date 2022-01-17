@@ -981,7 +981,7 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(document.getText(), expected);
 	});
 
-	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
+	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867, 1/3', async function () {
 
 		const file1 = await createRandomFile();
 		const file2 = await createRandomFile();
@@ -1008,7 +1008,7 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(e.files[1].oldUri.toString(), file2.toString());
 	});
 
-	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
+	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867, 2/3', async function () {
 
 		const event = new Promise<vscode.FileWillCreateEvent>(resolve => {
 			let sub = vscode.workspace.onWillCreateFiles(e => {
@@ -1032,7 +1032,7 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(e.files[1].toString(), file2.toString());
 	});
 
-	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
+	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867, 3/3', async function () {
 
 		const file1 = await createRandomFile();
 		const file2 = await createRandomFile();

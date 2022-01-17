@@ -181,9 +181,9 @@ steps:
 
   - script: |
       set -e
-      yarn test-browser --build --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
-    displayName: Run unit tests (Browser)
-    timeoutInMinutes: 7
+      DEBUG=*browser* yarn test-browser --sequential --build --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
+    displayName: Run unit tests (Browser, Chromium & Firefox & Webkit)
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -204,7 +204,7 @@ steps:
       set -e
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
       ./resources/server/test/test-web-integration.sh --browser webkit
-    displayName: Run integration tests (Browser)
+    displayName: Run integration tests (Browser, Webkit)
     timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -221,9 +221,17 @@ steps:
 
   - script: |
       set -e
+      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
+      yarn smoketest-no-compile --web --headless
+    timeoutInMinutes: 10
+    displayName: Run smoke tests (Browser, Chromium)
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - script: |
+      set -e
       APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
       APP_NAME="`ls $APP_ROOT | head -n 1`"
-      yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME" --screenshots $(Build.SourcesDirectory)/.build/logs/smoke-tests
+      yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME"
     timeoutInMinutes: 10
     displayName: Run smoke tests (Electron)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
@@ -233,17 +241,9 @@ steps:
       APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
-      yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME" --remote --screenshots $(Build.SourcesDirectory)/.build/logs/smoke-tests-remote
+      yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME" --remote
     timeoutInMinutes: 10
     displayName: Run smoke tests (Remote)
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-  - script: |
-      set -e
-      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
-      yarn smoketest-no-compile --web --headless
-    timeoutInMinutes: 10
-    displayName: Run smoke tests (Browser)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - task: PublishPipelineArtifact@0

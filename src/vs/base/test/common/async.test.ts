@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as async from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 
@@ -21,7 +21,7 @@ suite('Async', () => {
 			});
 			let result = promise.then(_ => assert.ok(false), err => {
 				assert.strictEqual(canceled, 1);
-				assert.ok(isPromiseCanceledError(err));
+				assert.ok(isCancellationError(err));
 			});
 			promise.cancel();
 			promise.cancel(); // cancel only once
@@ -36,7 +36,7 @@ suite('Async', () => {
 			});
 			let result = promise.then(_ => assert.ok(false), err => {
 				assert.strictEqual(canceled, 1);
-				assert.ok(isPromiseCanceledError(err));
+				assert.ok(isCancellationError(err));
 			});
 			promise.cancel();
 			return result;
@@ -181,6 +181,31 @@ suite('Async', () => {
 			});
 		});
 
+		test('microtask delay simple', () => {
+			let count = 0;
+			let factory = () => {
+				return Promise.resolve(++count);
+			};
+
+			let delayer = new async.Delayer(async.MicrotaskDelay);
+			let promises: Promise<any>[] = [];
+
+			assert(!delayer.isTriggered());
+
+			promises.push(delayer.trigger(factory).then((result) => { assert.strictEqual(result, 1); assert(!delayer.isTriggered()); }));
+			assert(delayer.isTriggered());
+
+			promises.push(delayer.trigger(factory).then((result) => { assert.strictEqual(result, 1); assert(!delayer.isTriggered()); }));
+			assert(delayer.isTriggered());
+
+			promises.push(delayer.trigger(factory).then((result) => { assert.strictEqual(result, 1); assert(!delayer.isTriggered()); }));
+			assert(delayer.isTriggered());
+
+			return Promise.all(promises).then(() => {
+				assert(!delayer.isTriggered());
+			});
+		});
+
 		suite('ThrottledDelayer', () => {
 			test('promise should resolve if disposed', async () => {
 				const throttledDelayer = new async.ThrottledDelayer<void>(100);
@@ -203,6 +228,29 @@ suite('Async', () => {
 			};
 
 			let delayer = new async.Delayer(0);
+
+			assert(!delayer.isTriggered());
+
+			const p = delayer.trigger(factory).then(() => {
+				assert(false);
+			}, () => {
+				assert(true, 'yes, it was cancelled');
+			});
+
+			assert(delayer.isTriggered());
+			delayer.cancel();
+			assert(!delayer.isTriggered());
+
+			return p;
+		});
+
+		test('simple cancel microtask', function () {
+			let count = 0;
+			let factory = () => {
+				return Promise.resolve(++count);
+			};
+
+			let delayer = new async.Delayer(async.MicrotaskDelay);
 
 			assert(!delayer.isTriggered());
 
@@ -511,11 +559,11 @@ suite('Async', () => {
 			});
 		});
 
-		test('events', function () {
+		test('events', async function () {
 			let queue = new async.Queue();
 
 			let finished = false;
-			const onFinished = Event.toPromise(queue.onFinished);
+			const onFinished = Event.toPromise(queue.onFinished).then(() => finished = true);
 
 			let res: number[] = [];
 
@@ -534,32 +582,55 @@ suite('Async', () => {
 				});
 			});
 
-			return onFinished;
+			await onFinished;
+			assert.ok(finished);
 		});
 	});
 
 	suite('ResourceQueue', () => {
-		test('simple', function () {
+		test('simple', async function () {
 			let queue = new async.ResourceQueue();
+
+			await queue.whenDrained(); // returns immediately since empty
 
 			const r1Queue = queue.queueFor(URI.file('/some/path'));
 
-			r1Queue.onFinished(() => console.log('DONE'));
+			await queue.whenDrained(); // returns immediately since empty
 
 			const r2Queue = queue.queueFor(URI.file('/some/other/path'));
+
+			await queue.whenDrained(); // returns immediately since empty
 
 			assert.ok(r1Queue);
 			assert.ok(r2Queue);
 			assert.strictEqual(r1Queue, queue.queueFor(URI.file('/some/path'))); // same queue returned
 
-			let syncPromiseFactory = () => Promise.resolve(undefined);
+			// schedule some work
+			const w1 = new async.DeferredPromise<void>();
+			r1Queue.queue(() => w1.p);
 
-			r1Queue.queue(syncPromiseFactory);
+			let drained = false;
+			queue.whenDrained().then(() => drained = true);
+			assert.strictEqual(drained, false);
+			await w1.complete();
+			await async.timeout(0);
+			assert.strictEqual(drained, true);
 
-			return new Promise<void>(c => setTimeout(() => c(), 0)).then(() => {
-				const r1Queue2 = queue.queueFor(URI.file('/some/path'));
-				assert.notStrictEqual(r1Queue, r1Queue2); // previous one got disposed after finishing
-			});
+			const r1Queue2 = queue.queueFor(URI.file('/some/path'));
+			assert.notStrictEqual(r1Queue, r1Queue2); // previous one got disposed after finishing
+
+			// schedule some work
+			const w2 = new async.DeferredPromise<void>();
+			const w3 = new async.DeferredPromise<void>();
+			r1Queue.queue(() => w2.p);
+			r2Queue.queue(() => w3.p);
+
+			drained = false;
+			queue.whenDrained().then(() => drained = true);
+
+			queue.dispose();
+			await async.timeout(0);
+			assert.strictEqual(drained, true);
 		});
 	});
 
@@ -997,7 +1068,11 @@ suite('Async', () => {
 				}
 			};
 
-			const worker = new async.ThrottledWorker<number>(5, undefined, 1, handler);
+			const worker = new async.ThrottledWorker<number>({
+				maxWorkChunkSize: 5,
+				maxBufferedWork: undefined,
+				throttleDelay: 1
+			}, handler);
 
 			// Work less than chunk size
 
@@ -1105,7 +1180,11 @@ suite('Async', () => {
 			let handled: number[] = [];
 			const handler = (units: readonly number[]) => handled.push(...units);
 
-			const worker = new async.ThrottledWorker<number>(5, 5, 1, handler);
+			const worker = new async.ThrottledWorker<number>({
+				maxWorkChunkSize: 5,
+				maxBufferedWork: 5,
+				throttleDelay: 1
+			}, handler);
 
 			let worked = worker.work([1, 2, 3]);
 			assert.strictEqual(worked, true);
@@ -1127,7 +1206,11 @@ suite('Async', () => {
 			let handled: number[] = [];
 			const handler = (units: readonly number[]) => handled.push(...units);
 
-			const worker = new async.ThrottledWorker<number>(5, 5, 1, handler);
+			const worker = new async.ThrottledWorker<number>({
+				maxWorkChunkSize: 5,
+				maxBufferedWork: 5,
+				throttleDelay: 1
+			}, handler);
 
 			let worked = worker.work([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 			assert.strictEqual(worked, false);
@@ -1142,7 +1225,11 @@ suite('Async', () => {
 			let handled: number[] = [];
 			const handler = (units: readonly number[]) => handled.push(...units);
 
-			const worker = new async.ThrottledWorker<number>(5, undefined, 1, handler);
+			const worker = new async.ThrottledWorker<number>({
+				maxWorkChunkSize: 5,
+				maxBufferedWork: undefined,
+				throttleDelay: 1
+			}, handler);
 			worker.dispose();
 			const worked = worker.work([1, 2, 3]);
 

@@ -211,7 +211,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 export class OpenWorkspaceButtonContribution extends Disposable implements IEditorContribution {
 
-	static get(editor: ICodeEditor): OpenWorkspaceButtonContribution {
+	static get(editor: ICodeEditor): OpenWorkspaceButtonContribution | null {
 		return editor.getContribution<OpenWorkspaceButtonContribution>(OpenWorkspaceButtonContribution.ID);
 	}
 

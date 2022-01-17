@@ -112,6 +112,10 @@ export class Snippet {
 			return -1;
 		} else if (a.snippetSource > b.snippetSource) {
 			return 1;
+		} else if (a.source < b.source) {
+			return -1;
+		} else if (a.source > b.source) {
+			return 1;
 		} else if (a.name > b.name) {
 			return 1;
 		} else if (a.name < b.name) {

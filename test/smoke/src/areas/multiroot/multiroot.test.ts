@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import minimist = require('minimist');
-import * as path from 'path';
-import { Application } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+import { writeFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { Application, Logger } from '../../../../automation';
+import { installAllHandlers } from '../../utils';
 
 function toUri(path: string): string {
 	if (process.platform === 'win32') {
@@ -18,12 +17,12 @@ function toUri(path: string): string {
 }
 
 function createWorkspaceFile(workspacePath: string): string {
-	const workspaceFilePath = path.join(path.dirname(workspacePath), 'smoketest.code-workspace');
+	const workspaceFilePath = join(dirname(workspacePath), 'smoketest.code-workspace');
 	const workspace = {
 		folders: [
-			{ path: toUri(path.join(workspacePath, 'public')) },
-			{ path: toUri(path.join(workspacePath, 'routes')) },
-			{ path: toUri(path.join(workspacePath, 'views')) }
+			{ path: toUri(join(workspacePath, 'public')) },
+			{ path: toUri(join(workspacePath, 'routes')) },
+			{ path: toUri(join(workspacePath, 'views')) }
 		],
 		settings: {
 			'workbench.startupEditor': 'none',
@@ -31,30 +30,39 @@ function createWorkspaceFile(workspacePath: string): string {
 		}
 	};
 
-	fs.writeFileSync(workspaceFilePath, JSON.stringify(workspace, null, '\t'));
+	writeFileSync(workspaceFilePath, JSON.stringify(workspace, null, '\t'));
 
 	return workspaceFilePath;
 }
 
-export function setup(opts: minimist.ParsedArgs) {
+export function setup(logger: Logger) {
 	describe('Multiroot', () => {
-		beforeSuite(opts, async opts => {
+
+		// Shared before/after handling
+		installAllHandlers(logger, opts => {
 			const workspacePath = createWorkspaceFile(opts.workspacePath);
 			return { ...opts, workspacePath };
 		});
 
-		afterSuite(opts);
-
 		it('shows results from all folders', async function () {
 			const app = this.app as Application;
-			await app.workbench.quickaccess.openQuickAccess('*.*');
+			const expectedNames = [
+				'index.js',
+				'users.js',
+				'style.css',
+				'error.pug',
+				'index.pug',
+				'layout.pug'
+			];
 
-			await app.workbench.quickinput.waitForQuickInputElements(names => names.length === 6);
+			await app.workbench.quickaccess.openFileQuickAccessAndWait('*.*', 6);
+			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(expectedName => names.some(name => expectedName === name)));
 			await app.workbench.quickinput.closeQuickInput();
 		});
 
 		it('shows workspace name in title', async function () {
 			const app = this.app as Application;
+
 			await app.code.waitForTitle(title => /smoketest \(Workspace\)/i.test(title));
 		});
 	});

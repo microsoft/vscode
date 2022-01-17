@@ -69,11 +69,12 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 		}
 
 		switch (item.kind) {
-			case PConst.Kind.function:
+			case PConst.Kind.function: {
 				const showOnAllFunctions = vscode.workspace.getConfiguration(this.modeId).get<boolean>('referencesCodeLens.showOnAllFunctions');
 				if (showOnAllFunctions) {
 					return getSymbolRange(document, item);
 				}
+			}
 			// fallthrough
 
 			case PConst.Kind.const:

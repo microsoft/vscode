@@ -86,12 +86,13 @@ export class LinkDetector {
 					case 'web':
 						container.appendChild(this.createWebLink(part.value));
 						break;
-					case 'path':
+					case 'path': {
 						const path = part.captures[0];
 						const lineNumber = part.captures[1] ? Number(part.captures[1]) : 0;
 						const columnNumber = part.captures[2] ? Number(part.captures[2]) : 0;
 						container.appendChild(this.createPathLink(part.value, path, lineNumber, columnNumber, workspaceFolder));
 						break;
+					}
 				}
 			} catch (e) {
 				container.appendChild(document.createTextNode(part.value));

@@ -117,6 +117,6 @@ export class TableOfContentsProvider {
 	}
 
 	private static getHeaderText(header: string): string {
-		return header.replace(/^\s*#+\s*(.*?)\s*#*$/, (_, word) => word.trim());
+		return header.replace(/^\s*#+\s*(.*?)(\s+#+)?$/, (_, word) => word.trim());
 	}
 }

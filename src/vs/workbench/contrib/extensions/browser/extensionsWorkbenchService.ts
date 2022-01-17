@@ -8,7 +8,7 @@ import * as semver from 'vs/base/common/semver/semver';
 import { Event, Emitter } from 'vs/base/common/event';
 import { index, distinct } from 'vs/base/common/arrays';
 import { Promises, ThrottledDelayer } from 'vs/base/common/async';
-import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
+import { canceled, isCancellationError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -34,7 +34,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { FileAccess } from 'vs/base/common/network';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
@@ -112,7 +112,7 @@ class Extension implements IExtension {
 		return this.local!.manifest.publisher;
 	}
 
-	get publisherDomain(): { link: string, verified: boolean } | undefined {
+	get publisherDomain(): { link: string, verified: boolean; } | undefined {
 		return this.gallery?.publisherDomain;
 	}
 
@@ -186,7 +186,7 @@ class Extension implements IExtension {
 	}
 
 	public isMalicious: boolean = false;
-	public isUnsupported: boolean | { preReleaseExtension: { id: string, displayName: string } } = false;
+	public isUnsupported: boolean | { preReleaseExtension: { id: string, displayName: string; }; } = false;
 
 	get installCount(): number | undefined {
 		return this.gallery ? this.gallery.installCount : undefined;
@@ -201,7 +201,7 @@ class Extension implements IExtension {
 	}
 
 	get outdated(): boolean {
-		return !!this.gallery && this.type === ExtensionType.User && semver.gt(this.latestVersion, this.version) && (this.local?.isPreReleaseVersion || !this.gallery?.properties.isPreReleaseVersion);
+		return !!this.gallery && this.type === ExtensionType.User && semver.gt(this.latestVersion, this.version) && (this.local?.preRelease || !this.gallery?.properties.isPreReleaseVersion);
 	}
 
 	get telemetryData(): any {
@@ -226,30 +226,19 @@ class Extension implements IExtension {
 		return !!this.gallery?.hasReleaseVersion;
 	}
 
-	private getLocal(preRelease: boolean): ILocalExtension | undefined {
-		return this.local && !this.outdated && this.local.isPreReleaseVersion === preRelease ? this.local : undefined;
+	private getLocal(): ILocalExtension | undefined {
+		return this.local && !this.outdated ? this.local : undefined;
 	}
 
-	private async getGallery(preRelease: boolean, token: CancellationToken): Promise<IGalleryExtension | undefined> {
-		if (this.gallery) {
-			if (preRelease === this.gallery.properties.isPreReleaseVersion) {
-				return this.gallery;
-			}
-			return (await this.galleryService.getExtensions([this.gallery.identifier], preRelease, token))[0];
-		}
-		return undefined;
-	}
-
-	async getManifest(preRelease: boolean, token: CancellationToken): Promise<IExtensionManifest | null> {
-		const local = this.getLocal(preRelease);
+	async getManifest(token: CancellationToken): Promise<IExtensionManifest | null> {
+		const local = this.getLocal();
 		if (local) {
 			return local.manifest;
 		}
 
-		const gallery = await this.getGallery(preRelease, token);
-		if (gallery) {
-			if (gallery.assets.manifest) {
-				return this.galleryService.getManifest(gallery, token);
+		if (this.gallery) {
+			if (this.gallery.assets.manifest) {
+				return this.galleryService.getManifest(this.gallery, token);
 			}
 			this.logService.error(nls.localize('Manifest is not found', "Manifest is not found"), this.identifier.id);
 			return null;
@@ -270,17 +259,16 @@ class Extension implements IExtension {
 		return this.type === ExtensionType.System;
 	}
 
-	async getReadme(preRelease: boolean, token: CancellationToken): Promise<string> {
-		const local = this.getLocal(preRelease);
+	async getReadme(token: CancellationToken): Promise<string> {
+		const local = this.getLocal();
 		if (local?.readmeUrl) {
 			const content = await this.fileService.readFile(local.readmeUrl);
 			return content.value.toString();
 		}
 
-		const gallery = await this.getGallery(preRelease, token);
-		if (gallery) {
-			if (gallery.assets.readme) {
-				return this.galleryService.getReadme(gallery, token);
+		if (this.gallery) {
+			if (this.gallery.assets.readme) {
+				return this.galleryService.getReadme(this.gallery, token);
 			}
 			this.telemetryService.publicLog('extensions:NotFoundReadMe', this.telemetryData);
 		}
@@ -308,16 +296,15 @@ ${this.description}
 		return this.type === ExtensionType.System;
 	}
 
-	async getChangelog(preRelease: boolean, token: CancellationToken): Promise<string> {
-		const local = this.getLocal(preRelease);
+	async getChangelog(token: CancellationToken): Promise<string> {
+		const local = this.getLocal();
 		if (local?.changelogUrl) {
 			const content = await this.fileService.readFile(local.changelogUrl);
 			return content.value.toString();
 		}
 
-		const gallery = await this.getGallery(preRelease, token);
-		if (gallery?.assets.changelog) {
-			return this.galleryService.getChangelog(gallery, token);
+		if (this.gallery?.assets.changelog) {
+			return this.galleryService.getChangelog(this.gallery, token);
 		}
 
 		if (this.type === ExtensionType.System) {
@@ -371,15 +358,15 @@ ${this.description}
 
 class Extensions extends Disposable {
 
-	private readonly _onChange: Emitter<{ extension: Extension, operation?: InstallOperation } | undefined> = this._register(new Emitter<{ extension: Extension, operation?: InstallOperation } | undefined>());
-	get onChange(): Event<{ extension: Extension, operation?: InstallOperation } | undefined> { return this._onChange.event; }
+	private readonly _onChange: Emitter<{ extension: Extension, operation?: InstallOperation; } | undefined> = this._register(new Emitter<{ extension: Extension, operation?: InstallOperation; } | undefined>());
+	get onChange(): Event<{ extension: Extension, operation?: InstallOperation; } | undefined> { return this._onChange.event; }
 
 	private installing: Extension[] = [];
 	private uninstalling: Extension[] = [];
 	private installed: Extension[] = [];
 
 	constructor(
-		private readonly server: IExtensionManagementServer,
+		readonly server: IExtensionManagementServer,
 		private readonly stateProvider: IExtensionStateProvider<ExtensionState>,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
@@ -437,7 +424,7 @@ class Extensions extends Disposable {
 			hasChanged = true;
 		}
 
-		const compatible = await this.getCompatibleExtension(gallery, extension.local.isPreReleaseVersion);
+		const compatible = await this.getCompatibleExtension(gallery, extension.local.preRelease);
 		if (compatible) {
 			extension.gallery = compatible;
 			hasChanged = true;
@@ -493,7 +480,7 @@ class Extensions extends Disposable {
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-		const compatible = await this.getCompatibleExtension(extension.identifier, !!extension.local?.isPreReleaseVersion);
+		const compatible = await this.getCompatibleExtension(extension.identifier, !!extension.local?.preRelease);
 		if (compatible) {
 			extension.gallery = compatible;
 			this._onChange.fire({ extension });
@@ -637,7 +624,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IProgressService private readonly progressService: IProgressService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IIgnoredExtensionsManagementService private readonly extensionsSyncManagementService: IIgnoredExtensionsManagementService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@IProductService private readonly productService: IProductService,
@@ -805,8 +792,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				const keywords = lookup[ext] || [];
 
 				// Get mode name
-				const languageId = this.modeService.getModeIdByFilepathOrFirstLine(URI.file(`.${ext}`));
-				const languageName = languageId && this.modeService.getLanguageName(languageId);
+				const languageId = this.languageService.guessLanguageIdByFilepathOrFirstLine(URI.file(`.${ext}`));
+				const languageName = languageId && this.languageService.getLanguageName(languageId);
 				const languageTag = languageName ? ` tag:"${languageName}"` : '';
 
 				// Construct a rich query
@@ -1018,21 +1005,22 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			.then(undefined, err => null);
 	}
 
-	private syncWithGallery(): Promise<void> {
-		const ids: string[] = [], names: string[] = [];
+	private async syncWithGallery(): Promise<void> {
+		const identifiers: (IExtensionIdentifier & { preRelease: boolean; })[] = [], names: string[] = [];
 		for (const installed of this.local) {
 			if (installed.type === ExtensionType.User) {
 				if (installed.identifier.uuid) {
-					ids.push(installed.identifier.uuid);
+					identifiers.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
 				} else {
 					names.push(installed.identifier.id);
 				}
 			}
 		}
 
-		const promises: Promise<IPager<IExtension>>[] = [];
-		if (ids.length) {
-			promises.push(this.queryGallery({ ids, pageSize: ids.length }, CancellationToken.None));
+		const promises: Promise<any>[] = [];
+		if (identifiers.length) {
+			const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
+			promises.push(this.galleryService.getExtensions2(identifiers).then(galleryExtensions => galleryExtensions.forEach(gallery => this.fromGallery(gallery, extensionsControlManifest))));
 		}
 		if (names.length) {
 			promises.push(this.queryGallery({ names, pageSize: names.length }, CancellationToken.None));
@@ -1286,7 +1274,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.doSetEnablement(allExtensions, enablementState);
 	}
 
-	private getExtensionsRecursively(extensions: IExtension[], installed: IExtension[], enablementState: EnablementState, options: { dependencies: boolean, pack: boolean }, checked: IExtension[] = []): IExtension[] {
+	private getExtensionsRecursively(extensions: IExtension[], installed: IExtension[], enablementState: EnablementState, options: { dependencies: boolean, pack: boolean; }, checked: IExtension[] = []): IExtension[] {
 		const toCheck = extensions.filter(e => checked.indexOf(e) === -1);
 		if (toCheck.length) {
 			for (const extension of toCheck) {
@@ -1404,7 +1392,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private onError(err: any): void {
-		if (isPromiseCanceledError(err)) {
+		if (isCancellationError(err)) {
 			return;
 		}
 

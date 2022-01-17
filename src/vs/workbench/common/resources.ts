@@ -9,13 +9,13 @@ import { deepClone, equals } from 'vs/base/common/objects';
 import { Emitter } from 'vs/base/common/event';
 import { basename, dirname, extname, relativePath, isEqual } from 'vs/base/common/resources';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 
 export class ResourceContextKey implements IContextKey<URI> {
 
@@ -48,7 +48,7 @@ export class ResourceContextKey implements IContextKey<URI> {
 	constructor(
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IFileService private readonly _fileService: IFileService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService,
 	) {
 		this._schemeKey = ResourceContextKey.Scheme.bindTo(this._contextKeyService);
@@ -66,13 +66,12 @@ export class ResourceContextKey implements IContextKey<URI> {
 			this._isFileSystemResource.set(Boolean(resource && _fileService.hasProvider(resource)));
 		}));
 
-		this._disposables.add(_modeService.onDidEncounterLanguage(this._setLangId, this));
 		this._disposables.add(_modelService.onModelAdded(model => {
 			if (isEqual(model.uri, this.get())) {
 				this._setLangId();
 			}
 		}));
-		this._disposables.add(_modelService.onModelModeChanged(e => {
+		this._disposables.add(_modelService.onModelLanguageChanged(e => {
 			if (isEqual(e.model.uri, this.get())) {
 				this._setLangId();
 			}
@@ -89,7 +88,7 @@ export class ResourceContextKey implements IContextKey<URI> {
 			this._langIdKey.set(null);
 			return;
 		}
-		const langId = this._modelService.getModel(value)?.getLanguageId() ?? this._modeService.getModeIdByFilepathOrFirstLine(value);
+		const langId = this._modelService.getModel(value)?.getLanguageId() ?? this._languageService.guessLanguageIdByFilepathOrFirstLine(value);
 		this._langIdKey.set(langId);
 	}
 

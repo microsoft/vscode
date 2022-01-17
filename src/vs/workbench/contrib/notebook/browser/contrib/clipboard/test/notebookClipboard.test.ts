@@ -204,7 +204,7 @@ suite('Notebook Clipboard', () => {
 			});
 	});
 
-	test('cut cell from ui still works if the target cell is not part of a selection', async () => {
+	test.skip('cut cell from ui still works if the target cell is not part of a selection', async () => {  // TODO@rebornix https://github.com/microsoft/vscode/issues/140397
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
@@ -245,7 +245,7 @@ suite('Notebook Clipboard', () => {
 			});
 	});
 
-	test('cut focus cell still works if the focus is not part of any selection', async () => {
+	test.skip('cut focus cell still works if the focus is not part of any selection', async () => { // TODO@rebornix https://github.com/microsoft/vscode/issues/140397
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
@@ -269,7 +269,7 @@ suite('Notebook Clipboard', () => {
 			});
 	});
 
-	test('cut focus cell still works if the focus is not part of any selection 2', async () => {
+	test.skip('cut focus cell still works if the focus is not part of any selection 2', async () => { // TODO@rebornix https://github.com/microsoft/vscode/issues/140397
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markup, [], {}],

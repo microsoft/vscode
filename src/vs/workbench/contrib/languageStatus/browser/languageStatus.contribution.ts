@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -118,8 +118,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 	// --- language status model and UI
 
-	private _createViewModel(): LanguageStatusViewModel {
-		const editor = getCodeEditor(this._editorService.activeTextEditorControl);
+	private _createViewModel(editor: ICodeEditor | null): LanguageStatusViewModel {
 		if (!editor?.hasModel()) {
 			return new LanguageStatusViewModel([], []);
 		}
@@ -129,24 +128,25 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		for (let item of all) {
 			if (this._dedicated.has(item.id)) {
 				dedicated.push(item);
-			} else {
-				combined.push(item);
 			}
+			combined.push(item);
 		}
 		return new LanguageStatusViewModel(combined, dedicated);
 	}
 
 	private _update(): void {
-
-		const model = this._createViewModel();
+		const editor = getCodeEditor(this._editorService.activeTextEditorControl);
+		const model = this._createViewModel(editor);
 
 		if (this._model?.isEqual(model)) {
 			return;
 		}
+		this._renderDisposables.clear();
 
 		this._model = model;
 
-		this._renderDisposables.clear();
+		// update when editor language changes
+		editor?.onDidChangeModelLanguage(this._update, this, this._renderDisposables);
 
 		// combined status bar item is a single item which hover shows
 		// each status item
@@ -164,7 +164,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			const ariaLabels: string[] = [];
 			const element = document.createElement('div');
 			for (const status of model.combined) {
-				element.appendChild(this._renderStatus(status, showSeverity, this._renderDisposables));
+				element.appendChild(this._renderStatus(status, showSeverity, model.dedicated.includes(status), this._renderDisposables));
 				ariaLabels.push(this._asAriaLabel(status));
 				isOneBusy = isOneBusy || status.busy;
 			}
@@ -188,7 +188,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			const props = EditorStatusContribution._asStatusbarEntry(status);
 			let entry = this._dedicatedEntries.get(status.id);
 			if (!entry) {
-				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, 100.09999);
+				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.RIGHT });
 			} else {
 				entry.update(props);
 				this._dedicatedEntries.delete(status.id);
@@ -199,7 +199,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		this._dedicatedEntries = newDedicatedEntries;
 	}
 
-	private _renderStatus(status: ILanguageStatus, showSeverity: boolean, store: DisposableStore): HTMLElement {
+	private _renderStatus(status: ILanguageStatus, showSeverity: boolean, isPinned: boolean, store: DisposableStore): HTMLElement {
 
 		const parent = document.createElement('div');
 		parent.classList.add('hover-language-status');
@@ -248,12 +248,22 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		// -- pin
 		const actionBar = new ActionBar(right, {});
 		store.add(actionBar);
-		const action = new Action('pin', localize('pin', "Pin to Status Bar"), Codicon.pin.classNames, true, () => {
-			this._dedicated.add(status.id);
-			this._statusBarService.updateEntryVisibility(status.id, true);
-			this._update();
-			this._storeState();
-		});
+		let action: Action;
+		if (!isPinned) {
+			action = new Action('pin', localize('pin', "Add to Status Bar"), Codicon.pin.classNames, true, () => {
+				this._dedicated.add(status.id);
+				this._statusBarService.updateEntryVisibility(status.id, true);
+				this._update();
+				this._storeState();
+			});
+		} else {
+			action = new Action('unpin', localize('unpin', "Remove from Status Bar"), Codicon.pinned.classNames, true, () => {
+				this._dedicated.delete(status.id);
+				this._statusBarService.updateEntryVisibility(status.id, false);
+				this._update();
+				this._storeState();
+			});
+		}
 		actionBar.push(action, { icon: true, label: false });
 		store.add(action);
 
@@ -316,7 +326,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			text: item.busy ? `${item.label}\u00A0\u00A0$(sync~spin)` : item.label,
 			ariaLabel: item.accessibilityInfo?.label ?? item.label,
 			role: item.accessibilityInfo?.role,
-			tooltip: item.command?.tooltip || new MarkdownString(item.detail, true),
+			tooltip: item.command?.tooltip || new MarkdownString(item.detail, { isTrusted: true, supportThemeIcons: true }),
 			color,
 			backgroundColor,
 			command: item.command

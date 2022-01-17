@@ -16,7 +16,7 @@ import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/brows
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { mark } from 'vs/base/common/performance';
-import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
+import { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
@@ -32,7 +32,7 @@ interface IResourceUriProvider {
  */
 type ExtensionId = string;
 
-type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId, preRelease?: boolean };
+type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId, preRelease?: boolean, migrateStorageFrom?: ExtensionId };
 
 interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
@@ -381,12 +381,6 @@ interface IWorkbenchConstructionOptions {
 	readonly webviewEndpoint?: string;
 
 	/**
-	 * An URL pointing to the web worker extension host <iframe> src.
-	 * @deprecated. This will be removed soon.
-	 */
-	readonly webWorkerExtensionHostIframeSrc?: string;
-
-	/**
 	 * A factory for web sockets.
 	 */
 	readonly webSocketFactory?: IWebSocketFactory;
@@ -451,13 +445,6 @@ interface IWorkbenchConstructionOptions {
 	 * Note: This will not install extensions if not installed.
 	 */
 	readonly enabledExtensions?: readonly ExtensionId[];
-
-	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Enable inlined extensions.
-	 * Defaults to true.
-	 */
-	readonly _enableBuiltinExtensions?: boolean;
 
 	/**
 	 * Additional domains allowed to open from the workbench without the
@@ -549,6 +536,13 @@ interface IWorkbenchConstructionOptions {
 	 * The idea is that the colors match the main colors from the theme defined in the `configurationDefaults`.
 	 */
 	readonly initialColorTheme?: IInitialColorTheme;
+
+	//#endregion
+
+
+	//#region IPC
+
+	readonly messagePorts?: ReadonlyMap<ExtensionId, MessagePort>;
 
 	//#endregion
 

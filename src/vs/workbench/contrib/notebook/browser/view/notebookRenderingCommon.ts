@@ -19,8 +19,8 @@ import { ICellOutputViewModel, ICellViewModel, IGenericCellViewModel, INotebookC
 import { CellExecutionPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellExecution';
 import { CellFocusIndicator } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellFocusIndicator';
 import { CellProgressBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellProgressBar';
+import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellStatusPart';
 import { BetweenCellToolbar, CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
-import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { RunToolbar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellRunToolbar';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -29,6 +29,7 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 export interface INotebookCellList {
 	isDisposed: boolean;
 	viewModel: NotebookViewModel | null;
+	webviewElement: FastDomNode<HTMLElement> | null;
 	readonly contextKeyService: IContextKeyService;
 	element(index: number): ICellViewModel | undefined;
 	elementAt(position: number): ICellViewModel | undefined;
@@ -52,6 +53,7 @@ export interface INotebookCellList {
 	readonly onContextMenu: Event<IListContextMenuEvent<CellViewModel>>;
 	detachViewModel(): void;
 	attachViewModel(viewModel: NotebookViewModel): void;
+	attachWebview(element: HTMLElement): void;
 	clear(): void;
 	getViewIndex(cell: ICellViewModel): number | undefined;
 	getViewIndex2(modelIndex: number): number | undefined;
@@ -76,6 +78,7 @@ export interface INotebookCellList {
 	revealElementRangeInViewAsync(element: ICellViewModel, range: Range): Promise<void>;
 	revealElementRangeInCenterAsync(element: ICellViewModel, range: Range): Promise<void>;
 	revealElementRangeInCenterIfOutsideViewportAsync(element: ICellViewModel, range: Range): Promise<void>;
+	revealElementOffsetInCenterAsync(element: ICellViewModel, offset: number): Promise<void>;
 	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;
 	focusView(): void;
@@ -124,7 +127,6 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	focusSinkElement: HTMLElement;
 	editor: ICodeEditor;
 	progressBar: CellProgressBar;
-	dragHandle: FastDomNode<HTMLElement>;
 	cellExecution: CellExecutionPart;
 }
 

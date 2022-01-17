@@ -42,8 +42,7 @@ const vscodeWebResourceIncludes = [
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.html',
 
 	// Extension Worker
-	'out-build/vs/workbench/services/extensions/worker/httpsWebWorkerExtensionHostIframe.html',
-	'out-build/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html',
+	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
 
 	// Web node paths (needed for integration tests)
 	'out-build/vs/webPackagePaths.js',

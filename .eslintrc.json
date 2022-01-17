@@ -16,6 +16,7 @@
 		"eqeqeq": "warn",
 		"no-buffer-constructor": "warn",
 		"no-caller": "warn",
+		"no-case-declarations": "warn",
 		"no-debugger": "warn",
 		"no-duplicate-case": "warn",
 		"no-duplicate-imports": "warn",
@@ -336,6 +337,7 @@
 					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
+					"**/vs/base/test/common/**",
 					"**/vs/platform/*/common/**",
 					"**/vs/platform/*/test/common/**",
 					"**/vs/editor/common/**",
@@ -564,7 +566,7 @@
 					"**/vs/workbench/api/**/common/**",
 					"vscode-textmate",
 					"vscode-oniguruma",
-					"iconv-lite-umd",
+					"@vscode/iconv-lite-umd",
 					"tas-client-umd",
 					"jschardet"
 				]
@@ -596,7 +598,7 @@
 					"**/vs/workbench/services/**/{common,browser}/**",
 					"vscode-textmate",
 					"vscode-oniguruma",
-					"iconv-lite-umd",
+					"@vscode/iconv-lite-umd",
 					"jschardet",
 					"@vscode/vscode-languagedetection",
 					"@microsoft/applicationinsights-web"
@@ -630,7 +632,7 @@
 					"**/vs/workbench/services/**/{common,browser,electron-sandbox}/**",
 					"vscode-textmate",
 					"vscode-oniguruma",
-					"iconv-lite-umd",
+					"@vscode/iconv-lite-umd",
 					"jschardet"
 				]
 			},
@@ -750,7 +752,7 @@
 					"**/vs/workbench/contrib/**/{common,browser}/**",
 					"vscode-textmate",
 					"vscode-oniguruma",
-					"iconv-lite-umd",
+					"@vscode/iconv-lite-umd",
 					"jschardet"
 				]
 			},
@@ -785,7 +787,7 @@
 					"**/vs/workbench/contrib/**/{common,browser,electron-sandbox}/**",
 					"vscode-textmate",
 					"vscode-oniguruma",
-					"iconv-lite-umd",
+					"@vscode/iconv-lite-umd",
 					"jschardet"
 				]
 			},
@@ -942,6 +944,7 @@
 					"**/test/smoke/**",
 					"@vscode/*",
 					"@parcel/*",
+					"@playwright/*",
 					"*" // node modules
 				]
 			},
@@ -952,6 +955,7 @@
 					"@vscode/*",
 					"@parcel/*",
 					"playwright-core/**",
+					"@playwright/*",
 					"*" // node modules
 				]
 			},
@@ -961,6 +965,7 @@
 					"**/test/integration/**",
 					"@vscode/*",
 					"@parcel/*",
+					"@playwright/*",
 					"*" // node modules
 				]
 			},
@@ -970,6 +975,7 @@
 					"**/test/monaco/**",
 					"@vscode/*",
 					"@parcel/*",
+					"@playwright/*",
 					"*" // node modules
 				]
 			},

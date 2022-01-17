@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Ikuyadeu/vscode-R/commit/c9290464add8409f35fcbe47339d4b2ca0e4416c",
+	"version": "https://github.com/Ikuyadeu/vscode-R/commit/f99fdd79533b62b0b6eb6142190963349aa621d7",
 	"name": "R",
 	"scopeName": "source.r",
 	"patterns": [
@@ -243,6 +243,27 @@
 						{
 							"match": "\\\\.",
 							"name": "constant.character.escape.r"
+						}
+					]
+				},
+				{
+					"begin": "`",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.r"
+						}
+					},
+					"end": "`",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.end.r"
+						}
+					},
+					"name": "variable.parameter.r",
+					"patterns": [
+						{
+							"match": "\\\\.",
+							"name": "variable.parameter.r"
 						}
 					]
 				}

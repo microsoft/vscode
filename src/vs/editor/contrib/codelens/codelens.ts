@@ -9,8 +9,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeLens, CodeLensList, CodeLensProvider, CodeLensProviderRegistry } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { CodeLens, CodeLensList, CodeLensProvider, CodeLensProviderRegistry } from 'vs/editor/common/languages';
+import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export interface CodeLensItem {
@@ -26,6 +26,10 @@ export class CodeLensModel {
 
 	dispose(): void {
 		this._disposables.dispose();
+	}
+
+	get isDisposed(): boolean {
+		return this._disposables.isDisposed;
 	}
 
 	add(list: CodeLensList, provider: CodeLensProvider): void {

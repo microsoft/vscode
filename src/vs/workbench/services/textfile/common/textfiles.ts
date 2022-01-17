@@ -112,6 +112,8 @@ export interface ITextFileService extends IDisposable {
 	/**
 	 * Returns a stream of strings that uses the appropriate encoding. This method should
 	 * be used whenever a `VSBufferReadableStream` is being loaded from the file system.
+	 *
+	 * Will throw an error if `acceptTextOnly: true` for resources that seem to be binary.
 	 */
 	getDecodedStream(resource: URI, value: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<ReadableStream<string>>;
 }
@@ -128,9 +130,6 @@ export interface IReadTextFileEncodingOptions {
 	 * The optional guessEncoding parameter allows to guess encoding from content of the file.
 	 */
 	readonly autoGuessEncoding?: boolean;
-}
-
-export interface IReadTextFileOptions extends IReadTextFileEncodingOptions, IReadFileStreamOptions {
 
 	/**
 	 * The optional acceptTextOnly parameter allows to fail this request early if the file
@@ -138,6 +137,8 @@ export interface IReadTextFileOptions extends IReadTextFileEncodingOptions, IRea
 	 */
 	readonly acceptTextOnly?: boolean;
 }
+
+export interface IReadTextFileOptions extends IReadTextFileEncodingOptions, IReadFileStreamOptions { }
 
 export interface IWriteTextFileOptions extends IWriteFileOptions {
 
@@ -272,9 +273,9 @@ export interface ITextFileEditorModelResolveOrCreateOptions {
 	readonly reason?: TextFileResolveReason;
 
 	/**
-	 * The language mode to use for the model text content.
+	 * The language id to use for the model text content.
 	 */
-	readonly mode?: string;
+	readonly languageId?: string;
 
 	/**
 	 * The encoding to use when resolving the model text content.
@@ -467,15 +468,15 @@ export interface IEncodingSupport {
 	setEncoding(encoding: string, mode: EncodingMode): Promise<void>;
 }
 
-export interface IModeSupport {
+export interface ILanguageSupport {
 
 	/**
-	 * Sets the language mode of the object.
+	 * Sets the language id of the object.
 	 */
-	setMode(mode: string, setExplicitly?: boolean): void;
+	setLanguageId(languageId: string, setExplicitly?: boolean): void;
 }
 
-export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, IModeSupport, IWorkingCopy {
+export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, ILanguageSupport, IWorkingCopy {
 
 	readonly onDidChangeContent: Event<void>;
 	readonly onDidSaveError: Event<void>;
@@ -495,7 +496,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	isDirty(): this is IResolvedTextFileEditorModel;
 
-	getMode(): string | undefined;
+	getLanguageId(): string | undefined;
 
 	isResolved(): this is IResolvedTextFileEditorModel;
 }
@@ -503,7 +504,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 export function isTextFileEditorModel(model: ITextEditorModel): model is ITextFileEditorModel {
 	const candidate = model as ITextFileEditorModel;
 
-	return areFunctions(candidate.setEncoding, candidate.getEncoding, candidate.save, candidate.revert, candidate.isDirty, candidate.getMode);
+	return areFunctions(candidate.setEncoding, candidate.getEncoding, candidate.save, candidate.revert, candidate.isDirty, candidate.getLanguageId);
 }
 
 export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {

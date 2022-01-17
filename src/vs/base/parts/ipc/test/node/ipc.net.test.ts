@@ -13,6 +13,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ILoadEstimator, PersistentProtocol, Protocol, ProtocolConstants, SocketCloseEvent, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { flakySuite } from 'vs/base/test/common/testUtils';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import product from 'vs/platform/product/common/product';
@@ -537,7 +538,7 @@ suite('PersistentProtocol reconnection', () => {
 	});
 });
 
-suite('IPC, create handle', () => {
+flakySuite('IPC, create handle', () => {
 
 	test('createRandomIPCHandle', async () => {
 		return testIPCHandle(createRandomIPCHandle());

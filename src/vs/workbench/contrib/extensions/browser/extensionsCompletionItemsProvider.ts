@@ -9,7 +9,7 @@ import { getLocation, parse } from 'vs/base/common/json';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionContext, CompletionList, CompletionProviderRegistry, CompletionItemKind, CompletionItem } from 'vs/editor/common/modes';
+import { CompletionContext, CompletionList, CompletionProviderRegistry, CompletionItemKind, CompletionItem } from 'vs/editor/common/languages';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Range } from 'vs/editor/common/core/range';

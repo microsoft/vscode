@@ -839,7 +839,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			case 'one':
 			case 'all':
 			case 'preserve':
-			case 'folders':
+			case 'folders': {
 
 				// Collect previously opened windows
 				const lastSessionWindows: IWindowState[] = [];
@@ -876,6 +876,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				}
 
 				return pathsToOpen;
+			}
 		}
 	}
 
@@ -1184,7 +1185,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const extensionDevelopmentPathRemoteAuthority = getRemoteAuthority(url);
 				if (extensionDevelopmentPathRemoteAuthority) {
 					if (remoteAuthority) {
-						if (extensionDevelopmentPathRemoteAuthority !== remoteAuthority) {
+						if (!isEqualAuthority(extensionDevelopmentPathRemoteAuthority, remoteAuthority)) {
 							this.logService.error('more than one extension development path authority');
 						}
 					} else {
@@ -1293,8 +1294,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			os: { release: release(), hostname: hostname() },
 			zoomLevel: typeof windowConfig?.zoomLevel === 'number' ? windowConfig.zoomLevel : undefined,
 
-			legacyWatcher: this.configurationService.getValue('files.legacyWatcher'),
-			experimentalSandboxedFileService: this.configurationService.getValue('files.experimentalSandboxedFileService'),
 			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,
 			accessibilitySupport: app.accessibilitySupportEnabled,
 			colorScheme: {
@@ -1398,7 +1397,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (isWorkspaceIdentifier(configuration.workspace)) {
 				configuration.backupPath = this.backupMainService.registerWorkspaceBackupSync({ workspace: configuration.workspace, remoteAuthority: configuration.remoteAuthority });
 			} else if (isSingleFolderWorkspaceIdentifier(configuration.workspace)) {
-				configuration.backupPath = this.backupMainService.registerFolderBackupSync(configuration.workspace.uri);
+				configuration.backupPath = this.backupMainService.registerFolderBackupSync({ folderUri: configuration.workspace.uri, remoteAuthority: configuration.remoteAuthority });
 			} else {
 				const backupFolder = options.emptyWindowBackupInfo && options.emptyWindowBackupInfo.backupFolder;
 				configuration.backupPath = this.backupMainService.registerEmptyWindowBackupSync(backupFolder, configuration.remoteAuthority);

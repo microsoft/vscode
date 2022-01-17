@@ -8,9 +8,7 @@ import * as vscode from 'vscode';
 import MarkdownSmartSelect from '../features/smartSelect';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryDocument } from './inMemoryDocument';
-import { joinLines } from './util';
-
-const CURSOR = '$$CURSOR$$';
+import { CURSOR, getCursorPositions, joinLines } from './util';
 
 const testFileName = vscode.Uri.file('test.md');
 
@@ -672,17 +670,3 @@ async function getSelectionRangesForDocument(contents: string, pos?: vscode.Posi
 	const positions = pos ? pos : getCursorPositions(contents, doc);
 	return await provider.provideSelectionRanges(doc, positions, new vscode.CancellationTokenSource().token);
 }
-
-let getCursorPositions = (contents: string, doc: InMemoryDocument): vscode.Position[] => {
-	let positions: vscode.Position[] = [];
-	let index = 0;
-	let wordLength = 0;
-	while (index !== -1) {
-		index = contents.indexOf(CURSOR, index + wordLength);
-		if (index !== -1) {
-			positions.push(doc.positionAt(index));
-		}
-		wordLength = CURSOR.length;
-	}
-	return positions;
-};

@@ -109,7 +109,7 @@ export function getWordAtText(column: number, wordDefinition: RegExp, text: stri
 	}
 
 	if (match) {
-		let result = {
+		const result = {
 			word: match[0],
 			startColumn: textOffset + 1 + match.index!,
 			endColumn: textOffset + 1 + match.index! + match[0].length

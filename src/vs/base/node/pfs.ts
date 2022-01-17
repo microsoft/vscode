@@ -7,13 +7,12 @@ import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
 import { ResourceQueue } from 'vs/base/common/async';
-import { isEqualOrParent, isRootOrDriveLetter } from 'vs/base/common/extpath';
+import { isEqualOrParent, isRootOrDriveLetter, randomPath } from 'vs/base/common/extpath';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { join } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 
 //#region rimraf
 
@@ -55,9 +54,17 @@ async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
 
 async function rimrafMove(path: string): Promise<void> {
 	try {
-		const pathInTemp = join(tmpdir(), generateUuid());
+		const pathInTemp = randomPath(tmpdir());
 		try {
-			await Promises.rename(path, pathInTemp);
+			// Intentionally using `fs.promises` here to skip
+			// the patched graceful-fs method that can result
+			// in very long running `rename` calls when the
+			// folder is locked by a file watcher. We do not
+			// really want to slow down this operation more
+			// than necessary and we have a fallback to delete
+			// via unlink.
+			// https://github.com/microsoft/vscode/issues/139908
+			await fs.promises.rename(path, pathInTemp);
 		} catch (error) {
 			return rimrafUnlink(path); // if rename fails, delete without tmp dir
 		}
@@ -348,7 +355,7 @@ export namespace SymlinkSupport {
 
 //#region Write File
 
-// According to node.js docs (https://nodejs.org/docs/v6.5.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
+// According to node.js docs (https://nodejs.org/docs/v14.16.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
 // it is not safe to call writeFile() on the same path multiple times without waiting for the callback to return.
 // Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
 const writeQueues = new ResourceQueue();
@@ -656,10 +663,44 @@ export const Promises = new class {
 	get lstat() { return promisify(fs.lstat); }
 	get utimes() { return promisify(fs.utimes); }
 
-	get read() { return promisify(fs.read); }
+	get read() {
+
+		// Not using `promisify` here for a reason: the return
+		// type is not an object as indicated by TypeScript but
+		// just the bytes read, so we create our own wrapper.
+
+		return (fd: number, buffer: Uint8Array, offset: number, length: number, position: number | null) => {
+			return new Promise<{ bytesRead: number, buffer: Uint8Array }>((resolve, reject) => {
+				fs.read(fd, buffer, offset, length, position, (err, bytesRead, buffer) => {
+					if (err) {
+						return reject(err);
+					}
+
+					return resolve({ bytesRead, buffer });
+				});
+			});
+		};
+	}
 	get readFile() { return promisify(fs.readFile); }
 
-	get write() { return promisify(fs.write); }
+	get write() {
+
+		// Not using `promisify` here for a reason: the return
+		// type is not an object as indicated by TypeScript but
+		// just the bytes written, so we create our own wrapper.
+
+		return (fd: number, buffer: Uint8Array, offset: number | undefined | null, length: number | undefined | null, position: number | undefined | null) => {
+			return new Promise<{ bytesWritten: number, buffer: Uint8Array }>((resolve, reject) => {
+				fs.write(fd, buffer, offset, length, position, (err, bytesWritten, buffer) => {
+					if (err) {
+						return reject(err);
+					}
+
+					return resolve({ bytesWritten, buffer });
+				});
+			});
+		};
+	}
 
 	get appendFile() { return promisify(fs.appendFile); }
 

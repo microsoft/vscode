@@ -120,7 +120,7 @@ export function createFindMatch(range: Range, rawMatches: RegExpExecArray, captu
 	if (!captureMatches) {
 		return new FindMatch(range, null);
 	}
-	let matches: string[] = [];
+	const matches: string[] = [];
 	for (let i = 0, len = rawMatches.length; i < len; i++) {
 		matches[i] = rawMatches[i];
 	}
@@ -132,7 +132,7 @@ class LineFeedCounter {
 	private readonly _lineFeedsOffsets: number[];
 
 	constructor(text: string) {
-		let lineFeedsOffsets: number[] = [];
+		const lineFeedsOffsets: number[] = [];
 		let lineFeedsOffsetsLen = 0;
 		for (let i = 0, textLen = text.length; i < textLen; i++) {
 			if (text.charCodeAt(i) === CharCode.LineFeed) {
@@ -206,8 +206,8 @@ export class TextModelSearch {
 
 		let endOffset: number;
 		if (lfCounter) {
-			let lineFeedCountBeforeEndOfMatch = lfCounter.findLineFeedCountBeforeOffset(matchIndex + match0.length);
-			let lineFeedCountInMatch = lineFeedCountBeforeEndOfMatch - lineFeedCountBeforeMatch;
+			const lineFeedCountBeforeEndOfMatch = lfCounter.findLineFeedCountBeforeOffset(matchIndex + match0.length);
+			const lineFeedCountInMatch = lineFeedCountBeforeEndOfMatch - lineFeedCountBeforeMatch;
 			endOffset = startOffset + match0.length + lineFeedCountInMatch /* add as many \r as there were \n */;
 		} else {
 			endOffset = startOffset + match0.length;

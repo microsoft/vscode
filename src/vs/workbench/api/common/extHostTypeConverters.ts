@@ -19,8 +19,8 @@ import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { IContentDecorationRenderOptions, IDecorationOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import * as languageSelector from 'vs/editor/common/modes/languageSelector';
+import * as modes from 'vs/editor/common/languages';
+import * as languageSelector from 'vs/editor/common/languages/languageSelector';
 import { EditorResolution, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
@@ -1152,25 +1152,30 @@ export namespace SignatureHelp {
 
 export namespace InlayHint {
 
-	export function from(hint: vscode.InlayHint): modes.InlayHint {
-		return {
-			text: hint.text,
-			position: Position.from(hint.position),
-			kind: InlayHintKind.from(hint.kind ?? types.InlayHintKind.Other),
-			whitespaceBefore: hint.whitespaceBefore,
-			whitespaceAfter: hint.whitespaceAfter
-		};
-	}
-
-	export function to(hint: modes.InlayHint): vscode.InlayHint {
+	export function to(converter: CommandsConverter, hint: modes.InlayHint): vscode.InlayHint {
 		const res = new types.InlayHint(
-			hint.text,
+			typeof hint.label === 'string' ? hint.label : hint.label.map(InlayHintLabelPart.to.bind(undefined, converter)),
 			Position.to(hint.position),
 			InlayHintKind.to(hint.kind)
 		);
+		res.tooltip = htmlContent.isMarkdownString(hint.tooltip) ? MarkdownString.to(hint.tooltip) : hint.tooltip;
 		res.whitespaceAfter = hint.whitespaceAfter;
 		res.whitespaceBefore = hint.whitespaceBefore;
 		return res;
+	}
+}
+
+export namespace InlayHintLabelPart {
+
+	export function to(converter: CommandsConverter, part: modes.InlayHintLabelPart): types.InlayHintLabelPart {
+		const result = new types.InlayHintLabelPart(part.label);
+		result.collapsible = part.collapsible;
+		if (modes.Command.is(part.action)) {
+			result.action = converter.fromInternal(part.action);
+		} else if (part.action) {
+			result.action = location.to(part.action);
+		}
+		return result;
 	}
 }
 
@@ -1387,15 +1392,25 @@ export namespace GlobPattern {
 			return pattern;
 		}
 
-		if (isRelativePattern(pattern)) {
-			return new types.RelativePattern(pattern.base, pattern.pattern);
+		if (isRelativePattern(pattern) || isLegacyRelativePattern(pattern)) {
+			return new types.RelativePattern(pattern.baseUri ?? pattern.base, pattern.pattern);
 		}
 
 		return pattern; // preserve `undefined` and `null`
 	}
 
-	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
+	export function isRelativePattern(obj: any): obj is vscode.RelativePattern {
 		const rp = obj as vscode.RelativePattern;
+		return rp && URI.isUri(rp.baseUri) && typeof rp.pattern === 'string';
+	}
+
+	function isLegacyRelativePattern(obj: any): obj is { base: string, pattern: string } {
+
+		// Before 1.64.x, `RelativePattern` did not have any `baseUri: Uri`
+		// property. To preserve backwards compatibility with older extensions
+		// we allow this old format when creating the `vscode.RelativePattern`.
+
+		const rp = obj as { base: string, pattern: string };
 		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
 	}
 }
@@ -1576,8 +1591,8 @@ export namespace NotebookExclusiveDocumentPattern {
 		}
 
 
-		if (isRelativePattern(pattern)) {
-			return new types.RelativePattern(pattern.base, pattern.pattern);
+		if (GlobPattern.isRelativePattern(pattern)) {
+			return new types.RelativePattern(pattern.baseUri, pattern.pattern);
 		}
 
 		if (isExclusivePattern(pattern)) {
@@ -1596,11 +1611,8 @@ export namespace NotebookExclusiveDocumentPattern {
 			return pattern;
 		}
 
-		if (isRelativePattern(pattern)) {
-			return {
-				base: pattern.base,
-				pattern: pattern.pattern
-			};
+		if (GlobPattern.isRelativePattern(pattern)) {
+			return new types.RelativePattern(pattern.baseUri, pattern.pattern);
 		}
 
 		return {
@@ -1622,11 +1634,6 @@ export namespace NotebookExclusiveDocumentPattern {
 		}
 
 		return true;
-	}
-
-	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
-		const rp = obj as vscode.RelativePattern;
-		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
 	}
 }
 

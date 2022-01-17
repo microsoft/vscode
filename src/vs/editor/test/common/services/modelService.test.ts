@@ -13,23 +13,23 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { DefaultEndOfLine, ITextModel } from 'vs/editor/common/model';
 import { createTextBuffer } from 'vs/editor/common/model/textModel';
-import { ModelSemanticColoring, ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { ModelSemanticColoring, ModelService } from 'vs/editor/common/services/modelService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { DocumentSemanticTokensProvider, DocumentSemanticTokensProviderRegistry, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/modes';
+import { DocumentSemanticTokensProvider, DocumentSemanticTokensProviderRegistry, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/languages';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Barrier, timeout } from 'vs/base/common/async';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { getDocumentSemanticTokens, isSemanticTokens } from 'vs/editor/common/services/getSemanticTokens';
@@ -38,7 +38,7 @@ const GENERATE_TESTS = false;
 
 suite('ModelService', () => {
 	let disposables: DisposableStore;
-	let modelService: ModelServiceImpl;
+	let modelService: ModelService;
 
 	setup(() => {
 		disposables = new DisposableStore();
@@ -47,13 +47,13 @@ suite('ModelService', () => {
 		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
 
 		const dialogService = new TestDialogService();
-		modelService = disposables.add(new ModelServiceImpl(
+		modelService = disposables.add(new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
 			new TestThemeService(),
 			new NullLogService(),
 			new UndoRedoService(dialogService, new TestNotificationService()),
-			disposables.add(new ModeServiceImpl()),
+			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService()
 		));
 	});
@@ -93,7 +93,7 @@ suite('ModelService', () => {
 			DefaultEndOfLine.LF
 		).textBuffer;
 
-		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
+		const actual = ModelService._computeEdits(model, textBuffer);
 
 		assert.deepStrictEqual(actual, []);
 	});
@@ -119,7 +119,7 @@ suite('ModelService', () => {
 			DefaultEndOfLine.LF
 		).textBuffer;
 
-		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
+		const actual = ModelService._computeEdits(model, textBuffer);
 
 		assert.deepStrictEqual(actual, [
 			EditOperation.replaceMove(new Range(1, 1, 2, 1), 'This is line One\n')
@@ -147,7 +147,7 @@ suite('ModelService', () => {
 			DefaultEndOfLine.LF
 		).textBuffer;
 
-		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
+		const actual = ModelService._computeEdits(model, textBuffer);
 
 		assert.deepStrictEqual(actual, []);
 	});
@@ -173,7 +173,7 @@ suite('ModelService', () => {
 			DefaultEndOfLine.LF
 		).textBuffer;
 
-		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
+		const actual = ModelService._computeEdits(model, textBuffer);
 
 		assert.deepStrictEqual(actual, [
 			EditOperation.replaceMove(
@@ -208,7 +208,7 @@ suite('ModelService', () => {
 			DefaultEndOfLine.LF
 		).textBuffer;
 
-		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
+		const actual = ModelService._computeEdits(model, textBuffer);
 
 		assert.deepStrictEqual(actual, [
 			EditOperation.replaceMove(new Range(3, 2, 3, 2), '\r\n')
@@ -411,7 +411,7 @@ suite('ModelSemanticColoring', () => {
 	const disposables = new DisposableStore();
 	const ORIGINAL_FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY = ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY;
 	let modelService: IModelService;
-	let modeService: IModeService;
+	let languageService: ILanguageService;
 
 	setup(() => {
 		ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY = 0;
@@ -419,16 +419,16 @@ suite('ModelSemanticColoring', () => {
 		const configService = new TestConfigurationService({ editor: { semanticHighlighting: true } });
 		const themeService = new TestThemeService();
 		themeService.setTheme(new TestColorTheme({}, ColorScheme.DARK, true));
-		modelService = disposables.add(new ModelServiceImpl(
+		modelService = disposables.add(new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
 			themeService,
 			new NullLogService(),
 			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
-			disposables.add(new ModeServiceImpl()),
+			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService()
 		));
-		modeService = disposables.add(new ModeServiceImpl(false));
+		languageService = disposables.add(new LanguageService(false));
 	});
 
 	teardown(() => {
@@ -469,7 +469,7 @@ suite('ModelSemanticColoring', () => {
 			}
 		}));
 
-		const textModel = disposables.add(modelService.createModel('Hello world', modeService.create('testMode')));
+		const textModel = disposables.add(modelService.createModel('Hello world', languageService.createById('testMode')));
 
 		// wait for the provider to be called
 		await inFirstCall.wait();
@@ -525,14 +525,14 @@ suite('ModelSemanticColoring', () => {
 		}));
 
 		function toArr(arr: Uint32Array): number[] {
-			let result: number[] = [];
+			const result: number[] = [];
 			for (let i = 0; i < arr.length; i++) {
 				result[i] = arr[i];
 			}
 			return result;
 		}
 
-		const textModel = modelService.createModel('Hello world 2', modeService.create('testMode2'));
+		const textModel = modelService.createModel('Hello world 2', languageService.createById('testMode2'));
 		try {
 			let result = await getDocumentSemanticTokens(textModel, null, null, CancellationToken.None);
 			assert.ok(result, `We should have tokens (1)`);
@@ -570,7 +570,7 @@ function assertComputeEdits(lines1: string[], lines2: string[]): void {
 
 	// compute required edits
 	// let start = Date.now();
-	const edits = ModelServiceImpl._computeEdits(model, textBuffer);
+	const edits = ModelService._computeEdits(model, textBuffer);
 	// console.log(`took ${Date.now() - start} ms.`);
 
 	// apply edits
@@ -585,8 +585,8 @@ function getRandomInt(min: number, max: number): number {
 }
 
 function getRandomString(minLength: number, maxLength: number): string {
-	let length = getRandomInt(minLength, maxLength);
-	let t = createStringBuilder(length);
+	const length = getRandomInt(minLength, maxLength);
+	const t = createStringBuilder(length);
 	for (let i = 0; i < length; i++) {
 		t.appendASCII(getRandomInt(CharCode.a, CharCode.z));
 	}
@@ -594,8 +594,8 @@ function getRandomString(minLength: number, maxLength: number): string {
 }
 
 function generateFile(small: boolean): string[] {
-	let lineCount = getRandomInt(1, small ? 3 : 10000);
-	let lines: string[] = [];
+	const lineCount = getRandomInt(1, small ? 3 : 10000);
+	const lines: string[] = [];
 	for (let i = 0; i < lineCount; i++) {
 		lines.push(getRandomString(0, small ? 3 : 10000));
 	}

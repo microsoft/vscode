@@ -152,6 +152,12 @@ defaultStyles.textContent = `
 	}
 	::-webkit-scrollbar-thumb:active {
 		background-color: var(--vscode-scrollbarSlider-activeBackground);
+	}
+	::highlight(find-highlight) {
+		background-color: var(--vscode-editor-findMatchHighlightBackground);
+	}
+	::highlight(current-find-highlight) {
+		background-color: var(--vscode-editor-findMatchBackground);
 	}`;
 
 /**
@@ -204,12 +210,11 @@ const workerReady = new Promise((resolve, reject) => {
 		return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 	}
 
-	const swPath = `service-worker.js${self.location.search}`;
+	const swPath = `service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}`;
 
-	navigator.serviceWorker.register(swPath).then(
-		async registration => {
-			await navigator.serviceWorker.ready;
-
+	navigator.serviceWorker.register(swPath)
+		.then(() => navigator.serviceWorker.ready)
+		.then(async registration => {
 			/**
 			 * @param {MessageEvent} event
 			 */
@@ -236,8 +241,8 @@ const workerReady = new Promise((resolve, reject) => {
 			};
 			navigator.serviceWorker.addEventListener('message', versionHandler);
 
-			const postVersionMessage = () => {
-				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'version' });
+			const postVersionMessage = (/** @type {ServiceWorker} */ controller) => {
+				controller.postMessage({ channel: 'version' });
 			};
 
 			// At this point, either the service worker is ready and
@@ -245,35 +250,32 @@ const workerReady = new Promise((resolve, reject) => {
 			// Note that navigator.serviceWorker.controller could be a
 			// controller from a previously loaded service worker.
 			const currentController = navigator.serviceWorker.controller;
-			if (currentController && currentController.scriptURL.endsWith(swPath)) {
+			if (currentController?.scriptURL.endsWith(swPath)) {
 				// service worker already loaded & ready to receive messages
-				postVersionMessage();
+				postVersionMessage(currentController);
 			} else {
 				// either there's no controlling service worker, or it's an old one:
 				// wait for it to change before posting the message
 				const onControllerChange = () => {
 					navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-					postVersionMessage();
+					postVersionMessage(navigator.serviceWorker.controller);
 				};
 				navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 			}
-		},
-		error => {
+		}).catch(error => {
 			reject(new Error(`Could not register service workers: ${error}.`));
 		});
 });
 
 const hostMessaging = new class HostMessaging {
+
 	constructor() {
+		this.channel = new MessageChannel();
+
 		/** @type {Map<string, Array<(event: MessageEvent, data: any) => void>>} */
 		this.handlers = new Map();
 
-		window.addEventListener('message', (e) => {
-			if (e.origin !== parentOrigin) {
-				console.log(`skipping webview message due to mismatched origins: ${e.origin} ${parentOrigin}`);
-				return;
-			}
-
+		this.channel.port1.onmessage = (e) => {
 			const channel = e.data.channel;
 			const handlers = this.handlers.get(channel);
 			if (handlers) {
@@ -283,15 +285,16 @@ const hostMessaging = new class HostMessaging {
 			} else {
 				console.log('no handler for ', e);
 			}
-		});
+		};
 	}
 
 	/**
 	 * @param {string} channel
 	 * @param {any} data
+	 * @param {any} [transfer]
 	 */
-	postMessage(channel, data) {
-		window.parent.postMessage({ target: ID, channel, data }, parentOrigin);
+	postMessage(channel, data, transfer) {
+		this.channel.port1.postMessage({ channel, data }, transfer);
 	}
 
 	/**
@@ -305,6 +308,10 @@ const hostMessaging = new class HostMessaging {
 			this.handlers.set(channel, handlers);
 		}
 		handlers.push(handler);
+	}
+
+	signalReady() {
+		window.parent.postMessage({ target: ID, channel: 'webview-ready', data: {} }, parentOrigin, [this.channel.port2]);
 	}
 }();
 
@@ -694,6 +701,15 @@ function toContentHtml(data) {
 
 	applyStyles(newDocument, newDocument.body);
 
+	// Strip out unsupported http-equiv tags
+	for (const metaElement of Array.from(newDocument.querySelectorAll('meta'))) {
+		const httpEquiv = metaElement.getAttribute('http-equiv');
+		if (httpEquiv && !/^(content-security-policy|default-style|content-type)$/i.test(httpEquiv)) {
+			console.warn(`Removing unsupported meta http-equiv: ${httpEquiv}`);
+			metaElement.remove();
+		}
+	}
+
 	// Check for CSP
 	const csp = newDocument.querySelector('meta[http-equiv="Content-Security-Policy"]');
 	if (!csp) {
@@ -912,8 +928,6 @@ onDomReady(() => {
 				});
 				pendingMessages = [];
 			}
-
-			hostMessaging.postMessage('did-load');
 		};
 
 		/**
@@ -960,8 +974,6 @@ onDomReady(() => {
 
 			unloadMonitor.onIframeLoaded(newFrame);
 		}
-
-		hostMessaging.postMessage('did-set-content', undefined);
 	});
 
 	// Forward message to the embedded iframe
@@ -989,15 +1001,21 @@ onDomReady(() => {
 		assertIsDefined(target.contentDocument).execCommand(data);
 	});
 
+	/** @type {string | undefined} */
+	let lastFindValue = undefined;
+
 	hostMessaging.onMessage('find', (_event, data) => {
 		const target = getActiveFrame();
 		if (!target) {
 			return;
 		}
 
-		// Reset selection so we start search after current find result
-		const selection = target.contentWindow.getSelection();
-		selection.collapse(selection.anchorNode);
+		if (!data.previous && lastFindValue !== data.value) {
+			// Reset selection so we start search at the head of the last search
+			const selection = target.contentWindow.getSelection();
+			selection.collapse(selection.anchorNode);
+		}
+		lastFindValue = data.value;
 
 		const didFind = (/** @type {any} */ (target.contentWindow)).find(
 			data.value,
@@ -1015,6 +1033,8 @@ onDomReady(() => {
 		if (!target) {
 			return;
 		}
+
+		lastFindValue = undefined;
 
 		if (!data.clearSelection) {
 			const selection = target.contentWindow.getSelection();
@@ -1038,6 +1058,5 @@ onDomReady(() => {
 		}
 	};
 
-	// signal ready
-	hostMessaging.postMessage('webview-ready', {});
+	hostMessaging.signalReady();
 });

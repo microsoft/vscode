@@ -764,7 +764,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		await this.doSave(options);
 		this.trace('[stored file working copy] save() - exit');
 
-		return true;
+		return this.hasState(StoredFileWorkingCopyState.SAVED);
 	}
 
 	private async doSave(options: IStoredFileWorkingCopySaveOptions): Promise<void> {
@@ -1164,8 +1164,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		}
 	}
 
-	joinState(state: StoredFileWorkingCopyState.PENDING_SAVE): Promise<void> {
-		return this.saveSequentializer.pending ?? Promise.resolve();
+	async joinState(state: StoredFileWorkingCopyState.PENDING_SAVE): Promise<void> {
+		return this.saveSequentializer.pending;
 	}
 
 	//#endregion

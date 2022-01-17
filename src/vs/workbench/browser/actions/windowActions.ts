@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
 import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
 import { CATEGORIES } from 'vs/workbench/common/actions';
@@ -16,14 +16,14 @@ import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, I
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService, IWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService, IWorkspaceIdentifier, isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind } from 'vs/platform/files/common/files';
 import { splitName } from 'vs/base/common/labels';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
+import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -75,7 +75,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		const labelService = accessor.get(ILabelService);
 		const keybindingService = accessor.get(IKeybindingService);
 		const modelService = accessor.get(IModelService);
-		const modeService = accessor.get(IModeService);
+		const languageService = accessor.get(ILanguageService);
 		const hostService = accessor.get(IHostService);
 		const dialogService = accessor.get(IDialogService);
 
@@ -88,10 +88,10 @@ abstract class BaseOpenRecentAction extends Action2 {
 		const dirtyFolders = new ResourceMap<boolean>();
 		const dirtyWorkspaces = new ResourceMap<IWorkspaceIdentifier>();
 		for (const dirtyWorkspace of dirtyWorkspacesAndFolders) {
-			if (URI.isUri(dirtyWorkspace)) {
-				dirtyFolders.set(dirtyWorkspace, true);
+			if (isFolderBackupInfo(dirtyWorkspace)) {
+				dirtyFolders.set(dirtyWorkspace.folderUri, true);
 			} else {
-				dirtyWorkspaces.set(dirtyWorkspace.configPath, dirtyWorkspace);
+				dirtyWorkspaces.set(dirtyWorkspace.workspace.configPath, dirtyWorkspace.workspace);
 				hasWorkspaces = true;
 			}
 		}
@@ -113,19 +113,19 @@ abstract class BaseOpenRecentAction extends Action2 {
 		for (const recent of recentlyOpened.workspaces) {
 			const isDirty = isRecentFolder(recent) ? dirtyFolders.has(recent.folderUri) : dirtyWorkspaces.has(recent.workspace.configPath);
 
-			workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, recent, isDirty));
+			workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, recent, isDirty));
 		}
 
 		// Fill any backup workspace that is not yet shown at the end
 		for (const dirtyWorkspaceOrFolder of dirtyWorkspacesAndFolders) {
-			if (URI.isUri(dirtyWorkspaceOrFolder) && !recentFolders.has(dirtyWorkspaceOrFolder)) {
-				workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, { folderUri: dirtyWorkspaceOrFolder }, true));
-			} else if (isWorkspaceIdentifier(dirtyWorkspaceOrFolder) && !recentWorkspaces.has(dirtyWorkspaceOrFolder.configPath)) {
-				workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, { workspace: dirtyWorkspaceOrFolder }, true));
+			if (isFolderBackupInfo(dirtyWorkspaceOrFolder) && !recentFolders.has(dirtyWorkspaceOrFolder.folderUri)) {
+				workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, dirtyWorkspaceOrFolder, true));
+			} else if (isWorkspaceBackupInfo(dirtyWorkspaceOrFolder) && !recentWorkspaces.has(dirtyWorkspaceOrFolder.workspace.configPath)) {
+				workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, dirtyWorkspaceOrFolder, true));
 			}
 		}
 
-		const filePicks = recentlyOpened.files.map(p => this.toQuickPick(modelService, modeService, labelService, p, false));
+		const filePicks = recentlyOpened.files.map(p => this.toQuickPick(modelService, languageService, labelService, p, false));
 
 		// focus second entry if the first recent workspace is the current workspace
 		const firstEntry = recentlyOpened.workspaces[0];
@@ -182,7 +182,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		}
 	}
 
-	private toQuickPick(modelService: IModelService, modeService: IModeService, labelService: ILabelService, recent: IRecent, isDirty: boolean): IRecentlyOpenedPick {
+	private toQuickPick(modelService: IModelService, languageService: ILanguageService, labelService: ILabelService, recent: IRecent, isDirty: boolean): IRecentlyOpenedPick {
 		let openable: IWindowOpenable | undefined;
 		let iconClasses: string[];
 		let fullLabel: string | undefined;
@@ -192,7 +192,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		// Folder
 		if (isRecentFolder(recent)) {
 			resource = recent.folderUri;
-			iconClasses = getIconClasses(modelService, modeService, resource, FileKind.FOLDER);
+			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.FOLDER);
 			openable = { folderUri: resource };
 			fullLabel = recent.label || labelService.getWorkspaceLabel(resource, { verbose: true });
 		}
@@ -200,7 +200,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		// Workspace
 		else if (isRecentWorkspace(recent)) {
 			resource = recent.workspace.configPath;
-			iconClasses = getIconClasses(modelService, modeService, resource, FileKind.ROOT_FOLDER);
+			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.ROOT_FOLDER);
 			openable = { workspaceUri: resource };
 			fullLabel = recent.label || labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
 			isWorkspace = true;
@@ -209,7 +209,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		// File
 		else {
 			resource = recent.fileUri;
-			iconClasses = getIconClasses(modelService, modeService, resource, FileKind.FILE);
+			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.FILE);
 			openable = { fileUri: resource };
 			fullLabel = recent.label || labelService.getUriLabel(resource);
 		}
@@ -296,11 +296,11 @@ class ToggleFullScreenAction extends Action2 {
 			},
 			precondition: IsIOSContext.toNegated(),
 			toggled: IsFullscreenContext,
-			menu: {
+			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
 				order: 1
-			}
+			}]
 		});
 	}
 
@@ -377,13 +377,13 @@ class NewWindowAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: isWeb ? (KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyN) : KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN,
+				primary: isWeb ? (isWindows ? KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.KeyN) : KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyN) : KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN,
 				secondary: isWeb ? [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN] : undefined
 			},
 			menu: {
 				id: MenuId.MenubarFileMenu,
 				group: '1_new',
-				order: 2
+				order: 3
 			}
 		});
 	}

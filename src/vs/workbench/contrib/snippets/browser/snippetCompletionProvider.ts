@@ -8,15 +8,16 @@ import { compare, compareSubstring } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { isPatternInWord } from 'vs/base/common/filters';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 
 export class SnippetCompletion implements CompletionItem {
 
@@ -57,8 +58,9 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 	readonly _debugDisplayName = 'snippetCompletions';
 
 	constructor(
-		@IModeService private readonly _modeService: IModeService,
-		@ISnippetsService private readonly _snippets: ISnippetsService
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@ISnippetsService private readonly _snippets: ISnippetsService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
 		//
 	}
@@ -67,16 +69,27 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 
 		const sw = new StopWatch(true);
 		const languageId = this._getLanguageIdAtPosition(model, position);
+		const languageConfig = this._languageConfigurationService.getLanguageConfiguration(languageId);
 		const snippets = new Set(await this._snippets.getSnippets(languageId));
 
 		const lineContentLow = model.getLineContent(position.lineNumber).toLowerCase();
+		const wordUntil = model.getWordUntilPosition(position).word.toLowerCase();
 
 		const suggestions: SnippetCompletion[] = [];
 		const columnOffset = position.column - 1;
 
 		const triggerCharacterLow = context.triggerCharacter?.toLowerCase() ?? '';
 
+
 		for (const snippet of snippets) {
+
+			const word = getWordAtText(1, languageConfig.getWordDefinition(), snippet.prefixLow, 0);
+
+			if (wordUntil && word && !isPatternInWord(wordUntil, 0, wordUntil.length, snippet.prefixLow, 0, snippet.prefixLow.length)) {
+				// when at a word the snippet prefix must match
+				continue;
+			}
+
 
 			for (let pos = Math.max(0, columnOffset - snippet.prefixLow.length); pos < lineContentLow.length; pos++) {
 
@@ -96,7 +109,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 
 				// First check if there is anything to the right of the cursor
 				if (columnOffset < lineContentLow.length) {
-					const autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageId);
+					const autoClosingPairs = languageConfig.getAutoClosingPairs();
 					const standardAutoClosingPairConditionals = autoClosingPairs.autoClosingPairsCloseSingleChar.get(lineContentLow[columnOffset]);
 					// If the character to the right of the cursor is a closing character of an autoclosing pair
 					if (standardAutoClosingPairConditionals?.some(p =>
@@ -164,9 +177,8 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// facing language with a name and the chance to have
 		// snippets, else fall back to the outer language
 		model.tokenizeIfCheap(position.lineNumber);
-		let languageId: string | null = model.getLanguageIdAtPosition(position.lineNumber, position.column);
-		languageId = this._modeService.validateLanguageId(languageId);
-		if (!languageId || !this._modeService.getLanguageName(languageId)) {
+		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
+		if (!this._languageService.getLanguageName(languageId)){
 			languageId = model.getLanguageId();
 		}
 		return languageId;

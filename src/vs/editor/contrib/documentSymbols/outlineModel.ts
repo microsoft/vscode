@@ -10,12 +10,12 @@ import { Iterable } from 'vs/base/common/iterator';
 import { LRUCache } from 'vs/base/common/map';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
+import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/languages';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { FeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
 
 export abstract class TreeElement {
 
@@ -206,7 +206,7 @@ export class OutlineGroup extends TreeElement {
 
 export class OutlineModel extends TreeElement {
 
-	private static readonly _requestDurations = new LanguageFeatureRequestDelays(DocumentSymbolProviderRegistry, 350);
+	private static readonly _requestDurations = new FeatureDebounceInformation(DocumentSymbolProviderRegistry, 350, 350); // todo@jrieken ADOPT debounce service
 	private static readonly _requests = new LRUCache<string, { promiseCnt: number, source: CancellationTokenSource, promise: Promise<any>, model: OutlineModel | undefined }>(9, 0.75);
 	private static readonly _keys = new class {
 
@@ -281,8 +281,8 @@ export class OutlineModel extends TreeElement {
 		});
 	}
 
-	static getRequestDelay(textModel: ITextModel | null): number {
-		return textModel ? this._requestDurations.get(textModel) : this._requestDurations.min;
+	static getRequestDelay(textModel: ITextModel): number {
+		return this._requestDurations.get(textModel);
 	}
 
 	private static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
@@ -460,7 +460,9 @@ export class OutlineModel extends TreeElement {
 		const roots = this.getTopLevelSymbols();
 		const bucket: DocumentSymbol[] = [];
 		OutlineModel._flattenDocumentSymbols(bucket, roots, '');
-		return bucket.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+		return bucket.sort((a, b) =>
+			Position.compare(Range.getStartPosition(a.range), Range.getStartPosition(b.range)) || Position.compare(Range.getEndPosition(b.range), Range.getEndPosition(a.range))
+		);
 	}
 
 	private static _flattenDocumentSymbols(bucket: DocumentSymbol[], entries: DocumentSymbol[], overrideContainerLabel: string): void {

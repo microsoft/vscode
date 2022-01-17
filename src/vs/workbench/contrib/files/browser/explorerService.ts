@@ -80,15 +80,12 @@ export class ExplorerService implements IExplorerService {
 			// Or if they affect not yet resolved parts of the explorer. If that is the case we will not refresh.
 			events.forEach(e => {
 				if (!shouldRefresh) {
-					const added = e.rawAdded;
-					if (added) {
-						for (const [resource] of added) {
-							const parent = this.model.findClosest(dirname(resource));
-							// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
-							if (parent && !parent.getChild(basename(resource))) {
-								shouldRefresh = true;
-								break;
-							}
+					for (const resource of e.rawAdded) {
+						const parent = this.model.findClosest(dirname(resource));
+						// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
+						if (parent && !parent.getChild(basename(resource))) {
+							shouldRefresh = true;
+							break;
 						}
 					}
 				}
@@ -102,6 +99,10 @@ export class ExplorerService implements IExplorerService {
 
 		this.disposables.add(this.fileService.onDidFilesChange(e => {
 			this.fileChangeEvents.push(e);
+			// Don't mess with the file tree while in the process of editing. #112293
+			if (this.editable) {
+				return;
+			}
 			if (!this.onFileChangesScheduler.isScheduled()) {
 				this.onFileChangesScheduler.schedule();
 			}
@@ -200,6 +201,10 @@ export class ExplorerService implements IExplorerService {
 		}
 		const isEditing = this.isEditable(stat);
 		await this.view.setEditable(stat, isEditing);
+
+		if (!this.editable && this.fileChangeEvents.length && !this.onFileChangesScheduler.isScheduled()) {
+			this.onFileChangesScheduler.schedule();
+		}
 	}
 
 	async setToCopy(items: ExplorerItem[], cut: boolean): Promise<void> {

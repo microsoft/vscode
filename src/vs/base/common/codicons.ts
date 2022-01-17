@@ -3,47 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 export interface IIconRegistry {
 	readonly all: IterableIterator<Codicon>;
 	readonly onDidRegister: Event<Codicon>;
 	get(id: string): Codicon | undefined;
 }
-
-class Registry implements IIconRegistry {
-
-	private readonly _icons = new Map<string, Codicon>();
-	private readonly _onDidRegister = new Emitter<Codicon>();
-
-	public add(icon: Codicon) {
-		const existing = this._icons.get(icon.id);
-		if (!existing) {
-			this._icons.set(icon.id, icon);
-			this._onDidRegister.fire(icon);
-		} else if (icon.description) {
-			existing.description = icon.description;
-		} else {
-			console.error(`Duplicate registration of codicon ${icon.id}`);
-		}
-	}
-
-	public get(id: string): Codicon | undefined {
-		return this._icons.get(id);
-	}
-
-	public get all(): IterableIterator<Codicon> {
-		return this._icons.values();
-	}
-
-	public get onDidRegister(): Event<Codicon> {
-		return this._onDidRegister.event;
-	}
-}
-
-const _registry = new Registry();
-
-export const iconRegistry: IIconRegistry = _registry;
 
 // Selects all codicon names encapsulated in the `$()` syntax and wraps the
 // results with spaces so that screen readers can read the text better.
@@ -59,18 +25,28 @@ export function getCodiconAriaLabel(text: string | undefined) {
  * The Codicon library is a set of default icons that are built-in in VS Code.
  *
  * In the product (outside of base) Codicons should only be used as defaults. In order to have all icons in VS Code
- * themeable, component should ise define new, component specific icons using `iconRegistry.registerIcon`.
- * In that call a Codicon can be names as default.
+ * themeable, component should define new, UI component specific icons using `iconRegistry.registerIcon`.
+ * In that call a Codicon can be named as default.
  */
 export class Codicon implements CSSIcon {
+
 	private constructor(public readonly id: string, public readonly definition: IconDefinition, public description?: string) {
-		_registry.add(this);
+		Codicon._allCodicons.push(this);
 	}
 	public get classNames() { return 'codicon codicon-' + this.id; }
 	// classNamesArray is useful for migrating to ES6 classlist
 	public get classNamesArray() { return ['codicon', 'codicon-' + this.id]; }
 	public get cssSelector() { return '.codicon.codicon-' + this.id; }
 
+	// registry
+	private static _allCodicons : Codicon[] = [];
+
+	/**
+	 * @returns Returns all default icons covered by the codicon font. Only to be used by the icon registry in platform.
+	 */
+	public static getAll() : readonly Codicon[] {
+		return Codicon._allCodicons;
+	}
 
 	// built-in icons, with image name
 	public static readonly add = new Codicon('add', { fontCharacter: '\\ea60' });
@@ -402,6 +378,7 @@ export class Codicon implements CSSIcon {
 	public static readonly starHalf = new Codicon('star-half', { fontCharacter: '\\eb5a' });
 	public static readonly symbolClass = new Codicon('symbol-class', { fontCharacter: '\\eb5b' });
 	public static readonly symbolColor = new Codicon('symbol-color', { fontCharacter: '\\eb5c' });
+	public static readonly symbolCustomColor = new Codicon('symbol-customcolor', { fontCharacter: '\\eb5c' });
 	public static readonly symbolConstant = new Codicon('symbol-constant', { fontCharacter: '\\eb5d' });
 	public static readonly symbolEnumMember = new Codicon('symbol-enum-member', { fontCharacter: '\\eb5e' });
 	public static readonly symbolField = new Codicon('symbol-field', { fontCharacter: '\\eb5f' });

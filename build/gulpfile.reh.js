@@ -103,11 +103,7 @@ const serverEntryPoints = [
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
-		name: 'vs/platform/files/node/watcher/nsfw/watcherApp',
-		exclude: ['vs/css', 'vs/nls']
-	},
-	{
-		name: 'vs/platform/files/node/watcher/parcel/watcherApp',
+		name: 'vs/platform/files/node/watcher/watcherMain',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
@@ -227,6 +223,8 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 					return true; // web: ship all extensions for now
 				}
 
+				// Skip shipping UI extensions because the client side will have them anyways
+				// and they'd just increase the download without being used
 				const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, extensionPath)).toString());
 				return !isUIExtension(manifest);
 			}).map((extensionPath) => path.basename(path.dirname(extensionPath)))
@@ -252,7 +250,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		const name = product.nameShort;
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
-			.pipe(json({ name, version }));
+			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined }));
 
 		const date = new Date().toISOString();
 
@@ -302,26 +300,28 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		if (platform === 'win32') {
 			result = es.merge(result,
-				gulp.src('resources/server/bin/code.cmd', { base: '.' })
+				gulp.src('resources/server/bin/remote-cli/code.cmd', { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
 					.pipe(replace('@@COMMIT@@', commit))
 					.pipe(replace('@@APPNAME@@', product.applicationName))
-					.pipe(rename(`bin/${product.applicationName}.cmd`)),
+					.pipe(rename(`bin/remote-cli/${product.applicationName}.cmd`)),
 				gulp.src('resources/server/bin/helpers/browser.cmd', { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
 					.pipe(replace('@@COMMIT@@', commit))
 					.pipe(replace('@@APPNAME@@', product.applicationName))
 					.pipe(rename(`bin/helpers/browser.cmd`)),
-				gulp.src('resources/server/bin/server.cmd', { base: '.' })
-					.pipe(rename(`server.cmd`))
+				gulp.src('resources/server/bin/server-old.cmd', { base: '.' })
+					.pipe(rename(`server.cmd`)),
+				gulp.src('resources/server/bin/code-server.cmd', { base: '.' })
+					.pipe(rename(`bin/${product.serverApplicationName}.cmd`)),
 			);
 		} else if (platform === 'linux' || platform === 'alpine' || platform === 'darwin') {
 			result = es.merge(result,
-				gulp.src('resources/server/bin/code.sh', { base: '.' })
+				gulp.src('resources/server/bin/remote-cli/code.sh', { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
 					.pipe(replace('@@COMMIT@@', commit))
 					.pipe(replace('@@APPNAME@@', product.applicationName))
-					.pipe(rename(`bin/${product.applicationName}`))
+					.pipe(rename(`bin/remote-cli/${product.applicationName}`))
 					.pipe(util.setExecutableBit()),
 				gulp.src('resources/server/bin/helpers/browser.sh', { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
@@ -329,8 +329,11 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 					.pipe(replace('@@APPNAME@@', product.applicationName))
 					.pipe(rename(`bin/helpers/browser.sh`))
 					.pipe(util.setExecutableBit()),
-				gulp.src('resources/server/bin/server.sh', { base: '.' })
+				gulp.src('resources/server/bin/server-old.sh', { base: '.' })
 					.pipe(rename(`server.sh`))
+					.pipe(util.setExecutableBit()),
+				gulp.src('resources/server/bin/code-server.sh', { base: '.' })
+					.pipe(rename(`bin/${product.serverApplicationName}`))
 					.pipe(util.setExecutableBit())
 			);
 		}
