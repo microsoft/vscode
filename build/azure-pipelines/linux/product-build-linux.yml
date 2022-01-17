@@ -137,6 +137,11 @@ steps:
 
   - script: |
       set -e
+      node build/azure-pipelines/mixin --server
+    displayName: Mix in server quality
+
+  - script: |
+      set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
