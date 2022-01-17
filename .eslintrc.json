@@ -212,6 +212,13 @@
 				]
 			},
 			{
+				"target": "**/vs/base/worker/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/{common,worker}/**"
+				]
+			},
+			{
 				"target": "**/vs/platform/*/common/**",
 				"restrictions": [
 					"vs/nls",
@@ -447,6 +454,28 @@
 					"**/vs/platform/*/{common,browser}/**",
 					"**/vs/editor/{common,browser}/**",
 					"**/vs/editor/contrib/**"
+				]
+			},
+			{
+				"target": "**/vs/editor/editor.all.ts",
+				"restrictions": [
+					"**/vs/base/{common,browser}/**",
+					"**/vs/base/parts/*/{common,browser}/**",
+					"**/vs/editor/{common,contrib,browser}/**"
+				]
+			},
+			{
+				"target": "**/vs/editor/editor.worker.ts",
+				"restrictions": [
+					"**/vs/base/{common,worker}/**",
+					"**/vs/editor/common/**"
+				]
+			},
+			{
+				"target": "**/vs/editor/editor.{api,main}.ts",
+				"restrictions": [
+					"**/vs/base/{common,browser}/**",
+					"**/vs/editor/**"
 				]
 			},
 			{
@@ -956,7 +985,7 @@
 				]
 			},
 			{
-				"target": "**/src/vs/workbench/workbench.sandbox.main.ts",
+				"target": "**/src/vs/workbench/{workbench.sandbox.main.ts,workbench.desktop.sandbox.main.ts}",
 				"restrictions": [
 					"vs/nls",
 					"**/vs/base/**/{common,browser,electron-sandbox}/**",
@@ -964,7 +993,8 @@
 					"**/vs/platform/**/{common,browser,electron-sandbox}/**",
 					"**/vs/editor/**",
 					"**/vs/workbench/**/{common,browser,electron-sandbox}/**",
-					"**/vs/workbench/workbench.common.main"
+					"**/vs/workbench/workbench.common.main",
+					"**/vs/workbench/workbench.sandbox.main"
 				]
 			},
 			{
@@ -981,7 +1011,19 @@
 				]
 			},
 			{
+				"target": "**/src/vs/workbench/{workbench.desktop.main.nls.js,workbench.web.api.nls.js}",
+				"restrictions": []
+			},
+			{
+				"target": "**/src/vs/{css.d.ts,monaco.d.ts,nls.d.ts,nls.mock.ts}",
+				"restrictions": []
+			},
+			{
 				"target": "**/src/vscode-dts/**",
+				"restrictions": []
+			},
+			{
+				"target": "**/src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,bootstrap.js,cli.js,main.js}",
 				"restrictions": []
 			},
 			{
@@ -1088,6 +1130,14 @@
 					"crypto",
 					"xterm*"
 				]
+			},
+			{
+				"target": "**/build/**",
+				"restrictions": "**/*"
+			},
+			{
+				"target": "**/{buildfile.js,buildfile.desktop.js,buildfile.web.js}",
+				"restrictions": "**/*"
 			}
 		],
 		"header/header": [

@@ -18,7 +18,8 @@ export = new class implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
-			badImport: 'Imports violates \'{{restrictions}}\' restrictions. See https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
+			badImport: 'Imports violates \'{{restrictions}}\' restrictions. See https://github.com/microsoft/vscode/wiki/Source-Code-Organization',
+			badFilename: 'Missing definition in `code-import-patterns` for this file. Define rules at https://github.com/microsoft/vscode/blob/main/.eslintrc.json'
 		},
 		docs: {
 			url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
@@ -34,6 +35,11 @@ export = new class implements eslint.Rule.RuleModule {
 				return createImportRuleListener((node, value) => this._checkImport(context, config, node, value));
 			}
 		}
+
+		context.report({
+			loc: { line: 1, column: 1 },
+			messageId: 'badFilename'
+		});
 
 		return {};
 	}

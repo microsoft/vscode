@@ -10,7 +10,8 @@ module.exports = new class {
     constructor() {
         this.meta = {
             messages: {
-                badImport: 'Imports violates \'{{restrictions}}\' restrictions. See https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
+                badImport: 'Imports violates \'{{restrictions}}\' restrictions. See https://github.com/microsoft/vscode/wiki/Source-Code-Organization',
+                badFilename: 'Missing definition in `code-import-patterns` for this file. Define rules at https://github.com/microsoft/vscode/blob/main/.eslintrc.json'
             },
             docs: {
                 url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
@@ -24,6 +25,10 @@ module.exports = new class {
                 return (0, utils_1.createImportRuleListener)((node, value) => this._checkImport(context, config, node, value));
             }
         }
+        context.report({
+            loc: { line: 1, column: 1 },
+            messageId: 'badFilename'
+        });
         return {};
     }
     _checkImport(context, config, node, path) {

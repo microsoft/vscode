@@ -11,6 +11,7 @@ import { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputb
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr, IContextKey, IContextKeyService, IContextKeyServiceTarget, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+// eslint-disable-next-line code-import-patterns
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 
 export const HistoryNavigationWidgetContext = 'historyNavigationWidget';
