@@ -630,7 +630,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 						diffIdentityProvider: identityProvider
 					});
 				} catch (e) {
-					this.notificationService.error(e);
+					this.notificationService.error('Internal error in file explorer. This may be due to experimental file nesting.');
 					console.error('Unepxected error', e, 'in refreshing explorer. This may be due to experimental file nesting.');
 					return;
 				}
