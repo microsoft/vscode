@@ -348,7 +348,7 @@ const newCommands: ApiCommand[] = [
 			viewType: string;
 			displayName: string;
 			options: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; };
-			filenamePattern: (string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern })[]
+			filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern, exclude: vscode.GlobPattern })[]
 		}[], {
 			viewType: string;
 			displayName: string;

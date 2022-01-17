@@ -15,6 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRelativePatternDto } from 'vs/workbench/api/common/extHost.protocol';
 import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
@@ -2413,10 +2414,11 @@ export class RelativePattern implements IRelativePattern {
 		this.pattern = pattern;
 	}
 
-	toJSON(): IRelativePattern {
+	toJSON(): IRelativePatternDto {
 		return {
 			pattern: this.pattern,
-			base: this.base
+			base: this.base,
+			baseUri: this.baseUri.toJSON()
 		};
 	}
 }

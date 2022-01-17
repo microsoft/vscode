@@ -385,7 +385,11 @@ export interface ILanguageConfigurationDto {
 	};
 }
 
-export type GlobPattern = string | { base: string; pattern: string; };
+export type GlobPattern = string | IRelativePattern;
+
+export interface IRelativePatternDto extends IRelativePattern {
+	baseUri: UriComponents;
+}
 
 export interface IDocumentFilterDto {
 	$serialized: true;
