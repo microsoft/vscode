@@ -151,7 +151,7 @@ export interface MainThreadClipboardShape extends IDisposable {
 export interface MainThreadCommandsShape extends IDisposable {
 	$registerCommand(id: string): void;
 	$unregisterCommand(id: string): void;
-	$executeCommand<T>(id: string, args: any[] | SerializableObjectWithBuffers<any[]>, retry: boolean): Promise<T | undefined>;
+	$executeCommand(id: string, args: any[] | SerializableObjectWithBuffers<any[]>, retry: boolean): Promise<unknown | undefined>;
 	$getCommands(): Promise<string[]>;
 }
 
@@ -472,8 +472,7 @@ export interface MainThreadMessageServiceShape extends IDisposable {
 
 export interface MainThreadOutputServiceShape extends IDisposable {
 	$register(label: string, log: boolean, file: UriComponents, extensionId: string): Promise<string>;
-	$update(channelId: string, mode: OutputChannelUpdateMode.Append): Promise<void>;
-	$update(channelId: string, mode: OutputChannelUpdateMode, till: number): Promise<void>;
+	$update(channelId: string, mode: OutputChannelUpdateMode, till?: number): Promise<void>;
 	$reveal(channelId: string, preserveFocus: boolean): Promise<void>;
 	$close(channelId: string): Promise<void>;
 	$dispose(channelId: string): Promise<void>;
@@ -1231,7 +1230,7 @@ export interface MainThreadTimelineShape extends IDisposable {
 // -- extension host
 
 export interface ExtHostCommandsShape {
-	$executeContributedCommand<T>(id: string, ...args: any[]): Promise<T>;
+	$executeContributedCommand(id: string, ...args: any[]): Promise<unknown>;
 	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescription; }>;
 }
 
@@ -1817,7 +1816,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessShutdown(id: number, immediate: boolean): void;
 	$acceptProcessRequestInitialCwd(id: number): void;
 	$acceptProcessRequestCwd(id: number): void;
-	$acceptProcessRequestLatency(id: number): number;
+	$acceptProcessRequestLatency(id: number): Promise<number>;
 	$provideLinks(id: number, line: string): Promise<ITerminalLinkDto[]>;
 	$activateLink(id: number, linkId: number): void;
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;

@@ -7,7 +7,7 @@ export interface IRPCProtocol {
 	/**
 	 * Returns a proxy to an object addressable/named in the extension host process or in the renderer process.
 	 */
-	getProxy<T>(identifier: ProxyIdentifier<T>): T;
+	getProxy<T>(identifier: ProxyIdentifier<T>): Proxied<T>;
 
 	/**
 	 * Register manually created instance.
@@ -53,6 +53,11 @@ export function createExtHostContextProxyIdentifier<T>(identifier: string): Prox
 	identifiers[result.nid] = result;
 	return result;
 }
+
+export type Proxied<T> = { [K in keyof T]: T[K] extends (...args: infer A) => infer R
+	? (...args: A) => Promise<Awaited<R>>
+	: never
+};
 
 export function getStringIdentifierForProxy(nid: number): string {
 	return identifiers[nid].sid;
