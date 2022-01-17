@@ -6,32 +6,20 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSymbol } from 'vs/editor/common/languages';
-import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-
-export async function getDocumentSymbols(document: ITextModel, flat: boolean, token: CancellationToken): Promise<DocumentSymbol[]> {
-	const model = await OutlineModel.create(document, token);
-	return flat
-		? model.asListOfDocumentSymbols()
-		: model.getTopLevelSymbols();
-}
 
 CommandsRegistry.registerCommand('_executeDocumentSymbolProvider', async function (accessor, ...args) {
 	const [resource] = args;
 	assertType(URI.isUri(resource));
 
-	const model = accessor.get(IModelService).getModel(resource);
-	if (model) {
-		return getDocumentSymbols(model, false, CancellationToken.None);
-	}
+	const outlineService = accessor.get(IOutlineModelService);
+	const modelService = accessor.get(ITextModelService);
 
-	const reference = await accessor.get(ITextModelService).createModelReference(resource);
+	const reference = await modelService.createModelReference(resource);
 	try {
-		return await getDocumentSymbols(reference.object.textEditorModel, false, CancellationToken.None);
+		return (await outlineService.getOrCreate(reference.object.textEditorModel, CancellationToken.None)).getTopLevelSymbols();
 	} finally {
 		reference.dispose();
 	}

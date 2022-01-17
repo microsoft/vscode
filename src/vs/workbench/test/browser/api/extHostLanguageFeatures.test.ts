@@ -20,7 +20,6 @@ import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { getDocumentSymbols } from 'vs/editor/contrib/documentSymbols/documentSymbols';
 import * as modes from 'vs/editor/common/languages';
 import { getCodeLensModel } from 'vs/editor/contrib/codelens/codelens';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from 'vs/editor/contrib/gotoSymbol/goToSymbol';
@@ -51,6 +50,7 @@ import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDep
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
 
 suite('ExtHostLanguageFeatures', function () {
 
@@ -155,7 +155,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getDocumentSymbols(model, true, CancellationToken.None);
+		const value = (await OutlineModel.create(model, CancellationToken.None)).asListOfDocumentSymbols();
 		assert.strictEqual(value.length, 1);
 	});
 
@@ -167,7 +167,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getDocumentSymbols(model, true, CancellationToken.None);
+		const value = (await OutlineModel.create(model, CancellationToken.None)).asListOfDocumentSymbols();
 		assert.strictEqual(value.length, 1);
 		let entry = value[0];
 		assert.strictEqual(entry.name, 'test');
@@ -198,7 +198,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 
-		const value = await getDocumentSymbols(model, true, CancellationToken.None);
+		const value = (await OutlineModel.create(model, CancellationToken.None)).asListOfDocumentSymbols();
 
 		assert.strictEqual(value.length, 6);
 		assert.deepStrictEqual(value.map(s => s.name), ['containers', 'container 0', 'name', 'ports', 'ports 0', 'containerPort']);

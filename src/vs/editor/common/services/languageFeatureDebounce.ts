@@ -40,7 +40,7 @@ namespace IdentityHash {
 	}
 }
 
-export class FeatureDebounceInformation implements IFeatureDebounceInformation {
+class FeatureDebounceInformation implements IFeatureDebounceInformation {
 
 	private readonly _cache = new LRUCache<string, SlidingWindowAverage>(50, 0.7);
 
