@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import * as cp from 'child_process';
-import * as playwright from 'playwright';
+import * as playwright from '@playwright/test';
 import * as url from 'url';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
