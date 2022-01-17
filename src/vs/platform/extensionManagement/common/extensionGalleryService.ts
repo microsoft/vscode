@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { DefaultIconPath, getFallbackTargetPlarforms, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isIExtensionIdentifier, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionIdentifierWithPreRelease } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { DefaultIconPath, getFallbackTargetPlarforms, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, toTargetPlatform, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
@@ -278,8 +278,8 @@ type GalleryServiceAdditionalQueryEvent = {
 interface IExtensionCriteria {
 	readonly targetPlatform: TargetPlatform;
 	readonly compatible: boolean;
-	readonly preRelease: boolean | IExtensionIdentifierWithPreRelease[];
-	readonly versions?: IExtensionIdentifierWithVersion[];
+	readonly preRelease: boolean | (IExtensionIdentifier & { preRelease: boolean })[];
+	readonly versions?: (IExtensionIdentifier & { version: string })[];
 }
 
 class Query {
@@ -562,27 +562,21 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return !!this.extensionsGalleryUrl;
 	}
 
-	getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, token: CancellationToken): Promise<IGalleryExtension[]>;
-	getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, includePreRelease: boolean, token: CancellationToken): Promise<IGalleryExtension[]>;
-	async getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, arg1: any, arg2?: any): Promise<IGalleryExtension[]> {
-		const preRelease = isBoolean(arg1) ? arg1 : false;
-		const token: CancellationToken = isBoolean(arg1) ? arg2 : arg1;
-		const versions: IExtensionIdentifierWithVersion[] = (identifiers as ReadonlyArray<IExtensionIdentifierWithVersion>).filter(identifier => !!identifier.version);
-		const query = new Query()
-			.withPage(1, identifiers.length)
-			.withFilter(FilterType.ExtensionName, ...identifiers.map(({ id }) => id.toLowerCase()));
-
-		const { extensions } = await this.queryGalleryExtensions(query, { targetPlatform: CURRENT_TARGET_PLATFORM, preRelease, versions, compatible: false }, token);
-		return extensions;
-	}
-
-	async getCompatibleExtensions(identifiers: ReadonlyArray<IExtensionIdentifierWithPreRelease>, targetPlatform: TargetPlatform): Promise<IGalleryExtension[]> {
-		const names: string[] = []; const ids: string[] = [];
-		for (const identifier of identifiers) {
-			if (identifier.uuid) {
-				ids.push(identifier.uuid);
+	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, token: CancellationToken): Promise<IGalleryExtension[]>;
+	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, options: { targetPlatform: TargetPlatform, compatible?: boolean }, token: CancellationToken): Promise<IGalleryExtension[]>;
+	async getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, arg1: any, arg2?: any): Promise<IGalleryExtension[]> {
+		const options = CancellationToken.isCancellationToken(arg1) ? { targetPlatform: CURRENT_TARGET_PLATFORM } : arg1 as { targetPlatform: TargetPlatform, compatible?: boolean };
+		const token = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2 as CancellationToken;
+		const names: string[] = []; const ids: string[] = [], preRelease: (IExtensionIdentifier & { preRelease: boolean })[] = [], versions: (IExtensionIdentifier & { version: string })[] = [];
+		for (const extensionInfo of extensionInfos) {
+			if (extensionInfo.uuid) {
+				ids.push(extensionInfo.uuid);
 			} else {
-				names.push(identifier.id.toLowerCase());
+				names.push(extensionInfo.id);
+			}
+			preRelease.push({ ...extensionInfo, preRelease: !!extensionInfo.preRelease });
+			if (extensionInfo.version) {
+				versions.push({ ...extensionInfo, version: extensionInfo.version });
 			}
 		}
 
@@ -590,7 +584,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			return [];
 		}
 
-		let query = new Query().withPage(1, identifiers.length);
+		let query = new Query().withPage(1, extensionInfos.length);
 		if (ids.length) {
 			query = query.withFilter(FilterType.ExtensionId, ...ids);
 		}
@@ -598,29 +592,22 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			query = query.withFilter(FilterType.ExtensionName, ...names);
 		}
 
-		const { extensions } = await this.queryGalleryExtensions(query, { targetPlatform, compatible: true, preRelease: [...identifiers] }, CancellationToken.None);
+		const { extensions } = await this.queryGalleryExtensions(query, { targetPlatform: options.targetPlatform, preRelease, versions, compatible: !!options.compatible }, token);
 		return extensions;
 	}
 
-	async getCompatibleExtension(arg1: IExtensionIdentifier | IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtension | null> {
-		const extension: IGalleryExtension | null = isIExtensionIdentifier(arg1) ? null : arg1;
-
-		if (extension) {
-			if (isNotWebExtensionInWebTargetPlatform(extension.allTargetPlatforms, targetPlatform)) {
-				return null;
-			}
-			if (await this.isExtensionCompatible(extension, includePreRelease, targetPlatform)) {
-				return extension;
-			}
-			const query = new Query()
-				.withFlags(Flags.IncludeVersions)
-				.withPage(1, 1)
-				.withFilter(FilterType.ExtensionId, extension.identifier.uuid);
-			const { extensions } = await this.queryGalleryExtensions(query, { targetPlatform, compatible: true, preRelease: includePreRelease }, CancellationToken.None);
-			return extensions[0] || null;
+	async getCompatibleExtension(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtension | null> {
+		if (isNotWebExtensionInWebTargetPlatform(extension.allTargetPlatforms, targetPlatform)) {
+			return null;
 		}
-
-		const extensions = await this.getCompatibleExtensions([{ ...(<IExtensionIdentifier>arg1), preRelease: includePreRelease }], targetPlatform);
+		if (await this.isExtensionCompatible(extension, includePreRelease, targetPlatform)) {
+			return extension;
+		}
+		const query = new Query()
+			.withFlags(Flags.IncludeVersions)
+			.withPage(1, 1)
+			.withFilter(FilterType.ExtensionId, extension.identifier.uuid);
+		const { extensions } = await this.queryGalleryExtensions(query, { targetPlatform, compatible: true, preRelease: includePreRelease }, CancellationToken.None);
 		return extensions[0] || null;
 	}
 

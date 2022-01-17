@@ -309,7 +309,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local1, local2]);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery1));
 		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtension', gallery1);
-		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtensions', [gallery1]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [gallery1]);
 		testObject = await aWorkbenchService();
 		await testObject.queryLocal();
 
@@ -433,7 +433,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const gallery = aGalleryExtension(local.manifest.name, { identifier: local.identifier });
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtension', gallery);
-		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtensions', [gallery]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [gallery]);
 		testObject = await aWorkbenchService();
 		const target = testObject.local[0];
 

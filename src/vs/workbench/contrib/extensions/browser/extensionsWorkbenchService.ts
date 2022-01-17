@@ -463,7 +463,7 @@ class Extensions extends Disposable {
 
 	private async getCompatibleExtension(extensionOrIdentifier: IGalleryExtension | IExtensionIdentifier, includePreRelease: boolean): Promise<IGalleryExtension | null> {
 		if (isIExtensionIdentifier(extensionOrIdentifier)) {
-			return this.galleryService.getCompatibleExtension(extensionOrIdentifier, includePreRelease, await this.server.extensionManagementService.getTargetPlatform());
+			return (await this.galleryService.getExtensions([{ ...extensionOrIdentifier, preRelease: includePreRelease }], { targetPlatform: await this.server.extensionManagementService.getTargetPlatform(), compatible: true }, CancellationToken.None))[0] || null;
 		}
 		const extension = extensionOrIdentifier;
 		if (includePreRelease && extension.hasPreReleaseVersion && !extension.properties.isPreReleaseVersion) {
@@ -1023,7 +1023,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		if (identifiers.length) {
 			const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
-			const galleryExtensions = await this.galleryService.getCompatibleExtensions(identifiers, targetPlatform);
+			const galleryExtensions = await this.galleryService.getExtensions(identifiers, { targetPlatform, compatible: true }, CancellationToken.None);
 			galleryExtensions.forEach(gallery => this.fromGallery(gallery, extensionsControlManifest));
 		}
 	}
