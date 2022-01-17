@@ -14,7 +14,8 @@ import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import * as modes from 'vs/editor/common/languages';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { EditorWorkerHost, EditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { EditorWorkerService } from 'vs/editor/browser/services/editorWorkerService';
+import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
@@ -63,7 +64,7 @@ suite('suggest, word distance', function () {
 
 		let service = new class extends EditorWorkerService {
 
-			private _worker = new EditorSimpleWorker(new class extends mock<EditorWorkerHost>() { }, null);
+			private _worker = new EditorSimpleWorker(new class extends mock<IEditorWorkerHost>() { }, null);
 
 			constructor() {
 				super(modelService, new class extends mock<ITextResourceConfigurationService>() { }, new NullLogService(), new TestLanguageConfigurationService());

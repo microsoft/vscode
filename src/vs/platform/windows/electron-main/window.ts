@@ -56,22 +56,21 @@ interface ILoadOptions {
 const enum ReadyState {
 
 	/**
-	 * This window has not loaded any HTML yet
+	 * This window has not loaded anything yet
+	 * and this is the initial state of every
+	 * window.
 	 */
 	NONE,
 
 	/**
-	 * This window is loading HTML
-	 */
-	LOADING,
-
-	/**
-	 * This window is navigating to another HTML
+	 * This window is navigating, either for the
+	 * first time or subsequent times.
 	 */
 	NAVIGATING,
 
 	/**
-	 * This window is done loading HTML
+	 * This window has finished loading and is ready
+	 * to forward IPC requests to the web contents.
 	 */
 	READY
 }
@@ -485,7 +484,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Remember that we loaded
 		this._win.webContents.on('did-finish-load', () => {
-			this.readyState = ReadyState.LOADING;
 
 			// Associate properties from the load request if provided
 			if (this.pendingLoadConfig) {
@@ -782,8 +780,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// the window load event has fired.
 		else {
 			this.pendingLoadConfig = configuration;
-			this.readyState = ReadyState.NAVIGATING;
 		}
+
+		// Indicate we are navigting now
+		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
 		this._win.loadURL(FileAccess.asBrowserUri(this.environmentMainService.sandbox ?

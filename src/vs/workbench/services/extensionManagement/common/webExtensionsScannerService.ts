@@ -32,7 +32,6 @@ import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { basename } from 'vs/base/common/path';
-import { flatten } from 'vs/base/common/arrays';
 import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 
 type GalleryExtensionInfo = { readonly id: string, preRelease?: boolean, migrateStorageFrom?: string };
@@ -215,12 +214,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 		if (extensions.length) {
 			extensions = (await this.checkAdditionalBuiltinExtensions(extensions));
-			const preReleaseExtensions = extensions.filter(e => e.preRelease).map(({ id }) => ({ id }));
-			const releaseExtensions = extensions.filter(e => !e.preRelease).map(({ id }) => ({ id }));
-			const galleryExtensions = flatten(await Promise.all([
-				preReleaseExtensions.length ? this.galleryService.getExtensions(preReleaseExtensions, true, CancellationToken.None) : Promise.resolve<IGalleryExtension[]>([]),
-				releaseExtensions.length ? this.galleryService.getExtensions(releaseExtensions, false, CancellationToken.None) : Promise.resolve<IGalleryExtension[]>([]),
-			]));
+			const galleryExtensions = await this.galleryService.getExtensions(extensions, CancellationToken.None);
 			const missingExtensions = extensions.filter(({ id }) => !galleryExtensions.find(({ identifier }) => areSameExtensions(identifier, { id })));
 			if (missingExtensions.length) {
 				this.logService.info('Cannot find static extensions from gallery', missingExtensions);

@@ -222,14 +222,9 @@ export interface IExtensionIdentifier {
 	uuid?: string;
 }
 
-export interface IExtensionIdentifierWithVersion extends IExtensionIdentifier {
-	id: string;
-	uuid?: string;
-	version: string;
-}
-
-export interface IExtensionIdentifierWithPreRelease extends IExtensionIdentifier {
-	preRelease: boolean;
+export interface IExtensionInfo extends IExtensionIdentifier {
+	version?: string;
+	preRelease?: boolean;
 }
 
 export interface IGalleryExtensionIdentifier extends IExtensionIdentifier {
@@ -340,9 +335,11 @@ export interface IExtensionGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
 	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
-	getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, token: CancellationToken): Promise<IGalleryExtension[]>;
-	getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, includePreRelease: boolean, token: CancellationToken): Promise<IGalleryExtension[]>;
-	getExtensions2(identifiers: ReadonlyArray<IExtensionIdentifierWithPreRelease>): Promise<IGalleryExtension[]>;
+	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, token: CancellationToken): Promise<IGalleryExtension[]>;
+	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, options: { targetPlatform: TargetPlatform, compatible?: boolean }, token: CancellationToken): Promise<IGalleryExtension[]>;
+	isExtensionCompatible(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<boolean>;
+	getCompatibleExtension(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtension | null>;
+	getAllCompatibleVersions(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]>;
 	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
 	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
@@ -350,10 +347,6 @@ export interface IExtensionGalleryService {
 	getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
 	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation | null>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
-	isExtensionCompatible(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<boolean>;
-	getCompatibleExtension(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtension | null>;
-	getCompatibleExtension(id: IExtensionIdentifier, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtension | null>;
-	getAllCompatibleVersions(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]>;
 }
 
 export interface InstallExtensionEvent {
@@ -380,6 +373,7 @@ export enum ExtensionManagementErrorCode {
 	Incompatible = 'Incompatible',
 	IncompatiblePreRelease = 'IncompatiblePreRelease',
 	IncompatibleTargetPlatform = 'IncompatibleTargetPlatform',
+	ReleaseVersionNotFound = 'ReleaseVersionNotFound',
 	Invalid = 'Invalid',
 	Download = 'Download',
 	Extract = 'Extract',
