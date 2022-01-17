@@ -34,9 +34,18 @@ export = new class implements eslint.Rule.RuleModule {
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-
-		const configs = this._processOptions(<RawImportPatternsConfig[]>context.options);
+		const options = <RawImportPatternsConfig[]>context.options;
+		const { configs, warnings } = this._processOptions(options);
 		const relativeFilename = getRelativeFilename(context);
+
+		if (warnings.length > 0) {
+			// configuration warnings
+			context.report({
+				loc: { line: 1, column: 0 },
+				message: warnings.join('\n')
+			});
+			return {};
+		}
 
 		for (const config of configs) {
 			if (minimatch(relativeFilename, config.target)) {
@@ -45,20 +54,36 @@ export = new class implements eslint.Rule.RuleModule {
 		}
 
 		context.report({
-			loc: { line: 1, column: 1 },
+			loc: { line: 1, column: 0 },
 			messageId: 'badFilename'
 		});
 
 		return {};
 	}
 
-	private _processOptions(options: RawImportPatternsConfig[]): ImportPatternsConfig[] {
-		const result: ImportPatternsConfig[] = [];
+	private _optionsCache = new WeakMap<RawImportPatternsConfig[], { configs: ImportPatternsConfig[]; warnings: string[]; }>();
+
+	private _processOptions(options: RawImportPatternsConfig[]): { configs: ImportPatternsConfig[]; warnings: string[]; } {
+		if (this._optionsCache.has(options)) {
+			return this._optionsCache.get(options)!;
+		}
+		const configs: ImportPatternsConfig[] = [];
+		const warnings: string[] = [];
 		for (const option of options) {
 			const target = option.target;
-			const restrictions = (typeof option.restrictions === 'string' ? [option.restrictions] : option.restrictions);
-			result.push({ target, restrictions });
+			const restrictions = (typeof option.restrictions === 'string' ? [option.restrictions] : option.restrictions.slice(0));
+			if (/^src\/vs\/.*\/\*\*/.test(target)) {
+				const amdTarget = target.substring('src/'.length);
+				// Allow importing itself
+				if (restrictions.includes(amdTarget)) {
+					warnings.push(`target ${target}: '${amdTarget}' is automatically included in restrictions.`);
+				}
+				restrictions.push(amdTarget);
+			}
+			configs.push({ target, restrictions });
 		}
+		const result = { configs, warnings };
+		this._optionsCache.set(options, result);
 		return result;
 	}
 

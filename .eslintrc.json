@@ -98,8 +98,7 @@
 			{
 				"target": "src/vs/base/common/**",
 				"restrictions": [
-					"vs/nls",
-					"vs/base/common/**"
+					"vs/nls"
 				]
 			},
 			{
@@ -109,8 +108,7 @@
 					"sinon",
 					"sinon-test",
 					"vs/nls",
-					"vs/base/common/**",
-					"vs/base/test/common/**"
+					"vs/base/common/**"
 				]
 			},
 			{
@@ -155,8 +153,7 @@
 				"target": "src/vs/base/parts/*/common/**",
 				"restrictions": [
 					"vs/nls",
-					"vs/base/common/**",
-					"vs/base/parts/*/common/**"
+					"vs/base/common/**"
 				]
 			},
 			{
@@ -224,7 +221,6 @@
 					"vs/nls",
 					"vs/base/common/**",
 					"vs/base/parts/*/common/**",
-					"vs/platform/*/common/**",
 					"tas-client-umd"
 				]
 			},
@@ -238,8 +234,7 @@
 					"vs/base/common/**",
 					"vs/base/parts/*/common/**",
 					"vs/base/test/common/**",
-					"vs/platform/*/common/**",
-					"vs/platform/*/test/common/**"
+					"vs/platform/*/common/**"
 				]
 			},
 			{
@@ -331,8 +326,7 @@
 				"restrictions": [
 					"vs/nls",
 					"vs/base/common/**",
-					"vs/platform/*/common/**",
-					"vs/editor/common/**"
+					"vs/platform/*/common/**"
 				]
 			},
 			{
@@ -346,8 +340,7 @@
 					"vs/base/test/common/**",
 					"vs/platform/*/common/**",
 					"vs/platform/*/test/common/**",
-					"vs/editor/common/**",
-					"vs/editor/test/common/**"
+					"vs/editor/common/**"
 				]
 			},
 			{
@@ -380,8 +373,7 @@
 					"vs/nls",
 					"vs/base/common/**",
 					"vs/platform/*/common/**",
-					"vs/editor/common/**",
-					"vs/editor/standalone/common/**"
+					"vs/editor/common/**"
 				]
 			},
 			{
@@ -452,8 +444,7 @@
 					"vs/base/parts/*/{common,browser}/**",
 					"vs/platform/{common,browser}/**",
 					"vs/platform/*/{common,browser}/**",
-					"vs/editor/{common,browser}/**",
-					"vs/editor/contrib/**"
+					"vs/editor/{common,browser}/**"
 				]
 			},
 			{
@@ -487,7 +478,6 @@
 					"vs/platform/*/common/**",
 					"vs/editor/common/**",
 					"vs/editor/contrib/*/common/**",
-					"vs/workbench/common/**",
 					"vs/workbench/services/*/common/**",
 					"assert"
 				]
@@ -517,7 +507,6 @@
 					"vs/platform/*/common/**",
 					"vs/editor/common/**",
 					"vs/editor/contrib/*/common/**",
-					"vs/workbench/api/common/**",
 					"vs/workbench/common/**",
 					"vs/workbench/services/*/common/**",
 					"vs/workbench/contrib/*/common/**"
@@ -623,7 +612,6 @@
 					"vs/editor/common/**",
 					"vs/workbench/workbench.web.api",
 					"vs/workbench/common/**",
-					"vs/workbench/services/**/common/**",
 					"vs/workbench/api/**/common/**",
 					"vscode-textmate",
 					"vscode-oniguruma",
@@ -795,8 +783,7 @@
 					"vs/editor/**",
 					"vs/workbench/common/**",
 					"vs/workbench/api/common/**",
-					"vs/workbench/services/**/common/**",
-					"vs/workbench/contrib/**/common/**"
+					"vs/workbench/services/**/common/**"
 				]
 			},
 			{
@@ -943,7 +930,6 @@
 					"vs/base/parts/**/{common,node}/**",
 					"vs/platform/**/{common,node}/**",
 					"vs/workbench/**/{common,node}/**",
-					"vs/server/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
