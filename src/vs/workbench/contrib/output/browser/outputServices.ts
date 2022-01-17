@@ -39,7 +39,7 @@ class OutputChannel extends Disposable implements IOutputChannel {
 		this.id = outputChannelDescriptor.id;
 		this.label = outputChannelDescriptor.label;
 		this.uri = URI.from({ scheme: OUTPUT_SCHEME, path: this.id });
-		this.model = this._register(outputChannelModelService.createOutputChannelModel(this.id, this.uri, outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME, outputChannelDescriptor.file));
+		this.model = this._register(outputChannelModelService.createOutputChannelModel(this.id, this.uri, outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME, outputChannelDescriptor.file, outputChannelDescriptor.languageId));
 	}
 
 	append(output: string): void {
@@ -216,7 +216,7 @@ export class LogContentProvider {
 			const channelDisposables: IDisposable[] = [];
 			const outputChannelDescriptor = this.outputService.getChannelDescriptors().filter(({ id }) => id === channelId)[0];
 			if (outputChannelDescriptor && outputChannelDescriptor.file) {
-				channelModel = this.outputChannelModelService.createOutputChannelModel(channelId, resource, outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME, outputChannelDescriptor.file);
+				channelModel = this.outputChannelModelService.createOutputChannelModel(channelId, resource, outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME, outputChannelDescriptor.file, outputChannelDescriptor.languageId);
 				channelModel.onDispose(() => dispose(channelDisposables), channelDisposables);
 				this.channelModels.set(channelId, channelModel);
 			}

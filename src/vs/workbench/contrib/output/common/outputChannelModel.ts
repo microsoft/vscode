@@ -108,6 +108,7 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 		private readonly modelUri: URI,
 		private readonly mimeType: 'text/x-code-log-output' | 'text/x-code-output',
 		private readonly file: URI,
+		private readonly languageId: string,
 		@IFileService private readonly fileService: IFileService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -163,7 +164,7 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 		if (this.model) {
 			this.model.setValue(content);
 		} else {
-			this.model = this.modelService.createModel(content, this.languageService.createByMimeType(this.mimeType), this.modelUri);
+			this.model = this.modelService.createModel(content, this.languageId ? this.languageService.createById(this.languageId) : this.languageService.createByMimeType(this.mimeType), this.modelUri);
 			this.fileHandler.watch(this.etag);
 			const disposable = this.model.onWillDispose(() => {
 				this.cancelModelUpdate();
@@ -326,6 +327,7 @@ class OutputChannelBackedByFile extends FileOutputChannelModel implements IOutpu
 		modelUri: URI,
 		mimeType: 'text/x-code-log-output' | 'text/x-code-output',
 		file: URI,
+		languageId: string,
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 		@ILanguageService languageService: ILanguageService,
@@ -333,7 +335,7 @@ class OutputChannelBackedByFile extends FileOutputChannelModel implements IOutpu
 		@ILogService logService: ILogService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(modelUri, mimeType, file, fileService, modelService, languageService, logService, editorWorkerService);
+		super(modelUri, mimeType, file, languageId, fileService, modelService, languageService, logService, editorWorkerService);
 
 		// Donot rotate to check for the file reset
 		this.logger = loggerService.createLogger(file, { always: true, donotRotate: true, donotUseFormatters: true });
@@ -373,18 +375,19 @@ export class DelegatedOutputChannelModel extends Disposable implements IOutputCh
 		modelUri: URI,
 		mimeType: 'text/x-code-log-output' | 'text/x-code-output',
 		outputDir: Promise<URI>,
+		languageId: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
-		this.outputChannelModel = this.createOutputChannelModel(id, modelUri, mimeType, outputDir);
+		this.outputChannelModel = this.createOutputChannelModel(id, modelUri, mimeType, outputDir, languageId);
 	}
 
-	private async createOutputChannelModel(id: string, modelUri: URI, mimeType: 'text/x-code-log-output' | 'text/x-code-output', outputDirPromise: Promise<URI>): Promise<IOutputChannelModel> {
+	private async createOutputChannelModel(id: string, modelUri: URI, mimeType: 'text/x-code-log-output' | 'text/x-code-output', outputDirPromise: Promise<URI>, languageId: string): Promise<IOutputChannelModel> {
 		const outputDir = await outputDirPromise;
 		const file = resources.joinPath(outputDir, `${id.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
 		await this.fileService.createFile(file);
-		const outputChannelModel = this._register(this.instantiationService.createInstance(OutputChannelBackedByFile, id, modelUri, mimeType, file));
+		const outputChannelModel = this._register(this.instantiationService.createInstance(OutputChannelBackedByFile, id, modelUri, mimeType, file, languageId));
 		this._register(outputChannelModel.onDispose(() => this._onDispose.fire()));
 		return outputChannelModel;
 	}
