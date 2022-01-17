@@ -51,7 +51,7 @@ class ExtensionHostProcess extends Disposable {
 		const sw = StopWatch.create(false);
 		this._process = fork(
 			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
-			['--type=extensionHost', '--skipWorkspaceStorageLock'],
+			['--type=extensionHost', '--skipWorkspaceStorageLock', '--ms-enable-electron-run-as-node'],
 			mixin({ cwd: cwd() }, opts),
 		);
 		const forkTime = sw.elapsed();
