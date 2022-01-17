@@ -44,7 +44,7 @@ export class StatusBarColorProvider implements IWorkbenchContribution {
 
 		if (enabled) {
 			this.disposable = this.statusbarService.overrideStyle({
-				priority: 100,
+				priority: 10,
 				foreground: STATUS_BAR_DEBUGGING_FOREGROUND,
 				background: STATUS_BAR_DEBUGGING_BACKGROUND,
 				border: STATUS_BAR_DEBUGGING_BORDER,

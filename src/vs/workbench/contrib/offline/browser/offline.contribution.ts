@@ -47,7 +47,7 @@ export class OfflineStatusBarController implements IWorkbenchContribution {
 		if (enabled) {
 			this.disposable = combinedDisposable(
 				this.statusbarService.overrideStyle({
-					priority: 10,
+					priority: 100,
 					foreground: STATUS_BAR_OFFLINE_FOREGROUND,
 					background: STATUS_BAR_OFFLINE_BACKGROUND,
 					border: STATUS_BAR_OFFLINE_BORDER,
