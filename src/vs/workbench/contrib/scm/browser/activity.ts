@@ -197,7 +197,8 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 export class SCMActiveResourceContextKeyController implements IWorkbenchContribution {
 
-	private contextKey: IContextKey<boolean>;
+	private activeResourceHasChangesContextKey: IContextKey<boolean>;
+	private activeResourceRepositoryContextKey: IContextKey<ISCMRepository | undefined>;
 	private disposables = new DisposableStore();
 	private repositoryDisposables = new Set<IDisposable>();
 
@@ -207,7 +208,8 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 		@ISCMService private readonly scmService: ISCMService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
-		this.contextKey = contextKeyService.createKey('scmActiveResourceHasChanges', false);
+		this.activeResourceHasChangesContextKey = contextKeyService.createKey('scmActiveResourceHasChanges', false);
+		this.activeResourceRepositoryContextKey = contextKeyService.createKey('scmActiveResourceRepository', undefined);
 
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 
@@ -237,19 +239,26 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 		const activeResource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
 
 		if (activeResource?.scheme === Schemas.file || activeResource?.scheme === Schemas.vscodeRemote) {
-			for (const repository of this.scmService.repositories) {
-				for (const resourceGroup of repository.provider.groups.elements) {
-					if (resourceGroup.elements.find(scmResource => {
-						return this.uriIdentityService.extUri.isEqual(activeResource, scmResource.sourceUri);
-					})) {
-						this.contextKey.set(true);
-						return;
-					}
+			const activeResourceRepository = this.scmService.repositories
+				.find(r => r.provider.rootUri &&
+					this.uriIdentityService.extUri.isEqualOrParent(activeResource, r.provider.rootUri));
+
+			this.activeResourceRepositoryContextKey.set(activeResourceRepository);
+
+			for (const resourceGroup of activeResourceRepository?.provider.groups.elements ?? []) {
+				if (resourceGroup.elements
+					.some(scmResource =>
+						this.uriIdentityService.extUri.isEqual(activeResource, scmResource.sourceUri))) {
+					this.activeResourceHasChangesContextKey.set(true);
+					return;
 				}
 			}
-		}
 
-		this.contextKey.set(false);
+			this.activeResourceHasChangesContextKey.set(false);
+		} else {
+			this.activeResourceHasChangesContextKey.set(false);
+			this.activeResourceRepositoryContextKey.set(undefined);
+		}
 	}
 
 	dispose(): void {

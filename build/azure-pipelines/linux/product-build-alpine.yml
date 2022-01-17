@@ -100,6 +100,7 @@ steps:
   - script: |
       set -e
       node build/azure-pipelines/mixin
+      node build/azure-pipelines/mixin --server
     displayName: Mix in quality
 
   - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes

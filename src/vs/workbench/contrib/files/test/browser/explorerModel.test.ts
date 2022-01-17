@@ -11,13 +11,15 @@ import { validateFileName } from 'vs/workbench/contrib/files/browser/fileActions
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { toResource } from 'vs/base/test/common/utils';
 import { TestFileService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 
 suite('Files - View Model', function () {
 
 	const fileService = new TestFileService();
+	const configService = new TestConfigurationService();
 	function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number): ExplorerItem {
-		return new ExplorerItem(toResource.call(this, path), fileService, undefined, isFolder, false, false, name, mtime);
+		return new ExplorerItem(toResource.call(this, path), fileService, configService, undefined, isFolder, false, false, name, mtime);
 	}
 
 	const pathService = new TestPathService();
@@ -248,19 +250,19 @@ suite('Files - View Model', function () {
 	});
 
 	test('Merge Local with Disk', function () {
-		const merge1 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), fileService, undefined, true, false, false, 'to', Date.now());
-		const merge2 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), fileService, undefined, true, false, false, 'to', Date.now());
+		const merge1 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), fileService, configService, undefined, true, false, false, 'to', Date.now());
+		const merge2 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), fileService, configService, undefined, true, false, false, 'to', Date.now());
 
 		// Merge Properties
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.mtime, merge2.mtime);
 
 		// Merge Child when isDirectoryResolved=false is a no-op
-		merge2.addChild(new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), fileService, undefined, true, false, false, 'foo.html', Date.now()));
+		merge2.addChild(new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), fileService, configService, undefined, true, false, false, 'foo.html', Date.now()));
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
 
 		// Merge Child with isDirectoryResolved=true
-		const child = new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), fileService, undefined, true, false, false, 'foo.html', Date.now());
+		const child = new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), fileService, configService, undefined, true, false, false, 'foo.html', Date.now());
 		merge2.removeChild(child);
 		merge2.addChild(child);
 		(<any>merge2)._isDirectoryResolved = true;
