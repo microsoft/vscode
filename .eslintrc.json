@@ -96,44 +96,44 @@
 			// !!! Do not relax these rules !!!
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			{
-				"target": "**/vs/base/common/**",
+				"target": "src/vs/base/common/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/common/**"
+					"vs/base/common/**"
 				]
 			},
 			{
-				"target": "**/vs/base/test/common/**",
+				"target": "src/vs/base/test/common/**",
 				"restrictions": [
 					"assert",
 					"sinon",
 					"sinon-test",
 					"vs/nls",
-					"**/vs/base/common/**",
-					"**/vs/base/test/common/**"
+					"vs/base/common/**",
+					"vs/base/test/common/**"
 				]
 			},
 			{
-				"target": "**/vs/base/browser/**",
+				"target": "src/vs/base/browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/{common,browser}/**"
+					"vs/base/{common,browser}/**"
 				]
 			},
 			{
-				"target": "**/vs/base/electron-sandbox/**",
+				"target": "src/vs/base/electron-sandbox/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/{common,browser,electron-sandbox}/**"
+					"vs/base/{common,browser,electron-sandbox}/**"
 				]
 			},
 			{
-				"target": "**/vs/base/node/**",
+				"target": "src/vs/base/node/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/{common,node}/**",
+					"vs/base/{common,node}/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
@@ -141,490 +141,490 @@
 			},
 			{
 				// vs/base/test/browser contains tests for vs/base/browser
-				"target": "**/vs/base/test/browser/**",
+				"target": "src/vs/base/test/browser/**",
 				"restrictions": [
 					"assert",
 					"sinon",
 					"sinon-test",
 					"vs/nls",
-					"**/vs/base/{common,browser}/**",
-					"**/vs/base/test/{common,browser}/**"
+					"vs/base/{common,browser}/**",
+					"vs/base/test/{common,browser}/**"
 				]
 			},
 			{
-				"target": "**/vs/base/parts/*/common/**",
+				"target": "src/vs/base/parts/*/common/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/common/**",
-					"**/vs/base/parts/*/common/**"
+					"vs/base/common/**",
+					"vs/base/parts/*/common/**"
 				]
 			},
 			{
-				"target": "**/vs/base/parts/*/browser/**",
+				"target": "src/vs/base/parts/*/browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/{common,browser}/**",
-					"**/vs/base/parts/*/{common,browser}/**"
+					"vs/base/{common,browser}/**",
+					"vs/base/parts/*/{common,browser}/**"
 				]
 			},
 			{
-				"target": "**/vs/base/parts/*/node/**",
+				"target": "src/vs/base/parts/*/node/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/{common,node}/**",
-					"**/vs/base/parts/*/{common,node}/**",
+					"vs/base/{common,node}/**",
+					"vs/base/parts/*/{common,node}/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/base/parts/*/electron-sandbox/**",
+				"target": "src/vs/base/parts/*/electron-sandbox/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/{common,browser,electron-sandbox}/**",
-					"**/vs/base/parts/*/{common,browser,electron-sandbox}/**"
+					"vs/base/{common,browser,electron-sandbox}/**",
+					"vs/base/parts/*/{common,browser,electron-sandbox}/**"
 				]
 			},
 			{
-				"target": "**/vs/base/parts/*/electron-browser/**",
+				"target": "src/vs/base/parts/*/electron-browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/base/parts/*/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/base/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/base/parts/*/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/base/parts/*/electron-main/**",
+				"target": "src/vs/base/parts/*/electron-main/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/{common,node,electron-main}/**",
-					"**/vs/base/parts/*/{common,node,electron-main}/**",
+					"vs/base/{common,node,electron-main}/**",
+					"vs/base/parts/*/{common,node,electron-main}/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/base/worker/**",
+				"target": "src/vs/base/worker/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/{common,worker}/**"
+					"vs/base/{common,worker}/**"
 				]
 			},
 			{
-				"target": "**/vs/platform/*/common/**",
+				"target": "src/vs/platform/*/common/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/common/**",
-					"**/vs/base/parts/*/common/**",
-					"**/vs/platform/*/common/**",
+					"vs/base/common/**",
+					"vs/base/parts/*/common/**",
+					"vs/platform/*/common/**",
 					"tas-client-umd"
 				]
 			},
 			{
-				"target": "**/vs/platform/*/test/common/**",
+				"target": "src/vs/platform/*/test/common/**",
 				"restrictions": [
 					"assert",
 					"sinon",
 					"sinon-test",
 					"vs/nls",
-					"**/vs/base/common/**",
-					"**/vs/base/parts/*/common/**",
-					"**/vs/base/test/common/**",
-					"**/vs/platform/*/common/**",
-					"**/vs/platform/*/test/common/**"
+					"vs/base/common/**",
+					"vs/base/parts/*/common/**",
+					"vs/base/test/common/**",
+					"vs/platform/*/common/**",
+					"vs/platform/*/test/common/**"
 				]
 			},
 			{
-				"target": "**/vs/platform/*/test/browser/**",
+				"target": "src/vs/platform/*/test/browser/**",
 				"restrictions": [
 					"assert",
 					"sinon",
 					"sinon-test",
 					"vs/nls",
-					"**/vs/base/{common,browser}/**",
-					"**/vs/base/parts/*/{common,browser}/**",
-					"**/vs/base/test/{common,browser}/**",
-					"**/vs/platform/*/{common,browser}/**",
-					"**/vs/platform/*/test/{common,browser}/**"
+					"vs/base/{common,browser}/**",
+					"vs/base/parts/*/{common,browser}/**",
+					"vs/base/test/{common,browser}/**",
+					"vs/platform/*/{common,browser}/**",
+					"vs/platform/*/test/{common,browser}/**"
 				]
 			},
 			{
-				"target": "**/vs/platform/*/browser/**",
+				"target": "src/vs/platform/*/browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/{common,browser}/**",
-					"**/vs/base/parts/*/{common,browser}/**",
-					"**/vs/platform/*/{common,browser}/**"
+					"vs/base/{common,browser}/**",
+					"vs/base/parts/*/{common,browser}/**",
+					"vs/platform/*/{common,browser}/**"
 				]
 			},
 			{
-				"target": "**/vs/platform/*/node/**",
+				"target": "src/vs/platform/*/node/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/{common,node}/**",
-					"**/vs/base/parts/*/{common,node}/**",
-					"**/vs/platform/*/{common,node}/**",
+					"vs/base/{common,node}/**",
+					"vs/base/parts/*/{common,node}/**",
+					"vs/platform/*/{common,node}/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/platform/*/electron-sandbox/**",
+				"target": "src/vs/platform/*/electron-sandbox/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/{common,browser,electron-sandbox}/**",
-					"**/vs/base/parts/*/{common,browser,electron-sandbox}/**",
-					"**/vs/platform/*/{common,browser,electron-sandbox}/**"
+					"vs/base/{common,browser,electron-sandbox}/**",
+					"vs/base/parts/*/{common,browser,electron-sandbox}/**",
+					"vs/platform/*/{common,browser,electron-sandbox}/**"
 				]
 			},
 			{
-				"target": "**/vs/platform/*/electron-browser/**",
+				"target": "src/vs/platform/*/electron-browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/base/parts/*/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/platform/*/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/base/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/base/parts/*/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/platform/*/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/platform/*/electron-main/**",
+				"target": "src/vs/platform/*/electron-main/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/{common,node,electron-main}/**",
-					"**/vs/base/parts/*/{common,node,electron-main}/**",
-					"**/vs/platform/*/{common,node,electron-main}/**",
+					"vs/base/{common,node,electron-main}/**",
+					"vs/base/parts/*/{common,node,electron-main}/**",
+					"vs/platform/*/{common,node,electron-main}/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/platform/*/test/browser/**",
+				"target": "src/vs/platform/*/test/browser/**",
 				"restrictions": [
 					"assert",
 					"sinon",
 					"sinon-test",
 					"vs/nls",
-					"**/vs/base/{common,browser}/**",
-					"**/vs/base/parts/*/{common,browser}/**",
-					"**/vs/platform/*/{common,browser}/**",
-					"**/vs/platform/*/test/{common,browser}/**"
+					"vs/base/{common,browser}/**",
+					"vs/base/parts/*/{common,browser}/**",
+					"vs/platform/*/{common,browser}/**",
+					"vs/platform/*/test/{common,browser}/**"
 				]
 			},
 			{
-				"target": "**/vs/editor/common/**",
+				"target": "src/vs/editor/common/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/common/**",
-					"**/vs/platform/*/common/**",
-					"**/vs/editor/common/**"
+					"vs/base/common/**",
+					"vs/platform/*/common/**",
+					"vs/editor/common/**"
 				]
 			},
 			{
-				"target": "**/vs/editor/test/common/**",
+				"target": "src/vs/editor/test/common/**",
 				"restrictions": [
 					"assert",
 					"sinon",
 					"sinon-test",
 					"vs/nls",
-					"**/vs/base/common/**",
-					"**/vs/base/test/common/**",
-					"**/vs/platform/*/common/**",
-					"**/vs/platform/*/test/common/**",
-					"**/vs/editor/common/**",
-					"**/vs/editor/test/common/**"
+					"vs/base/common/**",
+					"vs/base/test/common/**",
+					"vs/platform/*/common/**",
+					"vs/platform/*/test/common/**",
+					"vs/editor/common/**",
+					"vs/editor/test/common/**"
 				]
 			},
 			{
-				"target": "**/vs/editor/browser/**",
+				"target": "src/vs/editor/browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/{common,browser}/**",
-					"**/vs/platform/*/{common,browser}/**",
-					"**/vs/editor/{common,browser}/**"
+					"vs/base/{common,browser}/**",
+					"vs/platform/*/{common,browser}/**",
+					"vs/editor/{common,browser}/**"
 				]
 			},
 			{
-				"target": "**/vs/editor/test/browser/**",
+				"target": "src/vs/editor/test/browser/**",
 				"restrictions": [
 					"assert",
 					"sinon",
 					"sinon-test",
 					"vs/nls",
-					"**/vs/base/{common,browser}/**",
-					"**/vs/platform/*/{common,browser}/**",
-					"**/vs/platform/*/test/{common,browser}/**",
-					"**/vs/editor/{common,browser}/**",
-					"**/vs/editor/test/{common,browser}/**"
+					"vs/base/{common,browser}/**",
+					"vs/platform/*/{common,browser}/**",
+					"vs/platform/*/test/{common,browser}/**",
+					"vs/editor/{common,browser}/**",
+					"vs/editor/test/{common,browser}/**"
 				]
 			},
 			{
-				"target": "**/vs/editor/standalone/common/**",
+				"target": "src/vs/editor/standalone/common/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/common/**",
-					"**/vs/platform/*/common/**",
-					"**/vs/editor/common/**",
-					"**/vs/editor/standalone/common/**"
+					"vs/base/common/**",
+					"vs/platform/*/common/**",
+					"vs/editor/common/**",
+					"vs/editor/standalone/common/**"
 				]
 			},
 			{
-				"target": "**/vs/editor/standalone/test/common/**",
+				"target": "src/vs/editor/standalone/test/common/**",
 				"restrictions": [
 					"assert",
 					"sinon",
 					"sinon-test",
 					"vs/nls",
-					"**/vs/base/common/**",
-					"**/vs/platform/*/common/**",
-					"**/vs/platform/*/test/common/**",
-					"**/vs/editor/common/**",
-					"**/vs/editor/test/common/**"
+					"vs/base/common/**",
+					"vs/platform/*/common/**",
+					"vs/platform/*/test/common/**",
+					"vs/editor/common/**",
+					"vs/editor/test/common/**"
 				]
 			},
 			{
-				"target": "**/vs/editor/standalone/browser/**",
+				"target": "src/vs/editor/standalone/browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/{common,browser}/**",
-					"**/vs/base/parts/*/{common,browser}/**",
-					"**/vs/platform/*/{common,browser}/**",
-					"**/vs/editor/{common,browser}/**",
-					"**/vs/editor/contrib/**",
-					"**/vs/editor/standalone/{common,browser}/**"
+					"vs/base/{common,browser}/**",
+					"vs/base/parts/*/{common,browser}/**",
+					"vs/platform/*/{common,browser}/**",
+					"vs/editor/{common,browser}/**",
+					"vs/editor/contrib/**",
+					"vs/editor/standalone/{common,browser}/**"
 				]
 			},
 			{
-				"target": "**/vs/editor/standalone/test/browser/**",
+				"target": "src/vs/editor/standalone/test/browser/**",
 				"restrictions": [
 					"assert",
 					"sinon",
 					"sinon-test",
 					"vs/nls",
-					"**/vs/base/{common,browser}/**",
-					"**/vs/platform/*/{common,browser}/**",
-					"**/vs/platform/*/test/{common,browser}/**",
-					"**/vs/editor/{common,browser}/**",
-					"**/vs/editor/standalone/{common,browser}/**",
-					"**/vs/editor/test/{common,browser}/**"
+					"vs/base/{common,browser}/**",
+					"vs/platform/*/{common,browser}/**",
+					"vs/platform/*/test/{common,browser}/**",
+					"vs/editor/{common,browser}/**",
+					"vs/editor/standalone/{common,browser}/**",
+					"vs/editor/test/{common,browser}/**"
 				]
 			},
 			{
-				"target": "**/vs/editor/contrib/*/test/**",
+				"target": "src/vs/editor/contrib/*/test/**",
 				"restrictions": [
 					"assert",
 					"sinon",
 					"sinon-test",
 					"vs/nls",
-					"**/vs/base/{common,browser}/**",
-					"**/vs/base/test/{common,browser}/**",
-					"**/vs/base/parts/*/{common,browser}/**",
-					"**/vs/platform/*/{common,browser}/**",
-					"**/vs/platform/*/test/{common,browser}/**",
-					"**/vs/editor/{common,browser}/**",
-					"**/vs/editor/test/{common,browser}/**",
-					"**/vs/editor/contrib/**"
+					"vs/base/{common,browser}/**",
+					"vs/base/test/{common,browser}/**",
+					"vs/base/parts/*/{common,browser}/**",
+					"vs/platform/*/{common,browser}/**",
+					"vs/platform/*/test/{common,browser}/**",
+					"vs/editor/{common,browser}/**",
+					"vs/editor/test/{common,browser}/**",
+					"vs/editor/contrib/**"
 				]
 			},
 			{
-				"target": "**/vs/editor/contrib/**",
+				"target": "src/vs/editor/contrib/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/{common,browser}/**",
-					"**/vs/base/parts/*/{common,browser}/**",
-					"**/vs/platform/{common,browser}/**",
-					"**/vs/platform/*/{common,browser}/**",
-					"**/vs/editor/{common,browser}/**",
-					"**/vs/editor/contrib/**"
+					"vs/base/{common,browser}/**",
+					"vs/base/parts/*/{common,browser}/**",
+					"vs/platform/{common,browser}/**",
+					"vs/platform/*/{common,browser}/**",
+					"vs/editor/{common,browser}/**",
+					"vs/editor/contrib/**"
 				]
 			},
 			{
-				"target": "**/vs/editor/editor.all.ts",
+				"target": "src/vs/editor/editor.all.ts",
 				"restrictions": [
-					"**/vs/base/{common,browser}/**",
-					"**/vs/base/parts/*/{common,browser}/**",
-					"**/vs/editor/{common,contrib,browser}/**"
+					"vs/base/{common,browser}/**",
+					"vs/base/parts/*/{common,browser}/**",
+					"vs/editor/{common,contrib,browser}/**"
 				]
 			},
 			{
-				"target": "**/vs/editor/editor.worker.ts",
+				"target": "src/vs/editor/editor.worker.ts",
 				"restrictions": [
-					"**/vs/base/{common,worker}/**",
-					"**/vs/editor/common/**"
+					"vs/base/{common,worker}/**",
+					"vs/editor/common/**"
 				]
 			},
 			{
-				"target": "**/vs/editor/editor.{api,main}.ts",
+				"target": "src/vs/editor/editor.{api,main}.ts",
 				"restrictions": [
-					"**/vs/base/{common,browser}/**",
-					"**/vs/editor/**"
+					"vs/base/{common,browser}/**",
+					"vs/editor/**"
 				]
 			},
 			{
-				"target": "**/vs/workbench/common/**",
+				"target": "src/vs/workbench/common/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/common/**",
-					"**/vs/base/parts/*/common/**",
-					"**/vs/platform/*/common/**",
-					"**/vs/editor/common/**",
-					"**/vs/editor/contrib/*/common/**",
-					"**/vs/workbench/common/**",
-					"**/vs/workbench/services/*/common/**",
+					"vs/base/common/**",
+					"vs/base/parts/*/common/**",
+					"vs/platform/*/common/**",
+					"vs/editor/common/**",
+					"vs/editor/contrib/*/common/**",
+					"vs/workbench/common/**",
+					"vs/workbench/services/*/common/**",
 					"assert"
 				]
 			},
 			{
-				"target": "**/vs/workbench/browser/**",
+				"target": "src/vs/workbench/browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/{common,browser}/**",
-					"**/vs/base/parts/*/{common,browser}/**",
-					"**/vs/platform/*/{common,browser}/**",
-					"**/vs/editor/{common,browser}/**",
-					"**/vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
-					"**/vs/workbench/workbench.web.api",
-					"**/vs/workbench/{common,browser}/**",
-					"**/vs/workbench/services/*/{common,browser}/**",
+					"vs/base/{common,browser}/**",
+					"vs/base/parts/*/{common,browser}/**",
+					"vs/platform/*/{common,browser}/**",
+					"vs/editor/{common,browser}/**",
+					"vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
+					"vs/workbench/workbench.web.api",
+					"vs/workbench/{common,browser}/**",
+					"vs/workbench/services/*/{common,browser}/**",
 					"assert"
 				]
 			},
 			{
-				"target": "**/vs/workbench/api/common/**",
+				"target": "src/vs/workbench/api/common/**",
 				"restrictions": [
 					"vscode",
 					"vs/nls",
-					"**/vs/base/common/**",
-					"**/vs/platform/*/common/**",
-					"**/vs/editor/common/**",
-					"**/vs/editor/contrib/*/common/**",
-					"**/vs/workbench/api/common/**",
-					"**/vs/workbench/common/**",
-					"**/vs/workbench/services/*/common/**",
-					"**/vs/workbench/contrib/*/common/**"
+					"vs/base/common/**",
+					"vs/platform/*/common/**",
+					"vs/editor/common/**",
+					"vs/editor/contrib/*/common/**",
+					"vs/workbench/api/common/**",
+					"vs/workbench/common/**",
+					"vs/workbench/services/*/common/**",
+					"vs/workbench/contrib/*/common/**"
 				]
 			},
 			{
-				"target": "**/vs/workbench/api/browser/**",
+				"target": "src/vs/workbench/api/browser/**",
 				"restrictions": [
 					"vscode",
 					"vs/nls",
-					"**/vs/base/{common,browser}/**",
-					"**/vs/base/parts/*/{common,browser}/**",
-					"**/vs/platform/*/{common,browser}/**",
-					"**/vs/editor/{common,browser}/**",
-					"**/vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
-					"**/vs/workbench/api/{common,browser}/**",
-					"**/vs/workbench/{common,browser}/**",
-					"**/vs/workbench/services/*/{common,browser}/**",
-					"**/vs/workbench/contrib/*/{common,browser}/**"
+					"vs/base/{common,browser}/**",
+					"vs/base/parts/*/{common,browser}/**",
+					"vs/platform/*/{common,browser}/**",
+					"vs/editor/{common,browser}/**",
+					"vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
+					"vs/workbench/api/{common,browser}/**",
+					"vs/workbench/{common,browser}/**",
+					"vs/workbench/services/*/{common,browser}/**",
+					"vs/workbench/contrib/*/{common,browser}/**"
 				]
 			},
 			{
-				"target": "**/vs/workbench/api/node/**",
+				"target": "src/vs/workbench/api/node/**",
 				"restrictions": [
 					"vscode",
 					"vs/nls",
-					"**/vs/base/{common,node}/**",
-					"**/vs/base/parts/*/{common,node}/**",
-					"**/vs/platform/*/{common,node}/**",
-					"**/vs/editor/{common,node}/**",
-					"**/vs/editor/contrib/*/{common,node}/**",
-					"**/vs/workbench/api/{common,node}/**",
-					"**/vs/workbench/{common,node}/**",
-					"**/vs/workbench/services/*/{common,node}/**",
-					"**/vs/workbench/contrib/*/{common,node}/**",
+					"vs/base/{common,node}/**",
+					"vs/base/parts/*/{common,node}/**",
+					"vs/platform/*/{common,node}/**",
+					"vs/editor/{common,node}/**",
+					"vs/editor/contrib/*/{common,node}/**",
+					"vs/workbench/api/{common,node}/**",
+					"vs/workbench/{common,node}/**",
+					"vs/workbench/services/*/{common,node}/**",
+					"vs/workbench/contrib/*/{common,node}/**",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/workbench/api/worker/**",
+				"target": "src/vs/workbench/api/worker/**",
 				"restrictions": [
 					"vscode",
 					"vs/nls",
-					"**/vs/**/{common,worker}/**"
+					"vs/**/{common,worker}/**"
 				]
 			},
 			{
-				"target": "**/vs/workbench/electron-sandbox/**",
+				"target": "src/vs/workbench/electron-sandbox/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/{common,browser,electron-sandbox}/**",
-					"**/vs/base/parts/*/{common,browser,electron-sandbox}/**",
-					"**/vs/platform/*/{common,browser,electron-sandbox}/**",
-					"**/vs/editor/{common,browser,electron-sandbox}/**",
-					"**/vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
-					"**/vs/workbench/{common,browser,electron-sandbox}/**",
-					"**/vs/workbench/api/{common,browser,electron-sandbox}/**",
-					"**/vs/workbench/services/*/{common,browser,electron-sandbox}/**"
+					"vs/base/{common,browser,electron-sandbox}/**",
+					"vs/base/parts/*/{common,browser,electron-sandbox}/**",
+					"vs/platform/*/{common,browser,electron-sandbox}/**",
+					"vs/editor/{common,browser,electron-sandbox}/**",
+					"vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
+					"vs/workbench/{common,browser,electron-sandbox}/**",
+					"vs/workbench/api/{common,browser,electron-sandbox}/**",
+					"vs/workbench/services/*/{common,browser,electron-sandbox}/**"
 				]
 			},
 			{
-				"target": "**/vs/workbench/electron-browser/**",
+				"target": "src/vs/workbench/electron-browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/base/parts/*/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/platform/*/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/editor/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
-					"**/vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/workbench/api/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/workbench/services/*/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/base/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/base/parts/*/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/platform/*/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/editor/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
+					"vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/workbench/api/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/workbench/services/*/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/workbench/services/**/test/**",
+				"target": "src/vs/workbench/services/**/test/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**",
-					"**/vs/platform/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/base/**",
+					"vs/platform/**",
+					"vs/editor/**",
+					"vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"vs/workbench/contrib/files/browser/editors/fileEditorInput",
-					"**/vs/workbench/services/**",
-					"**/vs/workbench/test/**",
+					"vs/workbench/services/**",
+					"vs/workbench/test/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/workbench/services/**/common/**",
+				"target": "src/vs/workbench/services/**/common/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/**/common/**",
-					"**/vs/platform/**/common/**",
-					"**/vs/editor/common/**",
-					"**/vs/workbench/workbench.web.api",
-					"**/vs/workbench/common/**",
-					"**/vs/workbench/services/**/common/**",
-					"**/vs/workbench/api/**/common/**",
+					"vs/base/**/common/**",
+					"vs/platform/**/common/**",
+					"vs/editor/common/**",
+					"vs/workbench/workbench.web.api",
+					"vs/workbench/common/**",
+					"vs/workbench/services/**/common/**",
+					"vs/workbench/api/**/common/**",
 					"vscode-textmate",
 					"vscode-oniguruma",
 					"@vscode/iconv-lite-umd",
@@ -633,30 +633,30 @@
 				]
 			},
 			{
-				"target": "**/vs/workbench/services/**/worker/**",
+				"target": "src/vs/workbench/services/**/worker/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/**/common/**",
-					"**/vs/platform/**/common/**",
-					"**/vs/editor/common/**",
-					"**/vs/workbench/**/common/**",
-					"**/vs/workbench/**/worker/**",
-					"**/vs/workbench/services/**/common/**",
+					"vs/base/**/common/**",
+					"vs/platform/**/common/**",
+					"vs/editor/common/**",
+					"vs/workbench/**/common/**",
+					"vs/workbench/**/worker/**",
+					"vs/workbench/services/**/common/**",
 					"vscode"
 				]
 			},
 			{
-				"target": "**/vs/workbench/services/**/browser/**",
+				"target": "src/vs/workbench/services/**/browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser}/**",
-					"**/vs/platform/**/{common,browser}/**",
-					"**/vs/editor/{common,browser}/**",
-					"**/vs/workbench/workbench.web.api",
-					"**/vs/workbench/{common,browser}/**",
-					"**/vs/workbench/api/{common,browser}/**",
-					"**/vs/workbench/services/**/{common,browser}/**",
+					"vs/base/**/{common,browser}/**",
+					"vs/platform/**/{common,browser}/**",
+					"vs/editor/{common,browser}/**",
+					"vs/workbench/workbench.web.api",
+					"vs/workbench/{common,browser}/**",
+					"vs/workbench/api/{common,browser}/**",
+					"vs/workbench/services/**/{common,browser}/**",
 					"vscode-textmate",
 					"vscode-oniguruma",
 					"@vscode/iconv-lite-umd",
@@ -666,31 +666,31 @@
 				]
 			},
 			{
-				"target": "**/vs/workbench/services/**/node/**",
+				"target": "src/vs/workbench/services/**/node/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/**/{common,node}/**",
-					"**/vs/platform/**/{common,node}/**",
-					"**/vs/editor/{common,node}/**",
-					"**/vs/workbench/{common,node}/**",
-					"**/vs/workbench/api/{common,node}/**",
-					"**/vs/workbench/services/**/{common,node}/**",
+					"vs/base/**/{common,node}/**",
+					"vs/platform/**/{common,node}/**",
+					"vs/editor/{common,node}/**",
+					"vs/workbench/{common,node}/**",
+					"vs/workbench/api/{common,node}/**",
+					"vs/workbench/services/**/{common,node}/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/workbench/services/**/electron-sandbox/**",
+				"target": "src/vs/workbench/services/**/electron-sandbox/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser,electron-sandbox}/**",
-					"**/vs/platform/**/{common,browser,electron-sandbox}/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/{common,browser,electron-sandbox}/**",
-					"**/vs/workbench/api/{common,browser,electron-sandbox}/**",
-					"**/vs/workbench/services/**/{common,browser,electron-sandbox}/**",
+					"vs/base/**/{common,browser,electron-sandbox}/**",
+					"vs/platform/**/{common,browser,electron-sandbox}/**",
+					"vs/editor/**",
+					"vs/workbench/{common,browser,electron-sandbox}/**",
+					"vs/workbench/api/{common,browser,electron-sandbox}/**",
+					"vs/workbench/services/**/{common,browser,electron-sandbox}/**",
 					"vscode-textmate",
 					"vscode-oniguruma",
 					"@vscode/iconv-lite-umd",
@@ -698,119 +698,119 @@
 				]
 			},
 			{
-				"target": "**/vs/workbench/services/**/electron-browser/**",
+				"target": "src/vs/workbench/services/**/electron-browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/platform/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/workbench/api/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/workbench/services/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/base/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/platform/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/editor/**",
+					"vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/workbench/api/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/workbench/services/**/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/workbench/contrib/**/test/**",
+				"target": "src/vs/workbench/contrib/**/test/**",
 				"restrictions": [
 					"assert",
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**",
-					"**/vs/platform/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/workbench/services/**",
-					"**/vs/workbench/contrib/**",
-					"**/vs/workbench/test/**",
+					"vs/base/**",
+					"vs/platform/**",
+					"vs/editor/**",
+					"vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/workbench/services/**",
+					"vs/workbench/contrib/**",
+					"vs/workbench/test/**",
 					"*"
 				]
 			},
 			{
-				"target": "**/vs/workbench/contrib/terminal/browser/**",
+				"target": "src/vs/workbench/contrib/terminal/browser/**",
 				"restrictions": [
 					// xterm and its addons are strictly browser-only components
 					"xterm",
 					"xterm-addon-*",
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser}/**",
-					"**/vs/platform/**/{common,browser}/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/{common,browser}/**",
-					"**/vs/workbench/contrib/**/{common,browser}/**",
-					"**/vs/workbench/services/**/{common,browser}/**"
+					"vs/base/**/{common,browser}/**",
+					"vs/platform/**/{common,browser}/**",
+					"vs/editor/**",
+					"vs/workbench/{common,browser}/**",
+					"vs/workbench/contrib/**/{common,browser}/**",
+					"vs/workbench/services/**/{common,browser}/**"
 				]
 			},
 			{
-				"target": "**/vs/workbench/contrib/extensions/browser/**",
+				"target": "src/vs/workbench/contrib/extensions/browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser}/**",
-					"**/vs/platform/**/{common,browser}/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/{common,browser}/**",
-					"**/vs/workbench/contrib/**/{common,browser}/**",
-					"**/vs/workbench/services/**/{common,browser}/**"
+					"vs/base/**/{common,browser}/**",
+					"vs/platform/**/{common,browser}/**",
+					"vs/editor/**",
+					"vs/workbench/{common,browser}/**",
+					"vs/workbench/contrib/**/{common,browser}/**",
+					"vs/workbench/services/**/{common,browser}/**"
 				]
 			},
 			{
-				"target": "**/vs/workbench/contrib/update/browser/update.ts",
+				"target": "src/vs/workbench/contrib/update/browser/update.ts",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser}/**",
-					"**/vs/platform/**/{common,browser}/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/{common,browser}/**",
-					"**/vs/workbench/contrib/**/{common,browser}/**",
-					"**/vs/workbench/services/**/{common,browser}/**"
+					"vs/base/**/{common,browser}/**",
+					"vs/platform/**/{common,browser}/**",
+					"vs/editor/**",
+					"vs/workbench/{common,browser}/**",
+					"vs/workbench/contrib/**/{common,browser}/**",
+					"vs/workbench/services/**/{common,browser}/**"
 				]
 			},
 			{
-				"target": "**/vs/workbench/contrib/notebook/common/**",
+				"target": "src/vs/workbench/contrib/notebook/common/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/common/**",
-					"**/vs/platform/**/common/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/common/**",
-					"**/vs/workbench/api/common/**",
-					"**/vs/workbench/services/**/common/**",
-					"**/vs/workbench/contrib/**/common/**"
+					"vs/base/**/common/**",
+					"vs/platform/**/common/**",
+					"vs/editor/**",
+					"vs/workbench/common/**",
+					"vs/workbench/api/common/**",
+					"vs/workbench/services/**/common/**",
+					"vs/workbench/contrib/**/common/**"
 				]
 			},
 			{
-				"target": "**/vs/workbench/contrib/**/common/**",
+				"target": "src/vs/workbench/contrib/**/common/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/common/**",
-					"**/vs/platform/**/common/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/common/**",
-					"**/vs/workbench/api/common/**",
-					"**/vs/workbench/services/**/common/**",
-					"**/vs/workbench/contrib/**/common/**"
+					"vs/base/**/common/**",
+					"vs/platform/**/common/**",
+					"vs/editor/**",
+					"vs/workbench/common/**",
+					"vs/workbench/api/common/**",
+					"vs/workbench/services/**/common/**",
+					"vs/workbench/contrib/**/common/**"
 				]
 			},
 			{
-				"target": "**/vs/workbench/contrib/**/browser/**",
+				"target": "src/vs/workbench/contrib/**/browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser}/**",
-					"**/vs/platform/**/{common,browser}/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/{common,browser}/**",
-					"**/vs/workbench/api/{common,browser}/**",
-					"**/vs/workbench/services/**/{common,browser}/**",
-					"**/vs/workbench/contrib/**/{common,browser}/**",
+					"vs/base/**/{common,browser}/**",
+					"vs/platform/**/{common,browser}/**",
+					"vs/editor/**",
+					"vs/workbench/{common,browser}/**",
+					"vs/workbench/api/{common,browser}/**",
+					"vs/workbench/services/**/{common,browser}/**",
+					"vs/workbench/contrib/**/{common,browser}/**",
 					"vscode-textmate",
 					"vscode-oniguruma",
 					"@vscode/iconv-lite-umd",
@@ -818,34 +818,34 @@
 				]
 			},
 			{
-				"target": "**/vs/workbench/contrib/**/node/**",
+				"target": "src/vs/workbench/contrib/**/node/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,node}/**",
-					"**/vs/platform/**/{common,node}/**",
-					"**/vs/editor/**/common/**",
-					"**/vs/workbench/{common,node}/**",
-					"**/vs/workbench/api/{common,node}/**",
-					"**/vs/workbench/services/**/{common,node}/**",
-					"**/vs/workbench/contrib/**/{common,node}/**",
+					"vs/base/**/{common,node}/**",
+					"vs/platform/**/{common,node}/**",
+					"vs/editor/**/common/**",
+					"vs/workbench/{common,node}/**",
+					"vs/workbench/api/{common,node}/**",
+					"vs/workbench/services/**/{common,node}/**",
+					"vs/workbench/contrib/**/{common,node}/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/workbench/contrib/**/electron-sandbox/**",
+				"target": "src/vs/workbench/contrib/**/electron-sandbox/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser,electron-sandbox}/**",
-					"**/vs/platform/**/{common,browser,electron-sandbox}/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/{common,browser,electron-sandbox}/**",
-					"**/vs/workbench/api/{common,browser,electron-sandbox}/**",
-					"**/vs/workbench/services/**/{common,browser,electron-sandbox}/**",
-					"**/vs/workbench/contrib/**/{common,browser,electron-sandbox}/**",
+					"vs/base/**/{common,browser,electron-sandbox}/**",
+					"vs/platform/**/{common,browser,electron-sandbox}/**",
+					"vs/editor/**",
+					"vs/workbench/{common,browser,electron-sandbox}/**",
+					"vs/workbench/api/{common,browser,electron-sandbox}/**",
+					"vs/workbench/services/**/{common,browser,electron-sandbox}/**",
+					"vs/workbench/contrib/**/{common,browser,electron-sandbox}/**",
 					"vscode-textmate",
 					"vscode-oniguruma",
 					"@vscode/iconv-lite-umd",
@@ -853,187 +853,188 @@
 				]
 			},
 			{
-				"target": "**/vs/workbench/contrib/**/electron-browser/**",
+				"target": "src/vs/workbench/contrib/**/electron-browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/platform/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/workbench/api/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/workbench/services/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/workbench/contrib/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/base/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/platform/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/editor/**",
+					"vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/workbench/api/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/workbench/services/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/workbench/contrib/**/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/code/browser/**",
+				"target": "src/vs/code/browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser}/**",
-					"**/vs/base/parts/**/{common,browser}/**",
-					"**/vs/platform/**/{common,browser}/**",
-					"**/vs/code/**/{common,browser}/**",
-					"**/vs/workbench/workbench.web.api"
+					"vs/base/**/{common,browser}/**",
+					"vs/base/parts/**/{common,browser}/**",
+					"vs/platform/**/{common,browser}/**",
+					"vs/code/**/{common,browser}/**",
+					"vs/workbench/workbench.web.api"
 				]
 			},
 			{
-				"target": "**/vs/code/node/**",
+				"target": "src/vs/code/node/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/**/{common,node}/**",
-					"**/vs/base/parts/**/{common,node}/**",
-					"**/vs/platform/**/{common,node}/**",
-					"**/vs/code/**/{common,node}/**",
+					"vs/base/**/{common,node}/**",
+					"vs/base/parts/**/{common,node}/**",
+					"vs/platform/**/{common,node}/**",
+					"vs/code/**/{common,node}/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/code/electron-browser/**",
+				"target": "src/vs/code/electron-browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/base/parts/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/platform/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/code/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/base/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/base/parts/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/platform/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/code/**/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/code/electron-sandbox/**",
+				"target": "src/vs/code/electron-sandbox/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/base/parts/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/platform/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/code/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/base/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/base/parts/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/platform/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/code/**/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/code/electron-main/**",
+				"target": "src/vs/code/electron-main/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/**/{common,node,electron-main}/**",
-					"**/vs/base/parts/**/{common,node,electron-main}/**",
-					"**/vs/platform/**/{common,node,electron-main}/**",
-					"**/vs/code/**/{common,node,electron-main}/**",
+					"vs/base/**/{common,node,electron-main}/**",
+					"vs/base/parts/**/{common,node,electron-main}/**",
+					"vs/platform/**/{common,node,electron-main}/**",
+					"vs/code/**/{common,node,electron-main}/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/server/**",
+				"target": "src/vs/server/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/**/{common,node}/**",
-					"**/vs/base/parts/**/{common,node}/**",
-					"**/vs/platform/**/{common,node}/**",
-					"**/vs/workbench/**/{common,node}/**",
-					"**/vs/server/**",
+					"vs/base/**/{common,node}/**",
+					"vs/base/parts/**/{common,node}/**",
+					"vs/platform/**/{common,node}/**",
+					"vs/workbench/**/{common,node}/**",
+					"vs/server/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/src/vs/workbench/workbench.common.main.ts",
+				"target": "src/vs/workbench/workbench.common.main.ts",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/**/{common,browser}/**",
-					"**/vs/base/parts/**/{common,browser}/**",
-					"**/vs/platform/**/{common,browser}/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/**/{common,browser}/**"
+					"vs/base/**/{common,browser}/**",
+					"vs/base/parts/**/{common,browser}/**",
+					"vs/platform/**/{common,browser}/**",
+					"vs/editor/**",
+					"vs/workbench/**/{common,browser}/**"
 				]
 			},
 			{
-				"target": "**/src/vs/workbench/workbench.web.main.ts",
+				"target": "src/vs/workbench/workbench.web.main.ts",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/**/{common,browser}/**",
-					"**/vs/base/parts/**/{common,browser}/**",
-					"**/vs/platform/**/{common,browser}/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/**/{common,browser}/**",
-					"**/vs/workbench/workbench.common.main"
+					"vs/base/**/{common,browser}/**",
+					"vs/base/parts/**/{common,browser}/**",
+					"vs/platform/**/{common,browser}/**",
+					"vs/editor/**",
+					"vs/workbench/**/{common,browser}/**",
+					"vs/workbench/workbench.common.main"
 				]
 			},
 			{
-				"target": "**/src/vs/workbench/workbench.web.api.ts",
+				"target": "src/vs/workbench/workbench.web.api.ts",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/**/{common,browser}/**",
-					"**/vs/base/parts/**/{common,browser}/**",
-					"**/vs/platform/**/{common,browser}/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/**/{common,browser}/**",
-					"**/vs/workbench/workbench.web.main"
+					"vs/base/**/{common,browser}/**",
+					"vs/base/parts/**/{common,browser}/**",
+					"vs/platform/**/{common,browser}/**",
+					"vs/editor/**",
+					"vs/workbench/**/{common,browser}/**",
+					"vs/workbench/workbench.web.main"
 				]
 			},
 			{
-				"target": "**/src/vs/workbench/{workbench.sandbox.main.ts,workbench.desktop.sandbox.main.ts}",
+				"target": "src/vs/workbench/{workbench.sandbox.main.ts,workbench.desktop.sandbox.main.ts}",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/**/{common,browser,electron-sandbox}/**",
-					"**/vs/base/parts/**/{common,browser,electron-sandbox}/**",
-					"**/vs/platform/**/{common,browser,electron-sandbox}/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/**/{common,browser,electron-sandbox}/**",
-					"**/vs/workbench/workbench.common.main",
-					"**/vs/workbench/workbench.sandbox.main"
+					"vs/base/**/{common,browser,electron-sandbox}/**",
+					"vs/base/parts/**/{common,browser,electron-sandbox}/**",
+					"vs/platform/**/{common,browser,electron-sandbox}/**",
+					"vs/editor/**",
+					"vs/workbench/**/{common,browser,electron-sandbox}/**",
+					"vs/workbench/workbench.common.main",
+					"vs/workbench/workbench.sandbox.main"
 				]
 			},
 			{
-				"target": "**/src/vs/workbench/workbench.desktop.main.ts",
+				"target": "src/vs/workbench/workbench.desktop.main.ts",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/base/parts/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/platform/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"**/vs/workbench/workbench.common.main",
-					"**/vs/workbench/workbench.sandbox.main"
+					"vs/base/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/base/parts/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/platform/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/editor/**",
+					"vs/workbench/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+					"vs/workbench/workbench.common.main",
+					"vs/workbench/workbench.sandbox.main"
 				]
 			},
 			{
-				"target": "**/src/vs/workbench/{workbench.desktop.main.nls.js,workbench.web.api.nls.js}",
+				"target": "src/vs/workbench/{workbench.desktop.main.nls.js,workbench.web.api.nls.js}",
 				"restrictions": []
 			},
 			{
-				"target": "**/src/vs/{css.d.ts,monaco.d.ts,nls.d.ts,nls.mock.ts}",
+				"target": "src/vs/{css.d.ts,monaco.d.ts,nls.d.ts,nls.mock.ts}",
 				"restrictions": []
 			},
 			{
-				"target": "**/src/vscode-dts/**",
+				"target": "src/vscode-dts/**",
 				"restrictions": []
 			},
 			{
-				"target": "**/src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,bootstrap.js,cli.js,main.js}",
+				"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,bootstrap.js,cli.js,main.js}",
 				"restrictions": []
 			},
 			{
-				"target": "**/extensions/**",
+				"target": "extensions/**",
 				"restrictions": "**/*"
 			},
 			{
-				"target": "**/test/smoke/**",
+				"target": "test/smoke/**",
 				"restrictions": [
-					"**/test/smoke/**",
+					"test/automation",
+					"test/smoke/**",
 					"@vscode/*",
 					"@parcel/*",
 					"@playwright/*",
@@ -1041,9 +1042,9 @@
 				]
 			},
 			{
-				"target": "**/test/automation/**",
+				"target": "test/automation/**",
 				"restrictions": [
-					"**/test/automation/**",
+					"test/automation/**",
 					"@vscode/*",
 					"@parcel/*",
 					"playwright-core/**",
@@ -1052,9 +1053,9 @@
 				]
 			},
 			{
-				"target": "**/test/integration/**",
+				"target": "test/integration/**",
 				"restrictions": [
-					"**/test/integration/**",
+					"test/integration/**",
 					"@vscode/*",
 					"@parcel/*",
 					"@playwright/*",
@@ -1062,9 +1063,9 @@
 				]
 			},
 			{
-				"target": "**/test/monaco/**",
+				"target": "test/monaco/**",
 				"restrictions": [
-					"**/test/monaco/**",
+					"test/monaco/**",
 					"@vscode/*",
 					"@parcel/*",
 					"@playwright/*",
@@ -1072,9 +1073,9 @@
 				]
 			},
 			{
-				"target": "**/api/**.test.ts",
+				"target": "src/vs/workbench/test/**/api/**.test.ts",
 				"restrictions": [
-					"**/vs/**",
+					"vs/**",
 					"assert",
 					"sinon",
 					"sinon-test",
@@ -1083,36 +1084,36 @@
 				]
 			},
 			{
-				"target": "**/{node,electron-browser,electron-main}/**/*.test.ts",
+				"target": "src/vs/**/{node,electron-browser,electron-main}/**/*.test.ts",
 				"restrictions": [
-					"**/vs/**",
+					"vs/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/{node,electron-browser,electron-main}/**/test/**",
+				"target": "src/vs/**/{node,electron-browser,electron-main}/**/test/**",
 				"restrictions": [
-					"**/vs/**",
+					"vs/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/test/{node,electron-browser,electron-main}/**",
+				"target": "src/vs/**/test/{node,electron-browser,electron-main}/**",
 				"restrictions": [
-					"**/vs/**",
+					"vs/**",
 					"@vscode/*",
 					"@parcel/*",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/**.test.ts",
+				"target": "src/vs/**/**.test.ts",
 				"restrictions": [
-					"**/vs/**",
+					"vs/**",
 					"assert",
 					"sinon",
 					"sinon-test",
@@ -1121,9 +1122,9 @@
 				]
 			},
 			{
-				"target": "**/test/**",
+				"target": "src/vs/**/test/**",
 				"restrictions": [
-					"**/vs/**",
+					"vs/**",
 					"assert",
 					"sinon",
 					"sinon-test",
@@ -1132,7 +1133,7 @@
 				]
 			},
 			{
-				"target": "**/build/**",
+				"target": "build/**",
 				"restrictions": "**/*"
 			},
 			{

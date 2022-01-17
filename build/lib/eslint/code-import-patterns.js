@@ -3,9 +3,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-const path_1 = require("path");
+const path = require("path");
 const minimatch = require("minimatch");
 const utils_1 = require("./utils");
+const REPO_ROOT = path.normalize(path.join(__dirname, '../../../'));
+/**
+ * Returns the filename relative to the project root and using `/` as separators
+ */
+function getRelativeFilename(context) {
+    const filename = path.normalize(context.getFilename());
+    return filename.substring(REPO_ROOT.length).replace(/\\/g, '/');
+}
 module.exports = new class {
     constructor() {
         this.meta = {
@@ -19,9 +27,10 @@ module.exports = new class {
         };
     }
     create(context) {
-        const configs = context.options;
+        const configs = this._processOptions(context.options);
+        const relativeFilename = getRelativeFilename(context);
         for (const config of configs) {
-            if (minimatch(context.getFilename(), config.target)) {
+            if (minimatch(relativeFilename, config.target)) {
                 return (0, utils_1.createImportRuleListener)((node, value) => this._checkImport(context, config, node, value));
             }
         }
@@ -31,21 +40,29 @@ module.exports = new class {
         });
         return {};
     }
-    _checkImport(context, config, node, path) {
+    _processOptions(options) {
+        const result = [];
+        for (const option of options) {
+            const target = option.target;
+            const restrictions = (typeof option.restrictions === 'string' ? [option.restrictions] : option.restrictions);
+            result.push({ target, restrictions });
+        }
+        return result;
+    }
+    _checkImport(context, config, node, importPath) {
         // resolve relative paths
-        if (path[0] === '.') {
-            path = (0, path_1.join)(context.getFilename(), path);
+        if (importPath[0] === '.') {
+            const relativeFilename = getRelativeFilename(context);
+            importPath = path.join(path.dirname(relativeFilename), importPath);
+            if (/^src\/vs\//.test(importPath)) {
+                // resolve using AMD base url
+                importPath = importPath.substring('src/'.length);
+            }
         }
-        let restrictions;
-        if (typeof config.restrictions === 'string') {
-            restrictions = [config.restrictions];
-        }
-        else {
-            restrictions = config.restrictions;
-        }
+        const restrictions = config.restrictions;
         let matched = false;
         for (const pattern of restrictions) {
-            if (minimatch(path, pattern)) {
+            if (minimatch(importPath, pattern)) {
                 matched = true;
                 break;
             }

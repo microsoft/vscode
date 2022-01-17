@@ -5,13 +5,20 @@
 
 import * as eslint from 'eslint';
 import { TSESTree } from '@typescript-eslint/experimental-utils';
-import { join } from 'path';
+import * as path from 'path';
 import * as minimatch from 'minimatch';
 import { createImportRuleListener } from './utils';
 
-interface ImportPatternsConfig {
+const REPO_ROOT = path.normalize(path.join(__dirname, '../../../'));
+
+interface RawImportPatternsConfig {
 	target: string;
 	restrictions: string | string[];
+}
+
+interface ImportPatternsConfig {
+	target: string;
+	restrictions: string[];
 }
 
 export = new class implements eslint.Rule.RuleModule {
@@ -28,10 +35,11 @@ export = new class implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		const configs = <ImportPatternsConfig[]>context.options;
+		const configs = this._processOptions(<RawImportPatternsConfig[]>context.options);
+		const relativeFilename = getRelativeFilename(context);
 
 		for (const config of configs) {
-			if (minimatch(context.getFilename(), config.target)) {
+			if (minimatch(relativeFilename, config.target)) {
 				return createImportRuleListener((node, value) => this._checkImport(context, config, node, value));
 			}
 		}
@@ -44,23 +52,33 @@ export = new class implements eslint.Rule.RuleModule {
 		return {};
 	}
 
-	private _checkImport(context: eslint.Rule.RuleContext, config: ImportPatternsConfig, node: TSESTree.Node, path: string) {
+	private _processOptions(options: RawImportPatternsConfig[]): ImportPatternsConfig[] {
+		const result: ImportPatternsConfig[] = [];
+		for (const option of options) {
+			const target = option.target;
+			const restrictions = (typeof option.restrictions === 'string' ? [option.restrictions] : option.restrictions);
+			result.push({ target, restrictions });
+		}
+		return result;
+	}
+
+	private _checkImport(context: eslint.Rule.RuleContext, config: ImportPatternsConfig, node: TSESTree.Node, importPath: string) {
 
 		// resolve relative paths
-		if (path[0] === '.') {
-			path = join(context.getFilename(), path);
+		if (importPath[0] === '.') {
+			const relativeFilename = getRelativeFilename(context);
+			importPath = path.join(path.dirname(relativeFilename), importPath);
+			if (/^src\/vs\//.test(importPath)) {
+				// resolve using AMD base url
+				importPath = importPath.substring('src/'.length);
+			}
 		}
 
-		let restrictions: string[];
-		if (typeof config.restrictions === 'string') {
-			restrictions = [config.restrictions];
-		} else {
-			restrictions = config.restrictions;
-		}
+		const restrictions = config.restrictions;
 
 		let matched = false;
 		for (const pattern of restrictions) {
-			if (minimatch(path, pattern)) {
+			if (minimatch(importPath, pattern)) {
 				matched = true;
 				break;
 			}
@@ -79,3 +97,10 @@ export = new class implements eslint.Rule.RuleModule {
 	}
 };
 
+/**
+ * Returns the filename relative to the project root and using `/` as separators
+ */
+function getRelativeFilename(context: eslint.Rule.RuleContext): string {
+	const filename = path.normalize(context.getFilename());
+	return filename.substring(REPO_ROOT.length).replace(/\\/g, '/');
+}
