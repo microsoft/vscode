@@ -75,7 +75,7 @@ export class WebClientServer {
 
 	private _mapCallbackUriToRequestId: Map<string, UriComponents> = new Map();
 
-	constructor (
+	constructor(
 		private readonly _connectionToken: string,
 		private readonly _environmentService: IServerEnvironmentService,
 		private readonly _logService: ILogService,
@@ -320,7 +320,7 @@ export class WebClientServer {
 					// Endpoints
 					base,
 					logoutEndpointUrl: base + '/logout',
-					proxyEndpointUrlTemplate: base + '/proxy/{port}',
+					proxyEndpointUrlTemplate: base + '/proxy/{{port}}',
 					webEndpointUrl: vscodeBase + '/static',
 					webEndpointUrlTemplate: vscodeBase + '/static',
 					webviewContentExternalBaseUrlTemplate: vscodeBase + '/webview/{{uuid}}/',
