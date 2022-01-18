@@ -1032,8 +1032,13 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		}
 
 		const result: IGalleryExtensionVersion[] = [];
+		const seenVersions = new Set<string>();
 		await Promise.all(galleryExtensions[0].versions.map(async (version) => {
 			try {
+				if (seenVersions.has(version.version)) {
+					return;
+				}
+				seenVersions.add(version.version);
 				if (await this.isValidVersion(version, includePreRelease, true, allTargetPlatforms, targetPlatform)) {
 					result.push({ version: version.version, date: version.lastUpdated, isPreReleaseVersion: isPreReleaseVersion(version) });
 				}
