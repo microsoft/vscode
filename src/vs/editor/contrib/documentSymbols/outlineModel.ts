@@ -18,6 +18,8 @@ import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IModelService } from 'vs/editor/common/services/model';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export abstract class TreeElement {
 
@@ -406,13 +408,24 @@ export class OutlineModelService implements IOutlineModelService {
 
 	declare _serviceBrand: undefined;
 
+	private readonly _disposables = new DisposableStore();
 	private readonly _debounceInformation: IFeatureDebounceInformation;
 	private readonly _cache = new LRUCache<string, CacheEntry>(10, 0.7);
 
 	constructor(
-		@ILanguageFeatureDebounceService debounces: ILanguageFeatureDebounceService
+		@ILanguageFeatureDebounceService debounces: ILanguageFeatureDebounceService,
+		@IModelService modelService: IModelService
 	) {
 		this._debounceInformation = debounces.for(DocumentSymbolProviderRegistry, { min: 350 });
+
+		// don't cache outline models longer than their text model
+		this._disposables.add(modelService.onModelRemoved(textModel => {
+			this._cache.delete(textModel.id);
+		}));
+	}
+
+	dispose(): void {
+		this._disposables.dispose();
 	}
 
 	async getOrCreate(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
