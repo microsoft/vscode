@@ -9,6 +9,9 @@ import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import * as byline from 'byline';
 
+export const isMacintosh = process.platform === 'darwin';
+export const isWindows = process.platform === 'win32';
+
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
 }
@@ -284,10 +287,6 @@ export function detectUnicodeEncoding(buffer: Buffer): Encoding | null {
 	return null;
 }
 
-function isWindowsPath(path: string): boolean {
-	return /^[a-zA-Z]:\\/.test(path);
-}
-
 export function isDescendant(parent: string, descendant: string): boolean {
 	if (parent === descendant) {
 		return true;
@@ -297,8 +296,9 @@ export function isDescendant(parent: string, descendant: string): boolean {
 		parent += sep;
 	}
 
-	// Windows is case insensitive
-	if (isWindowsPath(parent)) {
+	// Windows & Mac are currently being handled
+	// as case insensitive file systems in VS Code.
+	if (isWindows || isMacintosh) {
 		parent = parent.toLowerCase();
 		descendant = descendant.toLowerCase();
 	}
@@ -307,8 +307,9 @@ export function isDescendant(parent: string, descendant: string): boolean {
 }
 
 export function pathEquals(a: string, b: string): boolean {
-	// Windows is case insensitive
-	if (isWindowsPath(a)) {
+	// Windows & Mac are currently being handled
+	// as case insensitive file systems in VS Code.
+	if (isWindows || isMacintosh) {
 		a = a.toLowerCase();
 		b = b.toLowerCase();
 	}
