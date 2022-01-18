@@ -34,7 +34,6 @@ import { ILanguageService } from 'vs/editor/common/services/language';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
-import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
 import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { NotebookCellExecutionState, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -99,7 +98,6 @@ export class InteractiveEditor extends EditorPane {
 	#contextKeyService: IContextKeyService;
 	#notebookKernelService: INotebookKernelService;
 	#keybindingService: IKeybindingService;
-	#historyService: IInteractiveHistoryService;
 	#menuService: IMenuService;
 	#contextMenuService: IContextMenuService;
 	#editorGroupService: IEditorGroupsService;
@@ -124,7 +122,6 @@ export class InteractiveEditor extends EditorPane {
 		@INotebookKernelService notebookKernelService: INotebookKernelService,
 		@ILanguageService languageService: ILanguageService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInteractiveHistoryService historyService: IInteractiveHistoryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -144,7 +141,6 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookKernelService = notebookKernelService;
 		this.#languageService = languageService;
 		this.#keybindingService = keybindingService;
-		this.#historyService = historyService;
 		this.#menuService = menuService;
 		this.#contextMenuService = contextMenuService;
 		this.#editorGroupService = editorGroupService;
@@ -460,7 +456,11 @@ export class InteractiveEditor extends EditorPane {
 		}
 
 		const cursorAtBoundaryContext = INTERACTIVE_INPUT_CURSOR_BOUNDARY.bindTo(this.#contextKeyService);
-		cursorAtBoundaryContext.set('none');
+		if (input.resource && input.historyService.has(input.resource)) {
+			cursorAtBoundaryContext.set('top');
+		} else {
+			cursorAtBoundaryContext.set('none');
+		}
 
 		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidChangeCursorPosition(({ position }) => {
 			const viewModel = this.#codeEditorWidget._getViewModel()!;
@@ -488,7 +488,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
 			const value = editorModel!.getValue();
 			if (this.input?.resource && value !== '') {
-				this.#historyService.replaceLast(this.input.resource, value);
+				(this.input as InteractiveEditorInput).historyService.replaceLast(this.input.resource, value);
 			}
 		}));
 
