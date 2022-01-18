@@ -1678,7 +1678,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		}
 
 		const t1: number = Date.now();
-		this._logService.trace(`[${data.extension.identifier.value}] INVOKE provider '${(ctor as any).name}'`);
+		this._logService.trace(`[${data.extension.identifier.value}] INVOKE provider '${callback.toString().replace(/[\r\n]/g, '')}'`);
 
 		const result = callback(data.adapter, data.extension);
 
