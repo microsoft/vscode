@@ -8,7 +8,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuRegistry, MenuId, registerAction2, Action2, ISubmenuItem, IMenuItem, IAction2Options } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExtensionsLabel, ExtensionsLocalizedLabel, ExtensionsChannelId, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, InstallOperation, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionsLabel, ExtensionsLocalizedLabel, ExtensionsChannelId, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, InstallOperation, InstallOptions, getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -25,7 +25,7 @@ import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeymapExtensions } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
-import { areSameExtensions, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -75,7 +75,6 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Event } from 'vs/base/common/event';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { UnsupportedExtensionsMigrationContrib } from 'vs/workbench/contrib/extensions/browser/unsupportedExtensionsMigrationContribution';
-import { getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -292,30 +291,28 @@ CommandsRegistry.registerCommand({
 		]
 	},
 	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean, installPreReleaseVersion?: boolean, donotSync?: boolean }) => {
-		const extensionManagementService = accessor.get(IExtensionManagementService);
-		const extensionGalleryService = accessor.get(IExtensionGalleryService);
-		const extensionService = accessor.get(IExtensionsWorkbenchService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		try {
 			if (typeof arg === 'string') {
 				const [id, version] = getIdAndVersion(arg);
-				const [extension] = await extensionGalleryService.getExtensions([{ id, version }], CancellationToken.None);
+				const [extension] = (await extensionsWorkbenchService.queryGallery({ names: [id], includePreRelease: options?.installPreReleaseVersion }, CancellationToken.None)).firstPage;
 				if (extension) {
 					const installOptions: InstallOptions = {
 						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */
 						installPreReleaseVersion: options?.installPreReleaseVersion,
 						installGivenVersion: !!version
 					};
-					await extensionManagementService.installFromGallery(extension, installOptions);
-					const localExt = extensionService.local.filter(e => areSameExtensions(e.identifier, { id: extension.identifier.id }))[0];
-					if (version && localExt.latestVersion !== version) {
-						extensionService.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(extension.identifier, version));
+					if (version) {
+						await extensionsWorkbenchService.installVersion(extension, version, installOptions);
+					} else {
+						await extensionsWorkbenchService.install(extension, installOptions);
 					}
 				} else {
 					throw new Error(localize('notFound', "Extension '{0}' not found.", arg));
 				}
 			} else {
 				const vsix = URI.revive(arg);
-				await extensionManagementService.install(vsix, { installOnlyNewlyAddedFromExtensionPack: options?.installOnlyNewlyAddedFromExtensionPackVSIX });
+				await extensionsWorkbenchService.install(vsix, { installOnlyNewlyAddedFromExtensionPack: options?.installOnlyNewlyAddedFromExtensionPackVSIX });
 			}
 		} catch (e) {
 			onUnexpectedError(e);

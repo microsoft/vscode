@@ -6,11 +6,11 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions, InstallVSIXOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EnablementState, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { areSameExtensions, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
@@ -95,7 +95,7 @@ export interface IExtensionsWorkbenchService {
 	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
 	canInstall(extension: IExtension): Promise<boolean>;
-	install(vsix: URI): Promise<IExtension>;
+	install(vsix: URI, installOptions?: InstallVSIXOptions): Promise<IExtension>;
 	install(extension: IExtension, installOptions?: InstallOptions): Promise<IExtension>;
 	uninstall(extension: IExtension): Promise<void>;
 	installVersion(extension: IExtension, version: string, installOptions?: InstallOptions): Promise<IExtension>;
@@ -104,7 +104,6 @@ export interface IExtensionsWorkbenchService {
 	open(extension: IExtension, options?: IExtensionEditorOptions): Promise<void>;
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
-	ignoreAutoUpdate(identifierWithVersion: ExtensionIdentifierWithVersion): void;
 
 	// Sync APIs
 	isExtensionIgnoredToSync(extension: IExtension): boolean;
