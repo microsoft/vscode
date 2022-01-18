@@ -25,6 +25,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { isCancellationError } from 'vs/base/common/errors';
 
 const _ctxHasCallHierarchyProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false, localize('editorHasCallHierarchyProvider', 'Whether a call hierarchy provider is available'));
 const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisible', false, localize('callHierarchyVisible', 'Whether call hierarchy peek is currently showing'));
@@ -145,9 +146,12 @@ class CallHierarchyController implements IEditorContribution {
 			else {
 				this._widget!.showMessage(localize('no.item', "No results"));
 			}
-		}).catch(e => {
+		}).catch(err => {
+			if (isCancellationError(err)) {
+				this.endCallHierarchy();
+				return;
+			}
 			this._widget!.showMessage(localize('error', "Failed to show call hierarchy"));
-			console.error(e);
 		});
 	}
 
