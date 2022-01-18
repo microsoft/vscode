@@ -81,30 +81,36 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		const triggerCharacterLow = context.triggerCharacter?.toLowerCase() ?? '';
 
 
-		for (const snippet of snippets) {
+		snippet: for (const snippet of snippets) {
+
+			if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && !snippet.prefixLow.startsWith(triggerCharacterLow)) {
+				// strict -> when having trigger characters they must prefix-match
+				continue snippet;
+			}
 
 			const word = getWordAtText(1, languageConfig.getWordDefinition(), snippet.prefixLow, 0);
 
 			if (wordUntil && word && !isPatternInWord(wordUntil, 0, wordUntil.length, snippet.prefixLow, 0, snippet.prefixLow.length)) {
 				// when at a word the snippet prefix must match
-				continue;
+				continue snippet;
 			}
 
 
-			for (let pos = Math.max(0, columnOffset - snippet.prefixLow.length); pos < lineContentLow.length; pos++) {
-
-				if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && !snippet.prefixLow.startsWith(triggerCharacterLow)) {
-					// strict -> when having trigger characters they must prefix-match
-					continue;
-				}
+			column: for (let pos = Math.max(0, columnOffset - snippet.prefixLow.length); pos < lineContentLow.length; pos++) {
 
 				if (!isPatternInWord(lineContentLow, pos, columnOffset, snippet.prefixLow, 0, snippet.prefixLow.length)) {
-					continue;
+					continue column;
 				}
 
 				const prefixRestLen = snippet.prefixLow.length - (columnOffset - pos);
 				const endsWithPrefixRest = compareSubstring(lineContentLow, snippet.prefixLow, columnOffset, columnOffset + prefixRestLen, columnOffset - pos);
 				const startPosition = position.with(undefined, pos + 1);
+
+				if (wordUntil && position.equals(startPosition)) {
+					// at word-end but no overlap
+					continue snippet;
+				}
+
 				let endColumn = endsWithPrefixRest === 0 ? position.column + prefixRestLen : position.column;
 
 				// First check if there is anything to the right of the cursor
@@ -178,7 +184,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// snippets, else fall back to the outer language
 		model.tokenizeIfCheap(position.lineNumber);
 		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
-		if (!this._languageService.getLanguageName(languageId)){
+		if (!this._languageService.getLanguageName(languageId)) {
 			languageId = model.getLanguageId();
 		}
 		return languageId;
