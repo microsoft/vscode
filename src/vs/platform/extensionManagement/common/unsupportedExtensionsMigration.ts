@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
@@ -30,7 +31,7 @@ export async function migrateUnsupportedExtensions(extensionManagementService: I
 				continue;
 			}
 
-			const gallery = await galleryService.getCompatibleExtension({ id: preReleaseExtensionId }, true, await extensionManagementService.getTargetPlatform());
+			const gallery = (await galleryService.getExtensions([{ id: preReleaseExtensionId, preRelease: true }], { targetPlatform: await extensionManagementService.getTargetPlatform(), compatible: true }, CancellationToken.None))[0];
 			if (!gallery) {
 				logService.info(`Skipping migrating '${unsupportedExtension.identifier.id}' extension because, the comaptible target '${preReleaseExtensionId}' extension is not found`);
 				continue;

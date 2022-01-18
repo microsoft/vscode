@@ -7,7 +7,7 @@ export interface IRPCProtocol {
 	/**
 	 * Returns a proxy to an object addressable/named in the extension host process or in the renderer process.
 	 */
-	getProxy<T>(identifier: ProxyIdentifier<T>): T;
+	getProxy<T>(identifier: ProxyIdentifier<T>): Proxied<T>;
 
 	/**
 	 * Register manually created instance.
@@ -29,12 +29,10 @@ export class ProxyIdentifier<T> {
 	public static count = 0;
 	_proxyIdentifierBrand: void = undefined;
 
-	public readonly isMain: boolean;
 	public readonly sid: string;
 	public readonly nid: number;
 
-	constructor(isMain: boolean, sid: string) {
-		this.isMain = isMain;
+	constructor(sid: string) {
 		this.sid = sid;
 		this.nid = (++ProxyIdentifier.count);
 	}
@@ -42,17 +40,16 @@ export class ProxyIdentifier<T> {
 
 const identifiers: ProxyIdentifier<any>[] = [];
 
-export function createMainContextProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
-	const result = new ProxyIdentifier<T>(true, identifier);
+export function createProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
+	const result = new ProxyIdentifier<T>(identifier);
 	identifiers[result.nid] = result;
 	return result;
 }
 
-export function createExtHostContextProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
-	const result = new ProxyIdentifier<T>(false, identifier);
-	identifiers[result.nid] = result;
-	return result;
-}
+export type Proxied<T> = { [K in keyof T]: T[K] extends (...args: infer A) => infer R
+	? (...args: A) => Promise<Awaited<R>>
+	: never
+};
 
 export function getStringIdentifierForProxy(nid: number): string {
 	return identifiers[nid].sid;

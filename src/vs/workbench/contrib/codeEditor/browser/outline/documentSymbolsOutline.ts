@@ -12,7 +12,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { DocumentSymbolComparator, DocumentSymbolAccessibilityProvider, DocumentSymbolRenderer, DocumentSymbolFilter, DocumentSymbolGroupRenderer, DocumentSymbolIdentityProvider, DocumentSymbolNavigationLabelProvider, DocumentSymbolVirtualDelegate } from 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsTree';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { OutlineGroup, OutlineElement, OutlineModel, TreeElement, IOutlineMarker } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { OutlineGroup, OutlineElement, OutlineModel, TreeElement, IOutlineMarker, IOutlineModelService } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/languages';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { raceCancellation, TimeoutTimer, timeout, Barrier } from 'vs/base/common/async';
@@ -133,6 +133,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		target: OutlineTarget,
 		firstLoadBarrier: Barrier,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IOutlineModelService private readonly _outlineModelService: IOutlineModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
@@ -190,7 +191,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		this._disposables.add(this._editor.onDidChangeModelContent(event => {
 			const model = this._editor.getModel();
 			if (model) {
-				const timeout = OutlineModel.getRequestDelay(model);
+				const timeout = _outlineModelService.getDebounceValue(model);
 				updateSoon.cancelAndSet(() => this._createOutline(event), timeout);
 			}
 		}));
@@ -276,7 +277,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		this._outlineDisposables.add(toDisposable(() => cts.dispose(true)));
 
 		try {
-			let model = await OutlineModel.create(buffer, cts.token);
+			let model = await this._outlineModelService.getOrCreate(buffer, cts.token);
 			if (cts.token.isCancellationRequested) {
 				// cancelled -> do nothing
 				return;

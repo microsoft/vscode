@@ -153,7 +153,7 @@ export class MoveOperations {
 		return cursor.move(inSelectionMode, lineNumber, column, 0);
 	}
 
-	public static vertical(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, newLineNumber: number, allowMoveOnEdgeLine: boolean): CursorPosition {
+	public static vertical(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, newLineNumber: number, allowMoveOnEdgeLine: boolean, normalizationAffinity?: PositionAffinity): CursorPosition {
 		const currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize) + leftoverVisibleColumns;
 		const lineCount = model.getLineCount();
 		const wasOnFirstPosition = (lineNumber === 1 && column === 1);
@@ -185,11 +185,18 @@ export class MoveOperations {
 			leftoverVisibleColumns = currentVisibleColumn - CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
 		}
 
+		if (normalizationAffinity !== undefined) {
+			const position = new Position(lineNumber, column);
+			const newPosition = model.normalizePosition(position, normalizationAffinity);
+			leftoverVisibleColumns = leftoverVisibleColumns + (column - newPosition.column);
+			lineNumber = newPosition.lineNumber;
+			column = newPosition.column;
+		}
 		return new CursorPosition(lineNumber, column, leftoverVisibleColumns);
 	}
 
 	public static down(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): CursorPosition {
-		return this.vertical(config, model, lineNumber, column, leftoverVisibleColumns, lineNumber + count, allowMoveOnLastLine);
+		return this.vertical(config, model, lineNumber, column, leftoverVisibleColumns, lineNumber + count, allowMoveOnLastLine, PositionAffinity.Right);
 	}
 
 	public static moveDown(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, linesCount: number): SingleCursorState {
@@ -225,7 +232,7 @@ export class MoveOperations {
 	}
 
 	public static up(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): CursorPosition {
-		return this.vertical(config, model, lineNumber, column, leftoverVisibleColumns, lineNumber - count, allowMoveOnFirstLine);
+		return this.vertical(config, model, lineNumber, column, leftoverVisibleColumns, lineNumber - count, allowMoveOnFirstLine, PositionAffinity.Left);
 	}
 
 	public static moveUp(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, linesCount: number): SingleCursorState {

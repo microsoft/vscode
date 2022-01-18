@@ -5,6 +5,7 @@
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -118,9 +119,12 @@ class TypeHierarchyController implements IEditorContribution {
 			else {
 				this._widget!.showMessage(localize('no.item', "No results"));
 			}
-		}).catch(e => {
+		}).catch(err => {
+			if (isCancellationError(err)) {
+				this.endTypeHierarchy();
+				return;
+			}
 			this._widget!.showMessage(localize('error', "Failed to show type hierarchy"));
-			console.error(e);
 		});
 	}
 

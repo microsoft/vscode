@@ -5,11 +5,11 @@
 
 import 'vs/css!./media/statusbarpart';
 import { localize } from 'vs/nls';
-import { DisposableStore, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Part } from 'vs/workbench/browser/part';
 import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarStyleOverride } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -96,6 +96,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}(this.configurationService, this.hoverService);
 
 	private readonly compactEntriesDisposable = this._register(new MutableDisposable<DisposableStore>());
+	private readonly styleOverrides = new Set<IStatusbarStyleOverride>();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -498,14 +499,15 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		super.updateStyles();
 
 		const container = assertIsDefined(this.getContainer());
+		const styleOverride: IStatusbarStyleOverride | undefined = [...this.styleOverrides].sort((a, b) => a.priority - b.priority)[0];
 
 		// Background colors
-		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND) || '';
+		const backgroundColor = this.getColor(styleOverride?.background ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND)) || '';
 		container.style.backgroundColor = backgroundColor;
-		container.style.color = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND) || '';
+		container.style.color = this.getColor(styleOverride?.foreground ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND)) || '';
 
 		// Border color
-		const borderColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER) || this.getColor(contrastBorder);
+		const borderColor = this.getColor(styleOverride?.border ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER)) || this.getColor(contrastBorder);
 		if (borderColor) {
 			container.classList.add('status-border-top');
 			container.style.setProperty('--status-border-top-color', borderColor.toString());
@@ -525,6 +527,16 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	override layout(width: number, height: number, top: number, left: number): void {
 		super.layout(width, height, top, left);
 		super.layoutContents(width, height);
+	}
+
+	overrideStyle(style: IStatusbarStyleOverride): IDisposable {
+		this.styleOverrides.add(style);
+		this.updateStyles();
+
+		return toDisposable(() => {
+			this.styleOverrides.delete(style);
+			this.updateStyles();
+		});
 	}
 
 	toJSON(): object {

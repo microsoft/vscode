@@ -389,14 +389,15 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.sortOrder': {
 			'type': 'string',
-			'enum': [SortOrder.Default, SortOrder.Mixed, SortOrder.FilesFirst, SortOrder.Type, SortOrder.Modified],
+			'enum': [SortOrder.Default, SortOrder.Mixed, SortOrder.FilesFirst, SortOrder.Type, SortOrder.Modified, SortOrder.FoldersNestsFiles],
 			'default': SortOrder.Default,
 			'enumDescriptions': [
 				nls.localize('sortOrder.default', 'Files and folders are sorted by their names. Folders are displayed before files.'),
 				nls.localize('sortOrder.mixed', 'Files and folders are sorted by their names. Files are interwoven with folders.'),
 				nls.localize('sortOrder.filesFirst', 'Files and folders are sorted by their names. Files are displayed before folders.'),
 				nls.localize('sortOrder.type', 'Files and folders are grouped by extension type then sorted by their names. Folders are displayed before files.'),
-				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before files.')
+				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before files.'),
+				nls.localize('sortOrder.foldersNestsFiles', 'Files and folders are sorted by their names. Folders are displayed before files. Files with nested children are displayed before other files.')
 			],
 			'description': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer.")
 		},
@@ -451,6 +452,36 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths."),
 			'default': 'auto'
+		},
+		'explorer.experimental.fileNesting.enabled': {
+			'type': 'boolean',
+			'markdownDescription': nls.localize('fileNestingEnabled', "Experimental. Controls whether file nesting is enabled in the explorer. File nesting allows for related files in a directory to be visually grouped together under a single parent file."),
+			'default': false,
+		},
+		'explorer.experimental.fileNesting.expand': {
+			'type': 'boolean',
+			'markdownDescription': nls.localize('fileNestingExpand', "Experimental. Controls whether file nests are automatically expanded. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect."),
+			'default': true,
+		},
+		'explorer.experimental.fileNesting.patterns': {
+			'type': 'object',
+			'markdownDescription': nls.localize('fileNestingPatterns', "Experimental. Controls nesting of files in the explorer. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect. Each key describes a parent file pattern and each value should be a comma separated list of children file patterns that will be nested under the parent.\n\nA single `*` in a parent pattern may be used to capture any substring, which can then be matched against using `$(capture)` in a child pattern. Child patterns may also contain one `*` to match any substring."),
+			patternProperties: {
+				'^[^*]*\\*?[^*]*$': {
+					description: nls.localize('fileNesting.description', "Key patterns may contain a single `*` capture group which matches any string. Each value pattern may contain one `$(capture)` token to be substituted with the parent capture group and one `*` token to match any string"),
+					type: 'string',
+					pattern: '^([^,*]*\\*?[^,*]*)(, ?[^,*]*\\*?[^,*]*)*$',
+				}
+			},
+			additionalProperties: false,
+			'default': {
+				'*.ts': '$(capture).js, $(capture).d.ts',
+				'*.js': '$(capture).js.map, $(capture).min.js, $(capture).d.ts',
+				'*.jsx': '$(capture).js',
+				'*.tsx': '$(capture).ts',
+				'tsconfig.json': 'tsconfig.*.json',
+				'package.json': 'package-lock.json, .npmrc, yarn.lock, .yarnrc',
+			}
 		}
 	}
 });

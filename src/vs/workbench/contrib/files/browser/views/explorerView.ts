@@ -56,6 +56,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -185,6 +186,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExplorerService private readonly explorerService: IExplorerService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IFileService private readonly fileService: IFileService,
@@ -380,6 +382,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compactFolders');
 
+		const getFileNestingSettings = () => this.configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting;
+
 		this.tree = <WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
 			this.instantiationService.createInstance(ExplorerDataSource), {
 			compressionEnabled: isCompressionEnabled(),
@@ -405,7 +409,26 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			filter: this.filter,
 			sorter: this.instantiationService.createInstance(FileSorter),
 			dnd: this.instantiationService.createInstance(FileDragAndDrop),
+			collapseByDefault: (e) => {
+				if (e instanceof ExplorerItem) {
+					if (e.hasNests && getFileNestingSettings().expand) {
+						return false;
+					}
+				}
+				return true;
+			},
 			autoExpandSingleChildren: true,
+			expandOnlyOnTwistieClick: (e: unknown) => {
+				if (e instanceof ExplorerItem) {
+					if (e.hasNests) {
+						return true;
+					}
+					else if (this.configurationService.getValue<'singleClick' | 'doubleClick'>('workbench.tree.expandMode') === 'doubleClick') {
+						return true;
+					}
+				}
+				return false;
+			},
 			additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT,
 			overrideStyles: {
 				listBackground: SIDE_BAR_BACKGROUND
@@ -600,9 +623,23 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const toRefresh = item || this.tree.getInput();
-		return this.tree.updateChildren(toRefresh, recursive, false, {
-			diffIdentityProvider: identityProvider
-		});
+		if (this.configurationService.getValue<IFilesConfiguration>()?.explorer?.experimental?.fileNesting?.enabled) {
+			return (async () => {
+				try {
+					await this.tree.updateChildren(toRefresh, recursive, false, {
+						diffIdentityProvider: identityProvider
+					});
+				} catch (e) {
+					this.notificationService.error('Internal error in file explorer. This may be due to experimental file nesting.');
+					console.error('Unepxected error', e, 'in refreshing explorer. This may be due to experimental file nesting.');
+					return;
+				}
+			})();
+		} else {
+			return this.tree.updateChildren(toRefresh, recursive, false, {
+				diffIdentityProvider: identityProvider
+			});
+		}
 	}
 
 	override getOptimalWidth(): number {

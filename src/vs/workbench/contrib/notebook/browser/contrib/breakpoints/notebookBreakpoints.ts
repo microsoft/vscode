@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
@@ -133,22 +134,30 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 	private readonly _pausedCells = new Set<string>();
 
+	private _scheduler: RunOnceScheduler;
+
 	constructor(
 		@IDebugService private readonly _debugService: IDebugService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super();
 
-		this._register(_debugService.getModel().onDidChangeCallStack(() => this.onDidChangeCallStack()));
+		this._register(_debugService.getModel().onDidChangeCallStack(() => {
+			// First update using the stale callstack if the real callstack is empty, to reduce blinking while stepping.
+			// After not pausing for 2s, update again with the latest callstack.
+			this.onDidChangeCallStack(true);
+			this._scheduler.schedule();
+		}));
+		this._scheduler = this._register(new RunOnceScheduler(() => this.onDidChangeCallStack(false), 2000));
 	}
 
-	private async onDidChangeCallStack(): Promise<void> {
+	private async onDidChangeCallStack(fallBackOnStaleCallstack: boolean): Promise<void> {
 		const newPausedCells = new Set<string>();
 
 		for (const session of this._debugService.getModel().getSessions()) {
 			for (const thread of session.getAllThreads()) {
 				let callStack = thread.getCallStack();
-				if (!callStack.length) {
+				if (fallBackOnStaleCallstack && !callStack.length) {
 					callStack = (thread as Thread).getStaleCallStack();
 				}
 
@@ -174,12 +183,13 @@ class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 
 	private editIsPaused(cellUri: URI, isPaused: boolean) {
 		const parsed = CellUri.parse(cellUri);
-		if (parsed && isPaused) {
+		if (parsed) {
 			const exeState = this._notebookExecutionStateService.getCellExecutionState(cellUri);
-			if (exeState) {
+			if (exeState && (exeState.isPaused !== isPaused || !exeState.didPause)) {
 				this._notebookExecutionStateService.updateNotebookCellExecution(parsed.notebook, parsed.handle, [{
 					editType: CellExecutionUpdateType.ExecutionState,
-					didPause: true
+					didPause: true,
+					isPaused
 				}]);
 			}
 		}

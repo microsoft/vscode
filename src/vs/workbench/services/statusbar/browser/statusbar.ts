@@ -10,6 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { Command } from 'vs/editor/common/languages';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IStatusbarEntryLocation } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
+import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -22,6 +23,13 @@ export const ShowTooltipCommand: Command = {
 	id: 'statusBar.entry.showTooltip',
 	title: ''
 };
+
+export interface IStatusbarStyleOverride {
+	readonly priority: number; // lower has higher priority
+	readonly foreground?: ColorIdentifier;
+	readonly background?: ColorIdentifier;
+	readonly border?: ColorIdentifier;
+}
 
 /**
  * A declarative way of describing a status bar entry
@@ -145,6 +153,11 @@ export interface IStatusbarService {
 	 *	Returns true if a status bar entry is focused.
 	 */
 	isEntryFocused(): boolean;
+
+	/**
+	 * Temporarily override statusbar style.
+	 */
+	overrideStyle(style: IStatusbarStyleOverride): IDisposable;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

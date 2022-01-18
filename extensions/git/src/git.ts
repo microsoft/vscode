@@ -1814,8 +1814,8 @@ export class Repository {
 		}
 	}
 
-	getStatus(opts?: { limit?: number, ignoreSubmodules?: boolean }): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
-		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
+	getStatus(opts?: { limit?: number, ignoreSubmodules?: boolean }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean; }> {
+		return new Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean; }>((c, e) => {
 			const parser = new GitStatusParser();
 			const env = { GIT_OPTIONAL_LOCKS: '0' };
 			const args = ['status', '-z', '-u'];
@@ -1839,7 +1839,7 @@ export class Repository {
 					}));
 				}
 
-				c({ status: parser.status, didHitLimit: false });
+				c({ status: parser.status, statusLength: parser.status.length, didHitLimit: false });
 			};
 
 			const limit = opts?.limit ?? 10000;
@@ -1851,7 +1851,7 @@ export class Repository {
 					child.stdout!.removeListener('data', onStdoutData);
 					child.kill();
 
-					c({ status: parser.status.slice(0, limit), didHitLimit: true });
+					c({ status: parser.status.slice(0, limit), statusLength: parser.status.length, didHitLimit: true });
 				}
 			};
 

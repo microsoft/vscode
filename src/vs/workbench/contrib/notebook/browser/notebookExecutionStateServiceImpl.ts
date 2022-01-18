@@ -10,11 +10,10 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionEntry, ICellExecutionStateChangedEvent, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionEntry, ICellExecutionStateChangedEvent, ICellExecutionStateUpdate, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
@@ -128,9 +127,13 @@ class NotebookExecutionEvent implements ICellExecutionStateChangedEvent {
 		readonly changed?: CellExecution
 	) { }
 
-	affectsCell(cell: NotebookCellTextModel): boolean {
-		const parsedUri = CellUri.parse(cell.uri);
+	affectsCell(cell: URI): boolean {
+		const parsedUri = CellUri.parse(cell);
 		return !!parsedUri && isEqual(this.notebook, parsedUri.notebook) && this.cellHandle === parsedUri.handle;
+	}
+
+	affectsNotebook(notebook: URI): boolean {
+		return isEqual(this.notebook, notebook);
 	}
 }
 
@@ -297,6 +300,11 @@ class CellExecution implements ICellExecutionEntry {
 		return this._didPause;
 	}
 
+	private _isPaused = false;
+	get isPaused() {
+		return this._isPaused;
+	}
+
 	constructor(
 		readonly cellHandle: number,
 		private readonly _notebookModel: NotebookTextModel,
@@ -322,6 +330,11 @@ class CellExecution implements ICellExecutionEntry {
 
 		if (!this._didPause && updates.some(u => u.editType === CellExecutionUpdateType.ExecutionState && u.didPause)) {
 			this._didPause = true;
+		}
+
+		const lastIsPausedUpdate = [...updates].reverse().find(u => u.editType === CellExecutionUpdateType.ExecutionState && typeof u.isPaused === 'boolean');
+		if (lastIsPausedUpdate) {
+			this._isPaused = (lastIsPausedUpdate as ICellExecutionStateUpdate).isPaused!;
 		}
 
 		const edits = updates.map(update => updateToEdit(update, this.cellHandle));

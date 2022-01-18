@@ -61,7 +61,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getSingletonServiceDescriptors, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { EditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { EditorWorkerService } from 'vs/editor/browser/services/editorWorkerService';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';

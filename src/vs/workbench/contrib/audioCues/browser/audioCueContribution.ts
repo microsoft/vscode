@@ -13,54 +13,39 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { raceTimeout } from 'vs/base/common/async';
 import { FileAccess } from 'vs/base/common/network';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { FoldingController } from 'vs/editor/contrib/folding/folding';
+import { FoldingModel } from 'vs/editor/contrib/folding/foldingModel';
 
 export class AudioCueContribution extends DisposableStore implements IWorkbenchContribution {
+	private audioCuesEnabled = false;
+	private readonly store = this.add(new DisposableStore());
+
 	constructor(
 		@IDebugService readonly debugService: IDebugService,
 		@IEditorService readonly editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IMarkerService private readonly markerService: IMarkerService,
 	) {
 		super();
 
-		this.add(Event.runAndSubscribeWithStore(editorService.onDidActiveEditorChange, (_, store) => {
-			let lastLineNumber = -1;
+		this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			this.updateAudioCuesEnabled();
+		});
 
-			const activeTextEditorControl = editorService.activeTextEditorControl;
-			if (isCodeEditor(activeTextEditorControl) || isDiffEditor(activeTextEditorControl)) {
-				const editor = isDiffEditor(activeTextEditorControl) ? activeTextEditorControl.getOriginalEditor() : activeTextEditorControl;
+		this.add(
+			_configurationService.onDidChangeConfiguration((e) => {
+				if (e.affectsConfiguration('audioCues.enabled')) {
+					this.updateAudioCuesEnabled();
+				}
+			})
+		);
 
-				store.add(
-					editor.onDidChangeCursorPosition(() => {
-						const model = editor.getModel();
-						if (!model) {
-							return;
-						}
-						const position = editor.getPosition();
-						if (!position) {
-							return;
-						}
-						const lineNumber = position.lineNumber;
-						if (lineNumber === lastLineNumber) {
-							return;
-						}
-						lastLineNumber = lineNumber;
-
-						const uri = model.uri;
-
-						const breakpoints = debugService.getModel().getBreakpoints({ uri, lineNumber });
-						const hasBreakpoints = breakpoints.length > 0;
-
-						if (hasBreakpoints) {
-							this.handleBreakpointOnLine();
-						}
-					})
-				);
-			}
-		}));
+		this.updateAudioCuesEnabled();
 	}
 
-	private get audioCuesEnabled(): boolean {
+	private getAudioCuesEnabled(): boolean {
 		const value = this._configurationService.getValue<'auto' | 'on' | 'off'>('audioCues.enabled');
 		if (value === 'on') {
 			return true;
@@ -71,8 +56,139 @@ export class AudioCueContribution extends DisposableStore implements IWorkbenchC
 		}
 	}
 
-	public handleBreakpointOnLine(): void {
-		this.playSound('breakpoint');
+	private updateAudioCuesEnabled() {
+		const newValue = this.getAudioCuesEnabled();
+		if (newValue === this.audioCuesEnabled) {
+			return;
+		}
+		this.audioCuesEnabled = newValue;
+		if (!this.audioCuesEnabled) {
+			this.store.clear();
+			return;
+		}
+
+		this.store.add(
+			Event.runAndSubscribeWithStore(
+				this.editorService.onDidActiveEditorChange,
+				(_, store) => {
+					let lastLineNumber = -1;
+					let hadBreakpoint = false;
+					let hadMarker = false;
+					let hadFoldedArea = false;
+
+					const activeTextEditorControl =
+						this.editorService.activeTextEditorControl;
+					if (
+						isCodeEditor(activeTextEditorControl) ||
+						isDiffEditor(activeTextEditorControl)
+					) {
+						const editor = isDiffEditor(activeTextEditorControl)
+							? activeTextEditorControl.getOriginalEditor()
+							: activeTextEditorControl;
+
+						let foldingModel: FoldingModel | null = null;
+						editor
+							.getContribution<FoldingController>(FoldingController.ID)
+							?.getFoldingModel()
+							?.then((newFoldingModel) => {
+								foldingModel = newFoldingModel;
+								update();
+							});
+
+						const update = () => {
+							const model = editor.getModel();
+							if (!model) {
+								return;
+							}
+							const position = editor.getPosition();
+							if (!position) {
+								return;
+							}
+							const lineNumber = position.lineNumber;
+
+							const uri = model.uri;
+
+							const breakpoints = this.debugService
+								.getModel()
+								.getBreakpoints({ uri, lineNumber });
+							const hasBreakpoints = breakpoints.length > 0;
+
+							if (hasBreakpoints && !hadBreakpoint) {
+								this.handleBreakpointOnLine();
+							}
+							hadBreakpoint = hasBreakpoints;
+
+							const hasMarker = this.markerService
+								.read({ resource: uri })
+								.some(
+									(m) =>
+										m.severity === MarkerSeverity.Error &&
+										m.startLineNumber <= lineNumber &&
+										lineNumber <= m.endLineNumber
+								);
+
+							if (hasMarker && !hadMarker) {
+								this.handleErrorOnLine();
+							}
+							hadMarker = hasMarker;
+
+							const regionAtLine = foldingModel?.getRegionAtLine(lineNumber);
+							const hasFolding = regionAtLine?.startLineNumber === lineNumber;
+							if (hasFolding && !hadFoldedArea) {
+								this.handleFoldedAreasOnLine();
+							}
+							hadFoldedArea = hasFolding;
+						};
+
+						store.add(
+							editor.onDidChangeCursorPosition(() => {
+								const model = editor.getModel();
+								if (!model) {
+									return;
+								}
+								const position = editor.getPosition();
+								if (!position) {
+									return;
+								}
+								const lineNumber = position.lineNumber;
+								if (lineNumber === lastLineNumber) {
+									return;
+								}
+								lastLineNumber = lineNumber;
+								hadMarker = false;
+								hadBreakpoint = false;
+								hadFoldedArea = false;
+								update();
+							})
+						);
+						store.add(
+							this.markerService.onMarkerChanged(() => {
+								update();
+							})
+						);
+						store.add(
+							this.debugService.getModel().onDidChangeBreakpoints(() => {
+								update();
+							})
+						);
+
+						update();
+					}
+				}
+			)
+		);
+	}
+
+	private handleBreakpointOnLine(): void {
+		this.playSound('break');
+	}
+
+	private handleErrorOnLine(): void {
+		this.playSound('error');
+	}
+
+	private handleFoldedAreasOnLine(): void {
+		this.playSound('foldedAreas');
 	}
 
 	private async playSound(fileName: string) {

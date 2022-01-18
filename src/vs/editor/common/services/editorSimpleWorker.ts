@@ -21,7 +21,7 @@ import { BasicInplaceReplace } from 'vs/editor/common/languages/supports/inplace
 import { IDiffComputationResult, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import * as types from 'vs/base/common/types';
-import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/languages/unicodeTextModelHighlighter';
 
@@ -327,12 +327,12 @@ declare const require: any;
 export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 	_requestHandlerBrand: any;
 
-	protected readonly _host: EditorWorkerHost;
+	protected readonly _host: IEditorWorkerHost;
 	private _models: { [uri: string]: MirrorModel; };
 	private readonly _foreignModuleFactory: IForeignModuleFactory | null;
 	private _foreignModule: any;
 
-	constructor(host: EditorWorkerHost, foreignModuleFactory: IForeignModuleFactory | null) {
+	constructor(host: IEditorWorkerHost, foreignModuleFactory: IForeignModuleFactory | null) {
 		this._host = host;
 		this._models = Object.create(null);
 		this._foreignModuleFactory = foreignModuleFactory;
@@ -681,7 +681,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
  * Called on the worker side
  * @internal
  */
-export function create(host: EditorWorkerHost): IRequestHandler {
+export function create(host: IEditorWorkerHost): IRequestHandler {
 	return new EditorSimpleWorker(host, null);
 }
 

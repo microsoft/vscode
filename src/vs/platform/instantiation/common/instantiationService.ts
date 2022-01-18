@@ -129,7 +129,7 @@ export class InstantiationService implements IInstantiationService {
 		}
 	}
 
-	private _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>, _trace: Trace): T {
+	protected _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>, _trace: Trace): T {
 		let thing = this._getServiceInstanceOrDescriptor(id);
 		if (thing instanceof SyncDescriptor) {
 			return this._safeCreateAndCacheServiceInstance(id, thing, _trace.branch(id, true));
@@ -263,7 +263,7 @@ const enum TraceType {
 	Creation, Invocation, Branch
 }
 
-class Trace {
+export class Trace {
 
 	private static readonly _None = new class extends Trace {
 		constructor() { super(-1, null); }

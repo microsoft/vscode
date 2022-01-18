@@ -30,6 +30,7 @@ import { IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/br
 import { isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/outlineModel';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -40,8 +41,9 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOutlineService private readonly outlineService: IOutlineService,
+		@IOutlineModelService outlineModelService: IOutlineModelService,
 	) {
-		super({
+		super(outlineModelService, {
 			openSideBySideDirection: () => this.configuration.openSideBySideDirection
 		});
 	}

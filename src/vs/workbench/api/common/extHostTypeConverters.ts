@@ -10,7 +10,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { isDefined, isEmptyObject, isNumber, isString } from 'vs/base/common/types';
+import { isDefined, isEmptyObject, isNumber, isString, withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -142,7 +142,7 @@ export namespace DocumentSelector {
 				$serialized: true,
 				language: selector.language,
 				scheme: _transformScheme(selector.scheme, uriTransformer),
-				pattern: typeof selector.pattern === 'undefined' ? undefined : GlobPattern.from(selector.pattern),
+				pattern: GlobPattern.from(selector.pattern) ?? undefined,
 				exclusive: selector.exclusive
 			};
 		}
@@ -1379,39 +1379,60 @@ export namespace TextEditorOpenOptions {
 
 export namespace GlobPattern {
 
-	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern;
+	export function from(pattern: vscode.GlobPattern): string | extHostProtocol.IRelativePatternDto;
 	export function from(pattern: undefined): undefined;
 	export function from(pattern: null): null;
-	export function from(pattern: vscode.GlobPattern | undefined | null): string | types.RelativePattern | undefined | null;
-	export function from(pattern: vscode.GlobPattern | undefined | null): string | types.RelativePattern | undefined | null {
+	export function from(pattern: vscode.GlobPattern | undefined | null): string | extHostProtocol.IRelativePatternDto | undefined | null;
+	export function from(pattern: vscode.GlobPattern | undefined | null): string | extHostProtocol.IRelativePatternDto | undefined | null {
 		if (pattern instanceof types.RelativePattern) {
-			return pattern;
+			return pattern.toJSON();
 		}
 
 		if (typeof pattern === 'string') {
 			return pattern;
 		}
 
-		if (isRelativePattern(pattern) || isLegacyRelativePattern(pattern)) {
-			return new types.RelativePattern(pattern.baseUri ?? pattern.base, pattern.pattern);
+		// This is slightly bogus because we declare this method to accept
+		// `vscode.GlobPattern` which can be `vscode.RelativePattern` class,
+		// but given we cannot enforce classes from our vscode.d.ts, we have
+		// to probe for objects too
+		// Refs: https://github.com/microsoft/vscode/issues/140771
+		if (isRelativePatternShape(pattern) || isLegacyRelativePatternShape(pattern)) {
+			return new types.RelativePattern(pattern.baseUri ?? pattern.base, pattern.pattern).toJSON();
 		}
 
 		return pattern; // preserve `undefined` and `null`
 	}
 
-	export function isRelativePattern(obj: any): obj is vscode.RelativePattern {
-		const rp = obj as vscode.RelativePattern;
-		return rp && URI.isUri(rp.baseUri) && typeof rp.pattern === 'string';
+	function isRelativePatternShape(obj: unknown): obj is { base: string, baseUri: URI, pattern: string } {
+		const rp = obj as { base: string, baseUri: URI, pattern: string } | undefined | null;
+		if (!rp) {
+			return false;
+		}
+
+		return URI.isUri(rp.baseUri) && typeof rp.pattern === 'string';
 	}
 
-	function isLegacyRelativePattern(obj: any): obj is { base: string, pattern: string } {
+	function isLegacyRelativePatternShape(obj: unknown): obj is { base: string, pattern: string } {
 
 		// Before 1.64.x, `RelativePattern` did not have any `baseUri: Uri`
 		// property. To preserve backwards compatibility with older extensions
 		// we allow this old format when creating the `vscode.RelativePattern`.
 
-		const rp = obj as { base: string, pattern: string };
-		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+		const rp = obj as { base: string, pattern: string } | undefined | null;
+		if (!rp) {
+			return false;
+		}
+
+		return typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	}
+
+	export function to(pattern: string | extHostProtocol.IRelativePatternDto): vscode.GlobPattern {
+		if (typeof pattern === 'string') {
+			return pattern;
+		}
+
+		return new types.RelativePattern(URI.revive(pattern.baseUri), pattern.pattern);
 	}
 }
 
@@ -1432,7 +1453,7 @@ export namespace LanguageSelector {
 			return <languageSelector.LanguageFilter>{
 				language: filter.language,
 				scheme: filter.scheme,
-				pattern: typeof filter.pattern === 'undefined' ? undefined : GlobPattern.from(filter.pattern),
+				pattern: GlobPattern.from(filter.pattern),
 				exclusive: filter.exclusive
 			};
 		}
@@ -1573,67 +1594,39 @@ export namespace NotebookCellOutput {
 
 
 export namespace NotebookExclusiveDocumentPattern {
-	export function from(pattern: { include: vscode.GlobPattern | undefined, exclude: vscode.GlobPattern | undefined }): { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined };
-	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern;
+	export function from(pattern: { include: vscode.GlobPattern | undefined, exclude: vscode.GlobPattern | undefined }): { include: string | extHostProtocol.IRelativePatternDto | undefined, exclude: string | extHostProtocol.IRelativePatternDto | undefined };
+	export function from(pattern: vscode.GlobPattern): string | extHostProtocol.IRelativePatternDto;
 	export function from(pattern: undefined): undefined;
-	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | types.RelativePattern | { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined } | undefined;
-	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | types.RelativePattern | { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined } | undefined {
-		if (pattern === null || pattern === undefined) {
-			return undefined;
-		}
-
-		if (pattern instanceof types.RelativePattern) {
-			return pattern;
-		}
-
-		if (typeof pattern === 'string') {
-			return pattern;
-		}
-
-
-		if (GlobPattern.isRelativePattern(pattern)) {
-			return new types.RelativePattern(pattern.baseUri, pattern.pattern);
-		}
-
+	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | extHostProtocol.IRelativePatternDto | { include: string | extHostProtocol.IRelativePatternDto | undefined, exclude: string | extHostProtocol.IRelativePatternDto | undefined } | undefined;
+	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | extHostProtocol.IRelativePatternDto | { include: string | extHostProtocol.IRelativePatternDto | undefined, exclude: string | extHostProtocol.IRelativePatternDto | undefined } | undefined {
 		if (isExclusivePattern(pattern)) {
 			return {
-				include: GlobPattern.from(pattern.include) || undefined,
-				exclude: GlobPattern.from(pattern.exclude) || undefined
+				include: withNullAsUndefined(GlobPattern.from(pattern.include)),
+				exclude: withNullAsUndefined(GlobPattern.from(pattern.exclude))
 			};
 		}
 
-		return undefined; // preserve `undefined`
-
+		return withNullAsUndefined(GlobPattern.from(pattern));
 	}
 
-	export function to(pattern: string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern }): { include: vscode.GlobPattern, exclude: vscode.GlobPattern } | vscode.GlobPattern {
-		if (typeof pattern === 'string') {
-			return pattern;
+	export function to(pattern: string | extHostProtocol.IRelativePatternDto | { include: string | extHostProtocol.IRelativePatternDto, exclude: string | extHostProtocol.IRelativePatternDto }): { include: vscode.GlobPattern, exclude: vscode.GlobPattern } | vscode.GlobPattern {
+		if (isExclusivePattern(pattern)) {
+			return {
+				include: GlobPattern.to(pattern.include),
+				exclude: GlobPattern.to(pattern.exclude)
+			};
 		}
 
-		if (GlobPattern.isRelativePattern(pattern)) {
-			return new types.RelativePattern(pattern.baseUri, pattern.pattern);
-		}
-
-		return {
-			include: pattern.include,
-			exclude: pattern.exclude
-		};
+		return GlobPattern.to(pattern);
 	}
 
-	function isExclusivePattern(obj: any): obj is { include: types.RelativePattern | undefined | null, exclude: types.RelativePattern | undefined | null } {
-		const ep = obj as { include: vscode.GlobPattern, exclude: vscode.GlobPattern };
-		const include = GlobPattern.from(ep.include);
-		if (!(include && include instanceof types.RelativePattern || typeof include === 'string')) {
+	function isExclusivePattern<T>(obj: any): obj is { include?: T, exclude?: T } {
+		const ep = obj as { include?: T, exclude?: T } | undefined | null;
+		if (!ep) {
 			return false;
 		}
 
-		const exclude = GlobPattern.from(ep.exclude);
-		if (!(exclude && exclude instanceof types.RelativePattern || typeof exclude === 'string')) {
-			return false;
-		}
-
-		return true;
+		return !!ep.include && !!ep.exclude;
 	}
 }
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareIgnoreCase } from 'vs/base/common/strings';
-import { IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, ILocalExtension, IExtensionsControlManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, IExtensionsControlManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
@@ -17,7 +17,7 @@ export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifi
 	return compareIgnoreCase(a.id, b.id) === 0;
 }
 
-export class ExtensionIdentifierWithVersion implements IExtensionIdentifierWithVersion {
+export class ExtensionIdentifierWithVersion {
 
 	readonly id: string;
 	readonly uuid?: string;

@@ -200,7 +200,8 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 
 	private async getGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<Map<string, IGalleryExtension>> {
 		const galleryExtensions = new Map<string, IGalleryExtension>();
-		const result = await this.extensionGalleryService.getExtensions(extensions, extensions.some(e => e.installOptions.installPreReleaseVersion), CancellationToken.None);
+		const preRelease = extensions.some(e => e.installOptions.installPreReleaseVersion);
+		const result = await this.extensionGalleryService.getExtensions(extensions.map(e => ({...e, preRelease})), CancellationToken.None);
 		for (const extension of result) {
 			galleryExtensions.set(extension.identifier.id.toLowerCase(), extension);
 		}

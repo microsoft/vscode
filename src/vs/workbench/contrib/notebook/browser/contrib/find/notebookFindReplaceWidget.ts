@@ -15,7 +15,7 @@ import 'vs/css!./notebookFindReplaceWidget';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
 import { findNextMatchIcon, findPreviousMatchIcon, findReplaceAllIcon, findReplaceIcon, SimpleButton } from 'vs/editor/contrib/find/findWidget';
 import * as nls from 'vs/nls';
-import { ContextScopedReplaceInput, createAndBindHistoryNavigationWidgetScopedContextKeyService, IContextScopedHistoryNavigationWidget } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { ContextScopedReplaceInput, createAndBindHistoryNavigationWidgetScopedContextKeyService, IContextScopedHistoryNavigationWidget } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { editorWidgetBackground, editorWidgetForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';

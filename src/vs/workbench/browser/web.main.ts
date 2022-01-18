@@ -364,18 +364,23 @@ class BrowserMain extends Disposable {
 				const hostService = accessor.get(IHostService);
 				const storageService = accessor.get(IStorageService);
 				const credentialsService = accessor.get(ICredentialsService);
+				const logService = accessor.get(ILogService);
 				const result = await dialogService.confirm({
 					message: localize('reset user data message', "Would you like to reset your data (settings, keybindings, extensions, snippets and UI State) and reload?")
 				});
 
 				if (result.confirmed) {
-					await provider?.reset();
-					if (storageService instanceof BrowserStorageService) {
-						await storageService.clear();
-					}
-
-					if (credentialsService.clear) {
-						await credentialsService.clear();
+					try {
+						await provider?.reset();
+						if (storageService instanceof BrowserStorageService) {
+							await storageService.clear();
+						}
+						if (credentialsService.clear) {
+							await credentialsService.clear();
+						}
+					} catch (error) {
+						logService.error(error);
+						throw error;
 					}
 				}
 
