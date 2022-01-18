@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
+
 export interface IRPCProtocol {
 	/**
 	 * Returns a proxy to an object addressable/named in the extension host process or in the renderer process.
@@ -46,8 +48,17 @@ export function createProxyIdentifier<T>(identifier: string): ProxyIdentifier<T>
 	return result;
 }
 
+type Dto<T> = T extends { toJSON(): infer U }
+	? U
+	: T extends VSBuffer
+	? T
+	: T extends object
+	? { [k in keyof T]: Dto<T[k]>; }
+	: T;
+
+
 export type Proxied<T> = { [K in keyof T]: T[K] extends (...args: infer A) => infer R
-	? (...args: A) => Promise<Awaited<R>>
+	? (...args: A) => Promise<Dto<Awaited<R>>>
 	: never
 };
 

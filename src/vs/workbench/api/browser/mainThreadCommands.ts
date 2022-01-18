@@ -10,6 +10,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { revive } from 'vs/base/common/marshalling';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { Dto } from 'vs/base/common/types';
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)
 export class MainThreadCommands implements MainThreadCommandsShape {
@@ -94,7 +95,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 
 // --- command doc
 
-function _generateMarkdown(description: string | ICommandHandlerDescription): string {
+function _generateMarkdown(description: string | Dto<ICommandHandlerDescription>): string {
 	if (typeof description === 'string') {
 		return description;
 	} else {

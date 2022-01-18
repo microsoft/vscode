@@ -1231,7 +1231,7 @@ export interface MainThreadTimelineShape extends IDisposable {
 
 export interface ExtHostCommandsShape {
 	$executeContributedCommand(id: string, ...args: any[]): Promise<unknown>;
-	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescription; }>;
+	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | Dto<ICommandHandlerDescription>; }>;
 }
 
 export interface ExtHostConfigurationShape {
@@ -1525,7 +1525,7 @@ export interface ISignatureHelpContextDto {
 
 export interface IInlayHintDto {
 	cacheId?: ChainedCacheId;
-	label: string | modes.InlayHintLabelPart[];
+	label: string | Dto<modes.InlayHintLabelPart[]>;
 	tooltip?: string | IMarkdownString;
 	position: IPosition;
 	kind: modes.InlayHintKind;
@@ -1635,7 +1635,7 @@ export interface ICodeActionDto {
 	cacheId?: ChainedCacheId;
 	title: string;
 	edit?: IWorkspaceEditDto;
-	diagnostics?: IMarkerData[];
+	diagnostics?: Dto<IMarkerData[]>;
 	command?: ICommandDto;
 	kind?: string;
 	isPreferred?: boolean;
@@ -1833,14 +1833,14 @@ export interface ExtHostSCMShape {
 }
 
 export interface ExtHostTaskShape {
-	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<tasks.TaskSetDTO>;
-	$resolveTask(handle: number, taskDTO: tasks.TaskDTO): Thenable<tasks.TaskDTO | undefined>;
+	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Promise<tasks.TaskSetDTO>;
+	$resolveTask(handle: number, taskDTO: tasks.TaskDTO): Promise<tasks.TaskDTO | undefined>;
 	$onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.TaskDefinitionDTO): void;
 	$onDidStartTaskProcess(value: tasks.TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: tasks.TaskProcessEndedDTO): void;
 	$OnDidEndTask(execution: tasks.TaskExecutionDTO): void;
 	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string; }, variables: string[]; }): Promise<{ process?: string; variables: { [key: string]: string; }; }>;
-	$jsonTasksSupported(): Thenable<boolean>;
+	$jsonTasksSupported(): Promise<boolean>;
 	$findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined>;
 }
 
@@ -1914,7 +1914,7 @@ export interface ExtHostDebugServiceShape {
 	$resolveDebugConfiguration(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
 	$resolveDebugConfigurationWithSubstitutedVariables(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
 	$provideDebugConfigurations(handle: number, folder: UriComponents | undefined, token: CancellationToken): Promise<IConfig[]>;
-	$provideDebugAdapter(handle: number, session: IDebugSessionDto): Promise<IAdapterDescriptor>;
+	$provideDebugAdapter(handle: number, session: IDebugSessionDto): Promise<Dto<IAdapterDescriptor>>;
 	$acceptDebugSessionStarted(session: IDebugSessionDto): void;
 	$acceptDebugSessionTerminated(session: IDebugSessionDto): void;
 	$acceptDebugSessionActiveChanged(session: IDebugSessionDto | undefined): void;
@@ -2154,7 +2154,7 @@ export interface ExtHostTunnelServiceShape {
 }
 
 export interface ExtHostTimelineShape {
-	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
+	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Dto<Timeline> | undefined>;
 }
 
 export const enum ExtHostTestingResource {
@@ -2172,7 +2172,7 @@ export interface ExtHostTestingShape {
 	/** Expands a test item's children, by the given number of levels. */
 	$expandTest(testId: string, levels: number): Promise<void>;
 	/** Requests file coverage for a test run. Errors if not available. */
-	$provideFileCoverage(runId: string, taskId: string, token: CancellationToken): Promise<IFileCoverage[]>;
+	$provideFileCoverage(runId: string, taskId: string, token: CancellationToken): Promise<Dto<IFileCoverage[]>>;
 	/**
 	 * Requests coverage details for the file index in coverage data for the run.
 	 * Requires file coverage to have been previously requested via $provideFileCoverage.

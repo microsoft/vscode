@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Dto } from 'vs/base/common/types';
 import { UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
@@ -104,7 +105,7 @@ export interface TaskDTO {
 
 export interface TaskSetDTO {
 	tasks: TaskDTO[];
-	extension: IExtensionDescription;
+	extension: Dto<IExtensionDescription>;
 }
 
 export interface TaskExecutionDTO {
