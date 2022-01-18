@@ -460,7 +460,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.experimental.fileNesting.expand': {
 			'type': 'boolean',
-			'markdownDescription': nls.localize('fileNestingExpand', "Experimental. Controls whether file nests are automatically expended. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect."),
+			'markdownDescription': nls.localize('fileNestingExpand', "Experimental. Controls whether file nests are automatically expanded. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect."),
 			'default': true,
 		},
 		'explorer.experimental.fileNesting.patterns': {
