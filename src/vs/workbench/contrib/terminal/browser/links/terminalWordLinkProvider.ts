@@ -194,7 +194,10 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	*/
 	private _updateLinkWithRelativeCwd(y: number, link: string, pathSeparator: string): string {
 		const cwd = this._xterm.commandTracker.getCwdForLine(y);
-		if (cwd && !link.includes(pathSeparator)) {
+		if (!cwd) {
+			return link;
+		}
+		if (!link.includes(pathSeparator)) {
 			link = cwd + pathSeparator + link;
 		} else {
 			let commonDirs = 0;

@@ -49,6 +49,9 @@ export class TerminalProtocolLinkProvider extends TerminalBaseLinkProvider {
 		}
 
 		while (endLine < this._xterm.buffer.active.length && this._xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
+			if (endLine - startLine > this._xterm.rows) {
+				break;
+			}
 			lines.push(this._xterm.buffer.active.getLine(endLine + 1)!);
 			endLine++;
 		}
