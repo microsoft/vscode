@@ -8,77 +8,47 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/62783 @matthewjamesadam
 
 	/**
+	 * Base class for badges
+	 */
+	export abstract class Badge {
+		/**
+		 * A label to present in tooltips
+		 */
+		readonly label: string;
+	}
+
+	/**
 	 * A badge presenting a number
 	 */
-	export interface NumberBadge {
+	export class NumberBadge extends Badge {
+
+		/**
+		 * Creates a new number badge.
+		 *
+		 * @param number The number to present
+		 * @param label The label to present in tooltips
+		 */
+		constructor(number: number, label: string);
 
 		/**
 		 * The number to present
 		 */
-		number: number;
-
-		/**
-		 * A label to present in tooltips
-		 */
-		label: string;
+		readonly number: number;
 	}
 
-	/**
-	 * A badge presenting text
-	 */
-	export interface TextBadge {
-
+	export interface TreeView<T> {
 		/**
-		 * The text to present
+		 * The badge to display for this TreeView.
+		 * To remove the badge, set to undefined or null.
 		 */
-		text: string;
-
-		/**
-		 * A label to present in tooltips
-		 */
-		label: string;
+		badge?: Badge | undefined | null;
 	}
 
-	/**
-	 * A badge presenting an icon
-	 */
-	export interface IconBadge {
-
+	export interface WebviewView {
 		/**
-		 * The icon to present
+		 * The badge to display for this webview view.
+		 * To remove the badge, set to undefined or null.
 		 */
-		icon: ThemeIcon;
-
-		/**
-		 * A label to present in tooltips
-		 */
-		label: string;
-	}
-
-	/**
-	 * A badge presenting a progress indicator
-	 */
-	export interface ProgressBadge {
-	}
-
-	export interface TreeDataProvider<T> {
-
-		/**
-		 * An optional event to provide activity data associated with this tree data.
-		 * When this tree data is displayed in the activity view, this activity value will be displayed
-		 * as a badge alongside the activity view entry.
-		 * To remove the activity data, pass undefined or null.
-		 */
-		onDidChangeActivity?: Event<NumberBadge | TextBadge | IconBadge | ProgressBadge | undefined | null>;
-	}
-
-	export interface WebviewViewProvider {
-		/**
-		 * An optional event to provide activity data associated with this web view.
-		 * When this tree data is displayed in the activity view, this activity value will be displayed
-		 * as a badge alongside the activity view entry.
-		 * To remove the activity data, pass undefined or null.
-		 */
-		onDidChangeActivity?: Event<NumberBadge | TextBadge | IconBadge | ProgressBadge | undefined | null>;
+		badge?: Badge | undefined | null;
 	}
 }
