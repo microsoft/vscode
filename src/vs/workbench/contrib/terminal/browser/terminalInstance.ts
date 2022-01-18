@@ -1281,7 +1281,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._onProcessExit(error, enableShellIntegration);
 			}
 		});
-		if (enableShellIntegration && this.xterm?.shellIntegration) {
+		if (this.xterm?.shellIntegration) {
 			this.capabilities.add(this.xterm?.shellIntegration.capabilities);
 		}
 		if (!hadIcon && this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
