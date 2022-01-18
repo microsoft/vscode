@@ -8,7 +8,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuRegistry, MenuId, registerAction2, Action2, ISubmenuItem, IMenuItem, IAction2Options } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExtensionsLabel, ExtensionsLocalizedLabel, ExtensionsChannelId, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, InstallOperation, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionsLabel, ExtensionsLocalizedLabel, ExtensionsChannelId, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, InstallOperation, InstallOptions, getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -291,23 +291,28 @@ CommandsRegistry.registerCommand({
 		]
 	},
 	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean, installPreReleaseVersion?: boolean, donotSync?: boolean }) => {
-		const extensionManagementService = accessor.get(IExtensionManagementService);
-		const extensionGalleryService = accessor.get(IExtensionGalleryService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		try {
 			if (typeof arg === 'string') {
-				const [extension] = await extensionGalleryService.getExtensions([{ id: arg }], CancellationToken.None);
+				const [id, version] = getIdAndVersion(arg);
+				const [extension] = (await extensionsWorkbenchService.queryGallery({ names: [id], includePreRelease: options?.installPreReleaseVersion }, CancellationToken.None)).firstPage;
 				if (extension) {
 					const installOptions: InstallOptions = {
 						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */
-						installPreReleaseVersion: options?.installPreReleaseVersion
+						installPreReleaseVersion: options?.installPreReleaseVersion,
+						installGivenVersion: !!version
 					};
-					await extensionManagementService.installFromGallery(extension, installOptions);
+					if (version) {
+						await extensionsWorkbenchService.installVersion(extension, version, installOptions);
+					} else {
+						await extensionsWorkbenchService.install(extension, installOptions);
+					}
 				} else {
 					throw new Error(localize('notFound', "Extension '{0}' not found.", arg));
 				}
 			} else {
 				const vsix = URI.revive(arg);
-				await extensionManagementService.install(vsix, { installOnlyNewlyAddedFromExtensionPack: options?.installOnlyNewlyAddedFromExtensionPackVSIX });
+				await extensionsWorkbenchService.install(vsix, { installOnlyNewlyAddedFromExtensionPack: options?.installOnlyNewlyAddedFromExtensionPackVSIX });
 			}
 		} catch (e) {
 			onUnexpectedError(e);
