@@ -11,7 +11,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector, ThemeIcon, Themable } from 'vs/platform/theme/common/themeService';
-import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { getCwdForSplit, switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR, TERMINAL_DRAG_AND_DROP_BACKGROUND, TERMINAL_TAB_ACTIVE_BORDER } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { ICreateTerminalOptions, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -196,7 +196,8 @@ export class TerminalViewPane extends ViewPane {
 					run: async () => {
 						const instance = this._terminalGroupService.activeInstance;
 						if (instance) {
-							const newInstance = await this._terminalService.createTerminal({ location: { parentTerminal: instance } });
+							const cwd = await getCwdForSplit(this._terminalService.configHelper, instance);
+							const newInstance = await this._terminalService.createTerminal({ location: { parentTerminal: instance }, cwd });
 							return newInstance?.focusWhenReady();
 						}
 						return;
