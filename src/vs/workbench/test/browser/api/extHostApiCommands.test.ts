@@ -54,6 +54,7 @@ import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSyste
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IOutlineModelService, OutlineModelService } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { Event } from 'vs/workbench/workbench.web.api';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -112,6 +113,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		services.set(IMarkerService, new MarkerService());
 		services.set(IModelService, new class extends mock<IModelService>() {
 			override getModel() { return model; }
+			override onModelRemoved = Event.None;
 		});
 		services.set(ITextModelService, new class extends mock<ITextModelService>() {
 			override async createModelReference() {
