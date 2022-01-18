@@ -575,7 +575,7 @@ export class InteractiveEditor extends EditorPane {
 			}
 
 			if (this.#lastCell) {
-				const runState = this.#notebookExecutionStateService.getCellExecutionState(this.#lastCell.uri)?.state;
+				const runState = this.#notebookExecutionStateService.getCellExecution(this.#lastCell.uri)?.state;
 				if (runState === NotebookCellExecutionState.Executing) {
 					return;
 				}

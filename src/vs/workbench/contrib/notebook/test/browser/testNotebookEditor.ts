@@ -50,7 +50,7 @@ import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/vie
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, CellUri, INotebookDiffEditorModel, INotebookEditorModel, INotebookSearchOptions, IOutputDto, IResolvedNotebookEditorModel, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionEntry, ICellExecutionStateChangedEvent, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
@@ -416,15 +416,19 @@ class TestNotebookExecutionStateService implements INotebookExecutionStateServic
 
 	onDidChangeCellExecution = new Emitter<ICellExecutionStateChangedEvent>().event;
 
-	getCellExecutionStatesForNotebook(notebook: URI): ICellExecutionEntry[] {
+	forceCancelNotebookExecutions(notebookUri: URI): void {
+	}
+
+	getCellExecutionStatesForNotebook(notebook: URI): INotebookCellExecution[] {
 		return [];
 	}
 
-	getCellExecutionState(cellUri: URI): ICellExecutionEntry | undefined {
+	getCellExecution(cellUri: URI): INotebookCellExecution | undefined {
 		return undefined;
 	}
 
-	createNotebookCellExecution(notebook: URI, cellHandle: number): void {
+	createCellExecution(controllerId: string, notebook: URI, cellHandle: number): INotebookCellExecution {
+		return undefined!;
 	}
 
 	updateNotebookCellExecution(notebook: URI, cellHandle: number, updates: ICellExecuteUpdate[]): void {

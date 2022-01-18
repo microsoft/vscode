@@ -184,9 +184,9 @@ class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 	private editIsPaused(cellUri: URI, isPaused: boolean) {
 		const parsed = CellUri.parse(cellUri);
 		if (parsed) {
-			const exeState = this._notebookExecutionStateService.getCellExecutionState(cellUri);
+			const exeState = this._notebookExecutionStateService.getCellExecution(cellUri);
 			if (exeState && (exeState.isPaused !== isPaused || !exeState.didPause)) {
-				this._notebookExecutionStateService.updateNotebookCellExecution(parsed.notebook, parsed.handle, [{
+				exeState.update([{
 					editType: CellExecutionUpdateType.ExecutionState,
 					didPause: true,
 					isPaused

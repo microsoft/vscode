@@ -6,11 +6,11 @@
 import * as assert from 'assert';
 import { Barrier } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { ICellExecuteUpdateDto, INotebookKernelDto2, MainContext, MainThreadCommandsShape, MainThreadNotebookDocumentsShape, MainThreadNotebookKernelsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadCommandsShape, MainThreadNotebookDocumentsShape, MainThreadNotebookKernelsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -43,13 +43,17 @@ suite('NotebookKernel', function () {
 	const kernelData = new Map<number, INotebookKernelDto2>();
 	const disposables = new DisposableStore();
 
+	const cellExecuteCreate: { notebook: UriComponents, cell: number }[] = [];
 	const cellExecuteUpdates: ICellExecuteUpdateDto[] = [];
+	const cellExecuteComplete: ICellExecutionCompleteDto[] = [];
 
 	teardown(function () {
 		disposables.clear();
 	});
 	setup(async function () {
+		cellExecuteCreate.length = 0;
 		cellExecuteUpdates.length = 0;
+		cellExecuteComplete.length = 0;
 		kernelData.clear();
 
 		rpcProtocol = new TestRPCProtocol();
@@ -67,8 +71,14 @@ suite('NotebookKernel', function () {
 				assert.strictEqual(kernelData.has(handle), true);
 				kernelData.set(handle, { ...kernelData.get(handle)!, ...data, });
 			}
-			override $updateExecutions(data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void {
+			override $createExecution(handle: number, controllerId: string, uri: UriComponents, cellHandle: number): void {
+				cellExecuteCreate.push({ notebook: uri, cell: cellHandle });
+			}
+			override $updateExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void {
 				cellExecuteUpdates.push(...data.value);
+			}
+			override $completeExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void {
+				cellExecuteComplete.push(data.value);
 			}
 		});
 		rpcProtocol.set(MainContext.MainThreadNotebookDocuments, new class extends mock<MainThreadNotebookDocumentsShape>() {

@@ -16,9 +16,9 @@ import { ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IMainContext, INote
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { ExtHostCell, ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
+import { ExtHostCell } from 'vs/workbench/api/common/extHostNotebookDocument';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { NotebookCellOutput, NotebookCellExecutionState as ExtHostNotebookCellExecutionState } from 'vs/workbench/api/common/extHostTypes';
+import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput } from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
@@ -108,7 +108,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor, message: any; }>();
 
 		const data: INotebookKernelDto2 = {
-			id: `${extension.identifier.value}/${id}`,
+			id: createKernelId(extension, id),
 			notebookType: viewType,
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
@@ -218,7 +218,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					that._logService.trace(`NotebookController[${handle}] NOT associated to notebook, associated to THESE notebooks:`, Array.from(associatedNotebooks.keys()).map(u => u.toString()));
 					throw new Error(`notebook controller is NOT associated to notebook: ${cell.notebook.uri.toString()}`);
 				}
-				return that._createNotebookCellExecution(cell);
+				return that._createNotebookCellExecution(cell, createKernelId(extension, this.id));
 			},
 			dispose: () => {
 				if (!isDisposed) {
@@ -348,7 +348,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	// ---
 
-	_createNotebookCellExecution(cell: vscode.NotebookCell): vscode.NotebookCellExecution {
+	_createNotebookCellExecution(cell: vscode.NotebookCell, controllerId: string): vscode.NotebookCellExecution {
 		if (cell.index < 0) {
 			throw new Error('CANNOT execute cell that has been REMOVED from notebook');
 		}
@@ -360,7 +360,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		if (this._activeExecutions.has(cellObj.uri)) {
 			throw new Error(`duplicate execution for ${cellObj.uri}`);
 		}
-		const execution = new NotebookCellExecutionTask(cellObj.notebook, cellObj, this._proxy);
+		const execution = new NotebookCellExecutionTask(controllerId, cellObj, this._proxy);
 		this._activeExecutions.set(cellObj.uri, execution);
 		const listener = execution.onDidChangeState(() => {
 			if (execution.state === NotebookCellExecutionTaskState.Resolved) {
@@ -381,6 +381,9 @@ enum NotebookCellExecutionTaskState {
 }
 
 class NotebookCellExecutionTask extends Disposable {
+	private static HANDLE = 0;
+	private _handle = NotebookCellExecutionTask.HANDLE++;
+
 	private _onDidChangeState = new Emitter<void>();
 	readonly onDidChangeState = this._onDidChangeState.event;
 
@@ -394,7 +397,7 @@ class NotebookCellExecutionTask extends Disposable {
 	private _executionOrder: number | undefined;
 
 	constructor(
-		private readonly _document: ExtHostNotebookDocument,
+		controllerId: string,
 		private readonly _cell: ExtHostCell,
 		private readonly _proxy: MainThreadNotebookKernelsShape
 	) {
@@ -403,7 +406,7 @@ class NotebookCellExecutionTask extends Disposable {
 		this._collector = new TimeoutBasedCollector(10, updates => this.update(updates));
 
 		this._executionOrder = _cell.internalMetadata.executionOrder;
-		this._proxy.$addExecution(this._cell.notebook.uri, this._cell.handle);
+		this._proxy.$createExecution(this._handle, controllerId, this._cell.notebook.uri, this._cell.handle);
 	}
 
 	cancel(): void {
@@ -416,7 +419,7 @@ class NotebookCellExecutionTask extends Disposable {
 
 	private async update(update: ICellExecuteUpdateDto | ICellExecuteUpdateDto[]): Promise<void> {
 		const updates = Array.isArray(update) ? update : [update];
-		return this._proxy.$updateExecutions(new SerializableObjectWithBuffers(updates));
+		return this._proxy.$updateExecution(this._handle, new SerializableObjectWithBuffers(updates));
 	}
 
 	private verifyStateForOutput() {
@@ -427,17 +430,6 @@ class NotebookCellExecutionTask extends Disposable {
 		if (this._state === NotebookCellExecutionTaskState.Resolved) {
 			throw new Error('Cannot modify cell output after calling resolve');
 		}
-	}
-
-	private cellIndexToHandle(cellOrCellIndex: vscode.NotebookCell | undefined): number {
-		let cell: ExtHostCell | undefined = this._cell;
-		if (cellOrCellIndex) {
-			cell = this._document.getCellFromApiCell(cellOrCellIndex);
-		}
-		if (!cell) {
-			throw new Error('INVALID cell');
-		}
-		return cell.handle;
 	}
 
 	private validateAndConvertOutputs(items: vscode.NotebookCellOutput[]): NotebookOutputDto[] {
@@ -455,13 +447,10 @@ class NotebookCellExecutionTask extends Disposable {
 	}
 
 	private async updateOutputs(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell: vscode.NotebookCell | undefined, append: boolean): Promise<void> {
-		const handle = this.cellIndexToHandle(cell);
 		const outputDtos = this.validateAndConvertOutputs(asArray(outputs));
 		return this.updateSoon(
 			{
 				editType: CellExecutionUpdateType.Output,
-				uri: this._document.uri,
-				cellHandle: handle,
 				append,
 				outputs: outputDtos
 			});
@@ -471,8 +460,6 @@ class NotebookCellExecutionTask extends Disposable {
 		items = NotebookCellOutput.ensureUniqueMimeTypes(asArray(items), true);
 		return this.updateSoon({
 			editType: CellExecutionUpdateType.OutputItems,
-			uri: this._document.uri,
-			cellHandle: this._cell.handle,
 			items: items.map(extHostTypeConverters.NotebookCellOutputItem.from),
 			outputId: output.id,
 			append
@@ -489,8 +476,6 @@ class NotebookCellExecutionTask extends Disposable {
 				that._executionOrder = v;
 				that.update([{
 					editType: CellExecutionUpdateType.ExecutionState,
-					uri: that._document.uri,
-					cellHandle: that._cell.handle,
 					executionOrder: that._executionOrder
 				}]);
 			},
@@ -505,8 +490,6 @@ class NotebookCellExecutionTask extends Disposable {
 
 				that.update({
 					editType: CellExecutionUpdateType.ExecutionState,
-					uri: that._document.uri,
-					cellHandle: that._cell.handle,
 					runStartTime: startTime
 				});
 			},
@@ -523,9 +506,7 @@ class NotebookCellExecutionTask extends Disposable {
 				// so we use updateSoon and immediately flush.
 				that._collector.flush();
 
-				that._proxy.$completeExecution(that._document.uri, that._cell.handle, new SerializableObjectWithBuffers({
-					uri: that._document.uri,
-					cellHandle: that._cell.handle,
+				that._proxy.$completeExecution(that._handle, new SerializableObjectWithBuffers({
 					runEndTime: endTime,
 					lastRunSuccess: success
 				}));
@@ -600,4 +581,8 @@ class TimeoutBasedCollector<T> {
 		return this.callback(batch)
 			.finally(() => deferred.complete());
 	}
+}
+
+function createKernelId(extension: IExtensionDescription, id: string): string {
+	return `${extension.identifier.value}/${id}`;
 }

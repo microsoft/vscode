@@ -479,7 +479,7 @@ export class NotebookOptions extends Disposable {
 	}
 
 	private statusBarIsVisible(internalMetadata: NotebookCellInternalMetadata, cellUri: URI): boolean {
-		const exe = this.notebookExecutionStateService.getCellExecutionState(cellUri);
+		const exe = this.notebookExecutionStateService.getCellExecution(cellUri);
 		if (this._layoutConfiguration.showCellStatusBar === 'visible') {
 			return true;
 		} else if (this._layoutConfiguration.showCellStatusBar === 'visibleAfterExecute') {
