@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -14,6 +14,8 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ReadableStreamEventPayload, listenStream } from 'vs/base/common/stream';
 import { IStat, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileDeleteOptions, FileOverwriteOptions, IFileChange, IWatchOptions, FileType, FileAtomicReadOptions } from 'vs/platform/files/common/files';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IRecursiveWatcherOptions } from 'vs/platform/files/common/watcher';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface ISessionFileWatcher extends IDisposable {
 	watch(req: number, resource: URI, opts: IWatchOptions): IDisposable;
@@ -243,5 +245,78 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 			disposable.dispose();
 		}
 		this.sessionToWatcher.clear();
+	}
+}
+
+export abstract class AbstractSessionFileWatcher extends Disposable implements ISessionFileWatcher {
+
+	private readonly watcherRequests = new Map<number, IDisposable>();
+
+	// To ensure we use one file watcher per session, we keep a
+	// disk file system provider instantiated for this session.
+	// The provider is cheap and only stateful when file watching
+	// starts.
+	//
+	// This is important because we want to ensure that we only
+	// forward events from the watched paths for this session and
+	// not other clients that asked to watch other paths.
+	private readonly fileWatcher = this._register(new DiskFileSystemProvider(this.logService, { watcher: { recursive: this.getRecursiveWatcherOptions(this.environmentService) } }));
+
+	constructor(
+		private readonly uriTransformer: IURITransformer,
+		sessionEmitter: Emitter<IFileChange[] | string>,
+		private readonly logService: ILogService,
+		private readonly environmentService: IEnvironmentService
+	) {
+		super();
+
+		this.registerListeners(sessionEmitter);
+	}
+
+	private registerListeners(sessionEmitter: Emitter<IFileChange[] | string>): void {
+		const localChangeEmitter = this._register(new Emitter<readonly IFileChange[]>());
+
+		this._register(localChangeEmitter.event((events) => {
+			sessionEmitter.fire(
+				events.map(e => ({
+					resource: this.uriTransformer.transformOutgoingURI(e.resource),
+					type: e.type
+				}))
+			);
+		}));
+
+		this._register(this.fileWatcher.onDidChangeFile(events => localChangeEmitter.fire(events)));
+		this._register(this.fileWatcher.onDidWatchError(error => sessionEmitter.fire(error)));
+	}
+
+	protected getRecursiveWatcherOptions(environmentService: IEnvironmentService): IRecursiveWatcherOptions | undefined {
+		return undefined; // subclasses can override
+	}
+
+	protected getExtraExcludes(environmentService: IEnvironmentService): string[] | undefined {
+		return undefined; // subclasses can override
+	}
+
+	watch(req: number, resource: URI, opts: IWatchOptions): IDisposable {
+		const extraExcludes = this.getExtraExcludes(this.environmentService);
+		if (Array.isArray(extraExcludes)) {
+			opts.excludes = [...opts.excludes, ...extraExcludes];
+		}
+
+		this.watcherRequests.set(req, this.fileWatcher.watch(resource, opts));
+
+		return toDisposable(() => {
+			dispose(this.watcherRequests.get(req));
+			this.watcherRequests.delete(req);
+		});
+	}
+
+	override dispose(): void {
+		super.dispose();
+
+		for (const [, disposable] of this.watcherRequests) {
+			disposable.dispose();
+		}
+		this.watcherRequests.clear();
 	}
 }

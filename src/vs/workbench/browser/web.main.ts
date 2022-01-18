@@ -65,8 +65,10 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } fr
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { mixin, safeStringify } from 'vs/base/common/objects';
-import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
+import { BrowserCredentialsService } from 'vs/workbench/services/credentials/browser/credentialsService';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 
 class BrowserMain extends Disposable {
 
@@ -266,9 +268,15 @@ class BrowserMain extends Disposable {
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+		// Credentials Service
+		const credentialsService = environmentService.remoteAuthority
+			// If we have a remote authority, we can use the CredentialsService on the remote side
+			? ProxyChannel.toService<ICredentialsService>(remoteAgentService.getConnection()!.getChannel('credentials'))
+			: new BrowserCredentialsService(environmentService);
+		serviceCollection.set(ICredentialsService, credentialsService);
 
 		// Userdata Initialize Service
-		const userDataInitializationService = new UserDataInitializationService(environmentService, userDataSyncStoreManagementService, fileService, storageService, productService, requestService, logService, uriIdentityService);
+		const userDataInitializationService = new UserDataInitializationService(environmentService, credentialsService, userDataSyncStoreManagementService, fileService, storageService, productService, requestService, logService, uriIdentityService);
 		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
 
 		if (await userDataInitializationService.requiresInitialization()) {

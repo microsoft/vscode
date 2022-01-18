@@ -11,7 +11,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createWebWorker, MonacoWebWorker } from 'vs/editor/common/services/webWorker';
+import { createWebWorker, MonacoWebWorker } from 'vs/editor/browser/services/webWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import type { IRawTheme } from 'vscode-textmate';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';

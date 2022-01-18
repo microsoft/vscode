@@ -8,13 +8,15 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { DocumentSymbol, DocumentSymbolProviderRegistry, SymbolKind } from 'vs/editor/common/languages';
+import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { OutlineElement, OutlineGroup, OutlineModel } from '../outlineModel';
+import { OutlineElement, OutlineGroup, OutlineModel, OutlineModelService } from '../outlineModel';
 
 suite('OutlineModel', function () {
 
 	test('OutlineModel#create, cached', async function () {
+		const service = new OutlineModelService(new LanguageFeatureDebounceService());
 
 		let model = createTextModel('foo', undefined, undefined, URI.file('/fome/path.foo'));
 		let count = 0;
@@ -25,16 +27,16 @@ suite('OutlineModel', function () {
 			}
 		});
 
-		await OutlineModel.create(model, CancellationToken.None);
+		await service.getOrCreate(model, CancellationToken.None);
 		assert.strictEqual(count, 1);
 
 		// cached
-		await OutlineModel.create(model, CancellationToken.None);
+		await service.getOrCreate(model, CancellationToken.None);
 		assert.strictEqual(count, 1);
 
 		// new version
 		model.applyEdits([{ text: 'XXX', range: new Range(1, 1, 1, 1) }]);
-		await OutlineModel.create(model, CancellationToken.None);
+		await service.getOrCreate(model, CancellationToken.None);
 		assert.strictEqual(count, 2);
 
 		reg.dispose();
@@ -43,6 +45,7 @@ suite('OutlineModel', function () {
 
 	test('OutlineModel#create, cached/cancel', async function () {
 
+		const service = new OutlineModelService(new LanguageFeatureDebounceService());
 		let model = createTextModel('foo', undefined, undefined, URI.file('/fome/path.foo'));
 		let isCancelled = false;
 
@@ -59,9 +62,9 @@ suite('OutlineModel', function () {
 
 		assert.strictEqual(isCancelled, false);
 		let s1 = new CancellationTokenSource();
-		OutlineModel.create(model, s1.token);
+		service.getOrCreate(model, s1.token);
 		let s2 = new CancellationTokenSource();
-		OutlineModel.create(model, s2.token);
+		service.getOrCreate(model, s2.token);
 
 		s1.cancel();
 		assert.strictEqual(isCancelled, false);

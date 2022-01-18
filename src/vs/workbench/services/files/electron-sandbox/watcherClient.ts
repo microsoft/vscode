@@ -5,10 +5,10 @@
 
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { getDelayedChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { AbstractRecursiveWatcherClient, IDiskFileChange, ILogMessage, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
 import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
 
-export class ParcelWatcherClient extends AbstractRecursiveWatcherClient {
+export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 
 	constructor(
 		onFileChanges: (changes: IDiskFileChange[]) => void,
@@ -24,7 +24,7 @@ export class ParcelWatcherClient extends AbstractRecursiveWatcherClient {
 	protected override createWatcher(disposables: DisposableStore): IRecursiveWatcher {
 		const watcher = ProxyChannel.toService<IRecursiveWatcher>(getDelayedChannel((async () => {
 
-			// Acquire parcel watcher via shared process worker
+			// Acquire universal watcher via shared process worker
 			//
 			// We explicitly do not add the worker as a disposable
 			// because we need to call `stop` on disposal to prevent
@@ -33,8 +33,8 @@ export class ParcelWatcherClient extends AbstractRecursiveWatcherClient {
 			// The shared process worker services ensures to terminate
 			// the process automatically when the window closes or reloads.
 			const { client, onDidTerminate } = await this.sharedProcessWorkerWorkbenchService.createWorker({
-				moduleId: 'vs/platform/files/node/watcher/parcel/parcelWatcherMain',
-				type: 'parcelWatcher'
+				moduleId: 'vs/platform/files/node/watcher/watcherMain',
+				type: 'fileWatcher'
 			});
 
 			// React on unexpected termination of the watcher process
@@ -49,10 +49,10 @@ export class ParcelWatcherClient extends AbstractRecursiveWatcherClient {
 			return client.getChannel('watcher');
 		})()));
 
-		// Looks like parcel needs an explicit stop to prevent
-		// access on data structures after process exit. This
-		// only seem to be happening when used from Electron,
-		// not pure node.js.
+		// Looks like universal watcher needs an explicit stop
+		// to prevent access on data structures after process
+		// exit. This only seem to be happening when used from
+		// Electron, not pure node.js.
 		// https://github.com/microsoft/vscode/issues/136264
 		disposables.add(toDisposable(() => watcher.stop()));
 

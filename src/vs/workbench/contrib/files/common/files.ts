@@ -83,7 +83,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 	explorer: {
 		openEditors: {
 			visible: number;
-			sortOrder: 'editorOrder' | 'alphabetical';
+			sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath';
 		};
 		autoReveal: boolean | 'focusNoScroll';
 		enableDragAndDrop: boolean;
@@ -97,6 +97,13 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 			badges: boolean;
 		};
 		incrementalNaming: 'simple' | 'smart';
+		experimental: {
+			fileNesting: {
+				enabled: boolean;
+				expand: boolean;
+				patterns: { [parent: string]: string }
+			}
+		}
 	};
 	editor: IEditorOptions;
 }
@@ -111,7 +118,8 @@ export const enum SortOrder {
 	Mixed = 'mixed',
 	FilesFirst = 'filesFirst',
 	Type = 'type',
-	Modified = 'modified'
+	Modified = 'modified',
+	FoldersNestsFiles = 'foldersNestsFiles',
 }
 
 export const enum UndoEnablement {

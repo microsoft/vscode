@@ -296,6 +296,12 @@
             "%configuration.markdown.links.openLocation.beside%"
           ]
         },
+        "markdown.suggest.paths.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.markdown.suggest.paths.enabled.description%",
+          "scope": "resource"
+        },
         "markdown.trace": {
           "type": "string",
           "enum": [
@@ -353,7 +359,7 @@
   "dependencies": {
     "dompurify": "^2.3.3",
     "highlight.js": "^10.4.1",
-    "markdown-it": "^12.2.0",
+    "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.1",
     "morphdom": "^2.6.1",
     "vscode-extension-telemetry": "0.4.4",

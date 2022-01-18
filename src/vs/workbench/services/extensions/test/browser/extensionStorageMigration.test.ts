@@ -50,7 +50,8 @@ suite('ExtensionStorageMigration', () => {
 		await fileService.writeFile(joinPath(globalStorageHome, fromExtensionId), VSBuffer.fromString('hello global storage'));
 		await fileService.writeFile(joinPath(workspaceStorageHome, TestWorkspace.id, fromExtensionId), VSBuffer.fromString('hello workspace storage'));
 
-		await migrateExtensionStorage(fromExtensionId, toExtensionId, instantiationService);
+		await migrateExtensionStorage(fromExtensionId, toExtensionId, true, instantiationService);
+		await migrateExtensionStorage(fromExtensionId, toExtensionId, false, instantiationService);
 
 		assert.deepStrictEqual(extensionStorageService.getExtensionState(fromExtensionId, true), undefined);
 		assert.deepStrictEqual(extensionStorageService.getExtensionState(fromExtensionId, false), undefined);
@@ -71,7 +72,8 @@ suite('ExtensionStorageMigration', () => {
 		const fromExtensionId = 'pub.from', toExtensionId = 'pub.to', storageMigratedKey = `extensionStorage.migrate.${fromExtensionId}-${toExtensionId}`;
 		const extensionStorageService = instantiationService.get(IExtensionStorageService), fileService = instantiationService.get(IFileService), storageService = instantiationService.get(IStorageService);
 
-		await migrateExtensionStorage(fromExtensionId, toExtensionId, instantiationService);
+		await migrateExtensionStorage(fromExtensionId, toExtensionId, true, instantiationService);
+		await migrateExtensionStorage(fromExtensionId, toExtensionId, false, instantiationService);
 
 		assert.deepStrictEqual(extensionStorageService.getExtensionState(fromExtensionId, true), undefined);
 		assert.deepStrictEqual(extensionStorageService.getExtensionState(fromExtensionId, false), undefined);

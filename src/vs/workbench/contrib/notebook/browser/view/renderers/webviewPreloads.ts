@@ -34,7 +34,7 @@ declare class Highlight {
 }
 
 interface CSSHighlights {
-	set(name: string, ht: Highlight): void;
+	set(rule: string, highlight: Highlight): void;
 }
 declare namespace CSS {
 	let highlights: CSSHighlights | undefined;
@@ -859,6 +859,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		dispose() {
+			document.getSelection()?.removeAllRanges();
+
 			this.matches.forEach(match => {
 				match.highlightResult?.dispose();
 			});
@@ -912,12 +914,13 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		dispose(): void {
+			document.getSelection()?.removeAllRanges();
 			this._currentMatchesHighlight.clear();
 			this._matchesHighlight.clear();
 		}
 	}
 
-	const find = (query: string, options: { includeMarkup: boolean; includeOutput: boolean; }) => {
+	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; }) => {
 		let find = true;
 		let matches: IFindMatch[] = [];
 
@@ -933,10 +936,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 			document.designMode = 'On';
 
 			while (find && matches.length < 500) {
-				find = (window as any).find(query, /* caseSensitive*/ false,
+				find = (window as any).find(query, /* caseSensitive*/ !!options.caseSensitive,
 				/* backwards*/ false,
 				/* wrapAround*/ false,
-				/* wholeWord */ false,
+				/* wholeWord */ !!options.wholeWord,
 				/* searchInFrames*/ true,
 					false);
 
@@ -1041,6 +1044,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		} else {
 			_highlighter = new JSHighlighter(matches);
 		}
+
+		document.getSelection()?.removeAllRanges();
 
 		viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 

@@ -11,11 +11,11 @@
     "mocha": "node ../node_modules/mocha/bin/mocha"
   },
   "dependencies": {
+    "@vscode/test-electron": "^2.1.0",
     "mkdirp": "^1.0.4",
     "ncp": "^2.0.0",
     "node-fetch": "^2.6.1",
-    "rimraf": "3.0.2",
-    "vscode-test": "^1.6.1"
+    "rimraf": "3.0.2"
   },
   "devDependencies": {
     "@types/mkdirp": "^1.0.1",
@@ -25,7 +25,6 @@
     "@types/node-fetch": "^2.5.10",
     "@types/rimraf": "3.0.2",
     "npm-run-all": "^4.1.5",
-    "typescript": "^4.3.2",
     "watch": "^1.0.2"
   }
 }

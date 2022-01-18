@@ -8,6 +8,9 @@ import { IShellIntegration } from 'vs/workbench/contrib/terminal/common/terminal
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
+import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/commandDetectionCapability';
+import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -55,8 +58,6 @@ const enum ShellIntegrationOscPt {
 	CommandExecuted = 'C',
 	// TODO: Understand this sequence better and add docs
 	CommandFinished = 'D',
-	// TODO: This is a VS Code-specific sequence? Do we need this? Should it have a version?
-	EnableShellIntegration = 'E',
 }
 
 export const enum ShellIntegrationInfo {
@@ -72,12 +73,7 @@ export const enum ShellIntegrationInteraction {
 
 export class ShellIntegrationAddon extends Disposable implements IShellIntegration, ITerminalAddon {
 	private _terminal?: Terminal;
-	readonly capabilities: TerminalCapability[] = [];
-
-	private readonly _onCapabilityDisabled = new Emitter<TerminalCapability>();
-	readonly onCapabilityDisabled = this._onCapabilityDisabled.event;
-	private readonly _onCapabilityEnabled = new Emitter<TerminalCapability>();
-	readonly onCapabilityEnabled = this._onCapabilityEnabled.event;
+	readonly capabilities = new TerminalCapabilityStore();
 	private readonly _onIntegratedShellChange = new Emitter<{ type: string, value: string }>();
 	readonly onIntegratedShellChange = this._onIntegratedShellChange.event;
 
@@ -96,7 +92,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		switch (command) {
 			case ShellIntegrationOscPt.PromptStart:
 				type = ShellIntegrationInteraction.PromptStart;
-				break;
+				if (!this.capabilities.has(TerminalCapability.CommandDetection)) {
+					this.capabilities.add(TerminalCapability.CommandDetection, new CommandDetectionCapability());
+				}
+				if (!this.capabilities.has(TerminalCapability.CwdDetection)) {
+					this.capabilities.add(TerminalCapability.CwdDetection, new CwdDetectionCapability());
+				}
 			case ShellIntegrationOscPt.CommandStart:
 				type = ShellIntegrationInteraction.CommandStart;
 				break;
@@ -106,10 +107,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			case ShellIntegrationOscPt.CommandFinished:
 				type = ShellIntegrationInteraction.CommandFinished;
 				break;
-			case ShellIntegrationOscPt.EnableShellIntegration:
-				this.capabilities.push(TerminalCapability.CommandDetection);
-				this._onCapabilityEnabled.fire(TerminalCapability.CommandDetection);
-				return true;
 			default:
 				return false;
 		}
@@ -126,6 +123,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		const [type, info] = data.split('=');
 		switch (type) {
 			case ShellIntegrationInfo.CurrentDir:
+				this.capabilities.get(TerminalCapability.CwdDetection)?.updateCwd(info);
 				value = info;
 				break;
 			default:

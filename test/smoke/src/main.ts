@@ -11,7 +11,7 @@ import * as os from 'os';
 import * as minimist from 'minimist';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
-import * as vscodetest from 'vscode-test';
+import * as vscodetest from '@vscode/test-electron';
 import fetch from 'node-fetch';
 import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog } from '../../automation';
 import { timeout } from './utils';
@@ -275,9 +275,20 @@ async function ensureStableCode(): Promise<void> {
 
 		logger.log(`Found VS Code v${version}, downloading previous VS Code version ${previousVersion.version}...`);
 
+		let lastProgressMessage: string | undefined = undefined;
 		const stableCodeExecutable = await measureAndLog(vscodetest.download({
 			cachePath: path.join(os.tmpdir(), 'vscode-test'),
-			version: previousVersion.version
+			version: previousVersion.version,
+			reporter: {
+				report: report => {
+					const progressMessage = `download stable code progress: ${report.stage}`;
+					if (progressMessage !== lastProgressMessage) {
+						lastProgressMessage = progressMessage;
+						logger.log(progressMessage);
+					}
+				},
+				error: error => logger.log(`download stable code error: ${error}`)
+			}
 		}), 'download stable code', logger);
 
 		if (process.platform === 'darwin') {

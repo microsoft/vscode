@@ -53,24 +53,25 @@ export class FindInput extends Widget {
 	private fixFocusOnOptionClickEnabled = true;
 	private imeSessionInProgress = false;
 
-	private inputActiveOptionBorder?: Color;
-	private inputActiveOptionForeground?: Color;
-	private inputActiveOptionBackground?: Color;
-	private inputBackground?: Color;
-	private inputForeground?: Color;
-	private inputBorder?: Color;
+	protected inputActiveOptionBorder?: Color;
+	protected inputActiveOptionForeground?: Color;
+	protected inputActiveOptionBackground?: Color;
+	protected inputBackground?: Color;
+	protected inputForeground?: Color;
+	protected inputBorder?: Color;
 
-	private inputValidationInfoBorder?: Color;
-	private inputValidationInfoBackground?: Color;
-	private inputValidationInfoForeground?: Color;
-	private inputValidationWarningBorder?: Color;
-	private inputValidationWarningBackground?: Color;
-	private inputValidationWarningForeground?: Color;
-	private inputValidationErrorBorder?: Color;
-	private inputValidationErrorBackground?: Color;
-	private inputValidationErrorForeground?: Color;
+	protected inputValidationInfoBorder?: Color;
+	protected inputValidationInfoBackground?: Color;
+	protected inputValidationInfoForeground?: Color;
+	protected inputValidationWarningBorder?: Color;
+	protected inputValidationWarningBackground?: Color;
+	protected inputValidationWarningForeground?: Color;
+	protected inputValidationErrorBorder?: Color;
+	protected inputValidationErrorBackground?: Color;
+	protected inputValidationErrorForeground?: Color;
 
-	private regex: RegexCheckbox;
+	protected controls: HTMLDivElement;
+	protected regex: RegexCheckbox;
 	private wholeWords: WholeWordsCheckbox;
 	private caseSensitive: CaseSensitiveCheckbox;
 	public domNode: HTMLElement;
@@ -242,14 +243,14 @@ export class FindInput extends Widget {
 		});
 
 
-		let controls = document.createElement('div');
-		controls.className = 'controls';
-		controls.style.display = this._showOptionButtons ? 'block' : 'none';
-		controls.appendChild(this.caseSensitive.domNode);
-		controls.appendChild(this.wholeWords.domNode);
-		controls.appendChild(this.regex.domNode);
+		this.controls = document.createElement('div');
+		this.controls.className = 'controls';
+		this.controls.style.display = this._showOptionButtons ? 'block' : 'none';
+		this.controls.appendChild(this.caseSensitive.domNode);
+		this.controls.appendChild(this.wholeWords.domNode);
+		this.controls.appendChild(this.regex.domNode);
 
-		this.domNode.appendChild(controls);
+		this.domNode.appendChild(this.controls);
 
 		if (parent) {
 			parent.appendChild(this.domNode);

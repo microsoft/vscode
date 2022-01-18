@@ -101,5 +101,8 @@
 		"git",
 		"sash"
 	],
-	"notebook.find.experimental": true
+	"explorer.experimental.fileNesting.patterns": {
+		"*.js": "$(capture).*.js",
+		"bootstrap.js": "bootstrap-*.js"
+	}
 }

@@ -18,7 +18,7 @@ import { Event } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/path';
 import { isCancellationError } from 'vs/base/common/errors';
 import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
-import { isPromise } from 'vs/base/common/types';
+import { isThenable } from 'vs/base/common/async';
 
 export { TextSearchCompleteMessageType };
 
@@ -678,7 +678,7 @@ export class QueryGlobTester {
 				true;
 		};
 
-		if (isPromise(excluded)) {
+		if (isThenable(excluded)) {
 			return excluded.then(excluded => {
 				if (excluded) {
 					return false;

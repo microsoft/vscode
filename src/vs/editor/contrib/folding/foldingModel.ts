@@ -379,7 +379,10 @@ export function setCollapseStateAtLevel(foldingModel: FoldingModel, foldLevel: n
 export function setCollapseStateForRest(foldingModel: FoldingModel, doCollapse: boolean, blockedLineNumbers: number[]): void {
 	let filteredRegions: FoldingRegion[] = [];
 	for (let lineNumber of blockedLineNumbers) {
-		filteredRegions.push(foldingModel.getAllRegionsAtLine(lineNumber, undefined)[0]);
+		const regions = foldingModel.getAllRegionsAtLine(lineNumber, undefined);
+		if (regions.length > 0) {
+			filteredRegions.push(regions[0]);
+		}
 	}
 	let filter = (region: FoldingRegion) => filteredRegions.every((filteredRegion) => !filteredRegion.containedBy(region) && !region.containedBy(filteredRegion)) && region.isCollapsed !== doCollapse;
 	let toToggle = foldingModel.getRegionsInside(null, filter);

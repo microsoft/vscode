@@ -294,7 +294,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		if (servers.length) {
 			if (!installOptions || isUndefined(installOptions.isMachineScoped)) {
 				const isMachineScoped = await this.hasToFlagExtensionsMachineScoped([gallery]);
-				installOptions = { isMachineScoped, isBuiltin: false };
+				installOptions = { ...(installOptions || {}), isMachineScoped };
 			}
 			if (!installOptions.isMachineScoped && this.isExtensionsSyncEnabled()) {
 				if (this.extensionManagementServerService.localExtensionManagementServer && !servers.includes(this.extensionManagementServerService.localExtensionManagementServer) && (await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.canInstall(gallery))) {

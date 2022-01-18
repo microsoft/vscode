@@ -51,7 +51,7 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 
 			return false;
 		};
-		if (!executing.length || executing.some(executionIsVisible)) {
+		if (!executing.length || executing.some(executionIsVisible) || executing.some(e => e.isPaused)) {
 			this._notebookEditor.hideProgress();
 		} else {
 			this._notebookEditor.showProgress();

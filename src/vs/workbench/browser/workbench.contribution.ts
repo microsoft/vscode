@@ -286,7 +286,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['left', 'bottom', 'right'],
 				'default': 'bottom',
-				'description': localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom, right, or left of the workbench.")
+				'description': localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom, right, or left of the workbench."),
+				'deprecationMessage': localize('panelDefaultLocationDeprecated', "With the introduction of the side panel, the panel position is no longer able to be moved in favor of moving view containers between the panels.")
 			},
 			'workbench.panel.opensMaximized': {
 				'type': 'string',
@@ -361,12 +362,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'tags': ['experimental'],
 				'default': false,
 				'description': localize('layoutControlEnabled', "Controls whether the layout control button in the custom title bar is enabled."),
-			},
-			'workbench.experimental.sidePanel.enabled': {
-				'type': 'boolean',
-				'default': false,
-				'description': localize('auxiliaryBarEnabled', "Controls whether the side panel opposite the side bar is enabled."),
-				'included': product.quality !== 'stable'
 			},
 			'workbench.experimental.panel.alignment': {
 				'type': 'string',

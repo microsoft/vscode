@@ -292,7 +292,7 @@ class InstallGalleryExtensionTask extends AbstractInstallExtensionTask {
 		installableExtension.metadata.isMachineScoped = this.options.isMachineScoped || existingExtension?.isMachineScoped;
 		installableExtension.metadata.isBuiltin = this.options.isBuiltin || existingExtension?.isBuiltin;
 		installableExtension.metadata.isPreReleaseVersion = this.gallery.properties.isPreReleaseVersion;
-		installableExtension.metadata.preRelease = this.gallery.hasPreReleaseVersion ? this.gallery.properties.isPreReleaseVersion : existingExtension?.preRelease;
+		installableExtension.metadata.preRelease = this.gallery.hasPreReleaseVersion ? this.gallery.properties.isPreReleaseVersion : (existingExtension?.preRelease || this.options.installPreReleaseVersion);
 
 		try {
 			const local = await this.installExtension(installableExtension, token);
@@ -396,7 +396,13 @@ class InstallVSIXTask extends AbstractInstallExtensionTask {
 				[galleryExtension] = await this.galleryService.getExtensions([{ id }], token);
 			}
 			if (galleryExtension) {
-				return { id: galleryExtension.identifier.uuid, publisherDisplayName: galleryExtension.publisherDisplayName, publisherId: galleryExtension.publisherId, isPreReleaseVersion: galleryExtension.properties.isPreReleaseVersion, preRelease: galleryExtension.properties.isPreReleaseVersion };
+				return {
+					id: galleryExtension.identifier.uuid,
+					publisherDisplayName: galleryExtension.publisherDisplayName,
+					publisherId: galleryExtension.publisherId,
+					isPreReleaseVersion: galleryExtension.properties.isPreReleaseVersion,
+					preRelease: galleryExtension.properties.isPreReleaseVersion || this.options.installPreReleaseVersion
+				};
 			}
 		} catch (error) {
 			/* Ignore Error */
