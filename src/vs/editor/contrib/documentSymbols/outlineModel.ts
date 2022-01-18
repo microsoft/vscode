@@ -25,8 +25,6 @@ export abstract class TreeElement {
 	abstract children: Map<string, TreeElement>;
 	abstract parent: TreeElement | undefined;
 
-	abstract adopt(newParent: TreeElement): TreeElement;
-
 	remove(): void {
 		if (this.parent) {
 			this.parent.children.delete(this.id);
@@ -107,14 +105,6 @@ export class OutlineElement extends TreeElement {
 	) {
 		super();
 	}
-
-	adopt(parent: TreeElement): OutlineElement {
-		let res = new OutlineElement(this.id, parent, this.symbol);
-		for (const [key, value] of this.children) {
-			res.children.set(key, value.adopt(res));
-		}
-		return res;
-	}
 }
 
 export class OutlineGroup extends TreeElement {
@@ -128,14 +118,6 @@ export class OutlineGroup extends TreeElement {
 		readonly order: number,
 	) {
 		super();
-	}
-
-	adopt(parent: TreeElement): OutlineGroup {
-		let res = new OutlineGroup(this.id, parent, this.label, this.order);
-		for (const [key, value] of this.children) {
-			res.children.set(key, value.adopt(res));
-		}
-		return res;
 	}
 
 	getItemEnclosingPosition(position: IPosition): OutlineElement | undefined {
@@ -285,14 +267,6 @@ export class OutlineModel extends TreeElement {
 
 		this.id = 'root';
 		this.parent = undefined;
-	}
-
-	adopt(): OutlineModel {
-		let res = new OutlineModel(this.uri);
-		for (const [key, value] of this._groups) {
-			res._groups.set(key, value.adopt(res));
-		}
-		return res._compact();
 	}
 
 	private _compact(): this {

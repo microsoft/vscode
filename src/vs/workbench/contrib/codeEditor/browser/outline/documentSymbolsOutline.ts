@@ -308,9 +308,6 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				}
 			}
 
-			// copy the model
-			model = model.adopt();
-
 			// feature: show markers with outline element
 			this._applyMarkersToOutline(model);
 			this._outlineDisposables.add(this._markerDecorationsService.onDidChangeMarker(textModel => {
