@@ -7,7 +7,11 @@ import { flatten } from 'vs/base/common/arrays';
 import { Emitter } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
+// TODO@layers
+// eslint-disable-next-line code-import-patterns
 import { codeActionCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
+// TODO@layers
+// eslint-disable-next-line code-import-patterns
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import * as nls from 'vs/nls';
 import { Extensions, IConfigurationNode, IConfigurationRegistry, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';

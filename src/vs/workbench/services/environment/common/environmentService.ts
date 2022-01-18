@@ -6,6 +6,8 @@
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+// TODO@layers
+// eslint-disable-next-line code-import-patterns
 import type { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
 import { URI } from 'vs/base/common/uri';
 
