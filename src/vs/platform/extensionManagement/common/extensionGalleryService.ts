@@ -1043,7 +1043,6 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 					result.push({ version: version.version, date: version.lastUpdated, isPreReleaseVersion: isPreReleaseVersion(version) });
 				}
 			} catch (error) { /* Ignore error and skip version */ }
-			return undefined;
 		}));
 		return result;
 	}
