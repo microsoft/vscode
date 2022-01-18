@@ -73,17 +73,18 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 			case ShellIntegrationInteraction.CommandExecuted:
 				this._currentCommand.commandExecutedMarker = this._terminal.registerMarker(0);
 				// TODO: Make sure this only runs on Windows backends (not frontends)
-				if (!isWindows) {
-					// TODO: Ensure these exist
-					//  && this._currentCommand.marker && this._currentCommand.commandStartX) {
-					// TODO: ! is unsafe
-					this._currentCommand.command = this._terminal.buffer.active.getLine(this._currentCommand.marker!.line)?.translateToString().substring(this._currentCommand.commandStartX!);
-					let y = this._currentCommand.marker!.line + 1;
-					for (; y < this._currentCommand.commandExecutedMarker!.line; y++) {
-						this._currentCommand.command += this._terminal.buffer.active.getLine(y)!.translateToString(true);
+				if (!isWindows && this._currentCommand.marker && this._currentCommand.commandExecutedMarker && this._currentCommand.commandStartX) {
+					this._currentCommand.command = this._terminal.buffer.active.getLine(this._currentCommand.marker.line)?.translateToString().substring(this._currentCommand.commandStartX);
+					let y = this._currentCommand.marker.line + 1;
+					const commandExecutedLine = this._currentCommand.commandExecutedMarker.line;
+					for (; y < commandExecutedLine; y++) {
+						const line = this._terminal.buffer.active.getLine(y);
+						if (line) {
+							this._currentCommand.command += line.translateToString(true);
+						}
 					}
-					if (y === this._currentCommand.commandExecutedMarker!.line) {
-						this._currentCommand.command += this._terminal.buffer.active.getLine(this._currentCommand.commandExecutedMarker!.line)!.translateToString(true, undefined, this._currentCommand.commandExecutedX);
+					if (y === commandExecutedLine) {
+						this._currentCommand.command += this._terminal.buffer.active.getLine(commandExecutedLine)?.translateToString(true, undefined, this._currentCommand.commandExecutedX) || '';
 					}
 					break;
 				}
