@@ -21,7 +21,7 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { NullState, nullTokenize } from 'vs/editor/common/languages/nullMode';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { IModelService } from 'vs/editor/common/services/model';
-import { createWebWorker as actualCreateWebWorker, IWebWorkerOptions, MonacoWebWorker } from 'vs/editor/common/services/webWorker';
+import { createWebWorker as actualCreateWebWorker, IWebWorkerOptions, MonacoWebWorker } from 'vs/editor/browser/services/webWorker';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
 import { createTextModel, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor, StandaloneEditor } from 'vs/editor/standalone/browser/standaloneCodeEditor';

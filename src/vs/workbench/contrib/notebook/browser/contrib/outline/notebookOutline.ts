@@ -50,8 +50,9 @@ export class OutlineEntry {
 	private _markerInfo: IOutlineMarkerInfo | undefined;
 
 	get icon(): ThemeIcon {
-		return this.isExecuting ? ThemeIcon.modify(executingStateIcon, 'spin') :
-			this.cell.cellKind === CellKind.Markup ? Codicon.markdown : Codicon.code;
+		return this.isExecuting && this.isPaused ? executingStateIcon :
+			this.isExecuting ? ThemeIcon.modify(executingStateIcon, 'spin') :
+				this.cell.cellKind === CellKind.Markup ? Codicon.markdown : Codicon.code;
 	}
 
 	constructor(
@@ -59,7 +60,8 @@ export class OutlineEntry {
 		readonly level: number,
 		readonly cell: ICellViewModel,
 		readonly label: string,
-		readonly isExecuting: boolean
+		readonly isExecuting: boolean,
+		readonly isPaused: boolean
 	) { }
 
 	addChild(entry: OutlineEntry) {
@@ -337,7 +339,11 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 			this._onDidChange.fire({});
 		}));
 
-		this._register(_notebookExecutionStateService.onDidChangeCellExecution(() => this._recomputeState()));
+		this._register(_notebookExecutionStateService.onDidChangeCellExecution(e => {
+			if (!!this._editor.textModel && e.affectsNotebook(this._editor.textModel?.uri)) {
+				this._recomputeState();
+			}
+		}));
 
 		this._recomputeState();
 		installSelectionListener();
@@ -426,7 +432,7 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 				for (const token of marked.lexer(content, { gfm: true })) {
 					if (token.type === 'heading') {
 						hasHeader = true;
-						entries.push(new OutlineEntry(entries.length, token.depth, cell, renderMarkdownAsPlaintext({ value: token.text }).trim(), false));
+						entries.push(new OutlineEntry(entries.length, token.depth, cell, renderMarkdownAsPlaintext({ value: token.text }).trim(), false, false));
 					}
 				}
 				if (!hasHeader) {
@@ -441,8 +447,8 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 					preview = localize('empty', "empty cell");
 				}
 
-				const executing = !isMarkdown && !!this._notebookExecutionStateService.getCellExecutionState(cell.uri);
-				entries.push(new OutlineEntry(entries.length, 7, cell, preview, executing));
+				const exeState = !isMarkdown && this._notebookExecutionStateService.getCellExecutionState(cell.uri);
+				entries.push(new OutlineEntry(entries.length, 7, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
 			}
 
 			if (cell.handle === focused) {

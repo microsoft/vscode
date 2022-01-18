@@ -52,6 +52,8 @@ import 'vs/editor/contrib/rename/rename';
 import 'vs/editor/contrib/inlayHints/inlayHintsController';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { IOutlineModelService, OutlineModelService } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -123,6 +125,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				return edits || undefined;
 			}
 		});
+		services.set(IOutlineModelService, new OutlineModelService(new LanguageFeatureDebounceService()));
 
 		insta = new InstantiationService(services);
 

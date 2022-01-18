@@ -6,11 +6,12 @@
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
+import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IMainCellDto, INotebookDiffResult, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookEditorSimpleWorker } from 'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker';
+import { INotebookWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerHost';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 
 export class NotebookEditorWorkerServiceImpl extends Disposable implements INotebookEditorWorkerService {
@@ -178,7 +179,7 @@ export class NotebookEditorModelManager extends Disposable {
 	}
 }
 
-export class EditorWorkerHost {
+class NotebookWorkerHost implements INotebookWorkerHost {
 
 	private readonly _workerClient: NotebookWorkerClient;
 
@@ -234,10 +235,10 @@ export class NotebookWorkerClient extends Disposable {
 	private _getOrCreateWorker(): IWorkerClient<NotebookEditorSimpleWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(new SimpleWorkerClient<NotebookEditorSimpleWorker, EditorWorkerHost>(
+				this._worker = this._register(new SimpleWorkerClient<NotebookEditorSimpleWorker, NotebookWorkerHost>(
 					this._workerFactory,
 					'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker',
-					new EditorWorkerHost(this)
+					new NotebookWorkerHost(this)
 				));
 			} catch (err) {
 				// logOnceWebWorkerWarning(err);

@@ -14,7 +14,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { DocumentSymbol, DocumentSymbolProviderRegistry, SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/common/languages';
-import { OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions, IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
 import { localize } from 'vs/nls';
 import { IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
@@ -38,7 +38,10 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 	protected override readonly options: IGotoSymbolQuickAccessProviderOptions;
 
-	constructor(options: IGotoSymbolQuickAccessProviderOptions = Object.create(null)) {
+	constructor(
+		@IOutlineModelService private readonly _outlineModelService: IOutlineModelService,
+		options: IGotoSymbolQuickAccessProviderOptions = Object.create(null)
+	) {
 		super(options);
 
 		this.options = options;
@@ -421,7 +424,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 	}
 
 	protected async getDocumentSymbols(document: ITextModel, token: CancellationToken): Promise<DocumentSymbol[]> {
-		const model = await OutlineModel.create(document, token);
+		const model = await this._outlineModelService.getOrCreate(document, token);
 		return token.isCancellationRequested ? [] : model.asListOfDocumentSymbols();
 	}
 }

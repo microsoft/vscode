@@ -5,7 +5,7 @@
 
 /**
  * A sort of double-ended trie, used to efficiently query for matches to "star" patterns, where
- * a given key representas a parent and may contain a capturing group ("*"), which can then be
+ * a given key represents a parent and may contain a capturing group ("*"), which can then be
  * referenced via the token "$(capture)" in associated child patterns.
  *
  * The generated tree will have at most two levels, as subtrees are flattened rather than nested.
