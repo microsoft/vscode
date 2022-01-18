@@ -1031,22 +1031,16 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			return [];
 		}
 
-		const seenVersions = new Set<string>();
-		// Run checks in parallel to reduce wait time (fixes slow performance related to extensions with ownership changes)
-		const result = await Promise.all(
-			galleryExtensions[0].versions.map(async (version) => {
-				console.log('Testing version', version.version);
-				try {
-					if (!seenVersions.has(version.version) && await this.isValidVersion(version, includePreRelease, true, allTargetPlatforms, targetPlatform)) {
-						seenVersions.add(version.version);
-						return { version: version.version, date: version.lastUpdated, isPreReleaseVersion: isPreReleaseVersion(version) };
-					}
-				} catch (error) { /* Ignore error and skip version */ }
-				return undefined;
-			})
-		);
-		//filter out skipped versions and return the rest
-		return result.filter(x => !!x) as IGalleryExtensionVersion[];
+		const result: IGalleryExtensionVersion[] = [];
+		await Promise.all(galleryExtensions[0].versions.map(async (version) => {
+			try {
+				if (await this.isValidVersion(version, includePreRelease, true, allTargetPlatforms, targetPlatform)) {
+					result.push({ version: version.version, date: version.lastUpdated, isPreReleaseVersion: isPreReleaseVersion(version) });
+				}
+			} catch (error) { /* Ignore error and skip version */ }
+			return undefined;
+		}));
+		return result;
 	}
 
 	private async getAsset(asset: IGalleryExtensionAsset, options: IRequestOptions = {}, token: CancellationToken = CancellationToken.None): Promise<IRequestContext> {
