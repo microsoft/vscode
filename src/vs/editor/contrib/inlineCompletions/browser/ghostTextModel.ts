@@ -10,9 +10,10 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { InlineCompletionTriggerKind } from 'vs/editor/common/languages';
 import { GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
-import { InlineCompletionsModel, LiveInlineCompletions, SynchronizedInlineCompletionsCache } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
+import { InlineCompletionsModel, SynchronizedInlineCompletionsCache } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetPreviewModel';
 import { createDisposableRef } from 'vs/editor/contrib/inlineCompletions/browser/utils';
+import { TrackedInlineCompletions } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export abstract class DelegatingModel extends Disposable implements GhostTextWidgetModel {
@@ -143,7 +144,7 @@ export class SharedInlineCompletionCache extends Disposable {
 	}
 
 	public setValue(editor: IActiveCodeEditor,
-		completionsSource: LiveInlineCompletions,
+		completionsSource: TrackedInlineCompletions,
 		triggerKind: InlineCompletionTriggerKind
 	) {
 		this.cache.value = new SynchronizedInlineCompletionsCache(

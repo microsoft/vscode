@@ -310,7 +310,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		return currentCompletion ? inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, this.editor.getPosition()) : undefined;
 	}
 
-	get currentCompletion(): LiveInlineCompletion | undefined {
+	get currentCompletion(): TrackedInlineCompletion | undefined {
 		const completion = this.currentCachedCompletion;
 		if (!completion) {
 			return undefined;
@@ -384,7 +384,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}
 	}
 
-	public commit(completion: LiveInlineCompletion): void {
+	public commit(completion: TrackedInlineCompletion): void {
 		// Mark the cache as stale, but don't dispose it yet,
 		// otherwise command args might get disposed.
 		const cache = this.cache.clearAndLeak();
@@ -428,7 +428,7 @@ export class SynchronizedInlineCompletionsCache extends Disposable {
 
 	constructor(
 		editor: IActiveCodeEditor,
-		completionsSource: LiveInlineCompletions,
+		completionsSource: TrackedInlineCompletions,
 		onChange: () => void,
 		public readonly triggerKind: InlineCompletionTriggerKind,
 	) {
@@ -486,13 +486,13 @@ class CachedInlineCompletion {
 	public synchronizedRange: Range;
 
 	constructor(
-		public readonly inlineCompletion: LiveInlineCompletion,
+		public readonly inlineCompletion: TrackedInlineCompletion,
 		public readonly decorationId: string,
 	) {
 		this.synchronizedRange = inlineCompletion.range;
 	}
 
-	public toLiveInlineCompletion(): LiveInlineCompletion | undefined {
+	public toLiveInlineCompletion(): TrackedInlineCompletion | undefined {
 		return {
 			text: this.inlineCompletion.text,
 			range: this.synchronizedRange,
@@ -504,16 +504,29 @@ class CachedInlineCompletion {
 	}
 }
 
-export interface LiveInlineCompletion extends NormalizedInlineCompletion {
+/**
+ * A normalized inline completion that tracks which inline completion it has been constructed from.
+*/
+export interface TrackedInlineCompletion extends NormalizedInlineCompletion {
 	sourceProvider: InlineCompletionsProvider;
+
+	/**
+	 * A reference to the original inline completion this inline completion has been constructed from.
+	 * Used for event data to ensure referential equality.
+	*/
 	sourceInlineCompletion: InlineCompletion;
+
+	/**
+	 * A reference to the original inline completion list this inline completion has been constructed from.
+	 * Used for event data to ensure referential equality.
+	*/
 	sourceInlineCompletions: InlineCompletions;
 }
 
 /**
  * Contains no duplicated items.
 */
-export interface LiveInlineCompletions extends InlineCompletions<LiveInlineCompletion> {
+export interface TrackedInlineCompletions extends InlineCompletions<TrackedInlineCompletion> {
 	dispose(): void;
 }
 
@@ -532,7 +545,7 @@ export async function provideInlineCompletions(
 	model: ITextModel,
 	context: InlineCompletionContext,
 	token: CancellationToken = CancellationToken.None
-): Promise<LiveInlineCompletions> {
+): Promise<TrackedInlineCompletions> {
 	const defaultReplaceRange = getDefaultRange(position, model);
 
 	const providers = InlineCompletionsProviderRegistry.all(model);
@@ -553,11 +566,11 @@ export async function provideInlineCompletions(
 		)
 	);
 
-	const itemsByHash = new Map<string, LiveInlineCompletion>();
+	const itemsByHash = new Map<string, TrackedInlineCompletion>();
 	for (const result of results) {
 		const completions = result.completions;
 		if (completions) {
-			for (const item of completions.items.map<LiveInlineCompletion>(item => ({
+			for (const item of completions.items.map<TrackedInlineCompletion>(item => ({
 				text: item.text,
 				range: item.range ? Range.lift(item.range) : defaultReplaceRange,
 				command: item.command,

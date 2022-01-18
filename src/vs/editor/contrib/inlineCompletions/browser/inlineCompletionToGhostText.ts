@@ -11,6 +11,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import { InlineCompletion } from 'vs/editor/common/languages';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 
+/**
+ * A normalized inline completion is an inline completion with a defined range.
+*/
 export interface NormalizedInlineCompletion extends InlineCompletion {
 	range: Range;
 }
