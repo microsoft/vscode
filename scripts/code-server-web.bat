@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-title VSCode Web Serverless
+title VSCode Server (Web)
 
 pushd %~dp0\..
 
