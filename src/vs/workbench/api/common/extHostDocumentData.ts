@@ -14,17 +14,17 @@ import { EndOfLine, Position, Range } from 'vs/workbench/api/common/extHostTypes
 import type * as vscode from 'vscode';
 import { equals } from 'vs/base/common/arrays';
 
-const _modeId2WordDefinition = new Map<string, RegExp>();
+const _languageId2WordDefinition = new Map<string, RegExp>();
 export function setWordDefinitionFor(languageId: string, wordDefinition: RegExp | undefined): void {
 	if (!wordDefinition) {
-		_modeId2WordDefinition.delete(languageId);
+		_languageId2WordDefinition.delete(languageId);
 	} else {
-		_modeId2WordDefinition.set(languageId, wordDefinition);
+		_languageId2WordDefinition.set(languageId, wordDefinition);
 	}
 }
 
 export function getWordDefinitionFor(languageId: string): RegExp | undefined {
-	return _modeId2WordDefinition.get(languageId);
+	return _languageId2WordDefinition.get(languageId);
 }
 
 export class ExtHostDocumentData extends MirrorTextModel {

@@ -149,15 +149,15 @@ export abstract class BaseFileWorkingCopyManager<M extends IFileWorkingCopyModel
 	private async saveWithFallback(workingCopy: W): Promise<void> {
 
 		// First try regular save
-		let saveFailed = false;
+		let saveSuccess = false;
 		try {
-			await workingCopy.save();
+			saveSuccess = await workingCopy.save();
 		} catch (error) {
-			saveFailed = true;
+			// Ignore
 		}
 
 		// Then fallback to backup if that exists
-		if (saveFailed || workingCopy.isDirty()) {
+		if (!saveSuccess || workingCopy.isDirty()) {
 			const backup = await this.workingCopyBackupService.resolve(workingCopy);
 			if (backup) {
 				await this.fileService.writeFile(workingCopy.resource, backup.value, { unlock: true });

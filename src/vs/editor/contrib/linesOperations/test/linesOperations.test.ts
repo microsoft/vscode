@@ -13,7 +13,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction } from 'vs/editor/contrib/linesOperations/linesOperations';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 function assertSelection(editor: ICodeEditor, expected: Selection | Selection[]): void {
 	if (!Array.isArray(expected)) {
@@ -1081,12 +1081,13 @@ suite('Editor Contrib - Line Operations', () => {
 			[
 				'function baz() {'
 			].join('\n'),
+			undefined,
 			{
 				insertSpaces: false,
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor) => {
+		withTestCodeEditor(model, {}, (editor) => {
 			let indentLinesAction = new IndentLinesAction();
 			editor.setPosition(new Position(1, 2));
 
@@ -1106,12 +1107,13 @@ suite('Editor Contrib - Line Operations', () => {
 			[
 				'Some text'
 			].join('\n'),
+			undefined,
 			{
 				insertSpaces: false,
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor) => {
+		withTestCodeEditor(model, {}, (editor) => {
 			const indentLinesAction = new IndentLinesAction();
 			editor.setPosition(new Position(1, 1));
 
@@ -1130,7 +1132,7 @@ suite('Editor Contrib - Line Operations', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model, useTabStops: false }, (editor) => {
+		withTestCodeEditor(model, { useTabStops: false }, (editor) => {
 			const indentLinesAction = new IndentLinesAction();
 			editor.setPosition(new Position(1, 1));
 

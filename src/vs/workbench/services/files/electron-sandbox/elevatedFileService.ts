@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { randomPath } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IFileService, IFileStatWithMetadata, IWriteFileOptions } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -32,7 +32,7 @@ export class NativeElevatedFileService implements IElevatedFileService {
 	}
 
 	async writeFileElevated(resource: URI, value: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
-		const source = URI.file(join(this.environmentService.userDataPath, `code-elevated-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}`));
+		const source = URI.file(randomPath(this.environmentService.userDataPath, 'code-elevated'));
 		try {
 			// write into a tmp file first
 			await this.fileService.writeFile(source, value, options);

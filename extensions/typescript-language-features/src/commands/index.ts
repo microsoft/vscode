@@ -15,6 +15,7 @@ import { OpenTsServerLogCommand } from './openTsServerLog';
 import { ReloadJavaScriptProjectsCommand, ReloadTypeScriptProjectsCommand } from './reloadProject';
 import { RestartTsServerCommand } from './restartTsServer';
 import { SelectTypeScriptVersionCommand } from './selectTypeScriptVersion';
+import { TSServerRequestCommand } from './tsserverRequests';
 
 export function registerBaseCommands(
 	commandManager: CommandManager,
@@ -31,4 +32,5 @@ export function registerBaseCommands(
 	commandManager.register(new JavaScriptGoToProjectConfigCommand(activeJsTsEditorTracker, lazyClientHost));
 	commandManager.register(new ConfigurePluginCommand(pluginManager));
 	commandManager.register(new LearnMoreAboutRefactoringsCommand());
+	commandManager.register(new TSServerRequestCommand(lazyClientHost));
 }

@@ -26,8 +26,8 @@ const optimist = require('optimist')
 const TEST_GLOB = '**/test/**/*.test.js';
 const excludeGlob = '**/{browser,electron-sandbox,electron-browser,electron-main,editor/contrib}/**/*.test.js';
 const excludeModules = [
-	'vs/platform/environment/test/node/nativeModules.test.js',
-	'vs/base/parts/storage/test/node/storage.test.js',
+	'vs/platform/environment/test/node/nativeModules.test.js', // native modules are compiled against Electron and this test would fail with node.js
+	'vs/base/parts/storage/test/node/storage.test.js', // same as above, due to direct dependency to sqlite native module
 	'vs/platform/files/test/common/files.test.js' // TODO@bpasero enable once we ship Electron 16
 ]
 

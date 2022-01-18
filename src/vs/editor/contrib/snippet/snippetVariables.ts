@@ -10,7 +10,7 @@ import { commonPrefixLength, getLeadingWhitespace, isFalsyOrWhitespace, splitLin
 import { generateUuid } from 'vs/base/common/uuid';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { Text, Variable, VariableResolver } from 'vs/editor/contrib/snippet/snippetParser';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
 import * as nls from 'vs/nls';

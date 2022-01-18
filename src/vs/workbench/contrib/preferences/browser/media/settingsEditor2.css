@@ -340,11 +340,17 @@
 	margin-right: 4px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored {
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored,
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-default-overridden {
 	font-style: italic;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored .codicon {
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-default-overridden {
+	margin-right: 4px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored .codicon,
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-default-overridden .codicon {
 	vertical-align: text-top;
 	padding-left: 1px;
 }

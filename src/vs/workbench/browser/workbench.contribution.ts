@@ -154,17 +154,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.enablePreview': {
 				'type': 'boolean',
-				'description': localize('enablePreview', "Controls whether opened editors show as preview. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing) and show up with an italic font style."),
+				'description': localize('enablePreview', "Controls whether opened editors show as preview editors. Preview editors do not stay open, are reused until explicitly set to be kept open (e.g. via double click or editing), and show file names in italics."),
 				'default': true
 			},
 			'workbench.editor.enablePreviewFromQuickOpen': {
 				'type': 'boolean',
-				'markdownDescription': localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
+				'markdownDescription': localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview editors. Preview editors do not stay open, and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
 				'default': false
 			},
 			'workbench.editor.enablePreviewFromCodeNavigation': {
 				'type': 'boolean',
-				'markdownDescription': localize('enablePreviewFromCodeNavigation', "Controls whether editors remain in preview when a code navigation is started from them. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
+				'markdownDescription': localize('enablePreviewFromCodeNavigation', "Controls whether editors remain in preview when a code navigation is started from them. Preview editors do not stay open, and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
 				'default': false
 			},
 			'workbench.editor.closeOnFileDelete': {
@@ -241,11 +241,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
 			},
-			'workbench.editor.experimentalDisableClearInputOnSetInput': {
-				'type': 'boolean',
-				'default': false,
-				'description': localize('experimentalDisableClearInputOnSetInput', "Experimental setting: do not change unless instructed.")
-			},
 			'workbench.commandPalette.history': {
 				'type': 'number',
 				'description': localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
@@ -291,7 +286,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['left', 'bottom', 'right'],
 				'default': 'bottom',
-				'description': localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom, right, or left of the workbench.")
+				'description': localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom, right, or left of the workbench."),
+				'deprecationMessage': localize('panelDefaultLocationDeprecated', "With the introduction of the side panel, the panel position is no longer able to be moved in favor of moving view containers between the panels.")
 			},
 			'workbench.panel.opensMaximized': {
 				'type': 'string',
@@ -363,20 +359,21 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.experimental.layoutControl.enabled': {
 				'type': 'boolean',
-				'default': product.quality !== 'stable',
-				'description': localize('layoutControlEnabled', "Controls whether the layout control button in the custom title bar is enabled."),
-			},
-			'workbench.experimental.sidePanel.enabled': {
-				'type': 'boolean',
+				'tags': ['experimental'],
 				'default': false,
-				'description': localize('auxiliaryBarEnabled', "Controls whether the side panel opposite the side bar is enabled."),
-				'included': product.quality !== 'stable'
+				'description': localize('layoutControlEnabled', "Controls whether the layout control button in the custom title bar is enabled."),
 			},
 			'workbench.experimental.panel.alignment': {
 				'type': 'string',
-				'enum': ['left', 'center', 'right', 'justified'],
+				'enum': ['left', 'center', 'right', 'justify'],
+				'enumDescriptions': [
+					localize('panel.alignment.left', "The panel spans from the far left of the window to the right side of the editor area."),
+					localize('panel.alignment.center', "The panel spans beneath the editor area."),
+					localize('panel.alignment.right', "The panel spans from the left side of the editor area to the far right of the window."),
+					localize('panel.alignment.justify', "The panel spans the full width of the window."),
+				],
 				'default': 'center',
-				'description': localize('panelAlignment', "Controls the alignment of the panel (terminal, debug console, output, problems) and whether or not it spans beneath the side bar and side panel."),
+				'description': localize('panelAlignment', "Controls the alignment of the panel (terminal, debug console, output, problems) and whether or not it spans beneath the side bar and side panel. Note that this setting only takes effect when the panel is positioned at the bottom of the screen."),
 				'included': product.quality !== 'stable'
 			},
 		}

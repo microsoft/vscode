@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { AbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
 import { Emitter } from 'vs/base/common/event';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
@@ -28,7 +29,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
 		};
 
-		harness = new TestTreeTestHarness(l => new TestHierarchicalByLocationProjection(l, resultsService as any));
+		harness = new TestTreeTestHarness(l => new TestHierarchicalByLocationProjection(AbstractTreeViewState.empty(), l, resultsService as any));
 	});
 
 	teardown(() => {

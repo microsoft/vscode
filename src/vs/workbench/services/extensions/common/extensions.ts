@@ -9,10 +9,11 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
+import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	identifier: new ExtensionIdentifier('nullExtensionDescription'),
@@ -99,7 +100,7 @@ export interface IExtensionHostProfile {
 	/**
 	 * Get the information as a .cpuprofile.
 	 */
-	data: object;
+	data: IV8Profile;
 
 	/**
 	 * Get the aggregated time per segmentId
@@ -344,7 +345,7 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 
 export function toExtensionDescription(extension: IExtension, isUnderDevelopment?: boolean): IExtensionDescription {
 	return {
-		identifier: new ExtensionIdentifier(extension.identifier.id),
+		identifier: new ExtensionIdentifier(getExtensionId(extension.manifest.publisher, extension.manifest.name)),
 		isBuiltin: extension.type === ExtensionType.System,
 		isUserBuiltin: extension.type === ExtensionType.User && extension.isBuiltin,
 		isUnderDevelopment: !!isUnderDevelopment,

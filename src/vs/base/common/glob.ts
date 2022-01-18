@@ -27,8 +27,8 @@ export interface SiblingClause {
 	when: string;
 }
 
-const GLOBSTAR = '**';
-const GLOB_SPLIT = '/';
+export const GLOBSTAR = '**';
+export const GLOB_SPLIT = '/';
 const PATH_REGEX = '[/\\\\]';		// any slash or backslash
 const NO_PATH_REGEX = '[^/\\\\]';	// any non-slash and non-backslash
 const ALL_FORWARD_SLASHES = /\//g;
@@ -177,7 +177,7 @@ function parseRegExp(pattern: string): string {
 						inBrackets = true;
 						continue;
 
-					case '}':
+					case '}': {
 						const choices = splitGlobAware(braceVal, ',');
 
 						// Converts {foo,bar} => [foo|bar]
@@ -189,7 +189,7 @@ function parseRegExp(pattern: string): string {
 						braceVal = '';
 
 						break;
-
+					}
 					case ']':
 						regEx += ('[' + bracketVal + ']');
 
@@ -428,11 +428,12 @@ function toRegExp(pattern: string): ParsedStringPattern {
 
 /**
  * Simplified glob matching. Supports a subset of glob patterns:
- * - * matches anything inside a path segment
- * - ? matches 1 character inside a path segment
- * - ** matches anything including an empty path segment
- * - simple brace expansion ({js,ts} => js or ts)
- * - character ranges (using [...])
+ * * `*` to match one or more characters in a path segment
+ * * `?` to match on one character in a path segment
+ * * `**` to match any number of path segments, including none
+ * * `{}` to group conditions (e.g. *.{ts,js} matches all TypeScript and JavaScript files)
+ * * `[]` to declare a range of characters to match in a path segment (e.g., `example.[0-9]` to match on `example.0`, `example.1`, …)
+ * * `[!...]` to negate a range of characters to match in a path segment (e.g., `example.[!0-9]` to match on `example.a`, `example.b`, but not `example.0`)
  */
 export function match(pattern: string | IRelativePattern, path: string): boolean;
 export function match(expression: IExpression, path: string, hasSibling?: (name: string) => boolean): string /* the matching pattern */;
@@ -446,11 +447,12 @@ export function match(arg1: string | IExpression | IRelativePattern, path: strin
 
 /**
  * Simplified glob matching. Supports a subset of glob patterns:
- * - * matches anything inside a path segment
- * - ? matches 1 character inside a path segment
- * - ** matches anything including an empty path segment
- * - simple brace expansion ({js,ts} => js or ts)
- * - character ranges (using [...])
+ * * `*` to match one or more characters in a path segment
+ * * `?` to match on one character in a path segment
+ * * `**` to match any number of path segments, including none
+ * * `{}` to group conditions (e.g. *.{ts,js} matches all TypeScript and JavaScript files)
+ * * `[]` to declare a range of characters to match in a path segment (e.g., `example.[0-9]` to match on `example.0`, `example.1`, …)
+ * * `[!...]` to negate a range of characters to match in a path segment (e.g., `example.[!0-9]` to match on `example.a`, `example.b`, but not `example.0`)
  */
 export function parse(pattern: string | IRelativePattern, options?: IGlobOptions): ParsedPattern;
 export function parse(expression: IExpression, options?: IGlobOptions): ParsedExpression;
@@ -520,9 +522,12 @@ function listToMap(list: string[]) {
 }
 
 export function isRelativePattern(obj: unknown): obj is IRelativePattern {
-	const rp = obj as IRelativePattern;
+	const rp = obj as IRelativePattern | undefined | null;
+	if (!rp) {
+		return false;
+	}
 
-	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	return typeof rp.base === 'string' && typeof rp.pattern === 'string';
 }
 
 export function getBasenameTerms(patternOrExpression: ParsedPattern | ParsedExpression): string[] {

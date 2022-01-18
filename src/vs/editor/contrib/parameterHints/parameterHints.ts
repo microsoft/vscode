@@ -9,7 +9,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import { TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
 import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import * as nls from 'vs/nls';
@@ -22,7 +22,7 @@ class ParameterHintsController extends Disposable implements IEditorContribution
 
 	public static readonly ID = 'editor.controller.parameterHints';
 
-	public static get(editor: ICodeEditor): ParameterHintsController {
+	public static get(editor: ICodeEditor): ParameterHintsController | null {
 		return editor.getContribution<ParameterHintsController>(ParameterHintsController.ID);
 	}
 

@@ -78,12 +78,6 @@ node-pty/scripts/**
 !node-pty/build/Release/*.dll
 !node-pty/build/Release/*.node
 
-vscode-nsfw/binding.gyp
-vscode-nsfw/build/**
-vscode-nsfw/src/**
-vscode-nsfw/includes/**
-!vscode-nsfw/build/Release/*.node
-
 @parcel/watcher/binding.gyp
 @parcel/watcher/build/**
 @parcel/watcher/prebuilds/**

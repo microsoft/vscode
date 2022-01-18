@@ -69,6 +69,7 @@ export class RawDebugSession implements IDisposable {
 	private readonly _onDidProgressUpdate = new Emitter<DebugProtocol.ProgressUpdateEvent>();
 	private readonly _onDidProgressEnd = new Emitter<DebugProtocol.ProgressEndEvent>();
 	private readonly _onDidInvalidated = new Emitter<DebugProtocol.InvalidatedEvent>();
+	private readonly _onDidInvalidateMemory = new Emitter<DebugProtocol.MemoryEvent>();
 	private readonly _onDidCustomEvent = new Emitter<DebugProtocol.Event>();
 	private readonly _onDidEvent = new Emitter<DebugProtocol.Event>();
 
@@ -154,6 +155,9 @@ export class RawDebugSession implements IDisposable {
 					break;
 				case 'invalidated':
 					this._onDidInvalidated.fire(event as DebugProtocol.InvalidatedEvent);
+					break;
+				case 'memory':
+					this._onDidInvalidateMemory.fire(event as DebugProtocol.MemoryEvent);
 					break;
 				case 'process':
 					break;
@@ -241,6 +245,10 @@ export class RawDebugSession implements IDisposable {
 
 	get onDidInvalidated(): Event<DebugProtocol.InvalidatedEvent> {
 		return this._onDidInvalidated.event;
+	}
+
+	get onDidInvalidateMemory(): Event<DebugProtocol.MemoryEvent> {
+		return this._onDidInvalidateMemory.event;
 	}
 
 	get onDidEvent(): Event<DebugProtocol.Event> {
@@ -521,6 +529,22 @@ export class RawDebugSession implements IDisposable {
 		return Promise.reject(new Error('disassemble is not supported'));
 	}
 
+	async readMemory(args: DebugProtocol.ReadMemoryArguments): Promise<DebugProtocol.ReadMemoryResponse | undefined> {
+		if (this.capabilities.supportsReadMemoryRequest) {
+			return await this.send('readMemory', args);
+		}
+
+		return Promise.reject(new Error('readMemory is not supported'));
+	}
+
+	async writeMemory(args: DebugProtocol.WriteMemoryArguments): Promise<DebugProtocol.WriteMemoryResponse | undefined> {
+		if (this.capabilities.supportsWriteMemoryRequest) {
+			return await this.send('writeMemory', args);
+		}
+
+		return Promise.reject(new Error('writeMemory is not supported'));
+	}
+
 	cancel(args: DebugProtocol.CancelArguments): Promise<DebugProtocol.CancelResponse | undefined> {
 		return this.send('cancel', args);
 	}
@@ -641,7 +665,7 @@ export class RawDebugSession implements IDisposable {
 
 		const args: string[] = [];
 
-		for (let arg of vscodeArgs.args) {
+		for (const arg of vscodeArgs.args) {
 			const a2 = (arg.prefix || '') + (arg.path || '');
 			const match = /^--(.+)=(.+)$/.exec(a2);
 			if (match && match.length === 3) {

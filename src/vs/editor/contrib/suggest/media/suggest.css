@@ -137,6 +137,10 @@
 	display: flex;
 }
 
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row:not(.focused) .monaco-icon-label {
+	color: var(--vscode-editorSuggestWidget-foreground);
+}
+
 .monaco-editor .suggest-widget:not(.frozen) .monaco-highlighted-label .highlight {
 	font-weight: bold;
 }
@@ -225,7 +229,7 @@
 
 /** Ellipsis on hover **/
 
-.monaco-editor .suggest-widget:not(.docs-side) .monaco-list .monaco-list-row:hover>.contents>.main>.right.can-expand-details>.details-label {
+.monaco-editor .suggest-widget:not(.docs-side) .monaco-list .monaco-list-row.focused:hover>.contents>.main>.right.can-expand-details>.details-label {
 	width: calc(100% - 26px);
 }
 
@@ -280,7 +284,7 @@
 	display: inline-block;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row:hover>.contents>.main>.right>.readMore {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused:hover>.contents>.main>.right>.readMore {
 	visibility: visible;
 }
 
@@ -397,6 +401,7 @@
 
 .monaco-editor .suggest-details.no-type>.monaco-scrollable-element>.body>.docs {
 	margin-right: 24px;
+	overflow: hidden;
 }
 
 .monaco-editor .suggest-details>.monaco-scrollable-element>.body>.docs.markdown-docs {

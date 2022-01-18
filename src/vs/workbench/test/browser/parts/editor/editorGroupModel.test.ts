@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorGroupModel, ISerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, CloseDirection, EditorsOrder, IResourceDiffEditorInput, IResourceSideBySideEditorInput, SideBySideEditor, EditorCloseContext, IEditorCloseEvent, IEditorOpenEvent, IEditorMoveEvent } from 'vs/workbench/common/editor';
+import { EditorGroupModel, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorMoveEvent, isGroupEditorOpenEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, CloseDirection, EditorsOrder, IResourceDiffEditorInput, IResourceSideBySideEditorInput, SideBySideEditor, EditorCloseContext, IEditorCloseEvent, IEditorOpenEvent, IEditorMoveEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { TestLifecycleService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -80,6 +80,8 @@ suite('EditorGroupModel', () => {
 
 	interface GroupEvents {
 		locked: number[],
+		active: number[],
+		index: number[],
 		opened: IEditorOpenEvent[];
 		activated: EditorInput[];
 		closed: IEditorCloseEvent[];
@@ -93,6 +95,8 @@ suite('EditorGroupModel', () => {
 
 	function groupListener(group: EditorGroupModel): GroupEvents {
 		const groupEvents: GroupEvents = {
+			active: [],
+			index: [],
 			locked: [],
 			opened: [],
 			closed: [],
@@ -105,14 +109,50 @@ suite('EditorGroupModel', () => {
 			disposed: []
 		};
 
-		group.onDidChangeLocked(() => groupEvents.locked.push(group.id));
-		group.onDidOpenEditor(e => groupEvents.opened.push(e));
-		group.onDidCloseEditor(e => groupEvents.closed.push(e));
-		group.onDidActivateEditor(e => groupEvents.activated.push(e));
-		group.onDidChangeEditorPinned(e => group.isPinned(e) ? groupEvents.pinned.push(e) : groupEvents.unpinned.push(e));
-		group.onDidChangeEditorSticky(e => group.isSticky(e) ? groupEvents.sticky.push(e) : groupEvents.unsticky.push(e));
-		group.onDidMoveEditor(e => groupEvents.moved.push(e));
-		group.onWillDisposeEditor(e => groupEvents.disposed.push(e));
+		group.onDidModelChange(e => {
+			if (e.kind === GroupModelChangeKind.GROUP_LOCKED) {
+				groupEvents.locked.push(group.id);
+				return;
+			} else if (e.kind === GroupModelChangeKind.GROUP_ACTIVE) {
+				groupEvents.active.push(group.id);
+				return;
+			} else if (e.kind === GroupModelChangeKind.GROUP_INDEX) {
+				groupEvents.index.push(group.id);
+				return;
+			}
+			if (!e.editor) {
+				return;
+			}
+			switch (e.kind) {
+				case GroupModelChangeKind.EDITOR_OPEN:
+					if (isGroupEditorOpenEvent(e)) {
+						groupEvents.opened.push({ editor: e.editor, index: e.editorIndex, groupId: group.id });
+					}
+					break;
+				case GroupModelChangeKind.EDITOR_CLOSE:
+					if (isGroupEditorCloseEvent(e)) {
+						groupEvents.closed.push({ editor: e.editor, index: e.editorIndex, groupId: group.id, context: e.context, sticky: e.sticky });
+					}
+					break;
+				case GroupModelChangeKind.EDITOR_ACTIVE:
+					groupEvents.activated.push(e.editor);
+					break;
+				case GroupModelChangeKind.EDITOR_PIN:
+					group.isPinned(e.editor) ? groupEvents.pinned.push(e.editor) : groupEvents.unpinned.push(e.editor);
+					break;
+				case GroupModelChangeKind.EDITOR_STICKY:
+					group.isSticky(e.editor) ? groupEvents.sticky.push(e.editor) : groupEvents.unsticky.push(e.editor);
+					break;
+				case GroupModelChangeKind.EDITOR_MOVE:
+					if (isGroupEditorMoveEvent(e)) {
+						groupEvents.moved.push({ editor: e.editor, index: e.oldEditorIndex, newIndex: e.editorIndex, target: group.id, groupId: group.id });
+					}
+					break;
+				case GroupModelChangeKind.EDITOR_WILL_DISPOSE:
+					groupEvents.disposed.push(e.editor);
+					break;
+			}
+		});
 
 		return groupEvents;
 	}
@@ -174,8 +214,8 @@ suite('EditorGroupModel', () => {
 		setPreferredEncoding(encoding: string) { }
 		setForceOpenAsBinary(): void { }
 		setPreferredContents(contents: string): void { }
-		setMode(mode: string) { }
-		setPreferredMode(mode: string) { }
+		setLanguageId(languageId: string) { }
+		setPreferredLanguageId(languageId: string) { }
 		isResolved(): boolean { return false; }
 
 		override matches(other: TestFileEditorInput): boolean {
@@ -278,7 +318,11 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(clone.isLocked, false); // locking does not clone over
 
 		let didEditorLabelChange = false;
-		const toDispose = clone.onDidChangeEditorLabel(() => didEditorLabelChange = true);
+		const toDispose = clone.onDidModelChange((e) => {
+			if (e.kind === GroupModelChangeKind.EDITOR_LABEL) {
+				didEditorLabelChange = true;
+			}
+		});
 		input1.setLabel();
 		assert.ok(didEditorLabelChange);
 
@@ -694,7 +738,6 @@ suite('EditorGroupModel', () => {
 
 	test('group serialization (locked group)', function () {
 		const group = createEditorGroupModel();
-
 		const events = groupListener(group);
 
 		assert.strictEqual(events.locked.length, 0);
@@ -726,6 +769,28 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(deserialized.isLocked, false);
 	});
 
+	test('index', function () {
+		const group = createEditorGroupModel();
+		const events = groupListener(group);
+
+		assert.strictEqual(events.index.length, 0);
+
+		group.setIndex(4);
+
+		assert.strictEqual(events.index.length, 1);
+	});
+
+	test('active', function () {
+		const group = createEditorGroupModel();
+		const events = groupListener(group);
+
+		assert.strictEqual(events.active.length, 0);
+
+		group.setActive(undefined);
+
+		assert.strictEqual(events.active.length, 1);
+	});
+
 	test('One Editor', function () {
 		const group = createEditorGroupModel();
 		const events = groupListener(group);
@@ -754,7 +819,7 @@ suite('EditorGroupModel', () => {
 		let index = group.indexOf(input1);
 		let event = group.closeEditor(input1, EditorCloseContext.UNPIN);
 		assert.strictEqual(event?.editor, input1);
-		assert.strictEqual(event?.index, index);
+		assert.strictEqual(event?.editorIndex, index);
 		assert.strictEqual(group.count, 0);
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 0);
 		assert.strictEqual(group.activeEditor, null);
@@ -1825,23 +1890,31 @@ suite('EditorGroupModel', () => {
 		group2.openEditor(input2, { pinned: true, active: true });
 
 		let dirty1Counter = 0;
-		group1.onDidChangeEditorDirty(() => {
-			dirty1Counter++;
+		group1.onDidModelChange((e) => {
+			if (e.kind === GroupModelChangeKind.EDITOR_DIRTY) {
+				dirty1Counter++;
+			}
 		});
 
 		let dirty2Counter = 0;
-		group2.onDidChangeEditorDirty(() => {
-			dirty2Counter++;
+		group2.onDidModelChange((e) => {
+			if (e.kind === GroupModelChangeKind.EDITOR_DIRTY) {
+				dirty2Counter++;
+			}
 		});
 
 		let label1ChangeCounter = 0;
-		group1.onDidChangeEditorLabel(() => {
-			label1ChangeCounter++;
+		group1.onDidModelChange((e) => {
+			if (e.kind === GroupModelChangeKind.EDITOR_LABEL) {
+				label1ChangeCounter++;
+			}
 		});
 
 		let label2ChangeCounter = 0;
-		group2.onDidChangeEditorLabel(() => {
-			label2ChangeCounter++;
+		group2.onDidModelChange((e) => {
+			if (e.kind === GroupModelChangeKind.EDITOR_LABEL) {
+				label2ChangeCounter++;
+			}
 		});
 
 		(<TestEditorInput>input1).setDirty();

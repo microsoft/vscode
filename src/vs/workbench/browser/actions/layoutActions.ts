@@ -63,11 +63,7 @@ export class ToggleActivityBarVisibilityAction extends Action2 {
 				id: MenuId.MenubarAppearanceMenu,
 				group: '2_workbench_layout',
 				order: 4
-			}, {
-					id: MenuId.LayoutControlMenu,
-					group: '0_workbench_layout',
-					order: 3
-				}]
+			}]
 		});
 	}
 
@@ -99,11 +95,11 @@ registerAction2(class extends Action2 {
 			category: CATEGORIES.View,
 			f1: true,
 			toggled: IsCenteredLayoutContext,
-			menu: {
+			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
 				order: 3
-			}
+			}]
 		});
 	}
 
@@ -230,15 +226,12 @@ registerAction2(class extends Action2 {
 			category: CATEGORIES.View,
 			f1: true,
 			toggled: EditorAreaVisibleContext,
-			menu: [{
-				id: MenuId.MenubarAppearanceMenu,
-				group: '2_workbench_layout',
-				order: 5
-			}, {
-					id: MenuId.LayoutControlMenu,
-					group: '0_workbench_layout',
-					order: 5
-				}]
+			// Remove from appearance menu
+			// menu: [{
+			// 	id: MenuId.MenubarAppearanceMenu,
+			// 	group: '2_workbench_layout',
+			// 	order: 5
+			// }]
 		});
 	}
 
@@ -353,11 +346,7 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 				id: MenuId.MenubarAppearanceMenu,
 				group: '2_workbench_layout',
 				order: 3
-			}, {
-					id: MenuId.LayoutControlMenu,
-					group: '0_workbench_layout',
-					order: 1
-				}]
+			}]
 		});
 	}
 
@@ -425,11 +414,11 @@ registerAction2(class extends Action2 {
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyZ)
 			},
 			toggled: InEditorZenModeContext,
-			menu: {
+			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
 				order: 2
-			}
+			}]
 		});
 	}
 
@@ -465,11 +454,11 @@ if (isWindows || isLinux || isWeb) {
 				category: CATEGORIES.View,
 				f1: true,
 				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact')),
-				menu: {
+				menu: [{
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
 					order: 0
-				}
+				}]
 			});
 		}
 

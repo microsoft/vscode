@@ -38,7 +38,7 @@ const shellCommand: IJSONSchema = {
 			description: nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
 		},
 		{
-			$ref: '#definitions/shellConfiguration'
+			$ref: '#/definitions/shellConfiguration'
 		}
 	],
 	deprecationMessage: nls.localize('JsonSchema.tasks.isShellCommand.deprecated', 'The property isShellCommand is deprecated. Use the type property of the task and the shell property in the options instead. See also the 1.14 release notes.')

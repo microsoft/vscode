@@ -8,7 +8,7 @@ import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class TestRemoteAgentService implements IRemoteAgentService {
@@ -37,7 +37,7 @@ export class TestRemoteAgentService implements IRemoteAgentService {
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined> {
 		throw new Error('Method not implemented.');
 	}
-	disableTelemetry(): Promise<void> {
+	updateTelemetryLevel(telemetryLevel: TelemetryLevel): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 	logTelemetry(eventName: string, data?: ITelemetryData): Promise<void> {

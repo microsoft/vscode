@@ -9,7 +9,53 @@ import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
-export interface IWatcherService {
+interface IWatchRequest {
+
+	/**
+	 * The path to watch.
+	 */
+	path: string;
+
+	/**
+	 * Whether to watch recursively or not.
+	 */
+	recursive: boolean;
+
+	/**
+	 * A set of glob patterns or paths to exclude from watching.
+	 */
+	excludes: string[];
+}
+
+export interface INonRecursiveWatchRequest extends IWatchRequest {
+
+	/**
+	 * The watcher will be non-recursive.
+	 */
+	recursive: false;
+}
+
+export interface IRecursiveWatchRequest extends IWatchRequest {
+
+	/**
+	 * The watcher will be recursive.
+	 */
+	recursive: true;
+
+	/**
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
+	 */
+	pollingInterval?: number;
+}
+
+export function isRecursiveWatchRequest(request: IWatchRequest): request is IRecursiveWatchRequest {
+	return request.recursive === true;
+}
+
+export type IUniversalWatchRequest = IRecursiveWatchRequest | INonRecursiveWatchRequest;
+
+interface IWatcher {
 
 	/**
 	 * A normalized file change event from the raw events
@@ -23,17 +69,17 @@ export interface IWatcherService {
 	readonly onDidLogMessage: Event<ILogMessage>;
 
 	/**
-	 * An event to indicate an error occured from the watcher
+	 * An event to indicate an error occurred from the watcher
 	 * that is unrecoverable. Listeners should restart the
-	 * service if possible.
+	 * watcher if possible.
 	 */
 	readonly onDidError: Event<string>;
 
 	/**
-	 * Configures the watcher service to watch according
-	 * to the requests. Any existing watched path that
-	 * is not in the array, will be removed from watching
-	 * and any new path will be added to watching.
+	 * Configures the watcher to watch according to the
+	 * requests. Any existing watched path that is not
+	 * in the array, will be removed from watching and
+	 * any new path will be added to watching.
 	 */
 	watch(requests: IWatchRequest[]): Promise<void>;
 
@@ -48,12 +94,45 @@ export interface IWatcherService {
 	stop(): Promise<void>;
 }
 
-export abstract class AbstractWatcherService extends Disposable {
+export interface IRecursiveWatcher extends IWatcher {
+	watch(requests: IRecursiveWatchRequest[]): Promise<void>;
+}
+
+export interface IRecursiveWatcherOptions {
+
+	/**
+	 * If `true`, will enable polling for all watchers, otherwise
+	 * will enable it for paths included in the string array.
+	 *
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
+	 */
+	usePolling: boolean | string[];
+
+	/**
+	 * If polling is enabled (via `usePolling`), defines the duration
+	 * in which the watcher will poll for changes.
+	 *
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
+	 */
+	pollingInterval?: number;
+}
+
+export interface INonRecursiveWatcher extends IWatcher {
+	watch(requests: INonRecursiveWatchRequest[]): Promise<void>;
+}
+
+export interface IUniversalWatcher extends IWatcher {
+	watch(requests: IUniversalWatchRequest[]): Promise<void>;
+}
+
+export abstract class AbstractWatcherClient extends Disposable {
 
 	private static readonly MAX_RESTARTS = 5;
 
-	private service: IWatcherService | undefined;
-	private readonly serviceDisposables = this._register(new MutableDisposable());
+	private watcher: IWatcher | undefined;
+	private readonly watcherDisposables = this._register(new MutableDisposable());
 
 	private requests: IWatchRequest[] | undefined = undefined;
 
@@ -62,110 +141,107 @@ export abstract class AbstractWatcherService extends Disposable {
 	constructor(
 		private readonly onFileChanges: (changes: IDiskFileChange[]) => void,
 		private readonly onLogMessage: (msg: ILogMessage) => void,
-		private verboseLogging: boolean
+		private verboseLogging: boolean,
+		private options: {
+			type: string,
+			restartOnError: boolean
+		}
 	) {
 		super();
 	}
 
-	protected abstract createService(disposables: DisposableStore): IWatcherService;
+	protected abstract createWatcher(disposables: DisposableStore): IWatcher;
 
 	protected init(): void {
 
-		// Associate disposables to the service
+		// Associate disposables to the watcher
 		const disposables = new DisposableStore();
-		this.serviceDisposables.value = disposables;
+		this.watcherDisposables.value = disposables;
 
-		// Ask implementors to create the service
-		this.service = this.createService(disposables);
-		this.service.setVerboseLogging(this.verboseLogging);
+		// Ask implementors to create the watcher
+		this.watcher = this.createWatcher(disposables);
+		this.watcher.setVerboseLogging(this.verboseLogging);
 
 		// Wire in event handlers
-		disposables.add(this.service.onDidChangeFile(e => this.onFileChanges(e)));
-		disposables.add(this.service.onDidLogMessage(e => this.onLogMessage(e)));
-		disposables.add(this.service.onDidError(e => this.onError(e)));
+		disposables.add(this.watcher.onDidChangeFile(changes => this.onFileChanges(changes)));
+		disposables.add(this.watcher.onDidLogMessage(msg => this.onLogMessage(msg)));
+		disposables.add(this.watcher.onDidError(error => this.onError(error)));
 	}
 
 	protected onError(error: string): void {
 
-		// Restart up to N times
-		if (this.restartCounter < AbstractWatcherService.MAX_RESTARTS && this.requests) {
-			this.error(`restarting watcher after error: ${error}`);
-			this.restart(this.requests);
+		// Restart on error (up to N times, if enabled)
+		if (this.options.restartOnError) {
+			if (this.restartCounter < AbstractWatcherClient.MAX_RESTARTS && this.requests) {
+				this.error(`restarting watcher after error: ${error}`);
+				this.restart(this.requests);
+			} else {
+				this.error(`gave up attempting to restart watcher after error: ${error}`);
+			}
 		}
 
-		// Otherwise log that we have given up to restart
+		// Do not attempt to restart if not enabled
 		else {
-			this.error(`gave up attempting to restart watcher after error: ${error}`);
+			this.error(error);
 		}
 	}
 
-	private restart(requests: IWatchRequest[]): void {
+	private restart(requests: IUniversalWatchRequest[]): void {
 		this.restartCounter++;
 
 		this.init();
 		this.watch(requests);
 	}
 
-	async watch(requests: IWatchRequest[]): Promise<void> {
+	async watch(requests: IUniversalWatchRequest[]): Promise<void> {
 		this.requests = requests;
 
-		await this.service?.watch(requests);
+		await this.watcher?.watch(requests);
 	}
 
 	async setVerboseLogging(verboseLogging: boolean): Promise<void> {
 		this.verboseLogging = verboseLogging;
 
-		await this.service?.setVerboseLogging(verboseLogging);
+		await this.watcher?.setVerboseLogging(verboseLogging);
 	}
 
 	private error(message: string) {
-		this.onLogMessage({ type: 'error', message: `[File Watcher (parcel)] ${message}` });
+		this.onLogMessage({ type: 'error', message: `[File Watcher (${this.options.type})] ${message}` });
 	}
 
 	override dispose(): void {
 
-		// Render the serve invalid from here
-		this.service = undefined;
+		// Render the watcher invalid from here
+		this.watcher = undefined;
 
 		return super.dispose();
 	}
 }
 
-/**
- * Base class of any watcher service we support.
- *
- * TODO@bpasero delete and replace with `AbstractWatcherService`
- */
-export abstract class WatcherService extends Disposable {
+export abstract class AbstractNonRecursiveWatcherClient extends AbstractWatcherClient {
 
-	/**
-	 * Asks to watch the provided folders.
-	 */
-	abstract watch(requests: IWatchRequest[]): Promise<void>;
+	constructor(
+		onFileChanges: (changes: IDiskFileChange[]) => void,
+		onLogMessage: (msg: ILogMessage) => void,
+		verboseLogging: boolean
+	) {
+		super(onFileChanges, onLogMessage, verboseLogging, { type: 'node.js', restartOnError: false });
+	}
 
-	/**
-	 * Enable verbose logging from the watcher.
-	 */
-	abstract setVerboseLogging(verboseLogging: boolean): Promise<void>;
+	protected abstract override createWatcher(disposables: DisposableStore): INonRecursiveWatcher;
 }
 
-export interface IWatchRequest {
+export abstract class AbstractUniversalWatcherClient extends AbstractWatcherClient {
 
-	/**
-	 * The path to watch.
-	 */
-	path: string;
+	constructor(
+		onFileChanges: (changes: IDiskFileChange[]) => void,
+		onLogMessage: (msg: ILogMessage) => void,
+		verboseLogging: boolean
+	) {
+		super(onFileChanges, onLogMessage, verboseLogging, { type: 'universal', restartOnError: true });
+	}
 
-	/**
-	 * A set of glob patterns or paths to exclude from watching.
-	 */
-	excludes: string[];
-
-	/**
-	 * @deprecated this only exists for WSL1 support and should never
-	 * be used in any other case.
-	 */
-	pollingInterval?: number;
+	protected abstract override createWatcher(disposables: DisposableStore): IUniversalWatcher;
 }
 
 export interface IDiskFileChange {
@@ -219,13 +295,9 @@ class EventCoalescer {
 			const currentChangeType = existingEvent.type;
 			const newChangeType = event.type;
 
-			// macOS/Windows: track renames to different case but
-			// same name by changing current event to DELETED
-			// this encodes some underlying knowledge about the
-			// file watcher being used by assuming we first get
-			// an event for the CREATE and then an event that we
-			// consider as DELETE if same name / different case.
-			if (existingEvent.path !== event.path && event.type === FileChangeType.DELETED) {
+			// macOS/Windows: track renames to different case
+			// by keeping both CREATE and DELETE events
+			if (existingEvent.path !== event.path && (event.type === FileChangeType.DELETED || event.type === FileChangeType.ADDED)) {
 				keepEvent = true;
 			}
 

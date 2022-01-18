@@ -5,14 +5,19 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ProgressLocation, UnmanagedProgress } from 'vs/platform/progress/common/progress';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { AutoOpenTesting, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { TestStateCount } from 'vs/workbench/contrib/testing/common/testResult';
+import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
+import { LiveTestResult, TestResultItemChangeReason, TestStateCount } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 export interface ITestingProgressUiService {
 	readonly _serviceBrand: undefined;
@@ -29,12 +34,17 @@ export class TestingProgressTrigger extends Disposable {
 	constructor(
 		@ITestResultService resultService: ITestResultService,
 		@ITestingProgressUiService progressService: ITestingProgressUiService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 	) {
 		super();
 
 		const scheduler = this._register(new RunOnceScheduler(() => progressService.update(), 200));
 
-		this._register(resultService.onResultsChanged(() => {
+		this._register(resultService.onResultsChanged((e) => {
+			if ('started' in e) {
+				this.attachAutoOpenForNewResults(e.started);
+			}
 			if (!scheduler.isScheduled()) {
 				scheduler.schedule();
 			}
@@ -45,6 +55,31 @@ export class TestingProgressTrigger extends Disposable {
 				scheduler.schedule();
 			}
 		}));
+	}
+
+	private attachAutoOpenForNewResults(result: LiveTestResult) {
+		const cfg = getTestingConfiguration(this.configurationService, TestingConfigKeys.OpenTesting);
+		if (cfg === AutoOpenTesting.NeverOpen) {
+			return;
+		}
+
+		if (cfg === AutoOpenTesting.OpenOnTestStart) {
+			return this.openTestView();
+		}
+
+		// open on failure
+		const disposable = new DisposableStore();
+		disposable.add(result.onComplete(() => disposable.dispose()));
+		disposable.add(result.onChange(e => {
+			if (e.reason === TestResultItemChangeReason.OwnStateChange && isFailedState(e.item.ownComputedState)) {
+				this.openTestView();
+				disposable.dispose();
+			}
+		}));
+	}
+
+	private openTestView() {
+		this.paneCompositeService.openPaneComposite(Testing.ViewletId, ViewContainerLocation.Sidebar);
 	}
 }
 

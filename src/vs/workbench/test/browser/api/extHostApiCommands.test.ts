@@ -7,12 +7,12 @@ import * as assert from 'assert';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/browser/mainThreadLanguageFeatures';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
@@ -29,7 +29,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
 import { nullExtensionDescription, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { dispose, ImmortalReference } from 'vs/base/common/lifecycle';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { mock } from 'vs/base/test/common/mock';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -52,6 +52,8 @@ import 'vs/editor/contrib/rename/rename';
 import 'vs/editor/contrib/inlayHints/inlayHintsController';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { IOutlineModelService, OutlineModelService } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -123,6 +125,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				return edits || undefined;
 			}
 		});
+		services.set(IOutlineModelService, new OutlineModelService(new LanguageFeatureDebounceService()));
 
 		insta = new InstantiationService(services);
 
@@ -1248,7 +1251,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(value.length, 1);
 
 		const [first] = value;
-		assert.strictEqual(first.text, 'Foo');
+		assert.strictEqual(first.label, 'Foo');
 		assert.strictEqual(first.position.line, 0);
 		assert.strictEqual(first.position.character, 1);
 	});
@@ -1273,11 +1276,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(value.length, 2);
 
 		const [first, second] = value;
-		assert.strictEqual(first.text, 'Foo');
+		assert.strictEqual(first.label, 'Foo');
 		assert.strictEqual(first.position.line, 0);
 		assert.strictEqual(first.position.character, 1);
 
-		assert.strictEqual(second.text, 'Bar');
+		assert.strictEqual(second.label, 'Bar');
 		assert.strictEqual(second.position.line, 10);
 		assert.strictEqual(second.position.character, 11);
 	});
@@ -1300,7 +1303,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(value.length, 1);
 
 		const [first] = value;
-		assert.strictEqual(first.text, 'Foo');
+		assert.strictEqual(first.label, 'Foo');
 		assert.strictEqual(first.position.line, 0);
 		assert.strictEqual(first.position.character, 1);
 	});

@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
-	'`\${cwdFolder}`: ' + localize('cwdFolder', "the terminal's current working directory, displayed for multi-root workspaces or in a single root workspace when the value differs from the initial working directory. This will not be displayed for Windows."),
+	'`\${cwdFolder}`: ' + localize('cwdFolder', "the terminal's current working directory, displayed for multi-root workspaces or in a single root workspace when the value differs from the initial working directory. On Windows, this will only be displayed when shell integration is enabled."),
 	'`\${workspaceFolder}`: ' + localize('workspaceFolder', "the workspace in which the terminal was launched"),
 	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace"),
 	'`\${process}`: ' + localize('process', "the name of the terminal process"),
@@ -21,11 +21,11 @@ const terminalDescriptors = '\n- ' + [
 	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task"),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
-let terminalTitleDescription = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
-terminalTitleDescription += terminalDescriptors;
+let terminalTitle = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
+terminalTitle += terminalDescriptors;
 
-let terminalDescriptionDescription = localize('terminalDescription', "Controls the terminal description, which appears to the right of the title. Variables are substituted based on the context:");
-terminalDescriptionDescription += terminalDescriptors;
+let terminalDescription = localize('terminalDescription', "Controls the terminal description, which appears to the right of the title. Variables are substituted based on the context:");
+terminalDescription += terminalDescriptors;
 
 const terminalConfiguration: IConfigurationNode = {
 	id: 'terminal',
@@ -269,17 +269,17 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.TerminalTitleSeparator]: {
 			'type': 'string',
 			'default': ' - ',
-			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by `terminal.integrated.title` and `terminal.integrated.description`.")
+			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by {0} and {0}.", `\`${TerminalSettingId.TerminalTitle}\``, `\`${TerminalSettingId.TerminalDescription}\``)
 		},
 		[TerminalSettingId.TerminalTitle]: {
 			'type': 'string',
 			'default': '${process}',
-			'markdownDescription': terminalTitleDescription
+			'markdownDescription': terminalTitle
 		},
 		[TerminalSettingId.TerminalDescription]: {
 			'type': 'string',
 			'default': '${task}${separator}${local}${separator}${cwdFolder}',
-			'markdownDescription': terminalDescriptionDescription
+			'markdownDescription': terminalDescription
 		},
 		[TerminalSettingId.RightClickBehavior]: {
 			type: 'string',
@@ -442,13 +442,13 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.LocalEchoLatencyThreshold]: {
-			description: localize('terminal.integrated.localEchoLatencyThreshold', "Experimental: length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
+			description: localize('terminal.integrated.localEchoLatencyThreshold', "Length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
 			type: 'integer',
 			minimum: -1,
 			default: 30,
 		},
 		[TerminalSettingId.LocalEchoEnabled]: {
-			description: localize('terminal.integrated.localEchoEnabled', "When local echo should be enabled. This will override `terminal.integrated.localEchoLatencyThreshold`"),
+			markdownDescription: localize('terminal.integrated.localEchoEnabled', "When local echo should be enabled. This will override `#terminal.integrated.localEchoLatencyThreshold#`"),
 			type: 'string',
 			enum: ['on', 'off', 'auto'],
 			enumDescriptions: [
@@ -459,7 +459,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'auto'
 		},
 		[TerminalSettingId.LocalEchoExcludePrograms]: {
-			description: localize('terminal.integrated.localEchoExcludePrograms', "Experimental: local echo will be disabled when any of these program names are found in the terminal title."),
+			description: localize('terminal.integrated.localEchoExcludePrograms', "Local echo will be disabled when any of these program names are found in the terminal title."),
 			type: 'array',
 			items: {
 				type: 'string',
@@ -468,7 +468,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: DEFAULT_LOCAL_ECHO_EXCLUDE,
 		},
 		[TerminalSettingId.LocalEchoStyle]: {
-			description: localize('terminal.integrated.localEchoStyle', "Experimental: terminal style of locally echoed text; either a font style or an RGB color."),
+			description: localize('terminal.integrated.localEchoStyle', "Terminal style of locally echoed text; either a font style or an RGB color."),
 			default: 'dim',
 			oneOf: [
 				{
@@ -503,7 +503,24 @@ const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work with the DOM renderer"),
 			type: 'boolean',
 			default: true
-		}
+		},
+		[TerminalSettingId.AutoReplies]: {
+			description: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses. Note that the message includes escape sequences so the reply might not happen with styled text. Each reply can only happen once every second."),
+			type: 'object',
+			additionalProperties: {
+				type: 'string',
+				description: localize('terminal.integrated.autoReplies.reply', "The reply to send to the process.")
+			},
+			default: {
+				'Terminate batch job (Y/N)': 'Y\r'
+			}
+		},
+		[TerminalSettingId.EnableShellIntegration]: {
+			restricted: true,
+			description: localize('terminal.integrated.enableShellIntegration', "For supported shells, use shell integration (zsh & bash on mac/linux, pwsh on windows)"),
+			type: 'boolean',
+			default: false
+		},
 	}
 };
 

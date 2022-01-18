@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Security-Policy" content="
+			default-src 'none';
+			child-src 'self' data: blob:;
+			script-src 'self' 'unsafe-eval' 'sha256-9CevbjD7QdrWdGrVTVJD74tTH4eAhisvCOlLtWUn+Iw=' https:;
+			connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"/>
+	</head>
+	<body>
+	<script>
+(function() {
+	const searchParams = new URL(document.location.href).searchParams;
+	const vscodeWebWorkerExtHostId = searchParams.get('vscodeWebWorkerExtHostId') || '';
+	const name = searchParams.get('debugged') ? 'DebugWorkerExtensionHost' : 'WorkerExtensionHost';
+
+	function sendError(error) {
+		window.parent.postMessage({
+			vscodeWebWorkerExtHostId,
+			error: {
+				name: error ? error.name : '',
+				message: error ? error.message : '',
+				stack: error ? error.stack : []
+			}
+		}, '*');
+	}
+
+	try {
+		const worker = new Worker('../../../../base/worker/workerMain.js', { name });
+		worker.postMessage('vs/workbench/services/extensions/worker/extensionHostWorker');
+		const nestedWorkers = new Map();
+
+		worker.onmessage = (event) => {
+			const { data } = event;
+
+			if (data?.type === '_newWorker') {
+				const { id, port, url, options } = data;
+				const newWorker = new Worker(url, options);
+				newWorker.postMessage(port, [port]);
+				worker.onerror = console.error.bind(console);
+				nestedWorkers.set(id, newWorker);
+
+			} else if (data?.type === '_terminateWorker') {
+				const { id } = data;
+				if(nestedWorkers.has(id)) {
+					nestedWorkers.get(id).terminate();
+					nestedWorkers.delete(id);
+				}
+			} else {
+				worker.onerror = console.error.bind(console);
+				window.parent.postMessage({
+					vscodeWebWorkerExtHostId,
+					data
+				}, '*', [data]);
+			}
+		};
+
+		worker.onerror = (event) => {
+			console.error(event.message, event.error);
+			sendError(event.error);
+		};
+
+		self.onmessage = (event) => worker.postMessage(event.data, event.ports);
+	} catch(err) {
+		console.error(err);
+		sendError(err);
+	}
+})();
+	</script>
+	</body>
+</html>

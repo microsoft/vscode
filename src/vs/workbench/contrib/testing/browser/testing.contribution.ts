@@ -42,7 +42,7 @@ import { ITestResultStorage, TestResultStorage } from 'vs/workbench/contrib/test
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { allTestActions, discoverAndRunTests } from './testExplorerActions';
+import { allTestActions, discoverAndRunTests, SearchForTestExtension } from './testExplorerActions';
 import './testingConfigurationUi';
 
 registerSingleton(ITestService, TestService, true);
@@ -80,14 +80,7 @@ viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
 });
 
 viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
-	content: localize(
-		{
-			key: 'searchMarketplaceForTestExtensions',
-			comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'],
-		},
-		"[Find Test Extensions](command:{0})",
-		'testing.searchForTestExtension'
-	),
+	content: '[' + localize('searchForAdditionalTestExtensions', "Install Additional Text Extensions...") + `](command:${SearchForTestExtension.ID})`,
 	order: 10
 });
 

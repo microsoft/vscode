@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
+import { shouldSynchronizeModel } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressStep, IProgress } from 'vs/platform/progress/common/progress';

@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, createStyleSheet } from 'vs/base/browser/dom';
+import 'vs/css!./media/processExplorer';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
+import { localize } from 'vs/nls';
+import { $, append, createStyleSheet } from 'vs/base/browser/dom';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
@@ -13,8 +15,6 @@ import { ProcessItem } from 'vs/base/common/processes';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import 'vs/css!./media/processExplorer';
-import { localize } from 'vs/nls';
 import { IRemoteDiagnosticError, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
@@ -265,8 +265,6 @@ class ProcessExplorer {
 		this.lastRequestTime = Date.now();
 		ipcRenderer.send('vscode:windowsInfoRequest');
 		ipcRenderer.send('vscode:listProcesses');
-
-
 	}
 
 	private setEventHandlers(data: ProcessExplorerData): void {
@@ -452,9 +450,23 @@ class ProcessExplorer {
 		items.push({
 			label: localize('copy', "Copy"),
 			click: () => {
-				const row = document.getElementById(`pid-${pid}`);
-				if (row) {
-					this.nativeHostService.writeClipboardText(row.innerText);
+				// Collect the selected pids
+				const selectionPids = this.tree?.getSelection()?.map(e => {
+					if (!e || !('pid' in e)) {
+						return undefined;
+					}
+					return e.pid;
+				}).filter(e => !!e) as number[];
+				// If the selection does not contain the right clicked item, copy the right clicked
+				// item only.
+				if (!selectionPids?.includes(pid)) {
+					selectionPids.length = 0;
+					selectionPids.push(pid);
+				}
+				const rows = selectionPids?.map(e => document.getElementById(`pid-${e}`)).filter(e => !!e) as HTMLElement[];
+				if (rows) {
+					const text = rows.map(e => e.innerText).filter(e => !!e) as string[];
+					this.nativeHostService.writeClipboardText(text.join('\n'));
 				}
 			}
 		});
@@ -506,7 +518,7 @@ function createCodiconStyleSheet() {
 	const codiconStyleSheet = createStyleSheet();
 	codiconStyleSheet.id = 'codiconStyles';
 
-	const iconsStyleSheet = getIconsStyleSheet();
+	const iconsStyleSheet = getIconsStyleSheet(undefined);
 	function updateAll() {
 		codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
 	}

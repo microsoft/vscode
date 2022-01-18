@@ -336,7 +336,7 @@ export abstract class MenubarControl extends Disposable {
 
 			return this.hostService.openWindow([openable], {
 				forceNewWindow: !!openInNewWindow,
-				remoteAuthority
+				remoteAuthority: remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
 			});
 		});
 

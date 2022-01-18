@@ -555,7 +555,7 @@ export function executeTransform(transform: ColorTransform, theme: IColorTheme) 
 		case ColorTransformType.IfDefinedThenElse:
 			return resolveColorValue(theme.defines(transform.if) ? transform.then : transform.else, theme);
 
-		case ColorTransformType.LessProminent:
+		case ColorTransformType.LessProminent: {
 			const from = resolveColorValue(transform.value, theme);
 			if (!from) {
 				return undefined;
@@ -569,6 +569,7 @@ export function executeTransform(transform: ColorTransform, theme: IColorTheme) 
 			return from.isDarkerThan(backgroundColor)
 				? Color.getLighterColor(from, backgroundColor, transform.factor).transparent(transform.transparency)
 				: Color.getDarkerColor(from, backgroundColor, transform.factor).transparent(transform.transparency);
+		}
 		default:
 			throw assertNever(transform);
 	}

@@ -96,7 +96,7 @@ async function _activateIfGlobPatterns(host: IExtensionActivationHost, extension
 	try {
 		exists = await searchP;
 	} catch (err) {
-		if (!errors.isPromiseCanceledError(err)) {
+		if (!errors.isCancellationError(err)) {
 			errors.onUnexpectedError(err);
 		}
 	}
@@ -130,7 +130,7 @@ export function checkGlobFileExists(
 			return !!result.limitHit;
 		},
 		err => {
-			if (!errors.isPromiseCanceledError(err)) {
+			if (!errors.isCancellationError(err)) {
 				return Promise.reject(err);
 			}
 

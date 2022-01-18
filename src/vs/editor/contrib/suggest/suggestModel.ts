@@ -15,8 +15,8 @@ import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/comm
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry, CompletionTriggerKind, StandardTokenType } from 'vs/editor/common/modes';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry, CompletionTriggerKind, StandardTokenType } from 'vs/editor/common/languages';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -185,9 +185,6 @@ export class SuggestModel implements IDisposable {
 			this._updateTriggerCharacters();
 			this._updateActiveSuggestSession();
 		}));
-		this._toDispose.add(this._editor.onDidChangeCursorSelection(e => {
-			this._onCursorChange(e);
-		}));
 
 		let editorIsComposing = false;
 		this._toDispose.add(this._editor.onDidCompositionStart(() => {
@@ -196,6 +193,12 @@ export class SuggestModel implements IDisposable {
 		this._toDispose.add(this._editor.onDidCompositionEnd(() => {
 			editorIsComposing = false;
 			this._onCompositionEnd();
+		}));
+		this._toDispose.add(this._editor.onDidChangeCursorSelection(e => {
+			// only trigger suggest when the editor isn't composing a character
+			if (!editorIsComposing) {
+				this._onCursorChange(e);
+			}
 		}));
 		this._toDispose.add(this._editor.onDidChangeModelContent(() => {
 			// only filter completions when the editor isn't composing a character
@@ -291,7 +294,7 @@ export class SuggestModel implements IDisposable {
 		};
 
 		this._triggerCharacterListener.add(this._editor.onDidType(checkTriggerCharacter));
-		this._triggerCharacterListener.add(this._editor.onDidCompositionEnd(checkTriggerCharacter));
+		this._triggerCharacterListener.add(this._editor.onDidCompositionEnd(() => checkTriggerCharacter()));
 	}
 
 	// --- trigger/retrigger/cancel suggest
@@ -375,7 +378,7 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (this._editor.getOption(EditorOption.suggest).snippetsPreventQuickSuggestions && SnippetController2.get(this._editor).isInSnippet()) {
+		if (this._editor.getOption(EditorOption.suggest).snippetsPreventQuickSuggestions && SnippetController2.get(this._editor)?.isInSnippet()) {
 			// no quick suggestion when in snippet mode
 			return;
 		}

@@ -149,6 +149,24 @@ export function addDisposableNonBubblingPointerOutListener(node: Element, handle
 	});
 }
 
+export function createEventEmitter<K extends keyof HTMLElementEventMap>(target: HTMLElement, type: K, options?: boolean | AddEventListenerOptions): Emitter<HTMLElementEventMap[K]> {
+	let domListener: DomListener | null = null;
+	const handler = (e: HTMLElementEventMap[K]) => result.fire(e);
+	const onFirstListenerAdd = () => {
+		if (!domListener) {
+			domListener = new DomListener(target, type, handler, options);
+		}
+	};
+	const onLastListenerRemove = () => {
+		if (domListener) {
+			domListener.dispose();
+			domListener = null;
+		}
+	};
+	const result = new Emitter<HTMLElementEventMap[K]>({ onFirstListenerAdd, onLastListenerRemove });
+	return result;
+}
+
 interface IRequestAnimationFrame {
 	(callback: (time: number) => void): number;
 }
@@ -1643,12 +1661,7 @@ export function getCookieValue(name: string): string | undefined {
 
 export function addMatchMediaChangeListener(query: string, callback: () => void): void {
 	const mediaQueryList = window.matchMedia(query);
-	if (typeof mediaQueryList.addEventListener === 'function') {
-		mediaQueryList.addEventListener('change', callback);
-	} else {
-		// Safari 13.x
-		mediaQueryList.addListener(callback);
-	}
+	mediaQueryList.addEventListener('change', callback);
 }
 
 export const enum ZIndex {

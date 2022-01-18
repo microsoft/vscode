@@ -14,7 +14,7 @@ import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri } from './uri';
-import { grep, isDescendant, pathEquals } from './util';
+import { grep, isDescendant, logTimestamp, pathEquals } from './util';
 import { Log, LogLevel } from './log';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
@@ -353,7 +353,7 @@ export class CommandCenter {
 		}
 
 		Log.logLevel = choice.logLevel;
-		this.outputChannel.appendLine(localize('changed', "Log level changed to: {0}", LogLevel[Log.logLevel]));
+		this.outputChannel.appendLine(localize('changed', "{0} Log level changed to: {1}", logTimestamp(), LogLevel[Log.logLevel]));
 	}
 
 	@command('git.refresh', { repository: true })
@@ -686,6 +686,10 @@ export class CommandCenter {
 		}
 
 		const activeTextEditor = window.activeTextEditor;
+		// Must extract these now because opening a new document will change the activeTextEditor reference
+		const previousVisibleRange = activeTextEditor?.visibleRanges[0];
+		const previousURI = activeTextEditor?.document.uri;
+		const previousSelection = activeTextEditor?.selection;
 
 		for (const uri of uris) {
 			const opts: TextDocumentShowOptions = {
@@ -702,18 +706,21 @@ export class CommandCenter {
 			const document = window.activeTextEditor?.document;
 
 			// If the document doesn't match what we opened then don't attempt to select the range
-			if (document?.uri.toString() !== uri.toString()) {
+			// Additioanlly if there was no previous document we don't have information to select a range
+			if (document?.uri.toString() !== uri.toString() || !activeTextEditor || !previousURI || !previousSelection) {
 				continue;
 			}
 
 			// Check if active text editor has same path as other editor. we cannot compare via
 			// URI.toString() here because the schemas can be different. Instead we just go by path.
-			if (activeTextEditor && activeTextEditor.document.uri.path === uri.path && document) {
+			if (previousURI.path === uri.path && document) {
 				// preserve not only selection but also visible range
-				opts.selection = activeTextEditor.selection;
-				const previousVisibleRanges = activeTextEditor.visibleRanges;
+				opts.selection = previousSelection;
 				const editor = await window.showTextDocument(document, opts);
-				editor.revealRange(previousVisibleRanges[0]);
+				// This should always be defined but just in case
+				if (previousVisibleRange) {
+					editor.revealRange(previousVisibleRange);
+				}
 			}
 		}
 	}
@@ -813,14 +820,14 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		this.outputChannel.appendLine(`git.stage ${resourceStates.length}`);
+		this.outputChannel.appendLine(`${logTimestamp()} git.stage ${resourceStates.length}`);
 
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
-			this.outputChannel.appendLine(`git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null}`);
+			this.outputChannel.appendLine(`${logTimestamp()} git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null}`);
 
 			if (!resource) {
 				return;
@@ -863,7 +870,7 @@ export class CommandCenter {
 		const untracked = selection.filter(s => s.resourceGroupType === ResourceGroupType.Untracked);
 		const scmResources = [...workingTree, ...untracked, ...resolved, ...unresolved];
 
-		this.outputChannel.appendLine(`git.stage.scmResources ${scmResources.length}`);
+		this.outputChannel.appendLine(`${logTimestamp()} git.stage.scmResources ${scmResources.length}`);
 		if (!scmResources.length) {
 			return;
 		}
@@ -2128,7 +2135,7 @@ export class CommandCenter {
 				}
 
 				const branchName = repository.HEAD.name;
-				const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
+				const message = localize('confirm publish branch', "The branch '{0}' has no remote branch. Would you like to publish this branch?", branchName);
 				const yes = localize('ok', "OK");
 				const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -2278,7 +2285,7 @@ export class CommandCenter {
 			return;
 		} else if (!HEAD.upstream) {
 			const branchName = HEAD.name;
-			const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
+			const message = localize('confirm publish branch', "The branch '{0}' has no remote branch. Would you like to publish this branch?", branchName);
 			const yes = localize('ok', "OK");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -2596,6 +2603,29 @@ export class CommandCenter {
 		await repository.dropStash(stash.index);
 	}
 
+	@command('git.stashDropAll', { repository: true })
+	async stashDropAll(repository: Repository): Promise<void> {
+		const stashes = await repository.getStashes();
+
+		if (stashes.length === 0) {
+			window.showInformationMessage(localize('no stashes', "There are no stashes in the repository."));
+			return;
+		}
+
+		// request confirmation for the operation
+		const yes = localize('yes', "Yes");
+		const question = stashes.length === 1 ?
+			localize('drop one stash', "Are you sure you want to drop ALL stashes? There is 1 stash that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.") :
+			localize('drop all stashes', "Are you sure you want to drop ALL stashes? There are {0} stashes that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.", stashes.length);
+
+		const result = await window.showWarningMessage(question, yes);
+		if (result !== yes) {
+			return;
+		}
+
+		await repository.dropStash();
+	}
+
 	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
 		const stashes = await repository.getStashes();
 
@@ -2813,7 +2843,7 @@ export class CommandCenter {
 						type = 'warning';
 						options.modal = false;
 						break;
-					case GitErrorCodes.AuthenticationFailed:
+					case GitErrorCodes.AuthenticationFailed: {
 						const regex = /Authentication failed for '(.*)'/i;
 						const match = regex.exec(err.stderr || String(err));
 
@@ -2821,12 +2851,13 @@ export class CommandCenter {
 							? localize('auth failed specific', "Failed to authenticate to git remote:\n\n{0}", match[1])
 							: localize('auth failed', "Failed to authenticate to git remote.");
 						break;
+					}
 					case GitErrorCodes.NoUserNameConfigured:
 					case GitErrorCodes.NoUserEmailConfigured:
 						message = localize('missing user info', "Make sure you configure your 'user.name' and 'user.email' in git.");
-						choices.set(localize('learn more', "Learn More"), () => commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/book/en/v2/Getting-Started-First-Time-Git-Setup')));
+						choices.set(localize('learn more', "Learn More"), () => commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-setup-git')));
 						break;
-					default:
+					default: {
 						const hint = (err.stderr || err.message || String(err))
 							.replace(/^error: /mi, '')
 							.replace(/^> husky.*$/mi, '')
@@ -2839,6 +2870,7 @@ export class CommandCenter {
 							: localize('git error', "Git error");
 
 						break;
+					}
 				}
 
 				if (!message) {
@@ -2870,10 +2902,10 @@ export class CommandCenter {
 	private getSCMResource(uri?: Uri): Resource | undefined {
 		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
 
-		this.outputChannel.appendLine(`git.getSCMResource.uri ${uri && uri.toString()}`);
+		this.outputChannel.appendLine(`${logTimestamp()} git.getSCMResource.uri ${uri && uri.toString()}`);
 
 		for (const r of this.model.repositories.map(r => r.root)) {
-			this.outputChannel.appendLine(`repo root ${r}`);
+			this.outputChannel.appendLine(`${logTimestamp()} repo root ${r}`);
 		}
 
 		if (!uri) {

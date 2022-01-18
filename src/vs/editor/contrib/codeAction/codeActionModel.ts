@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
@@ -14,7 +14,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CodeActionProviderRegistry, CodeActionTriggerType } from 'vs/editor/common/modes';
+import { CodeActionProviderRegistry, CodeActionTriggerType } from 'vs/editor/common/languages';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
@@ -157,7 +157,7 @@ export namespace CodeActionsState {
 			private readonly _cancellablePromise: CancelablePromise<CodeActionSet>,
 		) {
 			this.actions = _cancellablePromise.catch((e): CodeActionSet => {
-				if (isPromiseCanceledError(e)) {
+				if (isCancellationError(e)) {
 					return emptyCodeActionSet;
 				}
 				throw e;

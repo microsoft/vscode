@@ -34,15 +34,30 @@ declare module 'vscode' {
 		Parameter = 2,
 	}
 
+	export class InlayHintLabelPart {
+		label: string;
+
+		// todo@API implement this!
+		collapsible?: boolean;
+
+		// todo@api better name!
+		action?: Command | Location; // invokes provider
+
+		constructor(label: string);
+	}
+
 	/**
 	 * Inlay hint information.
 	 */
 	export class InlayHint {
 		/**
-		 * The text of the hint.
+		 *
 		 */
-		// todo@API label?
-		text: string;
+		label: string | InlayHintLabelPart[];
+		/**
+		 * The tooltip text when you hover over this item.
+		 */
+		tooltip?: string | MarkdownString | undefined;
 		/**
 		 * The position of this hint.
 		 */
@@ -54,21 +69,23 @@ declare module 'vscode' {
 		/**
 		 * Whitespace before the hint.
 		 */
+		// todo@API better name
 		whitespaceBefore?: boolean;
 		/**
 		 * Whitespace after the hint.
 		 */
+		// todo@API better name
 		whitespaceAfter?: boolean;
 
 		// todo@API make range first argument
-		constructor(text: string, position: Position, kind?: InlayHintKind);
+		constructor(label: string | InlayHintLabelPart[], position: Position, kind?: InlayHintKind);
 	}
 
 	/**
 	 * The inlay hints provider interface defines the contract between extensions and
 	 * the inlay hints feature.
 	 */
-	export interface InlayHintsProvider {
+	export interface InlayHintsProvider<T extends InlayHint = InlayHint> {
 
 		/**
 		 * An optional event to signal that inlay hints have changed.
@@ -84,6 +101,8 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A list of inlay hints or a thenable that resolves to such.
 		 */
-		provideInlayHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
+		provideInlayHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<T[]>;
+
+		resolveInlayHint?(hint: T, token: CancellationToken): ProviderResult<T>;
 	}
 }

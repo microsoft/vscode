@@ -12,11 +12,10 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorOption, InternalGuidesOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { HorizontalGuidesState, IndentGuide } from 'vs/editor/common/model';
 import { ArrayQueue } from 'vs/base/common/arrays';
-import { BracketPairGuidesClassNames } from 'vs/editor/common/model/textModel';
 import { Color } from 'vs/base/common/color';
 import { isDefined } from 'vs/base/common/types';
+import { IndentGuide, HorizontalGuidesState, BracketPairGuidesClassNames } from 'vs/editor/common/model/guidesTextModelPart';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
@@ -270,7 +269,7 @@ registerThemingParticipant((theme, collector) => {
 	const colorProvider = new BracketPairGuidesClassNames();
 
 
-	let colorValues = colors
+	const colorValues = colors
 		.map(c => {
 			const bracketColor = theme.getColor(c.bracketColor);
 			const guideColor = theme.getColor(c.guideColor);

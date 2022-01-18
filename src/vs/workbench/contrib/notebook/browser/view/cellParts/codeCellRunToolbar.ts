@@ -63,7 +63,7 @@ export class RunToolbar extends CellPart {
 		// no op
 	}
 
-	updateLayoutNow(element: ICellViewModel): void {
+	updateInternalLayoutNow(element: ICellViewModel): void {
 		// no op
 	}
 

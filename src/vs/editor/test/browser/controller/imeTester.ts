@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/textAreaInput';
+import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from 'vs/editor/browser/controller/textAreaInput';
 import { ISimpleModel, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import * as dom from 'vs/base/browser/dom';
+import * as browser from 'vs/base/browser/browser';
+import * as platform from 'vs/base/common/platform';
 
 // To run this test, open imeTester.html
 
@@ -111,7 +112,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 		}
 	};
 
-	let handler = new TextAreaInput(textAreaInputHost, createFastDomNode(input));
+	let handler = new TextAreaInput(textAreaInputHost, new TextAreaWrapper(input), platform.OS, browser);
 
 	let output = document.createElement('pre');
 	output.className = 'output';

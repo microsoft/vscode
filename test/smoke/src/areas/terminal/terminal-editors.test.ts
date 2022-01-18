@@ -3,29 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ParsedArgs } from 'minimist';
-import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
+import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
 
-export function setup(opts: ParsedArgs) {
+export function setup() {
 	describe('Terminal Editors', () => {
 		let terminal: Terminal;
-
+		let app: Application;
 		// Acquire automation API
 		before(async function () {
-			const app = this.app as Application;
+			app = this.app as Application;
 			terminal = app.workbench.terminal;
 		});
 
-		// TODO: This was flaky in CI
-		it.skip('should update color of the tab', async () => {
+		it('should update color of the tab', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			const color = 'Cyan';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeColor, color);
 			await terminal.assertSingleTab({ color }, true);
 		});
 
-		// TODO: Flaky https://github.com/microsoft/vscode/issues/137808
-		it.skip('should update icon of the tab', async () => {
+		it('should update icon of the tab', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			const icon = 'symbol-method';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
@@ -67,6 +64,15 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			await terminal.clickPlusButton();
 			await terminal.assertEditorGroupCount(1);
+		});
+
+		it.skip('should create a terminal in the editor area by default', async () => {
+			await app.workbench.settingsEditor.addUserSetting('terminal.integrated.defaultLocation', '"editor"');
+			// Close the settings editor
+			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
+			await terminal.createTerminal('editor');
+			await terminal.assertEditorGroupCount(1);
+			await terminal.assertTerminalViewHidden();
 		});
 	});
 }

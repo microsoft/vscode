@@ -23,13 +23,13 @@ declare module 'vscode' {
 		/**
 		* An optional interface to implement drag and drop in the tree view.
 		*/
-		dragAndDropController?: DragAndDropController<T>;
+		dragAndDropController?: TreeDragAndDropController<T>;
 	}
 
 	/**
 	 * A class for encapsulating data transferred during a tree drag and drop event.
 	 *
-	 * If your `DragAndDropController` implements `onWillDrop`, you can extend `TreeDataTransferItem` and return
+	 * If your `DragAndDropController` implements `handleDrag`, you can extend `TreeDataTransferItem` and return
 	 * an instance of your new class for easy access to the source tree items.
 	 *
 	 * ```ts
@@ -52,7 +52,7 @@ declare module 'vscode' {
 
 	/**
 	 * A map containing a mapping of the mime type of the corresponding transferred data.
-	 * Trees that support drag and drop can implement `DragAndDropController.onWillDrop` to add additional mime types
+	 * Trees that support drag and drop can implement `DragAndDropController.handleDrag` to add additional mime types
 	 * when the drop occurs on an item in the same tree.
 	 */
 	export class TreeDataTransfer<T extends TreeDataTransferItem = TreeDataTransferItem> {
@@ -79,26 +79,34 @@ declare module 'vscode' {
 	/**
 	 * Provides support for drag and drop in `TreeView`.
 	 */
-	// TODO@api why disposable?
-	export interface DragAndDropController<T> extends Disposable {
+	export interface TreeDragAndDropController<T> {
 
 		/**
-		 * The mime types that this `DragAndDropController` supports. This could be well-defined, existing, mime types,
-		 * and also mime types defined by the extension that are returned in the `TreeDataTransfer` from `onWillDrop`.
+		 * The mime types that the `drop` method of this `DragAndDropController` supports. This could be well-defined, existing, mime types,
+		 * and also mime types defined by the extension that are returned in the `TreeDataTransfer` from `handleDrag`.
+		 *
+		 * Each tree will automatically support drops from it's own `DragAndDropController`. To support drops from other trees,
+		 * you will need to add the mime type of that tree. The mime type of a tree is of the format `tree/treeidlowercase`.
+		 *
+		 * To learn the mime type of a dragged item:
+		 * 1. Set up your `DragAndDropController`
+		 * 2. Use the Developer: Set Log Level... command to set the level to "Debug"
+		 * 3. Open the developer tools and drag the item with unknown mime type over your tree. The mime types will be logged to the developer console
 		 */
 		readonly supportedMimeTypes: string[];
 
 		/**
-		 * When the user drops an item from this DragAndDropController on **another tree item** in **the same tree**,
-		 * `onWillDrop` will be called with the dropped tree items. This is the DragAndDropController's opportunity to
-		 * package the data from the dropped tree item into whatever format they want the target tree item to receive.
+		 * When the user starts dragging items from this `DragAndDropController`, `handleDrag` will be called.
+		 * Extensions can use `handleDrag` to add their `TreeDataTransferItem`s to the drag and drop.
+		 *
+		 * When the items are dropped on **another tree item** in **the same tree**, your `TreeDataTransferItem` objects
+		 * will be preserved. See the documentation for `TreeDataTransferItem` for how best to take advantage of this.
 		 *
 		 * The returned `TreeDataTransfer` will be merged with the original`TreeDataTransfer` for the operation.
 		 *
 		 * @param source The source items for the drag and drop operation.
 		 */
-		// TODO@api I think this can be more generic, tho still constraint, e.g have something that works everywhere within VS Code
-		onWillDrop?(source: T[]): Thenable<TreeDataTransfer>;
+		handleDrag?(source: T[]): Thenable<TreeDataTransfer>;
 
 		/**
 		 * Called when a drag and drop action results in a drop on the tree that this `DragAndDropController` belongs too.
@@ -108,7 +116,6 @@ declare module 'vscode' {
 		 * @param source The data transfer items of the source of the drag.
 		 * @param target The target tree element that the drop is occuring on.
 		 */
-		// TODO@api NIT - allow to return `Thenable<void> | void`
-		onDrop(source: TreeDataTransfer, target: T): Thenable<void>;
+		handleDrop(source: TreeDataTransfer, target: T): Thenable<void> | void;
 	}
 }

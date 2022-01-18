@@ -245,6 +245,8 @@ export class DialogMainService implements IDialogMainService {
 		// we figure this out by `hashing` the configuration
 		// options for the dialog to prevent duplicates
 
+		this.logService.trace('[DialogMainService]: request to acquire file dialog lock', options);
+
 		let windowFileDialogLocks = this.windowFileDialogLocks.get(window.id);
 		if (!windowFileDialogLocks) {
 			windowFileDialogLocks = new Set();
@@ -256,9 +258,13 @@ export class DialogMainService implements IDialogMainService {
 			return undefined; // prevent duplicates, return
 		}
 
+		this.logService.trace('[DialogMainService]: new file dialog lock created', options);
+
 		windowFileDialogLocks.add(optionsHash);
 
 		return toDisposable(() => {
+			this.logService.trace('[DialogMainService]: file dialog lock disposed', options);
+
 			windowFileDialogLocks?.delete(optionsHash);
 
 			// if the window has no more dialog locks, delete it from the set of locks

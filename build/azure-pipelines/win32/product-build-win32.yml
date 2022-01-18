@@ -21,11 +21,11 @@ steps:
       path: $(Build.ArtifactStagingDirectory)
     displayName: Download compilation output
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { tar --force-local -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz }
+  - task: ExtractFiles@1
     displayName: Extract compilation output
+    inputs:
+      archiveFilePatterns: "$(Build.ArtifactStagingDirectory)/compilation.tar.gz"
+      cleanDestinationFolder: false
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -126,6 +126,12 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
+      exec { node build/azure-pipelines/mixin --server }
+    displayName: Mix in quality
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
       $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
       exec { yarn gulp "vscode-reh-win32-$(VSCODE_ARCH)-min-ci" }
       exec { yarn gulp "vscode-reh-web-win32-$(VSCODE_ARCH)-min-ci" }
@@ -161,9 +167,9 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { yarn test-browser --build --browser chromium --browser firefox --tfs "Browser Unit Tests" }
-    displayName: Run unit tests (Browser)
-    timeoutInMinutes: 7
+      exec { yarn test-browser --sequential --build --browser chromium --browser firefox --tfs "Browser Unit Tests" }
+    displayName: Run unit tests (Browser, Chromium & Firefox)
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
@@ -184,7 +190,7 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       exec { $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"; .\resources\server\test\test-web-integration.bat --browser firefox }
-    displayName: Run integration tests (Browser)
+    displayName: Run integration tests (Browser, Firefox)
     timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
@@ -202,15 +208,17 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { yarn --cwd test/smoke compile }
-    displayName: Compile smoke tests
+      $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"
+      exec { yarn smoketest-no-compile --web --headless }
+    displayName: Run smoke tests (Browser, Chromium)
+    timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --build "$AppRoot" --screenshots $(Build.SourcesDirectory)\.build\logs\smoke-tests }
+      exec { yarn smoketest-no-compile --build "$AppRoot" }
     displayName: Run smoke tests (Electron)
     timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
@@ -220,19 +228,17 @@ steps:
       $ErrorActionPreference = "Stop"
       $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
       $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --build "$AppRoot" --remote --screenshots $(Build.SourcesDirectory)\.build\logs\smoke-tests-remote }
+      exec { yarn smoketest-no-compile --build "$AppRoot" --remote }
     displayName: Run smoke tests (Remote)
     timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --web --browser firefox --headless }
-    displayName: Run smoke tests (Browser)
-    timeoutInMinutes: 10
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+      exec {.\build\azure-pipelines\win32\listprocesses.bat }
+    displayName: List tasks after smoke test run
+    continueOnError: true
+    condition: succeededOrFailed()
 
   - task: PublishPipelineArtifact@0
     inputs:
@@ -264,14 +270,6 @@ steps:
 
   - task: EsrpClientTool@1
     displayName: Download ESRPClient
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { yarn --cwd build }
-      exec { yarn --cwd build compile }
-    displayName: Compile build tools
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - powershell: |

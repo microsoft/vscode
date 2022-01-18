@@ -6,6 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CellViewModelStateChangeEvent, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export abstract class CellPart extends Disposable {
 	constructor() {
@@ -23,14 +24,19 @@ export abstract class CellPart extends Disposable {
 	abstract prepareLayout(): void;
 
 	/**
-	 * Update DOM (top positions) per cell layout info change
+	 * Update internal DOM (top positions) per cell layout info change
 	 * Note that a cell part doesn't need to call `DOM.scheduleNextFrame`,
 	 * the list view will ensure that layout call is invoked in the right frame
 	 */
-	abstract updateLayoutNow(element: ICellViewModel): void;
+	abstract updateInternalLayoutNow(element: ICellViewModel): void;
 
 	/**
 	 * Update per cell state change
 	 */
 	abstract updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void;
+
+	/**
+	 * Update per execution state change.
+	 */
+	updateForExecutionState(element: ICellViewModel, e: ICellExecutionStateChangedEvent): void { }
 }

@@ -7,14 +7,13 @@ import { IProgress, IProgressService, IProgressStep, ProgressLocation, IProgress
 import { MainThreadProgressShape, MainContext, IExtHostContext, ExtHostProgressShape, ExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { Action } from 'vs/base/common/actions';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { localize } from 'vs/nls';
 
 class ManageExtensionAction extends Action {
-	constructor(id: ExtensionIdentifier, label: string, commandService: ICommandService) {
-		super(id.value, label, undefined, true, () => {
-			return commandService.executeCommand('_extensions.manage', id.value);
+	constructor(extensionId: string, label: string, commandService: ICommandService) {
+		super(extensionId, label, undefined, true, () => {
+			return commandService.executeCommand('_extensions.manage', extensionId);
 		});
 	}
 }
@@ -40,14 +39,14 @@ export class MainThreadProgress implements MainThreadProgressShape {
 		this._progress.clear();
 	}
 
-	async $startProgress(handle: number, options: IProgressOptions, extension?: IExtensionDescription): Promise<void> {
+	async $startProgress(handle: number, options: IProgressOptions, extensionId?: string): Promise<void> {
 		const task = this._createTask(handle);
 
-		if (options.location === ProgressLocation.Notification && extension && !extension.isUnderDevelopment) {
+		if (options.location === ProgressLocation.Notification && extensionId) {
 			const notificationOptions: IProgressNotificationOptions = {
 				...options,
 				location: ProgressLocation.Notification,
-				secondaryActions: [new ManageExtensionAction(extension.identifier, localize('manageExtension', "Manage Extension"), this._commandService)]
+				secondaryActions: [new ManageExtensionAction(extensionId, localize('manageExtension', "Manage Extension"), this._commandService)]
 			};
 
 			options = notificationOptions;

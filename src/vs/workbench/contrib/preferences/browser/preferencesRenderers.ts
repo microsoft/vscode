@@ -20,7 +20,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -134,9 +134,6 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		return !!(editableSetting && this.editSettingActionRenderer.activateOnSetting(editableSetting));
 	}
 
-	public override dispose(): void {
-		this.preferencesModel.dispose();
-	}
 }
 
 export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer {
@@ -239,7 +236,7 @@ class EditSettingRenderer extends Disposable {
 
 	private getEditPreferenceWidgetUnderMouse(mouseMoveEvent: IEditorMouseEvent): EditPreferenceWidget<ISetting> | undefined {
 		if (mouseMoveEvent.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN) {
-			const line = mouseMoveEvent.target.position!.lineNumber;
+			const line = mouseMoveEvent.target.position.lineNumber;
 			if (this.editPreferenceWidgetForMouseMove.getLine() === line && this.editPreferenceWidgetForMouseMove.isVisible()) {
 				return this.editPreferenceWidgetForMouseMove;
 			}

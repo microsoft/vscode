@@ -12,7 +12,7 @@
 	"ban-trustedtypes-createpolicy": [
 		"vs/base/browser/dom.ts",
 		"vs/base/browser/markdownRenderer.ts",
-		"vs/base/worker/defaultWorkerFactory.ts",
+		"vs/base/browser/defaultWorkerFactory.ts",
 		"vs/base/worker/workerMain.ts",
 		"vs/editor/browser/core/markdownRenderer.ts",
 		"vs/editor/browser/view/domLineBreaksComputer.ts",
@@ -27,7 +27,7 @@
 		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts"
 	],
 	"ban-worker-calls": [
-		"vs/base/worker/defaultWorkerFactory.ts",
+		"vs/base/browser/defaultWorkerFactory.ts",
 		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts",
 		"vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService.ts"
 	],

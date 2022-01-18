@@ -7,10 +7,10 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 class WelcomeBannerContribution {
 
@@ -30,9 +30,9 @@ class WelcomeBannerContribution {
 			return; // welcome banner dismissed
 		}
 
-		let icon: Codicon | URI | undefined = undefined;
+		let icon: ThemeIcon | URI | undefined = undefined;
 		if (typeof welcomeBanner.icon === 'string') {
-			icon = iconRegistry.get(welcomeBanner.icon);
+			icon = ThemeIcon.fromId(welcomeBanner.icon);
 		} else if (welcomeBanner.icon) {
 			icon = URI.revive(welcomeBanner.icon);
 		}

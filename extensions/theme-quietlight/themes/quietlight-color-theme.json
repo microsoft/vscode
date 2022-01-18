@@ -306,6 +306,12 @@
 			}
 		},
 		{
+			"scope": "markup.strikethrough",
+			"settings": {
+				"fontStyle": "strikethrough"
+			}
+		},
+		{
 			"name": "Markup: Error",
 			"scope": "markup.error",
 			"settings": {

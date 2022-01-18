@@ -25,7 +25,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkGlobFileExists, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -238,8 +238,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		this._register(this._extensionManagementService.onDidInstallExtensions((result) => {
 			const extensions: IExtension[] = [];
-			for (const { local } of result) {
-				if (local && this._safeInvokeIsEnabled(local)) {
+			for (const { local, operation } of result) {
+				if (local && operation !== InstallOperation.Migrate && this._safeInvokeIsEnabled(local)) {
 					extensions.push(local);
 				}
 			}
@@ -1152,6 +1152,7 @@ class ProposedApiController {
 		// NEW world - product.json spells out what proposals each extension can use
 		if (productService.extensionEnabledApiProposals) {
 			forEach(productService.extensionEnabledApiProposals, entry => {
+				const key = ExtensionIdentifier.toKey(entry.key);
 				const proposalNames = entry.value.filter(name => {
 					if (!allApiProposals[<ApiProposalName>name]) {
 						_logService.warn(`Extension '${key} wants API proposal '${name}' but that proposal DOES NOT EXIST.`);
@@ -1159,7 +1160,6 @@ class ProposedApiController {
 					}
 					return true;
 				});
-				const key = ExtensionIdentifier.toKey(entry.key);
 				if (this._productEnabledExtensions.has(key)) {
 					_logService.warn(`Extension '${key} appears in BOTH 'product.json#extensionAllowedProposedApi' and 'extensionEnabledApiProposals'. The latter is more restrictive and will override the former.`);
 				}

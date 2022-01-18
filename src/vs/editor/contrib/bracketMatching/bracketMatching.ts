@@ -42,11 +42,7 @@ class JumpToBracketAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = BracketMatchingController.get(editor);
-		if (!controller) {
-			return;
-		}
-		controller.jumpToBracket();
+		BracketMatchingController.get(editor)?.jumpToBracket();
 	}
 }
 
@@ -76,16 +72,11 @@ class SelectToBracketAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		const controller = BracketMatchingController.get(editor);
-		if (!controller) {
-			return;
-		}
-
 		let selectBrackets = true;
 		if (args && args.selectBrackets === false) {
 			selectBrackets = false;
 		}
-		controller.selectToBracket(selectBrackets);
+		BracketMatchingController.get(editor)?.selectToBracket(selectBrackets);
 	}
 }
 
@@ -106,7 +97,7 @@ class BracketsData {
 export class BracketMatchingController extends Disposable implements IEditorContribution {
 	public static readonly ID = 'editor.contrib.bracketMatchingController';
 
-	public static get(editor: ICodeEditor): BracketMatchingController {
+	public static get(editor: ICodeEditor): BracketMatchingController | null {
 		return editor.getContribution<BracketMatchingController>(BracketMatchingController.ID);
 	}
 

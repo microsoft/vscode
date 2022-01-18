@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import 'vs/css!./media/output';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

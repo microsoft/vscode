@@ -34,7 +34,7 @@ import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelActionViewItem';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -103,7 +103,7 @@ export class NotebookEditor extends EditorPane {
 		return this._widget.value?.textModel;
 	}
 
-	override get minimumWidth(): number { return 375; }
+	override get minimumWidth(): number { return 220; }
 	override get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
 
 	// these setters need to exist because this extends from EditorPane
@@ -140,7 +140,7 @@ export class NotebookEditor extends EditorPane {
 		if (group) {
 			this._groupListener.clear();
 			this._groupListener.add(group.onWillCloseEditor(e => this._saveEditorViewState(e.editor)));
-			this._groupListener.add(group.onDidGroupChange(() => {
+			this._groupListener.add(group.onDidModelChange(() => {
 				if (this._editorGroupService.activeGroup !== group) {
 					this._widget?.value?.updateEditorFocus();
 				}

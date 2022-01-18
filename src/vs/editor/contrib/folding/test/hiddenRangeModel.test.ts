@@ -7,7 +7,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { FoldingModel } from 'vs/editor/contrib/folding/foldingModel';
 import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
 import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestDecorationProvider } from './foldingModel.test';
 
 

@@ -20,12 +20,12 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import Severity from 'vs/base/common/severity';
 import { coalesce, distinct } from 'vs/base/common/arrays';
-import { compareIgnoreCase, trim } from 'vs/base/common/strings';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { trim } from 'vs/base/common/strings';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Schemas } from 'vs/base/common/network';
-import { PLAINTEXT_EXTENSION } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_EXTENSION } from 'vs/editor/common/languages/modesRegistry';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -44,7 +44,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		@IFileService protected readonly fileService: IFileService,
 		@IOpenerService protected readonly openerService: IOpenerService,
 		@IDialogService protected readonly dialogService: IDialogService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IPathService private readonly pathService: IPathService,
@@ -301,10 +301,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		const ext: string | undefined = defaultUri ? resources.extname(defaultUri) : undefined;
 		let matchingFilter: IFilter | undefined;
 
-		const registeredLanguageNames = this.modeService.getRegisteredLanguageNames().sort((a, b) => compareIgnoreCase(a, b));
-		const registeredLanguageFilters: IFilter[] = coalesce(registeredLanguageNames.map(languageName => {
-			const extensions = this.modeService.getExtensions(languageName);
-			if (!extensions || !extensions.length) {
+		const registeredLanguageNames = this.languageService.getSortedRegisteredLanguageNames();
+		const registeredLanguageFilters: IFilter[] = coalesce(registeredLanguageNames.map(({ languageName, languageId }) => {
+			const extensions = this.languageService.getExtensions(languageId);
+			if (!extensions.length) {
 				return null;
 			}
 

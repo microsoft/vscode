@@ -119,16 +119,45 @@ export namespace Event {
 		return emitter.event;
 	}
 
+	export function debouncedListener<T, O = T>(event: Event<T>, listener: (data: O) => any, merge: (last: O | undefined, event: T) => O, delay: number = 100, leading: boolean = false): IDisposable {
+
+		let output: O | undefined = undefined;
+		let handle: any = undefined;
+		let numDebouncedCalls = 0;
+
+		return event(cur => {
+			numDebouncedCalls++;
+			output = merge(output, cur);
+
+			if (leading && !handle) {
+				listener(output);
+				output = undefined;
+			}
+
+			clearTimeout(handle);
+			handle = setTimeout(() => {
+				const _output = output;
+				output = undefined;
+				handle = undefined;
+				if (!leading || numDebouncedCalls > 1) {
+					listener(_output!);
+				}
+
+				numDebouncedCalls = 0;
+			}, delay);
+		});
+	}
+
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @deprecated this leaks memory, {@link debouncedListener} or {@link DebounceEmitter} instead
 	 */
 	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<T>;
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @deprecated this leaks memory, {@link debouncedListener} or {@link DebounceEmitter} instead
 	 */
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<O>;
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @deprecated this leaks memory, {@link debouncedListener} or {@link DebounceEmitter} instead
 	 */
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, leakWarningThreshold?: number): Event<O> {
 
@@ -336,6 +365,28 @@ export namespace Event {
 
 	export function toPromise<T>(event: Event<T>): Promise<T> {
 		return new Promise(resolve => once(event)(resolve));
+	}
+
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any): IDisposable {
+		handler(undefined);
+		return event(e => handler(e));
+	}
+
+	export function runAndSubscribeWithStore<T>(event: Event<T>, handler: (e: T | undefined, disposableStore: DisposableStore) => any): IDisposable {
+		let store: DisposableStore | null = null;
+
+		function run(e: T | undefined) {
+			store?.dispose();
+			store = new DisposableStore();
+			handler(e, store);
+		}
+
+		run(undefined);
+		const disposable = event(e => run(e));
+		return toDisposable(() => {
+			disposable.dispose();
+			store?.dispose();
+		});
 	}
 }
 
@@ -600,14 +651,17 @@ export class Emitter<T> {
 
 
 export interface IWaitUntil {
+	token: CancellationToken;
 	waitUntil(thenable: Promise<unknown>): void;
 }
 
+export type IWaitUntilData<T> = Omit<Omit<T, 'waitUntil'>, 'token'>;
+
 export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
-	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, Omit<T, 'waitUntil'>]>;
+	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, IWaitUntilData<T>]>;
 
-	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<unknown>, listener: Function) => Promise<unknown>): Promise<void> {
+	async fireAsync(data: IWaitUntilData<T>, token: CancellationToken, promiseJoin?: (p: Promise<unknown>, listener: Function) => Promise<unknown>): Promise<void> {
 		if (!this._listeners) {
 			return;
 		}
@@ -627,6 +681,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
 			const event = <T>{
 				...data,
+				token,
 				waitUntil: (p: Promise<unknown>): void => {
 					if (Object.isFrozen(thenables)) {
 						throw new Error('waitUntil can NOT be called asynchronous');

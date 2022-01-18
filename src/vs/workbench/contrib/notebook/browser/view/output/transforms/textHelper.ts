@@ -23,7 +23,7 @@ const SIZE_LIMIT = 65535;
 
 function generateViewMoreElement(notebookUri: URI, cellViewModel: IGenericCellViewModel, outputId: string, disposables: DisposableStore, openerService: IOpenerService): HTMLElement {
 	const md: IMarkdownString = {
-		value: `Output exceeds [size limit](command:workbench.action.openSettings?["notebook.output.textLineLimit"]), open the full output data[ in a text editor](command:workbench.action.openLargeOutput?${outputId})`,
+		value: `Output exceeds the [size limit](command:workbench.action.openSettings?["notebook.output.textLineLimit"]). Open the full output data[ in a text editor](command:workbench.action.openLargeOutput?${outputId})`,
 		isTrusted: true,
 		supportThemeIcons: true
 	};

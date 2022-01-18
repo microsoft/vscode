@@ -82,20 +82,20 @@ export class ExceptionWidget extends ZoneWidget {
 		const actionBar = new ActionBar(actions);
 		actionBar.push(new Action('editor.closeExceptionWidget', nls.localize('close', "Close"), ThemeIcon.asClassName(widgetClose), true, async () => {
 			const contribution = this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID);
-			contribution.closeExceptionWidget();
+			contribution?.closeExceptionWidget();
 		}), { label: false, icon: true });
 
 		dom.append(container, title);
 
 		if (this.exceptionInfo.description) {
-			let description = $('.description');
+			const description = $('.description');
 			description.textContent = this.exceptionInfo.description;
 			ariaLabel += ', ' + this.exceptionInfo.description;
 			dom.append(container, description);
 		}
 
 		if (this.exceptionInfo.details && this.exceptionInfo.details.stackTrace) {
-			let stackTrace = $('.stack-trace');
+			const stackTrace = $('.stack-trace');
 			const linkDetector = this.instantiationService.createInstance(LinkDetector);
 			const linkedStackTrace = linkDetector.linkify(this.exceptionInfo.details.stackTrace, true, this.debugSession ? this.debugSession.root : undefined);
 			stackTrace.appendChild(linkedStackTrace);

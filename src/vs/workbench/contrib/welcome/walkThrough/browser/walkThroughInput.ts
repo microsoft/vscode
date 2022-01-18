@@ -13,7 +13,7 @@ import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { requireToContent } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughContentProvider';
 import { Dimension } from 'vs/base/browser/dom';
-import { IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class WalkThroughModel extends EditorModel {
@@ -50,6 +50,10 @@ export interface WalkThroughInputOptions {
 }
 
 export class WalkThroughInput extends EditorInput {
+
+	override get capabilities(): EditorInputCapabilities {
+		return EditorInputCapabilities.Singleton | super.capabilities;
+	}
 
 	private promise: Promise<WalkThroughModel> | null = null;
 

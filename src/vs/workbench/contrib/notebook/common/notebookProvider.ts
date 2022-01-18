@@ -90,8 +90,8 @@ export class NotebookProviderInfo {
 			return false;
 		}
 
-		let filenamePattern = selector.include;
-		let excludeFilenamePattern = selector.exclude;
+		const filenamePattern = selector.include;
+		const excludeFilenamePattern = selector.exclude;
 
 		if (glob.match(filenamePattern, basename(resource.fsPath).toLowerCase())) {
 			if (excludeFilenamePattern) {
@@ -106,7 +106,7 @@ export class NotebookProviderInfo {
 	}
 
 	static possibleFileEnding(selectors: NotebookSelector[]): string | undefined {
-		for (let selector of selectors) {
+		for (const selector of selectors) {
 			const ending = NotebookProviderInfo._possibleFileEnding(selector);
 			if (ending) {
 				return ending;

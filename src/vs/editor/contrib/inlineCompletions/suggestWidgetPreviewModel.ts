@@ -8,7 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { InlineCompletionTriggerKind, SelectedSuggestionInfo } from 'vs/editor/common/modes';
+import { InlineCompletionTriggerKind, SelectedSuggestionInfo } from 'vs/editor/common/languages';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
 import { BaseGhostTextWidgetModel, GhostText } from './ghostText';
 import { minimizeInlineCompletion, provideInlineCompletions, UpdateOperation } from './inlineCompletionsModel';

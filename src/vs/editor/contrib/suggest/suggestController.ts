@@ -25,7 +25,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { CompletionItemInsertTextRule, CompletionItemProvider } from 'vs/editor/common/modes';
+import { CompletionItemInsertTextRule, CompletionItemProvider } from 'vs/editor/common/languages';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
@@ -104,7 +104,7 @@ export class SuggestController implements IEditorContribution {
 
 	public static readonly ID: string = 'editor.contrib.suggestController';
 
-	public static get(editor: ICodeEditor): SuggestController {
+	public static get(editor: ICodeEditor): SuggestController | null {
 		return editor.getContribution<SuggestController>(SuggestController.ID);
 	}
 
@@ -284,6 +284,10 @@ export class SuggestController implements IEditorContribution {
 		if (!this.editor.hasModel()) {
 			return;
 		}
+		const snippetController = SnippetController2.get(this.editor);
+		if (!snippetController) {
+			return;
+		}
 
 		const model = this.editor.getModel();
 		const modelVersionNow = model.getAlternativeVersionId();
@@ -377,7 +381,7 @@ export class SuggestController implements IEditorContribution {
 			insertText = SnippetParser.escape(insertText);
 		}
 
-		SnippetController2.get(this.editor).insert(insertText, {
+		snippetController.insert(insertText, {
 			overwriteBefore: info.overwriteBefore,
 			overwriteAfter: info.overwriteAfter,
 			undoStopBefore: false,
@@ -984,6 +988,6 @@ registerEditorAction(class extends EditorAction {
 	}
 
 	run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		SuggestController.get(editor).resetWidgetSize();
+		SuggestController.get(editor)?.resetWidgetSize();
 	}
 });

@@ -54,15 +54,19 @@ import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Codicon } from 'vs/base/common/codicons';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Command } from 'vs/editor/common/modes';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { Command } from 'vs/editor/common/languages';
+import { isCancellationError } from 'vs/base/common/errors';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { CodeDataTransfers, fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
+import { ITreeViewsDragAndDropService } from 'vs/workbench/services/views/common/treeViewsDragAndDropService';
+import { generateUuid } from 'vs/base/common/uuid';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class TreeViewPane extends ViewPane {
 
 	protected readonly treeView: ITreeView;
+	private _container: HTMLElement | undefined;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -82,7 +86,11 @@ export class TreeViewPane extends ViewPane {
 		this._register(this.treeView.onDidChangeActions(() => this.updateActions(), this));
 		this._register(this.treeView.onDidChangeTitle((newTitle) => this.updateTitle(newTitle)));
 		this._register(this.treeView.onDidChangeDescription((newDescription) => this.updateTitleDescription(newDescription)));
-		this._register(toDisposable(() => this.treeView.setVisibility(false)));
+		this._register(toDisposable(() => {
+			if (this._container && this.treeView.container && (this._container === this.treeView.container)) {
+				this.treeView.setVisibility(false);
+			}
+		}));
 		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
 		this._register(this.treeView.onDidChangeWelcomeState(() => this._onDidChangeViewWelcomeState.fire()));
 		if (options.title !== this.treeView.title) {
@@ -101,6 +109,7 @@ export class TreeViewPane extends ViewPane {
 	}
 
 	override renderBody(container: HTMLElement): void {
+		this._container = container;
 		super.renderBody(container);
 		this.renderTreeView(container);
 	}
@@ -165,6 +174,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private tree: Tree | undefined;
 	private treeLabels: ResourceLabels | undefined;
 	private treeViewDnd: CustomTreeViewDragAndDrop;
+	private _container: HTMLElement | undefined;
 
 	private root: ITreeItem;
 	private elementsToRefresh: ITreeItem[] = [];
@@ -466,6 +476,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	}
 
 	show(container: HTMLElement): void {
+		this._container = container;
 		DOM.append(container, this.domNode);
 	}
 
@@ -534,7 +545,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			multipleSelectionSupport: this.canSelectMany,
 			dnd: this.treeViewDnd,
 			overrideStyles: {
-				listBackground: this.viewLocation === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
+				listBackground: this.viewLocation === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND
 			}
 		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
 		treeMenus.setContextKeyService(this.tree.contextKeyService);
@@ -781,6 +792,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			this.domNode.removeAttribute('tabindex');
 		}
 	}
+
+	get container(): HTMLElement | undefined {
+		return this._container;
+	}
 }
 
 class TreeViewIdentityProvider implements IIdentityProvider<ITreeItem> {
@@ -965,7 +980,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		templateData.icon.style.color = '';
 
 		if (resource || this.isFileKindThemeIcon(node.themeIcon)) {
-			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
+			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean; }>('explorer.decorations');
 			const labelResource = resource ? resource : URI.parse('missing:_icon_resource');
 			templateData.resourceLabel.setResource({ name: label, description, resource: labelResource }, {
 				fileKind: this.getFileKind(node),
@@ -1099,7 +1114,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 	constructor(notificationService: INotificationService, private getSelectedResources: (() => ITreeItem[])) {
 		super();
 		this._register(this.onDidRun(e => {
-			if (e.error && !isPromiseCanceledError(e.error)) {
+			if (e.error && !isCancellationError(e.error)) {
 				notificationService.error(localize('command-error', 'Error running command {1}: {0}. This is likely caused by the extension that contributes {1}.', e.error.message, e.action.id));
 			}
 		}));
@@ -1148,7 +1163,7 @@ class TreeMenus extends Disposable implements IDisposable {
 		this.contextKeyService = service;
 	}
 
-	private getActions(menuId: MenuId, context: { key: string, value?: string }): { primary: IAction[]; secondary: IAction[]; } {
+	private getActions(menuId: MenuId, context: { key: string, value?: string; }): { primary: IAction[]; secondary: IAction[]; } {
 		if (!this.contextKeyService) {
 			return { primary: [], secondary: [] };
 		}
@@ -1222,18 +1237,31 @@ interface TreeDragSourceInfo {
 	itemHandles: string[];
 }
 
+const TREE_DRAG_UUID_MIME = 'tree-dnd';
+
 export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	private readonly treeMimeType: string;
 	constructor(
 		private readonly treeId: string,
 		@ILabelService private readonly labelService: ILabelService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService) {
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITreeViewsDragAndDropService private readonly treeViewsDragAndDropService: ITreeViewsDragAndDropService<ITreeDataTransfer>,
+		@ILogService private readonly logService: ILogService) {
 		this.treeMimeType = `tree/${treeId.toLowerCase()}`;
 	}
 
 	private dndController: ITreeViewDragAndDropController | undefined;
 	set controller(controller: ITreeViewDragAndDropController | undefined) {
 		this.dndController = controller;
+	}
+
+	private addExtensionProvidedTransferTypes(originalEvent: DragEvent, itemHandles: string[]) {
+		if (!originalEvent.dataTransfer || !this.dndController) {
+			return;
+		}
+		const uuid = generateUuid();
+		this.treeViewsDragAndDropService.addDragOperationTransfer(uuid, this.dndController.handleDrag(itemHandles, uuid));
+		originalEvent.dataTransfer.setData(TREE_DRAG_UUID_MIME, uuid);
 	}
 
 	private addResourceInfoToTransfer(originalEvent: DragEvent, resources: URI[]) {
@@ -1265,12 +1293,14 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 				}
 			});
 			this.addResourceInfoToTransfer(originalEvent, resources);
+			this.addExtensionProvidedTransferTypes(originalEvent, sourceInfo.itemHandles);
 			originalEvent.dataTransfer.setData(this.treeMimeType,
 				JSON.stringify(sourceInfo));
 		}
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+		this.logService.debug(`TreeView dragged mime types: ${originalEvent.dataTransfer?.types.join(', ')}`);
 		const dndController = this.dndController;
 		if (!dndController || !originalEvent.dataTransfer || (dndController.supportedMimeTypes.length === 0)) {
 			return false;
@@ -1307,7 +1337,8 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	}
 
 	async drop(data: IDragAndDropData, targetNode: ITreeItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): Promise<void> {
-		if (!originalEvent.dataTransfer || !this.dndController || !targetNode) {
+		const dndController = this.dndController;
+		if (!originalEvent.dataTransfer || !dndController || !targetNode) {
 			return;
 		}
 		const treeDataTransfer: ITreeDataTransfer = new Map();
@@ -1319,6 +1350,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		}, 0);
 
 		let treeSourceInfo: TreeDragSourceInfo | undefined;
+		let willDropUuid: string | undefined;
 		await new Promise<void>(resolve => {
 			function decrementStringCount() {
 				stringCount--;
@@ -1327,17 +1359,18 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 				}
 			}
 
-			const dndController = this.dndController;
-			if (!originalEvent.dataTransfer || !dndController || !targetNode) {
+			if (!originalEvent.dataTransfer || !targetNode) {
 				return;
 			}
 			for (const dataItem of originalEvent.dataTransfer.items) {
 				const type = dataItem.type;
 				if (dataItem.kind === 'string') {
-					if ((type === this.treeMimeType) || (dndController.supportedMimeTypes.indexOf(type) >= 0)) {
+					if ((type === this.treeMimeType) || (type === TREE_DRAG_UUID_MIME) || (dndController.supportedMimeTypes.indexOf(type) >= 0)) {
 						dataItem.getAsString(dataValue => {
 							if (type === this.treeMimeType) {
 								treeSourceInfo = JSON.parse(dataValue);
+							} else if (type === TREE_DRAG_UUID_MIME) {
+								willDropUuid = dataValue;
 							} else {
 								treeDataTransfer.set(type, {
 									asString: () => Promise.resolve(dataValue)
@@ -1351,6 +1384,19 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 				}
 			}
 		});
-		return this.dndController.onDrop(treeDataTransfer, targetNode, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
+
+		const additionalWillDropPromise = this.treeViewsDragAndDropService.removeDragOperationTransfer(willDropUuid);
+		if (!additionalWillDropPromise) {
+			return dndController.handleDrop(treeDataTransfer, targetNode, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
+		}
+		return additionalWillDropPromise.then(additionalDataTransfer => {
+			if (additionalDataTransfer) {
+				for (const item of additionalDataTransfer.entries()) {
+					treeDataTransfer.set(item[0], item[1]);
+				}
+			}
+			return dndController.handleDrop(treeDataTransfer, targetNode, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
+		});
+
 	}
 }

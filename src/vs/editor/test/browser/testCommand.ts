@@ -8,8 +8,8 @@ import { IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { ICommand, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { createTestCodeEditor2, createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { instantiateTestCodeEditor, createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
+import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
@@ -28,8 +28,8 @@ export function testCommand(
 	if (prepare) {
 		instantiationService.invokeFunction(prepare, disposables);
 	}
-	const model = disposables.add(instantiationService.createInstance(TextModel, lines.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS, languageId, null));
-	const editor = disposables.add(createTestCodeEditor2(instantiationService, model, {}));
+	const model = instantiateTextModel(instantiationService, lines.join('\n'), languageId);
+	const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model));
 	const viewModel = editor.getViewModel()!;
 
 	if (forceTokenization) {

@@ -8,7 +8,7 @@ import { once } from 'vs/base/common/functional';
 import { LRUCache } from 'vs/base/common/map';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeLens, CodeLensList, CodeLensProvider } from 'vs/editor/common/modes';
+import { CodeLens, CodeLensList, CodeLensProvider } from 'vs/editor/common/languages';
 import { CodeLensModel } from 'vs/editor/contrib/codelens/codelens';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';

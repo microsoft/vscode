@@ -18,7 +18,6 @@ import { TestResultService } from 'vs/workbench/contrib/testing/common/testResul
 import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { Convert, getInitializedMainTestCollection, TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { isNative, isElectron } from 'vs/base/common/platform';
 
 export const emptyOutputController = () => new LiveOutputController(
 	new Lazy(() => [newWriteableBufferStream(), Promise.resolve()]),
@@ -63,7 +62,17 @@ suite('Workbench - Test Results Service', () => {
 		r.addTask({ id: 't', name: undefined, running: true });
 
 		tests = testStubs.nested();
-		await tests.expand(tests.root.id, Infinity);
+		const ok = await Promise.race([
+			Promise.resolve(tests.expand(tests.root.id, Infinity)).then(() => true),
+			timeout(1000).then(() => false),
+		]);
+
+		// todo@connor4312: debug for tests #137853:
+		if (!ok) {
+			throw new Error('timed out while expanding, diff: ' + JSON.stringify(tests.collectDiff()));
+		}
+
+
 		r.addTestChainToRun('ctrlId', [
 			Convert.TestItem.from(tests.root),
 			Convert.TestItem.from(tests.root.children.get('id-a') as TestItemImpl),
@@ -312,7 +321,7 @@ suite('Workbench - Test Results Service', () => {
 		});
 	});
 
-	((isNative && !isElectron) ? test.skip /* TODO@connor4312 https://github.com/microsoft/vscode/issues/137853 */ : test)('resultItemParents', function () {
+	test('resultItemParents', function () {
 		assert.deepStrictEqual([...resultItemParents(r, r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString())!)], [
 			r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString()),
 			r.getStateById(new TestId(['ctrlId', 'id-a']).toString()),

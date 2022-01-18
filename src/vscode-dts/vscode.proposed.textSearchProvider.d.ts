@@ -80,6 +80,12 @@ declare module 'vscode' {
 		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
 		 */
 		useGlobalIgnoreFiles: boolean;
+
+		/**
+		 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useParentIgnoreFiles"`.
+		 */
+		useParentIgnoreFiles: boolean;
 	}
 
 	/**

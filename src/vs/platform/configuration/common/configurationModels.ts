@@ -595,12 +595,25 @@ export class Configuration {
 		this._foldersConsolidatedConfigurations.delete(resource);
 	}
 
-	compareAndUpdateDefaultConfiguration(defaults: ConfigurationModel): IConfigurationChange {
-		const { added, updated, removed, overrides } = compare(this._defaultConfiguration, defaults);
-		const keys = [...added, ...updated, ...removed];
-		if (keys.length) {
-			this.updateDefaultConfiguration(defaults);
+	compareAndUpdateDefaultConfiguration(defaults: ConfigurationModel, keys?: string[]): IConfigurationChange {
+		const overrides: [string, string[]][] = [];
+		if (!keys) {
+			const { added, updated, removed } = compare(this._defaultConfiguration, defaults);
+			keys = [...added, ...updated, ...removed];
 		}
+		for (const key of keys) {
+			for (const overrideIdentifier of overrideIdentifiersFromKey(key)) {
+				const fromKeys = this._defaultConfiguration.getKeysForOverrideIdentifier(overrideIdentifier);
+				const toKeys = defaults.getKeysForOverrideIdentifier(overrideIdentifier);
+				const keys = [
+					...toKeys.filter(key => fromKeys.indexOf(key) === -1),
+					...fromKeys.filter(key => toKeys.indexOf(key) === -1),
+					...fromKeys.filter(key => !objects.equals(this._defaultConfiguration.override(overrideIdentifier).getValue(key), defaults.override(overrideIdentifier).getValue(key)))
+				];
+				overrides.push([overrideIdentifier, keys]);
+			}
+		}
+		this.updateDefaultConfiguration(defaults);
 		return { keys, overrides };
 	}
 

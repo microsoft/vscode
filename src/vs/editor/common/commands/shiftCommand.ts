@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
 export interface IShiftCommandOpts {
@@ -118,7 +118,7 @@ export class ShiftCommand implements ICommand {
 			let previousLineExtraSpaces = 0, extraSpaces = 0;
 			for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++, previousLineExtraSpaces = extraSpaces) {
 				extraSpaces = 0;
-				let lineText = model.getLineContent(lineNumber);
+				const lineText = model.getLineContent(lineNumber);
 				let indentationEndIndex = strings.firstNonWhitespaceIndex(lineText);
 
 				if (this._opts.isUnshift && (lineText.length === 0 || indentationEndIndex === 0)) {
@@ -137,12 +137,12 @@ export class ShiftCommand implements ICommand {
 				}
 
 				if (lineNumber > 1) {
-					let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(lineText, indentationEndIndex + 1, tabSize);
+					const contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(lineText, indentationEndIndex + 1, tabSize);
 					if (contentStartVisibleColumn % indentSize !== 0) {
 						// The current line is "miss-aligned", so let's see if this is expected...
 						// This can only happen when it has trailing commas in the indent
 						if (model.isCheapToTokenize(lineNumber - 1)) {
-							let enterAction = LanguageConfigurationRegistry.getEnterAction(this._opts.autoIndent, model, new Range(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1), lineNumber - 1, model.getLineMaxColumn(lineNumber - 1)));
+							const enterAction = LanguageConfigurationRegistry.getEnterAction(this._opts.autoIndent, model, new Range(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1), lineNumber - 1, model.getLineMaxColumn(lineNumber - 1)));
 							if (enterAction) {
 								extraSpaces = previousLineExtraSpaces;
 								if (enterAction.appendText) {
@@ -249,15 +249,15 @@ export class ShiftCommand implements ICommand {
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		if (this._useLastEditRangeForCursorEndPosition) {
-			let lastOp = helper.getInverseEditOperations()[0];
+			const lastOp = helper.getInverseEditOperations()[0];
 			return new Selection(lastOp.range.endLineNumber, lastOp.range.endColumn, lastOp.range.endLineNumber, lastOp.range.endColumn);
 		}
 		const result = helper.getTrackedSelection(this._selectionId!);
 
 		if (this._selectionStartColumnStaysPut) {
 			// The selection start should not move
-			let initialStartColumn = this._selection.startColumn;
-			let resultStartColumn = result.startColumn;
+			const initialStartColumn = this._selection.startColumn;
+			const resultStartColumn = result.startColumn;
 			if (resultStartColumn <= initialStartColumn) {
 				return result;
 			}

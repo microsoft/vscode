@@ -51,8 +51,16 @@ export class InMemoryDocument implements vscode.TextDocument {
 		const preCharacters = before.match(/(?<=\r\n|\n|^).*$/g);
 		return new vscode.Position(line, preCharacters ? preCharacters[0].length : 0);
 	}
-	getText(_range?: vscode.Range | undefined): string {
-		return this._contents;
+	getText(range?: vscode.Range): string {
+		if (!range) {
+			return this._contents;
+		}
+
+		if (range.start.line !== range.end.line) {
+			throw new Error('Method not implemented.');
+		}
+
+		return this._lines[range.start.line].slice(range.start.character, range.end.character);
 	}
 	getWordRangeAtPosition(_position: vscode.Position, _regex?: RegExp | undefined): never {
 		throw new Error('Method not implemented.');

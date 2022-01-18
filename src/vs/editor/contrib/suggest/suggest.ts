@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { canceled, isCancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { DisposableStore, IDisposable, isDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -15,7 +15,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
@@ -131,7 +131,7 @@ export class CompletionItem {
 				this._isResolved = true;
 				sub.dispose();
 			}, err => {
-				if (isPromiseCanceledError(err)) {
+				if (isCancellationError(err)) {
 					// the IPC queue will reject the request with the
 					// cancellation error -> reset cached
 					this._resolveCache = undefined;
@@ -211,9 +211,10 @@ export async function provideSuggestionItems(
 	const durations: CompletionDurationEntry[] = [];
 	let needsClipboard = false;
 
-	const onCompletionList = (provider: modes.CompletionItemProvider, container: modes.CompletionList | null | undefined, sw: StopWatch) => {
+	const onCompletionList = (provider: modes.CompletionItemProvider, container: modes.CompletionList | null | undefined, sw: StopWatch): boolean => {
+		let didAddResult = false;
 		if (!container) {
-			return;
+			return didAddResult;
 		}
 		for (let suggestion of container.suggestions) {
 			if (!options.kindFilter.has(suggestion.kind)) {
@@ -233,6 +234,7 @@ export async function provideSuggestionItems(
 					needsClipboard = SnippetParser.guessNeedsClipboard(suggestion.insertText);
 				}
 				result.push(new CompletionItem(position, suggestion, container, provider));
+				didAddResult = true;
 			}
 		}
 		if (isDisposable(container)) {
@@ -241,6 +243,7 @@ export async function provideSuggestionItems(
 		durations.push({
 			providerName: provider._debugDisplayName ?? 'unkown_provider', elapsedProvider: container.duration ?? -1, elapsedOverall: sw.elapsed()
 		});
+		return didAddResult;
 	};
 
 	// ask for snippets in parallel to asking "real" providers. Only do something if configured to
@@ -263,8 +266,7 @@ export async function provideSuggestionItems(
 	for (let providerGroup of modes.CompletionProviderRegistry.orderedGroups(model)) {
 
 		// for each support in the group ask for suggestions
-		let lenBefore = result.length;
-
+		let didAddResult = false;
 		await Promise.all(providerGroup.map(async provider => {
 			if (options.providerFilter.size > 0 && !options.providerFilter.has(provider)) {
 				return;
@@ -272,13 +274,13 @@ export async function provideSuggestionItems(
 			try {
 				const sw = new StopWatch(true);
 				const list = await provider.provideCompletionItems(model, position, context, token);
-				onCompletionList(provider, list, sw);
+				didAddResult = onCompletionList(provider, list, sw) || didAddResult;
 			} catch (err) {
 				onUnexpectedExternalError(err);
 			}
 		}));
 
-		if (lenBefore !== result.length || token.isCancellationRequested) {
+		if (didAddResult || token.isCancellationRequested) {
 			break;
 		}
 	}
@@ -409,7 +411,7 @@ modes.CompletionProviderRegistry.register('*', _provider);
 export function showSimpleSuggestions(editor: ICodeEditor, suggestions: modes.CompletionItem[]) {
 	setTimeout(() => {
 		_provider.onlyOnceSuggestions.push(...suggestions);
-		editor.getContribution<SuggestController>('editor.contrib.suggestController').triggerSuggest(new Set<modes.CompletionItemProvider>().add(_provider));
+		editor.getContribution<SuggestController>('editor.contrib.suggestController')?.triggerSuggest(new Set<modes.CompletionItemProvider>().add(_provider));
 	}, 0);
 }
 

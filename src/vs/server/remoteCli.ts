@@ -10,7 +10,7 @@ import * as _http from 'http';
 import * as _os from 'os';
 import { cwd } from 'vs/base/common/process';
 import { dirname, extname, resolve, join } from 'vs/base/common/path';
-import { parseArgs, buildHelpMessage, buildVersionMessage, OPTIONS, OptionDescriptions } from 'vs/platform/environment/node/argv';
+import { parseArgs, buildHelpMessage, buildVersionMessage, OPTIONS, OptionDescriptions, ErrorReporter } from 'vs/platform/environment/node/argv';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
 import { PipeCommand } from 'vs/workbench/api/node/extHostCLIServer';
@@ -105,13 +105,17 @@ export function main(desc: ProductDescription, args: string[]): void {
 		options['openExternal'] = { type: 'boolean' };
 	}
 
-	const errorReporter = {
+	const errorReporter : ErrorReporter = {
 		onMultipleValues: (id: string, usedValue: string) => {
 			console.error(`Option ${id} can only be defined once. Using value ${usedValue}.`);
 		},
 
 		onUnknownOption: (id: string) => {
 			console.error(`Ignoring option ${id}: not supported for ${desc.executableName}.`);
+		},
+
+		onDeprecatedOption: (deprecatedOption: string, message: string) => {
+			console.warn(`Option '${deprecatedOption}' is deprecated: ${message}`);
 		}
 	};
 
@@ -352,13 +356,13 @@ function sendToPipe(args: PipeCommand, verbose: boolean): Promise<any> {
 			res.on('data', chunk => {
 				chunks.push(chunk);
 			});
-			res.on('error', () => fatal('Error in response'));
+			res.on('error', (err) => fatal('Error in response.', err));
 			res.on('end', () => {
 				resolve(chunks.join(''));
 			});
 		});
 
-		req.on('error', () => fatal('Error in request'));
+		req.on('error', (err) => fatal('Error in request.', err));
 		req.write(message);
 		req.end();
 	});
@@ -368,8 +372,8 @@ function asExtensionIdOrVSIX(inputs: string[] | undefined) {
 	return inputs?.map(input => /\.vsix$/i.test(input) ? pathToURI(input).href : input);
 }
 
-function fatal(err: any): void {
-	console.error('Unable to connect to VS Code server.');
+function fatal(message: string, err: any): void {
+	console.error('Unable to connect to VS Code server: ' + message);
 	console.error(err);
 	process.exit(1);
 }

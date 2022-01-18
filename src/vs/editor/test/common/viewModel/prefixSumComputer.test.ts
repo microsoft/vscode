@@ -21,7 +21,7 @@ suite('Editor ViewModel - PrefixSumComputer', () => {
 	test('PrefixSumComputer', () => {
 		let indexOfResult: PrefixSumIndexOfResult;
 
-		let psc = new PrefixSumComputer(toUint32Array([1, 1, 2, 1, 3]));
+		const psc = new PrefixSumComputer(toUint32Array([1, 1, 2, 1, 3]));
 		assert.strictEqual(psc.getTotalSum(), 8);
 		assert.strictEqual(psc.getPrefixSum(-1), 0);
 		assert.strictEqual(psc.getPrefixSum(0), 1);

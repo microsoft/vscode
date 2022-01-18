@@ -24,7 +24,7 @@ class SelectionAnchorController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.selectionAnchorController';
 
-	static get(editor: ICodeEditor): SelectionAnchorController {
+	static get(editor: ICodeEditor): SelectionAnchorController | null {
 		return editor.getContribution<SelectionAnchorController>(SelectionAnchorController.ID);
 	}
 
@@ -109,8 +109,7 @@ class SetSelectionAnchor extends EditorAction {
 	}
 
 	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const controller = SelectionAnchorController.get(editor);
-		controller.setSelectionAnchor();
+		SelectionAnchorController.get(editor)?.setSelectionAnchor();
 	}
 }
 
@@ -125,8 +124,7 @@ class GoToSelectionAnchor extends EditorAction {
 	}
 
 	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const controller = SelectionAnchorController.get(editor);
-		controller.goToSelectionAnchor();
+		SelectionAnchorController.get(editor)?.goToSelectionAnchor();
 	}
 }
 
@@ -146,8 +144,7 @@ class SelectFromAnchorToCursor extends EditorAction {
 	}
 
 	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const controller = SelectionAnchorController.get(editor);
-		controller.selectFromAnchorToCursor();
+		SelectionAnchorController.get(editor)?.selectFromAnchorToCursor();
 	}
 }
 
@@ -167,8 +164,7 @@ class CancelSelectionAnchor extends EditorAction {
 	}
 
 	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const controller = SelectionAnchorController.get(editor);
-		controller.cancelSelectionAnchor();
+		SelectionAnchorController.get(editor)?.cancelSelectionAnchor();
 	}
 }
 

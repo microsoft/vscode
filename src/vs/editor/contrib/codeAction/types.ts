@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Position } from 'vs/editor/common/core/position';
-import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/modes';
+import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/languages';
 
 export class CodeActionKind {
 	private static readonly sep = '.';

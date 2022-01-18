@@ -23,7 +23,7 @@ import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/serv
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { extname, joinPath } from 'vs/base/common/resources';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { PLAINTEXT_EXTENSION, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_EXTENSION, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
@@ -171,13 +171,13 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 	}
 
-	private readonly mapCorrelationIdToModelsToRestore = new Map<number, { source: URI, target: URI, snapshot?: ITextSnapshot; mode?: string; encoding?: string; }[]>();
+	private readonly mapCorrelationIdToModelsToRestore = new Map<number, { source: URI, target: URI, snapshot?: ITextSnapshot; languageId?: string; encoding?: string; }[]>();
 
 	private onWillRunWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
 
 		// Move / Copy: remember models to restore after the operation
 		if (e.operation === FileOperation.MOVE || e.operation === FileOperation.COPY) {
-			const modelsToRestore: { source: URI, target: URI, snapshot?: ITextSnapshot; mode?: string; encoding?: string; }[] = [];
+			const modelsToRestore: { source: URI, target: URI, snapshot?: ITextSnapshot; languageId?: string; encoding?: string; }[] = [];
 
 			for (const { source, target } of e.files) {
 				if (source) {
@@ -213,7 +213,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 						modelsToRestore.push({
 							source: sourceModelResource,
 							target: targetModelResource,
-							mode: sourceModel.getMode(),
+							languageId: sourceModel.getLanguageId(),
 							encoding: sourceModel.getEncoding(),
 							snapshot: sourceModel.isDirty() ? sourceModel.createSnapshot() : undefined
 						});
@@ -281,16 +281,16 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 								encoding: modelToRestore.encoding
 							});
 
-							// restore previous mode only if the mode is now unspecified and it was specified
+							// restore previous language only if the language is now unspecified and it was specified
 							// but not when the file was explicitly stored with the plain text extension
 							// (https://github.com/microsoft/vscode/issues/125795)
 							if (
-								modelToRestore.mode &&
-								modelToRestore.mode !== PLAINTEXT_MODE_ID &&
-								restoredModel.getMode() === PLAINTEXT_MODE_ID &&
+								modelToRestore.languageId &&
+								modelToRestore.languageId !== PLAINTEXT_LANGUAGE_ID &&
+								restoredModel.getLanguageId() === PLAINTEXT_LANGUAGE_ID &&
 								extname(modelToRestore.target) !== PLAINTEXT_EXTENSION
 							) {
-								restoredModel.updateTextEditorModel(undefined, modelToRestore.mode);
+								restoredModel.updateTextEditorModel(undefined, modelToRestore.languageId);
 							}
 						}));
 					}
@@ -347,7 +347,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			model = resourceOrModel;
 		}
 
-		let modelPromise: Promise<void>;
+		let modelResolve: Promise<void>;
 		let didCreateModel = false;
 
 		// Model exists
@@ -355,7 +355,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 			// Always reload if contents are provided
 			if (options?.contents) {
-				modelPromise = model.resolve(options);
+				modelResolve = model.resolve(options);
 			}
 
 			// Reload async or sync based on options
@@ -363,19 +363,25 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 				// async reload: trigger a reload but return immediately
 				if (options.reload.async) {
-					modelPromise = Promise.resolve();
-					model.resolve(options);
+					modelResolve = Promise.resolve();
+					(async () => {
+						try {
+							await model.resolve(options);
+						} catch (error) {
+							onUnexpectedError(error);
+						}
+					})();
 				}
 
 				// sync reload: do not return until model reloaded
 				else {
-					modelPromise = model.resolve(options);
+					modelResolve = model.resolve(options);
 				}
 			}
 
 			// Do not reload
 			else {
-				modelPromise = Promise.resolve();
+				modelResolve = Promise.resolve();
 			}
 		}
 
@@ -383,14 +389,14 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		else {
 			didCreateModel = true;
 
-			const newModel = model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined, options ? options.mode : undefined);
-			modelPromise = model.resolve(options);
+			const newModel = model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined, options ? options.languageId : undefined);
+			modelResolve = model.resolve(options);
 
 			this.registerModel(newModel);
 		}
 
 		// Store pending resolves to avoid race conditions
-		this.mapResourceToPendingModelResolvers.set(resource, modelPromise);
+		this.mapResourceToPendingModelResolvers.set(resource, modelResolve);
 
 		// Make known to manager (if not already known)
 		this.add(resource, model);
@@ -407,33 +413,35 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 
 		try {
-			await modelPromise;
-
-			// Remove from pending resolves
-			this.mapResourceToPendingModelResolvers.delete(resource);
-
-			// Apply mode if provided
-			if (options?.mode) {
-				model.setMode(options.mode);
-			}
-
-			// Model can be dirty if a backup was restored, so we make sure to
-			// have this event delivered if we created the model here
-			if (didCreateModel && model.isDirty()) {
-				this._onDidChangeDirty.fire(model);
-			}
-
-			return model;
+			await modelResolve;
 		} catch (error) {
 
-			// Free resources of this invalid model
-			model.dispose();
+			// Automatically dispose the model if we created it
+			// because we cannot dispose a model we do not own
+			// https://github.com/microsoft/vscode/issues/138850
+			if (didCreateModel) {
+				model.dispose();
+			}
+
+			throw error;
+		} finally {
 
 			// Remove from pending resolves
 			this.mapResourceToPendingModelResolvers.delete(resource);
-
-			throw error;
 		}
+
+		// Apply language if provided
+		if (options?.languageId) {
+			model.setLanguageId(options.languageId);
+		}
+
+		// Model can be dirty if a backup was restored, so we make sure to
+		// have this event delivered if we created the model here
+		if (didCreateModel && model.isDirty()) {
+			this._onDidChangeDirty.fire(model);
+		}
+
+		return model;
 	}
 
 	private joinPendingResolves(resource: URI): Promise<void> | undefined {

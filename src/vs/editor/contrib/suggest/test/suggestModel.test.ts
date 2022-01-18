@@ -12,22 +12,22 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionProviderRegistry, CompletionTriggerKind, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionProviderRegistry, CompletionTriggerKind, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { NullState } from 'vs/editor/common/languages/nullMode';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import { LineContext, SuggestModel } from 'vs/editor/contrib/suggest/suggestModel';
 import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
 import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createModelServices, createTextModel, createTextModel2 } from 'vs/editor/test/common/editorTestUtils';
+import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -43,8 +43,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 
 
 function createMockEditor(model: TextModel): ITestCodeEditor {
-	let editor = createTestCodeEditor({
-		model: model,
+	const editor = createTestCodeEditor(model, {
 		serviceCollection: new ServiceCollection(
 			[ITelemetryService, NullTelemetryService],
 			[IStorageService, new InMemoryStorageService()],
@@ -71,20 +70,20 @@ suite('SuggestModel - Context', function () {
 
 	class OuterMode extends MockMode {
 		constructor(
-			@IModeService modeService: IModeService
+			@ILanguageService languageService: ILanguageService
 		) {
 			super(OUTER_LANGUAGE_ID);
 			this._register(LanguageConfigurationRegistry.register(this.languageId, {}));
 
 			this._register(TokenizationRegistry.register(this.languageId, {
-				getInitialState: (): IState => NULL_STATE,
+				getInitialState: (): IState => NullState,
 				tokenize: undefined!,
-				tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
+				tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
 					const tokensArr: number[] = [];
 					let prevLanguageId: string | undefined = undefined;
 					for (let i = 0; i < line.length; i++) {
 						const languageId = (line.charAt(i) === 'x' ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
-						const encodedLanguageId = modeService.languageIdCodec.encodeLanguageId(languageId);
+						const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
 						if (prevLanguageId !== languageId) {
 							tokensArr.push(i);
 							tokensArr.push((encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET));
@@ -96,7 +95,7 @@ suite('SuggestModel - Context', function () {
 					for (let i = 0; i < tokens.length; i++) {
 						tokens[i] = tokensArr[i];
 					}
-					return new TokenizationResult2(tokens, state);
+					return new EncodedTokenizationResult(tokens, state);
 				}
 			}));
 		}
@@ -144,7 +143,7 @@ suite('SuggestModel - Context', function () {
 		const outerMode = disposables.add(instantiationService.createInstance(OuterMode));
 		disposables.add(instantiationService.createInstance(InnerMode));
 
-		const model = disposables.add(createTextModel2(instantiationService, 'a<xx>a<x>', undefined, outerMode.languageId));
+		const model = disposables.add(instantiateTextModel(instantiationService, 'a<xx>a<x>', outerMode.languageId));
 
 		assertAutoTrigger(model, 1, true, 'a|<x — should trigger at end of word');
 		assertAutoTrigger(model, 2, false, 'a<|x — should NOT trigger at start of word');

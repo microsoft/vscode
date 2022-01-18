@@ -7,7 +7,7 @@ import { LinkedList } from 'vs/base/common/linkedList';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { SelectionRange, SelectionRangeProvider } from 'vs/editor/common/modes';
+import { SelectionRange, SelectionRangeProvider } from 'vs/editor/common/languages';
 
 export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 

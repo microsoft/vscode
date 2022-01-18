@@ -398,7 +398,7 @@ export class CellOutputElement extends Disposable {
 		};
 
 		// TODO: This could probably be a real registered action, but it has to talk to this output element
-		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Choose Output Mimetype"), ThemeIcon.asClassName(mimetypeIcon), undefined,
+		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Change Presentation"), ThemeIcon.asClassName(mimetypeIcon), undefined,
 			async _context => this._pickActiveMimeTypeRenderer(outputItemDiv, notebookTextModel, kernel, this.output));
 		if (index === 0 && useConsolidatedButton) {
 			const menu = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService));
@@ -579,7 +579,7 @@ export class CellOutputContainer extends CellPart {
 		}));
 
 		this._register(viewCell.onDidChangeLayout(() => {
-			this.updateLayoutNow(viewCell);
+			this.updateInternalLayoutNow(viewCell);
 		}));
 	}
 
@@ -587,7 +587,10 @@ export class CellOutputContainer extends CellPart {
 		// no op
 	}
 
-	updateLayoutNow(viewCell: CodeCellViewModel) {
+	updateInternalLayoutNow(viewCell: CodeCellViewModel) {
+		this.templateData.outputContainer.setTop(viewCell.layoutInfo.outputContainerOffset);
+		this.templateData.outputShowMoreContainer.setTop(viewCell.layoutInfo.outputShowMoreContainerOffset);
+
 		this._outputEntries.forEach(entry => {
 			const index = this.viewCell.outputsViewModels.indexOf(entry.model);
 			if (index >= 0) {

@@ -29,7 +29,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { IGlobalStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
@@ -56,22 +56,21 @@ interface ILoadOptions {
 const enum ReadyState {
 
 	/**
-	 * This window has not loaded any HTML yet
+	 * This window has not loaded anything yet
+	 * and this is the initial state of every
+	 * window.
 	 */
 	NONE,
 
 	/**
-	 * This window is loading HTML
-	 */
-	LOADING,
-
-	/**
-	 * This window is navigating to another HTML
+	 * This window is navigating, either for the
+	 * first time or subsequent times.
 	 */
 	NAVIGATING,
 
 	/**
-	 * This window is done loading HTML
+	 * This window has finished loading and is ready
+	 * to forward IPC requests to the web contents.
 	 */
 	READY
 }
@@ -137,7 +136,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private readonly touchBarGroups: TouchBarSegmentedControl[] = [];
 
-	private marketplaceHeadersPromise: Promise<object>;
 	private currentHttpProxy: string | undefined = undefined;
 	private currentNoProxy: string | undefined = undefined;
 
@@ -150,7 +148,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IFileService private readonly fileService: IFileService,
-		@IStorageMainService storageMainService: IStorageMainService,
+		@IGlobalStorageMainService private readonly globalStorageMainService: IGlobalStorageMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
@@ -302,12 +300,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// macOS: touch bar support
 		this.createTouchBar();
-
-		// Request handling
-		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.configurationService, this.fileService, {
-			get: key => storageMainService.globalStorage.get(key),
-			store: (key, value) => storageMainService.globalStorage.set(key, value)
-		});
 
 		// Eventing
 		this.registerListeners();
@@ -492,7 +484,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Remember that we loaded
 		this._win.webContents.on('did-finish-load', () => {
-			this.readyState = ReadyState.LOADING;
 
 			// Associate properties from the load request if provided
 			if (this.pendingLoadConfig) {
@@ -542,10 +533,18 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Inject headers when requests are incoming
 		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, async (details, cb) => {
-			const headers = await this.marketplaceHeadersPromise;
+			const headers = await this.getMarketplaceHeaders();
 
 			cb({ cancel: false, requestHeaders: Object.assign(details.requestHeaders, headers) });
 		});
+	}
+
+	private marketplaceHeadersPromise: Promise<object> | undefined;
+	private getMarketplaceHeaders(): Promise<object> {
+		if (!this.marketplaceHeadersPromise) {
+			this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.configurationService, this.fileService, this.globalStorageMainService);
+		}
+		return this.marketplaceHeadersPromise;
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
@@ -588,6 +587,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				// to signal back a failing run.
 				if (this.isExtensionDevelopmentTestFromCli) {
 					this.lifecycleMainService.kill(1);
+					return;
+				}
+
+				// If we run smoke tests, we never want to show a blocking dialog
+				if (this.environmentMainService.driverHandle) {
+					this.destroyWindow(false);
 					return;
 				}
 
@@ -689,7 +694,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				},
 				urisToOpen: workspace ? [workspace] : undefined,
 				forceEmpty,
-				forceNewWindow: true
+				forceNewWindow: true,
+				remoteAuthority: this.remoteAuthority
 			});
 			window.focus();
 		}
@@ -774,8 +780,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// the window load event has fired.
 		else {
 			this.pendingLoadConfig = configuration;
-			this.readyState = ReadyState.NAVIGATING;
 		}
+
+		// Indicate we are navigting now
+		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
 		this._win.loadURL(FileAccess.asBrowserUri(this.environmentMainService.sandbox ?

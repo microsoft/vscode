@@ -14,7 +14,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import severity from 'vs/base/common/severity';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { convertToVSCPaths, convertToDAPaths, isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
@@ -273,7 +273,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		if (sessionId) {
 			const session = this.debugService.getModel().getSession(sessionId, true);
 			if (session) {
-				return this.debugService.stopSession(session);
+				return this.debugService.stopSession(session, isSessionAttach(session));
 			}
 		} else {	// stop all
 			return this.debugService.stopSession(undefined);

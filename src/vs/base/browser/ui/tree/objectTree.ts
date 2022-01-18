@@ -36,6 +36,13 @@ export interface IObjectTreeSetChildrenOptions<T> {
 	readonly diffIdentityProvider?: IIdentityProvider<T>;
 }
 
+export interface IObjectTreeViewState {
+	readonly focus: string[];
+	readonly selection: string[];
+	readonly expanded: string[];
+	readonly scrollTop: number;
+}
+
 export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
 
 	protected override model!: IObjectTreeModel<T, TFilterData>;
@@ -43,7 +50,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 	override get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T | null, TFilterData>> { return this.model.onDidChangeCollapseState; }
 
 	constructor(
-		user: string,
+		protected readonly user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],

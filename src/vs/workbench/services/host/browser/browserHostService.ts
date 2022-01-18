@@ -140,13 +140,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 			// Unknown / Keyboard shows veto depending on setting
 			case HostShutdownReason.Unknown:
-			case HostShutdownReason.Keyboard:
+			case HostShutdownReason.Keyboard: {
 				const confirmBeforeClose = this.configurationService.getValue('window.confirmBeforeClose');
 				if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.shutdownReason === HostShutdownReason.Keyboard)) {
 					e.veto(true, 'veto.confirmBeforeClose');
 				}
 				break;
-
+			}
 			// Api never shows veto
 			case HostShutdownReason.Api:
 				break;

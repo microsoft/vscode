@@ -16,9 +16,9 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Color } from 'vs/base/common/color';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
-import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
+import { DEFAULT_PRODUCT_ICON_THEME_ID, ProductIconThemeData } from 'vs/workbench/services/themes/browser/productIconThemeData';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -33,6 +33,7 @@ import { IExtensionResourceLoaderService } from 'vs/workbench/services/extension
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { FileIconThemeData } from 'vs/workbench/services/themes/browser/fileIconThemeData';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -98,9 +99,9 @@ class MarketplaceThemesPicker {
 		try {
 			const installedExtensions = await this._installedExtensions;
 
-			const options = { text: `${this.marketplaceQuery} ${value}`, pageSize: 20 };
+			const options = { text: `${this.marketplaceQuery} ${value}`, pageSize: 40 };
 			const pager = await this.extensionGalleryService.query(options, token);
-			for (let i = 0; i < pager.total && i < 2; i++) {
+			for (let i = 0; i < pager.total && i < 1; i++) {
 				if (token.isCancellationRequested) {
 					break;
 				}
@@ -127,7 +128,7 @@ class MarketplaceThemesPicker {
 				}
 			}
 		} catch (e) {
-			if (!isPromiseCanceledError(e)) {
+			if (!isCancellationError(e)) {
 				this.logService.error(`Error while searching for themes:`, e);
 			}
 		} finally {
@@ -240,7 +241,7 @@ class MarketplaceThemesPicker {
 class InstalledThemesPicker {
 	constructor(
 		private readonly installMessage: string,
-		private readonly browseMessage: string,
+		private readonly browseMessage: string | undefined,
 		private readonly placeholderMessage: string,
 		private readonly marketplaceTag: string,
 		private readonly setTheme: (theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) => Promise<any>,
@@ -256,7 +257,7 @@ class InstalledThemesPicker {
 	public async openQuickPick(picks: QuickPickInput<ThemeItem>[], currentTheme: IWorkbenchTheme) {
 		let marketplaceThemePicker: MarketplaceThemesPicker | undefined;
 		if (this.extensionGalleryService.isEnabled()) {
-			if (this.extensionResourceLoaderService.supportsExtensionGalleryResources) {
+			if (this.extensionResourceLoaderService.supportsExtensionGalleryResources && this.browseMessage) {
 				marketplaceThemePicker = this.instantiationService.createInstance(MarketplaceThemesPicker, this.getMarketplaceColorThemes.bind(this), this.marketplaceTag);
 				picks = [...configurationEntries(this.browseMessage), ...picks];
 			} else {
@@ -311,7 +312,7 @@ class InstalledThemesPicker {
 					quickpick.hide();
 					s();
 				});
-				quickpick.onDidChangeActive(themes => selectTheme(themes[0].theme, false));
+				quickpick.onDidChangeActive(themes => selectTheme(themes[0]?.theme, false));
 				quickpick.onDidHide(() => {
 					if (!isCompleted) {
 						selectTheme(currentTheme, true);
@@ -398,18 +399,17 @@ registerAction2(class extends Action2 {
 		const themeService = accessor.get(IWorkbenchThemeService);
 
 		const installMessage = localize('installIconThemes', "Install Additional File Icon Themes...");
-		const browseMessage = '$(plus) ' + localize('browseIconThemes', "Browse Additional File Icon Themes...");
 		const placeholderMessage = localize('themes.selectIconTheme', "Select File Icon Theme (Up/Down Keys to Preview)");
 		const marketplaceTag = 'tag:icon-theme';
 		const setTheme = (theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) => themeService.setFileIconTheme(theme as IWorkbenchFileIconTheme, settingsTarget);
 		const getMarketplaceColorThemes = (publisher: string, name: string, version: string) => themeService.getMarketplaceFileIconThemes(publisher, name, version);
 
 		const instantiationService = accessor.get(IInstantiationService);
-		const picker = instantiationService.createInstance(InstalledThemesPicker, installMessage, browseMessage, placeholderMessage, marketplaceTag, setTheme, getMarketplaceColorThemes);
+		const picker = instantiationService.createInstance(InstalledThemesPicker, installMessage, undefined, placeholderMessage, marketplaceTag, setTheme, getMarketplaceColorThemes);
 
 		const picks: QuickPickInput<ThemeItem>[] = [
 			{ type: 'separator', label: localize('fileIconThemeCategory', 'file icon themes') },
-			{ id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable File Icons') },
+			{ id: '', theme: FileIconThemeData.noIconTheme, label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable File Icons') },
 			...toEntries(await themeService.getFileIconThemes()),
 		];
 
@@ -445,7 +445,7 @@ registerAction2(class extends Action2 {
 
 		const picks: QuickPickInput<ThemeItem>[] = [
 			{ type: 'separator', label: localize('productIconThemeCategory', 'product icon themes') },
-			{ id: DEFAULT_PRODUCT_ICON_THEME_ID, label: localize('defaultProductIconThemeLabel', 'Default') },
+			{ id: DEFAULT_PRODUCT_ICON_THEME_ID, theme: ProductIconThemeData.defaultTheme, label: localize('defaultProductIconThemeLabel', 'Default') },
 			...toEntries(await themeService.getProductIconThemes()),
 		];
 
@@ -453,7 +453,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async function (accessor: ServicesAccessor, extension: { publisher: string, name: string, version: string }, themeSettingsId?: string) {
+CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async function (accessor: ServicesAccessor, extension: { publisher: string, name: string, version: string; }, themeSettingsId?: string) {
 	const themeService = accessor.get(IWorkbenchThemeService);
 
 	const themes = await themeService.getMarketplaceColorThemes(extension.publisher, extension.name, extension.version);
@@ -540,7 +540,7 @@ registerAction2(class extends Action2 {
 		const theme = themeService.getColorTheme();
 		const colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
 		const colorIds = colors.map(c => c.id).sort();
-		const resultingColors: { [key: string]: string | null } = {};
+		const resultingColors: { [key: string]: string | null; } = {};
 		const inherited: string[] = [];
 		for (const colorId of colorIds) {
 			const color = theme.getColor(colorId, false);
@@ -571,7 +571,7 @@ registerAction2(class extends Action2 {
 		contents = contents.replace(/\"__/g, '//"');
 
 		const editorService = accessor.get(IEditorService);
-		return editorService.openEditor({ resource: undefined, contents, mode: 'jsonc', options: { pinned: true } });
+		return editorService.openEditor({ resource: undefined, contents, languageId: 'jsonc', options: { pinned: true } });
 	}
 });
 

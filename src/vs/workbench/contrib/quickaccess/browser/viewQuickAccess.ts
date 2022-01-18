@@ -115,6 +115,23 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 
 		const addPaneComposites = (location: ViewContainerLocation, containerLabel: string) => {
 			const paneComposites = this.paneCompositeService.getPaneComposites(location);
+			const visiblePaneCompositeIds = this.paneCompositeService.getVisiblePaneCompositeIds(location);
+
+			paneComposites.sort((a, b) => {
+				let aIndex = visiblePaneCompositeIds.findIndex(id => a.id === id);
+				let bIndex = visiblePaneCompositeIds.findIndex(id => b.id === id);
+
+				if (aIndex < 0) {
+					aIndex = paneComposites.indexOf(a) + visiblePaneCompositeIds.length;
+				}
+
+				if (bIndex < 0) {
+					bIndex = paneComposites.indexOf(b) + visiblePaneCompositeIds.length;
+				}
+
+				return aIndex - bIndex;
+			});
+
 			for (const paneComposite of paneComposites) {
 				if (this.includeViewContainer(paneComposite)) {
 					const viewContainer = this.viewDescriptorService.getViewContainerById(paneComposite.id);

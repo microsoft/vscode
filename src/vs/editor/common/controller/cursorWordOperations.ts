@@ -13,7 +13,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { AutoClosingPairs } from 'vs/editor/common/modes/languageConfiguration';
+import { AutoClosingPairs } from 'vs/editor/common/languages/languageConfiguration';
 
 interface IFindWordResult {
 	/**
@@ -67,15 +67,15 @@ export class WordOperations {
 	}
 
 	private static _findPreviousWordOnLine(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): IFindWordResult | null {
-		let lineContent = model.getLineContent(position.lineNumber);
+		const lineContent = model.getLineContent(position.lineNumber);
 		return this._doFindPreviousWordOnLine(lineContent, wordSeparators, position);
 	}
 
 	private static _doFindPreviousWordOnLine(lineContent: string, wordSeparators: WordCharacterClassifier, position: Position): IFindWordResult | null {
 		let wordType = WordType.None;
 		for (let chIndex = position.column - 2; chIndex >= 0; chIndex--) {
-			let chCode = lineContent.charCodeAt(chIndex);
-			let chClass = wordSeparators.get(chCode);
+			const chCode = lineContent.charCodeAt(chIndex);
+			const chClass = wordSeparators.get(chCode);
 
 			if (chClass === WordCharacterClass.Regular) {
 				if (wordType === WordType.Separator) {
@@ -102,10 +102,10 @@ export class WordOperations {
 	}
 
 	private static _findEndOfWord(lineContent: string, wordSeparators: WordCharacterClassifier, wordType: WordType, startIndex: number): number {
-		let len = lineContent.length;
+		const len = lineContent.length;
 		for (let chIndex = startIndex; chIndex < len; chIndex++) {
-			let chCode = lineContent.charCodeAt(chIndex);
-			let chClass = wordSeparators.get(chCode);
+			const chCode = lineContent.charCodeAt(chIndex);
+			const chClass = wordSeparators.get(chCode);
 
 			if (chClass === WordCharacterClass.Whitespace) {
 				return chIndex;
@@ -121,17 +121,17 @@ export class WordOperations {
 	}
 
 	private static _findNextWordOnLine(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): IFindWordResult | null {
-		let lineContent = model.getLineContent(position.lineNumber);
+		const lineContent = model.getLineContent(position.lineNumber);
 		return this._doFindNextWordOnLine(lineContent, wordSeparators, position);
 	}
 
 	private static _doFindNextWordOnLine(lineContent: string, wordSeparators: WordCharacterClassifier, position: Position): IFindWordResult | null {
 		let wordType = WordType.None;
-		let len = lineContent.length;
+		const len = lineContent.length;
 
 		for (let chIndex = position.column - 1; chIndex < len; chIndex++) {
-			let chCode = lineContent.charCodeAt(chIndex);
-			let chClass = wordSeparators.get(chCode);
+			const chCode = lineContent.charCodeAt(chIndex);
+			const chClass = wordSeparators.get(chCode);
 
 			if (chClass === WordCharacterClass.Regular) {
 				if (wordType === WordType.Separator) {
@@ -159,8 +159,8 @@ export class WordOperations {
 
 	private static _findStartOfWord(lineContent: string, wordSeparators: WordCharacterClassifier, wordType: WordType, startIndex: number): number {
 		for (let chIndex = startIndex; chIndex >= 0; chIndex--) {
-			let chCode = lineContent.charCodeAt(chIndex);
-			let chClass = wordSeparators.get(chCode);
+			const chCode = lineContent.charCodeAt(chIndex);
+			const chClass = wordSeparators.get(chCode);
 
 			if (chClass === WordCharacterClass.Whitespace) {
 				return chIndex + 1;
@@ -402,7 +402,7 @@ export class WordOperations {
 		}
 
 		if (whitespaceHeuristics) {
-			let r = this._deleteWordLeftWhitespace(model, position);
+			const r = this._deleteWordLeftWhitespace(model, position);
 			if (r) {
 				return r;
 			}
@@ -447,7 +447,7 @@ export class WordOperations {
 
 		const position = new Position(selection.positionLineNumber, selection.positionColumn);
 
-		let r = this._deleteInsideWordWhitespace(model, position);
+		const r = this._deleteInsideWordWhitespace(model, position);
 		if (r) {
 			return r;
 		}
@@ -567,9 +567,9 @@ export class WordOperations {
 	}
 
 	private static _findFirstNonWhitespaceChar(str: string, startIndex: number): number {
-		let len = str.length;
+		const len = str.length;
 		for (let chIndex = startIndex; chIndex < len; chIndex++) {
-			let ch = str.charAt(chIndex);
+			const ch = str.charAt(chIndex);
 			if (ch !== ' ' && ch !== '\t') {
 				return chIndex;
 			}
@@ -611,7 +611,7 @@ export class WordOperations {
 		}
 
 		if (whitespaceHeuristics) {
-			let r = this._deleteWordRightWhitespace(model, position);
+			const r = this._deleteWordRightWhitespace(model, position);
 			if (r) {
 				return r;
 			}
@@ -693,8 +693,8 @@ export class WordOperations {
 
 	public static word(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, position: Position): SingleCursorState {
 		const wordSeparators = getMapForWordSeparators(config.wordSeparators);
-		let prevWord = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
-		let nextWord = WordOperations._findNextWordOnLine(wordSeparators, model, position);
+		const prevWord = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
+		const nextWord = WordOperations._findNextWordOnLine(wordSeparators, model, position);
 
 		if (!inSelectionMode) {
 			// Entering word selection for the first time
@@ -744,19 +744,19 @@ export class WordOperations {
 			endColumn = position.column;
 		}
 
-		let lineNumber = position.lineNumber;
+		const lineNumber = position.lineNumber;
 		let column: number;
 		if (cursor.selectionStart.containsPosition(position)) {
 			column = cursor.selectionStart.endColumn;
 		} else if (position.isBeforeOrEqual(cursor.selectionStart.getStartPosition())) {
 			column = startColumn;
-			let possiblePosition = new Position(lineNumber, column);
+			const possiblePosition = new Position(lineNumber, column);
 			if (cursor.selectionStart.containsPosition(possiblePosition)) {
 				column = cursor.selectionStart.endColumn;
 			}
 		} else {
 			column = endColumn;
-			let possiblePosition = new Position(lineNumber, column);
+			const possiblePosition = new Position(lineNumber, column);
 			if (cursor.selectionStart.containsPosition(possiblePosition)) {
 				column = cursor.selectionStart.startColumn;
 			}

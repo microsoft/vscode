@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
 import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler, timeout } from 'vs/base/common/async';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, DefaultConfigurationModel, UserSettings } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
@@ -22,7 +22,6 @@ import { hash } from 'vs/base/common/hash';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ResourceMap } from 'vs/base/common/map';
 import { joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -30,12 +29,16 @@ import { isObject } from 'vs/base/common/types';
 
 export class DefaultConfiguration extends Disposable {
 
+	static readonly DEFAULT_OVERRIDES_CACHE_EXISTS_KEY = 'DefaultOverridesCacheExists';
+
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	private cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
 	private readonly cacheKey: ConfigurationKey = { type: 'defaults', key: 'configurationDefaultsOverrides' };
 
-	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
-	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
+	private readonly _onDidChangeConfiguration = this._register(new Emitter<{ defaults: ConfigurationModel, properties: string[] }>());
+	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
+
+	private updateCache: boolean = false;
 
 	constructor(
 		private readonly configurationCache: IConfigurationCache,
@@ -58,11 +61,12 @@ export class DefaultConfiguration extends Disposable {
 	async initialize(): Promise<ConfigurationModel> {
 		await this.initializeCachedConfigurationDefaultsOverrides();
 		this._configurationModel = undefined;
-		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ defaultsOverrides }) => this.onDidUpdateConfiguration(defaultsOverrides)));
+		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties, defaultsOverrides }) => this.onDidUpdateConfiguration(properties, defaultsOverrides)));
 		return this.configurationModel;
 	}
 
 	reload(): ConfigurationModel {
+		this.updateCache = true;
 		this.cachedConfigurationDefaultsOverrides = {};
 		this._configurationModel = undefined;
 		this.updateCachedConfigurationDefaultsOverrides();
@@ -74,9 +78,12 @@ export class DefaultConfiguration extends Disposable {
 		if (!this.initiaizeCachedConfigurationDefaultsOverridesPromise) {
 			this.initiaizeCachedConfigurationDefaultsOverridesPromise = (async () => {
 				try {
-					const content = await this.configurationCache.read(this.cacheKey);
-					if (content) {
-						this.cachedConfigurationDefaultsOverrides = JSON.parse(content);
+					// Read only when the cache exists
+					if (window.localStorage.getItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY)) {
+						const content = await this.configurationCache.read(this.cacheKey);
+						if (content) {
+							this.cachedConfigurationDefaultsOverrides = JSON.parse(content);
+						}
 					}
 				} catch (error) { /* ignore */ }
 				this.cachedConfigurationDefaultsOverrides = isObject(this.cachedConfigurationDefaultsOverrides) ? this.cachedConfigurationDefaultsOverrides : {};
@@ -85,15 +92,18 @@ export class DefaultConfiguration extends Disposable {
 		return this.initiaizeCachedConfigurationDefaultsOverridesPromise;
 	}
 
-	private onDidUpdateConfiguration(defaultsOverrides?: boolean): void {
+	private onDidUpdateConfiguration(properties: string[], defaultsOverrides?: boolean): void {
 		this._configurationModel = undefined;
-		this._onDidChangeConfiguration.fire(this.configurationModel);
+		this._onDidChangeConfiguration.fire({ defaults: this.configurationModel, properties });
 		if (defaultsOverrides) {
 			this.updateCachedConfigurationDefaultsOverrides();
 		}
 	}
 
 	private async updateCachedConfigurationDefaultsOverrides(): Promise<void> {
+		if (!this.updateCache) {
+			return;
+		}
 		const cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
 		const configurationDefaultsOverrides = this.configurationRegistry.getConfigurationDefaultsOverrides();
 		for (const [key, value] of configurationDefaultsOverrides) {
@@ -103,8 +113,10 @@ export class DefaultConfiguration extends Disposable {
 		}
 		try {
 			if (Object.keys(cachedConfigurationDefaultsOverrides).length) {
+				window.localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
 				await this.configurationCache.write(this.cacheKey, JSON.stringify(cachedConfigurationDefaultsOverrides));
 			} else {
+				window.localStorage.removeItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY);
 				await this.configurationCache.remove(this.cacheKey);
 			}
 		} catch (error) {/* Ignore error */ }
@@ -181,10 +193,6 @@ class FileServiceBasedConfiguration extends Disposable {
 	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	private readonly resourcesContentMap = new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
-
-	private disposed: boolean = false;
-
 	constructor(
 		name: string,
 		private readonly settingsResource: URI,
@@ -208,7 +216,6 @@ class FileServiceBasedConfiguration extends Disposable {
 		this._cache = new ConfigurationModel();
 
 		this._register(Event.debounce(Event.filter(this.fileService.onDidFilesChange, e => this.handleFileEvents(e)), () => undefined, 100)(() => this._onDidChange.fire()));
-		this._register(toDisposable(() => this.disposed = true));
 	}
 
 	async resolveContents(): Promise<[string | undefined, [string, string | undefined][]]> {
@@ -216,24 +223,9 @@ class FileServiceBasedConfiguration extends Disposable {
 		const resolveContents = async (resources: URI[]): Promise<(string | undefined)[]> => {
 			return Promise.all(resources.map(async resource => {
 				try {
-					let content = (await this.fileService.readFile(resource, { atomic: true })).value.toString();
-
-					// If file is empty and had content before then file would have been truncated by node because of parallel writes from other windows
-					// To prevent such case, retry reading the file in 20ms intervals until file has content or max 5 trials or disposed.
-					// https://github.com/microsoft/vscode/issues/115740 https://github.com/microsoft/vscode/issues/125970
-					for (let trial = 1; !content && this.resourcesContentMap.get(resource) && !this.disposed && trial <= 5; trial++) {
-						await timeout(20);
-						this.logService.debug(`Retry (${trial}): Reading the configuration file`, resource.toString());
-						content = (await this.fileService.readFile(resource)).value.toString();
-					}
-
-					this.resourcesContentMap.set(resource, !!content);
-					if (!content) {
-						this.logService.debug(`Configuration file '${resource.toString()}' is empty`);
-					}
+					const content = (await this.fileService.readFile(resource)).value.toString();
 					return content;
 				} catch (error) {
-					this.resourcesContentMap.delete(resource);
 					this.logService.trace(`Error while resolving configuration file '${resource.toString()}': ${errors.getErrorMessage(error)}`);
 					if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND
 						&& (<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_DIRECTORY) {

@@ -27,6 +27,7 @@
 	"html.trace.server.desc": "Traces the communication between VS Code and the HTML language server.",
 	"html.validate.scripts": "Controls whether the built-in HTML language support validates embedded scripts.",
 	"html.validate.styles": "Controls whether the built-in HTML language support validates embedded styles.",
+	"html.autoCreateQuotes": "Enable/disable auto creation of quotes for HTML attribute assignment.",
 	"html.autoClosingTags": "Enable/disable autoclosing of HTML tags.",
 	"html.completion.attributeDefaultValue": "Controls the default value for attributes when completion is accepted.",
 	"html.completion.attributeDefaultValue.doublequotes": "Attribute value is set to \"\".",

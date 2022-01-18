@@ -8,7 +8,7 @@ import { IReference } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUntypedEditorInput } from 'vs/workbench/common/editor';
