@@ -8,10 +8,10 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/16221
 
 	// todo@API Split between Inlay- and OverlayHints (InlayHint are for a position, OverlayHints for a non-empty range)
-	// todo@API add "mini-markdown" for links and styles
+	// (done) add "mini-markdown" for links and styles
 	// (done) remove description
 	// (done) rename to InlayHint
-	// (done)  add InlayHintKind with type, argument, etc
+	// (done) add InlayHintKind with type, argument, etc
 
 	export namespace languages {
 		/**
@@ -28,6 +28,9 @@ declare module 'vscode' {
 		export function registerInlayHintsProvider(selector: DocumentSelector, provider: InlayHintsProvider): Disposable;
 	}
 
+	/**
+	 * Inlay hint kinds.
+	 */
 	export enum InlayHintKind {
 		Other = 0,
 		Type = 1,
@@ -51,17 +54,18 @@ declare module 'vscode' {
 	 */
 	export class InlayHint {
 		/**
+		 * The position of this hint.
+		 */
+		position: Position;
+		/**
 		 *
 		 */
 		label: string | InlayHintLabelPart[];
 		/**
 		 * The tooltip text when you hover over this item.
 		 */
+		// todo@API better name, more model'ish description, detail
 		tooltip?: string | MarkdownString | undefined;
-		/**
-		 * The position of this hint.
-		 */
-		position: Position;
 		/**
 		 * The kind of this hint.
 		 */
@@ -88,21 +92,31 @@ declare module 'vscode' {
 	export interface InlayHintsProvider<T extends InlayHint = InlayHint> {
 
 		/**
-		 * An optional event to signal that inlay hints have changed.
-		 * @see {@link EventEmitter}
+		 * An optional event to signal that inlay hints from this provider have changed.
 		 */
-		//todo@API needs proper doc (like others)
 		onDidChangeInlayHints?: Event<void>;
 
 		/**
+		 * Provide inlay hints for the given range and document.
+		 *
+		 * *Note* that inlay hints that are not {@link Range.contains contained} by the range are ignored.
 		 *
 		 * @param model The document in which the command was invoked.
 		 * @param range The range for which inlay hints should be computed.
 		 * @param token A cancellation token.
-		 * @return A list of inlay hints or a thenable that resolves to such.
+		 * @return An array of inlay hints or a thenable that resolves to such.
 		 */
 		provideInlayHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<T[]>;
 
+		/**
+		 * Given an inlay hint fill in {@link InlayHint.tooltip tooltip} or complete label {@link InlayHintLabelPart parts}.
+		 *
+		 * The editor will at most resolve an inlay hint once.
+		 *
+		 * @param hint An inlay hint.
+		 * @param token A cancellation token.
+		 * @return The resolved inlay hint or a thenable that resolves to such. It is OK to return the given `item`. When no result is returned, the given `item` will be used.
+		 */
 		resolveInlayHint?(hint: T, token: CancellationToken): ProviderResult<T>;
 	}
 }
