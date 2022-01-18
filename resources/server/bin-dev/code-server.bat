@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-title VSCode Remote Agent
+title VS Code Server
 
 pushd %~dp0\..\..\..
 

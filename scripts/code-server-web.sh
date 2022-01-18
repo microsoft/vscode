@@ -2,9 +2,9 @@
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
-	ROOT=$(dirname $(dirname $(dirname $(realpath "$0"))))
+	ROOT=$(dirname $(dirname $(realpath "$0")))
 else
-	ROOT=$(dirname $(dirname $(dirname $(readlink -f $0))))
+	ROOT=$(dirname $(dirname $(readlink -f $0)))
 fi
 
 function code() {
@@ -20,7 +20,7 @@ function code() {
 
 	NODE_ENV=development \
 	VSCODE_DEV=1 \
-	$NODE $(dirname "$0")/bin-dev/code-web.js "$@"
+	$NODE ./resources/server/bin-dev/code-server-web.js "$@"
 }
 
 code "$@"

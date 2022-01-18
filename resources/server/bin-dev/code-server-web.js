@@ -26,6 +26,8 @@ let WORKSPACE = undefined;
 let GITHUB_AUTH_TOKEN = undefined;
 let ENABLE_SYNC = false;
 
+let TOKEN = '00000';
+
 for (let i = 0; i <= process.argv.length; i++) {
 	const arg = process.argv[i];
 	switch (arg) {
@@ -36,6 +38,7 @@ for (let i = 0; i <= process.argv.length; i++) {
 		case '--github-auth': GITHUB_AUTH_TOKEN = process.argv[i + 1]; break;
 		case '--logsPath': LOGS_PATH = process.argv[i + 1]; break;
 		case '--enable-sync': ENABLE_SYNC = true; break;
+		case '--connection-token': TOKEN = process.argv[i + 1]; break;
 		case '--launch': LAUNCH = true; break;
 	}
 }
@@ -64,20 +67,22 @@ if (ENABLE_SYNC) {
 }
 
 // Connection Token
-const TOKEN = '00000';
 serverArgs.push('--connection-token', TOKEN);
 
 // Server should really only listen from localhost
-const HOST = '127.0.0.1';
+const HOST = 'localhost';
 serverArgs.push('--host', HOST);
 
 const env = { ...process.env };
-env['VSCODE_AGENT_FOLDER'] = env['VSCODE_AGENT_FOLDER'] || path.join(os.homedir(), '.vscode-web-dev');
+env['VSCODE_AGENT_FOLDER'] = env['VSCODE_AGENT_FOLDER'] || path.join(os.homedir(), '.vscode-server-oss-dev');
+env['NODE_ENV'] = 'development';
+env['VSCODE_DEV'] = '1';
 const entryPoint = path.join(__dirname, '..', '..', '..', 'out', 'vs', 'server', 'main.js');
 
 startServer();
 
 function startServer() {
+	console.log('start ' + entryPoint + ' ' + serverArgs.join(' '));
 	const proc = cp.spawn(process.execPath, [entryPoint, ...serverArgs], { env });
 
 	proc.stdout.on('data', data => {
@@ -89,6 +94,19 @@ function startServer() {
 	proc.stderr.on('data', data => {
 		console.error(data.toString());
 	});
+
+	proc.on('exit', () => process.exit());
+
+	process.on('exit', () => proc.kill());
+	process.on('SIGINT', () => {
+		proc.kill();
+		process.exit(128 + 2); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+	});
+	process.on('SIGTERM', () => {
+		proc.kill();
+		process.exit(128 + 15); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+	});
+
 }
 
 if (LAUNCH) {
