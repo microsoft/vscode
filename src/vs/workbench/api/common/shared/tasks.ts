@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dto } from 'vs/base/common/types';
 import { UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import type { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 export interface TaskDefinitionDTO {
 	type: string;

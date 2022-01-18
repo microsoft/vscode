@@ -48,14 +48,18 @@ export function createProxyIdentifier<T>(identifier: string): ProxyIdentifier<T>
 	return result;
 }
 
-type Dto<T> = T extends { toJSON(): infer U }
+/**
+ * Mapped-type that replaces all JSONable-types with their toJSON-result type
+ */
+export type Dto<T> = T extends { toJSON(): infer U }
 	? U
+	: T extends Function
+	? never
 	: T extends VSBuffer
 	? T
 	: T extends object
 	? { [k in keyof T]: Dto<T[k]>; }
 	: T;
-
 
 export type Proxied<T> = { [K in keyof T]: T[K] extends (...args: infer A) => infer R
 	? (...args: A) => Promise<Dto<Awaited<R>>>
