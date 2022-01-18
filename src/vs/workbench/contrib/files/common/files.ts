@@ -118,7 +118,8 @@ export const enum SortOrder {
 	Mixed = 'mixed',
 	FilesFirst = 'filesFirst',
 	Type = 'type',
-	Modified = 'modified'
+	Modified = 'modified',
+	FoldersNestsFiles = 'foldersNestsFiles',
 }
 
 export const enum UndoEnablement {
