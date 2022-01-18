@@ -221,7 +221,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
       ./resources/server/test/test-remote-integration.sh
     displayName: Run integration tests (Remote)
-    timeoutInMinutes: 7
+    timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
