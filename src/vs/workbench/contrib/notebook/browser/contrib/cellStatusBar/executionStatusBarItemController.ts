@@ -112,7 +112,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 	 */
 	private _getItemsForCell(): INotebookCellStatusBarItem[] | undefined {
 		const runState = this._executionStateService.getCellExecutionState(this._cell.uri);
-		if (this._currentExecutingStateTimer && !runState?.didPause) {
+		if (this._currentExecutingStateTimer && !runState?.isPaused) {
 			return;
 		}
 
@@ -159,7 +159,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 				priority: Number.MAX_SAFE_INTEGER
 			};
 		} else if (state === NotebookCellExecutionState.Executing) {
-			const icon = runState?.didPause ?
+			const icon = runState?.isPaused ?
 				executingStateIcon :
 				ThemeIcon.modify(executingStateIcon, 'spin');
 			return <INotebookCellStatusBarItem>{

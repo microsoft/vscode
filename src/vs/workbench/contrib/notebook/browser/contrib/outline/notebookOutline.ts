@@ -448,7 +448,7 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 				}
 
 				const exeState = !isMarkdown && this._notebookExecutionStateService.getCellExecutionState(cell.uri);
-				entries.push(new OutlineEntry(entries.length, 7, cell, preview, !!exeState, exeState ? exeState.didPause : false));
+				entries.push(new OutlineEntry(entries.length, 7, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
 			}
 
 			if (cell.handle === focused) {

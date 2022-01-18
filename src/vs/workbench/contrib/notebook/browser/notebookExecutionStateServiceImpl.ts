@@ -13,7 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionEntry, ICellExecutionStateChangedEvent, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionEntry, ICellExecutionStateChangedEvent, ICellExecutionStateUpdate, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
@@ -300,6 +300,11 @@ class CellExecution implements ICellExecutionEntry {
 		return this._didPause;
 	}
 
+	private _isPaused = false;
+	get isPaused() {
+		return this._isPaused;
+	}
+
 	constructor(
 		readonly cellHandle: number,
 		private readonly _notebookModel: NotebookTextModel,
@@ -325,6 +330,11 @@ class CellExecution implements ICellExecutionEntry {
 
 		if (!this._didPause && updates.some(u => u.editType === CellExecutionUpdateType.ExecutionState && u.didPause)) {
 			this._didPause = true;
+		}
+
+		const lastIsPausedUpdate = [...updates].reverse().find(u => u.editType === CellExecutionUpdateType.ExecutionState && typeof u.isPaused === 'boolean');
+		if (lastIsPausedUpdate) {
+			this._isPaused = (lastIsPausedUpdate as ICellExecutionStateUpdate).isPaused!;
 		}
 
 		const edits = updates.map(update => updateToEdit(update, this.cellHandle));

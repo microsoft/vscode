@@ -16,6 +16,7 @@ export interface ICellExecutionStateUpdate {
 	executionOrder?: number;
 	runStartTime?: number;
 	didPause?: boolean;
+	isPaused?: boolean;
 }
 
 export interface ICellExecutionComplete {
@@ -28,6 +29,7 @@ export interface ICellExecutionEntry {
 	cellHandle: number;
 	state: NotebookCellExecutionState;
 	didPause: boolean;
+	isPaused: boolean;
 }
 
 export interface ICellExecutionStateChangedEvent {
