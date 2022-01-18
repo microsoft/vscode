@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IProgressRunner, IProgressIndicator, emptyProgressRunner } from 'vs/platform/progress/common/progress';
@@ -159,64 +160,43 @@ namespace ProgressIndicatorState {
 		| Work;
 }
 
-export abstract class CompositeScope extends Disposable {
+interface IProgressScope {
+
+	/**
+	 * Fired whenever `isActive` value changed.
+	 */
+	readonly onDidChangeActive: Event<void>;
+
+	/**
+	 * Whether progress should be active or not.
+	 */
+	readonly isActive: boolean;
+}
+
+class ScopedProgressIndicator extends Disposable implements IProgressIndicator {
+
+	private progressState: ProgressIndicatorState.State = ProgressIndicatorState.None;
 
 	constructor(
-		private paneCompositeService: IPaneCompositePartService,
-		private viewsService: IViewsService,
-		private scopeId: string
+		private readonly progressbar: ProgressBar,
+		private readonly scope: IProgressScope
 	) {
 		super();
 
 		this.registerListeners();
 	}
 
-	registerListeners(): void {
-		this._register(this.viewsService.onDidChangeViewVisibility(e => e.visible ? this.onScopeOpened(e.id) : this.onScopeClosed(e.id)));
-
-		this._register(this.paneCompositeService.onDidPaneCompositeOpen(e => this.onScopeOpened(e.composite.getId())));
-		this._register(this.paneCompositeService.onDidPaneCompositeClose(e => this.onScopeClosed(e.composite.getId())));
+	registerListeners() {
+		this._register(this.scope.onDidChangeActive(() => {
+			if (this.scope.isActive) {
+				this.onDidScopeActivate();
+			} else {
+				this.onDidScopeDeactivate();
+			}
+		}));
 	}
 
-	private onScopeClosed(scopeId: string) {
-		if (scopeId === this.scopeId) {
-			this.onScopeDeactivated();
-		}
-	}
-
-	private onScopeOpened(scopeId: string) {
-		if (scopeId === this.scopeId) {
-			this.onScopeActivated();
-		}
-	}
-
-	abstract onScopeActivated(): void;
-
-	abstract onScopeDeactivated(): void;
-}
-
-export class CompositeProgressIndicator extends CompositeScope implements IProgressIndicator {
-
-	private progressState: ProgressIndicatorState.State = ProgressIndicatorState.None;
-
-	constructor(
-		private readonly progressbar: ProgressBar,
-		scopeId: string,
-		private isActive: boolean,
-		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
-		@IViewsService viewsService: IViewsService
-	) {
-		super(paneCompositeService, viewsService, scopeId);
-	}
-
-	onScopeDeactivated(): void {
-		this.isActive = false;
-
-		this.progressbar.stop().hide();
-	}
-
-	onScopeActivated(): void {
-		this.isActive = true;
+	private onDidScopeActivate(): void {
 
 		// Return early if progress state indicates that progress is done
 		if (this.progressState.type === ProgressIndicatorState.Done.type) {
@@ -253,6 +233,10 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 		}
 	}
 
+	private onDidScopeDeactivate(): void {
+		this.progressbar.stop().hide();
+	}
+
 	show(infinite: true, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
 	show(infiniteOrTotal: true | number, delay?: number): IProgressRunner {
@@ -265,7 +249,7 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 		}
 
 		// Active: Show Progress
-		if (this.isActive) {
+		if (this.scope.isActive) {
 
 			// Infinite: Start Progressbar and Show after Delay
 			if (this.progressState.type === ProgressIndicatorState.Type.Infinite) {
@@ -284,7 +268,7 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 					total,
 					this.progressState.type === ProgressIndicatorState.Type.Work ? this.progressState.worked : undefined);
 
-				if (this.isActive) {
+				if (this.scope.isActive) {
 					this.progressbar.total(total);
 				}
 			},
@@ -292,12 +276,12 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 			worked: (worked: number) => {
 
 				// Verify first that we are either not active or the progressbar has a total set
-				if (!this.isActive || this.progressbar.hasTotal()) {
+				if (!this.scope.isActive || this.progressbar.hasTotal()) {
 					this.progressState = new ProgressIndicatorState.Work(
 						this.progressState.type === ProgressIndicatorState.Type.Work ? this.progressState.total : undefined,
 						this.progressState.type === ProgressIndicatorState.Type.Work && typeof this.progressState.worked === 'number' ? this.progressState.worked + worked : worked);
 
-					if (this.isActive) {
+					if (this.scope.isActive) {
 						this.progressbar.worked(worked);
 					}
 				}
@@ -312,7 +296,7 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 			done: () => {
 				this.progressState = ProgressIndicatorState.Done;
 
-				if (this.isActive) {
+				if (this.scope.isActive) {
 					this.progressbar.stop().hide();
 				}
 			}
@@ -343,7 +327,7 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 				// The while promise is either null or equal the promise we last hooked on
 				this.progressState = ProgressIndicatorState.None;
 
-				if (this.isActive) {
+				if (this.scope.isActive) {
 					this.progressbar.stop().hide();
 				}
 			}
@@ -353,8 +337,66 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 	private doShowWhile(delay?: number): void {
 
 		// Show Progress when active
-		if (this.isActive) {
+		if (this.scope.isActive) {
 			this.progressbar.infinite().show(delay);
 		}
+	}
+}
+
+export class CompositeProgressScope extends Disposable implements IProgressScope {
+
+	private readonly _onDidChangeActive = this._register(new Emitter<void>());
+	readonly onDidChangeActive = this._onDidChangeActive.event;
+
+	get isActive() { return this._isActive; }
+
+	constructor(
+		private paneCompositeService: IPaneCompositePartService,
+		private viewsService: IViewsService,
+		private scopeId: string,
+		private _isActive: boolean
+	) {
+		super();
+
+		this.registerListeners();
+	}
+
+	registerListeners(): void {
+		this._register(this.viewsService.onDidChangeViewVisibility(e => e.visible ? this.onScopeOpened(e.id) : this.onScopeClosed(e.id)));
+
+		this._register(this.paneCompositeService.onDidPaneCompositeOpen(e => this.onScopeOpened(e.composite.getId())));
+		this._register(this.paneCompositeService.onDidPaneCompositeClose(e => this.onScopeClosed(e.composite.getId())));
+	}
+
+	private onScopeOpened(scopeId: string) {
+		if (scopeId === this.scopeId) {
+			if (!this._isActive) {
+				this._isActive = true;
+
+				this._onDidChangeActive.fire();
+			}
+		}
+	}
+
+	private onScopeClosed(scopeId: string) {
+		if (scopeId === this.scopeId) {
+			if (this._isActive) {
+				this._isActive = false;
+
+				this._onDidChangeActive.fire();
+			}
+		}
+	}
+}
+
+export class CompositeProgressIndicator extends ScopedProgressIndicator {
+	constructor(
+		progressbar: ProgressBar,
+		scopeId: string,
+		isActive: boolean,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
+		@IViewsService viewsService: IViewsService
+	) {
+		super(progressbar, new CompositeProgressScope(paneCompositeService, viewsService, scopeId, isActive));
 	}
 }
