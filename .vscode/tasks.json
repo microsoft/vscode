@@ -173,7 +173,7 @@
 			"type": "shell",
 			"command": "./scripts/code-server-web.sh",
 			"windows": {
-				"command": ".\\scripts\\code-server-web.bat"
+				"command": ".\\scripts\\code-server.bat"
 			},
 			"args": ["--no-launch", "--connection-token", "dev-token", "--port", "8080"],
 			"label": "Run code server",

@@ -247,9 +247,9 @@
 			"type": "pwa-node",
 			"request": "launch",
 			"name": "VS Code Server (Web)",
-			"runtimeExecutable": "${workspaceFolder}/scripts/code-server-web.sh",
+			"runtimeExecutable": "${workspaceFolder}/scripts/code-server.sh",
 			"windows": {
-				"runtimeExecutable": "${workspaceFolder}/scripts/code-server-web.bat",
+				"runtimeExecutable": "${workspaceFolder}/scripts/code-server.bat",
 			},
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
