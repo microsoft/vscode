@@ -2858,20 +2858,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void {
 		const cell = this._getCellById(cellId);
 		if (cell instanceof MarkupCellViewModel) {
-			this._dndController?.startExplicitDrag(cell, event.dragOffsetY);
+			const webviewOffset = this._list.webviewElement ? -parseInt(this._list.webviewElement.domNode.style.top, 10) : 0;
+			this._dndController?.startExplicitDrag(cell, event.dragOffsetY - webviewOffset);
 		}
 	}
 
 	private _didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void {
 		const cell = this._getCellById(cellId);
 		if (cell instanceof MarkupCellViewModel) {
-			this._dndController?.explicitDrag(cell, event.dragOffsetY);
+			const webviewOffset = this._list.webviewElement ? -parseInt(this._list.webviewElement.domNode.style.top, 10) : 0;
+			this._dndController?.explicitDrag(cell, event.dragOffsetY - webviewOffset);
 		}
 	}
 
 	private _didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void {
 		const cell = this._getCellById(cellId);
 		if (cell instanceof MarkupCellViewModel) {
+			const webviewOffset = this._list.webviewElement ? -parseInt(this._list.webviewElement.domNode.style.top, 10) : 0;
+			event.dragOffsetY -= webviewOffset;
 			this._dndController?.explicitDrop(cell, event);
 		}
 	}
