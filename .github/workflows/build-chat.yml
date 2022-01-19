@@ -19,6 +19,7 @@ jobs:
         with:
           repository: "microsoft/vscode-github-triage-actions"
           path: ./actions
+          ref: stable
       - name: Install Actions
         run: npm install --production --prefix ./actions
       - name: Install Additional Dependencies

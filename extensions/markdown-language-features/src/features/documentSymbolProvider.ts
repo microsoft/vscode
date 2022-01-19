@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { SkinnyTextDocument, TableOfContentsProvider, TocEntry } from '../tableOfContentsProvider';
+import { SkinnyTextDocument, TableOfContents, TocEntry } from '../tableOfContentsProvider';
 
 interface MarkdownSymbol {
 	readonly level: number;
@@ -20,22 +20,22 @@ export default class MDDocumentSymbolProvider implements vscode.DocumentSymbolPr
 	) { }
 
 	public async provideDocumentSymbolInformation(document: SkinnyTextDocument): Promise<vscode.SymbolInformation[]> {
-		const toc = await new TableOfContentsProvider(this.engine, document).getToc();
-		return toc.map(entry => this.toSymbolInformation(entry));
+		const toc = await TableOfContents.create(this.engine, document);
+		return toc.entries.map(entry => this.toSymbolInformation(entry));
 	}
 
 	public async provideDocumentSymbols(document: SkinnyTextDocument): Promise<vscode.DocumentSymbol[]> {
-		const toc = await new TableOfContentsProvider(this.engine, document).getToc();
+		const toc = await TableOfContents.create(this.engine, document);
 		const root: MarkdownSymbol = {
 			level: -Infinity,
 			children: [],
 			parent: undefined
 		};
-		this.buildTree(root, toc);
+		this.buildTree(root, toc.entries);
 		return root.children;
 	}
 
-	private buildTree(parent: MarkdownSymbol, entries: TocEntry[]) {
+	private buildTree(parent: MarkdownSymbol, entries: readonly TocEntry[]) {
 		if (!entries.length) {
 			return;
 		}

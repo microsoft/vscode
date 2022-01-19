@@ -14,7 +14,7 @@ import { GitFileSystemProvider } from './fileSystemProvider';
 import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
 import { toDisposable, filterEvent, eventToPromise, logTimestamp } from './util';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import { GitExtension } from './api/git';
 import { GitProtocolHandler } from './protocolHandler';
 import { GitExtensionImpl } from './api/extension';

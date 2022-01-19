@@ -6,7 +6,7 @@
 import { dirname, resolve } from 'path';
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider } from '../tableOfContentsProvider';
+import { TableOfContents } from '../tableOfContentsProvider';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
 import LinkProvider from './documentLinkProvider';
 
@@ -232,9 +232,8 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 	}
 
 	private async *provideHeaderSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext, insertionRange: vscode.Range): AsyncIterable<vscode.CompletionItem> {
-		const tocProvider = new TableOfContentsProvider(this.engine, document);
-		const toc = await tocProvider.getToc();
-		for (const entry of toc) {
+		const toc = await TableOfContents.createForDocumentOrNotebook(this.engine, document);
+		for (const entry of toc.entries) {
 			const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
 			yield {
 				kind: vscode.CompletionItemKind.Reference,
@@ -288,23 +287,38 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 	}
 
 	private resolveReference(document: vscode.TextDocument, ref: string): vscode.Uri | undefined {
+		const docUri = this.getFileUriOfTextDocument(document);
+
 		if (ref.startsWith('/')) {
-			const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+			const workspaceFolder = vscode.workspace.getWorkspaceFolder(docUri);
 			if (workspaceFolder) {
 				return vscode.Uri.joinPath(workspaceFolder.uri, ref);
 			}
 		}
 
 		try {
-			if (document.uri.scheme === 'file') {
-				return vscode.Uri.file(resolve(dirname(document.uri.fsPath), ref));
+			if (docUri.scheme === 'file') {
+				return vscode.Uri.file(resolve(dirname(docUri.fsPath), ref));
 			} else {
-				return document.uri.with({
-					path: resolve(dirname(document.uri.path), ref),
+				return docUri.with({
+					path: resolve(dirname(docUri.path), ref),
 				});
 			}
 		} catch (e) {
 			return undefined;
 		}
+	}
+
+	private getFileUriOfTextDocument(document: vscode.TextDocument) {
+		if (document.uri.scheme === 'vscode-notebook-cell') {
+			const notebook = vscode.workspace.notebookDocuments
+				.find(notebook => notebook.getCells().some(cell => cell.document === document));
+
+			if (notebook) {
+				return notebook.uri;
+			}
+		}
+
+		return document.uri;
 	}
 }
