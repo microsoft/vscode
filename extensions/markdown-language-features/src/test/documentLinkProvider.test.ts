@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import LinkProvider from '../features/documentLinkProvider';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryDocument } from './inMemoryDocument';
-import { noopToken } from './util';
+import { joinLines, noopToken } from './util';
 
 
 const testFile = vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'x.md');
@@ -151,28 +151,73 @@ suite('markdown.DocumentLinkProvider', () => {
 		assertRangeEqual(link2.range, new vscode.Range(1, 6, 1, 8));
 	});
 
-	test('Should not consider links in fenced, indented and inline code', async () => {
-		const links = await getLinksForFile(['```',
-			'[ignore](https://1.com)',
+	test('Should not consider links in code fenced with backticks', async () => {
+		const text = joinLines(
 			'```',
+			'[b](https://example.com)',
+			'```');
+		const links = await getLinksForFile(text);
+		assert.strictEqual(links.length, 0);
+	});
+
+	test('Should not consider links in code fenced with tilda', async () => {
+		const text = joinLines(
 			'~~~',
-			'[ignore](https://2.com)',
-			'~~~',
-			'    [ignore](https://3.com)',
+			'[b](https://example.com)',
+			'~~~');
+		const links = await getLinksForFile(text);
+		assert.strictEqual(links.length, 0);
+	});
+
+	test('Should not consider links in indented code', async () => {
+		const links = await getLinksForFile('    [b](https://example.com)');
+		assert.strictEqual(links.length, 0);
+	});
+
+	test('Should not consider links in inline code span', async () => {
+		const links = await getLinksForFile('`[b](https://example.com)`');
+		assert.strictEqual(links.length, 0);
+	});
+
+	test('Should not consider links with code span inside', async () => {
+		const links = await getLinksForFile('[li`nk](https://example.com`)');
+		assert.strictEqual(links.length, 0);
+	});
+
+	test('Should not consider links in multiline inline code span', async () => {
+		const text = joinLines(
 			'`` ',
-			'[ignore](https://4.com) ',
-			'``',
-			'`` ',
-			'',
-			'[link](https://5.com)',
-			'',
-			'``',
-			'`[ignore](https://6.com)`',
-			'[link](https://7.com) `[b](https://8.com)',
-			'` [link](https://9.com)',
+			'[b](https://example.com)',
+			'``');
+		const links = await getLinksForFile(text);
+		assert.strictEqual(links.length, 0);
+	});
+
+	test('Should not consider links in multiline inline code span between between text', async () => {
+		const text = joinLines(
+			'[b](https://1.com) `[b](https://2.com)',
+			'` [b](https://3.com)');
+		const links = await getLinksForFile(text);
+		assert.deepStrictEqual(links.map(l => l.target?.authority), ['1.com', '3.com'])
+	});
+
+	test('Should not consider links in multiline inline code span with new line after the first backtick', async () => {
+		const text = joinLines(
 			'`',
-			'[ignore](https://10.com)`'].join('\n'));
-		assert.deepStrictEqual(links.map(l => l.target?.authority), ['5.com', '7.com', '9.com']);
+			'[b](https://example.com)`');
+		const links = await getLinksForFile(text);
+		assert.strictEqual(links.length, 0);
+	});
+
+	test('Should not miss links in invalid multiline inline code span', async () => {
+		const text = joinLines(
+			'`` ',
+			'',
+			'[b](https://example.com)',
+			'',
+			'``');
+		const links = await getLinksForFile(text);
+		assert.strictEqual(links.length, 1);
 	});
 });
 
