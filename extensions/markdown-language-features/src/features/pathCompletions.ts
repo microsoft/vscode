@@ -6,8 +6,7 @@
 import { dirname, resolve } from 'path';
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContents, TocEntry } from '../tableOfContentsProvider';
-import { isMarkdownFile } from '../util/file';
+import { TableOfContents } from '../tableOfContentsProvider';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
 import LinkProvider from './documentLinkProvider';
 
@@ -233,8 +232,8 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 	}
 
 	private async *provideHeaderSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext, insertionRange: vscode.Range): AsyncIterable<vscode.CompletionItem> {
-		const toc = await this.getTableOfContents(document);
-		for (const entry of toc) {
+		const toc = await TableOfContents.createForDocumentOrNotebook(this.engine, document);
+		for (const entry of toc.entries) {
 			const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
 			yield {
 				kind: vscode.CompletionItemKind.Reference,
@@ -245,27 +244,6 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 				},
 			};
 		}
-	}
-
-	private async getTableOfContents(document: vscode.TextDocument) {
-		if (document.uri.scheme === 'vscode-notebook-cell') {
-			const notebook = vscode.workspace.notebookDocuments
-				.find(notebook => notebook.getCells().some(cell => cell.document === document));
-
-			if (notebook) {
-				const toc: TocEntry[] = [];
-
-				for (const cell of notebook.getCells()) {
-					if (cell.kind === vscode.NotebookCellKind.Markup && isMarkdownFile(cell.document)) {
-						toc.push(...(await TableOfContents.create(this.engine, cell.document)).entries);
-					}
-				}
-
-				return toc;
-			}
-		}
-
-		return (await TableOfContents.create(this.engine, document)).entries;
 	}
 
 	private async *providePathSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext): AsyncIterable<vscode.CompletionItem> {

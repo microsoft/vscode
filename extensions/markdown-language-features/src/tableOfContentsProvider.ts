@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { MarkdownEngine } from './markdownEngine';
 import { githubSlugifier, Slug } from './slugify';
+import { isMarkdownFile } from './util/file';
 
 export interface TocEntry {
 	readonly slug: Slug;
@@ -29,9 +30,31 @@ export interface SkinnyTextDocument {
 }
 
 export class TableOfContents {
-	public static async create(engine: MarkdownEngine, document: SkinnyTextDocument): Promise<TableOfContents> {
+
+	public static async create(engine: MarkdownEngine, document: SkinnyTextDocument,): Promise<TableOfContents> {
 		const entries = await this.buildToc(engine, document);
 		return new TableOfContents(entries);
+	}
+
+	public static async createForDocumentOrNotebook(engine: MarkdownEngine, document: SkinnyTextDocument): Promise<TableOfContents> {
+		if (document.uri.scheme === 'vscode-notebook-cell') {
+			const notebook = vscode.workspace.notebookDocuments
+				.find(notebook => notebook.getCells().some(cell => cell.document === document));
+
+			if (notebook) {
+				const entries: TocEntry[] = [];
+
+				for (const cell of notebook.getCells()) {
+					if (cell.kind === vscode.NotebookCellKind.Markup && isMarkdownFile(cell.document)) {
+						entries.push(...(await this.buildToc(engine, cell.document)));
+					}
+				}
+
+				return new TableOfContents(entries);
+			}
+		}
+
+		return this.create(engine, document);
 	}
 
 	private constructor(
