@@ -823,6 +823,11 @@ export interface ITerminalInstance {
 	 * re-run it in the active terminal.
 	 */
 	runRecent(type: 'command' | 'cwd'): Promise<void>;
+
+	/**
+	 * Activates the most recent link of the given type.
+	 */
+	openRecentLink(type: 'file' | 'web'): Promise<void>;
 }
 
 export interface IXtermTerminal {
