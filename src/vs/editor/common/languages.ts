@@ -1765,8 +1765,9 @@ export enum InlayHintKind {
 
 export interface InlayHintLabelPart {
 	label: string;
-	collapsible?: boolean;
-	action?: Command | Location
+	// collapsible?: boolean;
+	command?: Command
+	location?: Location;
 }
 
 export interface InlayHint {
@@ -1774,8 +1775,8 @@ export interface InlayHint {
 	tooltip?: string | IMarkdownString
 	position: IPosition;
 	kind: InlayHintKind;
-	whitespaceBefore?: boolean;
-	whitespaceAfter?: boolean;
+	paddingLeft?: boolean;
+	paddingRight?: boolean;
 }
 
 export interface InlayHintList {

@@ -1260,8 +1260,8 @@ class InlayHintsAdapter {
 			tooltip: hint.tooltip && typeConvert.MarkdownString.from(hint.tooltip),
 			position: typeConvert.Position.from(hint.position),
 			kind: typeConvert.InlayHintKind.from(hint.kind ?? InlayHintKind.Other),
-			whitespaceBefore: hint.whitespaceBefore,
-			whitespaceAfter: hint.whitespaceAfter,
+			whitespaceBefore: hint.paddingLeft,
+			whitespaceAfter: hint.paddingRight,
 		};
 
 		if (typeof hint.label === 'string') {
@@ -1269,11 +1269,10 @@ class InlayHintsAdapter {
 		} else {
 			result.label = hint.label.map(part => {
 				let r: modes.InlayHintLabelPart = { label: part.label };
-				r.collapsible = part.collapsible;
-				if (Location.isLocation(part.action)) {
-					r.action = typeConvert.location.from(part.action);
-				} else if (part.action) {
-					r.action = this._commands.toInternal(part.action, disposables);
+				if (Location.isLocation(part.location)) {
+					r.location = typeConvert.location.from(part.location);
+				} else if (part.command) {
+					r.command = this._commands.toInternal(part.command, disposables);
 				}
 				return r;
 			});

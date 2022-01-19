@@ -10,7 +10,7 @@ import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser'
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { Command, Location } from 'vs/editor/common/languages';
+import { Location } from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { DefinitionAction, SymbolNavigationAction, SymbolNavigationAnchor } from 'vs/editor/contrib/gotoSymbol/goToCommands';
 import { ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
@@ -29,11 +29,11 @@ export async function showGoToContextMenu(accessor: ServicesAccessor, editor: IC
 
 	await part.item.resolve(CancellationToken.None);
 
-	if (!part.part.action || Command.is(part.part.action)) {
+	if (!part.part.location) {
 		return;
 	}
 
-	const location: Location = part.part.action;
+	const location: Location = part.part.location;
 	const menuActions: IAction[] = [];
 
 	// from all registered (not active) context menu actions select those

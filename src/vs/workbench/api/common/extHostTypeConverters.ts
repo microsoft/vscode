@@ -1159,8 +1159,8 @@ export namespace InlayHint {
 			InlayHintKind.to(hint.kind)
 		);
 		res.tooltip = htmlContent.isMarkdownString(hint.tooltip) ? MarkdownString.to(hint.tooltip) : hint.tooltip;
-		res.whitespaceAfter = hint.whitespaceAfter;
-		res.whitespaceBefore = hint.whitespaceBefore;
+		res.paddingLeft = hint.paddingLeft;
+		res.paddingRight = hint.paddingRight;
 		return res;
 	}
 }
@@ -1169,11 +1169,11 @@ export namespace InlayHintLabelPart {
 
 	export function to(converter: CommandsConverter, part: modes.InlayHintLabelPart): types.InlayHintLabelPart {
 		const result = new types.InlayHintLabelPart(part.label);
-		result.collapsible = part.collapsible;
-		if (modes.Command.is(part.action)) {
-			result.action = converter.fromInternal(part.action);
-		} else if (part.action) {
-			result.action = location.to(part.action);
+
+		if (modes.Command.is(part.command)) {
+			result.command = converter.fromInternal(part.command);
+		} else if (part.location) {
+			result.location = location.to(part.location);
 		}
 		return result;
 	}

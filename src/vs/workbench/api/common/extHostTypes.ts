@@ -1424,24 +1424,23 @@ export enum InlayHintKind {
 @es5ClassCompat
 export class InlayHintLabelPart {
 	label: string;
-	collapsible?: boolean;
-	action?: vscode.Command | Location; // invokes provider
+	location?: Location;
+	command?: vscode.Command;
+
 	constructor(label: string) {
 		this.label = label;
-	}
-	toString(): string {
-		return this.label;
 	}
 }
 
 @es5ClassCompat
 export class InlayHint implements vscode.InlayHint {
+
 	label: string | InlayHintLabelPart[];
 	tooltip?: string | vscode.MarkdownString;
 	position: Position;
 	kind?: vscode.InlayHintKind;
-	whitespaceBefore?: boolean;
-	whitespaceAfter?: boolean;
+	paddingLeft?: boolean;
+	paddingRight?: boolean;
 
 	constructor(label: string | InlayHintLabelPart[], position: Position, kind?: vscode.InlayHintKind) {
 		this.label = label;
