@@ -90,15 +90,15 @@ export function truncatedArrayOfString(notebookUri: URI, cellViewModel: IGeneric
 
 	container.appendChild(generateViewMoreElement(notebookUri, cellViewModel, outputId, disposables, openerService));
 
-	const pre = DOM.$('pre');
-	container.appendChild(pre);
-	pre.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(1, 1, linesLimit - 5, buffer.getLineLastNonWhitespaceColumn(linesLimit - 5)), EndOfLinePreference.TextDefined), linkDetector, themeService, undefined));
+	const div = DOM.$('div');
+	container.appendChild(div);
+	div.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(1, 1, linesLimit - 5, buffer.getLineLastNonWhitespaceColumn(linesLimit - 5)), EndOfLinePreference.TextDefined), linkDetector, themeService, undefined));
 
 	// view more ...
 	DOM.append(container, DOM.$('span' + Codicon.toolBarMore.cssSelector));
 
 	const lineCount = buffer.getLineCount();
-	const pre2 = DOM.$('div');
-	container.appendChild(pre2);
-	pre2.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(lineCount - 5, 1, lineCount, buffer.getLineLastNonWhitespaceColumn(lineCount)), EndOfLinePreference.TextDefined), linkDetector, themeService, undefined));
+	const div2 = DOM.$('div');
+	container.appendChild(div2);
+	div2.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(lineCount - 5, 1, lineCount, buffer.getLineLastNonWhitespaceColumn(lineCount)), EndOfLinePreference.TextDefined), linkDetector, themeService, undefined));
 }

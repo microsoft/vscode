@@ -521,6 +521,8 @@ export interface ManagedMarkdownPreview {
 
 export class StaticMarkdownPreview extends Disposable implements ManagedMarkdownPreview {
 
+	public static readonly customEditorViewType = 'vscode.markdown.preview.editor';
+
 	public static revive(
 		resource: vscode.Uri,
 		webview: vscode.WebviewPanel,
@@ -552,7 +554,11 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 		const topScrollLocation = scrollLine ? new StartingScrollLine(scrollLine) : undefined;
 		this.preview = this._register(new MarkdownPreview(this._webviewPanel, resource, topScrollLocation, {
 			getAdditionalState: () => { return {}; },
-			openPreviewLinkToMarkdownFile: () => { /* todo */ }
+			openPreviewLinkToMarkdownFile: (markdownLink, fragment) => {
+				return vscode.commands.executeCommand('vscode.openWith', markdownLink.with({
+					fragment
+				}), StaticMarkdownPreview.customEditorViewType, this._webviewPanel.viewColumn);
+			}
 		}, engine, contentProvider, _previewConfigurations, logger, contributionProvider));
 
 		this._register(this._webviewPanel.onDidDispose(() => {

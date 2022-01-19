@@ -9,7 +9,7 @@ import { Keychain } from './common/keychain';
 import { GitHubEnterpriseServer, GitHubServer, IGitHubServer } from './githubServer';
 import { arrayEquals } from './common/utils';
 import { ExperimentationTelemetry } from './experimentationService';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import { Log } from './common/logger';
 
 interface SessionData {
