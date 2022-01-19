@@ -402,7 +402,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			untypedInput.languageId = this.getLanguageId();
 			untypedInput.contents = (() => {
 				const model = this.textFileService.files.get(this.resource);
-				if (model && model.isDirty()) {
+				if (model?.isDirty()) {
 					return model.textEditorModel.getValue(); // only if dirty
 				}
 
