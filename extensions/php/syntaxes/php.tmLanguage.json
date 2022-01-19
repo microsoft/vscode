@@ -1621,7 +1621,7 @@
 					]
 				},
 				{
-					"begin": "(<<<)\\s*(\"?)(SQL)(\\2)(\\s*)$",
+					"begin": "(<<<)\\s*(\"?)((S|D)QL)(\\2)(\\s*)$",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.begin.php"
