@@ -40,6 +40,7 @@ export interface NotebookLayoutConfiguration {
 	markdownCellTopMargin: number;
 	markdownCellBottomMargin: number;
 	markdownPreviewPadding: number;
+	markdownFoldHintHeight: number;
 	// bottomToolbarGap: number;
 	// bottomToolbarHeight: number;
 	editorToolbarHeight: number;
@@ -168,7 +169,8 @@ export class NotebookOptions extends Disposable {
 			markupFontSize,
 			editorOptionsCustomizations,
 			focusIndicatorGap: 3,
-			interactiveWindowCollapseCodeCells
+			interactiveWindowCollapseCodeCells,
+			markdownFoldHintHeight: 22
 		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -519,12 +521,12 @@ export class NotebookOptions extends Disposable {
 		};
 	}
 
-	computeIndicatorPosition(totalHeight: number, viewType?: string) {
+	computeIndicatorPosition(totalHeight: number, foldHintHeight: number, viewType?: string) {
 		const { bottomToolbarGap } = this.computeBottomToolbarDimensions(viewType);
 
 		return {
-			bottomIndicatorTop: totalHeight - bottomToolbarGap - this._layoutConfiguration.cellBottomMargin,
-			verticalIndicatorHeight: totalHeight - bottomToolbarGap
+			bottomIndicatorTop: totalHeight - bottomToolbarGap - this._layoutConfiguration.cellBottomMargin - foldHintHeight,
+			verticalIndicatorHeight: totalHeight - bottomToolbarGap - foldHintHeight
 		};
 	}
 }

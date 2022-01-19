@@ -156,6 +156,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		const focusIndicatorLeft = new FastDomNode(DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left')));
 		const foldingIndicator = DOM.append(focusIndicatorLeft.domNode, DOM.$('.notebook-folding-indicator'));
 		const focusIndicatorRight = new FastDomNode(DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-right')));
+		const foldedContentHint = DOM.append(container, $('.notebook-folded-hint'));
 
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
 		const editorPart = DOM.append(codeInnerContent, $('.cell-editor-part'));
@@ -196,6 +197,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			betweenCellToolbar,
 			titleToolbar,
 			statusBar,
+			foldedContentHint,
 			toJSON: () => { return {}; }
 		};
 
