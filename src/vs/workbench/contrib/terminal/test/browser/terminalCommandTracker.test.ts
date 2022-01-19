@@ -32,13 +32,12 @@ suite('Workbench - TerminalCommandTracker', function () {
 	let xterm: TestTerminal;
 	let commandTracker: CommandTrackerAddon;
 
-	setup(async function () {
-		// These tests are flaky on GH actions as sometimes they are particularly slow and timeout
-		// on the await writeP calls. These have been reduced but the timeout is increased and
-		// retries are used to try catch edge cases (timeout alone doesn't catch everything).
-		this.timeout(20000);
-		this.retries(3);
+	// These tests are flaky on GH actions as sometimes they are particularly slow and timeout
+	// on the await writeP calls. These have been reduced but the timeout is increased to try
+	// catch edge cases.
+	this.timeout(20000);
 
+	setup(async function () {
 		xterm = (<TestTerminal>new Terminal({
 			cols: COLS,
 			rows: ROWS
