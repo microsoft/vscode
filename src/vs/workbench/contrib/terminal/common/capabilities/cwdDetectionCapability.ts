@@ -13,7 +13,7 @@ export class CwdDetectionCapability {
 	private readonly _onDidChangeCwd = new Emitter<string>();
 	readonly onDidChangeCwd = this._onDidChangeCwd.event;
 
-	async getCwd(): Promise<string> {
+	getCwd(): string {
 		return this._cwd;
 	}
 

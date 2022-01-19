@@ -1553,8 +1553,7 @@ export function registerTerminalActions() {
 				for (const t of instances) {
 					terminalService.setActiveInstance(t);
 					terminalService.doWithActiveInstance(async instance => {
-						const cwd = await getCwdForSplit(terminalService.configHelper, instance);
-						await terminalService.createTerminal({ location: { parentTerminal: instance }, cwd });
+						await terminalService.createTerminal({ location: { parentTerminal: instance } });
 						await terminalGroupService.showPanel(true);
 					});
 				}
@@ -1680,8 +1679,7 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			await terminalService.doWithActiveInstance(async t => {
-				const cwd = await getCwdForSplit(terminalService.configHelper, t);
-				const instance = await terminalService.createTerminal({ location: { parentTerminal: t }, cwd });
+				const instance = await terminalService.createTerminal({ location: { parentTerminal: t } });
 				if (instance?.target !== TerminalLocation.Editor) {
 					await terminalGroupService.showPanel(true);
 				}
@@ -1746,12 +1744,8 @@ export function registerTerminalActions() {
 			const configurationService = accessor.get(IConfigurationService);
 			const folders = workspaceContextService.getWorkspace().folders;
 			if (eventOrOptions && eventOrOptions instanceof MouseEvent && (eventOrOptions.altKey || eventOrOptions.ctrlKey)) {
-				const activeInstance = terminalService.activeInstance;
-				if (activeInstance) {
-					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
-					await terminalService.createTerminal({ location: { parentTerminal: activeInstance }, cwd });
-					return;
-				}
+				await terminalService.createTerminal({ location: { splitActiveTerminal: true } });
+				return;
 			}
 
 			if (terminalService.isProcessSupportRegistered) {
@@ -2268,8 +2262,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 			if (event && (event.altKey || event.ctrlKey)) {
 				const parentTerminal = terminalService.activeInstance;
 				if (parentTerminal) {
-					cwd = await getCwdForSplit(terminalService.configHelper, parentTerminal);
-					await terminalService.createTerminal({ location: { parentTerminal }, config: options?.config, cwd });
+					await terminalService.createTerminal({ location: { parentTerminal }, config: options?.config });
 					return;
 				}
 			}
