@@ -19,10 +19,10 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 	public provideDocumentLinks(
 		document: vscode.TextDocument,
 		_token: vscode.CancellationToken
-	): vscode.ProviderResult<vscode.DocumentLink[]> {
+	): vscode.DocumentLink[] {
 		const root = jsonc.parseTree(document.getText());
 		if (!root) {
-			return null;
+			return [];
 		}
 
 		return coalesce([
