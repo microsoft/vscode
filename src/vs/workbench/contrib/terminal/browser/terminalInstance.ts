@@ -1301,8 +1301,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const originalArgs = shellLaunchConfig.args;
 		const shell = path.basename(shellLaunchConfig.executable);
 		let newArgs: string | string[] | undefined;
-		// TODO: Use backend OS
-		if (isWindows) {
+		if (this._processManager.os === OperatingSystem.Windows) {
 			if (shell === 'pwsh' && !originalArgs) {
 				newArgs = [
 					'-noexit',
@@ -1311,17 +1310,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				];
 			}
 		} else {
-			// TODO: Read current args, only enable if they are recognized (ie. [] and ["-l"]), warn otherwise
-			switch (shell) {
-				case 'bash':
-					newArgs = ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-bash.sh'];
-					break;
-				case 'pwsh':
-					newArgs = ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"'];
-					break;
-				case 'zsh':
-					newArgs = ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh"; zsh -il'];
-					break;
+			if (!originalArgs || originalArgs === [] || originalArgs === ['-l']) {
+				switch (shell) {
+					case 'bash':
+						newArgs = ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-bash.sh'];
+						break;
+					case 'pwsh':
+						newArgs = ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"'];
+						break;
+					case 'zsh':
+						newArgs = ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh"; zsh -il'];
+						break;
+				}
+			} else {
+				this._logService.warn(nls.localize('shellIntegrationArgsPreventEnablingWarning', "Shell integration cannot be enabled when custom args {0} are provided for {1}."), originalArgs, shell);
 			}
 		}
 		return { args: newArgs || originalArgs, enableShellIntegration: newArgs !== undefined };
