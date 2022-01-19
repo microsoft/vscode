@@ -1268,13 +1268,14 @@ class InlayHintsAdapter {
 			result.label = hint.label;
 		} else {
 			result.label = hint.label.map(part => {
-				let r: modes.InlayHintLabelPart = { label: part.label };
+				let result: modes.InlayHintLabelPart = { label: part.label };
+				result.tooltip = part.tooltip && typeConvert.MarkdownString.from(part.tooltip);
 				if (Location.isLocation(part.location)) {
-					r.location = typeConvert.location.from(part.location);
+					result.location = typeConvert.location.from(part.location);
 				} else if (part.command) {
-					r.command = this._commands.toInternal(part.command, disposables);
+					result.command = this._commands.toInternal(part.command, disposables);
 				}
-				return r;
+				return result;
 			});
 		}
 		return result;

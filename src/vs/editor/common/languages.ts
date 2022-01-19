@@ -1765,6 +1765,7 @@ export enum InlayHintKind {
 
 export interface InlayHintLabelPart {
 	label: string;
+	tooltip?: string | IMarkdownString
 	// collapsible?: boolean;
 	command?: Command
 	location?: Location;
