@@ -188,7 +188,7 @@ steps:
       set -e
       DEBUG=*browser* yarn test-browser --sequential --build --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
     displayName: Run unit tests (Browser, Chromium & Firefox & Webkit)
-    timeoutInMinutes: 20
+    timeoutInMinutes: 30
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -221,7 +221,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
       ./resources/server/test/test-remote-integration.sh
     displayName: Run integration tests (Remote)
-    timeoutInMinutes: 7
+    timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |

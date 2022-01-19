@@ -948,29 +948,21 @@ export interface INotebookKernelDto2 {
 
 export interface ICellExecuteOutputEditDto {
 	editType: CellExecutionUpdateType.Output;
-	uri: UriComponents;
-	cellHandle: number;
 	append?: boolean;
 	outputs: NotebookOutputDto[];
 }
 
 export interface ICellExecuteOutputItemEditDto {
 	editType: CellExecutionUpdateType.OutputItems;
-	uri: UriComponents;
-	cellHandle: number;
 	append?: boolean;
 	outputId: string;
 	items: NotebookOutputItemDto[];
 }
 
 export interface ICellExecutionStateUpdateDto extends ICellExecutionStateUpdate {
-	uri: UriComponents;
-	cellHandle: number;
 }
 
 export interface ICellExecutionCompleteDto extends ICellExecutionComplete {
-	uri: UriComponents;
-	cellHandle: number;
 }
 
 export type ICellExecuteUpdateDto = ICellExecuteOutputEditDto | ICellExecuteOutputItemEditDto | ICellExecutionStateUpdateDto;
@@ -982,9 +974,9 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$removeKernel(handle: number): void;
 	$updateNotebookPriority(handle: number, uri: UriComponents, value: number | undefined): void;
 
-	$addExecution(uri: UriComponents, cellHandle: number): void;
-	$updateExecutions(data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void;
-	$completeExecution(uri: UriComponents, cellHandle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void;
+	$createExecution(handle: number, controllerId: string, uri: UriComponents, cellHandle: number): void;
+	$updateExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void;
+	$completeExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void;
 }
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {

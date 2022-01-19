@@ -5,18 +5,29 @@
 
 import * as assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { DocumentSymbol, DocumentSymbolProviderRegistry, SymbolKind } from 'vs/editor/common/languages';
 import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { IModelService } from 'vs/editor/common/services/model';
+import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { OutlineElement, OutlineGroup, OutlineModel, OutlineModelService } from '../outlineModel';
 
 suite('OutlineModel', function () {
 
+	let disposables = new DisposableStore();
+
+	teardown(function () {
+		disposables.clear();
+	});
+
 	test('OutlineModel#create, cached', async function () {
-		const service = new OutlineModelService(new LanguageFeatureDebounceService());
+
+		const insta = createModelServices(disposables);
+		const modelService = insta.get(IModelService);
+		const service = new OutlineModelService(new LanguageFeatureDebounceService(), modelService);
 
 		let model = createTextModel('foo', undefined, undefined, URI.file('/fome/path.foo'));
 		let count = 0;
@@ -45,7 +56,9 @@ suite('OutlineModel', function () {
 
 	test('OutlineModel#create, cached/cancel', async function () {
 
-		const service = new OutlineModelService(new LanguageFeatureDebounceService());
+		const insta = createModelServices(disposables);
+		const modelService = insta.get(IModelService);
+		const service = new OutlineModelService(new LanguageFeatureDebounceService(), modelService);
 		let model = createTextModel('foo', undefined, undefined, URI.file('/fome/path.foo'));
 		let isCancelled = false;
 

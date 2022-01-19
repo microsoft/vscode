@@ -1032,13 +1032,18 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		}
 
 		const result: IGalleryExtensionVersion[] = [];
-		for (const version of galleryExtensions[0].versions) {
+		const seenVersions = new Set<string>();
+		await Promise.all(galleryExtensions[0].versions.map(async (version) => {
 			try {
-				if (result[result.length - 1]?.version !== version.version && await this.isValidVersion(version, includePreRelease, true, allTargetPlatforms, targetPlatform)) {
+				if (seenVersions.has(version.version)) {
+					return;
+				}
+				seenVersions.add(version.version);
+				if (await this.isValidVersion(version, includePreRelease, true, allTargetPlatforms, targetPlatform)) {
 					result.push({ version: version.version, date: version.lastUpdated, isPreReleaseVersion: isPreReleaseVersion(version) });
 				}
 			} catch (error) { /* Ignore error and skip version */ }
-		}
+		}));
 		return result;
 	}
 

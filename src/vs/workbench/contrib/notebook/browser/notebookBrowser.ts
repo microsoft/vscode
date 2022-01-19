@@ -237,6 +237,7 @@ export interface MarkdownCellLayoutInfo {
 	readonly bottomToolbarOffset: number;
 	readonly totalHeight: number;
 	readonly layoutState: CellLayoutState;
+	readonly foldHintHeight: number;
 }
 
 export interface MarkdownCellLayoutChangeEvent {

@@ -14,6 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
+import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
 import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 
@@ -62,6 +63,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 	}
 	private _textModelService: ITextModelService;
 	private _interactiveDocumentService: IInteractiveDocumentService;
+	private _historyService: IInteractiveHistoryService;
 
 
 	constructor(
@@ -72,7 +74,8 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 
-		@IInteractiveDocumentService interactiveDocumentService: IInteractiveDocumentService
+		@IInteractiveDocumentService interactiveDocumentService: IInteractiveDocumentService,
+		@IInteractiveHistoryService historyService: IInteractiveHistoryService
 	) {
 		const input = NotebookEditorInput.create(instantiationService, resource, 'interactive', {});
 		super();
@@ -85,6 +88,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		this._inputModelRef = null;
 		this._textModelService = textModelService;
 		this._interactiveDocumentService = interactiveDocumentService;
+		this._historyService = historyService;
 
 		this._registerListeners();
 	}
@@ -173,5 +177,9 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		this._inputModelRef?.dispose();
 		this._inputModelRef = null;
 		super.dispose();
+	}
+
+	get historyService() {
+		return this._historyService;
 	}
 }

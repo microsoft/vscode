@@ -47,7 +47,7 @@ export class NotebookExecutionService implements INotebookExecutionService {
 
 		const cellHandles: number[] = [];
 		for (const cell of cellsArr) {
-			const cellExe = this._notebookExecutionStateService.getCellExecutionState(cell.uri);
+			const cellExe = this._notebookExecutionStateService.getCellExecution(cell.uri);
 			if (cell.cellKind !== CellKind.Code || !!cellExe) {
 				continue;
 			}

@@ -10,8 +10,8 @@ import { Schemas } from 'vs/base/common/network';
 import { gt } from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { CLIOutput, IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { CLIOutput, getIdAndVersion, IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 
@@ -25,16 +25,6 @@ function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
 	} else {
 		return `${manifest.publisher}.${manifest.name}`;
 	}
-}
-
-const EXTENSION_ID_REGEX = /^([^.]+\..+)@(\d+\.\d+\.\d+(-.*)?)$/;
-
-export function getIdAndVersion(id: string): [string, string | undefined] {
-	const matches = EXTENSION_ID_REGEX.exec(id);
-	if (matches && matches[1]) {
-		return [adoptToGalleryExtensionId(matches[1]), matches[2]];
-	}
-	return [adoptToGalleryExtensionId(id), undefined];
 }
 
 type InstallExtensionInfo = { id: string, version?: string, installOptions: InstallOptions; };

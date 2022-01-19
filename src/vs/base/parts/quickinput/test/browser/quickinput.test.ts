@@ -8,6 +8,8 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { IQuickPick, IQuickPickItem } from 'vs/base/parts/quickinput/common/quickInput';
+// TODO@layers
+// eslint-disable-next-line code-import-patterns
 import { IWorkbenchListOptions } from 'vs/platform/list/browser/listService';
 
 // Simple promisify of setTimeout

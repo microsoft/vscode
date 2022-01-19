@@ -455,6 +455,18 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._foldingRanges.isCollapsed(range) ? CellFoldingState.Collapsed : CellFoldingState.Expanded;
 	}
 
+	getFoldedLength(index: number): number {
+		if (!this._foldingRanges) {
+			return 0;
+		}
+
+		const range = this._foldingRanges.findRange(index + 1);
+		const startIndex = this._foldingRanges.getStartLineNumber(range) - 1;
+		const endIndex = this._foldingRanges.getEndLineNumber(range) - 1;
+
+		return endIndex - startIndex;
+	}
+
 	updateFoldingRanges(ranges: FoldingRegions) {
 		this._foldingRanges = ranges;
 		let updateHiddenAreas = false;
@@ -496,7 +508,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 		this._viewCells.forEach(cell => {
 			if (cell.cellKind === CellKind.Markup) {
-				cell.triggerfoldingStateChange();
+				cell.triggerFoldingStateChange();
 			}
 		});
 	}

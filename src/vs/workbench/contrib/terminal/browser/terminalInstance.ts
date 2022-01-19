@@ -1281,7 +1281,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._onProcessExit(error, enableShellIntegration);
 			}
 		});
-		if (enableShellIntegration && this.xterm?.shellIntegration) {
+		if (this.xterm?.shellIntegration) {
 			this.capabilities.add(this.xterm?.shellIntegration.capabilities);
 		}
 		if (!hadIcon && this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
@@ -1290,10 +1290,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _updateArgsForShellIntegration(shellLaunchConfig: IShellLaunchConfig): { args: string | string[] | undefined, enableShellIntegration: boolean } {
-		const originalArgs = shellLaunchConfig.args;
-		if (!this._configHelper.config.enableShellIntegration || !shellLaunchConfig.executable) {
-			return { args: originalArgs, enableShellIntegration: false };
+		// Shell integration arg injection is disabled when:
+		// - The global setting is disabled
+		// - There is no executable (not sure what script to run)
+		// - The terminal is used by a feature like tasks or debugging
+		if (!this._configHelper.config.enableShellIntegration || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal) {
+			return { args: shellLaunchConfig.args, enableShellIntegration: false };
 		}
+
+		const originalArgs = shellLaunchConfig.args;
 		const shell = path.basename(shellLaunchConfig.executable);
 		let newArgs: string | string[] | undefined;
 		// TODO: Use backend OS
@@ -1315,7 +1320,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					newArgs = ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"'];
 					break;
 				case 'zsh':
-					newArgs = ['-c', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh; zsh -il'];
+					newArgs = ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh"; zsh -il'];
 					break;
 			}
 		}

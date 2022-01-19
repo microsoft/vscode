@@ -15,7 +15,7 @@ import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib
 import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellExecutionEntry, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export class NotebookStatusBarController extends Disposable {
 	private readonly _visibleCells = new Map<number, IDisposable>();
@@ -111,7 +111,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 	 *	Returns undefined if there should be no change, and an empty array if all items should be removed.
 	 */
 	private _getItemsForCell(): INotebookCellStatusBarItem[] | undefined {
-		const runState = this._executionStateService.getCellExecutionState(this._cell.uri);
+		const runState = this._executionStateService.getCellExecution(this._cell.uri);
 		if (this._currentExecutingStateTimer && !runState?.isPaused) {
 			return;
 		}
@@ -121,7 +121,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 		// Show the execution spinner for a minimum time
 		if (runState?.state === NotebookCellExecutionState.Executing) {
 			this._currentExecutingStateTimer = this._register(disposableTimeout(() => {
-				const runState = this._executionStateService.getCellExecutionState(this._cell.uri);
+				const runState = this._executionStateService.getCellExecution(this._cell.uri);
 				this._currentExecutingStateTimer = undefined;
 				if (runState?.state !== NotebookCellExecutionState.Executing) {
 					this._update();
@@ -132,7 +132,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 		return item ? [item] : [];
 	}
 
-	private _getItemForState(runState: ICellExecutionEntry | undefined, internalMetadata: NotebookCellInternalMetadata): INotebookCellStatusBarItem | undefined {
+	private _getItemForState(runState: INotebookCellExecution | undefined, internalMetadata: NotebookCellInternalMetadata): INotebookCellStatusBarItem | undefined {
 		const state = runState?.state;
 		const { lastRunSuccess } = internalMetadata;
 		if (!state && lastRunSuccess) {
@@ -212,7 +212,7 @@ class TimerCellStatusBarItem extends Disposable {
 
 	private async _update() {
 		let item: INotebookCellStatusBarItem | undefined;
-		const runState = this._executionStateService.getCellExecutionState(this._cell.uri);
+		const runState = this._executionStateService.getCellExecution(this._cell.uri);
 		const state = runState?.state;
 		if (runState?.didPause) {
 			item = undefined;

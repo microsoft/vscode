@@ -29,6 +29,8 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { isStringArray } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+// TODO@layers
+// eslint-disable-next-line code-import-patterns
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 namespace snippetExt {

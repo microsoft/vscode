@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, contentTracing, dialog, ipcMain, protocol, session, Session, systemPreferences } from 'electron';
+import { app, BrowserWindow, contentTracing, dialog, ipcMain, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { statSync } from 'fs';
 import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -154,6 +154,90 @@ export class CodeApplication extends Disposable {
 
 		//#endregion
 
+		//#region Request filtering
+
+		// Block all SVG requests from unsupported origins
+		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, 'devtools']);
+
+		// But allow them if the are made from inside an webview
+		const isSafeFrame = (requestFrame: WebFrameMain | undefined): boolean => {
+			for (let frame: WebFrameMain | null | undefined = requestFrame; frame; frame = frame.parent) {
+				if (frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
+					return true;
+				}
+			}
+			return false;
+		};
+
+		const isSvgRequestFromSafeContext = (details: Electron.OnBeforeRequestListenerDetails | Electron.OnHeadersReceivedListenerDetails): boolean => {
+			return details.resourceType === 'xhr' || isSafeFrame(details.frame);
+		};
+
+		const isAllowedVsCodeFileRequest = (details: Electron.OnBeforeRequestListenerDetails) => {
+			const frame = details.frame;
+			if (!frame || !this.windowsMainService) {
+				return false;
+			}
+
+			// Check to see if the request comes from one of the main windows (or shared process) and not from embedded content
+			const windows = BrowserWindow.getAllWindows();
+			for (const window of windows) {
+				if (frame.processId === window.webContents.mainFrame.processId) {
+					return true;
+				}
+			}
+
+			return false;
+		};
+
+		session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
+			const uri = URI.parse(details.url);
+
+			if (uri.scheme === Schemas.vscodeFileResource) {
+				if (!isAllowedVsCodeFileRequest(details)) {
+					this.logService.error('Blocked vscode-file request', details.url);
+					return callback({ cancel: true });
+				}
+			}
+
+			// Block most svgs
+			if (uri.path.endsWith('.svg')) {
+				const isSafeResourceUrl = supportedSvgSchemes.has(uri.scheme);
+				if (!isSafeResourceUrl) {
+					return callback({ cancel: !isSvgRequestFromSafeContext(details) });
+				}
+			}
+
+			return callback({ cancel: false });
+		});
+
+		// Configure SVG header content type properly
+		// https://github.com/microsoft/vscode/issues/97564
+		session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+			const responseHeaders = details.responseHeaders as Record<string, (string) | (string[])>;
+			const contentTypes = (responseHeaders['content-type'] || responseHeaders['Content-Type']);
+
+			if (contentTypes && Array.isArray(contentTypes)) {
+				const uri = URI.parse(details.url);
+				if (uri.path.endsWith('.svg')) {
+					if (supportedSvgSchemes.has(uri.scheme)) {
+						responseHeaders['Content-Type'] = ['image/svg+xml'];
+
+						return callback({ cancel: false, responseHeaders });
+					}
+				}
+
+				// remote extension schemes have the following format
+				// http://127.0.0.1:<port>/vscode-remote-resource?path=
+				if (!uri.path.includes(Schemas.vscodeRemoteResource) && contentTypes.some(contentType => contentType.toLowerCase().includes('image/svg'))) {
+					return callback({ cancel: !isSvgRequestFromSafeContext(details) });
+				}
+			}
+
+			return callback({ cancel: false });
+		});
+
+		//#endregion
 
 		//#region Code Cache
 

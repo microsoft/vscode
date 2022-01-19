@@ -22,7 +22,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { IUserDataSyncWorkbenchService, CONTEXT_SYNC_STATE, getSyncAreaLabel, CONTEXT_ACCOUNT_STATE, AccountStatus, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { IUserDataSyncMachinesService, IUserDataSyncMachine, isWebPlatform } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { flatten } from 'vs/base/common/arrays';
@@ -466,12 +466,12 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 			let machines = await this.getMachines();
 			machines = machines.filter(m => !m.disabled).sort((m1, m2) => m1.isCurrent ? -1 : 1);
 			this.treeView.message = machines.length ? undefined : localize('no machines', "No Machines");
-			return machines.map(({ id, name, isCurrent }) => ({
+			return machines.map(({ id, name, isCurrent, platform }) => ({
 				handle: id,
 				collapsibleState: TreeItemCollapsibleState.None,
 				label: { label: name },
 				description: isCurrent ? localize({ key: 'current', comment: ['Current machine'] }, "Current") : undefined,
-				themeIcon: Codicon.vm,
+				themeIcon: platform && isWebPlatform(platform) ? Codicon.globe : Codicon.vm,
 				contextValue: 'sync-machine'
 			}));
 		} catch (error) {

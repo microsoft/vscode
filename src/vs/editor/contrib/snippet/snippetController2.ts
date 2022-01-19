@@ -153,6 +153,7 @@ export class SnippetController2 implements IEditorContribution {
 		}
 
 		if (this._session.isAtLastPlaceholder || !this._session.isSelectionWithinPlaceholders()) {
+			this._editor.getModel().pushStackElement();
 			return this.cancel();
 		}
 

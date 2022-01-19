@@ -43,6 +43,7 @@ import { TerminalProfileQuickpick } from 'vs/workbench/contrib/terminal/browser/
 import { IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { getCwdForSplit } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -221,7 +222,8 @@ export class TerminalService implements ITerminalService {
 			} else if (result.config && 'profileName' in result.config) {
 				if (keyMods?.alt && activeInstance) {
 					// create split, only valid if there's an active instance
-					instance = await this.createTerminal({ location: { parentTerminal: activeInstance }, config: result.config });
+					const cwd = await getCwdForSplit(this.configHelper, activeInstance);
+					instance = await this.createTerminal({ location: { parentTerminal: activeInstance }, config: result.config, cwd });
 				} else {
 					instance = await this.createTerminal({ location: this.defaultLocation, config: result.config, cwd });
 				}

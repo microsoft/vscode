@@ -100,6 +100,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onDidChangeCenteredLayout: Event<boolean>;
 
 	/**
+	 * Emit when panel alignment changes.
+	 */
+	readonly onDidChangePanelAlignment: Event<PanelAlignment>;
+
+	/**
 	 * Emit when part visibility changes
 	 */
 	readonly onDidChangePartVisibility: Event<void>;
@@ -195,6 +200,12 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Toggles the menu bar visibility.
 	 */
 	toggleMenuBar(): void;
+
+	/**
+	 *
+	 * Gets the panel alignement.
+	 */
+	getPanelAlignment(): PanelAlignment;
 
 	/**
 	 * Sets the panel alignment.

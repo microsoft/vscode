@@ -108,10 +108,6 @@ export class LayoutStateModel extends Disposable {
 			this.setRuntimeValueAndFire(LayoutStateKeys.STATUSBAR_HIDDEN, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE));
 		}
 
-		if (configurationChangeEvent.affectsConfiguration(LegacyWorkbenchLayoutSettings.PANEL_ALIGNMENT)) {
-			this.setRuntimeValueAndFire(LayoutStateKeys.PANEL_ALIGNMENT, this.configurationService.getValue(LegacyWorkbenchLayoutSettings.PANEL_ALIGNMENT));
-		}
-
 		if (configurationChangeEvent.affectsConfiguration(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION)) {
 			this.setRuntimeValueAndFire(LayoutStateKeys.SIDEBAR_POSITON, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left'));
 		}
@@ -127,8 +123,6 @@ export class LayoutStateModel extends Disposable {
 			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE, !value);
 		} else if (key === LayoutStateKeys.STATUSBAR_HIDDEN) {
 			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE, !value);
-		} else if (key === LayoutStateKeys.PANEL_ALIGNMENT) {
-			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.PANEL_ALIGNMENT, value);
 		} else if (key === LayoutStateKeys.SIDEBAR_POSITON) {
 			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION, positionToString(value as Position));
 		}
@@ -150,7 +144,6 @@ export class LayoutStateModel extends Disposable {
 		// Apply legacy settings
 		this.stateCache.set(LayoutStateKeys.ACTIVITYBAR_HIDDEN.name, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE));
 		this.stateCache.set(LayoutStateKeys.STATUSBAR_HIDDEN.name, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE));
-		this.stateCache.set(LayoutStateKeys.PANEL_ALIGNMENT.name, this.configurationService.getValue(LegacyWorkbenchLayoutSettings.PANEL_ALIGNMENT));
 		this.stateCache.set(LayoutStateKeys.SIDEBAR_POSITON.name, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left'));
 
 		// Set dynamic defaults: part sizing and side bar visibility
@@ -260,5 +253,4 @@ enum LegacyWorkbenchLayoutSettings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible', // Deprecated to UI State
 	STATUSBAR_VISIBLE = 'workbench.statusBar.visible', // Deprecated to UI State
 	SIDEBAR_POSITION = 'workbench.sideBar.location', // Deprecated to UI State
-	PANEL_ALIGNMENT = 'workbench.experimental.panel.alignment', // Deprecated to UI State
 }

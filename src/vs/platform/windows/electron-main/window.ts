@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl, WebFrameMain } from 'electron';
+import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -425,61 +425,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this._onDidClose.fire();
 
 			this.dispose();
-		});
-
-		// Block all SVG requests from unsupported origins
-		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, 'devtools']);
-
-		// But allow them if the are made from inside an webview
-		const isSafeFrame = (requestFrame: WebFrameMain | undefined): boolean => {
-			for (let frame: WebFrameMain | null | undefined = requestFrame; frame; frame = frame.parent) {
-				if (frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
-					return true;
-				}
-			}
-			return false;
-		};
-
-		const isRequestFromSafeContext = (details: Electron.OnBeforeRequestListenerDetails | Electron.OnHeadersReceivedListenerDetails): boolean => {
-			return details.resourceType === 'xhr' || isSafeFrame(details.frame);
-		};
-
-		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
-			const uri = URI.parse(details.url);
-			if (uri.path.endsWith('.svg')) {
-				const isSafeResourceUrl = supportedSvgSchemes.has(uri.scheme);
-				if (!isSafeResourceUrl) {
-					return callback({ cancel: !isRequestFromSafeContext(details) });
-				}
-			}
-
-			return callback({ cancel: false });
-		});
-
-		// Configure SVG header content type properly
-		// https://github.com/microsoft/vscode/issues/97564
-		this._win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-			const responseHeaders = details.responseHeaders as Record<string, (string) | (string[])>;
-			const contentTypes = (responseHeaders['content-type'] || responseHeaders['Content-Type']);
-
-			if (contentTypes && Array.isArray(contentTypes)) {
-				const uri = URI.parse(details.url);
-				if (uri.path.endsWith('.svg')) {
-					if (supportedSvgSchemes.has(uri.scheme)) {
-						responseHeaders['Content-Type'] = ['image/svg+xml'];
-
-						return callback({ cancel: false, responseHeaders });
-					}
-				}
-
-				// remote extension schemes have the following format
-				// http://127.0.0.1:<port>/vscode-remote-resource?path=
-				if (!uri.path.includes(Schemas.vscodeRemoteResource) && contentTypes.some(contentType => contentType.toLowerCase().includes('image/svg'))) {
-					return callback({ cancel: !isRequestFromSafeContext(details) });
-				}
-			}
-
-			return callback({ cancel: false });
 		});
 
 		// Remember that we loaded

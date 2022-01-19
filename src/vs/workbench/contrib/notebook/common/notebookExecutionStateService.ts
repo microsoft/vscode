@@ -35,7 +35,7 @@ export interface ICellExecutionEntry {
 export interface ICellExecutionStateChangedEvent {
 	notebook: URI;
 	cellHandle: number;
-	changed?: ICellExecutionEntry; // undefined -> execution was completed
+	changed?: INotebookCellExecution; // undefined -> execution was completed
 	affectsCell(cell: URI): boolean;
 	affectsNotebook(notebook: URI): boolean;
 }
@@ -47,11 +47,19 @@ export interface INotebookExecutionStateService {
 
 	onDidChangeCellExecution: Event<ICellExecutionStateChangedEvent>;
 
-	getCellExecutionStatesForNotebook(notebook: URI): ICellExecutionEntry[];
+	forceCancelNotebookExecutions(notebookUri: URI): void
+	getCellExecutionStatesForNotebook(notebook: URI): INotebookCellExecution[];
+	getCellExecution(cellUri: URI): INotebookCellExecution | undefined;
+	createCellExecution(controllerId: string, notebook: URI, cellHandle: number): INotebookCellExecution;
+}
 
-	getCellExecutionState(cellUri: URI): ICellExecutionEntry | undefined;
+export interface INotebookCellExecution {
+	readonly notebook: URI;
+	readonly cellHandle: number;
+	readonly state: NotebookCellExecutionState;
+	readonly didPause: boolean;
+	readonly isPaused: boolean;
 
-	createNotebookCellExecution(notebook: URI, cellHandle: number): void;
-	updateNotebookCellExecution(notebook: URI, cellHandle: number, updates: ICellExecuteUpdate[]): void;
-	completeNotebookCellExecution(notebook: URI, cellHandle: number, complete: ICellExecutionComplete): void;
+	update(updates: ICellExecuteUpdate[]): void;
+	complete(complete: ICellExecutionComplete): void;
 }

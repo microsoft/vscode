@@ -18,14 +18,14 @@ import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IModelService } from 'vs/editor/common/services/model';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export abstract class TreeElement {
 
 	abstract id: string;
 	abstract children: Map<string, TreeElement>;
 	abstract parent: TreeElement | undefined;
-
-	abstract adopt(newParent: TreeElement): TreeElement;
 
 	remove(): void {
 		if (this.parent) {
@@ -107,14 +107,6 @@ export class OutlineElement extends TreeElement {
 	) {
 		super();
 	}
-
-	adopt(parent: TreeElement): OutlineElement {
-		let res = new OutlineElement(this.id, parent, this.symbol);
-		for (const [key, value] of this.children) {
-			res.children.set(key, value.adopt(res));
-		}
-		return res;
-	}
 }
 
 export class OutlineGroup extends TreeElement {
@@ -128,14 +120,6 @@ export class OutlineGroup extends TreeElement {
 		readonly order: number,
 	) {
 		super();
-	}
-
-	adopt(parent: TreeElement): OutlineGroup {
-		let res = new OutlineGroup(this.id, parent, this.label, this.order);
-		for (const [key, value] of this.children) {
-			res.children.set(key, value.adopt(res));
-		}
-		return res;
 	}
 
 	getItemEnclosingPosition(position: IPosition): OutlineElement | undefined {
@@ -287,14 +271,6 @@ export class OutlineModel extends TreeElement {
 		this.parent = undefined;
 	}
 
-	adopt(): OutlineModel {
-		let res = new OutlineModel(this.uri);
-		for (const [key, value] of this._groups) {
-			res._groups.set(key, value.adopt(res));
-		}
-		return res._compact();
-	}
-
 	private _compact(): this {
 		let count = 0;
 		for (const [key, group] of this._groups) {
@@ -432,13 +408,24 @@ export class OutlineModelService implements IOutlineModelService {
 
 	declare _serviceBrand: undefined;
 
+	private readonly _disposables = new DisposableStore();
 	private readonly _debounceInformation: IFeatureDebounceInformation;
 	private readonly _cache = new LRUCache<string, CacheEntry>(10, 0.7);
 
 	constructor(
-		@ILanguageFeatureDebounceService debounces: ILanguageFeatureDebounceService
+		@ILanguageFeatureDebounceService debounces: ILanguageFeatureDebounceService,
+		@IModelService modelService: IModelService
 	) {
 		this._debounceInformation = debounces.for(DocumentSymbolProviderRegistry, { min: 350 });
+
+		// don't cache outline models longer than their text model
+		this._disposables.add(modelService.onModelRemoved(textModel => {
+			this._cache.delete(textModel.id);
+		}));
+	}
+
+	dispose(): void {
+		this._disposables.dispose();
 	}
 
 	async getOrCreate(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {

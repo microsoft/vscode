@@ -517,7 +517,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.EnableShellIntegration]: {
 			restricted: true,
-			description: localize('terminal.integrated.enableShellIntegration', "For supported shells, use shell integration (zsh & bash on mac/linux, pwsh on windows)"),
+			markdownDescription: localize('terminal.integrated.enableShellIntegration', "Enable shell integration which will turn on certain feature such enhanced command tracking and current working directory detection. Shell integration works by injecting a script that is run when the shell is initialized which lets the terminal gain additional insights into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, pwsh, zsh\n - Windows: pwsh"),
 			type: 'boolean',
 			default: false
 		},

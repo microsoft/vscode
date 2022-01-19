@@ -73,7 +73,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 		version: info.version,
 		env: environment,
 	});
-	const model = new Model(git, askpass, context.globalState, outputChannel);
+	const model = new Model(git, askpass, context.globalState, outputChannel, telemetryReporter);
 	disposables.push(model);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);

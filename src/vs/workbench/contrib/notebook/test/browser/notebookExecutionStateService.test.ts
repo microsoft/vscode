@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -20,6 +19,7 @@ import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
@@ -29,6 +29,7 @@ suite('NotebookExecutionStateService', () => {
 	let instantiationService: TestInstantiationService;
 	let kernelService: INotebookKernelService;
 	let disposables: DisposableStore;
+	let testNotebookModel: NotebookTextModel | undefined;
 
 	setup(function () {
 
@@ -40,11 +41,15 @@ suite('NotebookExecutionStateService', () => {
 			override onDidAddNotebookDocument = Event.None;
 			override onWillRemoveNotebookDocument = Event.None;
 			override getNotebookTextModels() { return []; }
+			override getNotebookTextModel(uri: URI): NotebookTextModel | undefined {
+				return testNotebookModel;
+			}
 		});
 
 		kernelService = instantiationService.createInstance(NotebookKernelService);
 		instantiationService.set(INotebookKernelService, kernelService);
 		instantiationService.set(INotebookExecutionService, instantiationService.createInstance(NotebookExecutionService));
+		instantiationService.set(INotebookExecutionStateService, instantiationService.createInstance(NotebookExecutionStateService));
 	});
 
 	teardown(() => {
@@ -55,13 +60,9 @@ suite('NotebookExecutionStateService', () => {
 		return _withTestNotebook(cells, (editor, viewModel) => callback(viewModel, viewModel.notebookDocument));
 	}
 
-	test('cancel execution when cell is deleted', async function () {
+	test('cancel execution when cell is deleted', async function () { // TODO@roblou Should be a test for NotebookExecutionListeners, which can be a standalone contribution
 		return withTestNotebook([], async viewModel => {
-			instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
-				override getNotebookTextModel(uri: URI): NotebookTextModel | undefined {
-					return viewModel.notebookDocument;
-				}
-			});
+			testNotebookModel = viewModel.notebookDocument;
 
 			let didCancel = false;
 			const kernel = new class extends TestNotebookKernel {
@@ -76,17 +77,62 @@ suite('NotebookExecutionStateService', () => {
 				}
 			};
 			kernelService.registerKernel(kernel);
+			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
 
-			const executionStateService: NotebookExecutionStateService = instantiationService.createInstance(NotebookExecutionStateService);
+			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
 
 			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
-			executionStateService.createNotebookCellExecution(viewModel.uri, cell.handle);
+			executionStateService.createCellExecution(kernel.id, viewModel.uri, cell.handle);
 			assert.strictEqual(didCancel, false);
 			viewModel.notebookDocument.applyEdits([{
 				editType: CellEditType.Replace, index: 0, count: 1, cells: []
 			}], true, undefined, () => undefined, undefined, false);
-			await timeout(0);
 			assert.strictEqual(didCancel, true);
+		});
+	});
+
+	test('fires onDidChangeCellExecution when cell is completed while deleted', async function () {
+		return withTestNotebook([], async viewModel => {
+			testNotebookModel = viewModel.notebookDocument;
+
+			const kernel = new TestNotebookKernel();
+			kernelService.registerKernel(kernel);
+			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
+
+			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
+			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
+			const exe = executionStateService.createCellExecution(kernel.id, viewModel.uri, cell.handle);
+
+			let didFire = false;
+			disposables.add(executionStateService.onDidChangeCellExecution(e => {
+				didFire = !e.changed;
+			}));
+
+			viewModel.notebookDocument.applyEdits([{
+				editType: CellEditType.Replace, index: 0, count: 1, cells: []
+			}], true, undefined, () => undefined, undefined, false);
+			exe.complete({});
+			assert.strictEqual(didFire, true);
+		});
+	});
+
+	test('force-cancel works', async function () {
+		return withTestNotebook([], async viewModel => {
+			testNotebookModel = viewModel.notebookDocument;
+
+			const kernel = new TestNotebookKernel();
+			kernelService.registerKernel(kernel);
+			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
+
+			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
+			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
+			executionStateService.createCellExecution(kernel.id, viewModel.uri, cell.handle);
+			const exe = executionStateService.getCellExecution(cell.uri);
+			assert.ok(exe);
+
+			executionStateService.forceCancelNotebookExecutions(viewModel.uri);
+			const exe2 = executionStateService.getCellExecution(cell.uri);
+			assert.strictEqual(exe2, undefined);
 		});
 	});
 });
@@ -110,7 +156,10 @@ class TestNotebookKernel implements INotebookKernel {
 		throw new Error('Method not implemented.');
 	}
 
-	constructor(opts?: { languages: string[] }) {
+	constructor(opts?: { languages?: string[], id?: string }) {
 		this.supportedLanguages = opts?.languages ?? [PLAINTEXT_LANGUAGE_ID];
+		if (opts?.id) {
+			this.id = opts?.id;
+		}
 	}
 }

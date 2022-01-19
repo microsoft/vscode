@@ -14,7 +14,7 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	InstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, DefaultIconPath, InstallOptions, WEB_EXTENSION_TAG, InstallExtensionResult, isIExtensionIdentifier, IExtensionsControlManifest
+	InstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, DefaultIconPath, InstallOptions, WEB_EXTENSION_TAG, InstallExtensionResult, isIExtensionIdentifier, IExtensionsControlManifest, InstallVSIXOptions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -1078,9 +1078,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return false;
 	}
 
-	install(extension: URI | IExtension, installOptions?: InstallOptions): Promise<IExtension> {
+	install(extension: URI | IExtension, installOptions?: InstallOptions | InstallVSIXOptions): Promise<IExtension> {
 		if (extension instanceof URI) {
-			return this.installWithProgress(() => this.installFromVSIX(extension));
+			return this.installWithProgress(() => this.installFromVSIX(extension, installOptions));
 		}
 
 		if (extension.isMalicious) {
@@ -1198,10 +1198,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}, () => installTask());
 	}
 
-	private async installFromVSIX(vsix: URI): Promise<IExtension> {
+	private async installFromVSIX(vsix: URI, installOptions?: InstallVSIXOptions): Promise<IExtension> {
 		const manifest = await this.extensionManagementService.getManifest(vsix);
 		const existingExtension = this.local.find(local => areSameExtensions(local.identifier, { id: getGalleryExtensionId(manifest.publisher, manifest.name) }));
-		const { identifier } = await this.extensionManagementService.install(vsix);
+		const { identifier } = await this.extensionManagementService.install(vsix, installOptions);
 
 		if (existingExtension && existingExtension.latestVersion !== manifest.version) {
 			this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(identifier, manifest.version));
