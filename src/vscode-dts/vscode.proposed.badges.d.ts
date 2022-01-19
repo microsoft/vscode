@@ -8,47 +8,34 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/62783 @matthewjamesadam
 
 	/**
-	 * Base class for badges
+	 * A badge presenting a value for a view
 	 */
-	export abstract class Badge {
-		/**
-		 * A label to present in tooltips
-		 */
-		readonly label: string;
-	}
-
-	/**
-	 * A badge presenting a number
-	 */
-	export class NumberBadge extends Badge {
+	export interface Badge {
 
 		/**
-		 * Creates a new number badge.
-		 *
-		 * @param number The number to present
-		 * @param label The label to present in tooltips
+		 * A label to present in tooltips for the badge
 		 */
-		constructor(number: number, label: string);
+		label: string;
 
 		/**
-		 * The number to present
+		 * The value to present in the badge
 		 */
-		readonly number: number;
+		value: number;
 	}
 
 	export interface TreeView<T> {
 		/**
 		 * The badge to display for this TreeView.
-		 * To remove the badge, set to undefined or null.
+		 * To remove the badge, set to undefined.
 		 */
-		badge?: Badge | undefined | null;
+		badge?: Badge | undefined;
 	}
 
 	export interface WebviewView {
 		/**
 		 * The badge to display for this webview view.
-		 * To remove the badge, set to undefined or null.
+		 * To remove the badge, set to undefined.
 		 */
-		badge?: Badge | undefined | null;
+		badge?: Badge | undefined;
 	}
 }
