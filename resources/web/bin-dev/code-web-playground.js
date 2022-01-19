@@ -37,7 +37,7 @@ const args = minimist(process.argv, {
 
 if (args.help) {
 	console.log(
-		'yarn web [options]\n' +
+		'./script/code-web.sh|bat [options]\n' +
 		' --host           Remote host\n' +
 		' --port           Remote/Local port\n' +
 		' --browserType    The browser type to launch:  `chromium` (default), `firefox` or `webkit`' +
@@ -46,7 +46,7 @@ if (args.help) {
 		' --verbose        Print out more information\n' +
 		' --help\n' +
 		'[Example]\n' +
-		' yarn web --port 8080'
+		' ./script/code-web.sh|bat --port 8080'
 	);
 	process.exit(0);
 }
