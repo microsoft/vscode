@@ -363,7 +363,7 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.hide(this.editorPart);
 		DOM.hide(this.templateData.cellInputCollapsedContainer);
 		this.markdownAccessibilityContainer.ariaHidden = 'false';
-		this.templateData.container.classList.toggle('collapsed', false);
+		this.templateData.container.classList.toggle('input-collapsed', false);
 		this.templateData.container.classList.toggle('markdown-cell-edit-mode', false);
 
 		this.renderedEditors.delete(this.viewCell);
