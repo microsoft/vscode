@@ -152,6 +152,12 @@ defaultStyles.textContent = `
 	}
 	::-webkit-scrollbar-thumb:active {
 		background-color: var(--vscode-scrollbarSlider-activeBackground);
+	}
+	::highlight(find-highlight) {
+		background-color: var(--vscode-editor-findMatchHighlightBackground);
+	}
+	::highlight(current-find-highlight) {
+		background-color: var(--vscode-editor-findMatchBackground);
 	}`;
 
 /**
@@ -206,26 +212,37 @@ const workerReady = new Promise((resolve, reject) => {
 
 	const swPath = `service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}`;
 
-	navigator.serviceWorker.register(swPath).then(
-		async registration => {
-			await navigator.serviceWorker.ready;
+	navigator.serviceWorker.register(swPath)
+		.then(() => navigator.serviceWorker.ready)
+		.then(async registration => {
 			/**
 			 * @param {MessageEvent} event
 			 */
 			const versionHandler = async (event) => {
-				if (event.data.channel !== 'init') {
+				if (event.data.channel !== 'version') {
 					return;
 				}
-				navigator.serviceWorker.removeEventListener('message', versionHandler);
 
-				// Forward the port back to VS Code
-				hostMessaging.onMessage('did-init-service-worker', () => resolve());
-				hostMessaging.postMessage('init-service-worker', {}, event.ports);
+				navigator.serviceWorker.removeEventListener('message', versionHandler);
+				if (event.data.version === expectedWorkerVersion) {
+					return resolve();
+				} else {
+					console.log(`Found unexpected service worker version. Found: ${event.data.version}. Expected: ${expectedWorkerVersion}`);
+					console.log(`Attempting to reload service worker`);
+
+					// If we have the wrong version, try once (and only once) to unregister and re-register
+					// Note that `.update` doesn't seem to work desktop electron at the moment so we use
+					// `unregister` and `register` here.
+					return registration.unregister()
+						.then(() => navigator.serviceWorker.register(swPath))
+						.then(() => navigator.serviceWorker.ready)
+						.finally(() => { resolve(); });
+				}
 			};
 			navigator.serviceWorker.addEventListener('message', versionHandler);
 
-			const postVersionMessage = () => {
-				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'init' });
+			const postVersionMessage = (/** @type {ServiceWorker} */ controller) => {
+				controller.postMessage({ channel: 'version' });
 			};
 
 			// At this point, either the service worker is ready and
@@ -233,20 +250,19 @@ const workerReady = new Promise((resolve, reject) => {
 			// Note that navigator.serviceWorker.controller could be a
 			// controller from a previously loaded service worker.
 			const currentController = navigator.serviceWorker.controller;
-			if (currentController && currentController.scriptURL.endsWith(swPath)) {
+			if (currentController?.scriptURL.endsWith(swPath)) {
 				// service worker already loaded & ready to receive messages
-				postVersionMessage();
+				postVersionMessage(currentController);
 			} else {
 				// either there's no controlling service worker, or it's an old one:
 				// wait for it to change before posting the message
 				const onControllerChange = () => {
 					navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-					postVersionMessage();
+					postVersionMessage(navigator.serviceWorker.controller);
 				};
 				navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 			}
-		},
-		error => {
+		}).catch(error => {
 			reject(new Error(`Could not register service workers: ${error}.`));
 		});
 });
@@ -376,7 +392,26 @@ const initData = {
 	themeName: undefined,
 };
 
+hostMessaging.onMessage('did-load-resource', (_event, data) => {
+	navigator.serviceWorker.ready.then(registration => {
+		assertIsDefined(registration.active).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
+	});
+});
 
+hostMessaging.onMessage('did-load-localhost', (_event, data) => {
+	navigator.serviceWorker.ready.then(registration => {
+		assertIsDefined(registration.active).postMessage({ channel: 'did-load-localhost', data });
+	});
+});
+
+navigator.serviceWorker.addEventListener('message', event => {
+	switch (event.data.channel) {
+		case 'load-resource':
+		case 'load-localhost':
+			hostMessaging.postMessage(event.data.channel, event.data);
+			return;
+	}
+});
 /**
  * @param {HTMLDocument?} document
  * @param {HTMLElement?} body
@@ -666,6 +701,15 @@ function toContentHtml(data) {
 
 	applyStyles(newDocument, newDocument.body);
 
+	// Strip out unsupported http-equiv tags
+	for (const metaElement of Array.from(newDocument.querySelectorAll('meta'))) {
+		const httpEquiv = metaElement.getAttribute('http-equiv');
+		if (httpEquiv && !/^(content-security-policy|default-style|content-type)$/i.test(httpEquiv)) {
+			console.warn(`Removing unsupported meta http-equiv: ${httpEquiv}`);
+			metaElement.remove();
+		}
+	}
+
 	// Check for CSP
 	const csp = newDocument.querySelector('meta[http-equiv="Content-Security-Policy"]');
 	if (!csp) {
@@ -884,8 +928,6 @@ onDomReady(() => {
 				});
 				pendingMessages = [];
 			}
-
-			hostMessaging.postMessage('did-load');
 		};
 
 		/**
@@ -932,8 +974,6 @@ onDomReady(() => {
 
 			unloadMonitor.onIframeLoaded(newFrame);
 		}
-
-		hostMessaging.postMessage('did-set-content', undefined);
 	});
 
 	// Forward message to the embedded iframe

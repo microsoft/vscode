@@ -120,6 +120,8 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$processBinary': return this._ptyService.processBinary.apply(this._ptyService, args);
 
 			case '$sendCommandResult': return this._sendCommandResult(args[0], args[1], args[2]);
+			case '$installAutoReply': return this._ptyService.installAutoReply.apply(this._ptyService, args);
+			case '$uninstallAllAutoReplies': return this._ptyService.uninstallAllAutoReplies.apply(this._ptyService, args);
 			case '$getDefaultSystemShell': return this._getDefaultSystemShell.apply(this, args);
 			case '$getProfiles': return this._getProfiles.apply(this, args);
 			case '$getEnvironment': return this._getEnvironment();

@@ -839,7 +839,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			case 'one':
 			case 'all':
 			case 'preserve':
-			case 'folders':
+			case 'folders': {
 
 				// Collect previously opened windows
 				const lastSessionWindows: IWindowState[] = [];
@@ -876,6 +876,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				}
 
 				return pathsToOpen;
+			}
 		}
 	}
 

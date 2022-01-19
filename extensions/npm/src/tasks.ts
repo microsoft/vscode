@@ -132,7 +132,7 @@ export async function getPackageManager(extensionContext: ExtensionContext, fold
 	let packageManagerName = workspace.getConfiguration('npm', folder).get<string>('packageManager', 'npm');
 
 	if (packageManagerName === 'auto') {
-		const { name, multiplePMDetected } = await findPreferredPM(folder.fsPath);
+		const { name, multipleLockFilesDetected: multiplePMDetected } = await findPreferredPM(folder.fsPath);
 		packageManagerName = name;
 		const neverShowWarning = 'npm.multiplePMWarning.neverShow';
 		if (showWarning && multiplePMDetected && !extensionContext.globalState.get<boolean>(neverShowWarning)) {

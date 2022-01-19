@@ -49,7 +49,7 @@ function getTagBodyText(
 
 	const text = convertLinkTags(tag.text, filePathConverter);
 	switch (tag.name) {
-		case 'example':
+		case 'example': {
 			// check for caption tags, fix for #79704
 			const captionTagMatches = text.match(/<caption>(.*?)<\/caption>\s*(\r\n|\n)/);
 			if (captionTagMatches && captionTagMatches.index === 0) {
@@ -57,7 +57,8 @@ function getTagBodyText(
 			} else {
 				return makeCodeblock(text);
 			}
-		case 'author':
+		}
+		case 'author': {
 			// fix obsucated email address, #80898
 			const emailMatch = text.match(/(.+)\s<([-.\w]+@[-.\w]+)>/);
 
@@ -66,6 +67,7 @@ function getTagBodyText(
 			} else {
 				return `${emailMatch[1]} ${emailMatch[2]}`;
 			}
+		}
 		case 'default':
 			return makeCodeblock(text);
 	}
@@ -81,7 +83,7 @@ function getTagDocumentation(
 		case 'augments':
 		case 'extends':
 		case 'param':
-		case 'template':
+		case 'template': {
 			const body = (convertLinkTags(tag.text, filePathConverter)).split(/^(\S+)\s*-?\s*/);
 			if (body?.length === 3) {
 				const param = body[1];
@@ -92,6 +94,7 @@ function getTagDocumentation(
 				}
 				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc) : ` \u2014 ${processInlineTags(doc)}`);
 			}
+		}
 	}
 
 	// Generic tag

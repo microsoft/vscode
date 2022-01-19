@@ -449,11 +449,11 @@ export class FindController extends CommonFindController implements IFindControl
 			case 'never':
 				updateSearchScope = false;
 				break;
-			case 'multiline':
+			case 'multiline': {
 				const isSelectionMultipleLine = !!selection && selection.startLineNumber !== selection.endLineNumber;
 				updateSearchScope = isSelectionMultipleLine;
 				break;
-
+			}
 			default:
 				break;
 		}

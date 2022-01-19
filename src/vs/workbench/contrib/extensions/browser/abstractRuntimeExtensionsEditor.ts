@@ -487,6 +487,6 @@ export class ShowRuntimeExtensionsAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(IEditorService).openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true, pinned: true });
+		await accessor.get(IEditorService).openEditor(RuntimeExtensionsInput.instance, { pinned: true });
 	}
 }

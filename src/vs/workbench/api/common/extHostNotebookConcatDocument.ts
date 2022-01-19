@@ -10,7 +10,7 @@ import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebo
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { score } from 'vs/editor/common/modes/languageSelector';
+import { score } from 'vs/editor/common/languages/languageSelector';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';

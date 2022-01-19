@@ -21,13 +21,13 @@ import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/com
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { localize } from 'vs/nls';
 
 
 export class StatefulMarkdownCell extends Disposable {
@@ -63,7 +63,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this.cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, this.viewCell.language));
 		this.cellEditorOptions.setLineNumbers(this.viewCell.lineNumbers);
-		this.editorOptions = this.cellEditorOptions.getValue(this.viewCell.internalMetadata);
+		this.editorOptions = this.cellEditorOptions.getValue(this.viewCell.internalMetadata, this.viewCell.uri);
 
 		this._register(toDisposable(() => renderedEditors.delete(this.viewCell)));
 		this.registerListeners();
@@ -76,7 +76,7 @@ export class StatefulMarkdownCell extends Disposable {
 		this.updateForHover();
 		this.updateForFocusModeChange();
 		this.foldingState = viewCell.foldingState;
-		this.setFoldingIndicator();
+		this.layoutFoldingIndicator();
 		this.updateFoldingIconShowClass();
 
 		// the markdown preview's height might already be updated after the renderer calls `element.getHeight()`
@@ -139,7 +139,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 				if (foldingState !== this.foldingState) {
 					this.foldingState = foldingState;
-					this.setFoldingIndicator();
+					this.layoutFoldingIndicator();
 				}
 			}
 
@@ -173,7 +173,7 @@ export class StatefulMarkdownCell extends Disposable {
 		}));
 
 		this._register(this.cellEditorOptions.onDidChange(() => {
-			this.updateEditorOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata));
+			this.updateEditorOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
 		}));
 	}
 
@@ -265,7 +265,7 @@ export class StatefulMarkdownCell extends Disposable {
 	}
 
 	private getRichText(buffer: IReadonlyTextBuffer, language: string) {
-		return tokenizeToString(buffer.getLineContent(1), this.languageService.languageIdCodec, TokenizationRegistry.get(language)!);
+		return tokenizeToStringSync(this.languageService, buffer.getLineContent(1), language);
 	}
 
 	private viewUpdateEditing(): void {
@@ -299,7 +299,7 @@ export class StatefulMarkdownCell extends Disposable {
 			const width = this.notebookEditor.notebookOptions.computeMarkdownCellEditorWidth(this.notebookEditor.getLayoutInfo().width);
 			const lineNum = this.viewCell.lineCount;
 			const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
-			const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata);
+			const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata, this.viewCell.uri);
 			editorHeight = Math.max(lineNum, 1) * lineHeight + editorPadding.top + editorPadding.bottom;
 
 			this.templateData.editorContainer.innerText = '';
@@ -364,7 +364,7 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.hide(this.editorPart);
 		DOM.hide(this.templateData.cellInputCollapsedContainer);
 		this.markdownAccessibilityContainer.ariaHidden = 'false';
-		this.templateData.container.classList.toggle('collapsed', false);
+		this.templateData.container.classList.toggle('input-collapsed', false);
 		this.templateData.container.classList.toggle('markdown-cell-edit-mode', false);
 
 		this.renderedEditors.delete(this.viewCell);
@@ -416,6 +416,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	relayoutCell(): void {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+		this.layoutFoldingIndicator();
 	}
 
 	updateEditorOptions(newValue: IEditorOptions): void {
@@ -425,20 +426,45 @@ export class StatefulMarkdownCell extends Disposable {
 		}
 	}
 
-	setFoldingIndicator() {
+	private layoutFoldingIndicator() {
 		switch (this.foldingState) {
 			case CellFoldingState.None:
 				this.templateData.foldingIndicator.innerText = '';
+				DOM.hide(this.templateData.foldedContentHint);
 				break;
 			case CellFoldingState.Collapsed:
-				DOM.reset(this.templateData.foldingIndicator, renderIcon(collapsedIcon));
-				break;
+				{
+					DOM.reset(this.templateData.foldingIndicator, renderIcon(collapsedIcon));
+
+					if (this.viewCell.isInputCollapsed) {
+						DOM.hide(this.templateData.foldedContentHint);
+					} else {
+						const idx = this.notebookEditor._getViewModel().getCellIndex(this.viewCell);
+						const length = this.notebookEditor._getViewModel().getFoldedLength(idx);
+						DOM.reset(this.templateData.foldedContentHint, this.getHiddenCellsLabel(length));
+						DOM.show(this.templateData.foldedContentHint);
+
+						const { bottomToolbarGap } = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.viewCell.viewType);
+						const foldHintTop = this.viewCell.layoutInfo.totalHeight - bottomToolbarGap - this.viewCell.layoutInfo.foldHintHeight;
+						this.templateData.foldedContentHint.style.top = `${foldHintTop}px`;
+					}
+					break;
+				}
 			case CellFoldingState.Expanded:
 				DOM.reset(this.templateData.foldingIndicator, renderIcon(expandedIcon));
+				DOM.hide(this.templateData.foldedContentHint);
 				break;
 
 			default:
 				break;
+		}
+	}
+
+	private getHiddenCellsLabel(num: number): string {
+		if (num === 1) {
+			return localize('hiddenCellsLabel', "1 cell hidden...");
+		} else {
+			return localize('hiddenCellsLabelPlural', "{0} cells hidden...", num);
 		}
 	}
 

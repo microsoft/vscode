@@ -216,7 +216,8 @@
 }
 
 /* Override default xterm style to make !important so it takes precedence over custom mac cursor */
-.xterm.xterm-cursor-pointer {
+.xterm.xterm-cursor-pointer,
+.xterm .xterm-cursor-pointer {
 	cursor: pointer!important;
 }
 

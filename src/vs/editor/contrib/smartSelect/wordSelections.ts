@@ -8,7 +8,7 @@ import { isLowerAsciiLetter, isUpperAsciiLetter } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { SelectionRange, SelectionRangeProvider } from 'vs/editor/common/modes';
+import { SelectionRange, SelectionRangeProvider } from 'vs/editor/common/languages';
 
 export class WordSelectionRangeProvider implements SelectionRangeProvider {
 

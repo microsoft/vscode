@@ -14,7 +14,7 @@ jobs:
   windows:
     name: Windows
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     env:
       CHILD_CONCURRENCY: "1"
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,6 +69,9 @@ jobs:
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
+      - name: Compile Integration Tests
+        run: yarn compile-integration-tests
+
       - name: Run Unit Tests (Electron)
         run: .\scripts\test.bat
 
@@ -78,18 +81,15 @@ jobs:
       - name: Run Unit Tests (Browser, Chromium)
         run: yarn test-browser --browser chromium
 
-      - name: Compile Integration Tests
-        run: yarn --cwd test/integration/browser compile
-
       - name: Run Integration Tests (Electron)
         run: .\scripts\test-integration.bat
 
       - name: Run Integration Tests (Browser, Firefox)
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: .\resources\server\test\test-web-integration.bat --browser firefox
 
       - name: Run Integration Tests (Remote)
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: .\resources\server\test\test-remote-integration.bat
 
   linux:
@@ -146,6 +146,9 @@ jobs:
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
+      - name: Compile Integration Tests
+        run: yarn compile-integration-tests
+
       - name: Run Unit Tests (Electron)
         id: electron-unit-tests
         run: DISPLAY=:10 ./scripts/test.sh
@@ -158,9 +161,6 @@ jobs:
         id: browser-unit-tests
         run: DISPLAY=:10 yarn test-browser --browser chromium
 
-      - name: Compile Integration Tests
-        run: yarn --cwd test/integration/browser compile
-
       - name: Run Integration Tests (Electron)
         id: electron-integration-tests
         run: DISPLAY=:10 ./scripts/test-integration.sh
@@ -171,7 +171,7 @@ jobs:
 
       - name: Run Integration Tests (Remote)
         id: electron-remote-integration-tests
-        timeout-minutes: 7
+        timeout-minutes: 15
         run: DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
 
   darwin:
@@ -218,6 +218,9 @@ jobs:
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
+      - name: Compile Integration Tests
+        run: yarn compile-integration-tests
+
       # This is required for keytar unittests, otherwise we hit
       # https://github.com/atom/node-keytar/issues/76
       - name: Create temporary keychain
@@ -235,9 +238,6 @@ jobs:
       - name: Run Unit Tests (Browser, Chromium)
         run: DISPLAY=:10 yarn test-browser --browser chromium
 
-      - name: Compile Integration Tests
-        run: yarn --cwd test/integration/browser compile
-
       - name: Run Integration Tests (Electron)
         run: DISPLAY=:10 ./scripts/test-integration.sh
 
@@ -245,7 +245,7 @@ jobs:
         run: DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser webkit
 
       - name: Run Integration Tests (Remote)
-        timeout-minutes: 7
+        timeout-minutes: 15
         run: DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
 
   hygiene:

@@ -34,8 +34,18 @@
 	animation-name: progress;
 	animation-duration: 4s;
 	animation-iteration-count: infinite;
-	animation-timing-function: linear;
 	transform: translate3d(0px, 0px, 0px);
+	animation-timing-function: linear;
+}
+
+.monaco-progress-container.infinite.infinite-long-running .progress-bit {
+	/*
+	   The more smooth `linear` timing function can cause
+	   higher GPU consumption as indicated in
+	   https://github.com/microsoft/vscode/issues/97900 &
+	   https://github.com/microsoft/vscode/issues/138396
+	*/
+	animation-timing-function: steps(100);
 }
 
 /**

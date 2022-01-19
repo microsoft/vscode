@@ -46,14 +46,23 @@ export function setup(logger: Logger) {
 
 		it('shows results from all folders', async function () {
 			const app = this.app as Application;
-			await app.workbench.quickaccess.openQuickAccess('*.*');
+			const expectedNames = [
+				'index.js',
+				'users.js',
+				'style.css',
+				'error.pug',
+				'index.pug',
+				'layout.pug'
+			];
 
-			await app.workbench.quickinput.waitForQuickInputElements(names => names.length === 6);
+			await app.workbench.quickaccess.openFileQuickAccessAndWait('*.*', 6);
+			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(expectedName => names.some(name => expectedName === name)));
 			await app.workbench.quickinput.closeQuickInput();
 		});
 
 		it('shows workspace name in title', async function () {
 			const app = this.app as Application;
+
 			await app.code.waitForTitle(title => /smoketest \(Workspace\)/i.test(title));
 		});
 	});

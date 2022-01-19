@@ -165,7 +165,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		for (const a of args) {
 			const k = `--${key}=`;
 			if (a.indexOf(k) === 0) {
-				return a.substr(k.length);
+				return a.substring(k.length);
 			}
 		}
 

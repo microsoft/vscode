@@ -5,9 +5,9 @@
 
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModel, DefaultEndOfLine, EndOfLinePreference, ITextBufferFactory } from 'vs/editor/common/model';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
@@ -71,7 +71,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 			const renderer = new marked.Renderer();
 			renderer.code = (code, lang) => {
 				i++;
-				const languageId = this.languageService.getLanguageIdForLanguageName(lang) || '';
+				const languageId = this.languageService.getLanguageIdByLanguageName(lang) || '';
 				const languageSelection = this.languageService.createById(languageId);
 				// Create all models for this resource in one go... we'll need them all and we don't want to re-parse markdown each time
 				const model = this.modelService.createModel(code, languageSelection, resource.with({ fragment: `${i}.${lang}` }));

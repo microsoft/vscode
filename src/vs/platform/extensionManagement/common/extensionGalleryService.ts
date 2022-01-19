@@ -6,7 +6,7 @@
 import { distinct } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { canceled, getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
+import { CancellationError, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { getOrDefault } from 'vs/base/common/objects';
 import { IPager } from 'vs/base/common/paging';
 import { isWeb, platform } from 'vs/base/common/platform';
@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { DefaultIconPath, getFallbackTargetPlarforms, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isIExtensionIdentifier, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, toTargetPlatform, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { DefaultIconPath, getFallbackTargetPlarforms, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, toTargetPlatform, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
@@ -25,7 +25,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { asJson, asText, IRequestService, isSuccess } from 'vs/platform/request/common/request';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 
@@ -89,23 +89,88 @@ interface IRawGalleryQueryResult {
 				readonly name: string;
 				readonly count: number;
 			}[];
-		}[]
+		}[];
 	}[];
 }
 
 enum Flags {
+
+	/**
+	 * None is used to retrieve only the basic extension details.
+	 */
 	None = 0x0,
+
+	/**
+	 * IncludeVersions will return version information for extensions returned
+	 */
 	IncludeVersions = 0x1,
+
+	/**
+	 * IncludeFiles will return information about which files were found
+	 * within the extension that were stored independent of the manifest.
+	 * When asking for files, versions will be included as well since files
+	 * are returned as a property of the versions.
+	 * These files can be retrieved using the path to the file without
+	 * requiring the entire manifest be downloaded.
+	 */
 	IncludeFiles = 0x2,
+
+	/**
+	 * Include the Categories and Tags that were added to the extension definition.
+	 */
 	IncludeCategoryAndTags = 0x4,
+
+	/**
+	 * Include the details about which accounts the extension has been shared
+	 * with if the extension is a private extension.
+	 */
 	IncludeSharedAccounts = 0x8,
+
+	/**
+	 * Include properties associated with versions of the extension
+	 */
 	IncludeVersionProperties = 0x10,
+
+	/**
+	 * Excluding non-validated extensions will remove any extension versions that
+	 * either are in the process of being validated or have failed validation.
+	 */
 	ExcludeNonValidated = 0x20,
+
+	/**
+	 * Include the set of installation targets the extension has requested.
+	 */
 	IncludeInstallationTargets = 0x40,
+
+	/**
+	 * Include the base uri for assets of this extension
+	 */
 	IncludeAssetUri = 0x80,
+
+	/**
+	 * Include the statistics associated with this extension
+	 */
 	IncludeStatistics = 0x100,
+
+	/**
+	 * When retrieving versions from a query, only include the latest
+	 * version of the extensions that matched. This is useful when the
+	 * caller doesn't need all the published versions. It will save a
+	 * significant size in the returned payload.
+	 */
 	IncludeLatestVersionOnly = 0x200,
-	Unpublished = 0x1000
+
+	/**
+	 * This flag switches the asset uri to use GetAssetByName instead of CDN
+	 * When this is used, values of base asset uri and base asset uri fallback are switched
+	 * When this is used, source of asset files are pointed to Gallery service always even if CDN is available
+	 */
+	Unpublished = 0x1000,
+
+	/**
+	 * Include the details if an extension is in conflict list or not
+	 */
+	IncludeNameConflictInfo = 0x8000,
 }
 
 function flagsToString(...flags: Flags[]): string {
@@ -170,19 +235,21 @@ const DefaultQueryState: IQueryState = {
 };
 
 type GalleryServiceQueryClassification = {
-	readonly filterTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly sortBy: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly sortOrder: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', 'isMeasurement': true };
-	readonly success: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly requestBodySize: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly responseBodySize?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly statusCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly errorCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly count?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	readonly filterTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly flags: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly sortBy: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly sortOrder: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', 'isMeasurement': true; };
+	readonly success: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly requestBodySize: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly responseBodySize?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly statusCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly errorCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly count?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 };
 
 type QueryTelemetryData = {
+	readonly flags: number;
 	readonly filterTypes: string[];
 	readonly sortBy: string;
 	readonly sortOrder: string;
@@ -198,15 +265,22 @@ type GalleryServiceQueryEvent = QueryTelemetryData & {
 	readonly count?: string;
 };
 
-type GalleryServicePreReleaseQueryClassification = {
+type GalleryServiceAdditionalQueryClassification = {
 	readonly duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', 'isMeasurement': true };
 	readonly count: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
-type GalleryServicePreReleasesQueryEvent = {
+type GalleryServiceAdditionalQueryEvent = {
 	readonly duration: number;
 	readonly count: number;
 };
+
+interface IExtensionCriteria {
+	readonly targetPlatform: TargetPlatform;
+	readonly compatible: boolean;
+	readonly preRelease: boolean | (IExtensionIdentifier & { preRelease: boolean })[];
+	readonly versions?: (IExtensionIdentifier & { version: string })[];
+}
 
 class Query {
 
@@ -261,6 +335,7 @@ class Query {
 	get telemetryData(): QueryTelemetryData {
 		return {
 			filterTypes: this.state.criteria.map(criterium => String(criterium.filterType)),
+			flags: this.state.flags,
 			sortBy: String(this.sortBy),
 			sortOrder: String(this.sortOrder)
 		};
@@ -397,7 +472,7 @@ export function sortExtensionVersions(versions: IRawGalleryExtensionVersion[], p
 	return versions;
 }
 
-function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGalleryExtensionVersion, allTargetPlatforms: TargetPlatform[], hasReleaseVersion: boolean, telemetryData?: IStringDictionary<any>): IGalleryExtension {
+function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGalleryExtensionVersion, allTargetPlatforms: TargetPlatform[]): IGalleryExtension {
 	const latestVersion = galleryExtension.versions[0];
 	const assets = <IGalleryExtensionAssets>{
 		manifest: getVersionAsset(version, AssetType.Manifest),
@@ -441,21 +516,16 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 			isPreReleaseVersion: isPreReleaseVersion(version)
 		},
 		hasPreReleaseVersion: isPreReleaseVersion(latestVersion),
-		hasReleaseVersion,
+		hasReleaseVersion: true,
 		preview: getIsPreview(galleryExtension.flags),
-		/* __GDPR__FRAGMENT__
-			"GalleryExtensionTelemetryData2" : {
-				"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"querySource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		telemetryData,
 	};
 }
 
+type PreReleaseMigrationInfo = { id: string, displayName: string, migrateStorage?: boolean, engine?: string };
 interface IRawExtensionsControlManifest {
 	malicious: string[];
-	unsupported: IStringDictionary<boolean | { preReleaseExtension: { id: string, displayName: string } }>;
+	unsupported?: IStringDictionary<boolean | { preReleaseExtension: { id: string, displayName: string }; }>;
+	migrateToPreRelease?: IStringDictionary<PreReleaseMigrationInfo>;
 }
 
 abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
@@ -491,78 +561,53 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return !!this.extensionsGalleryUrl;
 	}
 
-	getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, token: CancellationToken): Promise<IGalleryExtension[]>
-	getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, includePreRelease: boolean, token: CancellationToken): Promise<IGalleryExtension[]>
-	async getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, arg1: any, arg2?: any): Promise<IGalleryExtension[]> {
-		const includePreRelease = isBoolean(arg1) ? arg1 : false;
-		const token: CancellationToken = isBoolean(arg1) ? arg2 : arg1;
-		let query = new Query()
-			.withFlags(Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
-			.withPage(1, identifiers.length)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
-			.withFilter(FilterType.ExtensionName, ...identifiers.map(({ id }) => id.toLowerCase()));
-
-		if (identifiers.every(identifier => !(<IExtensionIdentifierWithVersion>identifier).version)) {
-			query = query.withFlags(Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties, Flags.IncludeLatestVersionOnly);
+	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, token: CancellationToken): Promise<IGalleryExtension[]>;
+	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, options: { targetPlatform: TargetPlatform, compatible?: boolean }, token: CancellationToken): Promise<IGalleryExtension[]>;
+	async getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, arg1: any, arg2?: any): Promise<IGalleryExtension[]> {
+		const options = CancellationToken.isCancellationToken(arg1) ? { targetPlatform: CURRENT_TARGET_PLATFORM } : arg1 as { targetPlatform: TargetPlatform, compatible?: boolean };
+		const token = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2 as CancellationToken;
+		const names: string[] = []; const ids: string[] = [], preRelease: (IExtensionIdentifier & { preRelease: boolean })[] = [], versions: (IExtensionIdentifier & { version: string })[] = [];
+		for (const extensionInfo of extensionInfos) {
+			if (extensionInfo.uuid) {
+				ids.push(extensionInfo.uuid);
+			} else {
+				names.push(extensionInfo.id);
+			}
+			preRelease.push({ ...extensionInfo, preRelease: !!extensionInfo.preRelease });
+			if (extensionInfo.version) {
+				versions.push({ ...extensionInfo, version: extensionInfo.version });
+			}
 		}
 
-		const { galleryExtensions } = await this.queryGallery(query, CURRENT_TARGET_PLATFORM, CancellationToken.None);
-		const galleryExtensionsByVersion = galleryExtensions.map(rawGalleryExtension => {
-			const id = getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName);
-			return { rawGalleryExtension, version: (<IExtensionIdentifierWithVersion | undefined>identifiers.find(identifier => areSameExtensions(identifier, { id })))?.version };
-		});
-		return this.converToGalleryExtensions(galleryExtensionsByVersion, includePreRelease, CURRENT_TARGET_PLATFORM, () => undefined, token);
+		if (!ids.length && !names.length) {
+			return [];
+		}
+
+		let query = new Query().withPage(1, extensionInfos.length);
+		if (ids.length) {
+			query = query.withFilter(FilterType.ExtensionId, ...ids);
+		}
+		if (names.length) {
+			query = query.withFilter(FilterType.ExtensionName, ...names);
+		}
+
+		const { extensions } = await this.queryGalleryExtensions(query, { targetPlatform: options.targetPlatform, preRelease, versions, compatible: !!options.compatible }, token);
+		return extensions;
 	}
 
-	async getCompatibleExtension(arg1: IExtensionIdentifier | IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtension | null> {
-		const extension: IGalleryExtension | null = isIExtensionIdentifier(arg1) ? null : arg1;
-		if (extension) {
-			if (isNotWebExtensionInWebTargetPlatform(extension.allTargetPlatforms, targetPlatform)) {
-				return null;
-			}
-			if (await this.isExtensionCompatible(extension, includePreRelease, targetPlatform)) {
-				return extension;
-			}
+	async getCompatibleExtension(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtension | null> {
+		if (isNotWebExtensionInWebTargetPlatform(extension.allTargetPlatforms, targetPlatform)) {
+			return null;
 		}
-		const { id, uuid } = extension ? extension.identifier : <IExtensionIdentifier>arg1;
-		let query = new Query()
-			.withFlags(Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
+		if (await this.isExtensionCompatible(extension, includePreRelease, targetPlatform)) {
+			return extension;
+		}
+		const query = new Query()
+			.withFlags(Flags.IncludeVersions)
 			.withPage(1, 1)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
-
-		if (uuid) {
-			query = query.withFilter(FilterType.ExtensionId, uuid);
-		} else {
-			query = query.withFilter(FilterType.ExtensionName, id);
-		}
-
-		const { galleryExtensions } = await this.queryGallery(query, targetPlatform, CancellationToken.None);
-		const [rawExtension] = galleryExtensions;
-		if (!rawExtension || !rawExtension.versions.length) {
-			return null;
-		}
-
-		const allTargetPlatforms = getAllTargetPlatforms(rawExtension);
-		if (isNotWebExtensionInWebTargetPlatform(allTargetPlatforms, targetPlatform)) {
-			return null;
-		}
-
-		for (let rawVersion of rawExtension.versions) {
-			// set engine property if does not exist
-			if (!getEngine(rawVersion)) {
-				const engine = await this.getEngine(rawVersion);
-				rawVersion = {
-					...rawVersion,
-					properties: [...(rawVersion.properties || []), { key: PropertyType.Engine, value: engine }]
-				};
-			}
-			if (await this.isRawExtensionVersionCompatible(rawVersion, includePreRelease, allTargetPlatforms, targetPlatform)) {
-				const hasReleaseVersion = rawExtension.versions.some(version => !isPreReleaseVersion(version));
-				return toExtension(rawExtension, rawVersion, allTargetPlatforms, hasReleaseVersion);
-			}
-		}
-
-		return null;
+			.withFilter(FilterType.ExtensionId, extension.identifier.uuid);
+		const { extensions } = await this.queryGalleryExtensions(query, { targetPlatform, compatible: true, preRelease: includePreRelease }, CancellationToken.None);
+		return extensions[0] || null;
 	}
 
 	async isExtensionCompatible(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<boolean> {
@@ -585,17 +630,23 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return isEngineValid(engine, this.productService.version, this.productService.date);
 	}
 
-	private async isRawExtensionVersionCompatible(rawExtensionVersion: IRawGalleryExtensionVersion, includePreRelease: boolean, allTargetPlatforms: TargetPlatform[], targetPlatform: TargetPlatform): Promise<boolean> {
-		if (!isTargetPlatformCompatible(getTargetPlatformForExtensionVersion(rawExtensionVersion), allTargetPlatforms, targetPlatform)) {
+	private async isValidVersion(rawGalleryExtensionVersion: IRawGalleryExtensionVersion, preRelease: boolean, compatible: boolean, allTargetPlatforms: TargetPlatform[], targetPlatform: TargetPlatform): Promise<boolean> {
+		if (!isTargetPlatformCompatible(getTargetPlatformForExtensionVersion(rawGalleryExtensionVersion), allTargetPlatforms, targetPlatform)) {
 			return false;
 		}
 
-		if (!includePreRelease && isPreReleaseVersion(rawExtensionVersion)) {
+		if (!preRelease && isPreReleaseVersion(rawGalleryExtensionVersion)) {
 			return false;
 		}
 
-		const engine = await this.getEngine(rawExtensionVersion);
-		return isEngineValid(engine, this.productService.version, this.productService.date);
+		if (compatible) {
+			const engine = await this.getEngine(rawGalleryExtensionVersion);
+			if (!isEngineValid(engine, this.productService.version, this.productService.date)) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	async query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>> {
@@ -607,9 +658,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const pageSize = getOrDefault(options, o => o.pageSize, 50);
 
 		let query = new Query()
-			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
-			.withPage(1, pageSize)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
+			.withPage(1, pageSize);
 
 		if (text) {
 			// Use category filter instead of "category:themes"
@@ -654,85 +703,165 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			query = query.withSortOrder(options.sortOrder);
 		}
 
-		const { galleryExtensions, total } = await this.queryGallery(query, CURRENT_TARGET_PLATFORM, token);
-		const telemetryData = (index: number) => ({ index: ((query.pageNumber - 1) * query.pageSize) + index, querySource: options.source });
-		const extensions = await this.converToGalleryExtensions(galleryExtensions.map(rawGalleryExtension => ({ rawGalleryExtension })), !!options.includePreRelease, CURRENT_TARGET_PLATFORM, telemetryData, token);
+		const runQuery = async (query: Query, token: CancellationToken) => {
+			const { extensions, total } = await this.queryGalleryExtensions(query, { targetPlatform: CURRENT_TARGET_PLATFORM, compatible: false, preRelease: !!options.includePreRelease }, token);
+			extensions.forEach((e, index) =>
+				/* __GDPR__FRAGMENT__
+				"GalleryExtensionTelemetryData2" : {
+					"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"querySource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+				*/
+				e.telemetryData = { index: ((query.pageNumber - 1) * query.pageSize) + index, querySource: options.source });
+			return { extensions, total };
+		};
+		const { extensions, total } = await runQuery(query, token);
 		const getPage = async (pageIndex: number, ct: CancellationToken) => {
 			if (ct.isCancellationRequested) {
-				throw canceled();
+				throw new CancellationError();
 			}
-			const nextPageQuery = query.withPage(pageIndex + 1);
-			const { galleryExtensions } = await this.queryGallery(nextPageQuery, CURRENT_TARGET_PLATFORM, ct);
-			return await this.converToGalleryExtensions(galleryExtensions.map(rawGalleryExtension => ({ rawGalleryExtension })), !!options.includePreRelease, CURRENT_TARGET_PLATFORM, telemetryData, token);
+			const { extensions } = await runQuery(query.withPage(pageIndex + 1), ct);
+			return extensions;
 		};
 
 		return { firstPage: extensions, total, pageSize: query.pageSize, getPage } as IPager<IGalleryExtension>;
 	}
 
-	private async converToGalleryExtensions(rawGalleryExtensions: { rawGalleryExtension: IRawGalleryExtension, version?: string }[], includePreRelease: boolean, targetPlatform: TargetPlatform, telemetryData: (index: number) => IStringDictionary<any> | undefined, token: CancellationToken): Promise<IGalleryExtension[]> {
-		const toExtensionWithLatestVersion = (galleryExtension: IRawGalleryExtension, index: number, hasReleaseVersion: boolean): IGalleryExtension => {
-			const allTargetPlatforms = getAllTargetPlatforms(galleryExtension);
-			let latestVersion = galleryExtension.versions[0];
-			latestVersion = galleryExtension.versions.find(version => version.version === latestVersion.version && isTargetPlatformCompatible(getTargetPlatformForExtensionVersion(version), allTargetPlatforms, targetPlatform)) || latestVersion;
-			if (isPreReleaseVersion(latestVersion) && !includePreRelease) {
-				latestVersion = galleryExtension.versions.find(version => version.version !== latestVersion.version && !isPreReleaseVersion(version)) || latestVersion;
-			}
-			return toExtension(galleryExtension, latestVersion, allTargetPlatforms, hasReleaseVersion, telemetryData(index));
-		};
-		const result: [number, IGalleryExtension][] = [];
-		const preReleaseVersions = new Map<string, number>();
-		for (let index = 0; index < rawGalleryExtensions.length; index++) {
-			const { rawGalleryExtension, version } = rawGalleryExtensions[index];
-			const hasReleaseVersion = rawGalleryExtension.versions.some(version => !isPreReleaseVersion(version));
-			if (version) {
-				const versionAsset = rawGalleryExtension.versions.find(v => v.version === version);
-				if (versionAsset) {
-					result.push([index, toExtension(rawGalleryExtension, versionAsset, getAllTargetPlatforms(rawGalleryExtension), hasReleaseVersion)]);
-				}
-			} else {
-				const extension = toExtensionWithLatestVersion(rawGalleryExtension, index, hasReleaseVersion);
-				if (extension.properties.isPreReleaseVersion) {
-					preReleaseVersions.set(extension.identifier.uuid, index);
-				} else {
-					result.push([index, extension]);
-				}
-			}
+	private async queryGalleryExtensions(query: Query, criteria: IExtensionCriteria, token: CancellationToken): Promise<{ extensions: IGalleryExtension[], total: number; }> {
+		const flags = query.flags;
+
+		/**
+		 * If both version flags (IncludeLatestVersionOnly and IncludeVersions) are included, then only include latest versions (IncludeLatestVersionOnly) flag.
+		 */
+		if (!!(query.flags & Flags.IncludeLatestVersionOnly) && !!(query.flags & Flags.IncludeVersions)) {
+			query = query.withFlags(query.flags & ~Flags.IncludeVersions, Flags.IncludeLatestVersionOnly);
 		}
 
-		if (preReleaseVersions.size) {
-			const startTime = new Date().getTime();
-			const query = new Query()
-				.withFlags(Flags.IncludeVersions, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
-				.withPage(1, preReleaseVersions.size)
-				.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
-				.withFilter(FilterType.ExtensionId, ...preReleaseVersions.keys());
-			const { galleryExtensions } = await this.queryGallery(query, targetPlatform, token);
-			this.telemetryService.publicLog2<GalleryServicePreReleasesQueryEvent, GalleryServicePreReleaseQueryClassification>('galleryService:preReleasesQuery', {
-				duration: new Date().getTime() - startTime,
-				count: preReleaseVersions.size
-			});
-			if (galleryExtensions.length !== preReleaseVersions.size) {
-				throw new Error('Not all extensions with latest versions are returned');
+		/**
+		 * If version flags (IncludeLatestVersionOnly and IncludeVersions) are not included, default is to query for latest versions (IncludeLatestVersionOnly).
+		 */
+		if (!(query.flags & Flags.IncludeLatestVersionOnly) && !(query.flags & Flags.IncludeVersions)) {
+			query = query.withFlags(query.flags, Flags.IncludeLatestVersionOnly);
+		}
+
+		/**
+		 * If versions criteria exist, then remove IncludeLatestVersionOnly flag and add IncludeVersions flag.
+		 */
+		if (criteria.versions?.length) {
+			query = query.withFlags(query.flags & ~Flags.IncludeLatestVersionOnly, Flags.IncludeVersions);
+		}
+
+		/**
+		 * Add necessary extension flags
+		 */
+		query = query.withFlags(query.flags, Flags.IncludeAssetUri, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeStatistics, Flags.IncludeVersionProperties);
+		const { galleryExtensions: rawGalleryExtensions, total } = await this.queryRawGalleryExtensions(query, token);
+
+		const hasAllVersions: boolean = !(query.flags & Flags.IncludeLatestVersionOnly);
+		if (hasAllVersions) {
+			const extensions: IGalleryExtension[] = [];
+			for (const rawGalleryExtension of rawGalleryExtensions) {
+				const extension = await this.toGalleryExtensionWithCriteria(rawGalleryExtension, criteria, true);
+				if (extension) {
+					extensions.push(extension);
+				}
 			}
-			for (const rawGalleryExtension of galleryExtensions) {
-				const hasReleaseVersion = rawGalleryExtension.versions.some(version => !isPreReleaseVersion(version));
-				const index = preReleaseVersions.get(rawGalleryExtension.extensionId)!;
-				const extension = toExtensionWithLatestVersion(rawGalleryExtension, index, hasReleaseVersion);
+			return { extensions, total };
+		}
+
+		const result: [number, IGalleryExtension][] = [];
+		const needAllVersions = new Map<string, number>();
+		for (let index = 0; index < rawGalleryExtensions.length; index++) {
+			const rawGalleryExtension = rawGalleryExtensions[index];
+			const extensionIdentifier = { id: getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName), uuid: rawGalleryExtension.extensionId };
+			const preRelease = isBoolean(criteria.preRelease) ? criteria.preRelease : !!criteria.preRelease.find(extensionIdentifierWithPreRelease => areSameExtensions(extensionIdentifierWithPreRelease, extensionIdentifier))?.preRelease;
+			let extension = await this.toGalleryExtensionWithCriteria(rawGalleryExtension, criteria, false);
+			if (!extension
+				/** Skip if the extension is a pre-release version but
+				 * 		- the query is to look for a release version or
+				 * 		- the extension has no release version
+				 * Get all versions to get or check the release version
+				*/
+				|| (extension.properties.isPreReleaseVersion && (!preRelease || !extension.hasReleaseVersion))
+				/**
+				 * Skip if the extension is a release version with a different target platform than requested and also has a pre-release version
+				 * Because, this is a platform specific extension and can have a newer release version supporting this platform.
+				 * See https://github.com/microsoft/vscode/issues/139628
+				*/
+				|| (!extension.properties.isPreReleaseVersion && extension.properties.targetPlatform !== criteria.targetPlatform && extension.hasPreReleaseVersion)
+			) {
+				needAllVersions.set(rawGalleryExtension.extensionId, index);
+			} else {
 				result.push([index, extension]);
 			}
 		}
 
-		return result.sort((a, b) => a[0] - b[0]).map(([, extension]) => extension);
+		if (needAllVersions.size) {
+			const startTime = new Date().getTime();
+			const query = new Query()
+				.withFlags(flags & ~Flags.IncludeLatestVersionOnly, Flags.IncludeVersions)
+				.withPage(1, needAllVersions.size)
+				.withFilter(FilterType.ExtensionId, ...needAllVersions.keys());
+			const { extensions } = await this.queryGalleryExtensions(query, criteria, token);
+			this.telemetryService.publicLog2<GalleryServiceAdditionalQueryEvent, GalleryServiceAdditionalQueryClassification>('galleryService:additionalQuery', {
+				duration: new Date().getTime() - startTime,
+				count: needAllVersions.size
+			});
+			for (const extension of extensions) {
+				const index = needAllVersions.get(extension.identifier.uuid)!;
+				result.push([index, extension]);
+			}
+		}
+
+		return { extensions: result.sort((a, b) => a[0] - b[0]).map(([, extension]) => extension), total };
 	}
 
-	private async queryGallery(query: Query, targetPlatform: TargetPlatform, token: CancellationToken): Promise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
+	private async toGalleryExtensionWithCriteria(rawGalleryExtension: IRawGalleryExtension, criteria: IExtensionCriteria, hasAllVersions: boolean): Promise<IGalleryExtension | null> {
+
+		const extensionIdentifier = { id: getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName), uuid: rawGalleryExtension.extensionId };
+		const version = criteria.versions?.find(extensionIdentifierWithVersion => areSameExtensions(extensionIdentifierWithVersion, extensionIdentifier))?.version;
+		const preRelease = isBoolean(criteria.preRelease) ? criteria.preRelease : !!criteria.preRelease.find(extensionIdentifierWithPreRelease => areSameExtensions(extensionIdentifierWithPreRelease, extensionIdentifier))?.preRelease;
+		const allTargetPlatforms = getAllTargetPlatforms(rawGalleryExtension);
+		const rawGalleryExtensionVersions = sortExtensionVersions(rawGalleryExtension.versions, criteria.targetPlatform);
+
+		if (criteria.compatible && hasAllVersions && isNotWebExtensionInWebTargetPlatform(allTargetPlatforms, criteria.targetPlatform)) {
+			return null;
+		}
+
+		for (let index = 0; index < rawGalleryExtensionVersions.length; index++) {
+			const rawGalleryExtensionVersion = rawGalleryExtensionVersions[index];
+			if (version && rawGalleryExtensionVersion.version !== version) {
+				continue;
+			}
+			if (await this.isValidVersion(rawGalleryExtensionVersion, preRelease, criteria.compatible, allTargetPlatforms, criteria.targetPlatform)) {
+				return toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms);
+			}
+			if (version && rawGalleryExtensionVersion.version === version) {
+				return null;
+			}
+		}
+
+		if (version || criteria.compatible) {
+			return null;
+		}
+
+		/**
+		 * Fallback: Return the latest version
+		 * This can happen when the extension does not have a release version or does not have a version compatible with the given target platform.
+		 */
+		return toExtension(rawGalleryExtension, rawGalleryExtension.versions[0], allTargetPlatforms);
+	}
+
+	private async queryRawGalleryExtensions(query: Query, token: CancellationToken): Promise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
 		if (!this.isEnabled()) {
 			throw new Error('No extension gallery service configured.');
 		}
 
-		// Always exclude non validated and unpublished extensions
 		query = query
+			/* Always exclude non validated extensions */
 			.withFlags(query.flags, Flags.ExcludeNonValidated)
+			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
+			/* Always exclude unpublished extensions */
 			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished));
 
 		const commonHeaders = await this.commonHeadersPromise;
@@ -764,7 +893,6 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			if (result) {
 				const r = result.results[0];
 				const galleryExtensions = r.extensions;
-				galleryExtensions.forEach(e => sortExtensionVersions(e.versions, targetPlatform));
 				const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
 				total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
 
@@ -784,7 +912,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				responseBodySize: context?.res.headers['Content-Length'],
 				statusCode: context ? String(context.res.statusCode) : undefined,
 				errorCode: error
-					? isPromiseCanceledError(error) ? 'canceled' : getErrorMessage(error).startsWith('XHR timeout') ? 'timeout' : 'failed'
+					? isCancellationError(error) ? 'canceled' : getErrorMessage(error).startsWith('XHR timeout') ? 'timeout' : 'failed'
 					: undefined,
 				count: String(total)
 			});
@@ -885,8 +1013,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	async getAllCompatibleVersions(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]> {
 		let query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
-			.withPage(1, 1)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
+			.withPage(1, 1);
 
 		if (extension.identifier.uuid) {
 			query = query.withFilter(FilterType.ExtensionId, extension.identifier.uuid);
@@ -894,7 +1021,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			query = query.withFilter(FilterType.ExtensionName, extension.identifier.id);
 		}
 
-		const { galleryExtensions } = await this.queryGallery(query, targetPlatform, CancellationToken.None);
+		const { galleryExtensions } = await this.queryRawGalleryExtensions(query, CancellationToken.None);
 		if (!galleryExtensions.length) {
 			return [];
 		}
@@ -905,13 +1032,18 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		}
 
 		const result: IGalleryExtensionVersion[] = [];
-		for (const version of galleryExtensions[0].versions) {
+		const seenVersions = new Set<string>();
+		await Promise.all(galleryExtensions[0].versions.map(async (version) => {
 			try {
-				if (result[result.length - 1]?.version !== version.version && await this.isRawExtensionVersionCompatible(version, includePreRelease, allTargetPlatforms, targetPlatform)) {
+				if (seenVersions.has(version.version)) {
+					return;
+				}
+				seenVersions.add(version.version);
+				if (await this.isValidVersion(version, includePreRelease, true, allTargetPlatforms, targetPlatform)) {
 					result.push({ version: version.version, date: version.lastUpdated, isPreReleaseVersion: isPreReleaseVersion(version) });
 				}
 			} catch (error) { /* Ignore error and skip version */ }
-		}
+		}));
 		return result;
 	}
 
@@ -933,14 +1065,14 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			const message = await asText(context);
 			throw new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`);
 		} catch (err) {
-			if (isPromiseCanceledError(err)) {
+			if (isCancellationError(err)) {
 				throw err;
 			}
 
 			const message = getErrorMessage(err);
 			type GalleryServiceCDNFallbackClassification = {
-				url: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				message: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				url: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+				message: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 			};
 			type GalleryServiceCDNFallbackEvent = {
 				url: string;
@@ -981,7 +1113,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 		const result = await asJson<IRawExtensionsControlManifest>(context);
 		const malicious: IExtensionIdentifier[] = [];
-		const unsupportedPreReleaseExtensions: IStringDictionary<{ id: string, displayName: string }> = {};
+		const unsupportedPreReleaseExtensions: IStringDictionary<{ id: string, displayName: string, migrateStorage?: boolean }> = {};
 
 		if (result) {
 			for (const id of result.malicious) {
@@ -992,6 +1124,13 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 					const value = result.unsupported[extensionId];
 					if (!isBoolean(value)) {
 						unsupportedPreReleaseExtensions[extensionId.toLowerCase()] = value.preReleaseExtension;
+					}
+				}
+			}
+			if (result.migrateToPreRelease) {
+				for (const [unsupportedPreReleaseExtensionId, preReleaseExtensionInfo] of Object.entries(result.migrateToPreRelease)) {
+					if (!preReleaseExtensionInfo.engine || isEngineValid(preReleaseExtensionInfo.engine, this.productService.version, this.productService.date)) {
+						unsupportedPreReleaseExtensions[unsupportedPreReleaseExtensionId.toLowerCase()] = preReleaseExtensionInfo;
 					}
 				}
 			}
@@ -1032,10 +1171,7 @@ export class ExtensionGalleryServiceWithNoStorageService extends AbstractExtensi
 	}
 }
 
-export async function resolveMarketplaceHeaders(version: string, productService: IProductService, environmentService: IEnvironmentService, configurationService: IConfigurationService, fileService: IFileService, storageService: {
-	get: (key: string, scope: StorageScope) => string | undefined,
-	store: (key: string, value: string, scope: StorageScope, target: StorageTarget) => void
-} | undefined): Promise<{ [key: string]: string; }> {
+export async function resolveMarketplaceHeaders(version: string, productService: IProductService, environmentService: IEnvironmentService, configurationService: IConfigurationService, fileService: IFileService, storageService: IStorageService | undefined): Promise<{ [key: string]: string; }> {
 	const headers: IHeaders = {
 		'X-Market-Client-Id': `VSCode ${version}`,
 		'User-Agent': `VSCode ${version} (${productService.nameShort})`

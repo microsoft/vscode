@@ -6,6 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CellViewModelStateChangeEvent, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export abstract class CellPart extends Disposable {
 	constructor() {
@@ -33,4 +34,9 @@ export abstract class CellPart extends Disposable {
 	 * Update per cell state change
 	 */
 	abstract updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void;
+
+	/**
+	 * Update per execution state change.
+	 */
+	updateForExecutionState(element: ICellViewModel, e: ICellExecutionStateChangedEvent): void { }
 }

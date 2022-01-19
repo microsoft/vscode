@@ -9,35 +9,37 @@ const perf = require('../base/common/performance');
 const performance = require('perf_hooks').performance;
 const product = require('../../../product.json');
 const readline = require('readline');
+const http = require('http');
 
 perf.mark('code/server/start');
 // @ts-ignore
 global.vscodeServerStartTime = performance.now();
 
 async function start() {
-	if (process.argv[2] === '--exec') {
-		process.argv.splice(1, 2);
-		require(process.argv[1]);
-		return;
-	}
-
 	const minimist = require('minimist');
 
 	// Do a quick parse to determine if a server or the cli needs to be started
 	const parsedArgs = minimist(process.argv.slice(2), {
 		boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version', 'accept-server-license-terms'],
-		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port']
+		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port', 'compatibility']
 	});
 
-	const extensionCliArgs = ['list-extensions', 'install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension'];
+	const extensionLookupArgs = ['list-extensions', 'locate-extension'];
+	const extensionInstallArgs = ['install-extension', 'install-builtin-extension', 'uninstall-extension'];
 
-	const shouldSpawnCli = parsedArgs.help || parsedArgs.version || !parsedArgs['start-server'] && extensionCliArgs.some(a => !!parsedArgs[a]);
+	const shouldSpawnCli = parsedArgs.help || parsedArgs.version || extensionLookupArgs.some(a => !!parsedArgs[a]) || (extensionInstallArgs.some(a => !!parsedArgs[a]) && !parsedArgs['start-server']);
 
 	if (shouldSpawnCli) {
 		loadCode().then((mod) => {
 			mod.spawnCli();
 		});
 		return;
+	}
+
+	if (parsedArgs['compatibility'] === '1.63') {
+		console.warn(`server.sh is being replaced by 'bin/${product.serverApplicationName}'. Please migrate to the new command and adopt the following new default behaviors:`);
+		console.warn('* connection token is mandatody unless --without-connection-token is used');
+		console.warn('* host defaults to `localhost`');
 	}
 
 	/**
@@ -99,10 +101,11 @@ async function start() {
 		const remoteExtensionHostAgentServer = await getRemoteExtensionHostAgentServer();
 		return remoteExtensionHostAgentServer.handleServerError(err);
 	});
+	const host = parsedArgs['host'] || (parsedArgs['compatibility'] !== '1.63' ? 'localhost' : undefined);
 	const nodeListenOptions = (
 		parsedArgs['socket-path']
 			? { path: parsedArgs['socket-path'] }
-			: { host: parsedArgs['host'], port: await parsePort(parsedArgs['port'], parsedArgs['pick-port']) }
+			: { host, port: await parsePort(host, parsedArgs['port'], parsedArgs['pick-port']) }
 	);
 	server.listen(nodeListenOptions, async () => {
 		const serverGreeting = product.serverGreeting.join('\n');
@@ -144,82 +147,104 @@ async function start() {
 }
 
 /**
- * If `--pick-port` and `--port` is specified, connect to that port.
+ * If `--pick - port` and `--port` is specified, connect to that port.
  *
- * If not and a port range is specified through `--pick-port`
+ * If not and a port range is specified through `--pick - port`
  * then find a free port in that range. Throw error if no
  * free port available in range.
  *
  * If only `--port` is provided then connect to that port.
  *
  * In absence of specified ports, connect to port 8000.
+ * @param {string | undefined} host
  * @param {string | undefined} strPort
  * @param {string | undefined} strPickPort
  * @returns {Promise<number>}
  * @throws
  */
-async function parsePort(strPort, strPickPort) {
-	let specificPort = -1;
-
+async function parsePort(host, strPort, strPickPort) {
+	let specificPort;
 	if (strPort) {
-		const port = parseInt(strPort, 10);
-		if (!isNaN(port)) {
-			specificPort = port;
+		let range;
+		if (strPort.match(/^\d+$/)) {
+			specificPort = parseInt(strPort, 10);
+			if (specificPort === 0 || !strPickPort) {
+				return specificPort;
+			}
+		} else if (range = parseRange(strPort)) {
+			const port = await findFreePort(host, range.start, range.end);
+			if (port !== undefined) {
+				return port;
+			}
+			console.warn(`--port: Could not find free port in range: ${range.start} - ${range.end}.`);
+			process.exit(1);
+
 		} else {
-			console.log('Port is not a number, will default to 8000 if no pick-port is given.');
+			console.warn(`--port "${strPort}" is not a valid number or range.`);
+			process.exit(1);
 		}
 	}
-
 	if (strPickPort) {
-		if (strPickPort.match(/^\d+-\d+$/)) {
-			const [start, end] = strPickPort.split('-').map(numStr => { return parseInt(numStr, 10); });
-
-			if (!isNaN(start) && !isNaN(end)) {
-				if (specificPort !== -1 && specificPort >= start && specificPort <= end) {
-					return specificPort;
-				} else {
-					return await findFreePort(start, start, end);
-				}
+		const range = parseRange(strPickPort);
+		if (range) {
+			if (range.start <= specificPort && specificPort <= range.end) {
+				return specificPort;
 			} else {
-				console.log('Port range are not numbers, using 8000 instead.');
+				const port = await findFreePort(host, range.start, range.end);
+				if (port !== undefined) {
+					return port;
+				}
+				console.log(`--pick - port: Could not find free port in range: ${range.start} - ${range.end}.`);
+				process.exit(1);
 			}
 		} else {
-			console.log(`Port range: "${strPickPort}" is not properly formatted, using 8000 instead.`);
+			console.log(`--pick - port "${strPickPort}" is not properly formatted.`);
+			process.exit(1);
 		}
 	}
-
-	if (specificPort !== -1) {
-		return specificPort;
-	}
-
 	return 8000;
 }
 
 /**
+ * @param {string} strRange
+ * @returns {{ start: number; end: number } | undefined}
+ */
+function parseRange(strRange) {
+	const match = strRange.match(/^(\d+)-(\d+)$/);
+	if (match) {
+		return { start: parseInt(match[1], 10), end: parseInt(match[2], 10) };
+	}
+	return undefined;
+}
+
+/**
  * Starting at the `start` port, look for a free port incrementing
- * by 1 until `end` inclusive. If no port is found error is thrown.
+ * by 1 until `end` inclusive. If no free port is found, undefined is returned.
  *
+ * @param {string | undefined} host
  * @param {number} start
- * @param {number} port
  * @param {number} end
- * @returns {Promise<number>}
+ * @returns {Promise<number | undefined>}
  * @throws
  */
-async function findFreePort(start, port, end) {
-	const http = require('http');
-	return new Promise((resolve, reject) => {
-		if (port > end) {
-			throw new Error(`Could not find free port in range: ${start}-${end}`);
-		}
-
-		const server = http.createServer();
-		server.listen(port, () => {
-			server.close();
-			resolve(port);
-		}).on('error', () => {
-			resolve(findFreePort(start, port + 1, end));
+async function findFreePort(host, start, end) {
+	const testPort = (port) => {
+		return new Promise((resolve) => {
+			const server = http.createServer();
+			server.listen(port, host, () => {
+				server.close();
+				resolve(true);
+			}).on('error', () => {
+				resolve(false);
+			});
 		});
-	});
+	};
+	for (let port = start; port < end; port++) {
+		if (await testPort(port)) {
+			return port;
+		}
+	}
+	return undefined;
 }
 
 /** @returns { Promise<typeof import('./remoteExtensionHostAgent')> } */
@@ -227,9 +252,14 @@ function loadCode() {
 	return new Promise((resolve, reject) => {
 		const path = require('path');
 
-		// Set default remote native node modules path, if unset
-		process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', '..', '..', 'remote', 'node_modules');
-		require('../../bootstrap-node').injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+		if (process.env['VSCODE_DEV']) {
+			// When running out of sources, we need to load node modules from remote/node_modules,
+			// which are compiled against nodejs, not electron
+			process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', '..', '..', 'remote', 'node_modules');
+			require('../../bootstrap-node').injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+		} else {
+			delete process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'];
+		}
 		require('../../bootstrap-amd').load('vs/server/remoteExtensionHostAgent', resolve, reject);
 	});
 }

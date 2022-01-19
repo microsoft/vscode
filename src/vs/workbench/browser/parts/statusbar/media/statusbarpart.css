@@ -11,6 +11,7 @@
 	font-size: 12px;
 	display: flex;
 	overflow: visible;
+	transition: background-color 0.35s ease-out;
 }
 
 .monaco-workbench .part.statusbar.status-border-top::after {

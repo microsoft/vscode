@@ -175,15 +175,17 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 					case RecommendationsNotificationResult.Ignored:
 						this.highImportanceTipsByExe.delete(exeName);
 						break;
-					case RecommendationsNotificationResult.IncompatibleWindow:
+					case RecommendationsNotificationResult.IncompatibleWindow: {
 						// Recommended in incompatible window. Schedule the prompt after active window change
 						const onActiveWindowChange = Event.once(Event.latch(Event.any(this.nativeHostService.onDidOpenWindow, this.nativeHostService.onDidFocusWindow)));
 						this._register(onActiveWindowChange(() => this.promptHighImportanceExeBasedTip()));
 						break;
-					case RecommendationsNotificationResult.TooMany:
+					}
+					case RecommendationsNotificationResult.TooMany: {
 						// Too many notifications. Schedule the prompt after one hour
 						const disposable = this._register(disposableTimeout(() => { disposable.dispose(); this.promptHighImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */));
 						break;
+					}
 				}
 			});
 	}
@@ -209,7 +211,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		this.promptExeRecommendations(tips)
 			.then(result => {
 				switch (result) {
-					case RecommendationsNotificationResult.Accepted:
+					case RecommendationsNotificationResult.Accepted: {
 						// Accepted: Update the last prompted time and caches.
 						this.updateLastPromptedMediumExeTime(Date.now());
 						this.mediumImportanceTipsByExe.delete(exeName);
@@ -218,23 +220,24 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 						// Schedule the next recommendation for next internval
 						const disposable1 = this._register(disposableTimeout(() => { disposable1.dispose(); this.promptMediumImportanceExeBasedTip(); }, promptInterval));
 						break;
-
+					}
 					case RecommendationsNotificationResult.Ignored:
 						// Ignored: Remove from the cache and prompt next recommendation
 						this.mediumImportanceTipsByExe.delete(exeName);
 						this.promptMediumImportanceExeBasedTip();
 						break;
 
-					case RecommendationsNotificationResult.IncompatibleWindow:
+					case RecommendationsNotificationResult.IncompatibleWindow: {
 						// Recommended in incompatible window. Schedule the prompt after active window change
 						const onActiveWindowChange = Event.once(Event.latch(Event.any(this.nativeHostService.onDidOpenWindow, this.nativeHostService.onDidFocusWindow)));
 						this._register(onActiveWindowChange(() => this.promptMediumImportanceExeBasedTip()));
 						break;
-
-					case RecommendationsNotificationResult.TooMany:
+					}
+					case RecommendationsNotificationResult.TooMany: {
 						// Too many notifications. Schedule the prompt after one hour
 						const disposable2 = this._register(disposableTimeout(() => { disposable2.dispose(); this.promptMediumImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */));
 						break;
+					}
 				}
 			});
 	}

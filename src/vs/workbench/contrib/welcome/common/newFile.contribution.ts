@@ -38,7 +38,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.MenubarFileMenu,
 				when: HasMultipleNewFileEntries,
 				group: '1_new',
-				order: 3
+				order: 2
 			}
 		});
 	}

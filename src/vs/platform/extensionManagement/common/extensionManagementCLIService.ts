@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { gt } from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { CLIOutput, IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { CLIOutput, getIdAndVersion, IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 
@@ -27,17 +27,7 @@ function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
 	}
 }
 
-const EXTENSION_ID_REGEX = /^([^.]+\..+)@(\d+\.\d+\.\d+(-.*)?)$/;
-
-export function getIdAndVersion(id: string): [string, string | undefined] {
-	const matches = EXTENSION_ID_REGEX.exec(id);
-	if (matches && matches[1]) {
-		return [adoptToGalleryExtensionId(matches[1]), matches[2]];
-	}
-	return [adoptToGalleryExtensionId(id), undefined];
-}
-
-type InstallExtensionInfo = { id: string, version?: string, installOptions: InstallOptions };
+type InstallExtensionInfo = { id: string, version?: string, installOptions: InstallOptions; };
 
 
 export class ExtensionManagementCLIService implements IExtensionManagementCLIService {
@@ -187,7 +177,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 				output.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", getBaseLabel(vsix)));
 				return manifest;
 			} catch (error) {
-				if (isPromiseCanceledError(error)) {
+				if (isCancellationError(error)) {
 					output.log(localize('cancelVsixInstall', "Cancelled installing extension '{0}'.", getBaseLabel(vsix)));
 					return null;
 				} else {
@@ -200,7 +190,8 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 
 	private async getGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<Map<string, IGalleryExtension>> {
 		const galleryExtensions = new Map<string, IGalleryExtension>();
-		const result = await this.extensionGalleryService.getExtensions(extensions, extensions.some(e => e.installOptions.installPreReleaseVersion), CancellationToken.None);
+		const preRelease = extensions.some(e => e.installOptions.installPreReleaseVersion);
+		const result = await this.extensionGalleryService.getExtensions(extensions.map(e => ({...e, preRelease})), CancellationToken.None);
 		for (const extension of result) {
 			galleryExtensions.set(extension.identifier.id.toLowerCase(), extension);
 		}
@@ -233,7 +224,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			output.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, galleryExtension.version));
 			return manifest;
 		} catch (error) {
-			if (isPromiseCanceledError(error)) {
+			if (isCancellationError(error)) {
 				output.log(localize('cancelInstall', "Cancelled installing extension '{0}'.", id));
 				return null;
 			} else {

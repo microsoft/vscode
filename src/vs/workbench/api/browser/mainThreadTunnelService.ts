@@ -164,7 +164,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		this.remoteExplorerService.onFoundNewCandidates(candidates);
 	}
 
-	async $setTunnelProvider(features: TunnelProviderFeatures): Promise<void> {
+	async $setTunnelProvider(features?: TunnelProviderFeatures): Promise<void> {
 		const tunnelProvider: ITunnelProvider = {
 			forwardPort: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => {
 				const forward = this._proxy.$forwardPort(tunnelOptions, tunnelCreationOptions);
@@ -189,7 +189,10 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 				});
 			}
 		};
-		this.tunnelService.setTunnelProvider(tunnelProvider, features);
+		this.tunnelService.setTunnelProvider(tunnelProvider);
+		if (features) {
+			this.tunnelService.setTunnelFeatures(features);
+		}
 	}
 
 	async $setCandidateFilter(): Promise<void> {

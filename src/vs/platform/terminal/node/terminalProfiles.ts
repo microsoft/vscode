@@ -268,7 +268,7 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 			args: [`-d`, `${distroName}`],
 			isDefault: profileName === defaultProfileName,
 			icon: getWslIcon(distroName),
-			isAutoDetected: true
+			isAutoDetected: false
 		};
 		// Add the profile
 		profiles.push(profile);
@@ -353,6 +353,8 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 		if (!executable) {
 			return validateProfilePaths(profileName, defaultProfileName, potentialPaths, fsProvider, shellEnv, args);
 		}
+		profile.path = executable;
+		profile.isFromPath = true;
 		return profile;
 	}
 

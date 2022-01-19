@@ -242,7 +242,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	}
 
 	private estimateEditorHeight(lineHeight: number | undefined = 20): number {
-		let hasScrolling = false;
+		const hasScrolling = false;
 		const verticalScrollbarHeight = hasScrolling ? 12 : 0; // take zoom level into account
 		// const editorPadding = this.viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
 		const lineCount = Math.max(this.original?.textModel.textBuffer.getLineCount() ?? 1, this.modified?.textModel.textBuffer.getLineCount() ?? 1);
@@ -606,7 +606,7 @@ export function getFormatedMetadataJSON(documentTextModel: NotebookTextModel, me
 		const transientCellMetadata = documentTextModel.transientOptions.transientCellMetadata;
 
 		const keys = new Set([...Object.keys(metadata)]);
-		for (let key of keys) {
+		for (const key of keys) {
 			if (!(transientCellMetadata[key as keyof NotebookCellMetadata])
 			) {
 				filteredMetadata[key] = metadata[key as keyof NotebookCellMetadata];

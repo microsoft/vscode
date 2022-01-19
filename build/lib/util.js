@@ -323,10 +323,17 @@ function acquireWebNodePaths() {
         }
         // Remove any starting path information so it's all relative info
         if (entryPoint.startsWith('./')) {
-            entryPoint = entryPoint.substr(2);
+            entryPoint = entryPoint.substring(2);
         }
         else if (entryPoint.startsWith('/')) {
-            entryPoint = entryPoint.substr(1);
+            entryPoint = entryPoint.substring(1);
+        }
+        // Search for a minified entrypoint as well
+        if (/(?<!\.min)\.js$/i.test(entryPoint)) {
+            const minEntryPoint = entryPoint.replace(/\.js$/i, '.min.js');
+            if (fs.existsSync(path.join(root, 'node_modules', key, minEntryPoint))) {
+                entryPoint = minEntryPoint;
+            }
         }
         nodePaths[key] = entryPoint;
     }

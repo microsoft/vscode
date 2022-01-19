@@ -6,6 +6,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const path = require("path");
 const es = require("event-stream");
+const Vinyl = require("vinyl");
 const vfs = require("vinyl-fs");
 const util = require("../lib/util");
 const filter = require("gulp-filter");
@@ -15,25 +16,41 @@ const azure = require('gulp-azure-storage');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
 const credential = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
-function main() {
-    return new Promise((c, e) => {
+async function main() {
+    const files = [];
+    const options = {
+        account: process.env.AZURE_STORAGE_ACCOUNT,
+        credential,
+        container: process.env.VSCODE_QUALITY,
+        prefix: commit + '/',
+        contentSettings: {
+            contentEncoding: 'gzip',
+            cacheControl: 'max-age=31536000, public'
+        }
+    };
+    await new Promise((c, e) => {
         vfs.src('**', { cwd: '../vscode-web', base: '../vscode-web', dot: true })
             .pipe(filter(f => !f.isDirectory()))
             .pipe(gzip({ append: false }))
             .pipe(es.through(function (data) {
-            console.log('Uploading CDN file:', data.relative); // debug
+            console.log('Uploading:', data.relative); // debug
+            files.push(data.relative);
             this.emit('data', data);
         }))
-            .pipe(azure.upload({
-            account: process.env.AZURE_STORAGE_ACCOUNT,
-            credential,
-            container: process.env.VSCODE_QUALITY,
-            prefix: commit + '/',
-            contentSettings: {
-                contentEncoding: 'gzip',
-                cacheControl: 'max-age=31536000, public'
-            }
-        }))
+            .pipe(azure.upload(options))
+            .on('end', () => c())
+            .on('error', (err) => e(err));
+    });
+    await new Promise((c, e) => {
+        const listing = new Vinyl({
+            path: 'files.txt',
+            contents: Buffer.from(files.join('\n')),
+            stat: { mode: 0o666 }
+        });
+        console.log(`Uploading: files.txt (${files.length} files)`); // debug
+        es.readArray([listing])
+            .pipe(gzip({ append: false }))
+            .pipe(azure.upload(options))
             .on('end', () => c())
             .on('error', (err) => e(err));
     });

@@ -20,7 +20,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { prepareQuery } from 'vs/base/common/fuzzyScorer';
-import { SymbolKind } from 'vs/editor/common/modes';
+import { SymbolKind } from 'vs/editor/common/languages';
 import { fuzzyScore, createMatches } from 'vs/base/common/filters';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -30,6 +30,7 @@ import { IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/br
 import { isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/outlineModel';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -40,8 +41,9 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOutlineService private readonly outlineService: IOutlineService,
+		@IOutlineModelService outlineModelService: IOutlineModelService,
 	) {
-		super({
+		super(outlineModelService, {
 			openSideBySideDirection: () => this.configuration.openSideBySideDirection
 		});
 	}

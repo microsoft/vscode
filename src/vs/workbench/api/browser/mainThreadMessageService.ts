@@ -13,7 +13,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Event } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { dispose } from 'vs/base/common/lifecycle';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
@@ -35,11 +35,11 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		if (options.modal) {
 			return this._showModalMessage(severity, message, options.detail, commands, options.useCustom);
 		} else {
-			return this._showMessage(severity, message, commands, options.extension);
+			return this._showMessage(severity, message, commands, options);
 		}
 	}
 
-	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], extension: IExtensionDescription | undefined): Promise<number | undefined> {
+	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], options: MainThreadMessageOptions): Promise<number | undefined> {
 
 		return new Promise<number | undefined>(resolve => {
 
@@ -66,11 +66,11 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 				primaryActions.push(new MessageItemAction('_extension_message_handle_' + command.handle, command.title, command.handle));
 			});
 
-			let source: string | { label: string, id: string } | undefined;
-			if (extension) {
+			let source: string | { label: string, id: string; } | undefined;
+			if (options.source) {
 				source = {
-					label: nls.localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name),
-					id: extension.identifier.value
+					label: nls.localize('extensionSource', "{0} (Extension)", options.source.label),
+					id: options.source.identifier.value
 				};
 			}
 
@@ -79,8 +79,8 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			}
 
 			const secondaryActions: IAction[] = [];
-			if (extension && !extension.isUnderDevelopment) {
-				secondaryActions.push(new ManageExtensionAction(extension.identifier, nls.localize('manageExtension', "Manage Extension"), this._commandService));
+			if (options.source) {
+				secondaryActions.push(new ManageExtensionAction(options.source.identifier, nls.localize('manageExtension', "Manage Extension"), this._commandService));
 			}
 
 			const messageHandle = this._notificationService.notify({

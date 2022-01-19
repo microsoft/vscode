@@ -338,7 +338,6 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			}
 
 			// If we still have dirty working copies, revert those directly
-			// unless the revert operation was not successful (e.g. cancelled)
 			await Promises.settled(dirtyWorkingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.revert(revertOptions) : Promise.resolve()));
 		}, localize('revertBeforeShutdown', "Reverting editors with unsaved changes is taking longer than expected..."));
 	}

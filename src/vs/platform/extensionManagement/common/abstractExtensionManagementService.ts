@@ -99,44 +99,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		}
 	}
 
-	async migrateUnsupportedExtensions(): Promise<void> {
-		try {
-			const extensionsControlManifest = await this.getExtensionsControlManifest();
-			if (!extensionsControlManifest.unsupportedPreReleaseExtensions) {
-				return;
-			}
-			const installed = await this.getInstalled(ExtensionType.User);
-			for (const [unsupportedPreReleaseExtensionId, preReleaseExtension] of Object.entries(extensionsControlManifest.unsupportedPreReleaseExtensions)) {
-				const local = installed.find(i => areSameExtensions(i.identifier, { id: unsupportedPreReleaseExtensionId }));
-				if (!local) {
-					continue;
-				}
-				const gallery = await this.galleryService.getCompatibleExtension({ id: preReleaseExtension.id }, true, await this.getTargetPlatform());
-				if (!gallery) {
-					this.logService.info(`Skipping migrating '${local.identifier.id}' extension because, the comaptible target '${preReleaseExtension.id}' extension is not found`);
-					continue;
-				}
-				const manifest = await this.galleryService.getManifest(gallery, CancellationToken.None);
-				if (!manifest) {
-					this.logService.info(`Skipping migrating '${local.identifier.id}' extension because, the manifest for '${preReleaseExtension.id}' extension is not found`);
-					continue;
-				}
-				try {
-					this.logService.info(`Migrating '${local.identifier.id}' extension to '${preReleaseExtension.id}' extension...`);
-					await Promise.allSettled([
-						this.uninstall(local),
-						this.installExtension(manifest, gallery, { installPreReleaseVersion: true, isMachineScoped: local.isMachineScoped, operation: InstallOperation.Migrate })
-					]);
-					this.logService.info(`Migrated '${local.identifier.id}' extension to '${preReleaseExtension.id}' extension.`);
-				} catch (error) {
-					this.logService.error(error);
-				}
-			}
-		} catch (error) {
-			this.logService.error(error);
-		}
-	}
-
 	async uninstall(extension: ILocalExtension, options: UninstallOptions = {}): Promise<void> {
 		this.logService.trace('ExtensionManagementService#uninstall', extension.identifier.id);
 		return this.unininstallExtension(extension, options);
@@ -172,7 +134,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		this.participants.push(participant);
 	}
 
-	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions & { operation?: InstallOperation }): Promise<ILocalExtension> {
+	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions): Promise<ILocalExtension> {
 		// only cache gallery extensions tasks
 		if (!URI.isUri(extension)) {
 			let installExtensionTask = this.installingExtensions.get(new ExtensionIdentifierWithVersion(extension.identifier, extension.version).key());
@@ -407,13 +369,18 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		const compatibleExtension = await this.getCompatibleVersion(extension, fetchCompatibleVersion, installPreRelease);
 		if (compatibleExtension) {
-			if (installPreRelease && extension.hasPreReleaseVersion && !compatibleExtension.properties.isPreReleaseVersion) {
+			if (installPreRelease && fetchCompatibleVersion && extension.hasPreReleaseVersion && !compatibleExtension.properties.isPreReleaseVersion) {
 				throw new ExtensionManagementError(nls.localize('notFoundCompatiblePrereleaseDependency', "Can't install pre-release version of '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.IncompatiblePreRelease);
 			}
 		} else {
+			/** If no compatible release version is found, check if the extension has a release version or not and throw relevant error */
+			if (!installPreRelease && extension.properties.isPreReleaseVersion && (await this.galleryService.getExtensions([extension.identifier], CancellationToken.None))[0]) {
+				throw new ExtensionManagementError(nls.localize('notFoundReleaseExtension', "Can't install release version of '{0}' extension because it has no release version.", extension.identifier.id), ExtensionManagementErrorCode.ReleaseVersionNotFound);
+			}
 			throw new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.Incompatible);
 		}
 
+		this.logService.info('Getting Manifest...', compatibleExtension.identifier.id);
 		const manifest = await this.galleryService.getManifest(compatibleExtension, CancellationToken.None);
 		if (manifest === null) {
 			throw new ExtensionManagementError(`Missing manifest for extension ${extension.identifier.id}`, ExtensionManagementErrorCode.Invalid);
@@ -431,7 +398,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		let compatibleExtension: IGalleryExtension | null = null;
 
 		if (fetchCompatibleVersion && extension.hasPreReleaseVersion && extension.properties.isPreReleaseVersion !== includePreRelease) {
-			compatibleExtension = await this.galleryService.getCompatibleExtension(extension.identifier, includePreRelease, targetPlatform);
+			compatibleExtension = (await this.galleryService.getExtensions([{ ...extension.identifier, preRelease: includePreRelease }], { targetPlatform, compatible: true }, CancellationToken.None))[0] || null;
 		}
 
 		if (!compatibleExtension && await this.galleryService.isExtensionCompatible(extension, includePreRelease, targetPlatform)) {

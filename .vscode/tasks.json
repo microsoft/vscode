@@ -23,8 +23,8 @@
 					"message": 3
 				},
 				"background": {
-					"beginsPattern": "Starting compilation",
-					"endsPattern": "Finished compilation"
+					"beginsPattern": "Starting compilation...",
+					"endsPattern": "Finished compilation with"
 				}
 			}
 		},

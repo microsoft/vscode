@@ -87,6 +87,13 @@ declare module 'vscode' {
 		 */
 		environmentTunnels?: TunnelDescription[];
 
+		tunnelFeatures?: {
+			elevation: boolean;
+			/**
+			 * One of the the options must have the ID "private".
+			 */
+			privacyOptions: TunnelPrivacy[];
+		};
 	}
 
 	export interface TunnelCreationOptions {
@@ -146,18 +153,11 @@ declare module 'vscode' {
 		showCandidatePort?: (host: string, port: number, detail: string) => Thenable<boolean>;
 
 		/**
-		 * Lets the resolver declare which tunnel factory features it supports.
-		 * UNDER DISCUSSION! MAY CHANGE SOON.
+		 * @deprecated Return tunnelFeatures as part of the resolver result in tunnelInformation.
 		 */
 		tunnelFeatures?: {
 			elevation: boolean;
-			/**
-			 * @deprecated Use privacy instead
-			 */
 			public: boolean;
-			/**
-			 * One of the the options must have the ID "private".
-			 */
 			privacyOptions: TunnelPrivacy[];
 		};
 

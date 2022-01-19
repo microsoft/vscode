@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { shuffle } from 'vs/base/common/arrays';
+import { randomPath } from 'vs/base/common/extpath';
 import { ConfigKeysIterator, LinkedMap, LRUCache, PathIterator, ResourceMap, StringIterator, TernarySearchTree, Touch, UriIterator } from 'vs/base/common/map';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -793,7 +794,7 @@ suite('Map', () => {
 		for (let round = 10; round >= 0; round--) {
 			const keys: URI[] = [];
 			for (let i = 0; i < 100; i++) {
-				keys.push(URI.from({ scheme: 'fake-fs', path: Math.random().toString(36).replace(/[^a-z]+/g, '').substring(0, 10) }));
+				keys.push(URI.from({ scheme: 'fake-fs', path: randomPath(undefined, undefined, 10) }));
 			}
 			const tst = TernarySearchTree.forUris<boolean>();
 

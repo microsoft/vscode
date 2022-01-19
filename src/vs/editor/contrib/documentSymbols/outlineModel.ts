@@ -13,17 +13,19 @@ import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
+import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/languages';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IModelService } from 'vs/editor/common/services/model';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export abstract class TreeElement {
 
 	abstract id: string;
 	abstract children: Map<string, TreeElement>;
 	abstract parent: TreeElement | undefined;
-
-	abstract adopt(newParent: TreeElement): TreeElement;
 
 	remove(): void {
 		if (this.parent) {
@@ -105,14 +107,6 @@ export class OutlineElement extends TreeElement {
 	) {
 		super();
 	}
-
-	adopt(parent: TreeElement): OutlineElement {
-		let res = new OutlineElement(this.id, parent, this.symbol);
-		for (const [key, value] of this.children) {
-			res.children.set(key, value.adopt(res));
-		}
-		return res;
-	}
 }
 
 export class OutlineGroup extends TreeElement {
@@ -126,14 +120,6 @@ export class OutlineGroup extends TreeElement {
 		readonly order: number,
 	) {
 		super();
-	}
-
-	adopt(parent: TreeElement): OutlineGroup {
-		let res = new OutlineGroup(this.id, parent, this.label, this.order);
-		for (const [key, value] of this.children) {
-			res.children.set(key, value.adopt(res));
-		}
-		return res;
 	}
 
 	getItemEnclosingPosition(position: IPosition): OutlineElement | undefined {
@@ -206,86 +192,7 @@ export class OutlineGroup extends TreeElement {
 
 export class OutlineModel extends TreeElement {
 
-	private static readonly _requestDurations = new LanguageFeatureRequestDelays(DocumentSymbolProviderRegistry, 350);
-	private static readonly _requests = new LRUCache<string, { promiseCnt: number, source: CancellationTokenSource, promise: Promise<any>, model: OutlineModel | undefined }>(9, 0.75);
-	private static readonly _keys = new class {
-
-		private _counter = 1;
-		private _data = new WeakMap<DocumentSymbolProvider, number>();
-
-		for(textModel: ITextModel, version: boolean): string {
-			return `${textModel.id}/${version ? textModel.getVersionId() : ''}/${this._hash(DocumentSymbolProviderRegistry.all(textModel))}`;
-		}
-
-		private _hash(providers: DocumentSymbolProvider[]): string {
-			let result = '';
-			for (const provider of providers) {
-				let n = this._data.get(provider);
-				if (typeof n === 'undefined') {
-					n = this._counter++;
-					this._data.set(provider, n);
-				}
-				result += n;
-			}
-			return result;
-		}
-	};
-
-
 	static create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
-
-		let key = this._keys.for(textModel, true);
-		let data = OutlineModel._requests.get(key);
-
-		if (!data) {
-			let source = new CancellationTokenSource();
-			data = {
-				promiseCnt: 0,
-				source,
-				promise: OutlineModel._create(textModel, source.token),
-				model: undefined,
-			};
-			OutlineModel._requests.set(key, data);
-
-			// keep moving average of request durations
-			const now = Date.now();
-			data.promise.then(() => {
-				this._requestDurations.update(textModel, Date.now() - now);
-			});
-		}
-
-		if (data!.model) {
-			// resolved -> return data
-			return Promise.resolve(data.model!);
-		}
-
-		// increase usage counter
-		data!.promiseCnt += 1;
-
-		token.onCancellationRequested(() => {
-			// last -> cancel provider request, remove cached promise
-			if (--data!.promiseCnt === 0) {
-				data!.source.cancel();
-				OutlineModel._requests.delete(key);
-			}
-		});
-
-		return new Promise((resolve, reject) => {
-			data!.promise.then(model => {
-				data!.model = model;
-				resolve(model);
-			}, err => {
-				OutlineModel._requests.delete(key);
-				reject(err);
-			});
-		});
-	}
-
-	static getRequestDelay(textModel: ITextModel | null): number {
-		return textModel ? this._requestDurations.get(textModel) : this._requestDurations.min;
-	}
-
-	private static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
 
 		const cts = new CancellationTokenSource(token);
 		const result = new OutlineModel(textModel.uri);
@@ -321,7 +228,7 @@ export class OutlineModel extends TreeElement {
 
 		return Promise.all(promises).then(() => {
 			if (cts.token.isCancellationRequested && !token.isCancellationRequested) {
-				return OutlineModel._create(textModel, token);
+				return OutlineModel.create(textModel, token);
 			} else {
 				return result._compact();
 			}
@@ -362,14 +269,6 @@ export class OutlineModel extends TreeElement {
 
 		this.id = 'root';
 		this.parent = undefined;
-	}
-
-	adopt(): OutlineModel {
-		let res = new OutlineModel(this.uri);
-		for (const [key, value] of this._groups) {
-			res._groups.set(key, value.adopt(res));
-		}
-		return res._compact();
 	}
 
 	private _compact(): this {
@@ -485,3 +384,102 @@ export class OutlineModel extends TreeElement {
 		}
 	}
 }
+
+
+export const IOutlineModelService = createDecorator<IOutlineModelService>('IOutlineModelService');
+
+export interface IOutlineModelService {
+	_serviceBrand: undefined;
+	getOrCreate(model: ITextModel, token: CancellationToken): Promise<OutlineModel>;
+	getDebounceValue(textModel: ITextModel): number;
+}
+
+interface CacheEntry {
+	versionId: number;
+	provider: DocumentSymbolProvider[];
+
+	promiseCnt: number;
+	source: CancellationTokenSource;
+	promise: Promise<OutlineModel>;
+	model: OutlineModel | undefined;
+}
+
+export class OutlineModelService implements IOutlineModelService {
+
+	declare _serviceBrand: undefined;
+
+	private readonly _disposables = new DisposableStore();
+	private readonly _debounceInformation: IFeatureDebounceInformation;
+	private readonly _cache = new LRUCache<string, CacheEntry>(10, 0.7);
+
+	constructor(
+		@ILanguageFeatureDebounceService debounces: ILanguageFeatureDebounceService,
+		@IModelService modelService: IModelService
+	) {
+		this._debounceInformation = debounces.for(DocumentSymbolProviderRegistry, { min: 350 });
+
+		// don't cache outline models longer than their text model
+		this._disposables.add(modelService.onModelRemoved(textModel => {
+			this._cache.delete(textModel.id);
+		}));
+	}
+
+	dispose(): void {
+		this._disposables.dispose();
+	}
+
+	async getOrCreate(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
+
+		const provider = DocumentSymbolProviderRegistry.ordered(textModel);
+
+		let data = this._cache.get(textModel.id);
+		if (!data || data.versionId !== textModel.getVersionId() || !equals(data.provider, provider)) {
+			let source = new CancellationTokenSource();
+			data = {
+				versionId: textModel.getVersionId(),
+				provider,
+				promiseCnt: 0,
+				source,
+				promise: OutlineModel.create(textModel, source.token),
+				model: undefined,
+			};
+			this._cache.set(textModel.id, data);
+
+			const now = Date.now();
+			data.promise.then(outlineModel => {
+				data!.model = outlineModel;
+				this._debounceInformation.update(textModel, Date.now() - now);
+			}).catch(_err => {
+				this._cache.delete(textModel.id);
+			});
+		}
+
+		if (data.model) {
+			// resolved -> return data
+			return data.model;
+		}
+
+		// increase usage counter
+		data.promiseCnt += 1;
+
+		const listener = token.onCancellationRequested(() => {
+			// last -> cancel provider request, remove cached promise
+			if (--data!.promiseCnt === 0) {
+				data!.source.cancel();
+				this._cache.delete(textModel.id);
+			}
+		});
+
+		try {
+			return await data.promise;
+		} finally {
+			listener.dispose();
+		}
+	}
+
+	getDebounceValue(textModel: ITextModel): number {
+		return this._debounceInformation.get(textModel);
+	}
+}
+
+registerSingleton(IOutlineModelService, OutlineModelService, true);

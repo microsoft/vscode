@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getPixelRatio, getZoomLevel, isSafari } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/browser';
 import { Dimension, append, $, addStandardDisposableListener } from 'vs/base/browser/dom';
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -29,7 +29,6 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -40,6 +39,7 @@ import { URI } from 'vs/base/common/uri';
 import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { isAbsolute } from 'vs/base/common/path';
 import { Constants } from 'vs/base/common/uint';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
@@ -85,10 +85,10 @@ export class DisassemblyView extends EditorPane {
 		this._disassembledInstructions = undefined;
 		this._onDidChangeStackFrame = new Emitter<void>();
 		this._previousDebuggingState = _debugService.state;
-		this._fontInfo = BareFontInfo.createFromRawSettings(_configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
+		this._fontInfo = BareFontInfo.createFromRawSettings(_configurationService.getValue('editor'), PixelRatio.value);
 		this._register(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor')) {
-				this._fontInfo = BareFontInfo.createFromRawSettings(_configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
+				this._fontInfo = BareFontInfo.createFromRawSettings(_configurationService.getValue('editor'), PixelRatio.value);
 			}
 
 			if (e.affectsConfiguration('debug')) {
@@ -168,7 +168,7 @@ export class DisassemblyView extends EditorPane {
 					project(row: IDisassembledInstructionEntry): IDisassembledInstructionEntry { return row; }
 				},
 				{
-					label: 'instructions',
+					label: localize('disassemblyTableColumnLabel', "instructions"),
 					tooltip: '',
 					weight: 0.3,
 					templateId: InstructionRenderer.TEMPLATE_ID,
@@ -617,7 +617,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		const sb = createStringBuilder(1000);
 
 		if (this._disassemblyView.isSourceCodeRender && instruction.location?.path && instruction.line) {
-			let sourceURI = this.getUriFromSource(instruction);
+			const sourceURI = this.getUriFromSource(instruction);
 
 			if (sourceURI) {
 				let textModel: ITextModel | undefined = undefined;
@@ -699,7 +699,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 	private openSourceCode(instruction: DebugProtocol.DisassembledInstruction | undefined) {
 		if (instruction) {
-			let sourceURI = this.getUriFromSource(instruction);
+			const sourceURI = this.getUriFromSource(instruction);
 			const selection = instruction.endLine ? {
 				startLineNumber: instruction.line!,
 				endLineNumber: instruction.endLine!,
@@ -714,7 +714,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 			this.editorService.openEditor({
 				resource: sourceURI,
-				description: 'from disassembly',
+				description: localize('editorOpenedFromDisassemblyDescription', "from disassembly"),
 				options: {
 					preserveFocus: false,
 					selection: selection,
@@ -741,13 +741,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 	}
 
 	private applyFontInfo(element: HTMLElement) {
-		const fontInfo = this._disassemblyView.fontInfo;
-		element.style.fontFamily = fontInfo.getMassagedFontFamily(isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null);
-		element.style.fontWeight = fontInfo.fontWeight;
-		element.style.fontSize = fontInfo.fontSize + 'px';
-		element.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
-		element.style.letterSpacing = fontInfo.letterSpacing + 'px';
-		element.style.lineHeight = fontInfo.lineHeight + 'px';
+		applyFontInfo(element, this._disassemblyView.fontInfo);
 		element.style.whiteSpace = 'pre';
 	}
 }

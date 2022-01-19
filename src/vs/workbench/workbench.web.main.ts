@@ -35,7 +35,7 @@ import 'vs/workbench/browser/web.main';
 //#region --- workbench services
 
 import 'vs/workbench/services/integrity/browser/integrityService';
-import 'vs/workbench/services/textMate/browser/textMateService';
+import 'vs/workbench/services/textMate/browser/browserTextMateService';
 import 'vs/workbench/services/search/browser/searchService';
 import 'vs/workbench/services/textfile/browser/browserTextFileService';
 import 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
@@ -57,7 +57,7 @@ import 'vs/workbench/services/path/browser/pathService';
 import 'vs/workbench/services/themes/browser/browserHostColorSchemeService';
 import 'vs/workbench/services/encryption/browser/encryptionService';
 import 'vs/workbench/services/workingCopy/browser/workingCopyBackupService';
-import 'vs/workbench/services/remote/browser/tunnelServiceImpl';
+import 'vs/workbench/services/remote/browser/tunnelService';
 import 'vs/workbench/services/files/browser/elevatedFileService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -85,11 +85,9 @@ import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { ITimerService, TimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
-import { IUserConfigurationFileService, UserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
 import { WebUserDataSyncEnablementService } from 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
 
 registerSingleton(IUserDataSyncEnablementService, WebUserDataSyncEnablementService);
-registerSingleton(IUserConfigurationFileService, UserConfigurationFileService);
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService);
 registerSingleton(IAccessibilityService, AccessibilityService, true);
 registerSingleton(IContextMenuService, ContextMenuService);
@@ -151,5 +149,8 @@ import 'vs/workbench/contrib/issue/browser/issue.web.contribution';
 
 // Splash
 import 'vs/workbench/contrib/splash/browser/splash.contribution';
+
+// Offline
+import 'vs/workbench/contrib/offline/browser/offline.contribution';
 
 //#endregion

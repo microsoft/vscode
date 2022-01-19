@@ -15,7 +15,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 const DEFAULT_EDITOR_CONFIG = {};
-const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true };
+const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true, useParentIgnoreFiles: true };
 
 suite('QueryBuilder', () => {
 	const ROOT_1 = fixPath('/foo/root1');

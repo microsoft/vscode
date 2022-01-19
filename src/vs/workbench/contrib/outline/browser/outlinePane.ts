@@ -23,7 +23,6 @@ import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane'
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FuzzyScore } from 'vs/base/common/filters';
-import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
 import { basename } from 'vs/base/common/resources';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -37,6 +36,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { URI } from 'vs/base/common/uri';
+import { AbstractTreeViewState, IAbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
 
 const _ctxFollowsCursor = new RawContextKey('outlineFollowsCursor', false);
 const _ctxFilterOnType = new RawContextKey('outlineFiltersOnType', false);
@@ -78,7 +78,7 @@ export class OutlinePane extends ViewPane {
 	private _treeContainer!: HTMLElement;
 	private _tree?: WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>;
 	private _treeDimensions?: dom.Dimension;
-	private _treeStates = new LRUCache<string, IDataTreeViewState>(10);
+	private _treeStates = new LRUCache<string, IAbstractTreeViewState>(10);
 
 	private _ctxFollowsCursor!: IContextKey<boolean>;
 	private _ctxFilterOnType!: IContextKey<boolean>;
@@ -277,7 +277,7 @@ export class OutlinePane extends ViewPane {
 				// first: init tree
 				this._domNode.classList.remove('message');
 				const state = this._treeStates.get(`${newOutline.outlineKind}/${resource}`);
-				tree.setInput(newOutline, state);
+				tree.setInput(newOutline, state && AbstractTreeViewState.lift(state));
 
 			} else {
 				// update: refresh tree
@@ -341,7 +341,7 @@ export class OutlinePane extends ViewPane {
 		}));
 
 		// feature: expand all nodes when filtering (not when finding)
-		let viewState: IDataTreeViewState | undefined;
+		let viewState: AbstractTreeViewState | undefined;
 		this._editorControlDisposables.add(tree.onDidChangeTypeFilterPattern(pattern => {
 			if (!tree.options.filterOnType) {
 				return;

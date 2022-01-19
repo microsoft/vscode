@@ -103,7 +103,7 @@ registerThemingParticipant((theme, collector) => {
 
 	collector.addRule(`.monaco-editor .${colorProvider.unexpectedClosingBracketClassName} { color: ${theme.getColor(editorBracketHighlightingUnexpectedBracketForeground)}; }`);
 
-	let colorValues = colors
+	const colorValues = colors
 		.map(c => theme.getColor(c))
 		.filter((c): c is Color => !!c)
 		.filter(c => !c.isTransparent());

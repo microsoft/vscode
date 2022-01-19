@@ -300,7 +300,7 @@ export function coalesceInPlace<T>(array: Array<T | undefined | null>): void {
 }
 
 /**
- * Moves the element in the array for the provided positions.
+ * @deprecated Use `Array.copyWithin` instead
  */
 export function move(array: any[], from: number, to: number): void {
 	array.splice(to, 0, array.splice(from, 1)[0]);
@@ -339,17 +339,17 @@ export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => any = 
 	});
 }
 
-export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
-	const seen: { [key: string]: boolean; } = Object.create(null);
+export function uniqueFilter<T, R>(keyFn: (t: T) => R): (t: T) => boolean {
+	const seen = new Set<R>();
 
 	return element => {
 		const key = keyFn(element);
 
-		if (seen[key]) {
+		if (seen.has(key)) {
 			return false;
 		}
 
-		seen[key] = true;
+		seen.add(key);
 		return true;
 	};
 }

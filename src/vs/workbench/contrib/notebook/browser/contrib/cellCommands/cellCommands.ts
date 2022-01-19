@@ -470,7 +470,7 @@ registerAction2(class extends NotebookMultiCellAction {
 			cells = context.selectedCells;
 		}
 
-		for (let cell of cells) {
+		for (const cell of cells) {
 			cell.isOutputCollapsed = !cell.isOutputCollapsed;
 		}
 	}

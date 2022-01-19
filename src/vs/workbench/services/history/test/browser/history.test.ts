@@ -72,6 +72,28 @@ suite('HistoryService', function () {
 		assert.strictEqual(part.activeGroup.activeEditor, input2);
 	});
 
+	test('back / forward works across groups', async () => {
+		const [part, historyService, editorService] = await createServices();
+
+		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
+		const input1Group = (await part.activeGroup.openEditor(input1, { pinned: true }))?.group;
+
+		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
+		const input2Group = (await part.sideGroup.openEditor(input2, { pinned: true }))?.group;
+
+		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
+		historyService.back();
+		await editorChangePromise;
+		assert.strictEqual(part.activeGroup.activeEditor, input1);
+		assert.strictEqual(part.activeGroup, input1Group);
+
+		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
+		historyService.forward();
+		await editorChangePromise;
+		assert.strictEqual(part.activeGroup.activeEditor, input2);
+		assert.strictEqual(part.activeGroup, input2Group);
+	});
+
 	test('getHistory', async () => {
 
 		class TestFileEditorInputWithUntyped extends TestFileEditorInput {

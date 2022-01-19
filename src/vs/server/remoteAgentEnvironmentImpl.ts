@@ -25,11 +25,9 @@ import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics
 import { basename, isAbsolute, join, normalize } from 'vs/base/common/path';
 import { ProcessItem } from 'vs/base/common/processes';
 import { ILog, Translations } from 'vs/workbench/services/extensions/common/extensionPoints';
-import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IBuiltInExtension } from 'vs/base/common/product';
 import { IExtensionManagementCLIService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { cwd } from 'vs/base/common/process';
-import { IRemoteTelemetryService } from 'vs/server/remoteTelemetryService';
 import { Promises } from 'vs/base/node/pfs';
 import { IProductService } from 'vs/platform/product/common/productService';
 
@@ -60,8 +58,6 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		private readonly environmentService: IServerEnvironmentService,
 		extensionManagementCLIService: IExtensionManagementCLIService,
 		private readonly logService: ILogService,
-		private readonly telemetryService: IRemoteTelemetryService,
-		private readonly telemetryAppender: ITelemetryAppender | null,
 		private readonly productService: IProductService
 	) {
 		this._logger = new class implements ILog {
@@ -98,11 +94,8 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	}
 
 	async call(_: any, command: string, arg?: any): Promise<any> {
+		console.log(`Command received: ${command}`);
 		switch (command) {
-			case 'disableTelemetry': {
-				this.telemetryService.permanentlyDisableTelemetry();
-				return;
-			}
 
 			case 'getEnvironmentData': {
 				const args = <IGetEnvironmentDataArguments>arg;
@@ -195,26 +188,6 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 					diagnosticInfo.workspaceMetadata = options.folders ? workspaceMetadata : undefined;
 					return diagnosticInfo;
 				});
-			}
-
-			case 'logTelemetry': {
-				const { eventName, data } = arg;
-				// Logging is done directly to the appender instead of through the telemetry service
-				// as the data sent from the client has already had common properties added to it and
-				// has already been sent to the telemetry output channel
-				if (this.telemetryAppender) {
-					return this.telemetryAppender.log(eventName, data);
-				}
-
-				return Promise.resolve();
-			}
-
-			case 'flushTelemetry': {
-				if (this.telemetryAppender) {
-					return this.telemetryAppender.flush();
-				}
-
-				return Promise.resolve();
 			}
 		}
 
@@ -350,7 +323,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			os: platform.OS,
 			arch: process.arch,
 			marks: performance.getMarks(),
-			useHostProxy: (this.environmentService.args['use-host-proxy'] !== undefined)
+			useHostProxy: !!this.environmentService.args['use-host-proxy']
 		};
 	}
 

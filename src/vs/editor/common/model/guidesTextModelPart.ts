@@ -12,7 +12,7 @@ import { BracketPairInfo } from 'vs/editor/common/model/bracketPairsTextModelPar
 import type { TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelPart } from 'vs/editor/common/model/textModelPart';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
-import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 export interface IGuidesTextModelPart {
 	/**
@@ -140,7 +140,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 
 				// must find previous line with content
 				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
-					let indent = this._computeIndentLevel(lineIndex);
+					const indent = this._computeIndentLevel(lineIndex);
 					if (indent >= 0) {
 						up_aboveContentLineIndex = lineIndex;
 						up_aboveContentLineIndent = indent;
@@ -155,7 +155,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 
 				// must find next line with content
 				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
-					let indent = this._computeIndentLevel(lineIndex);
+					const indent = this._computeIndentLevel(lineIndex);
 					if (indent >= 0) {
 						up_belowContentLineIndex = lineIndex;
 						up_belowContentLineIndent = indent;
@@ -178,7 +178,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 
 				// must find previous line with content
 				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
-					let indent = this._computeIndentLevel(lineIndex);
+					const indent = this._computeIndentLevel(lineIndex);
 					if (indent >= 0) {
 						down_aboveContentLineIndex = lineIndex;
 						down_aboveContentLineIndent = indent;
@@ -197,7 +197,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 
 				// must find next line with content
 				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
-					let indent = this._computeIndentLevel(lineIndex);
+					const indent = this._computeIndentLevel(lineIndex);
 					if (indent >= 0) {
 						down_belowContentLineIndex = lineIndex;
 						down_belowContentLineIndent = indent;
@@ -596,7 +596,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 		).foldingRules;
 		const offSide = Boolean(foldingRules && foldingRules.offSide);
 
-		let result: number[] = new Array<number>(
+		const result: number[] = new Array<number>(
 			endLineNumber - startLineNumber + 1
 		);
 
@@ -613,7 +613,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 			lineNumber <= endLineNumber;
 			lineNumber++
 		) {
-			let resultIndex = lineNumber - startLineNumber;
+			const resultIndex = lineNumber - startLineNumber;
 
 			const currentIndent = this._computeIndentLevel(lineNumber - 1);
 			if (currentIndent >= 0) {
@@ -631,7 +631,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 
 				// must find previous line with content
 				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
-					let indent = this._computeIndentLevel(lineIndex);
+					const indent = this._computeIndentLevel(lineIndex);
 					if (indent >= 0) {
 						aboveContentLineIndex = lineIndex;
 						aboveContentLineIndent = indent;
@@ -649,7 +649,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 
 				// must find next line with content
 				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
-					let indent = this._computeIndentLevel(lineIndex);
+					const indent = this._computeIndentLevel(lineIndex);
 					if (indent >= 0) {
 						belowContentLineIndex = lineIndex;
 						belowContentLineIndent = indent;

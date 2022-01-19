@@ -23,7 +23,7 @@ suite('TextAreaInput', () => {
 	}
 	interface OutgoingCompositionStart {
 		type: 'compositionStart';
-		revealDeltaColumns: number;
+		data: string;
 	}
 	interface OutgoingCompositionUpdate {
 		type: 'compositionUpdate';
@@ -43,7 +43,7 @@ suite('TextAreaInput', () => {
 	async function simulateInteraction(recorded: IRecorded): Promise<OutoingEvent[]> {
 		let disposables = new DisposableStore();
 		const host: ITextAreaInputHost = {
-			getDataToCopy: function (html: boolean): ClipboardDataToCopy {
+			getDataToCopy: function (): ClipboardDataToCopy {
 				throw new Error('Function not implemented.');
 			},
 			getScreenReaderContent: function (currentState: TextAreaState): TextAreaState {
@@ -213,7 +213,7 @@ suite('TextAreaInput', () => {
 		})));
 		disposables.add(input.onCompositionStart((e) => outgoingEvents.push({
 			type: 'compositionStart',
-			revealDeltaColumns: e.revealDeltaColumns,
+			data: e.data,
 		})));
 		disposables.add(input.onCompositionUpdate((e) => outgoingEvents.push({
 			type: 'compositionUpdate',
@@ -298,7 +298,7 @@ suite('TextAreaInput', () => {
 
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, [
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'ㅇ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'ㅇ' },
 			{ type: 'type', text: '아', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -309,7 +309,7 @@ suite('TextAreaInput', () => {
 			{ type: 'compositionUpdate', data: '아' },
 			{ type: 'type', text: '아', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionEnd' },
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: '가', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: '가' },
 			{ type: 'type', text: '가', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -350,7 +350,7 @@ suite('TextAreaInput', () => {
 
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, [
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'ㅂ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'ㅂ' },
 			{ type: 'type', text: '벼', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -419,7 +419,7 @@ suite('TextAreaInput', () => {
 
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, [
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'ｓ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'ｓ' },
 			{ type: 'type', text: 'せ', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -473,7 +473,7 @@ suite('TextAreaInput', () => {
 
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, [
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'x', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'x' },
 			{ type: 'type', text: 'xu', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -525,10 +525,11 @@ suite('TextAreaInput', () => {
 			],
 			final: { value: 'aaöaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' },
 		};
+
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, [
 			{ type: 'type', text: 'o', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
-			{ type: 'compositionStart', revealDeltaColumns: -1 },
+			{ type: 'compositionStart', data: 'o' },
 			{ type: 'type', text: 'ô', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'ô' },
 			{ type: 'type', text: 'ö', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -538,6 +539,34 @@ suite('TextAreaInput', () => {
 			{ type: 'type', text: 'ö', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionEnd' }
 		]);
+
+		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
+		assert.deepStrictEqual(actualResultingState, recorded.final);
+	});
+
+	test('macOS - Chrome - inserting emoji using ctrl+cmd+space', async () => {
+		// macOS, English, press ctrl+cmd+space, and then pick an emoji using the mouse
+		// See https://github.com/microsoft/vscode/issues/4271
+		const recorded: IRecorded = {
+			env: { OS: OperatingSystem.Macintosh, browser: { isAndroid: false, isFirefox: false, isChrome: true, isSafari: false } },
+			initial: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' },
+			events: [
+				{ timeStamp: 0.00, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'keydown', altKey: false, charCode: 0, code: 'ControlLeft', ctrlKey: true, isComposing: false, key: 'Control', keyCode: 17, location: 1, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 600.00, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'keydown', altKey: false, charCode: 0, code: 'MetaLeft', ctrlKey: true, isComposing: false, key: 'Meta', keyCode: 91, location: 1, metaKey: true, repeat: false, shiftKey: false },
+				{ timeStamp: 1080.10, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'keydown', altKey: false, charCode: 0, code: 'Space', ctrlKey: true, isComposing: false, key: ' ', keyCode: 32, location: 0, metaKey: true, repeat: false, shiftKey: false },
+				{ timeStamp: 1247.90, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'keyup', altKey: false, charCode: 0, code: 'MetaLeft', ctrlKey: true, isComposing: false, key: 'Meta', keyCode: 91, location: 1, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1263.80, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'keyup', altKey: false, charCode: 0, code: 'Space', ctrlKey: true, isComposing: false, key: ' ', keyCode: 32, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1367.80, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'keyup', altKey: false, charCode: 0, code: 'ControlLeft', ctrlKey: false, isComposing: false, key: 'Control', keyCode: 17, location: 1, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 17962.90, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'beforeinput', data: '🥳', inputType: 'insertText', isComposing: false },
+				{ timeStamp: 17966.60, state: { value: 'aa🥳aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'none' }, type: 'input', data: '🥳', inputType: 'insertText', isComposing: false }
+			],
+			final: { value: 'aa🥳aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'none' },
+		};
+
+		const actualOutgoingEvents = await simulateInteraction(recorded);
+		assert.deepStrictEqual(actualOutgoingEvents, ([
+			{ type: 'type', text: '🥳', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 }
+		]));
 
 		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
 		assert.deepStrictEqual(actualResultingState, recorded.final);
@@ -630,7 +659,7 @@ suite('TextAreaInput', () => {
 
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, ([
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'f', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'f' },
 			{ type: 'type', text: 'f', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -703,7 +732,7 @@ suite('TextAreaInput', () => {
 
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, [
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'ｓ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'ｓ' },
 			{ type: 'type', text: 'せ', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -789,7 +818,7 @@ suite('TextAreaInput', () => {
 
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, ([
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'ｓ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'ｓ' },
 			{ type: 'type', text: 'せ', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -853,7 +882,7 @@ suite('TextAreaInput', () => {
 
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, [
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'ㅇ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'ㅇ' },
 			{ type: 'type', text: '아', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -864,7 +893,7 @@ suite('TextAreaInput', () => {
 			{ type: 'compositionUpdate', data: '아' },
 			{ type: 'type', text: '아', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionEnd' },
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: '가', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: '가' },
 			{ type: 'type', text: '가', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -923,7 +952,7 @@ suite('TextAreaInput', () => {
 
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, [
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'ㅇ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'ㅇ' },
 			{ type: 'type', text: '아', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -934,7 +963,7 @@ suite('TextAreaInput', () => {
 			{ type: 'compositionUpdate', data: '아' },
 			{ type: 'type', text: '아', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionEnd' },
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: '가', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: '가' },
 			{ type: 'type', text: '가', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -1006,7 +1035,7 @@ suite('TextAreaInput', () => {
 
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, [
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'ㅎ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'ㅎ' },
 			{ type: 'type', text: '하', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -1017,7 +1046,7 @@ suite('TextAreaInput', () => {
 			{ type: 'compositionUpdate', data: '한' },
 			{ type: 'type', text: '한', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionEnd' },
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'ㄱ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'ㄱ' },
 			{ type: 'type', text: '그', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -1096,7 +1125,7 @@ suite('TextAreaInput', () => {
 
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, [
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'ㅎ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'ㅎ' },
 			{ type: 'type', text: '하', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -1107,7 +1136,7 @@ suite('TextAreaInput', () => {
 			{ type: 'compositionUpdate', data: '한' },
 			{ type: 'type', text: '한', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionEnd' },
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'ㄱ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'ㄱ' },
 			{ type: 'type', text: '그', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -1182,7 +1211,7 @@ suite('TextAreaInput', () => {
 
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, [
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'n' },
 			{ type: 'type', text: 'ni', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -1191,7 +1220,7 @@ suite('TextAreaInput', () => {
 			{ type: 'compositionUpdate', data: '你' },
 			{ type: 'type', text: '你', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionEnd' },
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'h', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'h' },
 			{ type: 'type', text: 'ha', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -1266,7 +1295,7 @@ suite('TextAreaInput', () => {
 
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, [
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'n' },
 			{ type: 'type', text: 'ni', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -1275,7 +1304,7 @@ suite('TextAreaInput', () => {
 			{ type: 'compositionUpdate', data: '你' },
 			{ type: 'type', text: '你', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionEnd' },
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'h', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'h' },
 			{ type: 'type', text: 'ha', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -1321,7 +1350,7 @@ suite('TextAreaInput', () => {
 
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, [
-			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'compositionStart', data: '' },
 			{ type: 'type', text: 'ㄱ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionUpdate', data: 'ㄱ' },
 			{ type: 'type', text: '가', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },

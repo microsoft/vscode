@@ -565,14 +565,14 @@ export class ChannelClient implements IChannelClient, IDisposable {
 							c(response.data);
 							break;
 
-						case ResponseType.PromiseError:
+						case ResponseType.PromiseError: {
 							this.handlers.delete(id);
 							const error = new Error(response.data.message);
 							(<any>error).stack = response.data.stack;
 							error.name = response.data.name;
 							e(error);
 							break;
-
+						}
 						case ResponseType.PromiseErrorObj:
 							this.handlers.delete(id);
 							e(response.data);
@@ -1056,7 +1056,7 @@ export namespace ProxyChannel {
 
 	export interface ICreateServiceChannelOptions extends IProxyOptions { }
 
-	export function fromService(service: unknown, options?: ICreateServiceChannelOptions): IServerChannel {
+	export function fromService<TContext>(service: unknown, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
 		const handler = service as { [key: string]: unknown };
 		const disableMarshalling = options && options.disableMarshalling;
 

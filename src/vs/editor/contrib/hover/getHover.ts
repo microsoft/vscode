@@ -9,7 +9,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { Hover, HoverProvider, HoverProviderRegistry } from 'vs/editor/common/modes';
+import { Hover, HoverProvider, HoverProviderRegistry } from 'vs/editor/common/languages';
 
 export class HoverProviderResult {
 	constructor(

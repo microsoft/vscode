@@ -45,7 +45,8 @@ export class ExtensionHostMain {
 		protocol: IMessagePassingProtocol,
 		initData: IInitData,
 		hostUtils: IHostUtils,
-		uriTransformer: IURITransformer | null
+		uriTransformer: IURITransformer | null,
+		messagePorts?: ReadonlyMap<string, MessagePort>
 	) {
 		this._isTerminating = false;
 		this._hostUtils = hostUtils;
@@ -56,7 +57,7 @@ export class ExtensionHostMain {
 
 		// bootstrap services
 		const services = new ServiceCollection(...getSingletonServiceDescriptors());
-		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData });
+		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData, messagePorts });
 		services.set(IExtHostRpcService, new ExtHostRpcService(this._rpcProtocol));
 		services.set(IURITransformerService, new URITransformerService(uriTransformer));
 		services.set(IHostUtils, hostUtils);

@@ -298,7 +298,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 						case TriggerAction.REFRESH_PICKER:
 							updatePickerItems();
 							break;
-						case TriggerAction.REMOVE_ITEM:
+						case TriggerAction.REMOVE_ITEM: {
 							const index = picker.items.indexOf(item);
 							if (index !== -1) {
 								const items = picker.items.slice();
@@ -313,6 +313,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 								picker.keepScrollPosition = keepScrollPositionBefore;
 							}
 							break;
+						}
 					}
 				}
 			}

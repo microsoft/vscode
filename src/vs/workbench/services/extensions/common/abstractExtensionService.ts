@@ -1152,6 +1152,7 @@ class ProposedApiController {
 		// NEW world - product.json spells out what proposals each extension can use
 		if (productService.extensionEnabledApiProposals) {
 			forEach(productService.extensionEnabledApiProposals, entry => {
+				const key = ExtensionIdentifier.toKey(entry.key);
 				const proposalNames = entry.value.filter(name => {
 					if (!allApiProposals[<ApiProposalName>name]) {
 						_logService.warn(`Extension '${key} wants API proposal '${name}' but that proposal DOES NOT EXIST.`);
@@ -1159,7 +1160,6 @@ class ProposedApiController {
 					}
 					return true;
 				});
-				const key = ExtensionIdentifier.toKey(entry.key);
 				if (this._productEnabledExtensions.has(key)) {
 					_logService.warn(`Extension '${key} appears in BOTH 'product.json#extensionAllowedProposedApi' and 'extensionEnabledApiProposals'. The latter is more restrictive and will override the former.`);
 				}

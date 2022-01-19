@@ -16,7 +16,7 @@ import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/brows
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { mark } from 'vs/base/common/performance';
-import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
+import { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
@@ -32,7 +32,7 @@ interface IResourceUriProvider {
  */
 type ExtensionId = string;
 
-type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId, preRelease?: boolean };
+type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId, preRelease?: boolean, migrateStorageFrom?: ExtensionId };
 
 interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
@@ -536,6 +536,13 @@ interface IWorkbenchConstructionOptions {
 	 * The idea is that the colors match the main colors from the theme defined in the `configurationDefaults`.
 	 */
 	readonly initialColorTheme?: IInitialColorTheme;
+
+	//#endregion
+
+
+	//#region IPC
+
+	readonly messagePorts?: ReadonlyMap<ExtensionId, MessagePort>;
 
 	//#endregion
 

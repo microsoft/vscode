@@ -13,7 +13,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Verbosity, EditorResourceAccessor, SideBySideEditor, EditorInputCapabilities, IEditorIdentifier, GroupChangeKind } from 'vs/workbench/common/editor';
+import { Verbosity, EditorResourceAccessor, SideBySideEditor, EditorInputCapabilities, IEditorIdentifier, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
@@ -52,6 +52,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Schemas } from 'vs/base/common/network';
+import { extUriIgnorePathCase } from 'vs/base/common/resources';
 
 const $ = dom.$;
 
@@ -69,7 +71,7 @@ export class OpenEditorsView extends ViewPane {
 	private contributedContextMenu!: IMenu;
 	private needsRefresh = false;
 	private elements: (OpenEditor | IEditorGroup)[] = [];
-	private sortOrder: 'editorOrder' | 'alphabetical';
+	private sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath';
 	private resourceContext!: ResourceContextKey;
 	private groupFocusedContext!: IContextKey<boolean>;
 	private dirtyEditorFocusedContext!: IContextKey<boolean>;
@@ -106,7 +108,7 @@ export class OpenEditorsView extends ViewPane {
 			}
 			this.needsRefresh = false;
 
-			if (this.sortOrder === 'alphabetical') {
+			if (this.sortOrder === 'alphabetical' || this.sortOrder === 'fullPath') {
 				// We need to resort the list if the editor label changed
 				elements.forEach(e => {
 					if (e instanceof OpenEditor) {
@@ -138,7 +140,7 @@ export class OpenEditorsView extends ViewPane {
 
 		const groupDisposables = new Map<number, IDisposable>();
 		const addGroupListener = (group: IEditorGroup) => {
-			groupDisposables.set(group.id, group.onDidGroupChange(e => {
+			const groupModelChangeListener = group.onDidModelChange(e => {
 				if (this.listRefreshScheduler.isScheduled()) {
 					return;
 				}
@@ -149,34 +151,31 @@ export class OpenEditorsView extends ViewPane {
 
 				const index = this.getIndex(group, e.editor);
 				switch (e.kind) {
-					case GroupChangeKind.GROUP_INDEX: {
+					case GroupModelChangeKind.EDITOR_ACTIVE:
+					case GroupModelChangeKind.GROUP_ACTIVE:
+						this.focusActiveEditor();
+						break;
+					case GroupModelChangeKind.GROUP_INDEX:
 						if (index >= 0) {
 							this.list.splice(index, 1, [group]);
 						}
 						break;
-					}
-					case GroupChangeKind.GROUP_ACTIVE:
-					case GroupChangeKind.EDITOR_ACTIVE: {
-						this.focusActiveEditor();
-						break;
-					}
-					case GroupChangeKind.EDITOR_DIRTY:
-					case GroupChangeKind.EDITOR_LABEL:
-					case GroupChangeKind.EDITOR_CAPABILITIES:
-					case GroupChangeKind.EDITOR_STICKY:
-					case GroupChangeKind.EDITOR_PIN: {
+					case GroupModelChangeKind.EDITOR_DIRTY:
+					case GroupModelChangeKind.EDITOR_STICKY:
+					case GroupModelChangeKind.EDITOR_CAPABILITIES:
+					case GroupModelChangeKind.EDITOR_PIN:
+					case GroupModelChangeKind.EDITOR_LABEL:
 						this.list.splice(index, 1, [new OpenEditor(e.editor!, group)]);
 						this.focusActiveEditor();
 						break;
-					}
-					case GroupChangeKind.EDITOR_OPEN:
-					case GroupChangeKind.EDITOR_CLOSE:
-					case GroupChangeKind.EDITOR_MOVE: {
+					case GroupModelChangeKind.EDITOR_OPEN:
+					case GroupModelChangeKind.EDITOR_MOVE:
+					case GroupModelChangeKind.EDITOR_CLOSE:
 						updateWholeList();
 						break;
-					}
 				}
-			}));
+			});
+			groupDisposables.set(group.id, groupModelChangeListener);
 			this._register(groupDisposables.get(group.id)!);
 		};
 
@@ -338,6 +337,32 @@ export class OpenEditorsView extends ViewPane {
 			let editors = g.editors.map(ei => new OpenEditor(ei, g));
 			if (this.sortOrder === 'alphabetical') {
 				editors = editors.sort((first, second) => compareFileNamesDefault(first.editor.getName(), second.editor.getName()));
+			} else if (this.sortOrder === 'fullPath') {
+				editors = editors.sort((first, second) => {
+					const firstResource = first.editor.resource;
+					const secondResource = second.editor.resource;
+					//put 'system' editors before everything
+					if (firstResource === undefined && secondResource === undefined) {
+						return compareFileNamesDefault(first.editor.getName(), second.editor.getName());
+					} else if (firstResource === undefined) {
+						return -1;
+					} else if (secondResource === undefined) {
+						return 1;
+					} else {
+						const firstScheme = firstResource.scheme;
+						const secondScheme = secondResource.scheme;
+						//put non-file editors before files
+						if (firstScheme !== Schemas.file && secondScheme !== Schemas.file) {
+							return extUriIgnorePathCase.compare(firstResource, secondResource);
+						} else if (firstScheme !== Schemas.file) {
+							return -1;
+						} else if (secondScheme !== Schemas.file) {
+							return 1;
+						} else {
+							return extUriIgnorePathCase.compare(firstResource, secondResource);
+						}
+					}
+				});
 			}
 			this.elements.push(...editors);
 		});
@@ -744,7 +769,11 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: '4_flip',
 	command: {
 		id: toggleEditorGroupLayoutId,
-		title: nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout")
+		title: {
+			original: 'Flip Layout',
+			value: nls.localize('miToggleEditorLayoutWithoutMnemonic', "Flip Layout"),
+			mnemonicTitle: nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout")
+		}
 	},
 	order: 1
 });

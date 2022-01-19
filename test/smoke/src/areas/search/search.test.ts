@@ -55,7 +55,7 @@ export function setup(logger: Logger) {
 			await app.workbench.search.removeFileMatch('app.js', '12 results in 4 files');
 		});
 
-		it('replaces first search result with a replace term', async function () {
+		it.skip('replaces first search result with a replace term', async function () { // TODo@roblourens https://github.com/microsoft/vscode/issues/137195
 			const app = this.app as Application;
 
 			await app.workbench.search.searchFor('body');
@@ -82,6 +82,7 @@ export function setup(logger: Logger) {
 			const expectedNames = [
 				'.eslintrc.json',
 				'tasks.json',
+				'settings.json',
 				'app.js',
 				'index.js',
 				'users.js',
@@ -89,9 +90,9 @@ export function setup(logger: Logger) {
 				'jsconfig.json'
 			];
 
-			await app.workbench.quickaccess.openQuickAccessAndWait('.js');
-			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
-			await app.code.dispatchKeybinding('escape');
+			await app.workbench.quickaccess.openFileQuickAccessAndWait('.js', 8);
+			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(expectedName => names.some(name => expectedName === name)));
+			await app.workbench.quickinput.closeQuickInput();
 		});
 
 		it('quick open respects fuzzy matching', async function () {
@@ -102,9 +103,9 @@ export function setup(logger: Logger) {
 				'package.json'
 			];
 
-			await app.workbench.quickaccess.openQuickAccessAndWait('a.s');
-			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
-			await app.code.dispatchKeybinding('escape');
+			await app.workbench.quickaccess.openFileQuickAccessAndWait('a.s', 3);
+			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(expectedName => names.some(name => expectedName === name)));
+			await app.workbench.quickinput.closeQuickInput();
 		});
 	});
 }

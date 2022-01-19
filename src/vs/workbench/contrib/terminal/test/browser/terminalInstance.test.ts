@@ -9,7 +9,7 @@ import { TerminalLabelComputer, parseExitResult } from 'vs/workbench/contrib/ter
 import { IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { fixPath, getUri } from 'vs/workbench/contrib/search/test/browser/queryBuilder.test';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -17,8 +17,13 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
 import { basename } from 'vs/base/common/path';
+import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 
 function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
+	const capabilities = new TerminalCapabilityStore();
+	if (!isWindows) {
+		capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
+	}
 	return {
 		shellLaunchConfig: {},
 		cwd: 'cwd',
@@ -27,7 +32,7 @@ function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalIns
 		sequence: undefined,
 		workspaceFolder: undefined,
 		staticTitle: undefined,
-		capabilities: isWindows ? [] : [ProcessCapability.CwdDetection],
+		capabilities,
 		title: '',
 		description: '',
 		userHome: undefined,
@@ -157,12 +162,15 @@ suite('Workbench - TerminalInstance', () => {
 		let mockWorkspace: Workspace;
 		let mockMultiRootWorkspace: Workspace;
 		let emptyWorkspace: Workspace;
-		let capabilities: ProcessCapability[];
+		let capabilities: TerminalCapabilityStore;
 		let configHelper: TerminalConfigHelper;
 		setup(async () => {
 			instantiationService = new TestInstantiationService();
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
-			capabilities = isWindows ? [] : [ProcessCapability.CwdDetection];
+			capabilities = new TerminalCapabilityStore();
+			if (!isWindows) {
+				capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
+			}
 
 			const ROOT_1_URI = getUri(ROOT_1);
 			mockContextService = new TestContextService();

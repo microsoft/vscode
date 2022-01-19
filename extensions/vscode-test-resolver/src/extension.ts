@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as net from 'net';
 import * as http from 'http';
+import * as crypto from 'crypto';
 import { downloadAndUnzipVSCodeServer } from './download';
 import { terminateProcess } from './util/processes';
 
@@ -24,6 +25,8 @@ let outputChannel: vscode.OutputChannel;
 export function activate(context: vscode.ExtensionContext) {
 
 	function doResolve(_authority: string, progress: vscode.Progress<{ message?: string; increment?: number }>): Promise<vscode.ResolvedAuthority> {
+		const connectionToken = String(crypto.randomInt(0xffffffffff));
+
 		// eslint-disable-next-line no-async-promise-executor
 		const serverPromise = new Promise<vscode.ResolvedAuthority>(async (res, rej) => {
 			progress.report({ message: 'Starting Test Resolver' });
@@ -53,7 +56,7 @@ export function activate(context: vscode.ExtensionContext) {
 						const match = lastProgressLine.match(/Extension host agent listening on (\d+)/);
 						if (match) {
 							isResolved = true;
-							res(new vscode.ResolvedAuthority('127.0.0.1', parseInt(match[1], 10))); // success!
+							res(new vscode.ResolvedAuthority('127.0.0.1', parseInt(match[1], 10), connectionToken)); // success!
 						}
 						lastProgressLine = '';
 					} else if (chr === CharCode.Backspace) {
@@ -79,8 +82,8 @@ export function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const { updateUrl, commit, quality, serverDataFolderName, dataFolderName } = getProductConfiguration();
-			const commandArgs = ['--port=0', '--disable-telemetry'];
+			const { updateUrl, commit, quality, serverDataFolderName, serverApplicationName, dataFolderName } = getProductConfiguration();
+			const commandArgs = ['--host=127.0.0.1', '--port=0', '--disable-telemetry', '--use-host-proxy', '--accept-server-license-terms'];
 			const env = getNewEnv();
 			const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), serverDataFolderName || `${dataFolderName}-testresolver`);
 			const logsDir = process.env['TESTRESOLVER_LOGS_FOLDER'];
@@ -91,10 +94,20 @@ export function activate(context: vscode.ExtensionContext) {
 			env['VSCODE_AGENT_FOLDER'] = remoteDataDir;
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
 
+			const connectionTokenFile = path.join(remoteDataDir, `${process.pid}-${new Date().getTime()}.token`);
+			if (!fs.existsSync(remoteDataDir)) {
+				fs.mkdirSync(remoteDataDir, { recursive: true });
+			}
+			fs.writeFileSync(connectionTokenFile, connectionToken);
+			commandArgs.push('--connection-token-file', connectionTokenFile);
+
 			if (!commit) { // dev mode
-				const serverCommand = process.platform === 'win32' ? 'server.bat' : 'server.sh';
+				const serverCommand = process.platform === 'win32' ? 'code-server.bat' : 'code-server.sh';
 				const vscodePath = path.resolve(path.join(context.extensionPath, '..', '..'));
 				const serverCommandPath = path.join(vscodePath, 'resources', 'server', 'bin-dev', serverCommand);
+
+				outputChannel.appendLine(`Launching server: VSCODE_AGENT_FOLDER="${remoteDataDir}" "${serverCommandPath}" ${commandArgs.join(' ')}`);
+
 				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath });
 			} else {
 				const extensionToInstall = process.env['TESTRESOLVER_INSTALL_BUILTIN_EXTENSION'];
@@ -102,7 +115,7 @@ export function activate(context: vscode.ExtensionContext) {
 					commandArgs.push('--install-builtin-extension', extensionToInstall);
 					commandArgs.push('--start-server');
 				}
-				const serverCommand = process.platform === 'win32' ? 'server.cmd' : 'server.sh';
+				const serverCommand = `${serverApplicationName}${process.platform === 'win32' ? '.cmd' : ''}`;
 				let serverLocation = env['VSCODE_REMOTE_SERVER_PATH']; // support environment variable to specify location of server on disk
 				if (!serverLocation) {
 					const serverBin = path.join(remoteDataDir, 'bin');
@@ -113,7 +126,7 @@ export function activate(context: vscode.ExtensionContext) {
 				outputChannel.appendLine(`Using server build at ${serverLocation}`);
 				outputChannel.appendLine(`Server arguments ${commandArgs.join(' ')}`);
 
-				extHostProcess = cp.spawn(path.join(serverLocation, serverCommand), commandArgs, { env, cwd: serverLocation });
+				extHostProcess = cp.spawn(path.join(serverLocation, 'bin', serverCommand), commandArgs, { env, cwd: serverLocation });
 			}
 			extHostProcess.stdout!.on('data', (data: Buffer) => processOutput(data.toString()));
 			extHostProcess.stderr!.on('data', (data: Buffer) => processOutput(data.toString()));
@@ -129,6 +142,11 @@ export function activate(context: vscode.ExtensionContext) {
 				dispose: () => {
 					if (extHostProcess) {
 						terminateProcess(extHostProcess, context.extensionPath);
+					}
+					try {
+						fs.unlinkSync(connectionTokenFile);
+					} catch (_e) {
+						//ignore
 					}
 				}
 			});
@@ -208,7 +226,27 @@ export function activate(context: vscode.ExtensionContext) {
 				proxyServer.listen(0, '127.0.0.1', () => {
 					const port = (<net.AddressInfo>proxyServer.address()).port;
 					outputChannel.appendLine(`Going through proxy at port ${port}`);
-					const r: vscode.ResolverResult = new vscode.ResolvedAuthority('127.0.0.1', port);
+					const r: vscode.ResolverResult = new vscode.ResolvedAuthority('127.0.0.1', port, connectionToken);
+					r.tunnelFeatures = {
+						elevation: true,
+						privacyOptions: vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') ? [
+							{
+								id: 'public',
+								label: 'Public',
+								themeIcon: 'eye'
+							},
+							{
+								id: 'other',
+								label: 'Other',
+								themeIcon: 'circuit-board'
+							},
+							{
+								id: 'private',
+								label: 'Private',
+								themeIcon: 'eye-closed'
+							}
+						] : []
+					};
 					res(r);
 				});
 				context.subscriptions.push({
@@ -235,27 +273,6 @@ export function activate(context: vscode.ExtensionContext) {
 			}, (progress) => doResolve(_authority, progress));
 		},
 		tunnelFactory,
-		tunnelFeatures: {
-			elevation: true,
-			public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts'),
-			privacyOptions: vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') ? [
-				{
-					id: 'public',
-					label: 'Public',
-					themeIcon: 'eye'
-				},
-				{
-					id: 'other',
-					label: 'Other',
-					themeIcon: 'circuit-board'
-				},
-				{
-					id: 'private',
-					label: 'Private',
-					themeIcon: 'eye-closed'
-				}
-			] : []
-		},
 		showCandidatePort
 	});
 	context.subscriptions.push(authorityResolverDisposable);
@@ -372,6 +389,7 @@ export interface IProductConfiguration {
 	commit: string;
 	quality: string;
 	dataFolderName: string;
+	serverApplicationName?: string;
 	serverDataFolderName?: string;
 }
 

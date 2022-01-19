@@ -8,7 +8,7 @@ import { Disposable, IReference, MutableDisposable } from 'vs/base/common/lifecy
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { InlineCompletionTriggerKind } from 'vs/editor/common/modes';
+import { InlineCompletionTriggerKind } from 'vs/editor/common/languages';
 import { GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
 import { InlineCompletionsModel, LiveInlineCompletions, SynchronizedInlineCompletionsCache } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
 import { SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetPreviewModel';

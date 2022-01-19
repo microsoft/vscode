@@ -293,7 +293,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				case 'disconnected':
 					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`);
 					break;
-				default:
+				default: {
 					const tooltip = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 					const hostNameTooltip = this.labelService.getHostTooltip(Schemas.vscodeRemote, this.remoteAuthority);
 					if (hostNameTooltip) {
@@ -302,6 +302,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 						tooltip.appendText(nls.localize({ key: 'host.tooltip', comment: ['{0} is a remote host name, e.g. Dev Container'] }, "Editing on {0}", hostLabel));
 					}
 					this.renderRemoteStatusIndicator(`$(remote) ${truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, tooltip);
+				}
 			}
 			return;
 		} else if (this.virtualWorkspaceLocation) {

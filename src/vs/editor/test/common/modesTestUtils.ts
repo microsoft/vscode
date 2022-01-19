@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
-import { ScopedLineTokens, createScopedLineTokens } from 'vs/editor/common/modes/supports';
+import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
+import { MetadataConsts, StandardTokenType } from 'vs/editor/common/languages';
+import { ScopedLineTokens, createScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 
 export interface TokenText {

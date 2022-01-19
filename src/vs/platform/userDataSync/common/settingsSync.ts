@@ -10,10 +10,9 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
-import { IUserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -62,7 +61,6 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IUserConfigurationFileService private readonly userConfigurationFileService: IUserConfigurationFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super(environmentService.settingsResource, SyncResource.Settings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService, uriIdentityService);
@@ -339,10 +337,6 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		}
 		const defaultIgnoredSettings = await this._defaultIgnoredSettings;
 		return getIgnoredSettings(defaultIgnoredSettings, this.configurationService, content);
-	}
-
-	protected override async writeFileContent(newContent: string, oldContent: IFileContent, force: boolean): Promise<void> {
-		await this.userConfigurationFileService.write(VSBuffer.fromString(newContent), force ? undefined : { etag: oldContent.etag, mtime: oldContent.mtime });
 	}
 
 	private validateContent(content: string): void {

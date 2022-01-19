@@ -13,17 +13,17 @@ import { URI } from 'vs/base/common/uri';
 import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { FindMatch, IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { IntervalNode, IntervalTree } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { WorkspaceTextEdit } from 'vs/editor/common/modes';
+import { WorkspaceTextEdit } from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { CellEditState, CellFindMatch, CellFindMatchWithIndex, ICellViewModel, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, NotebookLayoutInfo, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, CellFindMatchWithIndex, ICellViewModel, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, NotebookLayoutInfo, NotebookMetadataChangedEvent, OutputFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
@@ -412,7 +412,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	// selection change from list view's `setFocus` and `setSelection` should always use `source: view` to prevent events breaking the list view focus/selection change transaction
 	updateSelectionsState(state: ISelectionState, source: 'view' | 'model' = 'model') {
-		if (this._focused) {
+		if (this._focused || source === 'model') {
 			if (state.kind === SelectionStateType.Handle) {
 				const primaryIndex = state.primary !== null ? this.getCellIndexByHandle(state.primary) : null;
 				const primarySelection = primaryIndex !== null ? this.validateRange({ start: primaryIndex, end: primaryIndex + 1 }) : null;
@@ -453,6 +453,18 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		}
 
 		return this._foldingRanges.isCollapsed(range) ? CellFoldingState.Collapsed : CellFoldingState.Expanded;
+	}
+
+	getFoldedLength(index: number): number {
+		if (!this._foldingRanges) {
+			return 0;
+		}
+
+		const range = this._foldingRanges.findRange(index + 1);
+		const startIndex = this._foldingRanges.getStartLineNumber(range) - 1;
+		const endIndex = this._foldingRanges.getEndLineNumber(range) - 1;
+
+		return endIndex - startIndex;
 	}
 
 	updateFoldingRanges(ranges: FoldingRegions) {
@@ -496,7 +508,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 		this._viewCells.forEach(cell => {
 			if (cell.cellKind === CellKind.Markup) {
-				cell.triggerfoldingStateChange();
+				cell.triggerFoldingStateChange();
 			}
 		});
 	}
@@ -752,7 +764,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			result.push(...ret);
 		});
 
-		for (let _handle in deletesByHandle) {
+		for (const _handle in deletesByHandle) {
 			const handle = parseInt(_handle);
 			const ids = deletesByHandle[handle];
 			const cell = this.getCellByHandle(handle);
@@ -909,7 +921,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				matches.push({
 					cell: cellMatches.cell,
 					index: index,
-					matches: cellMatches.matches
+					matches: cellMatches.matches,
+					modelMatchCount: cellMatches.matches.length
 				});
 			}
 		});
@@ -938,10 +951,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 		matches.forEach(match => {
 			match.matches.forEach((singleMatch, index) => {
-				textEdits.push({
-					edit: { range: singleMatch.range, text: texts[index] },
-					resource: match.cell.uri
-				});
+				if ((singleMatch as OutputFindMatch).index !== undefined) {
+					textEdits.push({
+						edit: { range: (singleMatch as FindMatch).range, text: texts[index] },
+						resource: match.cell.uri
+					});
+				}
 			});
 		});
 

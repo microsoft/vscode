@@ -10,8 +10,16 @@ declare module 'vscode' {
 	export interface TextDocument {
 
 		/**
-		 * The {@link NotebookDocument notebook} that contains this document as a notebook cell or `undefined` when
-		 * the document is not contained by a notebook (this should be the more frequent case).
+		 * @deprecated
+		 *
+		 * This proposal won't be finalized like this, see https://github.com/microsoft/vscode/issues/102091#issuecomment-865050645.
+		 * Already today you can use
+		 *
+		 * ```ts
+		 * vscode.workspace.notebookDocuments.find(notebook => notebook.getCells().some(cell => cell.document === myTextDocument))
+		 * ```
+		 *
+		 *
 		 */
 		notebook: NotebookDocument | undefined;
 	}

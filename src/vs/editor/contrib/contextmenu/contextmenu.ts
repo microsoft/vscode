@@ -88,6 +88,9 @@ export class ContextMenuController implements IEditorContribution {
 		if (e.target.type === MouseTargetType.OVERLAY_WIDGET) {
 			return; // allow native menu on widgets to support right click on input field for example in find
 		}
+		if (e.target.type === MouseTargetType.CONTENT_TEXT && e.target.detail.injectedText) {
+			return; // allow native menu on injected text
+		}
 
 		e.event.preventDefault();
 		e.event.stopPropagation();

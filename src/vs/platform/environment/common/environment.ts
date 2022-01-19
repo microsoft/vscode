@@ -128,6 +128,9 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	// --- smoke test support
 	driverHandle?: string;
 
+	// --- use keytar for credentials
+	disableKeytar?: boolean;
+
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
 	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.

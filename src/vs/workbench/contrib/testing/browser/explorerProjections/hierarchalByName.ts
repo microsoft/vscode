@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
 import { TestExplorerTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { HierarchicalByLocationProjection as HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
@@ -74,8 +75,8 @@ export class ByNameTestItemElement extends ByLocationTestItemElement {
  * test root rather than the heirarchal parent.
  */
 export class HierarchicalByNameProjection extends HierarchicalByLocationProjection {
-	constructor(@ITestService testService: ITestService, @ITestResultService results: ITestResultService) {
-		super(testService, results);
+	constructor(lastState: AbstractTreeViewState, @ITestService testService: ITestService, @ITestResultService results: ITestResultService) {
+		super(lastState, testService, results);
 
 		const originalRenderNode = this.renderNode.bind(this);
 		this.renderNode = (node, recurse) => {

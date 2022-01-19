@@ -172,6 +172,11 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			const instance = this.activeInstance;
 			if (instance) {
 				await instance.focusWhenReady(true);
+				// HACK: as a workaround for https://github.com/microsoft/vscode/issues/134692,
+				// this will trigger a forced refresh of the viewport to sync the viewport and scroll bar.
+				// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is
+				// fixed upstream.
+				instance.setVisible(true);
 			}
 		}
 	}

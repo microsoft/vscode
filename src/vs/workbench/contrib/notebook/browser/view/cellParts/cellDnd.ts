@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { Delayer } from 'vs/base/common/async';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { CellViewModelStateChangeEvent, expandCellRangesWithHiddenCells, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { expandCellRangesWithHiddenCells, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellEditType, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -416,28 +414,4 @@ export class CellDragAndDropController extends Disposable {
 
 		return this.getDropInsertDirection(dragPosRatio);
 	}
-}
-
-export class DragPart extends CellPart {
-	get domNode() {
-		return this.dragHandle.domNode;
-	}
-
-	constructor(
-		readonly notebookEditor: INotebookEditorDelegate,
-		readonly dragHandle: FastDomNode<HTMLElement>
-	) {
-		super();
-	}
-
-	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void { }
-	prepareLayout(): void { }
-	updateInternalLayoutNow(element: ICellViewModel): void {
-		const bottomToolbarDimensions = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
-		this.dragHandle.setHeight(element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap);
-	}
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
-
-	}
-
 }

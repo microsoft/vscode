@@ -303,18 +303,20 @@ export class QuickInputList {
 						this.list.setFocus(range(this.list.length));
 					}
 					break;
-				case KeyCode.UpArrow:
+				case KeyCode.UpArrow: {
 					const focus1 = this.list.getFocus();
 					if (focus1.length === 1 && focus1[0] === 0) {
 						this._onLeave.fire();
 					}
 					break;
-				case KeyCode.DownArrow:
+				}
+				case KeyCode.DownArrow: {
 					const focus2 = this.list.getFocus();
 					if (focus2.length === 1 && focus2[0] === this.list.length - 1) {
 						this._onLeave.fire();
 					}
 					break;
+				}
 			}
 
 			this._onKeyDown.fire(event);

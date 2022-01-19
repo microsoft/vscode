@@ -371,7 +371,12 @@ suite('vscode API - window', () => {
 	});
 
 	//#region Tabs API tests
-	test('Tabs - Ensure tabs getter is correct', async () => {
+	test('Tabs - Ensure tabs getter is correct', async function () {
+		// Reduce test timeout as this test should be quick, so even with 3 retries it will be under 60s.
+		this.timeout(10000);
+		// This test can be flaky because of opening a notebook
+		// Sometimes the webview doesn't resolve especially on windows so we will retry 3 times
+		this.retries(3);
 		const [docA, docB, docC, notebookDoc] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),

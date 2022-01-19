@@ -25,6 +25,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { IV8Profile, Utils } from 'vs/platform/profiling/common/profiling';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -208,13 +209,11 @@ export class SaveExtensionHostProfileAction extends Action {
 		let savePath = picked.filePath;
 
 		if (this._environmentService.isBuilt) {
-			const profiler = await import('v8-inspect-profiler');
 			// when running from a not-development-build we remove
 			// absolute filenames because we don't want to reveal anything
 			// about users. We also append the `.txt` suffix to make it
 			// easier to attach these files to GH issues
-			let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite as any }, 'piiRemoved');
-			dataToWrite = tmp.profile;
+			dataToWrite = Utils.rewriteAbsolutePaths(dataToWrite as IV8Profile, 'piiRemoved');
 
 			savePath = savePath + '.txt';
 		}

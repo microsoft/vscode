@@ -119,6 +119,16 @@
 	right: 0;
 }
 
+/* Adjust position for Windows https://github.com/microsoft/vscode/issues/140647 */
+
+.monaco-workbench.windows:not(.maximized) .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item .active-item-indicator:before{
+	left: 1px;
+}
+
+.monaco-workbench.windows:not(.maximized) .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-item .active-item-indicator:before {
+	right: 2px;
+}
+
 /* Hides outline on HC as focus is handled by border */
 .monaco-workbench.hc-black .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before,
 .monaco-workbench.hc-black .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {

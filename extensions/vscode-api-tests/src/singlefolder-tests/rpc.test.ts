@@ -62,7 +62,6 @@ suite('vscode', function () {
 	});
 
 	test('no rpc, createSourceControl(...)', function () {
-		this.skip();
 		const item = vscode.scm.createSourceControl('foo', 'Hello');
 		dispo.push(item);
 		assertNoRpcFromEntry([item, 'SourceControl']);

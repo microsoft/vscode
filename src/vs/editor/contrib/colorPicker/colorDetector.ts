@@ -17,9 +17,11 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ColorProviderRegistry } from 'vs/editor/common/modes';
+import { ColorProviderRegistry } from 'vs/editor/common/languages';
 import { getColors, IColorData } from 'vs/editor/contrib/colorPicker/color';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
+export const ColorDecorationInjectedTextMarker = Object.create({});
 
 const MAX_DECORATORS = 500;
 
@@ -198,6 +200,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 						content: noBreakWhitespace,
 						inlineClassName: `${ref.className} colorpicker-color-decoration`,
 						inlineClassNameAffectsLetterSpacing: true,
+						attachedData: ColorDecorationInjectedTextMarker
 					}
 				}
 			});

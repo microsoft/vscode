@@ -15,6 +15,8 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 //  ------ API types
 
+export type IconIdentifier = string;
+
 // icon registry
 export const Extensions = {
 	IconContribution: 'base.contributions.icons'
@@ -23,8 +25,16 @@ export const Extensions = {
 export type IconDefaults = ThemeIcon | IconDefinition;
 
 export interface IconDefinition {
-	fontId?: string;
+	font?: IconFontContribution; // undefined for the default font (codicon)
 	fontCharacter: string;
+}
+
+
+export interface IconContribution {
+	readonly id: string;
+	description: string | undefined;
+	deprecationMessage?: string;
+	readonly defaults: IconDefaults;
 }
 
 export namespace IconContribution {
@@ -41,20 +51,20 @@ export namespace IconContribution {
 	}
 }
 
-export interface IconContribution {
-	id: string;
-	description: string | undefined;
-	deprecationMessage?: string;
-	defaults: IconDefaults;
-}
-
 export interface IconFontContribution {
-	id: string;
-	definition: IconFontDefinition;
+	readonly id: string;
+	getDefinition(): IconFontDefinition | undefined;
 }
 
 export interface IconFontDefinition {
-	src: { location: URI, format: string; }[]
+	readonly weight?: string;
+	readonly style?: string;
+	readonly src: IconFontSource[];
+}
+
+export interface IconFontSource {
+	readonly location: URI,
+	readonly format: string;
 }
 
 export interface IIconRegistry {
@@ -67,12 +77,12 @@ export interface IIconRegistry {
 	 * @param defaults The default values
 	 * @param description The description
 	 */
-	registerIcon(id: string, defaults: IconDefaults, description?: string): ThemeIcon;
+	registerIcon(id: IconIdentifier, defaults: IconDefaults, description?: string): ThemeIcon;
 
 	/**
 	 * Deregister a icon from the registry.
 	 */
-	deregisterIcon(id: string): void;
+	deregisterIcon(id: IconIdentifier): void;
 
 	/**
 	 * Get all icon contributions
@@ -82,7 +92,7 @@ export interface IIconRegistry {
 	/**
 	 * Get the icon for the given id
 	 */
-	getIcon(id: string): IconContribution | undefined;
+	getIcon(id: IconIdentifier): IconContribution | undefined;
 
 	/**
 	 * JSON schema for an object to assign icon values to one of the icon contributions.
@@ -97,9 +107,9 @@ export interface IIconRegistry {
 	/**
 	 * Register a icon font to the registry.
 	 * @param id The icon font id
-	 * @param definition The iocn font definition
+	 * @param definition The icon font definition
 	 */
-	registerIconFont(id: string, definition: IconFontDefinition): IconFontContribution;
+	registerIconFont(id: string, definition: IconFontDefinition): IconFontDefinition;
 
 	/**
 	 * Deregister an icon font to the registry.
@@ -107,14 +117,9 @@ export interface IIconRegistry {
 	deregisterIconFont(id: string): void;
 
 	/**
-	 * Get all icon font contributions
-	 */
-	getIconFonts(): IconFontContribution[];
-
-	/**
 	 * Get the icon font for the given id
 	 */
-	getIconFont(id: string): IconFontContribution | undefined;
+	getIconFont(id: string): IconFontDefinition | undefined;
 }
 
 class IconRegistry implements IIconRegistry {
@@ -140,7 +145,7 @@ class IconRegistry implements IIconRegistry {
 	};
 	private iconReferenceSchema: IJSONSchema & { enum: string[], enumDescriptions: string[] } = { type: 'string', pattern: `^${CSSIcon.iconNameExpression}$`, enum: [], enumDescriptions: [] };
 
-	private iconFontsById: { [key: string]: IconFontContribution };
+	private iconFontsById: { [key: string]: IconFontDefinition };
 
 	constructor() {
 		this.iconsById = {};
@@ -206,26 +211,21 @@ class IconRegistry implements IIconRegistry {
 		return this.iconReferenceSchema;
 	}
 
-	public registerIconFont(id: string, definition: IconFontDefinition): IconFontContribution {
+	public registerIconFont(id: string, definition: IconFontDefinition): IconFontDefinition {
 		const existing = this.iconFontsById[id];
 		if (existing) {
 			return existing;
 		}
-		let iconFontContribution: IconFontContribution = { id, definition };
-		this.iconFontsById[id] = iconFontContribution;
+		this.iconFontsById[id] = definition;
 		this._onDidChange.fire();
-		return iconFontContribution;
+		return definition;
 	}
 
 	public deregisterIconFont(id: string): void {
 		delete this.iconFontsById[id];
 	}
 
-	public getIconFonts(): IconFontContribution[] {
-		return Object.keys(this.iconFontsById).map(id => this.iconFontsById[id]);
-	}
-
-	public getIconFont(id: string): IconFontContribution | undefined {
+	public getIconFont(id: string): IconFontDefinition | undefined {
 		return this.iconFontsById[id];
 	}
 
