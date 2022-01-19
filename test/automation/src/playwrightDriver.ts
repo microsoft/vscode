@@ -229,7 +229,8 @@ async function launchServer(options: LaunchOptions) {
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {
-		serverLocation = join(codeServerPath, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
+		const { serverApplicationName } = require(join(codeServerPath, 'product.json'));
+		serverLocation = join(codeServerPath, 'bin', `${serverApplicationName}${process.platform === 'win32' ? '.cmd' : ''}`);
 		args.push(`--logsPath=${logsPath}`);
 
 		logger.log(`Starting built server from '${serverLocation}'`);

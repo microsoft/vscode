@@ -130,7 +130,8 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
-		serverLocation = path.join(process.env.VSCODE_REMOTE_SERVER_PATH, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
+		const { serverApplicationName } = require(path.join(process.env.VSCODE_REMOTE_SERVER_PATH, 'product.json'));
+		serverLocation = path.join(process.env.VSCODE_REMOTE_SERVER_PATH, 'bin', `${serverApplicationName}${process.platform === 'win32' ? '.cmd' : ''}`);
 		serverArgs.push(`--logsPath=${logsPath}`);
 
 		if (optimist.argv.debug) {
