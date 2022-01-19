@@ -248,6 +248,16 @@ steps:
     continueOnError: true
     condition: failed()
 
+  # In order to properly symbolify above crash reports
+  # (if any), we need the compiled native modules too
+  - task: PublishPipelineArtifact@0
+    inputs:
+      artifactName: node-modules-windows-$(VSCODE_ARCH)
+      targetPath: node_modules
+    displayName: "Publish Node Modules"
+    continueOnError: true
+    condition: failed()
+
   - task: PublishPipelineArtifact@0
     inputs:
       artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)

@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { isLinux, isMacintosh, isWeb, isWindows, userAgent } from 'vs/base/common/platform';
+import { isChrome, isEdge, isFirefox, isLinux, isMacintosh, isSafari, isWeb, isWindows } from 'vs/base/common/platform';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-let _userAgent = userAgent || '';
 const CONSTANT_VALUES = new Map<string, boolean>();
 CONSTANT_VALUES.set('false', false);
 CONSTANT_VALUES.set('true', true);
@@ -17,10 +16,10 @@ CONSTANT_VALUES.set('isLinux', isLinux);
 CONSTANT_VALUES.set('isWindows', isWindows);
 CONSTANT_VALUES.set('isWeb', isWeb);
 CONSTANT_VALUES.set('isMacNative', isMacintosh && !isWeb);
-CONSTANT_VALUES.set('isEdge', _userAgent.indexOf('Edg/') >= 0);
-CONSTANT_VALUES.set('isFirefox', _userAgent.indexOf('Firefox') >= 0);
-CONSTANT_VALUES.set('isChrome', _userAgent.indexOf('Chrome') >= 0);
-CONSTANT_VALUES.set('isSafari', _userAgent.indexOf('Safari') >= 0);
+CONSTANT_VALUES.set('isEdge', isEdge);
+CONSTANT_VALUES.set('isFirefox', isFirefox);
+CONSTANT_VALUES.set('isChrome', isChrome);
+CONSTANT_VALUES.set('isSafari', isSafari);
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 

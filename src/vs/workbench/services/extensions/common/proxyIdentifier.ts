@@ -29,12 +29,10 @@ export class ProxyIdentifier<T> {
 	public static count = 0;
 	_proxyIdentifierBrand: void = undefined;
 
-	public readonly isMain: boolean;
 	public readonly sid: string;
 	public readonly nid: number;
 
-	constructor(isMain: boolean, sid: string) {
-		this.isMain = isMain;
+	constructor(sid: string) {
 		this.sid = sid;
 		this.nid = (++ProxyIdentifier.count);
 	}
@@ -42,14 +40,8 @@ export class ProxyIdentifier<T> {
 
 const identifiers: ProxyIdentifier<any>[] = [];
 
-export function createMainContextProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
-	const result = new ProxyIdentifier<T>(true, identifier);
-	identifiers[result.nid] = result;
-	return result;
-}
-
-export function createExtHostContextProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
-	const result = new ProxyIdentifier<T>(false, identifier);
+export function createProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
+	const result = new ProxyIdentifier<T>(identifier);
 	identifiers[result.nid] = result;
 	return result;
 }

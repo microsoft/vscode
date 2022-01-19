@@ -213,7 +213,7 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 
 		editor.textModel.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined);
 
-		const runState = notebookExecutionStateService.getCellExecutionState(context.cell.uri)?.state;
+		const runState = notebookExecutionStateService.getCellExecution(context.cell.uri)?.state;
 		if (runState !== NotebookCellExecutionState.Executing) {
 			context.notebookEditor.textModel.applyEdits([{
 				editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
@@ -272,7 +272,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 			})), true, undefined, () => undefined, undefined);
 
 		const clearExecutionMetadataEdits = editor.textModel.cells.map((cell, index) => {
-			const runState = notebookExecutionStateService.getCellExecutionState(cell.uri)?.state;
+			const runState = notebookExecutionStateService.getCellExecution(cell.uri)?.state;
 			if (runState !== NotebookCellExecutionState.Executing) {
 				return {
 					editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {

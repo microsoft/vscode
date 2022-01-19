@@ -127,7 +127,7 @@ export class CellContextKeyManager extends Disposable {
 		const internalMetadata = this.element.internalMetadata;
 		this.cellEditable.set(!this.notebookEditor.isReadOnly);
 
-		const exeState = this._notebookExecutionStateService.getCellExecutionState(this.element.uri);
+		const exeState = this._notebookExecutionStateService.getCellExecution(this.element.uri);
 		if (this.element instanceof MarkupCellViewModel) {
 			this.cellRunState.reset();
 			this.cellExecuting.reset();

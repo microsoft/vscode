@@ -11,7 +11,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector, ThemeIcon, Themable } from 'vs/platform/theme/common/themeService';
-import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { getCwdForSplit, switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR, TERMINAL_DRAG_AND_DROP_BACKGROUND, TERMINAL_TAB_ACTIVE_BORDER } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { ICreateTerminalOptions, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -80,16 +80,16 @@ export class TerminalViewPane extends ViewPane {
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService
 	) {
 		super(options, keybindingService, _contextMenuService, configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
-		this._terminalService.onDidRegisterProcessSupport(() => {
+		this._register(this._terminalService.onDidRegisterProcessSupport(() => {
 			if (this._actions) {
 				for (const action of this._actions) {
 					action.enabled = true;
 				}
 			}
 			this._onDidChangeViewWelcomeState.fire();
-		});
+		}));
 
-		this._terminalService.onDidChangeInstances(() => {
+		this._register(this._terminalService.onDidChangeInstances(() => {
 			if (!this._isWelcomeShowing) {
 				return;
 			}
@@ -99,11 +99,16 @@ export class TerminalViewPane extends ViewPane {
 				this._createTabsView();
 				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 			}
-		});
+		}));
 		this._dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalNewDropdownContext, this._contextKeyService));
 		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalInlineTabContext, this._contextKeyService));
 		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles)));
 		this._viewShowing = TerminalContextKeys.viewShowing.bindTo(this._contextKeyService);
+		this._register(this.onDidChangeBodyVisibility(e => {
+			if (e) {
+				this._terminalTabbedView?.rerenderTabs();
+			}
+		}));
 	}
 
 	override renderBody(container: HTMLElement): void {
@@ -191,7 +196,8 @@ export class TerminalViewPane extends ViewPane {
 					run: async () => {
 						const instance = this._terminalGroupService.activeInstance;
 						if (instance) {
-							const newInstance = await this._terminalService.createTerminal({ location: { parentTerminal: instance } });
+							const cwd = await getCwdForSplit(this._terminalService.configHelper, instance);
+							const newInstance = await this._terminalService.createTerminal({ location: { parentTerminal: instance }, cwd });
 							return newInstance?.focusWhenReady();
 						}
 						return;

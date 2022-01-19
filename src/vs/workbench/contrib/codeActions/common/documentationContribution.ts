@@ -9,6 +9,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/languages';
+// TODO@layers
+// eslint-disable-next-line code-import-patterns
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';

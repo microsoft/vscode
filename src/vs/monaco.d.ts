@@ -6864,8 +6864,8 @@ declare namespace monaco.languages {
 
 	export interface InlayHintLabelPart {
 		label: string;
-		collapsible?: boolean;
-		action?: Command | Location;
+		command?: Command;
+		location?: Location;
 	}
 
 	export interface InlayHint {
@@ -6873,8 +6873,8 @@ declare namespace monaco.languages {
 		tooltip?: string | IMarkdownString;
 		position: IPosition;
 		kind: InlayHintKind;
-		whitespaceBefore?: boolean;
-		whitespaceAfter?: boolean;
+		paddingLeft?: boolean;
+		paddingRight?: boolean;
 	}
 
 	export interface InlayHintList {

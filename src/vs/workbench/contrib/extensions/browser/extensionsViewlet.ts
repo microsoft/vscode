@@ -54,7 +54,6 @@ import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { VirtualWorkspaceContext, WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { isWeb } from 'vs/base/common/platform';
 import { installLocalInRemoteIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
@@ -66,7 +65,6 @@ const SearchOutdatedExtensionsContext = new RawContextKey<boolean>('searchOutdat
 const SearchEnabledExtensionsContext = new RawContextKey<boolean>('searchEnabledExtensions', false);
 const SearchDisabledExtensionsContext = new RawContextKey<boolean>('searchDisabledExtensions', false);
 const HasInstalledExtensionsContext = new RawContextKey<boolean>('hasInstalledExtensions', true);
-const HasInstalledWebExtensionsContext = new RawContextKey<boolean>('hasInstalledWebExtensions', false);
 const BuiltInExtensionsContext = new RawContextKey<boolean>('builtInExtensions', false);
 const SearchBuiltInExtensionsContext = new RawContextKey<boolean>('searchBuiltInExtensions', false);
 const SearchUnsupportedWorkspaceExtensionsContext = new RawContextKey<boolean>('searchUnsupportedWorkspaceExtensions', false);
@@ -117,22 +115,14 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
 			servers.push(this.extensionManagementServerService.localExtensionManagementServer);
 		}
-		if (this.extensionManagementServerService.webExtensionManagementServer) {
-			servers.push(this.extensionManagementServerService.webExtensionManagementServer);
-		}
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 			servers.push(this.extensionManagementServerService.remoteExtensionManagementServer);
 		}
+		if (this.extensionManagementServerService.webExtensionManagementServer) {
+			servers.push(this.extensionManagementServerService.webExtensionManagementServer);
+		}
 		const getViewName = (viewTitle: string, server: IExtensionManagementServer): string => {
-			if (servers.length > 1) {
-				// In Web, use view title as is for remote server, when web extension server is enabled and no web extensions are installed
-				if (isWeb && server === this.extensionManagementServerService.remoteExtensionManagementServer &&
-					this.extensionManagementServerService.webExtensionManagementServer && !this.contextKeyService.getContextKeyValue<boolean>('hasInstalledWebExtensions')) {
-					return viewTitle;
-				}
-				return `${server.label} - ${viewTitle}`;
-			}
-			return viewTitle;
+			return servers.length > 1 ? `${server.label} - ${viewTitle}` : viewTitle;
 		};
 		let installedWebExtensionsContextChangeEvent = Event.None;
 		if (this.extensionManagementServerService.webExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
@@ -145,29 +135,14 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			const getInstalledViewName = (): string => getViewName(localize('installed', "Installed"), server);
 			const onDidChangeTitle = Event.map<void, string>(serverLabelChangeEvent, () => getInstalledViewName());
 			const id = servers.length > 1 ? `workbench.views.extensions.${server.id}.installed` : `workbench.views.extensions.installed`;
-			const isWebServer = server === this.extensionManagementServerService.webExtensionManagementServer;
-			if (!isWebServer) {
-				/* Empty installed extensions view */
-				viewDescriptors.push({
-					id: `${id}.empty`,
-					get name() { return getInstalledViewName(); },
-					weight: 100,
-					order: 1,
-					when: ContextKeyExpr.and(DefaultViewsContext, ContextKeyExpr.not('hasInstalledExtensions')),
-					/* Empty installed extensions view shall have fixed height */
-					ctorDescriptor: new SyncDescriptor(ServerInstalledExtensionsView, [{ server, fixedHeight: true, onDidChangeTitle }]),
-					/* Empty installed extensions views shall not be allowed to hidden */
-					canToggleVisibility: false
-				});
-			}
 			/* Installed extensions view */
 			viewDescriptors.push({
 				id,
 				get name() { return getInstalledViewName(); },
 				weight: 100,
 				order: 1,
-				when: ContextKeyExpr.and(DefaultViewsContext, isWebServer ? ContextKeyExpr.has('hasInstalledWebExtensions') : ContextKeyExpr.has('hasInstalledExtensions')),
-				ctorDescriptor: new SyncDescriptor(ServerInstalledExtensionsView, [{ server, onDidChangeTitle }]),
+				when: ContextKeyExpr.and(DefaultViewsContext),
+				ctorDescriptor: new SyncDescriptor(ServerInstalledExtensionsView, [{ server, flexibleHeight: true, onDidChangeTitle }]),
 				/* Installed extensions views shall not be allowed to hidden when there are more than one server */
 				canToggleVisibility: servers.length === 1
 			});
@@ -449,7 +424,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	private searchEnabledExtensionsContextKey: IContextKey<boolean>;
 	private searchDisabledExtensionsContextKey: IContextKey<boolean>;
 	private hasInstalledExtensionsContextKey: IContextKey<boolean>;
-	private hasInstalledWebExtensionsContextKey: IContextKey<boolean>;
 	private builtInExtensionsContextKey: IContextKey<boolean>;
 	private searchBuiltInExtensionsContextKey: IContextKey<boolean>;
 	private searchWorkspaceUnsupportedExtensionsContextKey: IContextKey<boolean>;
@@ -493,22 +467,11 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.searchEnabledExtensionsContextKey = SearchEnabledExtensionsContext.bindTo(contextKeyService);
 		this.searchDisabledExtensionsContextKey = SearchDisabledExtensionsContext.bindTo(contextKeyService);
 		this.hasInstalledExtensionsContextKey = HasInstalledExtensionsContext.bindTo(contextKeyService);
-		this.hasInstalledWebExtensionsContextKey = HasInstalledWebExtensionsContext.bindTo(contextKeyService);
 		this.builtInExtensionsContextKey = BuiltInExtensionsContext.bindTo(contextKeyService);
 		this.searchBuiltInExtensionsContextKey = SearchBuiltInExtensionsContext.bindTo(contextKeyService);
 		this.recommendedExtensionsContextKey = RecommendedExtensionsContext.bindTo(contextKeyService);
 		this._register(this.paneCompositeService.onDidPaneCompositeOpen(e => { if (e.viewContainerLocation === ViewContainerLocation.Sidebar) { this.onViewletOpen(e.composite); } }, this));
 		this.searchViewletState = this.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
-
-		if (extensionManagementServerService.webExtensionManagementServer) {
-			this._register(extensionsWorkbenchService.onChange(() => {
-				// show installed web extensions view only when it is not visible
-				// Do not hide the view automatically when it is visible
-				if (!this.hasInstalledWebExtensionsContextKey.get()) {
-					this.updateInstalledWebExtensionsContext();
-				}
-			}));
-		}
 	}
 
 	get searchValue(): string | undefined {
@@ -635,11 +598,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	private async updateInstalledExtensionsContexts(): Promise<void> {
 		const result = await this.extensionsWorkbenchService.queryLocal();
 		this.hasInstalledExtensionsContextKey.set(result.some(r => !r.isBuiltin));
-		this.updateInstalledWebExtensionsContext();
-	}
-
-	private updateInstalledWebExtensionsContext(): void {
-		this.hasInstalledWebExtensionsContextKey.set(!!this.extensionManagementServerService.webExtensionManagementServer && this.extensionsWorkbenchService.installed.some(r => r.server === this.extensionManagementServerService.webExtensionManagementServer));
 	}
 
 	private triggerSearch(): void {
@@ -680,7 +638,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.recommendedExtensionsContextKey.set(isRecommendedExtensionsQuery);
 		this.searchMarketplaceExtensionsContextKey.set(!!value && !ExtensionsListView.isLocalExtensionsQuery(value) && !isRecommendedExtensionsQuery);
 		this.defaultViewsContextKey.set(!value);
-		this.updateInstalledWebExtensionsContext();
 
 		return this.progress(Promise.all(this.panes.map(view =>
 			(<ExtensionsListView>view).show(this.normalizedQuery(), refresh)

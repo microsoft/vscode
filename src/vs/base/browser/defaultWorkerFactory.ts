@@ -8,21 +8,21 @@ import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } fro
 
 const ttPolicy = window.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });
 
-function getWorker(workerId: string, label: string): Worker | Promise<Worker> {
+function getWorker(label: string): Worker | Promise<Worker> {
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
 	if (globals.MonacoEnvironment) {
 		if (typeof globals.MonacoEnvironment.getWorker === 'function') {
-			return globals.MonacoEnvironment.getWorker(workerId, label);
+			return globals.MonacoEnvironment.getWorker('workerMain.js', label);
 		}
 		if (typeof globals.MonacoEnvironment.getWorkerUrl === 'function') {
-			const workerUrl = <string>globals.MonacoEnvironment.getWorkerUrl(workerId, label);
+			const workerUrl = <string>globals.MonacoEnvironment.getWorkerUrl('workerMain.js', label);
 			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
 		}
 	}
 	// ESM-comment-begin
 	if (typeof require === 'function') {
 		// check if the JS lives on a different origin
-		const workerMain = require.toUrl('./' + workerId); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
+		const workerMain = require.toUrl('vs/base/worker/workerMain.js'); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
 		const workerUrl = getWorkerBootstrapUrl(workerMain, label);
 		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
 	}
@@ -63,7 +63,7 @@ class WebWorker implements IWorker {
 
 	constructor(moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
 		this.id = id;
-		const workerOrPromise = getWorker('workerMain.js', label);
+		const workerOrPromise = getWorker(label);
 		if (isPromiseLike(workerOrPromise)) {
 			this.worker = workerOrPromise;
 		} else {

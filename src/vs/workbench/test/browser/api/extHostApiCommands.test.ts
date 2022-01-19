@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestRPCProtocol } from './testRPCProtocol';
@@ -36,6 +37,10 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { IOutlineModelService, OutlineModelService } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
 import 'vs/editor/contrib/codeAction/codeAction';
 import 'vs/editor/contrib/codelens/codelens';
@@ -50,10 +55,6 @@ import 'vs/editor/contrib/smartSelect/smartSelect';
 import 'vs/editor/contrib/suggest/suggest';
 import 'vs/editor/contrib/rename/rename';
 import 'vs/editor/contrib/inlayHints/inlayHintsController';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { IOutlineModelService, OutlineModelService } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -112,6 +113,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		services.set(IMarkerService, new MarkerService());
 		services.set(IModelService, new class extends mock<IModelService>() {
 			override getModel() { return model; }
+			override onModelRemoved = Event.None;
 		});
 		services.set(ITextModelService, new class extends mock<ITextModelService>() {
 			override async createModelReference() {
@@ -125,7 +127,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				return edits || undefined;
 			}
 		});
-		services.set(IOutlineModelService, new OutlineModelService(new LanguageFeatureDebounceService()));
+		services.set(ILanguageFeatureDebounceService, new SyncDescriptor(LanguageFeatureDebounceService));
+		services.set(IOutlineModelService, new SyncDescriptor(OutlineModelService));
 
 		insta = new InstantiationService(services);
 

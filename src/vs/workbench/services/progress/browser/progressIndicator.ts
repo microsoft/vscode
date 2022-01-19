@@ -12,60 +12,13 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { GroupModelChangeKind } from 'vs/workbench/common/editor';
 
-class ProgressBarIndicator extends Disposable implements IProgressIndicator {
-
-	constructor(protected progressbar: ProgressBar) {
-		super();
-	}
-
-	show(infinite: true, delay?: number): IProgressRunner;
-	show(total: number, delay?: number): IProgressRunner;
-	show(infiniteOrTotal: true | number, delay?: number): IProgressRunner {
-		if (typeof infiniteOrTotal === 'boolean') {
-			this.progressbar.infinite().show(delay);
-		} else {
-			this.progressbar.total(infiniteOrTotal).show(delay);
-		}
-
-		return {
-			total: (total: number) => {
-				this.progressbar.total(total);
-			},
-
-			worked: (worked: number) => {
-				if (this.progressbar.hasTotal()) {
-					this.progressbar.worked(worked);
-				} else {
-					this.progressbar.infinite().show();
-				}
-			},
-
-			done: () => {
-				this.progressbar.stop().hide();
-			}
-		};
-	}
-
-	async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
-		try {
-			this.progressbar.infinite().show(delay);
-
-			await promise;
-		} catch (error) {
-			// ignore
-		} finally {
-			this.progressbar.stop().hide();
-		}
-	}
-}
-
-export class EditorProgressIndicator extends ProgressBarIndicator {
+export class EditorProgressIndicator extends Disposable implements IProgressIndicator {
 
 	constructor(
-		progressBar: ProgressBar,
+		private readonly progressBar: ProgressBar,
 		private readonly group: IEditorGroupView
 	) {
-		super(progressBar);
+		super();
 
 		this.registerListeners();
 	}
@@ -81,14 +34,14 @@ export class EditorProgressIndicator extends ProgressBarIndicator {
 				e.kind === GroupModelChangeKind.EDITOR_ACTIVE ||
 				(e.kind === GroupModelChangeKind.EDITOR_CLOSE && this.group.isEmpty)
 			) {
-				this.progressbar.stop().hide();
+				this.progressBar.stop().hide();
 			}
 		}));
 	}
 
-	override show(infinite: true, delay?: number): IProgressRunner;
-	override show(total: number, delay?: number): IProgressRunner;
-	override show(infiniteOrTotal: true | number, delay?: number): IProgressRunner {
+	show(infinite: true, delay?: number): IProgressRunner;
+	show(total: number, delay?: number): IProgressRunner;
+	show(infiniteOrTotal: true | number, delay?: number): IProgressRunner {
 
 		// No editor open: ignore any progress reporting
 		if (this.group.isEmpty) {
@@ -96,13 +49,41 @@ export class EditorProgressIndicator extends ProgressBarIndicator {
 		}
 
 		if (infiniteOrTotal === true) {
-			return super.show(true, delay);
+			return this.doShow(true, delay);
 		}
 
-		return super.show(infiniteOrTotal, delay);
+		return this.doShow(infiniteOrTotal, delay);
 	}
 
-	override async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
+	private doShow(infinite: true, delay?: number): IProgressRunner;
+	private doShow(total: number, delay?: number): IProgressRunner;
+	private doShow(infiniteOrTotal: true | number, delay?: number): IProgressRunner {
+		if (typeof infiniteOrTotal === 'boolean') {
+			this.progressBar.infinite().show(delay);
+		} else {
+			this.progressBar.total(infiniteOrTotal).show(delay);
+		}
+
+		return {
+			total: (total: number) => {
+				this.progressBar.total(total);
+			},
+
+			worked: (worked: number) => {
+				if (this.progressBar.hasTotal()) {
+					this.progressBar.worked(worked);
+				} else {
+					this.progressBar.infinite().show();
+				}
+			},
+
+			done: () => {
+				this.progressBar.stop().hide();
+			}
+		};
+	}
+
+	async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
 
 		// No editor open: ignore any progress reporting
 		if (this.group.isEmpty) {
@@ -113,7 +94,19 @@ export class EditorProgressIndicator extends ProgressBarIndicator {
 			}
 		}
 
-		return super.showWhile(promise, delay);
+		return this.doShowWhile(promise, delay);
+	}
+
+	private async doShowWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
+		try {
+			this.progressBar.infinite().show(delay);
+
+			await promise;
+		} catch (error) {
+			// ignore
+		} finally {
+			this.progressBar.stop().hide();
+		}
 	}
 }
 
@@ -178,7 +171,7 @@ class ScopedProgressIndicator extends Disposable implements IProgressIndicator {
 	private progressState: ProgressIndicatorState.State = ProgressIndicatorState.None;
 
 	constructor(
-		private readonly progressbar: ProgressBar,
+		private readonly progressBar: ProgressBar,
 		private readonly scope: IProgressScope
 	) {
 		super();
@@ -218,23 +211,23 @@ class ScopedProgressIndicator extends Disposable implements IProgressIndicator {
 
 		// Replay Infinite Progress
 		else if (this.progressState.type === ProgressIndicatorState.Type.Infinite) {
-			this.progressbar.infinite().show();
+			this.progressBar.infinite().show();
 		}
 
 		// Replay Finite Progress (Total & Worked)
 		else if (this.progressState.type === ProgressIndicatorState.Type.Work) {
 			if (this.progressState.total) {
-				this.progressbar.total(this.progressState.total).show();
+				this.progressBar.total(this.progressState.total).show();
 			}
 
 			if (this.progressState.worked) {
-				this.progressbar.worked(this.progressState.worked).show();
+				this.progressBar.worked(this.progressState.worked).show();
 			}
 		}
 	}
 
 	private onDidScopeDeactivate(): void {
-		this.progressbar.stop().hide();
+		this.progressBar.stop().hide();
 	}
 
 	show(infinite: true, delay?: number): IProgressRunner;
@@ -253,12 +246,12 @@ class ScopedProgressIndicator extends Disposable implements IProgressIndicator {
 
 			// Infinite: Start Progressbar and Show after Delay
 			if (this.progressState.type === ProgressIndicatorState.Type.Infinite) {
-				this.progressbar.infinite().show(delay);
+				this.progressBar.infinite().show(delay);
 			}
 
 			// Finite: Start Progressbar and Show after Delay
 			else if (this.progressState.type === ProgressIndicatorState.Type.Work && typeof this.progressState.total === 'number') {
-				this.progressbar.total(this.progressState.total).show(delay);
+				this.progressBar.total(this.progressState.total).show(delay);
 			}
 		}
 
@@ -269,27 +262,27 @@ class ScopedProgressIndicator extends Disposable implements IProgressIndicator {
 					this.progressState.type === ProgressIndicatorState.Type.Work ? this.progressState.worked : undefined);
 
 				if (this.scope.isActive) {
-					this.progressbar.total(total);
+					this.progressBar.total(total);
 				}
 			},
 
 			worked: (worked: number) => {
 
 				// Verify first that we are either not active or the progressbar has a total set
-				if (!this.scope.isActive || this.progressbar.hasTotal()) {
+				if (!this.scope.isActive || this.progressBar.hasTotal()) {
 					this.progressState = new ProgressIndicatorState.Work(
 						this.progressState.type === ProgressIndicatorState.Type.Work ? this.progressState.total : undefined,
 						this.progressState.type === ProgressIndicatorState.Type.Work && typeof this.progressState.worked === 'number' ? this.progressState.worked + worked : worked);
 
 					if (this.scope.isActive) {
-						this.progressbar.worked(worked);
+						this.progressBar.worked(worked);
 					}
 				}
 
 				// Otherwise the progress bar does not support worked(), we fallback to infinite() progress
 				else {
 					this.progressState = ProgressIndicatorState.Infinite;
-					this.progressbar.infinite().show();
+					this.progressBar.infinite().show();
 				}
 			},
 
@@ -297,7 +290,7 @@ class ScopedProgressIndicator extends Disposable implements IProgressIndicator {
 				this.progressState = ProgressIndicatorState.Done;
 
 				if (this.scope.isActive) {
-					this.progressbar.stop().hide();
+					this.progressBar.stop().hide();
 				}
 			}
 		};
@@ -328,7 +321,7 @@ class ScopedProgressIndicator extends Disposable implements IProgressIndicator {
 				this.progressState = ProgressIndicatorState.None;
 
 				if (this.scope.isActive) {
-					this.progressbar.stop().hide();
+					this.progressBar.stop().hide();
 				}
 			}
 		}
@@ -338,7 +331,7 @@ class ScopedProgressIndicator extends Disposable implements IProgressIndicator {
 
 		// Show Progress when active
 		if (this.scope.isActive) {
-			this.progressbar.infinite().show(delay);
+			this.progressBar.infinite().show(delay);
 		}
 	}
 }

@@ -542,7 +542,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onDidChangeCenteredLayout: Event<boolean> = Event.None;
 	onDidChangeFullscreen: Event<boolean> = Event.None;
 	onDidChangeWindowMaximized: Event<boolean> = Event.None;
-	onDidChangePanelPosition: Event<string> = Event.None;
+	onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
 	onDidChangePartVisibility: Event<void> = Event.None;
 	onDidLayout = Event.None;
 	onDidChangeNotificationsVisibility = Event.None;
@@ -576,7 +576,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	toggleMenuBar(): void { }
 	getSideBarPosition() { return 0; }
-	getPanelPosition() { return 0; }
+	getPanelAlignment(): PanelAlignment { return 'center'; }
 	async setPanelPosition(_position: PartPosition): Promise<void> { }
 	async setPanelAlignment(_alignment: PanelAlignment): Promise<void> { }
 	addClass(_clazz: string): void { }

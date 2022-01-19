@@ -369,7 +369,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		const compatibleExtension = await this.getCompatibleVersion(extension, fetchCompatibleVersion, installPreRelease);
 		if (compatibleExtension) {
-			if (installPreRelease && extension.hasPreReleaseVersion && !compatibleExtension.properties.isPreReleaseVersion) {
+			if (installPreRelease && fetchCompatibleVersion && extension.hasPreReleaseVersion && !compatibleExtension.properties.isPreReleaseVersion) {
 				throw new ExtensionManagementError(nls.localize('notFoundCompatiblePrereleaseDependency', "Can't install pre-release version of '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.IncompatiblePreRelease);
 			}
 		} else {

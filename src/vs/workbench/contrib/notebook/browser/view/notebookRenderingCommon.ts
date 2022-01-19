@@ -116,6 +116,7 @@ export interface BaseCellRenderTemplate {
 export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 	editorContainer: HTMLElement;
 	foldingIndicator: HTMLElement;
+	foldedContentHint: HTMLElement;
 	currentEditor?: ICodeEditor;
 }
 

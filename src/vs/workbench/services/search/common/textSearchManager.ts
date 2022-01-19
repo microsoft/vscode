@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { flatten, mapArrayOrNot } from 'vs/base/common/arrays';
+import { isThenable } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as glob from 'vs/base/common/glob';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
-import { isArray, isPromise } from 'vs/base/common/types';
+import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
 import { Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
@@ -133,7 +134,7 @@ export class TextSearchManager {
 				if (relativePath) {
 					// This method is only async when the exclude contains sibling clauses
 					const included = queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling);
-					if (isPromise(included)) {
+					if (isThenable(included)) {
 						testingPs.push(
 							included.then(isIncluded => {
 								if (isIncluded) {

@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
-import { Command, HoverProviderRegistry } from 'vs/editor/common/languages';
+import { HoverProviderRegistry } from 'vs/editor/common/languages';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { HoverAnchor, HoverForeignElementAnchor, IEditorHoverParticipant } from 'vs/editor/contrib/hover/hoverTypes';
@@ -94,14 +94,10 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		if (typeof part.item.hint.label === 'string') {
 			return AsyncIterableObject.EMPTY;
 		}
-
-		const candidate = part.part.action;
-
-		if (!candidate || Command.is(candidate)) {
-			// LOCATION
+		if (!part.part.location) {
 			return AsyncIterableObject.EMPTY;
 		}
-		const { uri, range } = candidate;
+		const { uri, range } = part.part.location;
 		const ref = await this._resolverService.createModelReference(uri);
 		try {
 			const model = ref.object.textEditorModel;

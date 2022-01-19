@@ -102,11 +102,10 @@ declare module 'vscode' {
 		 * When the items are dropped on **another tree item** in **the same tree**, your `TreeDataTransferItem` objects
 		 * will be preserved. See the documentation for `TreeDataTransferItem` for how best to take advantage of this.
 		 *
-		 * The returned `TreeDataTransfer` will be merged with the original`TreeDataTransfer` for the operation.
-		 *
 		 * @param source The source items for the drag and drop operation.
+		 * @param treeDataTransfer The data transfer associated with this drag.
 		 */
-		handleDrag?(source: T[]): Thenable<TreeDataTransfer>;
+		handleDrag?(source: T[], treeDataTransfer: TreeDataTransfer): Thenable<void> | void;
 
 		/**
 		 * Called when a drag and drop action results in a drop on the tree that this `DragAndDropController` belongs too.

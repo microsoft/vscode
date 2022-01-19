@@ -13,7 +13,7 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions, CATEGORIES
 import { IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ActivePanelContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/panel';
+import { ActivePanelContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/panel';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -112,7 +112,7 @@ function createPositionPanelActionConfig(id: string, alias: string, label: strin
 }
 
 function createAlignmentPanelActionConfig(id: string, alias: string, label: string, shortLabel: string, alignment: PanelAlignment): PanelActionConfig<PanelAlignment> {
-	return createPanelActionConfig<PanelAlignment>(id, alias, label, shortLabel, alignment, ContextKeyExpr.notEquals('config.workbench.experimental.panel.alignment', alignment));
+	return createPanelActionConfig<PanelAlignment>(id, alias, label, shortLabel, alignment, PanelAlignmentContext.notEqualsTo(alignment));
 }
 
 

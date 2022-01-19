@@ -17,12 +17,8 @@ class ScanTask {
 		this.delayTask = new Delayer<interfaces.IDocumentMergeConflict[]>(delayTime);
 	}
 
-	public addOrigin(name: string): boolean {
-		if (this.origins.has(name)) {
-			return false;
-		}
-
-		return false;
+	public addOrigin(name: string): void {
+		this.origins.add(name);
 	}
 
 	public hasOrigin(name: string): boolean {
