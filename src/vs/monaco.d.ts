@@ -6864,6 +6864,7 @@ declare namespace monaco.languages {
 
 	export interface InlayHintLabelPart {
 		label: string;
+		tooltip?: string | IMarkdownString;
 		command?: Command;
 		location?: Location;
 	}

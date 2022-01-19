@@ -39,12 +39,20 @@ declare module 'vscode' {
 
 	export class InlayHintLabelPart {
 
+		/**
+		 * The value of this label part.
+		 */
 		label: string;
 
-		// invokes provider
-		location?: Location;
+		/**
+		 * The tooltip text when you hover over this label part.
+		 */
+		tooltip?: string | MarkdownString | undefined;
 
-		command?: Command;
+		// invokes provider
+		location?: Location | undefined;
+
+		command?: Command | undefined;
 
 		// todo@api
 		// context menu, contextMenuCommands

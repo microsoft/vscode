@@ -1423,7 +1423,9 @@ export enum InlayHintKind {
 
 @es5ClassCompat
 export class InlayHintLabelPart {
+
 	label: string;
+	tooltip?: string | vscode.MarkdownString;
 	location?: Location;
 	command?: vscode.Command;
 
