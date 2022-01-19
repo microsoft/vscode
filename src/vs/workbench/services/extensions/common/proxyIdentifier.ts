@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { VSBuffer } from 'vs/base/common/buffer';
+import type { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IRPCProtocol {
 	/**
@@ -53,16 +54,22 @@ export function createProxyIdentifier<T>(identifier: string): ProxyIdentifier<T>
  */
 export type Dto<T> = T extends { toJSON(): infer U }
 	? U
-	: T extends Function
-	? never
-	: T extends VSBuffer
+	: T extends VSBuffer // VSBuffer is understood by rpc-logic
 	? T
-	: T extends object
+	: T extends CancellationToken // CancellationToken is understood by rpc-logic
+	? T
+	: T extends Function // functions are dropped during JSON-stringify
+	? never
+	: T extends object // recurse
 	? { [k in keyof T]: Dto<T[k]>; }
 	: T;
 
+/**
+ * Map `T` to be only functions that return promises of data transfer objects and that
+ * accept arguments of data transfer objects.
+ */
 export type Proxied<T> = { [K in keyof T]: T[K] extends (...args: infer A) => infer R
-	? (...args: A) => Promise<Dto<Awaited<R>>>
+	? (...args: { [K in keyof A]: Dto<A[K]> }) => Promise<Dto<Awaited<R>>>
 	: never
 };
 

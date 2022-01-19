@@ -536,7 +536,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 }
 
 export type TransferQuickPickItemOrSeparator = TransferQuickPickItem | quickInput.IQuickPickSeparator;
-export interface TransferQuickPickItem extends quickInput.IQuickPickItem {
+export interface TransferQuickPickItem extends Dto<quickInput.IQuickPickItem> {
 	handle: number;
 	buttons?: TransferQuickInputButton[];
 }
@@ -2176,7 +2176,7 @@ export interface ExtHostTestingShape {
 	/** Handles a diff of tests, as a result of a subscribeToDiffs() call */
 	$acceptDiff(diff: TestsDiff): void;
 	/** Publishes that a test run finished. */
-	$publishTestResults(results: ISerializedTestResults[]): void;
+	$publishTestResults(results: Dto<ISerializedTestResults[]>): void;
 	/** Expands a test item's children, by the given number of levels. */
 	$expandTest(testId: string, levels: number): Promise<void>;
 	/** Requests file coverage for a test run. Errors if not available. */
