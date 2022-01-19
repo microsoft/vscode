@@ -28,34 +28,24 @@ export interface SkinnyTextDocument {
 	getText(): string;
 }
 
-export class TableOfContentsProvider {
-	private toc?: TocEntry[];
+export class TableOfContents {
+	public static async create(engine: MarkdownEngine, document: SkinnyTextDocument): Promise<TableOfContents> {
+		const entries = await this.buildToc(engine, document);
+		return new TableOfContents(entries);
+	}
 
-	public constructor(
-		private engine: MarkdownEngine,
-		private document: SkinnyTextDocument
+	private constructor(
+		public readonly entries: readonly TocEntry[],
 	) { }
 
-	public async getToc(): Promise<TocEntry[]> {
-		if (!this.toc) {
-			try {
-				this.toc = await this.buildToc(this.document);
-			} catch (e) {
-				this.toc = [];
-			}
-		}
-		return this.toc;
-	}
-
-	public async lookup(fragment: string): Promise<TocEntry | undefined> {
-		const toc = await this.getToc();
+	public lookup(fragment: string): TocEntry | undefined {
 		const slug = githubSlugifier.fromHeading(fragment);
-		return toc.find(entry => entry.slug.equals(slug));
+		return this.entries.find(entry => entry.slug.equals(slug));
 	}
 
-	private async buildToc(document: SkinnyTextDocument): Promise<TocEntry[]> {
+	private static async buildToc(engine: MarkdownEngine, document: SkinnyTextDocument): Promise<TocEntry[]> {
 		const toc: TocEntry[] = [];
-		const tokens = await this.engine.parse(document);
+		const tokens = await engine.parse(document);
 
 		const existingSlugEntries = new Map<string, { count: number }>();
 
@@ -78,8 +68,8 @@ export class TableOfContentsProvider {
 
 			toc.push({
 				slug,
-				text: TableOfContentsProvider.getHeaderText(line.text),
-				level: TableOfContentsProvider.getHeaderLevel(heading.markup),
+				text: TableOfContents.getHeaderText(line.text),
+				level: TableOfContents.getHeaderLevel(heading.markup),
 				line: lineNumber,
 				location: new vscode.Location(document.uri,
 					new vscode.Range(lineNumber, 0, lineNumber, line.text.length))

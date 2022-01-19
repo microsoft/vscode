@@ -6,7 +6,7 @@
 import { dirname, resolve } from 'path';
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider, TocEntry } from '../tableOfContentsProvider';
+import { TableOfContents, TocEntry } from '../tableOfContentsProvider';
 import { isMarkdownFile } from '../util/file';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
 import LinkProvider from './documentLinkProvider';
@@ -257,8 +257,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 
 				for (const cell of notebook.getCells()) {
 					if (cell.kind === vscode.NotebookCellKind.Markup && isMarkdownFile(cell.document)) {
-						const tocProvider = new TableOfContentsProvider(this.engine, cell.document);
-						toc.push(...(await tocProvider.getToc()));
+						toc.push(...(await TableOfContents.create(this.engine, cell.document)).entries);
 					}
 				}
 
@@ -266,9 +265,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 			}
 		}
 
-		const tocProvider = new TableOfContentsProvider(this.engine, document);
-		const toc = await tocProvider.getToc();
-		return toc;
+		return (await TableOfContents.create(this.engine, document)).entries;
 	}
 
 	private async *providePathSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext): AsyncIterable<vscode.CompletionItem> {
