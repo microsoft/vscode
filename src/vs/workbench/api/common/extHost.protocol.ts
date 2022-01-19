@@ -13,7 +13,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId, revive } from 'vs/base/common/marshalling';
 import * as performance from 'vs/base/common/performance';
 import Severity from 'vs/base/common/severity';
-import { Dto } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { RenderLineNumbersType, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -25,7 +24,6 @@ import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import * as modes from 'vs/editor/common/languages';
 import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/languages/languageConfiguration';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -66,10 +64,11 @@ import { InternalTimelineOptions, Timeline, TimelineChangeEvent, TimelineOptions
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ActivationKind, ExtensionHostKind, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
-import { createProxyIdentifier, IRPCProtocol, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { createProxyIdentifier, Dto, IRPCProtocol, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ILanguageStatus } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import * as search from 'vs/workbench/services/search/common/search';
+import { IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -1221,9 +1220,19 @@ export interface MainThreadTimelineShape extends IDisposable {
 
 // -- extension host
 
+export interface ICommandHandlerDescriptionDto {
+	readonly description: string;
+	readonly args: ReadonlyArray<{
+		readonly name: string;
+		readonly isOptional?: boolean;
+		readonly description?: string;
+	}>;
+	readonly returns?: string;
+}
+
 export interface ExtHostCommandsShape {
 	$executeContributedCommand(id: string, ...args: any[]): Promise<unknown>;
-	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescription; }>;
+	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescriptionDto; }>;
 }
 
 export interface ExtHostConfigurationShape {
@@ -1418,21 +1427,6 @@ export interface ExtHostLanguagesShape {
 	$acceptLanguageIds(ids: string[]): void;
 }
 
-export interface ObjectIdentifier {
-	$ident?: number;
-}
-
-export namespace ObjectIdentifier {
-	export const name = '$ident';
-	export function mixin<T>(obj: T, id: number): T & ObjectIdentifier {
-		Object.defineProperty(obj, name, { value: id, enumerable: true });
-		return <T & ObjectIdentifier>obj;
-	}
-	export function of(obj: any): number {
-		return obj[name];
-	}
-}
-
 export interface ExtHostHeapServiceShape {
 	$onGarbageCollection(ids: number[]): void;
 }
@@ -1515,43 +1509,15 @@ export interface ISignatureHelpContextDto {
 	readonly activeSignatureHelp: ISignatureHelpDto | undefined;
 }
 
-export interface IInlayHintDto {
-	cacheId?: ChainedCacheId;
-	label: string | modes.InlayHintLabelPart[];
-	tooltip?: string | IMarkdownString;
-	position: IPosition;
-	kind: modes.InlayHintKind;
-	whitespaceBefore?: boolean;
-	whitespaceAfter?: boolean;
-}
+export type IInlayHintDto = CachedSessionItem<Dto<modes.InlayHint>>;
 
-export interface IInlayHintsDto {
-	cacheId?: CacheId;
-	hints: IInlayHintDto[];
-}
+export type IInlayHintsDto = CachedSession<{ hints: IInlayHintDto[]; }>;
 
-export interface ILocationDto {
-	uri: UriComponents;
-	range: IRange;
-}
+export type ILocationDto = Dto<modes.Location>;
+export type ILocationLinkDto = Dto<modes.LocationLink>;
 
-export interface IDefinitionLinkDto {
-	originSelectionRange?: IRange;
-	uri: UriComponents;
-	range: IRange;
-	targetSelectionRange?: IRange;
-}
-
-export interface IWorkspaceSymbolDto extends IdObject {
-	name: string;
-	containerName?: string;
-	kind: modes.SymbolKind;
-	location: ILocationDto;
-}
-
-export interface IWorkspaceSymbolsDto extends IdObject {
-	symbols: IWorkspaceSymbolDto[];
-}
+export type IWorkspaceSymbolDto = CachedSessionItem<Dto<IWorkspaceSymbol>>;
+export type IWorkspaceSymbolsDto = CachedSession<{ symbols: IWorkspaceSymbolDto[]; }>;
 
 export interface IWorkspaceEditEntryMetadataDto {
 	needsConfirmation: boolean;
@@ -1621,13 +1587,13 @@ export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined): mod
 	return <modes.WorkspaceEdit>data;
 }
 
-export type ICommandDto = ObjectIdentifier & modes.Command;
+export type ICommandDto = { $ident?: number; } & modes.Command;
 
 export interface ICodeActionDto {
 	cacheId?: ChainedCacheId;
 	title: string;
 	edit?: IWorkspaceEditDto;
-	diagnostics?: IMarkerData[];
+	diagnostics?: Dto<IMarkerData[]>;
 	command?: ICommandDto;
 	kind?: string;
 	isPreferred?: boolean;
@@ -1647,28 +1613,14 @@ export interface ICodeActionProviderMetadataDto {
 export type CacheId = number;
 export type ChainedCacheId = [CacheId, CacheId];
 
-export interface ILinksListDto {
-	id?: CacheId;
-	links: ILinkDto[];
-}
+type CachedSessionItem<T> = T & { cacheId?: ChainedCacheId };
+type CachedSession<T> = T & { cacheId?: CacheId };
 
-export interface ILinkDto {
-	cacheId?: ChainedCacheId;
-	range: IRange;
-	url?: string | UriComponents;
-	tooltip?: string;
-}
+export type ILinksListDto = CachedSession<{ links: ILinkDto[]; }>;
+export type ILinkDto = CachedSessionItem<Dto<modes.ILink>>;
 
-export interface ICodeLensListDto {
-	cacheId?: number;
-	lenses: ICodeLensDto[];
-}
-
-export interface ICodeLensDto {
-	cacheId?: ChainedCacheId;
-	range: IRange;
-	command?: ICommandDto;
-}
+export type ICodeLensListDto = CachedSession<{ lenses: ICodeLensDto[]; }>;
+export type ICodeLensDto = CachedSessionItem<Dto<modes.CodeLens>>;
 
 export type ICallHierarchyItemDto = Dto<CallHierarchyItem>;
 
@@ -1705,10 +1657,10 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<ICodeLensListDto | undefined>;
 	$resolveCodeLens(handle: number, symbol: ICodeLensDto, token: CancellationToken): Promise<ICodeLensDto | undefined>;
 	$releaseCodeLenses(handle: number, id: number): void;
-	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
-	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
-	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
-	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
+	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILocationLinkDto[]>;
+	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILocationLinkDto[]>;
+	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILocationLinkDto[]>;
+	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILocationLinkDto[]>;
 	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.Hover | undefined>;
 	$provideEvaluatableExpression(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined>;
 	$provideInlineValues(handle: number, resource: UriComponents, range: IRange, context: modes.InlineValueContext, token: CancellationToken): Promise<modes.InlineValue[] | undefined>;
@@ -1825,14 +1777,14 @@ export interface ExtHostSCMShape {
 }
 
 export interface ExtHostTaskShape {
-	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<tasks.TaskSetDTO>;
-	$resolveTask(handle: number, taskDTO: tasks.TaskDTO): Thenable<tasks.TaskDTO | undefined>;
+	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Promise<tasks.TaskSetDTO>;
+	$resolveTask(handle: number, taskDTO: tasks.TaskDTO): Promise<tasks.TaskDTO | undefined>;
 	$onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.TaskDefinitionDTO): void;
 	$onDidStartTaskProcess(value: tasks.TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: tasks.TaskProcessEndedDTO): void;
 	$OnDidEndTask(execution: tasks.TaskExecutionDTO): void;
 	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string; }, variables: string[]; }): Promise<{ process?: string; variables: { [key: string]: string; }; }>;
-	$jsonTasksSupported(): Thenable<boolean>;
+	$jsonTasksSupported(): Promise<boolean>;
 	$findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined>;
 }
 
@@ -1906,7 +1858,7 @@ export interface ExtHostDebugServiceShape {
 	$resolveDebugConfiguration(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
 	$resolveDebugConfigurationWithSubstitutedVariables(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
 	$provideDebugConfigurations(handle: number, folder: UriComponents | undefined, token: CancellationToken): Promise<IConfig[]>;
-	$provideDebugAdapter(handle: number, session: IDebugSessionDto): Promise<IAdapterDescriptor>;
+	$provideDebugAdapter(handle: number, session: IDebugSessionDto): Promise<Dto<IAdapterDescriptor>>;
 	$acceptDebugSessionStarted(session: IDebugSessionDto): void;
 	$acceptDebugSessionTerminated(session: IDebugSessionDto): void;
 	$acceptDebugSessionActiveChanged(session: IDebugSessionDto | undefined): void;
@@ -2146,7 +2098,7 @@ export interface ExtHostTunnelServiceShape {
 }
 
 export interface ExtHostTimelineShape {
-	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
+	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Dto<Timeline> | undefined>;
 }
 
 export const enum ExtHostTestingResource {
@@ -2164,7 +2116,7 @@ export interface ExtHostTestingShape {
 	/** Expands a test item's children, by the given number of levels. */
 	$expandTest(testId: string, levels: number): Promise<void>;
 	/** Requests file coverage for a test run. Errors if not available. */
-	$provideFileCoverage(runId: string, taskId: string, token: CancellationToken): Promise<IFileCoverage[]>;
+	$provideFileCoverage(runId: string, taskId: string, token: CancellationToken): Promise<Dto<IFileCoverage[]>>;
 	/**
 	 * Requests coverage details for the file index in coverage data for the run.
 	 * Requires file coverage to have been previously requested via $provideFileCoverage.

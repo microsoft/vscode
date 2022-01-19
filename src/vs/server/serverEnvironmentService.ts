@@ -14,8 +14,8 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 
 	/* ----- server setup ----- */
 
-	'host': { type: 'string', cat: 'o', args: 'ip-address', description: nls.localize('host', 'The IP address the server should listen to. To use in combination with port.') },
-	'port': { type: 'string', cat: 'o', args: 'port | port-port', description: nls.localize('port', 'The port the server should listen to. If 0 is passed a random free port is picked. If a range in the format num-num is passed, a free port from the range is selected.') },
+	'host': { type: 'string', cat: 'o', args: 'ip-address', description: nls.localize('host', 'The host name or IP address the server should listen to. If not set, defaults to `localhost`.') },
+	'port': { type: 'string', cat: 'o', args: 'port | port range', description: nls.localize('port', 'The port the server should listen to. If 0 is passed a random free port is picked. If a range in the format num-num is passed, a free port from the range is selected.') },
 	'pick-port': { type: 'string', deprecationMessage: 'Use the range notation in `port` instead.' },
 	'socket-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('socket-path', 'The path to a socket file for the server to listen to.') },
 	'connection-token': { type: 'string', cat: 'o', args: 'token', deprecates: ['connectionToken'], description: nls.localize('connection-token', "A secret that must be included with all requests.") },

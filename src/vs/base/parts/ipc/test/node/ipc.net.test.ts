@@ -16,9 +16,6 @@ import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket, WebSocketNode
 import { flakySuite } from 'vs/base/test/common/testUtils';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-// TODO@layers
-// eslint-disable-next-line code-import-patterns
-import product from 'vs/platform/product/common/product';
 
 class MessageStream extends Disposable {
 
@@ -547,7 +544,7 @@ flakySuite('IPC, create handle', () => {
 	});
 
 	test('createStaticIPCHandle', async () => {
-		return testIPCHandle(createStaticIPCHandle(tmpdir(), 'test', product.version));
+		return testIPCHandle(createStaticIPCHandle(tmpdir(), 'test', '1.64.0'));
 	});
 
 	function testIPCHandle(handle: string): Promise<void> {

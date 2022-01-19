@@ -5,6 +5,7 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { IRange } from 'vs/base/common/range';
@@ -133,26 +134,36 @@ export class InlayHintsController implements IEditorContribution {
 
 			cts?.dispose(true);
 			cts = new CancellationTokenSource();
+			const listener = model.onWillDispose(() => cts?.cancel());
 
-			const myToken = cts.token;
-			const inlayHints = await InlayHintsFragments.create(model, this._getHintsRanges(), myToken);
-			scheduler.delay = this._debounceInfo.update(model, Date.now() - t1);
-			if (myToken.isCancellationRequested) {
-				inlayHints.dispose();
-				return;
-			}
-
-			// listen to provider changes
-			for (const provider of inlayHints.provider) {
-				if (typeof provider.onDidChangeInlayHints === 'function' && !watchedProviders.has(provider)) {
-					this._sessionDisposables.add(provider.onDidChangeInlayHints(() => scheduler.schedule()));
-					watchedProviders.add(provider);
+			try {
+				const myToken = cts.token;
+				const inlayHints = await InlayHintsFragments.create(model, this._getHintsRanges(), myToken);
+				scheduler.delay = this._debounceInfo.update(model, Date.now() - t1);
+				if (myToken.isCancellationRequested) {
+					inlayHints.dispose();
+					return;
 				}
-			}
 
-			this._sessionDisposables.add(inlayHints);
-			this._updateHintsDecorators(inlayHints.ranges, inlayHints.items);
-			this._cacheHintsForFastRestore(model);
+				// listen to provider changes
+				for (const provider of inlayHints.provider) {
+					if (typeof provider.onDidChangeInlayHints === 'function' && !watchedProviders.has(provider)) {
+						this._sessionDisposables.add(provider.onDidChangeInlayHints(() => scheduler.schedule()));
+						watchedProviders.add(provider);
+					}
+				}
+
+				this._sessionDisposables.add(inlayHints);
+				this._updateHintsDecorators(inlayHints.ranges, inlayHints.items);
+				this._cacheHintsForFastRestore(model);
+
+			} catch (err) {
+				onUnexpectedError(err);
+
+			} finally {
+				cts.dispose();
+				listener.dispose();
+			}
 
 		}, this._debounceInfo.get(model));
 
@@ -184,8 +195,8 @@ export class InlayHintsController implements IEditorContribution {
 				return;
 			}
 
-			// render link => when the modifier is pressed and when there is an action
-			if (mouseEvent.hasTriggerModifier && labelPart.part.action) {
+			// render link => when the modifier is pressed and when there is a command or location
+			if (mouseEvent.hasTriggerModifier && (labelPart.part.command || labelPart.part.location)) {
 
 				// resolve the item
 				const cts = new CancellationTokenSource();
@@ -214,13 +225,13 @@ export class InlayHintsController implements IEditorContribution {
 			const label = this._getInlayHintLabelPart(e);
 			if (label) {
 				const part = label.part;
-				if (languages.Command.is(part.action)) {
+				if (languages.Command.is(part.command)) {
 					// command -> execute it
-					this._commandService.executeCommand(part.action.id, ...(part.action.arguments ?? [])).catch(err => this._notificationService.error(err));
+					this._commandService.executeCommand(part.command.id, ...(part.command.arguments ?? [])).catch(err => this._notificationService.error(err));
 
-				} else if (part.action) {
+				} else if (part.location) {
 					// location -> execute go to def
-					this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, part.action);
+					this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, part.location);
 				}
 			}
 		});
@@ -331,7 +342,7 @@ export class InlayHintsController implements IEditorContribution {
 		for (const item of items) {
 
 			// whitespace leading the actual label
-			if (item.hint.whitespaceBefore) {
+			if (item.hint.paddingLeft) {
 				addInjectedWhitespace(item, false);
 			}
 
@@ -354,7 +365,7 @@ export class InlayHintsController implements IEditorContribution {
 
 				this._fillInColors(cssProperties, item.hint);
 
-				if (part.action && this._activeInlayHintPart?.item === item && this._activeInlayHintPart.index === i) {
+				if ((part.command || part.location) && this._activeInlayHintPart?.item === item && this._activeInlayHintPart.index === i) {
 					// active link!
 					cssProperties.textDecoration = 'underline';
 					cssProperties.cursor = 'pointer';
@@ -381,13 +392,13 @@ export class InlayHintsController implements IEditorContribution {
 					item,
 					this._ruleFactory.createClassNameRef(cssProperties),
 					fixSpace(part.label),
-					isLast && !item.hint.whitespaceAfter ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None,
+					isLast && !item.hint.paddingRight ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None,
 					new RenderedInlayHintLabelPart(item, i)
 				);
 			}
 
 			// whitespace trailing the actual label
-			if (item.hint.whitespaceAfter) {
+			if (item.hint.paddingRight) {
 				addInjectedWhitespace(item, true);
 			}
 

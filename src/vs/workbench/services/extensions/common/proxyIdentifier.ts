@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { VSBuffer } from 'vs/base/common/buffer';
+import type { CancellationToken } from 'vs/base/common/cancellation';
+
 export interface IRPCProtocol {
 	/**
 	 * Returns a proxy to an object addressable/named in the extension host process or in the renderer process.
@@ -46,8 +49,23 @@ export function createProxyIdentifier<T>(identifier: string): ProxyIdentifier<T>
 	return result;
 }
 
+/**
+ * Mapped-type that replaces all JSONable-types with their toJSON-result type
+ */
+export type Dto<T> = T extends { toJSON(): infer U }
+	? U
+	: T extends VSBuffer // VSBuffer is understood by rpc-logic
+	? T
+	: T extends CancellationToken // CancellationToken is understood by rpc-logic
+	? T
+	: T extends Function // functions are dropped during JSON-stringify
+	? never
+	: T extends object // recurse
+	? { [k in keyof T]: Dto<T[k]>; }
+	: T;
+
 export type Proxied<T> = { [K in keyof T]: T[K] extends (...args: infer A) => infer R
-	? (...args: A) => Promise<Awaited<R>>
+	? (...args: A) => Promise<Dto<Awaited<R>>>
 	: never
 };
 

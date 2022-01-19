@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
-import { Command, HoverProviderRegistry } from 'vs/editor/common/languages';
+import { HoverProviderRegistry } from 'vs/editor/common/languages';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { HoverAnchor, HoverForeignElementAnchor, IEditorHoverParticipant } from 'vs/editor/contrib/hover/hoverTypes';
@@ -72,17 +72,28 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 			}
 
 			// (1) Inlay Tooltip
-			let contents: IMarkdownString | undefined;
+			let itemTooltip: IMarkdownString | undefined;
 			if (typeof part.item.hint.tooltip === 'string') {
-				contents = new MarkdownString().appendText(part.item.hint.tooltip);
+				itemTooltip = new MarkdownString().appendText(part.item.hint.tooltip);
 			} else if (part.item.hint.tooltip) {
-				contents = part.item.hint.tooltip;
+				itemTooltip = part.item.hint.tooltip;
 			}
-			if (contents) {
-				executor.emitOne(new MarkdownHover(this, anchor.range, [contents], 0));
+			if (itemTooltip) {
+				executor.emitOne(new MarkdownHover(this, anchor.range, [itemTooltip], 0));
 			}
 
 			// (2) Inlay Label Part Tooltip
+			let partTooltip: IMarkdownString | undefined;
+			if (typeof part.part.tooltip === 'string') {
+				partTooltip = new MarkdownString().appendText(part.part.tooltip);
+			} else if (part.part.tooltip) {
+				partTooltip = part.part.tooltip;
+			}
+			if (partTooltip) {
+				executor.emitOne(new MarkdownHover(this, anchor.range, [partTooltip], 1));
+			}
+
+			// (3) Inlay Label Part Location tooltip
 			const iterable = await this._resolveInlayHintLabelPartHover(part, token);
 			for await (let item of iterable) {
 				executor.emitOne(item);
@@ -91,17 +102,10 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 	}
 
 	private async _resolveInlayHintLabelPartHover(part: RenderedInlayHintLabelPart, token: CancellationToken): Promise<AsyncIterableObject<MarkdownHover>> {
-		if (typeof part.item.hint.label === 'string') {
+		if (!part.part.location) {
 			return AsyncIterableObject.EMPTY;
 		}
-
-		const candidate = part.part.action;
-
-		if (!candidate || Command.is(candidate)) {
-			// LOCATION
-			return AsyncIterableObject.EMPTY;
-		}
-		const { uri, range } = candidate;
+		const { uri, range } = part.part.location;
 		const ref = await this._resolverService.createModelReference(uri);
 		try {
 			const model = ref.object.textEditorModel;
@@ -110,7 +114,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 			}
 			return getHover(model, new Position(range.startLineNumber, range.startColumn), token)
 				.filter(item => !isEmptyMarkdownString(item.hover.contents))
-				.map(item => new MarkdownHover(this, part.item.anchor.range, item.hover.contents, item.ordinal));
+				.map(item => new MarkdownHover(this, part.item.anchor.range, item.hover.contents, 2 + item.ordinal));
 		} finally {
 			ref.dispose();
 		}

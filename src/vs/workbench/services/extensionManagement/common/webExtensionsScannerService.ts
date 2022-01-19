@@ -68,7 +68,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	declare readonly _serviceBrand: undefined;
 
 	private readonly builtinExtensionsPromise: Promise<IExtension[]> = Promise.resolve([]);
-	private readonly cutomBuiltinExtensions: (GalleryExtensionInfo | UriComponents)[];
 	private readonly customBuiltinExtensionsPromise: Promise<IExtension[]> = Promise.resolve([]);
 
 	private readonly customBuiltinExtensionsCacheResource: URI | undefined = undefined;
@@ -86,9 +85,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		@IExtensionStorageService private readonly extensionStorageService: IExtensionStorageService,
 	) {
 		super();
-		this.cutomBuiltinExtensions = this.environmentService.options && Array.isArray(this.environmentService.options.additionalBuiltinExtensions)
-			? this.environmentService.options.additionalBuiltinExtensions.map(additionalBuiltinExtension => isString(additionalBuiltinExtension) ? { id: additionalBuiltinExtension } : additionalBuiltinExtension)
-			: [];
 		if (isWeb) {
 			this.installedExtensionsResource = joinPath(environmentService.userRoamingDataHome, 'extensions.json');
 			this.customBuiltinExtensionsCacheResource = joinPath(environmentService.userRoamingDataHome, 'customBuiltinExtensionsCache.json');
@@ -111,7 +107,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	private async readCustomBuiltinExtensions(): Promise<IExtension[]> {
 		const extensions: { id: string, preRelease: boolean }[] = [], extensionLocations: URI[] = [], result: IExtension[] = [];
 		const extensionsToMigrate: [string, string][] = [];
-		for (const e of this.cutomBuiltinExtensions) {
+		const cutomBuiltinExtensions: (GalleryExtensionInfo | UriComponents)[] = this.environmentService.options && Array.isArray(this.environmentService.options.additionalBuiltinExtensions)
+			? this.environmentService.options.additionalBuiltinExtensions.map(additionalBuiltinExtension => isString(additionalBuiltinExtension) ? { id: additionalBuiltinExtension } : additionalBuiltinExtension)
+			: [];
+		for (const e of cutomBuiltinExtensions) {
 			if (isGalleryExtensionInfo(e)) {
 				extensions.push({ id: e.id, preRelease: !!e.preRelease });
 				if (e.migrateStorageFrom) {
@@ -330,7 +329,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async addWebExtension(webExtension: IWebExtension) {
-		const isBuiltin = this.cutomBuiltinExtensions.some(id => isString(id) && areSameExtensions(webExtension.identifier, { id }));
+		const isBuiltin = (await this.customBuiltinExtensionsPromise).some(builtinExtension => areSameExtensions(webExtension.identifier, builtinExtension.identifier));
 		const extension = await this.toScannedExtension(webExtension, isBuiltin);
 
 		// Update custom builtin extensions to custom builtin extensions cache

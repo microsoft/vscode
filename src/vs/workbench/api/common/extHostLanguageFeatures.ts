@@ -550,8 +550,7 @@ class OnTypeFormattingAdapter {
 
 class NavigateTypeAdapter {
 
-	private readonly _symbolCache = new Map<number, vscode.SymbolInformation>();
-	private readonly _resultCache = new Map<number, [number, number]>();
+	private readonly _cache = new Cache<vscode.SymbolInformation>('WorkspaceSymbols');
 
 	constructor(
 		private readonly _provider: vscode.WorkspaceSymbolProvider,
@@ -559,26 +558,30 @@ class NavigateTypeAdapter {
 	) { }
 
 	async provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<extHostProtocol.IWorkspaceSymbolsDto> {
-		const result: extHostProtocol.IWorkspaceSymbolsDto = extHostProtocol.IdObject.mixin({ symbols: [] });
 		const value = await this._provider.provideWorkspaceSymbols(search, token);
-		if (isNonEmptyArray(value)) {
-			for (const item of value) {
-				if (!item) {
-					// drop
-					continue;
-				}
-				if (!item.name) {
-					this._logService.warn('INVALID SymbolInformation, lacks name', item);
-					continue;
-				}
-				const symbol = extHostProtocol.IdObject.mixin(typeConvert.WorkspaceSymbol.from(item));
-				this._symbolCache.set(symbol._id!, item);
-				result.symbols.push(symbol);
+
+		if (!isNonEmptyArray(value)) {
+			return { symbols: [] };
+		}
+
+		const sid = this._cache.add(value);
+		const result: extHostProtocol.IWorkspaceSymbolsDto = {
+			cacheId: sid,
+			symbols: []
+		};
+
+		for (let i = 0; i < value.length; i++) {
+			const item = value[i];
+			if (!item || !item.name) {
+				this._logService.warn('INVALID SymbolInformation', item);
+				continue;
 			}
+			result.symbols.push({
+				...typeConvert.WorkspaceSymbol.from(item),
+				cacheId: [sid, i]
+			});
 		}
-		if (result.symbols.length > 0) {
-			this._resultCache.set(result._id!, [result.symbols[0]._id!, result.symbols[result.symbols.length - 1]._id!]);
-		}
+
 		return result;
 	}
 
@@ -586,8 +589,10 @@ class NavigateTypeAdapter {
 		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
 			return symbol;
 		}
-
-		const item = this._symbolCache.get(symbol._id!);
+		if (!symbol.cacheId) {
+			return symbol;
+		}
+		const item = this._cache.get(...symbol.cacheId);
 		if (item) {
 			const value = await this._provider.resolveWorkspaceSymbol(item, token);
 			return value && mixin(symbol, typeConvert.WorkspaceSymbol.from(value), true);
@@ -596,13 +601,7 @@ class NavigateTypeAdapter {
 	}
 
 	releaseWorkspaceSymbols(id: number): any {
-		const range = this._resultCache.get(id);
-		if (range) {
-			for (let [from, to] = range; from <= to; from++) {
-				this._symbolCache.delete(from);
-			}
-			this._resultCache.delete(id);
-		}
+		this._cache.delete(id);
 	}
 }
 
@@ -1260,22 +1259,22 @@ class InlayHintsAdapter {
 			tooltip: hint.tooltip && typeConvert.MarkdownString.from(hint.tooltip),
 			position: typeConvert.Position.from(hint.position),
 			kind: typeConvert.InlayHintKind.from(hint.kind ?? InlayHintKind.Other),
-			whitespaceBefore: hint.whitespaceBefore,
-			whitespaceAfter: hint.whitespaceAfter,
+			paddingLeft: hint.paddingLeft,
+			paddingRight: hint.paddingRight,
 		};
 
 		if (typeof hint.label === 'string') {
 			result.label = hint.label;
 		} else {
 			result.label = hint.label.map(part => {
-				let r: modes.InlayHintLabelPart = { label: part.label };
-				r.collapsible = part.collapsible;
-				if (Location.isLocation(part.action)) {
-					r.action = typeConvert.location.from(part.action);
-				} else if (part.action) {
-					r.action = this._commands.toInternal(part.action, disposables);
+				let result: modes.InlayHintLabelPart = { label: part.label };
+				result.tooltip = part.tooltip && typeConvert.MarkdownString.from(part.tooltip);
+				if (Location.isLocation(part.location)) {
+					result.location = typeConvert.location.from(part.location);
+				} else if (part.command) {
+					result.command = this._commands.toInternal(part.command, disposables);
 				}
-				return r;
+				return result;
 			});
 		}
 		return result;
@@ -1311,7 +1310,7 @@ class LinkProviderAdapter {
 		} else {
 			// cache links for future resolving
 			const pid = this._cache.add(links);
-			const result: extHostProtocol.ILinksListDto = { links: [], id: pid };
+			const result: extHostProtocol.ILinksListDto = { links: [], cacheId: pid };
 			for (let i = 0; i < links.length; i++) {
 
 				if (!LinkProviderAdapter._validateLink(links[i])) {

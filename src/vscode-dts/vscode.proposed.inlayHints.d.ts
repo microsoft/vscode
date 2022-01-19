@@ -38,13 +38,25 @@ declare module 'vscode' {
 	}
 
 	export class InlayHintLabelPart {
+
+		/**
+		 * The value of this label part.
+		 */
 		label: string;
 
-		// todo@API implement this!
-		collapsible?: boolean;
+		/**
+		 * The tooltip text when you hover over this label part.
+		 */
+		tooltip?: string | MarkdownString | undefined;
 
-		// todo@api better name!
-		action?: Command | Location; // invokes provider
+		// invokes provider
+		location?: Location | undefined;
+
+		command?: Command | undefined;
+
+		// todo@api
+		// context menu, contextMenuCommands
+		// secondaryCommands?: Command[];
 
 		constructor(label: string);
 	}
@@ -64,22 +76,23 @@ declare module 'vscode' {
 		/**
 		 * The tooltip text when you hover over this item.
 		 */
-		// todo@API better name, more model'ish description, detail
 		tooltip?: string | MarkdownString | undefined;
 		/**
 		 * The kind of this hint.
 		 */
 		kind?: InlayHintKind;
+
 		/**
-		 * Whitespace before the hint.
+		 * Render padding before the hint.
 		 */
-		// todo@API better name
-		whitespaceBefore?: boolean;
+		paddingLeft?: boolean;
 		/**
-		 * Whitespace after the hint.
+		 * Render padding after the hint.
 		 */
-		// todo@API better name
-		whitespaceAfter?: boolean;
+		paddingRight?: boolean;
+
+		// emphemeral overlay mode
+		// overlayRange?: Range;
 
 		// todo@API make range first argument
 		constructor(label: string | InlayHintLabelPart[], position: Position, kind?: InlayHintKind);

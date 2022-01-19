@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { CancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -80,6 +80,10 @@ export class InlayHintsFragments {
 		}));
 
 		await Promise.all(promises.flat());
+
+		if (token.isCancellationRequested || model.isDisposed()) {
+			throw new CancellationError();
+		}
 
 		return new InlayHintsFragments(ranges, data, model);
 	}
