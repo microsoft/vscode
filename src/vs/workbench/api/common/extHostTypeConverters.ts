@@ -834,7 +834,7 @@ export namespace DefinitionLink {
 				: undefined,
 		};
 	}
-	export function to(value: extHostProtocol.IDefinitionLinkDto): vscode.LocationLink {
+	export function to(value: extHostProtocol.ILocationLinkDto): vscode.LocationLink {
 		return {
 			targetUri: URI.revive(value.uri),
 			targetRange: Range.to(value.range),

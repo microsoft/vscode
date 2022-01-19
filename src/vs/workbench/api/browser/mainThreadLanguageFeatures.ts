@@ -11,7 +11,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto, IdentifiableInlineCompletions, IdentifiableInlineCompletion, ITypeHierarchyItemDto, IInlayHintDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, ILocationLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto, IdentifiableInlineCompletions, IdentifiableInlineCompletion, ITypeHierarchyItemDto, IInlayHintDto } from '../common/extHost.protocol';
 import { ILanguageConfigurationService, LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
 import { ILanguageService } from 'vs/editor/common/services/language';
@@ -101,9 +101,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 	}
 
-	private static _reviveLocationLinkDto(data: IDefinitionLinkDto): modes.LocationLink;
-	private static _reviveLocationLinkDto(data: IDefinitionLinkDto[]): modes.LocationLink[];
-	private static _reviveLocationLinkDto(data: IDefinitionLinkDto | IDefinitionLinkDto[]): modes.LocationLink | modes.LocationLink[] {
+	private static _reviveLocationLinkDto(data: ILocationLinkDto): modes.LocationLink;
+	private static _reviveLocationLinkDto(data: ILocationLinkDto[]): modes.LocationLink[];
+	private static _reviveLocationLinkDto(data: ILocationLinkDto | ILocationLinkDto[]): modes.LocationLink | modes.LocationLink[] {
 		if (!data) {
 			return <modes.LocationLink>data;
 		} else if (Array.isArray(data)) {
@@ -400,7 +400,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				if (lastResultId !== undefined) {
 					this._proxy.$releaseWorkspaceSymbols(handle, lastResultId);
 				}
-				lastResultId = result._id;
+				lastResultId = result.cacheId;
 				return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(result.symbols);
 			}
 		};
@@ -616,8 +616,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					return {
 						links: dto.links.map(MainThreadLanguageFeatures._reviveLinkDTO),
 						dispose: () => {
-							if (typeof dto.id === 'number') {
-								this._proxy.$releaseDocumentLinks(handle, dto.id);
+							if (typeof dto.cacheId === 'number') {
+								this._proxy.$releaseDocumentLinks(handle, dto.cacheId);
 							}
 						}
 					};
