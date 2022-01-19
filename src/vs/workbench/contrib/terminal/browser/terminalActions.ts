@@ -1934,7 +1934,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.OpenWebLink,
-				title: { value: localize('workbench.action.terminal.openWebLink', "Open Web Link"), original: 'Open Web Link' },
+				title: { value: localize('workbench.action.terminal.openWebLink', "Open Most Recent Web Link"), original: 'Open Most Recent Web Link' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -1949,7 +1949,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.OpenFileLink,
-				title: { value: localize('workbench.action.terminal.openFileLink', "Open File Link"), original: 'Open File Link' },
+				title: { value: localize('workbench.action.terminal.openFileLink', "Open Most Recent File Link"), original: 'Open Most Recent File Link' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
