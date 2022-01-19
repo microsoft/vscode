@@ -34,9 +34,10 @@ suite('Workbench - TerminalCommandTracker', function () {
 
 	setup(async function () {
 		// These tests are flaky on GH actions as sometimes they are particularly slow and timeout
-		// on the await writeP calls. These have been reduced but the timeout is increased to try
-		// catch edge cases.
+		// on the await writeP calls. These have been reduced but the timeout is increased and
+		// retries are used to try catch edge cases (timeout alone doesn't catch everything).
 		this.timeout(20000);
+		this.retries(3);
 
 		xterm = (<TestTerminal>new Terminal({
 			cols: COLS,
