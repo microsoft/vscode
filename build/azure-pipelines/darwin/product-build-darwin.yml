@@ -186,8 +186,8 @@ steps:
 
   - script: |
       set -e
-      DEBUG=*browser* yarn test-browser --sequential --build --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
-    displayName: Run unit tests (Browser, Chromium & Firefox & Webkit)
+      DEBUG=*browser* yarn test-browser --sequential --build --browser chromium --browser webkit --tfs "Browser Unit Tests"
+    displayName: Run unit tests (Browser, Chromium & Webkit)
     timeoutInMinutes: 30
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
