@@ -1539,10 +1539,10 @@
   resolved "https://registry.yarnpkg.com/@vscode/sudo-prompt/-/sudo-prompt-9.3.1.tgz#c562334bc6647733649fd42afc96c0eea8de3b65"
   integrity sha512-9ORTwwS74VaTn38tNbQhsA5U44zkJfcb0BdTSyyG6frP4e8KMtHuTXYmwefe5dpL8XB1aGSIVTaLjD3BbWb5iA==
 
-"@vscode/test-web@^0.0.17":
-  version "0.0.17"
-  resolved "https://registry.yarnpkg.com/@vscode/test-web/-/test-web-0.0.17.tgz#fb14a3e2416cadbb115d85cdb27f5ac2d2b4a2e4"
-  integrity sha512-9pb8kcTK1//vw/KfKcdw2ipGY1z4hkRDvDqv4UR2PaKT8t0xwrndTXKBtF37+di3sduVUHWEpWsZkwEFWWvw0g==
+"@vscode/test-web@^0.0.18":
+  version "0.0.18"
+  resolved "https://registry.yarnpkg.com/@vscode/test-web/-/test-web-0.0.18.tgz#c9d33fe446794b444f18c3c24360371c45546d50"
+  integrity sha512-DHaE+m/c7tDKTidq2j2MdFPZYtMuhDZgjT2uHS6V7FpiZjVRJzwkvHHgAu1gQxxB0MHi59vorS/piQ9iWx1JTQ==
   dependencies:
     "@koa/router" "^10.1.1"
     decompress "^4.2.1"

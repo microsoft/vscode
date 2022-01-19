@@ -15,6 +15,7 @@ const fancyLog = require('fancy-log');
 const ansiColors = require('ansi-colors');
 const remote = require('gulp-remote-retry-src');
 const vfs = require('vinyl-fs');
+const opn = require('opn');
 
 const APP_ROOT = path.join(__dirname, '..', '..', '..');
 const WEB_DEV_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'builtInWebDevExtensions');
@@ -40,7 +41,7 @@ if (args.help) {
 		'./script/code-web.sh|bat [options]\n' +
 		' --host           Remote host\n' +
 		' --port           Remote/Local port\n' +
-		' --browserType    The browser type to launch:  `chromium` (default), `firefox` or `webkit`' +
+		' --browserType    The browser type to launch:  `chromium` (default), `firefox`, `webkit` or `none`' +
 		' --extension      Path of an extension to include\n' +
 		' --open-devtools  Open the dev tools' +
 		' --verbose        Print out more information\n' +
@@ -53,6 +54,7 @@ if (args.help) {
 
 openTestWeb();
 
+
 async function openTestWeb() {
 	await ensureWebDevExtensions();
 	const extensionPaths = [WEB_DEV_EXTENSIONS_ROOT];
@@ -62,11 +64,13 @@ async function openTestWeb() {
 	} else if (extensions) {
 		extensionPaths.push(extensions);
 	}
+	const host = args.host || 'localhost';
+	const port = args.port || 8080;
 
 	await testWeb.open({
-		browserType: args['browserType'] ?? 'chromium',
-		host: args.host || 'localhost',
-		port: args.port || 8080,
+		browserType: args['browserType'] ?? 'none',
+		host,
+		port,
 		folderUri: 'memfs:///sample-folder',
 		vsCodeDevPath: APP_ROOT,
 		extensionPaths,
@@ -74,6 +78,11 @@ async function openTestWeb() {
 		hideServerLog: !args['verbose'],
 		verbose: !!args['verbose']
 	});
+
+
+	if (!args['browserType']) {
+		opn(`http://${host}:${port}/`);
+	}
 }
 
 async function directoryExists(path) {
