@@ -22,7 +22,7 @@ const WEB_DEV_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'builtInWebDevExte
 
 const WEB_PLAYGROUND_VERSION = '0.0.13';
 
-const args = minimist(process.argv, {
+const args = minimist(process.argv.slice(2), {
 	boolean: [
 		'help',
 		'verbose',
@@ -38,16 +38,16 @@ const args = minimist(process.argv, {
 
 if (args.help) {
 	console.log(
-		'./script/code-web.sh|bat [options]\n' +
-		' --host           Remote host\n' +
-		' --port           Remote/Local port\n' +
+		'./scripts/code-web.sh|bat [options]\n' +
+		' --host           Server host address\n' +
+		' --port           Server port\n' +
 		' --browserType    The browser type to launch:  `chromium` (default), `firefox`, `webkit` or `none`' +
 		' --extension      Path of an extension to include\n' +
 		' --open-devtools  Open the dev tools' +
 		' --verbose        Print out more information\n' +
 		' --help\n' +
 		'[Example]\n' +
-		' ./script/code-web.sh|bat --port 8080'
+		' ./scripts/code-web.sh|bat --port 8080'
 	);
 	process.exit(0);
 }

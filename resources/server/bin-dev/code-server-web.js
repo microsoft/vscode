@@ -9,69 +9,54 @@ const cp = require('child_process');
 const path = require('path');
 const os = require('os');
 const opn = require('opn');
+const crypto = require('crypto');
+const minimist = require('minimist');
 
-const serverArgs = [];
+const args = minimist(process.argv.slice(2), {
+	boolean: [
+		'help',
+	],
+	string: [
+		'host',
+		'port',
+		'driver',
+		'connection-token'
+	],
+});
 
-// Server Config
-let PORT = 9888;
-let DRIVER = undefined;
-let LOGS_PATH = undefined;
-let LAUNCH = false;
-
-// Workspace Config
-let FOLDER = undefined;
-let WORKSPACE = undefined;
-
-// Settings Sync Config
-let GITHUB_AUTH_TOKEN = undefined;
-let ENABLE_SYNC = false;
-
-let TOKEN = '00000';
-
-for (let i = 0; i <= process.argv.length; i++) {
-	const arg = process.argv[i];
-	switch (arg) {
-		case '--port': PORT = Number(process.argv[i + 1]); break;
-		case '--folder': FOLDER = process.argv[i + 1]; break;
-		case '--workspace': WORKSPACE = process.argv[i + 1]; break;
-		case '--driver': DRIVER = process.argv[i + 1]; break;
-		case '--github-auth': GITHUB_AUTH_TOKEN = process.argv[i + 1]; break;
-		case '--logsPath': LOGS_PATH = process.argv[i + 1]; break;
-		case '--enable-sync': ENABLE_SYNC = true; break;
-		case '--connection-token': TOKEN = process.argv[i + 1]; break;
-		case '--launch': LAUNCH = true; break;
-	}
+if (args.help) {
+	console.log(
+		'./scripts/code-server.sh|bat [options]\n' +
+		' --host                Server host address\n' +
+		' --port                Server port\n' +
+		' --connection-token    The connection-token to use\n' +
+		' --launch              Open a browser\n' +
+		'[Example]\n' +
+		' ./scripts/code-server.sh|bat --launch'
+	);
+	process.exit(0);
 }
 
-serverArgs.push('--port', String(PORT));
-if (FOLDER) {
-	serverArgs.push('--folder', FOLDER);
-}
-if (WORKSPACE) {
-	serverArgs.push('--workspace', WORKSPACE);
-}
-if (DRIVER) {
-	serverArgs.push('--driver', DRIVER);
+const serverArgs = process.argv.slice(2).filter(v => v !== '--launch');
 
+const HOST = args['host'] ?? 'localhost';
+const PORT = args['port'] ?? '9888';
+const TOKEN = args['connection-token'] ?? String(crypto.randomInt(0xffffffff));
+
+if (args['connection-token'] === undefined) {
+	serverArgs.push('--connection-token', TOKEN);
+}
+if (args['host'] === undefined) {
+	serverArgs.push('--host', HOST);
+}
+if (args['port'] === undefined) {
+	serverArgs.push('--port', PORT);
+}
+
+if (args['driver']) {
 	// given a DRIVER, we auto-shutdown when tests are done
 	serverArgs.push('--enable-remote-auto-shutdown', '--remote-auto-shutdown-without-delay');
 }
-if (LOGS_PATH) {
-	serverArgs.push('--logsPath', LOGS_PATH);
-}
-if (GITHUB_AUTH_TOKEN) {
-	serverArgs.push('--github-auth', GITHUB_AUTH_TOKEN);
-}
-if (ENABLE_SYNC) {
-	serverArgs.push('--enable-sync', true);
-}
-
-// Connection Token
-serverArgs.push('--connection-token', TOKEN);
-
-// Server should really only listen from localhost
-const HOST = 'localhost';
-serverArgs.push('--host', HOST);
 
 const env = { ...process.env };
 env['VSCODE_AGENT_FOLDER'] = env['VSCODE_AGENT_FOLDER'] || path.join(os.homedir(), '.vscode-server-oss-dev');
@@ -82,7 +67,7 @@ const entryPoint = path.join(__dirname, '..', '..', '..', 'out', 'vs', 'server',
 startServer();
 
 function startServer() {
-	console.log('start ' + entryPoint + ' ' + serverArgs.join(' '));
+	console.log('start server:' + entryPoint + ' ' + serverArgs.join(' '));
 	const proc = cp.spawn(process.execPath, [entryPoint, ...serverArgs], { env });
 
 	proc.stdout.on('data', data => {
@@ -109,6 +94,6 @@ function startServer() {
 
 }
 
-if (LAUNCH) {
+if (args['launch']) {
 	opn(`http://${HOST}:${PORT}/?tkn=${TOKEN}`);
 }
