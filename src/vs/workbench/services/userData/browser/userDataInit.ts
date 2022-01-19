@@ -36,6 +36,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { TasksInitializer } from 'vs/platform/userDataSync/common/tasksSync';
 
 export const IUserDataInitializationService = createDecorator<IUserDataInitializationService>('IUserDataInitializationService');
 export interface IUserDataInitializationService {
@@ -185,7 +186,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 	async initializeOtherResources(instantiationService: IInstantiationService): Promise<void> {
 		try {
 			this.logService.trace(`UserDataInitializationService#initializeOtherResources`);
-			await Promise.allSettled([this.initialize([SyncResource.Keybindings, SyncResource.Snippets]), this.initializeExtensions(instantiationService)]);
+			await Promise.allSettled([this.initialize([SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Tasks]), this.initializeExtensions(instantiationService)]);
 		} finally {
 			this.initializationFinished.open();
 		}
@@ -271,6 +272,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 		switch (syncResource) {
 			case SyncResource.Settings: return new SettingsInitializer(this.fileService, this.environmentService, this.logService, this.uriIdentityService);
 			case SyncResource.Keybindings: return new KeybindingsInitializer(this.fileService, this.environmentService, this.logService, this.uriIdentityService);
+			case SyncResource.Tasks: return new TasksInitializer(this.fileService, this.environmentService, this.logService, this.uriIdentityService);
 			case SyncResource.Snippets: return new SnippetsInitializer(this.fileService, this.environmentService, this.logService, this.uriIdentityService);
 			case SyncResource.GlobalState: return new GlobalStateInitializer(this.storageService, this.fileService, this.environmentService, this.logService, this.uriIdentityService);
 		}
