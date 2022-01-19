@@ -27,14 +27,8 @@ const args = minimist(process.argv.slice(2), {
 if (args.help) {
 	console.log(
 		'./scripts/code-server.sh|bat [options]\n' +
-		' --host                Server host address\n' +
-		' --port                Server port\n' +
-		' --connection-token    The connection-token to use\n' +
-		' --launch              Open a browser\n' +
-		'[Example]\n' +
-		' ./scripts/code-server.sh|bat --launch'
+		' --launch              Opens a browser'
 	);
-	process.exit(0);
 }
 
 const serverArgs = process.argv.slice(2).filter(v => v !== '--launch');
@@ -43,7 +37,7 @@ const HOST = args['host'] ?? 'localhost';
 const PORT = args['port'] ?? '9888';
 const TOKEN = args['connection-token'] ?? String(crypto.randomInt(0xffffffff));
 
-if (args['connection-token'] === undefined) {
+if (!args['connection-token'] === undefined && !args['connection-token-file'] === undefined && !args['no-connection-token']) {
 	serverArgs.push('--connection-token', TOKEN);
 }
 if (args['host'] === undefined) {
@@ -67,7 +61,7 @@ const entryPoint = path.join(__dirname, '..', '..', '..', 'out', 'vs', 'server',
 startServer();
 
 function startServer() {
-	console.log('start server:' + entryPoint + ' ' + serverArgs.join(' '));
+	console.log(`Starting server: ${entryPoint} ${serverArgs.join(' ')}`);
 	const proc = cp.spawn(process.execPath, [entryPoint, ...serverArgs], { env });
 
 	proc.stdout.on('data', data => {

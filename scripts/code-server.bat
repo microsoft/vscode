@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-title VSCode Server (Web)
+title VSCode Server
 
 pushd %~dp0\..
 
@@ -17,7 +17,7 @@ call yarn gulp node
 
 :: Launch Server
 FOR /F "tokens=*" %%g IN ('node build/lib/node.js') do (SET NODE=%%g)
-call "%NODE%" resources\server\bin-dev\code-server-web.js %*
+call "%NODE%" resources\server\bin-dev\code-server.js %*
 
 popd
 
