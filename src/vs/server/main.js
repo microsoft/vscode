@@ -39,7 +39,7 @@ async function start() {
 	if (parsedArgs['compatibility'] === '1.63') {
 		console.warn(`server.sh is being replaced by 'bin/${product.serverApplicationName}'. Please migrate to the new command and adopt the following new default behaviors:`);
 		console.warn('* connection token is mandatody unless --without-connection-token is used');
-		console.warn('* host defaults to 127.0.0.1');
+		console.warn('* host defaults to `localhost`');
 	}
 
 	/**
@@ -101,7 +101,7 @@ async function start() {
 		const remoteExtensionHostAgentServer = await getRemoteExtensionHostAgentServer();
 		return remoteExtensionHostAgentServer.handleServerError(err);
 	});
-	const host = parsedArgs['host'] || (parsedArgs['compatibility'] !== '1.63' ? '127.0.0.1' : undefined);
+	const host = parsedArgs['host'] || (parsedArgs['compatibility'] !== '1.63' ? 'localhost' : undefined);
 	const nodeListenOptions = (
 		parsedArgs['socket-path']
 			? { path: parsedArgs['socket-path'] }
