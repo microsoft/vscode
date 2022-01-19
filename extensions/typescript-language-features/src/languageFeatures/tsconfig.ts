@@ -91,17 +91,17 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 	}
 
 	private getFileTarget(document: vscode.TextDocument, node: jsonc.Node): vscode.Uri {
-		return vscode.Uri.file(join(dirname(document.uri.fsPath), node!.value));
+		return vscode.Uri.file(join(dirname(document.uri.fsPath), node.value));
 	}
 
 	private getFolderTarget(document: vscode.TextDocument, node: jsonc.Node): vscode.Uri {
-		return vscode.Uri.file(join(dirname(document.uri.fsPath), node!.value, 'tsconfig.json'));
+		return vscode.Uri.file(join(dirname(document.uri.fsPath), node.value, 'tsconfig.json'));
 	}
 
 	private getRange(document: vscode.TextDocument, node: jsonc.Node) {
-		const offset = node!.offset;
+		const offset = node.offset;
 		const start = document.positionAt(offset + 1);
-		const end = document.positionAt(offset + (node!.length - 1));
+		const end = document.positionAt(offset + (node.length - 1));
 		return new vscode.Range(start, end);
 	}
 }
