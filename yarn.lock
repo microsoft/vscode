@@ -1528,6 +1528,15 @@
   resolved "https://registry.yarnpkg.com/@vscode/sudo-prompt/-/sudo-prompt-9.3.1.tgz#c562334bc6647733649fd42afc96c0eea8de3b65"
   integrity sha512-9ORTwwS74VaTn38tNbQhsA5U44zkJfcb0BdTSyyG6frP4e8KMtHuTXYmwefe5dpL8XB1aGSIVTaLjD3BbWb5iA==
 
+"@vscode/telemetry-extractor@^1.9.5":
+  version "1.9.5"
+  resolved "https://registry.yarnpkg.com/@vscode/telemetry-extractor/-/telemetry-extractor-1.9.5.tgz#8c77165a0b2dcc5caafa7b94d93cf6581e740838"
+  integrity sha512-1A8eBeJu2tzPBuTqrBeUD9hwsmeCZQSpQURomTXz0LiKwED5GUS/UpRh9WNaDO4A4yix9RC0/wwJok5k8NqvCg==
+  dependencies:
+    command-line-args "^5.2.0"
+    ts-morph "^12.2.0"
+    vscode-ripgrep "^1.12.1"
+
 "@vscode/vscode-languagedetection@1.0.21":
   version "1.0.21"
   resolved "https://registry.yarnpkg.com/@vscode/vscode-languagedetection/-/vscode-languagedetection-1.0.21.tgz#89b48f293f6aa3341bb888c1118d16ff13b032d3"
@@ -11335,15 +11344,6 @@ vscode-ripgrep@^1.12.1:
   dependencies:
     https-proxy-agent "^4.0.0"
     proxy-from-env "^1.1.0"
-
-vscode-telemetry-extractor@^1.9.5:
-  version "1.9.5"
-  resolved "https://registry.yarnpkg.com/vscode-telemetry-extractor/-/vscode-telemetry-extractor-1.9.5.tgz#9f397438285474e6bb162033310a0b83c6d0d797"
-  integrity sha512-saUkRZrXVi9sKNqT6xqjky3oqybrj6ipdRCA257Ao1MgU260A2K4mD5kEZhupBdSD4+t+QwCv8WCFIcZDRD0Aw==
-  dependencies:
-    command-line-args "^5.2.0"
-    ts-morph "^12.2.0"
-    vscode-ripgrep "^1.12.1"
 
 vscode-textmate@6.0.0:
   version "6.0.0"
