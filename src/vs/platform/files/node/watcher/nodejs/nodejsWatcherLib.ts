@@ -115,7 +115,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		// (https://github.com/microsoft/vscode/issues/106879)
 		// TODO@electron this needs a revisit when the crash is
 		// fixed or mitigated upstream.
-		if (isMacintosh && isEqualOrParent(path, '/Volumes/')) {
+		if (isMacintosh && isEqualOrParent(path, '/Volumes/', true)) {
 			this.error(`Refusing to watch ${path} for changes using fs.watch() for possibly being a network share where watching is unreliable and unstable.`);
 
 			return Disposable.None;

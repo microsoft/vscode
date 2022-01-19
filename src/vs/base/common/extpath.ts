@@ -201,6 +201,11 @@ export function isValidBasename(name: string | null | undefined, isWindowsOS: bo
 	return true;
 }
 
+/**
+ * @deprecated please use `IUriIdentityService.extUri.isEqual` instead. If you are
+ * in a context without services, consider to pass down the `extUri` from the outside
+ * or use `extUriBiasedIgnorePathCase` if you know what you are doing.
+ */
 export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boolean {
 	const identityEquals = (pathA === pathB);
 	if (!ignoreCase || identityEquals) {
@@ -214,6 +219,11 @@ export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boo
 	return equalsIgnoreCase(pathA, pathB);
 }
 
+/**
+ * @deprecated please use `IUriIdentityService.extUri.isEqualOrParent` instead. If
+ * you are in a context without services, consider to pass down the `extUri` from the
+ * outside, or use `extUriBiasedIgnorePathCase` if you know what you are doing.
+ */
 export function isEqualOrParent(base: string, parentCandidate: string, ignoreCase?: boolean, separator = sep): boolean {
 	if (base === parentCandidate) {
 		return true;
