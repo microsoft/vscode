@@ -11,13 +11,14 @@ import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { ExtensionRunTestsRequest, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, SerializedTestMessage, TestDiffOpType, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, SerializedTestMessage, TestDiffOpType, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestController, ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ExtHostContext, ExtHostTestingShape, IExtHostContext, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
+import { revive } from 'vs/base/common/marshalling';
 
 const reviveDiff = (diff: TestsDiff) => {
 	for (const entry of diff) {
@@ -120,7 +121,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			}
 
 			(task.coverage as MutableObservableValue<TestCoverage>).value = new TestCoverage({
-				provideFileCoverage: token => this.proxy.$provideFileCoverage(runId, taskId, token),
+				provideFileCoverage: async token => revive<IFileCoverage[]>(await this.proxy.$provideFileCoverage(runId, taskId, token)),
 				resolveFileCoverage: (i, token) => this.proxy.$resolveFileCoverage(runId, taskId, i, token),
 			});
 		});

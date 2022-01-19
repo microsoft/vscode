@@ -262,17 +262,6 @@ export type UriDto<T> = { [K in keyof T]: T[K] extends URI
 	? UriComponents
 	: UriDto<T[K]> };
 
-/**
- * Mapped-type that replaces all occurrences of URI with UriComponents and
- * drops all functions.
- */
-export type Dto<T> = T extends { toJSON(): infer U }
-	? U
-	: T extends object
-	? { [k in keyof T]: Dto<T[k]>; }
-	: T;
-
-
 export function assertNever(value: never, message = 'Unreachable'): never {
 	throw new Error(message);
 }
