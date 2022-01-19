@@ -6,8 +6,6 @@
 import { URI } from 'vs/base/common/uri';
 import { TestItemImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
-// TODO@layers
-// eslint-disable-next-line code-import-patterns
 import { TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 
 export * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
