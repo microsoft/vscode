@@ -45,10 +45,14 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 			);
 		}
 
-		const workspaceFolderPath = vscode.workspace.getWorkspaceFolder(document.uri)!.uri.fsPath;
+		const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+		if (!workspaceFolder) {
+			return undefined;
+		}
+
 		return new vscode.DocumentLink(
 			this.getRange(document, extendsNode),
-			vscode.Uri.file(join(workspaceFolderPath, 'node_modules', extendsNode.value + (extendsNode.value.endsWith('.json') ? '' : '.json')))
+			vscode.Uri.joinPath(workspaceFolder.uri, 'node_modules', extendsNode.value + (extendsNode.value.endsWith('.json') ? '' : '.json'))
 		);
 	}
 
