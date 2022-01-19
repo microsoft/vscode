@@ -21,6 +21,7 @@ import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } 
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
+import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_TITLE = 'Comments';
@@ -51,6 +52,7 @@ interface IResourceTemplateData {
 interface ICommentThreadTemplateData {
 	icon: HTMLImageElement;
 	userName: HTMLSpanElement;
+	timestamp: TimestampWidget;
 	commentText: HTMLElement;
 	disposables: IDisposable[];
 }
@@ -105,13 +107,15 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	templateId: string = 'comment-node';
 
 	constructor(
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
 	renderTemplate(container: HTMLElement) {
 		const data = <ICommentThreadTemplateData>Object.create(null);
 		const labelContainer = dom.append(container, dom.$('.comment-container'));
 		data.userName = dom.append(labelContainer, dom.$('.user'));
+		data.timestamp = new TimestampWidget(this.configurationService, dom.append(labelContainer, dom.$('.timestamp')));
 		data.commentText = dom.append(labelContainer, dom.$('.text'));
 		data.disposables = [];
 
@@ -120,6 +124,8 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
 		templateData.userName.textContent = node.element.comment.userName;
+		const timestamp = typeof node.element.comment.detail === 'string' ? undefined : node.element.comment.detail;
+		templateData.timestamp.setTimestamp(timestamp);
 		templateData.commentText.innerText = '';
 		if (typeof node.element.comment.body === 'string') {
 			templateData.commentText.innerText = node.element.comment.body;

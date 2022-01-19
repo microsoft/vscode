@@ -27,7 +27,11 @@
 
 .comments-panel .user {
 	padding-right: 5px;
-	opacity: 0.5;
+}
+
+.comments-panel .timestamp {
+	padding-right: 5px;
+	opacity: 0.8;
 }
 
 .comments-panel .comments-panel-container .tree-container .comment-container .text {
@@ -38,6 +42,7 @@
 .comments-panel .comments-panel-container .tree-container .comment-container .text * {
 	margin: 0;
 	text-overflow: ellipsis;
+	max-width: 250px;
 	overflow: hidden;
 }
 
