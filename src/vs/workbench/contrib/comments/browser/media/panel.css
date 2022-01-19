@@ -42,7 +42,7 @@
 .comments-panel .comments-panel-container .tree-container .comment-container .text * {
 	margin: 0;
 	text-overflow: ellipsis;
-	max-width: 250px;
+	max-width: 500px;
 	overflow: hidden;
 }
 
