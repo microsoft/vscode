@@ -1160,6 +1160,28 @@ export class SnakeCaseAction extends AbstractCaseAction {
 	}
 }
 
+export class PascalCaseAction extends AbstractCaseAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.transformToPascalcase',
+			label: nls.localize('editor.transformToPascalcase', "Transform to Pascal Case"),
+			alias: 'Transform to Pascal Case',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	protected _modifyText(text: string, wordSeparators: string): string {
+		return (text
+			.split('_')
+			.map(str =>
+				str.slice(0, 1).toLocaleUpperCase() + str.slice(1)
+			)
+			.join('')
+		);
+	}
+}
+
 registerEditorAction(CopyLinesUpAction);
 registerEditorAction(CopyLinesDownAction);
 registerEditorAction(DuplicateSelectionAction);
@@ -1187,3 +1209,4 @@ if (SnakeCaseAction.caseBoundary.isSupported() && SnakeCaseAction.singleLetters.
 if (TitleCaseAction.titleBoundary.isSupported()) {
 	registerEditorAction(TitleCaseAction);
 }
+registerEditorAction(PascalCaseAction);
