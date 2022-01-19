@@ -256,7 +256,7 @@ steps:
       targetPath: node_modules
     displayName: "Publish Node Modules"
     continueOnError: true
-    # condition: failed()
+    condition: failed()
 
   - task: PublishPipelineArtifact@0
     inputs:
