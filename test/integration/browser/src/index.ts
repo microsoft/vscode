@@ -5,7 +5,6 @@
 
 import * as path from 'path';
 import * as cp from 'child_process';
-import { promises as fs } from 'fs';
 import * as playwright from '@playwright/test';
 import * as url from 'url';
 import * as tmp from 'tmp';
