@@ -17,7 +17,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { PanelMaximizedContext, PanelVisibleContext } from 'vs/workbench/common/panel';
+import { PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext } from 'vs/workbench/common/panel';
 import { getRemoteName, getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { isNative } from 'vs/base/common/platform';
@@ -83,6 +83,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private sideBarVisibleContext: IContextKey<boolean>;
 	private editorAreaVisibleContext: IContextKey<boolean>;
 	private panelVisibleContext: IContextKey<boolean>;
+	private panelAlignmentContext: IContextKey<string>;
 	private panelMaximizedContext: IContextKey<boolean>;
 	private auxiliaryBarVisibleContext: IContextKey<boolean>;
 	private editorTabsVisibleContext: IContextKey<boolean>;
@@ -201,6 +202,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.panelVisibleContext.set(this.layoutService.isVisible(Parts.PANEL_PART));
 		this.panelMaximizedContext = PanelMaximizedContext.bindTo(this.contextKeyService);
 		this.panelMaximizedContext.set(this.layoutService.isPanelMaximized());
+		this.panelAlignmentContext = PanelAlignmentContext.bindTo(this.contextKeyService);
+		this.panelAlignmentContext.set(this.layoutService.getPanelAlignment());
 
 		// Auxiliary Bar
 		this.auxiliaryBarVisibleContext = AuxiliaryBarVisibleContext.bindTo(this.contextKeyService);
@@ -244,6 +247,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this._register(this.layoutService.onDidChangeZenMode(enabled => this.inZenModeContext.set(enabled)));
 		this._register(this.layoutService.onDidChangeFullscreen(fullscreen => this.isFullscreenContext.set(fullscreen)));
 		this._register(this.layoutService.onDidChangeCenteredLayout(centered => this.isCenteredLayoutContext.set(centered)));
+
+		this._register(this.layoutService.onDidChangePanelAlignment(alignment => this.panelAlignmentContext.set(alignment)));
 
 		this._register(this.paneCompositeService.onDidPaneCompositeClose(() => this.updateSideBarContextKeys()));
 		this._register(this.paneCompositeService.onDidPaneCompositeOpen(() => this.updateSideBarContextKeys()));

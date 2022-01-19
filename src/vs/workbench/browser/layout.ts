@@ -114,6 +114,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onDidChangeCenteredLayout = this._register(new Emitter<boolean>());
 	readonly onDidChangeCenteredLayout = this._onDidChangeCenteredLayout.event;
 
+	private readonly _onDidChangePanelAlignment = this._register(new Emitter<PanelAlignment>());
+	readonly onDidChangePanelAlignment = this._onDidChangePanelAlignment.event;
+
 	private readonly _onDidChangeWindowMaximized = this._register(new Emitter<boolean>());
 	readonly onDidChangeWindowMaximized = this._onDidChangeWindowMaximized.event;
 
@@ -1494,6 +1497,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_ALIGNMENT, alignment);
 
 		this.adjustPartPositions(this.getSideBarPosition(), alignment);
+
+		this._onDidChangePanelAlignment.fire(alignment);
 	}
 
 	private setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
@@ -1681,7 +1686,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_POSITON);
 	}
 
-	private getPanelAlignment(): PanelAlignment {
+	getPanelAlignment(): PanelAlignment {
 		return this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_ALIGNMENT);
 	}
 
