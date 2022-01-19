@@ -926,21 +926,7 @@ export class TerminalService implements ITerminalService {
 
 		const splitActiveTerminal = typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? options.location.splitActiveTerminal : typeof options?.location === 'object' ? 'parentTerminal' in options.location : false;
 
-		let cwd = shellLaunchConfig.cwd;
-		if (!cwd) {
-			if (options?.cwd) {
-				shellLaunchConfig.cwd = options.cwd;
-			} else if (splitActiveTerminal && options?.location) {
-				let parent = this.activeInstance;
-				if (typeof options.location === 'object' && 'parentTerminal' in options.location) {
-					parent = options.location.parentTerminal;
-				}
-				if (!parent) {
-					throw new Error('Cannot split without an active instance');
-				}
-				shellLaunchConfig.cwd = await getCwdForSplit(this.configHelper, parent, this._workspaceContextService.getWorkspace().folders, this._commandService);
-			}
-		}
+		this._updateCwdForSplit(shellLaunchConfig, splitActiveTerminal, options);
 
 		// Launch the contributed profile
 		if (contributedProfile) {
@@ -984,6 +970,24 @@ export class TerminalService implements ITerminalService {
 			return this._splitTerminal(shellLaunchConfig, location, parent);
 		}
 		return this._createTerminal(shellLaunchConfig, location, options);
+	}
+
+	private async _updateCwdForSplit(shellLaunchConfig: IShellLaunchConfig, splitActiveTerminal: boolean, options?: ICreateTerminalOptions): Promise<void> {
+		let cwd = shellLaunchConfig.cwd;
+		if (!cwd) {
+			if (options?.cwd) {
+				shellLaunchConfig.cwd = options.cwd;
+			} else if (splitActiveTerminal && options?.location) {
+				let parent = this.activeInstance;
+				if (typeof options.location === 'object' && 'parentTerminal' in options.location) {
+					parent = options.location.parentTerminal;
+				}
+				if (!parent) {
+					throw new Error('Cannot split without an active instance');
+				}
+				shellLaunchConfig.cwd = await getCwdForSplit(this.configHelper, parent, this._workspaceContextService.getWorkspace().folders, this._commandService);
+			}
+		}
 	}
 
 	private _splitTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, parent: ITerminalInstance): ITerminalInstance {
