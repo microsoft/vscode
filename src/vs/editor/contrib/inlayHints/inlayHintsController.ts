@@ -5,6 +5,7 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { IRange } from 'vs/base/common/range';
@@ -133,26 +134,36 @@ export class InlayHintsController implements IEditorContribution {
 
 			cts?.dispose(true);
 			cts = new CancellationTokenSource();
+			const listener = model.onWillDispose(() => cts?.cancel());
 
-			const myToken = cts.token;
-			const inlayHints = await InlayHintsFragments.create(model, this._getHintsRanges(), myToken);
-			scheduler.delay = this._debounceInfo.update(model, Date.now() - t1);
-			if (myToken.isCancellationRequested) {
-				inlayHints.dispose();
-				return;
-			}
-
-			// listen to provider changes
-			for (const provider of inlayHints.provider) {
-				if (typeof provider.onDidChangeInlayHints === 'function' && !watchedProviders.has(provider)) {
-					this._sessionDisposables.add(provider.onDidChangeInlayHints(() => scheduler.schedule()));
-					watchedProviders.add(provider);
+			try {
+				const myToken = cts.token;
+				const inlayHints = await InlayHintsFragments.create(model, this._getHintsRanges(), myToken);
+				scheduler.delay = this._debounceInfo.update(model, Date.now() - t1);
+				if (myToken.isCancellationRequested) {
+					inlayHints.dispose();
+					return;
 				}
-			}
 
-			this._sessionDisposables.add(inlayHints);
-			this._updateHintsDecorators(inlayHints.ranges, inlayHints.items);
-			this._cacheHintsForFastRestore(model);
+				// listen to provider changes
+				for (const provider of inlayHints.provider) {
+					if (typeof provider.onDidChangeInlayHints === 'function' && !watchedProviders.has(provider)) {
+						this._sessionDisposables.add(provider.onDidChangeInlayHints(() => scheduler.schedule()));
+						watchedProviders.add(provider);
+					}
+				}
+
+				this._sessionDisposables.add(inlayHints);
+				this._updateHintsDecorators(inlayHints.ranges, inlayHints.items);
+				this._cacheHintsForFastRestore(model);
+
+			} catch (err) {
+				onUnexpectedError(err);
+
+			} finally {
+				cts.dispose();
+				listener.dispose();
+			}
 
 		}, this._debounceInfo.get(model));
 
