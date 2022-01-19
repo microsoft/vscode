@@ -157,7 +157,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		});
 		let matchLink = link;
 		if (this._capabilities.has(TerminalCapability.CwdDetection)) {
-			matchLink = this._updateLinkWithRelativeCwd(y, link, pathSeparator);
+			matchLink = this._updateLinkWithRelativeCwd(y, link, pathSeparator) || link;
 		}
 		const sanitizedLink = matchLink.replace(/:\d+(:\d+)?$/, '');
 		try {
@@ -192,10 +192,10 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	* For shells with the CwdDetection capability, the cwd relative to the line
 	* of the particular link is used to narrow down the result for an exact file match, if possible.
 	*/
-	private _updateLinkWithRelativeCwd(y: number, link: string, pathSeparator: string): string {
+	private _updateLinkWithRelativeCwd(y: number, link: string, pathSeparator: string): string | undefined {
 		const cwd = this._xterm.commandTracker.getCwdForLine(y);
 		if (!cwd) {
-			return link;
+			return undefined;
 		}
 		if (!link.includes(pathSeparator)) {
 			link = cwd + pathSeparator + link;
