@@ -1042,7 +1042,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 
 	if (hasWebClient && address && typeof address !== 'string') {
 		// ships the web ui!
-		console.log(`Web UI available at http://localhost${address.port === 80 ? '' : `:${address.port}`}/?tkn=${connectionToken}`);
+		console.log(`Web UI available at http://${args.host || 'localhost'}${address.port === 80 ? '' : `:${address.port}`}/?tkn=${connectionToken}`);
 	}
 
 	const remoteExtensionHostAgentServer = new RemoteExtensionHostAgentServer(environmentService, productService, connectionToken, connectionTokenIsMandatory, hasWebClient, REMOTE_DATA_FOLDER);
