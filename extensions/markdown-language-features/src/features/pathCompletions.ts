@@ -288,23 +288,38 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 	}
 
 	private resolveReference(document: vscode.TextDocument, ref: string): vscode.Uri | undefined {
+		const docUri = this.getFileUriOfTextDocument(document);
+
 		if (ref.startsWith('/')) {
-			const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+			const workspaceFolder = vscode.workspace.getWorkspaceFolder(docUri);
 			if (workspaceFolder) {
 				return vscode.Uri.joinPath(workspaceFolder.uri, ref);
 			}
 		}
 
 		try {
-			if (document.uri.scheme === 'file') {
-				return vscode.Uri.file(resolve(dirname(document.uri.fsPath), ref));
+			if (docUri.scheme === 'file') {
+				return vscode.Uri.file(resolve(dirname(docUri.fsPath), ref));
 			} else {
-				return document.uri.with({
-					path: resolve(dirname(document.uri.path), ref),
+				return docUri.with({
+					path: resolve(dirname(docUri.path), ref),
 				});
 			}
 		} catch (e) {
 			return undefined;
 		}
+	}
+
+	private getFileUriOfTextDocument(document: vscode.TextDocument) {
+		if (document.uri.scheme === 'vscode-notebook-cell') {
+			const notebook = vscode.workspace.notebookDocuments
+				.find(notebook => notebook.getCells().some(cell => cell.document === document));
+
+			if (notebook) {
+				return notebook.uri;
+			}
+		}
+
+		return document.uri;
 	}
 }
