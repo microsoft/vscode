@@ -598,7 +598,6 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['image/git', { alwaysSecure: true, supportedByCore: true }],
 	['image/svg+xml', { supportedByCore: true }],
 	['application/json', { alwaysSecure: true, supportedByCore: true }],
-	[Mimes.latex, { alwaysSecure: true, supportedByCore: true }],
 	[Mimes.text, { alwaysSecure: true, supportedByCore: true }],
 	['text/html', { supportedByCore: true }],
 	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
