@@ -232,8 +232,6 @@
 					"assert",
 					{ "when": "hasBrowser", "pattern": "vs/editor/contrib/*/!(test){,/**}" },
 					{ "when": "hasBrowser", "pattern": "vs/workbench/workbench.web.api" },
-					{ "when": "test", "pattern": "vscode" }, // TODO@layers
-					{ "when": "test", "pattern": "vs/workbench/api/~" }, // TODO@layers
 					{ "when": "test", "pattern": "vs/workbench/contrib/*/~" }, // TODO@layers
 					{ "when": "test", "pattern": "vs/workbench/workbench.desktop.main" } // TODO@layers
 				]
@@ -303,8 +301,7 @@
 				]
 			},
 			{
-				"target": "src/vs/server/**",
-				"layer": "node",
+				"target": "src/vs/server/~",
 				"restrictions": [
 					"vs/base/~",
 					"vs/base/parts/*/~",
@@ -313,10 +310,7 @@
 					"vs/workbench/api/~",
 					"vs/workbench/services/*/~",
 					"vs/workbench/{contrib,contrib/welcome}/*/~",
-					"vs/server/**",
-					"@vscode/*",
-					"@parcel/*",
-					"*" // node modules
+					"vs/server/~"
 				]
 			},
 			{
@@ -418,7 +412,7 @@
 				"restrictions": []
 			},
 			{
-				"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,bootstrap.js,cli.js,main.js}",
+				"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,bootstrap.js,cli.js,main.js,server-cli.js,server-main.js}",
 				"restrictions": []
 			},
 			{

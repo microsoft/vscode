@@ -5,6 +5,7 @@
 
 import { isStandalone } from 'vs/base/browser/browser';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { parse } from 'vs/base/common/marshalling';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -23,7 +24,7 @@ interface ICredential {
 
 class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
-	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
+	private static readonly CREDENTIALS_STORAGE_KEY = 'credentials.provider';
 
 	private readonly authService: string | undefined;
 
@@ -55,7 +56,7 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 	private get credentials(): ICredential[] {
 		if (!this._credentials) {
 			try {
-				const serializedCredentials = window.localStorage.getItem(LocalStorageCredentialsProvider.CREDENTIALS_OPENED_KEY);
+				const serializedCredentials = window.localStorage.getItem(LocalStorageCredentialsProvider.CREDENTIALS_STORAGE_KEY);
 				if (serializedCredentials) {
 					this._credentials = JSON.parse(serializedCredentials);
 				}
@@ -72,7 +73,7 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 	}
 
 	private save(): void {
-		window.localStorage.setItem(LocalStorageCredentialsProvider.CREDENTIALS_OPENED_KEY, JSON.stringify(this.credentials));
+		window.localStorage.setItem(LocalStorageCredentialsProvider.CREDENTIALS_STORAGE_KEY, JSON.stringify(this.credentials));
 	}
 
 	async getPassword(service: string, account: string): Promise<string | null> {
@@ -165,7 +166,7 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 	}
 
 	async clear(): Promise<void> {
-		window.localStorage.removeItem(LocalStorageCredentialsProvider.CREDENTIALS_OPENED_KEY);
+		window.localStorage.removeItem(LocalStorageCredentialsProvider.CREDENTIALS_STORAGE_KEY);
 	}
 }
 
@@ -279,11 +280,13 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 
 class WorkspaceProvider implements IWorkspaceProvider {
 
-	static QUERY_PARAM_EMPTY_WINDOW = 'ew';
-	static QUERY_PARAM_FOLDER = 'folder';
-	static QUERY_PARAM_WORKSPACE = 'workspace';
+	private static readonly LAST_WORKSPACE_STORAGE_KEY = 'workspace.lastOpened';
 
-	static QUERY_PARAM_PAYLOAD = 'payload';
+	private static QUERY_PARAM_EMPTY_WINDOW = 'ew';
+	private static QUERY_PARAM_FOLDER = 'folder';
+	private static QUERY_PARAM_WORKSPACE = 'workspace';
+
+	private static QUERY_PARAM_PAYLOAD = 'payload';
 
 	static create(config: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents }) {
 		let foundWorkspace = false;
@@ -296,13 +299,21 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 				// Folder
 				case WorkspaceProvider.QUERY_PARAM_FOLDER:
-					workspace = { folderUri: URI.parse(value) };
+					if (config.remoteAuthority) {
+						workspace = { folderUri: URI.from({ scheme: 'vscode-remote', path: value }) }; // support the nicer URI syntax for folders when connected to a remote
+					} else {
+						workspace = { folderUri: URI.parse(value) };
+					}
 					foundWorkspace = true;
 					break;
 
 				// Workspace
 				case WorkspaceProvider.QUERY_PARAM_WORKSPACE:
-					workspace = { workspaceUri: URI.parse(value) };
+					if (config.remoteAuthority) {
+						workspace = { workspaceUri: URI.from({ scheme: 'vscode-remote', path: value }) }; // support the nicer URI syntax for workspaces when connected to a remote
+					} else {
+						workspace = { folderUri: URI.parse(value) };
+					}
 					foundWorkspace = true;
 					break;
 
@@ -315,7 +326,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 				// Payload
 				case WorkspaceProvider.QUERY_PARAM_PAYLOAD:
 					try {
-						payload = JSON.parse(value);
+						payload = parse(value); // use marshalling#parse() to revive potential URIs
 					} catch (error) {
 						console.error(error); // possible invalid JSON
 					}
@@ -323,25 +334,46 @@ class WorkspaceProvider implements IWorkspaceProvider {
 			}
 		});
 
-		// If no workspace is provided through the URL, check for config attribute from server
+		// If no workspace is provided through the URL, check for config
+		// attribute from server and fallback to last opened workspace
+		// from storage
 		if (!foundWorkspace) {
 			if (config.folderUri) {
 				workspace = { folderUri: URI.revive(config.folderUri) };
 			} else if (config.workspaceUri) {
 				workspace = { workspaceUri: URI.revive(config.workspaceUri) };
 			} else {
-				workspace = undefined;
+				workspace = (() => {
+					const lastWorkspaceRaw = window.localStorage.getItem(WorkspaceProvider.LAST_WORKSPACE_STORAGE_KEY);
+					if (lastWorkspaceRaw) {
+						try {
+							return parse(lastWorkspaceRaw); // use marshalling#parse() to revive potential URIs
+						} catch (error) {
+							// Ignore
+						}
+					}
+
+					return undefined;
+				})();
 			}
 		}
 
-		return new WorkspaceProvider(workspace, payload);
+		// Keep this as last opened workspace in storage
+		if (workspace) {
+			window.localStorage.setItem(WorkspaceProvider.LAST_WORKSPACE_STORAGE_KEY, JSON.stringify(workspace));
+		} else {
+			window.localStorage.removeItem(WorkspaceProvider.LAST_WORKSPACE_STORAGE_KEY);
+		}
+
+		return new WorkspaceProvider(workspace, payload, config);
 	}
 
 	readonly trusted = true;
 
 	private constructor(
 		readonly workspace: IWorkspace,
-		readonly payload: object
+		readonly payload: object,
+		private readonly config: IWorkbenchConstructionOptions
 	) {
 	}
 
@@ -379,12 +411,26 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 		// Folder
 		else if (isFolderToOpen(workspace)) {
-			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_FOLDER}=${encodeURIComponent(workspace.folderUri.toString())}`;
+			let queryParamFolder: string;
+			if (this.config.remoteAuthority) {
+				queryParamFolder = workspace.folderUri.path; // prefer nicer, shorter URLs when connected to a remote to make opening local folders easier
+			} else {
+				queryParamFolder = encodeURIComponent(workspace.folderUri.toString(true));
+			}
+
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_FOLDER}=${queryParamFolder}`;
 		}
 
 		// Workspace
 		else if (isWorkspaceToOpen(workspace)) {
-			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${encodeURIComponent(workspace.workspaceUri.toString())}`;
+			let queryParamWorkspace: string;
+			if (this.config.remoteAuthority) {
+				queryParamWorkspace = workspace.workspaceUri.path; // prefer nicer, shorter URLs when connected to a remote to make opening local workspaces easier
+			} else {
+				queryParamWorkspace = encodeURIComponent(workspace.workspaceUri.toString(true));
+			}
+
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${queryParamWorkspace}`;
 		}
 
 		// Append payload if any
@@ -462,7 +508,6 @@ function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 		} : undefined,
 		workspaceProvider: WorkspaceProvider.create(config),
 		urlCallbackProvider: new LocalStorageURLCallbackProvider(),
-		// if we have a remote authority, we will use the remote side for storing secrets
-		credentialsProvider: config.remoteAuthority ? undefined : new LocalStorageCredentialsProvider()
+		credentialsProvider: config.remoteAuthority ? undefined : new LocalStorageCredentialsProvider() // with a remote, we don't use a local credentials provider
 	});
 })();

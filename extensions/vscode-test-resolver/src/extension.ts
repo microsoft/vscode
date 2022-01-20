@@ -104,7 +104,7 @@ export function activate(context: vscode.ExtensionContext) {
 			if (!commit) { // dev mode
 				const serverCommand = process.platform === 'win32' ? 'code-server.bat' : 'code-server.sh';
 				const vscodePath = path.resolve(path.join(context.extensionPath, '..', '..'));
-				const serverCommandPath = path.join(vscodePath, 'resources', 'server', 'bin-dev', serverCommand);
+				const serverCommandPath = path.join(vscodePath, 'scripts', serverCommand);
 
 				outputChannel.appendLine(`Launching server: VSCODE_AGENT_FOLDER="${remoteDataDir}" "${serverCommandPath}" ${commandArgs.join(' ')}`);
 

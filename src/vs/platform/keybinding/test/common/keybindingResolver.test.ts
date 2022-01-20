@@ -45,8 +45,8 @@ suite('KeybindingResolver', () => {
 		const contextRules = ContextKeyExpr.equals('bar', 'baz');
 		const keybindingItem = kbItem(keybinding, 'yes', null, contextRules, true);
 
-		assert.strictEqual(KeybindingResolver.contextMatchesRules(createContext({ bar: 'baz' }), contextRules), true);
-		assert.strictEqual(KeybindingResolver.contextMatchesRules(createContext({ bar: 'bz' }), contextRules), false);
+		assert.strictEqual(contextRules.evaluate(createContext({ bar: 'baz' })), true);
+		assert.strictEqual(contextRules.evaluate(createContext({ bar: 'bz' })), false);
 
 		const resolver = new KeybindingResolver([keybindingItem], [], () => { });
 		assert.strictEqual(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding))!.commandId, 'yes');

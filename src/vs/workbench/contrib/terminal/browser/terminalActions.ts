@@ -1918,8 +1918,8 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.ShowProtocolLinkQuickpick,
-				title: { value: localize('workbench.action.terminal.selectDetectedLink', "Select Detected Link"), original: 'Select Detected Link' },
+				id: TerminalCommandId.OpenDetectedLink,
+				title: { value: localize('workbench.action.terminal.OpenDetectedLink', "Open Detected Link"), original: 'Open Detected Link' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -1927,6 +1927,36 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => t.showLinkQuickpick());
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.OpenWebLink,
+				title: { value: localize('workbench.action.terminal.openWebLink', "Open Most Recent Web Link"), original: 'Open Most Recent Web Link' },
+				f1: true,
+				category,
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('web'));
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.OpenFileLink,
+				title: { value: localize('workbench.action.terminal.openFileLink', "Open Most Recent File Link"), original: 'Open Most Recent File Link' },
+				f1: true,
+				category,
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('file'));
 		}
 	});
 

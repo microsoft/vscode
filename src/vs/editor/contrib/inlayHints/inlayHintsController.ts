@@ -26,14 +26,17 @@ import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSym
 import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/inlayHints';
 import { goToDefinitionWithLocation, showGoToContextMenu } from 'vs/editor/contrib/inlayHints/inlayHintsLocations';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
-const MAX_DECORATORS = 1500;
+// --- hint caching service (per session)
 
 class InlayHintsCache {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _entries = new LRUCache<string, InlayHintItem[]>(50);
 
@@ -52,6 +55,12 @@ class InlayHintsCache {
 	}
 }
 
+interface IInlayHintsCache extends InlayHintsCache { }
+const IInlayHintsCache = createDecorator<IInlayHintsCache>('IInlayHintsCache');
+registerSingleton(IInlayHintsCache, InlayHintsCache, true);
+
+// --- rendered label
+
 export class RenderedInlayHintLabelPart {
 	constructor(readonly item: InlayHintItem, readonly index: number) { }
 
@@ -65,9 +74,13 @@ export class RenderedInlayHintLabelPart {
 	}
 }
 
+// --- controller
+
 export class InlayHintsController implements IEditorContribution {
 
 	static readonly ID: string = 'editor.contrib.InlayHints';
+
+	private static readonly _MAX_DECORATORS = 1500;
 
 	static get(editor: ICodeEditor) {
 		return editor.getContribution(InlayHintsController.ID) ?? undefined;
@@ -76,7 +89,6 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
 	private readonly _debounceInfo: IFeatureDebounceInformation;
-	private readonly _cache = new InlayHintsCache();
 	private readonly _decorationsMetadata = new Map<string, { item: InlayHintItem, classNameRef: IDisposable; }>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
@@ -85,11 +97,12 @@ export class InlayHintsController implements IEditorContribution {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ILanguageFeatureDebounceService _featureDebounce: ILanguageFeatureDebounceService,
+		@IInlayHintsCache private readonly _inlayHintsCache: IInlayHintsCache,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
-		this._debounceInfo = _featureDebounce.for(languages.InlayHintsProviderRegistry, { min: 25 });
+		this._debounceInfo = _featureDebounce.for(languages.InlayHintsProviderRegistry, 'InlayHint', { min: 25 });
 		this._disposables.add(languages.InlayHintsProviderRegistry.onDidChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModelLanguage(() => this._update()));
@@ -121,10 +134,16 @@ export class InlayHintsController implements IEditorContribution {
 		}
 
 		// iff possible, quickly update from cache
-		const cached = this._cache.get(model);
+		const cached = this._inlayHintsCache.get(model);
 		if (cached) {
 			this._updateHintsDecorators([model.getFullModelRange()], cached);
 		}
+		this._sessionDisposables.add(toDisposable(() => {
+			// cache items when switching files etc
+			if (!model.isDisposed()) {
+				this._cacheHintsForFastRestore(model);
+			}
+		}));
 
 		let cts: CancellationTokenSource | undefined;
 		let watchedProviders = new Set<languages.InlayHintsProvider>();
@@ -148,8 +167,12 @@ export class InlayHintsController implements IEditorContribution {
 				// listen to provider changes
 				for (const provider of inlayHints.provider) {
 					if (typeof provider.onDidChangeInlayHints === 'function' && !watchedProviders.has(provider)) {
-						this._sessionDisposables.add(provider.onDidChangeInlayHints(() => scheduler.schedule()));
 						watchedProviders.add(provider);
+						this._sessionDisposables.add(provider.onDidChangeInlayHints(() => {
+							if (!scheduler.isScheduled()) { // ignore event when request is already scheduled
+								scheduler.schedule();
+							}
+						}));
 					}
 				}
 
@@ -169,11 +192,21 @@ export class InlayHintsController implements IEditorContribution {
 
 		this._sessionDisposables.add(scheduler);
 		this._sessionDisposables.add(toDisposable(() => cts?.dispose(true)));
+		scheduler.schedule(0);
 
-		// update inline hints when content or scroll position changes
-		this._sessionDisposables.add(this._editor.onDidChangeModelContent(() => scheduler.schedule()));
-		this._sessionDisposables.add(this._editor.onDidScrollChange(() => scheduler.schedule()));
-		scheduler.schedule();
+		this._sessionDisposables.add(this._editor.onDidScrollChange((e) => {
+			// update when scroll position changes
+			// uses scrollTopChanged has weak heuristic to differenatiate between scrolling due to
+			// typing or due to "actual" scrolling
+			if (e.scrollTopChanged || !scheduler.isScheduled()) {
+				scheduler.schedule();
+			}
+		}));
+		this._sessionDisposables.add(this._editor.onDidChangeModelContent((e) => {
+			// update less aggressive when typing
+			const delay = Math.max(scheduler.delay, 1250);
+			scheduler.schedule(delay);
+		}));
 
 		// mouse gestures
 		this._sessionDisposables.add(this._installLinkGesture());
@@ -225,13 +258,12 @@ export class InlayHintsController implements IEditorContribution {
 			const label = this._getInlayHintLabelPart(e);
 			if (label) {
 				const part = label.part;
-				if (languages.Command.is(part.command)) {
-					// command -> execute it
-					this._commandService.executeCommand(part.command.id, ...(part.command.arguments ?? [])).catch(err => this._notificationService.error(err));
-
-				} else if (part.location) {
+				if (part.location) {
 					// location -> execute go to def
 					this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, part.location);
+				} else if (languages.Command.is(part.command)) {
+					// command -> execute it
+					this._commandService.executeCommand(part.command.id, ...(part.command.arguments ?? [])).catch(err => this._notificationService.error(err));
 				}
 			}
 		});
@@ -278,7 +310,7 @@ export class InlayHintsController implements IEditorContribution {
 			}
 			items.set(obj.item, value);
 		}
-		this._cache.set(model, Array.from(items.values()));
+		this._inlayHintsCache.set(model, Array.from(items.values()));
 	}
 
 	private _getHintsRanges(): Range[] {
@@ -402,7 +434,7 @@ export class InlayHintsController implements IEditorContribution {
 				addInjectedWhitespace(item, true);
 			}
 
-			if (newDecorationsData.length > MAX_DECORATORS) {
+			if (newDecorationsData.length > InlayHintsController._MAX_DECORATORS) {
 				break;
 			}
 		}

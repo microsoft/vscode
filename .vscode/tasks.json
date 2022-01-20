@@ -171,8 +171,12 @@
 		},
 		{
 			"type": "shell",
-			"command": "yarn web --no-launch",
-			"label": "Run web",
+			"command": "./scripts/code-server.sh",
+			"windows": {
+				"command": ".\\scripts\\code-server.bat"
+			},
+			"args": ["--no-launch", "--connection-token", "dev-token", "--port", "8080"],
+			"label": "Run code server",
 			"isBackground": true,
 			"problemMatcher": {
 				"pattern": {

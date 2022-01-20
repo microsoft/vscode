@@ -104,6 +104,9 @@ mkdirp.sync(extensionsPath);
 
 function fail(errorMessage): void {
 	logger.log(errorMessage);
+	if (!opts.verbose) {
+		console.error(errorMessage);
+	}
 	process.exit(1);
 }
 
@@ -280,6 +283,7 @@ async function ensureStableCode(): Promise<void> {
 		const stableCodeExecutable = await measureAndLog(vscodetest.download({
 			cachePath: path.join(os.tmpdir(), 'vscode-test'),
 			version: previousVersion.version,
+			extractSync: true,
 			reporter: {
 				report: report => {
 					let progressMessage = `download stable code progress: ${report.stage}`;

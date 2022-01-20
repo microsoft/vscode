@@ -416,7 +416,7 @@ export class OutlineModelService implements IOutlineModelService {
 		@ILanguageFeatureDebounceService debounces: ILanguageFeatureDebounceService,
 		@IModelService modelService: IModelService
 	) {
-		this._debounceInformation = debounces.for(DocumentSymbolProviderRegistry, { min: 350 });
+		this._debounceInformation = debounces.for(DocumentSymbolProviderRegistry, 'DocumentSymbols', { min: 350 });
 
 		// don't cache outline models longer than their text model
 		this._disposables.add(modelService.onModelRemoved(textModel => {
