@@ -14,7 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/browser/capabilities/capabilities';
+import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -326,6 +326,21 @@ export interface IShellIntegration {
 	capabilities: ITerminalCapabilityStore;
 	// TODO: Fire more fine-grained and stronger typed events
 	readonly onIntegratedShellChange: Event<{ type: string, value: string }>;
+}
+
+export interface ITerminalCommand {
+	command: string;
+	timestamp: number;
+	cwd?: string;
+	exitCode?: number;
+	// This is a clone of the IMarker from xterm which cannot be imported from common
+	marker?: {
+		readonly id: number;
+		readonly isDisposed: boolean;
+		readonly line: number;
+		onDispose(listener: () => any): { dispose(): void };
+	};
+	getOutput(): string | undefined;
 }
 
 export interface INavigationMode {

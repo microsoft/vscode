@@ -7,7 +7,8 @@ import { Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
-import { TerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IBuffer, IMarker, Terminal } from 'xterm';
 
 interface ICurrentPartialCommand {
@@ -26,19 +27,19 @@ interface ICurrentPartialCommand {
 	command?: string;
 }
 
-export class CommandDetectionCapability {
+export class CommandDetectionCapability implements ICommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
 
-	private _commands: TerminalCommand[] = [];
+	private _commands: ITerminalCommand[] = [];
 	private _exitCode: number | undefined;
 	private _cwd: string | undefined;
 	private _currentCommand: ICurrentPartialCommand = {};
 
-	get commands(): readonly TerminalCommand[] { return this._commands; }
+	get commands(): readonly ITerminalCommand[] { return this._commands; }
 
 	set cwd(value: string) { this._cwd = value; }
 
-	private readonly _onCommandFinished = new Emitter<TerminalCommand>();
+	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
 	readonly onCommandFinished = this._onCommandFinished.event;
 
 	constructor(
@@ -47,10 +48,6 @@ export class CommandDetectionCapability {
 	) {
 	}
 
-	/**
-	 * Gets the working directory for a line, this will return undefined if it's unknown in which
-	 * case the terminal's initial cwd should be used.
-	 */
 	getCwdForLine(line: number): string | undefined {
 		// TODO: It would be more reliable to take the closest cwd above the line if it isn't found for the line
 		// TODO: Use a reverse for loop to find the line to avoid creating another array
@@ -156,9 +153,6 @@ export class CommandDetectionCapability {
 		this._currentCommand = {};
 	}
 
-	/**
-	 * Set the command line explicitly.
-	 */
 	setCommandLine(commandLine: string) {
 		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine);
 		this._currentCommand.command = commandLine;

@@ -8,10 +8,11 @@ import { IShellIntegration } from 'vs/workbench/contrib/terminal/common/terminal
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
-import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/browser/capabilities/terminalCapabilityStore';
+import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/cwdDetectionCapability';
+import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
+import { ICommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -182,7 +183,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		return cwdDetection;
 	}
 
-	private _createOrGetCommandDetection(terminal: Terminal): CommandDetectionCapability {
+	private _createOrGetCommandDetection(terminal: Terminal): ICommandDetectionCapability {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 		if (!commandDetection) {
 			commandDetection = this._instantiationService.createInstance(CommandDetectionCapability, terminal);

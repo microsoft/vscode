@@ -23,11 +23,11 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, ITerminalProfileResolverService, TerminalCommandId, ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, ITerminalProfileResolverService, TerminalCommandId, ITerminalBackend, ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent, TerminalCommand, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import type { Terminal as XTermTerminal, ITerminalAddon, ILink } from 'xterm';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
@@ -69,7 +69,7 @@ import { isFirefox } from 'vs/base/browser/browser';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 import { fromNow } from 'vs/base/common/date';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/browser/capabilities/terminalCapabilityStore';
+import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 
 const enum Constants {
 	/**
@@ -727,7 +727,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!commands || !this.xterm) {
 			return;
 		}
-		type Item = IQuickPickItem & { command?: TerminalCommand };
+		type Item = IQuickPickItem & { command?: ITerminalCommand };
 		const items: Item[] = [];
 		if (type === 'command') {
 			for (const { command, timestamp, cwd, exitCode, getOutput } of commands) {

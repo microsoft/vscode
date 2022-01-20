@@ -7,7 +7,7 @@ import { Terminal } from 'xterm';
 import { strictEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { ShellIntegrationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
-import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/browser/capabilities/capabilities';
+import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';

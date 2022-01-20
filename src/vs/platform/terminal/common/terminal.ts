@@ -548,6 +548,7 @@ export interface IProcessReadyEvent {
 	requiresWindowsMode?: boolean
 }
 
+// TODO: Move into workbench
 /**
  * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
  * progressively enhancing various features that may not be supported in all terminals/shells.

@@ -28,8 +28,8 @@ import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/t
 import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/browser/capabilities/terminalCapabilityStore';
-import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/naiveCwdDetectionCapability';
+import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/naiveCwdDetectionCapability';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;

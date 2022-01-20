@@ -17,8 +17,7 @@ import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/b
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { IMarker } from 'xterm';
-import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/browser/capabilities/capabilities';
+import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -79,15 +78,6 @@ export const enum Direction {
 export interface IQuickPickTerminalObject {
 	config: IRegisterContributedProfileArgs | ITerminalProfile | { profile: IExtensionTerminalProfile, options: { icon?: string, color?: string } } | undefined,
 	keyMods: IKeyMods | undefined
-}
-
-export interface TerminalCommand {
-	command: string;
-	timestamp: number;
-	cwd?: string;
-	exitCode?: number;
-	marker?: IMarker;
-	getOutput(): string | undefined;
 }
 
 export interface ICommandTracker {

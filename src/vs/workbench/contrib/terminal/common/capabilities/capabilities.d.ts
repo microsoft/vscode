@@ -5,10 +5,10 @@
 
 import { Event } from 'vs/base/common/event';
 import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
-import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
-import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/cwdDetectionCapability';
-import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/naiveCwdDetectionCapability';
-import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/partialCommandDetectionCapability';
+import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
+import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/naiveCwdDetectionCapability';
+import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/partialCommandDetectionCapability';
+import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 
 /**
  * An object that keeps track of additional capabilities and their implementations for features that
@@ -47,7 +47,26 @@ export interface ITerminalCapabilityStore {
  */
 export interface ITerminalCapabilityImplMap {
 	[TerminalCapability.CwdDetection]: InstanceType<typeof CwdDetectionCapability>;
-	[TerminalCapability.CommandDetection]: InstanceType<typeof CommandDetectionCapability>;
+	[TerminalCapability.CommandDetection]: ICommandDetectionCapability;
 	[TerminalCapability.NaiveCwdDetection]: InstanceType<typeof NaiveCwdDetectionCapability>;
 	[TerminalCapability.PartialCommandDetection]: InstanceType<typeof PartialCommandDetectionCapability>;
+}
+
+export interface ICommandDetectionCapability {
+	readonly commands: readonly ITerminalCommand[];
+	readonly onCommandFinished: Event<ITerminalCommand>;
+	set cwd(value: string);
+	/**
+	 * Gets the working directory for a line, this will return undefined if it's unknown in which
+	 * case the terminal's initial cwd should be used.
+	 */
+	getCwdForLine(line: number): string | undefined;
+	handlePromptStart(): void;
+	handleCommandStart(): void;
+	handleCommandExecuted(): void;
+	handleCommandFinished(exitCode: number): void;
+	/**
+	 * Set the command line explicitly.
+	 */
+	setCommandLine(commandLine: string): void;
 }

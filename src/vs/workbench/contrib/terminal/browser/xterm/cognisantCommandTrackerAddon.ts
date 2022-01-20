@@ -8,7 +8,7 @@ import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm
 import { ILogService } from 'vs/platform/log/common/log';
 import { ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
 import { isWindows } from 'vs/base/common/platform';
-import { TerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 
 interface ICurrentPartialCommand {
 	marker?: IMarker;
@@ -24,7 +24,7 @@ interface ICurrentPartialCommand {
 }
 
 export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
-	private _commands: TerminalCommand[] = [];
+	private _commands: ITerminalCommand[] = [];
 	private _exitCode: number | undefined;
 	private _cwd: string | undefined;
 	private _currentCommand: ICurrentPartialCommand = {};
