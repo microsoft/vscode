@@ -49,10 +49,18 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 };
 
 class TestFileService extends FileService {
+	private _files: string[] = [];
 	override async resolve(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
 	override async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
 	override async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
-		return { isFile: true, isDirectory: false, isSymbolicLink: false } as IFileStat;
+		if (this._files.includes(resource.path)) {
+			return { isFile: true, isDirectory: false, isSymbolicLink: false } as IFileStat;
+		} else {
+			return { isFile: false, isDirectory: false, isSymbolicLink: false } as IFileStat;
+		}
+	}
+	setFiles(files: string[]): void {
+		this._files = files;
 	}
 }
 
@@ -141,7 +149,7 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
 	});
 
-	async function assertLink(text: string, expected: { text: string, range: [number, number][], linkActivationResult?: ITerminalLinkActivationResult }[], registerCwdDetectionCapability?: boolean, cwd?: string) {
+	async function assertLink(text: string, expected: { text: string, range: [number, number][], linkActivationResult?: ITerminalLinkActivationResult }[], registerCwdDetectionCapability?: boolean, cwd?: string, files?: string[]) {
 		xterm?.dispose();
 		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
 		if (cwd) {
@@ -150,6 +158,9 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		if (registerCwdDetectionCapability) {
 			capabilities = new TerminalCapabilityStore();
 			capabilities.add(TerminalCapability.CwdDetection, new CwdDetectionCapability());
+		}
+		if (files) {
+			fileService.setFiles(files);
 		}
 		// We don't want to cancel the event or anything from the tests so just pass in a wrapped
 		// link handler that does nothing.
@@ -265,7 +276,8 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		await assertLink('file:///C:/users/test/file.txt ', [{ range: [[1, 1], [30, 1]], text: 'file:///C:/users/test/file.txt' }]);
 		await assertLink('file:///C:/users/test/file.txt:1:10 ', [{ range: [[1, 1], [35, 1]], text: 'file:///C:/users/test/file.txt:1:10' }]);
 	});
-	test('should add cwd to link', async () => {
-		await assertLink('file.txt ', [{ range: [[1, 1], [8, 1]], text: 'file.txt', linkActivationResult: { link: 'file:///Users/home/folder/file.txt', source: 'editor' } }], true, '/Users/home/folder');
+	test('should add cwd to link when the file exists', async () => {
+		await assertLink('file.txt', [{ range: [[1, 1], [8, 1]], text: 'file.txt', linkActivationResult: { link: 'file:///Users/home/folder/file.txt', source: 'editor' } }], true, '/Users/home/folder', ['/Users/home/folder/file.txt']);
+		await assertLink('file.txt', [{ range: [[1, 1], [8, 1]], text: 'file.txt', linkActivationResult: { link: 'file.txt', source: 'quickpick' } }], true, '/Users/home/folder', []);
 	});
 });
