@@ -70,7 +70,7 @@ class FeatureDebounceInformation implements IFeatureDebounceInformation {
 		const key = this._key(model);
 		let avg = this._cache.get(key);
 		if (!avg) {
-			avg = new SlidingWindowAverage(12);
+			avg = new SlidingWindowAverage(6);
 			this._cache.set(key, avg);
 		}
 		const newValue = clamp(avg.update(value), this._min, this._max);
