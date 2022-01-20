@@ -9,49 +9,70 @@ import { ServerParsedArgs } from 'vs/server/serverEnvironmentService';
 
 const connectionTokenRegex = /^[0-9A-Za-z-]+$/;
 
-export function parseConnectionToken(args: ServerParsedArgs): { connectionToken: string; connectionTokenIsMandatory: boolean; } {
+export class ServerConnectionToken {
+	constructor(
+		public readonly value: string,
+		public readonly isMandatory: boolean,
+	) {
+	}
+}
 
-	let connectionToken = args['connection-token'];
+export class ServerConnectionTokenParseError {
+	constructor(
+		public readonly message: string
+	) {}
+}
+
+export function parseConnectionToken(args: ServerParsedArgs): ServerConnectionToken | ServerConnectionTokenParseError {
+	const withoutConnectionToken = args['without-connection-token'];
+	const connectionToken = args['connection-token'];
 	const connectionTokenFile = args['connection-token-file'];
-	const compatibility = args['compatibility'] === '1.63';
+	const compatibility = (args['compatibility'] === '1.63');
 
-	if (args['without-connection-token']) {
-		if (connectionToken || connectionTokenFile) {
-			console.warn(`Please do not use the argument '--connection-token' or '--connection-token-file' at the same time as '--without-connection-token'.`);
-			process.exit(1);
+	if (withoutConnectionToken) {
+		if (typeof connectionToken !== 'undefined' || typeof connectionTokenFile !== 'undefined') {
+			return new ServerConnectionTokenParseError(`Please do not use the argument '--connection-token' or '--connection-token-file' at the same time as '--without-connection-token'.`);
 		}
-		return { connectionToken: 'without-connection-token' /* to be implemented @alexd */, connectionTokenIsMandatory: false };
+		return new ServerConnectionToken('without-connection-token' /* to be implemented @alexd */, false);
 	}
 
-	if (connectionTokenFile) {
-		if (connectionToken) {
-			console.warn(`Please do not use the argument '--connection-token' at the same time as '--connection-token-file'.`);
-			process.exit(1);
+	if (typeof connectionTokenFile !== 'undefined') {
+		if (typeof connectionToken !== 'undefined') {
+			return new ServerConnectionTokenParseError(`Please do not use the argument '--connection-token' at the same time as '--connection-token-file'.`);
 		}
+
+		let rawConnectionToken: string;
 		try {
-			let rawConnectionToken = fs.readFileSync(connectionTokenFile).toString();
-			rawConnectionToken = rawConnectionToken.replace(/\r?\n$/, '');
-			if (!connectionTokenRegex.test(rawConnectionToken)) {
-				console.warn(`The connection token defined in '${connectionTokenFile} does not adhere to the characters 0-9, a-z, A-Z or -.`);
-				process.exit(1);
-			}
-			return { connectionToken: rawConnectionToken, connectionTokenIsMandatory: true };
+			rawConnectionToken = fs.readFileSync(connectionTokenFile).toString().replace(/\r?\n$/, '');
 		} catch (e) {
-			console.warn(`Unable to read the connection token file at '${connectionTokenFile}'.`);
-			process.exit(1);
+			return new ServerConnectionTokenParseError(`Unable to read the connection token file at '${connectionTokenFile}'.`);
 		}
 
-	} else {
-		if (connectionToken !== undefined && !connectionTokenRegex.test(connectionToken)) {
-			console.warn(`The connection token '${connectionToken}' does not adhere to the characters 0-9, a-z, A-Z or -.`);
-			process.exit(1);
-		} else if (connectionToken === undefined) {
-			connectionToken = generateUuid();
-			console.log(`Connection token: ${connectionToken}`);
-			if (compatibility) {
-				console.log(`Connection token or will made mandatory in the next release. To run without connection token, use '--without-connection-token'.`);
-			}
+		if (!connectionTokenRegex.test(rawConnectionToken)) {
+			return new ServerConnectionTokenParseError(`The connection token defined in '${connectionTokenFile} does not adhere to the characters 0-9, a-z, A-Z or -.`);
 		}
-		return { connectionToken, connectionTokenIsMandatory: !compatibility };
+
+		return new ServerConnectionToken(rawConnectionToken, true);
 	}
+
+	if (typeof connectionToken !== 'undefined') {
+		if (!connectionTokenRegex.test(connectionToken)) {
+			return new ServerConnectionTokenParseError(`The connection token '${connectionToken} does not adhere to the characters 0-9, a-z, A-Z or -.`);
+		}
+
+		if (compatibility) {
+			// TODO: Remove this case soon
+			return new ServerConnectionToken(connectionToken, false);
+		}
+
+		return new ServerConnectionToken(connectionToken, true);
+	}
+
+	if (compatibility) {
+		// TODO: Remove this case soon
+		console.log(`Breaking change in the next release: Please use one of the following arguments: '--connection-token', '--connection-token-file' or '--without-connection-token'.`);
+		return new ServerConnectionToken(generateUuid(), false);
+	}
+
+	return new ServerConnectionTokenParseError(`Please use one of the following arguments: '--connection-token', '--connection-token-file' or '--without-connection-token'.`);
 }

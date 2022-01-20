@@ -84,7 +84,7 @@ import { CredentialsMainService } from 'vs/platform/credentials/node/credentials
 import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
 import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
 import { RemoteTelemetryChannel } from 'vs/server/remoteTelemetryChannel';
-import { parseConnectionToken } from 'vs/server/connectionToken';
+import { parseConnectionToken, ServerConnectionTokenParseError } from 'vs/server/connectionToken';
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -989,7 +989,13 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		}
 	}
 
-	const { connectionToken, connectionTokenIsMandatory } = parseConnectionToken(args);
+	const connectionTokenParseResult = parseConnectionToken(args);
+	if (connectionTokenParseResult instanceof ServerConnectionTokenParseError) {
+		console.warn(connectionTokenParseResult.message);
+		process.exit(1);
+	}
+	const connectionToken = connectionTokenParseResult.value;
+	const connectionTokenIsMandatory = connectionTokenParseResult.isMandatory;
 	const hasWebClient = fs.existsSync(FileAccess.asFileUri('vs/code/browser/workbench/workbench.html', require).fsPath);
 
 	if (hasWebClient && address && typeof address !== 'string') {
