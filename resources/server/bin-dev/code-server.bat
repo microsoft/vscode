@@ -36,7 +36,7 @@ goto loop1
 
 :after_loop
 
-call "%NODE%" %INSPECT% "out\vs\server\main.js" %RESTVAR%
+call "%NODE%" %INSPECT% "out\server-main.js" %RESTVAR%
 
 popd
 
