@@ -273,15 +273,15 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private updateRemoteStatusIndicator(): void {
 
-		// Remote Indicator: show if provided via options, e.g. by the web embedder API
+		// Remote Indicator: show if provided via options
 		const remoteIndicator = this.environmentService.options?.windowIndicator;
 		if (remoteIndicator) {
 			this.renderRemoteStatusIndicator(truncate(remoteIndicator.label, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH), remoteIndicator.tooltip, remoteIndicator.command);
 			return;
 		}
 
-		// Show for remote windows on the desktop, but not when in code server web
-		if (this.remoteAuthority && !isWeb) {
+		// Remote Authority: show connection state
+		if (this.remoteAuthority) {
 			const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.remoteAuthority) || this.remoteAuthority;
 			switch (this.connectionState) {
 				case 'initializing':
@@ -305,9 +305,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				}
 			}
 			return;
-		}
-		// show when in a virtual workspace
-		if (this.virtualWorkspaceLocation) {
+		} else if (this.virtualWorkspaceLocation) {
 			// Workspace with label: indicate editing source
 			const workspaceLabel = this.labelService.getHostLabel(this.virtualWorkspaceLocation.scheme, this.virtualWorkspaceLocation.authority);
 			if (workspaceLabel) {
@@ -318,7 +316,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				} else {
 					tooltip.appendText(nls.localize({ key: 'workspace.tooltip', comment: ['{0} is a remote workspace name, e.g. GitHub'] }, "Editing on {0}", workspaceLabel));
 				}
-				if (!isWeb || this.remoteAuthority) {
+				if (!isWeb) {
 					tooltip.appendMarkdown('\n\n');
 					tooltip.appendMarkdown(nls.localize(
 						{ key: 'workspace.tooltip2', comment: ['[features are not available]({1}) is a link. Only translate `features are not available`. Do not change brackets and parentheses or {0}'] },
