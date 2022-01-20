@@ -40,6 +40,13 @@ export const DEFAULT_FONT_WEIGHT = 'normal';
 export const DEFAULT_BOLD_FONT_WEIGHT = 'bold';
 export const SUGGESTIONS_FONT_WEIGHT = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
 
+
+export interface ITerminalLinkActivationResult {
+	source: 'editor' | 'quickpick',
+	link: string
+}
+
+
 export const ITerminalProfileResolverService = createDecorator<ITerminalProfileResolverService>('terminalProfileResolverService');
 export interface ITerminalProfileResolverService {
 	readonly _serviceBrand: undefined;

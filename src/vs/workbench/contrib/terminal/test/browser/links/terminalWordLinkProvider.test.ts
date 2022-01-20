@@ -10,13 +10,13 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { AbstractLogger, DEFAULT_LOG_LEVEL, ILogger, ILogService, LogLevel, LogService, NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { ITerminalConfigHelper, ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfigHelper, ITerminalConfiguration, ITerminalLinkActivationResult } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
@@ -28,6 +28,12 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { IResolveMetadataFileOptions, IFileStatWithMetadata, IResolveFileOptions, IFileStat, IFileService } from 'vs/platform/files/common/files';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { EventType } from 'vs/base/browser/dom';
+import { URI } from 'vs/base/common/uri';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -41,81 +47,49 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	wordSeparators: ' ()[]{}\',"`─‘’'
 };
 
+class TestFileService extends FileService {
+	override async resolve(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	override async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
+	override async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
+		return { isFile: true, isDirectory: false, isSymbolicLink: false } as IFileStat;
+	}
+}
+
 class TestCommandTracker extends CognisantCommandTrackerAddon {
 	private _currentCwd: string | undefined;
 	override getCwdForLine(y: number): string {
-		return this._currentCwd || '';
+		if (!this._currentCwd) {
+			throw new Error('no cwd');
+		}
+		return this._currentCwd;
 	}
 	setCwd(cwd: string): void {
 		this._currentCwd = cwd;
 	}
 }
 
-class TestLogger extends AbstractLogger implements ILogger {
-
-	public logs: string[] = [];
-
-	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
-		super();
-		this.setLevel(logLevel);
-	}
-
-	trace(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Trace) {
-			this.logs.push(message + JSON.stringify(args));
-		}
-	}
-
-	debug(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Debug) {
-			this.logs.push(message);
-		}
-	}
-
-	info(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Info) {
-			this.logs.push(message);
-		}
-	}
-
-	warn(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Warning) {
-			this.logs.push(message.toString());
-		}
-	}
-
-	error(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Error) {
-			this.logs.push(message);
-		}
-	}
-
-	critical(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			this.logs.push(message);
-		}
-	}
-
-	override dispose(): void { }
-	flush(): void { }
-}
 
 class TestXtermTerminal extends XtermTerminal {
-	override get commandTracker(): TestCommandTracker { return new TestCommandTracker(new LogService(new TestLogger())); }
+	private _commandTracker = new TestCommandTracker(new NullLogService());
+	override get commandTracker(): TestCommandTracker {
+		return this._commandTracker;
+	}
 }
 
 suite('Workbench - TerminalWordLinkProvider', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let themeService: TestThemeService;
+	let fileService: TestFileService;
 	let viewDescriptorService: TestViewDescriptorService;
 	let xterm: TestXtermTerminal;
 	let configHelper: ITerminalConfigHelper;
 	let capabilities: TerminalCapabilityStore;
-	let activateResult: ITerminalLinkActivationResult | undefined;
+	let activationResult: ITerminalLinkActivationResult | undefined;
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
+		fileService = new TestFileService(new NullLogService());
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		configurationService = new TestConfigurationService({
@@ -127,29 +101,34 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 				integrated: defaultTerminalConfig
 			}
 		});
+
 		themeService = new TestThemeService();
 		viewDescriptorService = new TestViewDescriptorService();
 		capabilities = new TerminalCapabilityStore();
 		instantiationService = new TestInstantiationService();
+		instantiationService.stub(IWorkbenchEnvironmentService, {
+			remoteAuthority: undefined
+		} as Partial<IWorkbenchEnvironmentService>);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(IThemeService, themeService);
+		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 
 		// Allow intercepting link activations
-		activateResult = undefined;
+		activationResult = undefined;
 		instantiationService.stub(IQuickInputService, {
 			quickAccess: {
 				show(link: string) {
-					activateResult = { link, source: 'quickpick' };
+					activationResult = { link, source: 'quickpick' };
 				}
 			}
 		} as Partial<IQuickInputService>);
 		instantiationService.stub(IEditorService, {
 			async openEditor(editor: ITextResourceEditorInput): Promise<any> {
-				activateResult = {
+				activationResult = {
 					source: 'editor',
 					link: editor.resource?.toString()
 				};
@@ -161,9 +140,12 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
 	});
 
-	async function assertLink(text: string, expected: { text: string, range: [number, number][], linkActivationResult?: ITerminalLinkActivationResult }[], registerCwdDetectionCapability?: boolean) {
+	async function assertLink(text: string, expected: { text: string, range: [number, number][], linkActivationResult?: ITerminalLinkActivationResult }[], registerCwdDetectionCapability?: boolean, cwd?: string) {
 		xterm?.dispose();
 		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
+		if (cwd) {
+			xterm.commandTracker.setCwd(cwd);
+		}
 		if (registerCwdDetectionCapability) {
 			capabilities = new TerminalCapabilityStore();
 			capabilities.add(TerminalCapability.CwdDetection, new CwdDetectionCapability());
@@ -173,7 +155,7 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 
 		const testWrappedLinkHandler = (handler: (event: MouseEvent | undefined, link: string) => void): XtermLinkMatcherHandler => {
 			return async (event: MouseEvent | undefined, link: string) => {
-				handler(event, link);
+				await handler(event, link);
 			};
 		};
 		const provider: TerminalWordLinkProvider = instantiationService.createInstance(TerminalWordLinkProvider,
@@ -190,13 +172,14 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		const links = (await new Promise<ILink[] | undefined>(r => provider.provideLinks(1, r)))!;
 		const actualLinks = await Promise.all(links.map(async e => {
 			if (registerCwdDetectionCapability) {
+				e.activate(new TerminalLinkQuickPickEvent(EventType.CLICK), e.text);
 				// HACK: Xterm.js works on sync links only but we use async links
-				await e.activate(new MouseEvent('click'), e.text);
+				await new Promise(resolve => setTimeout(resolve, 300));
 			}
 			return {
 				text: e.text,
 				range: e.range,
-				activateText: registerCwdDetectionCapability ? activateResult : undefined
+				activationResult
 			};
 		}));
 
@@ -206,7 +189,7 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 				start: { x: e.range[0][0], y: e.range[0][1] },
 				end: { x: e.range[1][0], y: e.range[1][1] },
 			},
-			activateText: e.linkActivationResult
+			activationResult: e.linkActivationResult
 		}));
 		assert.deepStrictEqual(actualLinks, expectedVerbose);
 		assert.strictEqual(links.length, expected.length);
@@ -282,13 +265,7 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		await assertLink('file:///C:/users/test/file.txt ', [{ range: [[1, 1], [30, 1]], text: 'file:///C:/users/test/file.txt' }]);
 		await assertLink('file:///C:/users/test/file.txt:1:10 ', [{ range: [[1, 1], [35, 1]], text: 'file:///C:/users/test/file.txt:1:10' }]);
 	});
-	test.skip('should add cwd to link', async () => {
-		xterm.commandTracker.setCwd('/Users/home/folder');
-		await assertLink('file.txt ', [{ range: [[1, 1], [8, 1]], text: 'file.txt', linkActivationResult: { link: '/Users/home/folder/file.txt', source: 'editor' } }], true);
+	test('should add cwd to link', async () => {
+		await assertLink('file.txt ', [{ range: [[1, 1], [8, 1]], text: 'file.txt', linkActivationResult: { link: 'file:///Users/home/folder/file.txt', source: 'editor' } }], true, '/Users/home/folder');
 	});
 });
-
-interface ITerminalLinkActivationResult {
-	source: 'editor' | 'quickpick',
-	link: string
-}
