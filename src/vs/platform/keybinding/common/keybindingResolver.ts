@@ -330,7 +330,7 @@ export class KeybindingResolver {
 		for (let i = matches.length - 1; i >= 0; i--) {
 			let k = matches[i];
 
-			if (!KeybindingResolver.contextMatchesRules(context, k.when)) {
+			if (!KeybindingResolver._contextMatchesRules(context, k.when)) {
 				continue;
 			}
 
@@ -340,7 +340,7 @@ export class KeybindingResolver {
 		return null;
 	}
 
-	public static contextMatchesRules(context: IContext, rules: ContextKeyExpression | null | undefined): boolean {
+	private static _contextMatchesRules(context: IContext, rules: ContextKeyExpression | null | undefined): boolean {
 		if (!rules) {
 			return true;
 		}
