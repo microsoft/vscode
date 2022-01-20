@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Terminal, ILink } from 'xterm';
+import { Terminal } from 'xterm';
 import { TerminalWordLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkProvider';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -34,6 +34,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { EventType } from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
+import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -169,12 +170,11 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		await new Promise<void>(r => xterm.raw.write(text, r));
 
 		// Ensure all links are provided
-		const links = (await new Promise<ILink[] | undefined>(r => provider.provideLinks(1, r)))!;
+		const links = (await new Promise<TerminalLink[] | undefined>(r => provider.provideLinks(1, r)))!;
 		const actualLinks = await Promise.all(links.map(async e => {
 			if (registerCwdDetectionCapability) {
 				e.activate(new TerminalLinkQuickPickEvent(EventType.CLICK), e.text);
-				// HACK: Xterm.js works on sync links only but we use async links
-				await new Promise(resolve => setTimeout(resolve, 300));
+				await e.asyncActivate;
 			}
 			return {
 				text: e.text,
