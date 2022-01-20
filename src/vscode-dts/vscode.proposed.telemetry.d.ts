@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	export interface TelemetryDetails {
+	export interface TelemetryConfiguration {
 		/**
 		 * Whether or not usage telemetry collection is allowed
 		 */
@@ -25,12 +25,12 @@ declare module 'vscode' {
 		 * Indicates what telemetry is enabled / disabled
 		 * Can be observed to determine what telemetry the extension is allowed to send
 		 */
-		export const telemetryDetails: TelemetryDetails;
+		export const telemetryConfiguration: TelemetryConfiguration;
 
 		/**
 		 * An {@link Event} which fires when the collectable state of telemetry changes
-		 * Returns a {@link TelemetryDetails} object
+		 * Returns a {@link TelemetryConfiguration} object
 		 */
-		export const onDidChangeTelemetryDetails: Event<TelemetryDetails | undefined>;
+		export const onDidChangeTelemetryConfiguration: Event<TelemetryConfiguration | undefined>;
 	}
 }

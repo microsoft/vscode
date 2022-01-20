@@ -7,23 +7,23 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import type { TelemetryDetails } from 'vscode';
+import type { TelemetryConfiguration } from 'vscode';
 
 export class ExtHostTelemetry implements ExtHostTelemetryShape {
 	private readonly _onDidChangeTelemetryEnabled = new Emitter<boolean>();
 	readonly onDidChangeTelemetryEnabled: Event<boolean> = this._onDidChangeTelemetryEnabled.event;
 
-	private readonly _onDidChangeTelemetryDetails = new Emitter<TelemetryDetails>();
-	readonly onDidChangeTelemetryDetails: Event<TelemetryDetails> = this._onDidChangeTelemetryDetails.event;
+	private readonly _onDidChangeTelemetryConfiguration = new Emitter<TelemetryConfiguration>();
+	readonly onDidChangeTelemetryConfiguration: Event<TelemetryConfiguration> = this._onDidChangeTelemetryConfiguration.event;
 
 	private _level: TelemetryLevel = TelemetryLevel.NONE;
 	private _oldTelemetryEnablement: boolean | undefined;
 
-	getTelemetryEnabled(): boolean {
+	getTelemetryConfiguration(): boolean {
 		return this._level === TelemetryLevel.USAGE;
 	}
 
-	getTelemetryDetails(): TelemetryDetails {
+	getTelemetryDetails(): TelemetryConfiguration {
 		return {
 			isCrashEnabled: this._level >= TelemetryLevel.CRASH,
 			isErrorsEnabled: this._level >= TelemetryLevel.ERROR,
@@ -36,12 +36,12 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 	}
 
 	$onDidChangeTelemetryLevel(level: TelemetryLevel): void {
-		this._oldTelemetryEnablement = this.getTelemetryEnabled();
+		this._oldTelemetryEnablement = this.getTelemetryConfiguration();
 		this._level = level;
-		if (this._oldTelemetryEnablement !== this.getTelemetryEnabled()) {
-			this._onDidChangeTelemetryEnabled.fire(this.getTelemetryEnabled());
+		if (this._oldTelemetryEnablement !== this.getTelemetryConfiguration()) {
+			this._onDidChangeTelemetryEnabled.fire(this.getTelemetryConfiguration());
 		}
-		this._onDidChangeTelemetryDetails.fire(this.getTelemetryDetails());
+		this._onDidChangeTelemetryConfiguration.fire(this.getTelemetryDetails());
 	}
 }
 
