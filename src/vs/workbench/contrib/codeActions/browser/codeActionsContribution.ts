@@ -7,20 +7,16 @@ import { flatten } from 'vs/base/common/arrays';
 import { Emitter } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
-// TODO@layers
-// eslint-disable-next-line code-import-patterns
+import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
 import { codeActionCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
-// TODO@layers
-// eslint-disable-next-line code-import-patterns
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import * as nls from 'vs/nls';
-import { Extensions, IConfigurationNode, IConfigurationRegistry, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { CodeActionsExtensionPoint, ContributedCodeAction } from 'vs/workbench/contrib/codeActions/common/codeActionsExtensionPoint';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
 
 const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
 	'source.fixAll': {
