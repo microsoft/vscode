@@ -7,15 +7,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/languages';
-// TODO@layers
-// eslint-disable-next-line code-import-patterns
+import { ITextModel } from 'vs/editor/common/model';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
-import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { DocumentationExtensionPoint } from 'vs/workbench/contrib/codeActions/common/documentationExtensionPoint';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { DocumentationExtensionPoint } from './documentationExtensionPoint';
 
 
 export class CodeActionDocumentationContribution extends Disposable implements IWorkbenchContribution, modes.CodeActionProvider {
