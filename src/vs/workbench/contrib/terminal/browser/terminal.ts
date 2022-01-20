@@ -91,7 +91,6 @@ export interface TerminalCommand {
 }
 
 export interface ICommandTracker {
-	readonly cwds: string[];
 	scrollToPreviousCommand(): void;
 	scrollToNextCommand(): void;
 	selectToPreviousCommand(): void;

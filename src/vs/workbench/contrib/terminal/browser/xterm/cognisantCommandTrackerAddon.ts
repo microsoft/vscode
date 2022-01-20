@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal, IMarker, IBuffer } from 'xterm';
-import { Emitter } from 'vs/base/common/event';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ShellIntegrationInfo, ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
+import { ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
 import { isWindows } from 'vs/base/common/platform';
 import { TerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminal';
 
@@ -26,16 +25,12 @@ interface ICurrentPartialCommand {
 
 export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 	private _commands: TerminalCommand[] = [];
-	private _cwds = new Map<string, number>();
 	private _exitCode: number | undefined;
 	private _cwd: string | undefined;
 	private _currentCommand: ICurrentPartialCommand = {};
 	private _initialCwd: string | undefined;
 
 	protected _terminal: Terminal | undefined;
-
-	private readonly _onCwdChanged = new Emitter<string>();
-	readonly onCwdChanged = this._onCwdChanged.event;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService
@@ -52,16 +47,6 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 			return;
 		}
 		switch (event.type) {
-			case ShellIntegrationInfo.CurrentDir: {
-				if (!this._initialCwd) {
-					this._initialCwd = event.value;
-				}
-				this._cwd = event.value;
-				const freq = this._cwds.get(this._cwd) || 0;
-				this._cwds.set(this._cwd, freq + 1);
-				this._onCwdChanged.fire(this._cwd);
-				break;
-			}
 			case ShellIntegrationInteraction.PromptStart:
 				this._currentCommand.promptStartY = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
 				break;
@@ -156,10 +141,6 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 			} default:
 				return;
 		}
-	}
-
-	get cwds(): string[] {
-		return Array.from(new Map([...this._cwds.entries()].sort((a, b) => a[1] - b[1]))).map(s => s[0]);
 	}
 
 	getCwdForLine(line: number): string {
