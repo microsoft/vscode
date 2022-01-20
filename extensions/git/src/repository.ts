@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, RelativePattern } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -857,11 +857,10 @@ export class Repository implements Disposable {
 		outputChannel: OutputChannel,
 		private telemetryReporter: TelemetryReporter
 	) {
-		const workspaceWatcher = workspace.createFileSystemWatcher('**');
-		this.disposables.push(workspaceWatcher);
+		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(Uri.file(repository.root), '**'));
+		this.disposables.push(repositoryWatcher);
 
-		const onWorkspaceFileChange = anyEvent(workspaceWatcher.onDidChange, workspaceWatcher.onDidCreate, workspaceWatcher.onDidDelete);
-		const onWorkspaceRepositoryFileChange = filterEvent(onWorkspaceFileChange, uri => isDescendant(repository.root, uri.fsPath));
+		const onWorkspaceRepositoryFileChange = anyEvent(repositoryWatcher.onDidChange, repositoryWatcher.onDidCreate, repositoryWatcher.onDidDelete);
 		const onWorkspaceWorkingTreeFileChange = filterEvent(onWorkspaceRepositoryFileChange, uri => !/\/\.git($|\/)/.test(uri.path));
 
 		let onDotGitFileChange: Event<Uri>;
