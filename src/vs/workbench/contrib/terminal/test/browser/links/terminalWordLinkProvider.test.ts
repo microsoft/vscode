@@ -36,6 +36,8 @@ import { EventType } from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { isWindows } from 'vs/base/common/platform';
+const filePrefix = 'file://';
+const pathSeparator = isWindows ? '\\' : '/';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -278,19 +280,20 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		await assertLink('file:///C:/users/test/file.txt:1:10 ', [{ range: [[1, 1], [35, 1]], text: 'file:///C:/users/test/file.txt:1:10' }]);
 	});
 	test('should apply the cwd to the link only when the file exists and cwdDetection is enabled', async () => {
-		const pathSeparator = isWindows ? '\\' : '/';
-		const cwd = ['', 'Users', 'home', 'folder'].join(pathSeparator);
-		const text = 'file.txt';
-		const filePath = [cwd, text].join(pathSeparator);
-		await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: { link: 'file://' + filePath, source: 'editor' } }], true, cwd, [filePath]);
+		const { text, cwd, filePath } = generateLinkArgs(['Users', 'home', 'folder']);
+		await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: { link: filePrefix + filePath, source: 'editor' } }], true, cwd, [filePath]);
 		await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: { link: text, source: 'quickpick' } }], true, cwd, []);
 	});
 	test('should not add the cwd to the link when cwdDetection is not enabled', async () => {
-		const pathSeparator = isWindows ? '\\' : '/';
-		const cwd = ['', 'Users', 'home', 'folder'].join(pathSeparator);
-		const text = 'file.txt';
-		const filePath = [cwd, text].join(pathSeparator);
+		const { text, cwd, filePath } = generateLinkArgs(['Users', 'home', 'folder']);
 		await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: undefined }], false, cwd, [filePath]);
 		await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: undefined }], false, cwd, []);
 	});
 });
+
+function generateLinkArgs(folders: string[]): { text: string, cwd: string, filePath: string } {
+	const cwd = ['', ...folders].join(pathSeparator);
+	const text = 'file.txt';
+	const filePath = [cwd, text].join(pathSeparator);
+	return { text, cwd, filePath };
+}
