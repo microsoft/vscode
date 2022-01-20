@@ -306,14 +306,20 @@ export class LineCommentCommand implements ICommand {
 					new Range(s.startLineNumber, firstNonWhitespaceIndex + 1, s.startLineNumber, lineContent.length + 1),
 					startToken,
 					endToken,
-					this._insertSpace
+					this._insertSpace,
+					s.startColumn,
+					s.endColumn,
+					model
 				);
 			} else {
 				ops = BlockCommentCommand._createAddBlockCommentOperations(
 					new Range(s.startLineNumber, model.getLineFirstNonWhitespaceColumn(s.startLineNumber), s.endLineNumber, model.getLineMaxColumn(s.endLineNumber)),
 					startToken,
 					endToken,
-					this._insertSpace
+					this._insertSpace,
+					s.startColumn,
+					s.endColumn,
+					model
 				);
 			}
 

@@ -66,7 +66,9 @@ export class BlockCommentCommand implements ICommand {
 		const endColumn = selection.endColumn;
 
 		const startLineText = model.getLineContent(startLineNumber);
+		const startLineMinColumn = startLineText.search(/[\S]/) + 1;
 		const endLineText = model.getLineContent(endLineNumber);
+		const endLineTextLength = endLineText.length + 1;
 
 		let startTokenIndex = startLineText.lastIndexOf(startToken, startColumn - 1 + startToken.length);
 		let endTokenIndex = endLineText.indexOf(endToken, endColumn - 1 - endToken.length);
@@ -111,7 +113,7 @@ export class BlockCommentCommand implements ICommand {
 				new Range(startLineNumber, startTokenIndex + startToken.length + 1, endLineNumber, endTokenIndex + 1), startToken, endToken
 			);
 		} else {
-			ops = BlockCommentCommand._createAddBlockCommentOperations(selection, startToken, endToken, this._insertSpace);
+			ops = BlockCommentCommand._createAddBlockCommentOperations(selection, startToken, endToken, this._insertSpace, startLineMinColumn, endLineTextLength, model);
 			this._usedEndToken = ops.length === 1 ? endToken : null;
 		}
 
@@ -146,21 +148,40 @@ export class BlockCommentCommand implements ICommand {
 		return res;
 	}
 
-	public static _createAddBlockCommentOperations(r: Range, startToken: string, endToken: string, insertSpace: boolean): IIdentifiedSingleEditOperation[] {
+	public static _createAddBlockCommentOperations(r: Range, startToken: string, endToken: string, insertSpace: boolean, startLineMinColumn: number, endLineTextLength: number, model: ITextModel): IIdentifiedSingleEditOperation[] {
 		let res: IIdentifiedSingleEditOperation[] = [];
 
 		if (!Range.isEmpty(r)) {
 			// Insert block comment start
-			res.push(EditOperation.insert(new Position(r.startLineNumber, r.startColumn), startToken + (insertSpace ? ' ' : '')));
+			res.push(EditOperation.insert(new Position(r.startLineNumber, startLineMinColumn), startToken + (insertSpace ? ' ' : '')));
 
 			// Insert block comment end
-			res.push(EditOperation.insert(new Position(r.endLineNumber, r.endColumn), (insertSpace ? ' ' : '') + endToken));
+			res.push(EditOperation.insert(new Position(r.endLineNumber, endLineTextLength), (insertSpace ? ' ' : '') + endToken));
 		} else {
-			// Insert both continuously
-			res.push(EditOperation.replace(new Range(
-				r.startLineNumber, r.startColumn,
-				r.endLineNumber, r.endColumn
-			), startToken + '  ' + endToken));
+			const startLineText = model.getLineContent(r.startLineNumber);
+			const startblockColumn = startLineText.search(/[{]/) + 2;
+			const cursorPosition = new Position(r.startLineNumber, startblockColumn);
+			const matchedBrackets = model.matchBracket(cursorPosition);
+
+			if (matchedBrackets) {
+				let newStartBracketPosition: Position;
+				let newEndBracketPosition: Position;
+				if (matchedBrackets[0].containsPosition(cursorPosition)) {
+					newStartBracketPosition = matchedBrackets[0].getStartPosition();
+					newEndBracketPosition = matchedBrackets[1].getStartPosition();
+				} else {
+					newStartBracketPosition = matchedBrackets[1].getStartPosition();
+					newEndBracketPosition = matchedBrackets[0].getStartPosition();
+				}
+				res.push(EditOperation.insert(new Position(newStartBracketPosition.lineNumber, startLineMinColumn), startToken + (insertSpace ? ' ' : '')));
+				res.push(EditOperation.insert(new Position(newEndBracketPosition.lineNumber, newEndBracketPosition.column + 1), (insertSpace ? ' ' : '') + endToken));
+			} else {
+				// Insert both continuously
+				res.push(EditOperation.replace(new Range(
+					r.startLineNumber, r.startColumn,
+					r.endLineNumber, r.endColumn
+				), startToken + '  ' + endToken));
+			}
 		}
 
 		return res;
