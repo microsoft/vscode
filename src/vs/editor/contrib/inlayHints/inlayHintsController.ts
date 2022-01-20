@@ -138,6 +138,12 @@ export class InlayHintsController implements IEditorContribution {
 		if (cached) {
 			this._updateHintsDecorators([model.getFullModelRange()], cached);
 		}
+		this._sessionDisposables.add(toDisposable(() => {
+			// cache items when switching files etc
+			if (!model.isDisposed()) {
+				this._cacheHintsForFastRestore(model);
+			}
+		}));
 
 		let cts: CancellationTokenSource | undefined;
 		let watchedProviders = new Set<languages.InlayHintsProvider>();
