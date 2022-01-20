@@ -7,8 +7,8 @@ import * as assert from 'assert';
 import * as os from 'os';
 import * as path from 'path';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { parseConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError } from 'vs/server/connectionToken';
-import { ServerParsedArgs } from 'vs/server/serverEnvironmentService';
+import { parseConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError } from 'vs/server/node/connectionToken';
+import { ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 import { Promises } from 'vs/base/node/pfs';
 
 suite('parseServerConnectionToken', () => {

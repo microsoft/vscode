@@ -13,7 +13,7 @@ import { isEqualOrParent } from 'vs/base/common/extpath';
 import { getMediaMime } from 'vs/base/common/mime';
 import { isLinux } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IServerEnvironmentService } from 'vs/server/serverEnvironmentService';
+import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
 import { extname, dirname, join, normalize } from 'vs/base/common/path';
 import { FileAccess } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';

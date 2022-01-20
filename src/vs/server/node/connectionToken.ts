@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ServerParsedArgs } from 'vs/server/serverEnvironmentService';
+import { ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 
 const connectionTokenRegex = /^[0-9A-Za-z-]+$/;
 

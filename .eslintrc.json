@@ -310,25 +310,7 @@
 					"vs/workbench/api/~",
 					"vs/workbench/services/*/~",
 					"vs/workbench/{contrib,contrib/welcome}/*/~",
-					"vs/server/~",
-					{ "when": "test", "pattern": "vs/server/**" } // TODO@layers
-				]
-			},
-			{
-				"target": "src/vs/server/**",
-				"layer": "node",
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/workbench/~",
-					"vs/workbench/api/~",
-					"vs/workbench/services/*/~",
-					"vs/workbench/{contrib,contrib/welcome}/*/~",
-					"vs/server/**",
-					"@vscode/*",
-					"@parcel/*",
-					"*" // node modules
+					"vs/server/~"
 				]
 			},
 			{

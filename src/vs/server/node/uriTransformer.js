@@ -14,9 +14,9 @@
  * | file          | vscode-local |
  * --------------------------------
  * ```
- * @typedef { import('../base/common/uriIpc').IRawURITransformer } IRawURITransformer
- * @typedef { import('../base/common/uriIpc').UriParts } UriParts
- * @typedef { import('../base/common/uri').UriComponents } UriComponents
+ * @typedef { import('../../base/common/uriIpc').IRawURITransformer } IRawURITransformer
+ * @typedef { import('../../base/common/uriIpc').UriParts } UriParts
+ * @typedef { import('../../base/common/uri').UriComponents } UriComponents
  * @param {string} remoteAuthority
  * @returns {IRawURITransformer}
  */
