@@ -3,18 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICredentialsChangeEvent, ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ICredentialsChangeEvent, ICredentialsMainService } from 'vs/platform/credentials/common/credentials';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isWindows } from 'vs/base/common/platform';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-
-export const ICredentialsMainService = createDecorator<ICredentialsMainService>('credentialsMainService');
-
-export interface ICredentialsMainService extends ICredentialsService { }
+import { IProductService } from 'vs/platform/product/common/productService';
 
 interface ChunkedPassword {
 	content: string;
@@ -30,14 +25,18 @@ export class CredentialsMainService extends Disposable implements ICredentialsMa
 	private _onDidChangePassword: Emitter<ICredentialsChangeEvent> = this._register(new Emitter());
 	readonly onDidChangePassword = this._onDidChangePassword.event;
 
+	// If the credentials service is running on the server, we add a suffix -server to differentiate from the location that the
+	// client would store the credentials.
+	public async getSecretStoragePrefix() { return `${this.productService.urlProtocol}${this.isRunningOnServer ? '-server' : ''}`; }
+
 	constructor(
+		private isRunningOnServer: boolean,
 		@ILogService private readonly logService: ILogService,
-		@INativeEnvironmentService private readonly environmentMainService: INativeEnvironmentService
+		@INativeEnvironmentService private readonly environmentMainService: INativeEnvironmentService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 	}
-
-	//#region Credentials
 
 	async getPassword(service: string, account: string): Promise<string | null> {
 		const keytar = await this.withKeytar();
@@ -148,11 +147,10 @@ export class CredentialsMainService extends Disposable implements ICredentialsMa
 		return await import('keytar');
 	}
 
-	//#endregion
-
 	// This class doesn't implement the clear() function because we don't know
 	// what services have stored credentials. For reference, a "service" is an extension.
 	// TODO: should we clear credentials for the built-in auth extensions?
+	public clear(): Promise<void> {
+		return Promise.resolve();
+	}
 }
-
-registerSingleton(ICredentialsService, CredentialsMainService, true);

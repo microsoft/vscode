@@ -7,6 +7,9 @@ import { ICredentialsService, ICredentialsProvider, ICredentialsChangeEvent } fr
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class BrowserCredentialsService extends Disposable implements ICredentialsService {
 
@@ -17,13 +20,27 @@ export class BrowserCredentialsService extends Disposable implements ICredential
 
 	private credentialsProvider: ICredentialsProvider;
 
-	constructor(@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService) {
+	private _secretStoragePrefix: Promise<string>;
+	public async getSecretStoragePrefix() { return this._secretStoragePrefix; }
+
+	constructor(
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IProductService private readonly productService: IProductService
+	) {
 		super();
 
-		if (environmentService.options && environmentService.options.credentialsProvider) {
-			this.credentialsProvider = environmentService.options.credentialsProvider;
+		if (environmentService.remoteAuthority && !environmentService.options?.credentialsProvider) {
+			// If we have a remote authority but the embedder didn't provide a credentialsProvider,
+			// we can use the CredentialsService on the remote side
+			const remoteCredentialsService = ProxyChannel.toService<ICredentialsService>(remoteAgentService.getConnection()!.getChannel('credentials'));
+			this.credentialsProvider = remoteCredentialsService;
+			this._secretStoragePrefix = remoteCredentialsService.getSecretStoragePrefix();
 		} else {
-			this.credentialsProvider = new InMemoryCredentialsProvider();
+			// fall back to InMemoryCredentialsProvider if none was given to us. This should really only be used
+			// when running tests.
+			this.credentialsProvider = environmentService.options?.credentialsProvider ?? new InMemoryCredentialsProvider();
+			this._secretStoragePrefix = Promise.resolve(this.productService.urlProtocol);
 		}
 	}
 
