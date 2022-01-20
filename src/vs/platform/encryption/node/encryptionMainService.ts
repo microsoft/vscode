@@ -4,11 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICommonEncryptionService } from 'vs/platform/encryption/common/encryptionService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-
-export const IEncryptionMainService = createDecorator<IEncryptionMainService>('encryptionMainService');
-
-export interface IEncryptionMainService extends ICommonEncryptionService { }
 
 export interface Encryption {
 	encrypt(salt: string, value: string): Promise<string>;

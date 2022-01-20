@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ServerParsedArgs } from 'vs/server/serverEnvironmentService';
+import { ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 
 const connectionTokenRegex = /^[0-9A-Za-z-]+$/;
 
@@ -74,5 +74,7 @@ export function parseConnectionToken(args: ServerParsedArgs): ServerConnectionTo
 		return new ServerConnectionToken(generateUuid(), false);
 	}
 
-	return new ServerConnectionTokenParseError(`Please use one of the following arguments: '--connection-token', '--connection-token-file' or '--without-connection-token'.`);
+	// TODO: fixme
+	return new ServerConnectionToken(generateUuid(), false);
+	// return new ServerConnectionTokenParseError(`Please use one of the following arguments: '--connection-token', '--connection-token-file' or '--without-connection-token'.`);
 }

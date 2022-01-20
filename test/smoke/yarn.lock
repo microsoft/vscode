@@ -71,10 +71,10 @@
     "@types/glob" "*"
     "@types/node" "*"
 
-"@vscode/test-electron@^2.1.0":
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/@vscode/test-electron/-/test-electron-2.1.0.tgz#3e787e3ffb354051294529f451e6f0f6529ff8eb"
-  integrity sha512-nE5ha/V+l4WnS0QS5wJhb2S75Ceamif30UOcURHYw+8FoJJHg2g1xM8/dSpvX2Xk4+04Rbl76/ui/tgI5qia+Q==
+"@vscode/test-electron@2.1.0-beta.0":
+  version "2.1.0-beta.0"
+  resolved "https://registry.yarnpkg.com/@vscode/test-electron/-/test-electron-2.1.0-beta.0.tgz#27749883228f5a3df899b1555917a9a5e22b7cb7"
+  integrity sha512-6d+dkCDaL1EJJgrrYNxW5pMzfqM5sUIBgdfM9TekI/HoXOA9jgxFrkf0/EUKZUNjYC59Ntn1Y9ffl9k8xOLRFQ==
   dependencies:
     http-proxy-agent "^4.0.1"
     https-proxy-agent "^5.0.0"

@@ -431,10 +431,14 @@ export class ViewsService extends Disposable implements IViewsService {
 
 					const focusedViewId = FocusedViewContext.getValue(contextKeyService);
 					if (focusedViewId === viewDescriptor.id) {
+
+						const viewLocation = viewDescriptorService.getViewLocationById(viewDescriptor.id);
 						if (viewDescriptorService.getViewLocationById(viewDescriptor.id) === ViewContainerLocation.Sidebar) {
+							// focus the editor if the view is focused and in the side bar
 							editorGroupService.activeGroup.focus();
-						} else {
-							layoutService.setPartHidden(true, Parts.PANEL_PART);
+						} else if (viewLocation !== null) {
+							// otherwise hide the part where the view lives if focused
+							layoutService.setPartHidden(true, getPartByLocation(viewLocation));
 						}
 					} else {
 						viewsService.openView(viewDescriptor.id, true);

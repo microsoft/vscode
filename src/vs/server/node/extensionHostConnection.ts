@@ -5,8 +5,8 @@
 
 import * as cp from 'child_process';
 import * as net from 'net';
-import { getNLSConfiguration } from 'vs/server/remoteLanguagePacks';
-import { uriTransformerPath } from 'vs/server/remoteUriTransformer';
+import { getNLSConfiguration } from 'vs/server/node/remoteLanguagePacks';
+import { uriTransformerPath } from 'vs/server/node/remoteUriTransformer';
 import { FileAccess } from 'vs/base/common/network';
 import { join, delimiter } from 'vs/base/common/path';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -17,7 +17,7 @@ import { getResolvedShellEnv } from 'vs/platform/environment/node/shellEnv';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteExtensionHostStartParams } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IExtHostReadyMessage, IExtHostSocketMessage, IExtHostReduceGraceTimeMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IServerEnvironmentService } from 'vs/server/serverEnvironmentService';
+import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
 import { removeDangerousEnvVariables } from 'vs/base/node/processes';
@@ -48,7 +48,7 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 		...userShellEnv,
 		...{
 			VSCODE_LOG_NATIVE: String(isDebug),
-			VSCODE_AMD_ENTRYPOINT: 'vs/server/remoteExtensionHostProcess',
+			VSCODE_AMD_ENTRYPOINT: 'vs/server/node/remoteExtensionHostProcess',
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true',
 			VSCODE_EXTHOST_WILL_SEND_SOCKET: 'true',

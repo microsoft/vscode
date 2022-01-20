@@ -15,6 +15,7 @@ const minimist = require('minimist');
 const args = minimist(process.argv.slice(2), {
 	boolean: [
 		'help',
+		'launch'
 	],
 	string: [
 		'host',
@@ -37,7 +38,7 @@ const HOST = args['host'] ?? 'localhost';
 const PORT = args['port'] ?? '9888';
 const TOKEN = args['connection-token'] ?? String(crypto.randomInt(0xffffffff));
 
-if (!args['connection-token'] === undefined && !args['connection-token-file'] === undefined && !args['no-connection-token']) {
+if (args['connection-token'] === undefined && args['connection-token-file'] === undefined && !args['no-connection-token']) {
 	serverArgs.push('--connection-token', TOKEN);
 }
 if (args['host'] === undefined) {
