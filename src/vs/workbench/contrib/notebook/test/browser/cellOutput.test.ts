@@ -13,7 +13,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ICellOutputViewModel, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CodeCellRenderTemplate, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { CodeCellRenderTemplate, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookRenderingCommon';
 import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
 import { getStringValue } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellOutput';

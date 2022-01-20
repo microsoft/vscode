@@ -22,7 +22,7 @@ import { DeleteCellAction } from 'vs/workbench/contrib/notebook/browser/controll
 import { CellViewModelStateChangeEvent, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookRenderingCommon';
 
 export class BetweenCellToolbar extends CellPart {
 	private _betweenCellToolbar!: ToolBar;

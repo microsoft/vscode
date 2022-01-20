@@ -20,7 +20,7 @@ import { flatten } from 'vs/base/common/arrays';
 import { TypeConstraint } from 'vs/base/common/types';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { MarshalledId } from 'vs/base/common/marshalling';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookRenderingCommon';
 
 // Kernel Command
 export const SELECT_KERNEL_ID = '_notebook.selectKernel';

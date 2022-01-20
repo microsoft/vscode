@@ -26,7 +26,7 @@ import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } fr
 import { clamp } from 'vs/base/common/numbers';
 import { ISplice } from 'vs/base/common/sequence';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/notebookRenderingCommon';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 

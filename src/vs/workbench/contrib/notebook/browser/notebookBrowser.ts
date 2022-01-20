@@ -18,7 +18,6 @@ import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -392,6 +391,9 @@ export class NotebookCellStateChangedEvent {
 
 export type NotebookViewEvent = NotebookLayoutChangedEvent | NotebookMetadataChangedEvent | NotebookCellStateChangedEvent;
 
+export interface INotebookWebviewMessage {
+	message: unknown;
+}
 
 export interface INotebookEditor {
 	//#region Eventing
