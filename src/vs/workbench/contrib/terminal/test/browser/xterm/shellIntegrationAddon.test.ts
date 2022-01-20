@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Terminal } from 'xterm';
-import { deepStrictEqual } from 'assert';
+import { strictEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { ShellIntegrationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
-import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/browser/capabilities/capabilities';
+import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 
 async function writeP(terminal: Terminal, data: string): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
@@ -20,23 +23,46 @@ async function writeP(terminal: Terminal, data: string): Promise<void> {
 	});
 }
 
-suite('LineDataEventAddon', () => {
+suite('ShellIntegrationAddon', () => {
 	let xterm: Terminal;
 	let shellIntegrationAddon: ShellIntegrationAddon;
 	let capabilities: ITerminalCapabilityStore;
 
 	setup(() => {
 		xterm = new Terminal({
-			cols: 4
+			cols: 80,
+			rows: 30
 		});
-		shellIntegrationAddon = new ShellIntegrationAddon();
+		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(ILogService, NullLogService);
+		shellIntegrationAddon = instantiationService.createInstance(ShellIntegrationAddon);
 		xterm.loadAddon(shellIntegrationAddon);
 		capabilities = shellIntegrationAddon.capabilities;
 	});
 
 	suite('cwd detection', async () => {
-		test('should fire when a non-wrapped line ends with a line feed', async () => {
+		test('should activate capability on the first prompt start sequence (OSC 133 ; A ST)', async () => {
+			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
 			await writeP(xterm, 'foo');
+			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
+			await writeP(xterm, '\x1b]133;A\x07');
+			strictEqual(capabilities.has(TerminalCapability.CwdDetection), true);
+		});
+		test('should not activate capability on any other prompt sequence (OSC 133 ; B-D ST)', async () => {
+			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
+			await writeP(xterm, '\x1b]133;B\x07');
+			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
+			await writeP(xterm, '\x1b]133;C\x07');
+			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
+			await writeP(xterm, '\x1b]133;D\x07');
+			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
+		});
+		test('should activate capability on the first prompt start sequence (OSC 133 ; A ST)', async () => {
+			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
+			await writeP(xterm, 'foo');
+			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
+			await writeP(xterm, '\x1b]133;A\x07');
+			strictEqual(capabilities.has(TerminalCapability.CwdDetection), true);
 		});
 	});
 

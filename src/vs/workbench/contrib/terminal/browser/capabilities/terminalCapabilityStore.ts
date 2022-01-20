@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
-import { ITerminalCapabilityImplMap, ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityImplMap, ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/browser/capabilities/capabilities';
 
 export class TerminalCapabilityStore extends Disposable implements ITerminalCapabilityStore {
 	private _map: Map<TerminalCapability, { type: TerminalCapability }> = new Map();

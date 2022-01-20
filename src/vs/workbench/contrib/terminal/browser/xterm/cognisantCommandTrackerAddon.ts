@@ -125,6 +125,12 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 				}
 				break;
 			case ShellIntegrationInteraction.CommandFinished: {
+				// TODO: Is this needed anymore?
+				if (this._terminal.buffer.active.cursorX >= 2) {
+					this._terminal.registerMarker(0);
+					this.clearMarker();
+				}
+
 				const command = this._currentCommand.command;
 				this._logService.debug('Terminal Command Finished', this._currentCommand.command, this._currentCommand);
 				this._exitCode = Number.parseInt(event.value);
@@ -150,10 +156,6 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 			} default:
 				return;
 		}
-	}
-
-	get commands(): TerminalCommand[] {
-		return this._commands;
 	}
 
 	get cwds(): string[] {

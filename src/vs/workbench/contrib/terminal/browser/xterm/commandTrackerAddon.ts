@@ -27,7 +27,6 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 	private _isDisposable: boolean = false;
 	protected abstract _terminal: Terminal | undefined;
 
-	abstract get commands(): TerminalCommand[];
 	abstract get cwds(): string[];
 	abstract activate(terminal: Terminal): void;
 	abstract handleIntegratedShellChange(event: { type: string, value: string }): void;

@@ -28,7 +28,7 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
-import { ShellIntegrationAddon, ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
+import { ShellIntegrationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
 import { CognisantCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/cognisantCommandTrackerAddon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -147,7 +147,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this._updateUnicodeVersion();
 		this._commandTrackerAddon = new NaiveCommandTrackerAddon();
 		this.raw.loadAddon(this._commandTrackerAddon);
-		this._shellIntegrationAddon = new ShellIntegrationAddon();
+		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon);
 		this.raw.loadAddon(this._shellIntegrationAddon);
 
 		// Hook up co-dependent addon events
@@ -157,13 +157,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			}
 		});
 		this._shellIntegrationAddon.onIntegratedShellChange(e => {
-			if (e.type === ShellIntegrationInteraction.CommandFinished) {
-				// TODO: This should move into the new command tracker
-				if (this.raw.buffer.active.cursorX >= 2) {
-					this.raw.registerMarker(0);
-					this.commandTracker.clearMarker();
-				}
-			}
 			this._commandTrackerAddon.handleIntegratedShellChange(e);
 		});
 

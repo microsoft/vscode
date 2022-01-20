@@ -18,7 +18,7 @@ import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/termi
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { IMarker } from 'xterm';
-import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/browser/capabilities/capabilities';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -91,7 +91,6 @@ export interface TerminalCommand {
 }
 
 export interface ICommandTracker {
-	readonly commands: TerminalCommand[];
 	readonly cwds: string[];
 	scrollToPreviousCommand(): void;
 	scrollToNextCommand(): void;

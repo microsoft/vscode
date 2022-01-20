@@ -8,9 +8,10 @@ import { IShellIntegration } from 'vs/workbench/contrib/terminal/common/terminal
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
-import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
-import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/commandDetectionCapability';
-import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
+import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/browser/capabilities/terminalCapabilityStore';
+import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/cwdDetectionCapability';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -34,6 +35,10 @@ const enum ShellIntegrationOscPs {
 	 * Sequences pioneered by FinalTerm.
 	 */
 	FinalTerm = 133,
+	/**
+	 * Sequences pioneered by VS Code.
+	 */
+	VSCode = 633,
 	/**
 	 * Sequences pioneered by iTerm.
 	 */
@@ -74,65 +79,87 @@ export const enum ShellIntegrationInteraction {
 export class ShellIntegrationAddon extends Disposable implements IShellIntegration, ITerminalAddon {
 	private _terminal?: Terminal;
 	readonly capabilities = new TerminalCapabilityStore();
+
 	private readonly _onIntegratedShellChange = new Emitter<{ type: string, value: string }>();
 	readonly onIntegratedShellChange = this._onIntegratedShellChange.event;
 
-	activate(xterm: Terminal) {
-		this._terminal = xterm;
-		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleShellIntegration(data)));
-		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._updateCwd(data)));
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
+	) {
+		super();
 	}
 
-	private _handleShellIntegration(data: string): boolean {
+	activate(xterm: Terminal) {
+		this._terminal = xterm;
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleFinalTermSequence(data)));
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._handleITermSequence(data)));
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
+	}
+
+	private _handleFinalTermSequence(data: string): boolean {
 		if (!this._terminal) {
 			return false;
 		}
-		let type: ShellIntegrationInteraction | undefined;
-		const [command, exitCode] = data.split(';');
+
+		// Pass the sequence along to the capability
+		const [command, arg] = data.split(';');
 		switch (command) {
 			case ShellIntegrationOscPt.PromptStart:
-				type = ShellIntegrationInteraction.PromptStart;
-				if (!this.capabilities.has(TerminalCapability.CommandDetection)) {
-					this.capabilities.add(TerminalCapability.CommandDetection, new CommandDetectionCapability());
-				}
-				if (!this.capabilities.has(TerminalCapability.CwdDetection)) {
-					this.capabilities.add(TerminalCapability.CwdDetection, new CwdDetectionCapability());
-				}
+				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
+				return true;
 			case ShellIntegrationOscPt.CommandStart:
-				type = ShellIntegrationInteraction.CommandStart;
-				break;
+				this._createOrGetCommandDetection(this._terminal).handleCommandStart();
+				return true;
 			case ShellIntegrationOscPt.CommandExecuted:
-				type = ShellIntegrationInteraction.CommandExecuted;
-				break;
-			case ShellIntegrationOscPt.CommandFinished:
-				type = ShellIntegrationInteraction.CommandFinished;
-				break;
-			default:
-				return false;
+				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
+				return true;
+			case ShellIntegrationOscPt.CommandFinished: {
+				const exitCode = parseInt(arg);
+				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
+				return true;
+			}
 		}
-		const value = exitCode || type;
-		if (!value) {
-			return false;
-		}
-		this._onIntegratedShellChange.fire({ type, value });
-		return true;
+		return false;
 	}
 
-	private _updateCwd(data: string): boolean {
-		let value: string | undefined;
-		const [type, info] = data.split('=');
-		switch (type) {
-			case ShellIntegrationInfo.CurrentDir:
-				this.capabilities.get(TerminalCapability.CwdDetection)?.updateCwd(info);
-				value = info;
-				break;
-			default:
-				return false;
-		}
-		if (!value) {
+	private _handleVSCodeSequence(data: string): boolean {
+		if (!this._terminal) {
 			return false;
 		}
-		this._onIntegratedShellChange.fire({ type, value });
-		return true;
+		console.log('vscode sequence!', data, data.split('').map(e => e.charCodeAt(0)));
+		return false;
+	}
+
+	private _handleITermSequence(data: string): boolean {
+		const [type, value] = data.split('=');
+		switch (type) {
+			case ShellIntegrationInfo.CurrentDir: {
+				this._createOrGetCwdDetection().updateCwd(value);
+				const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+				if (commandDetection) {
+					commandDetection.cwd = value;
+				}
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _createOrGetCwdDetection(): CwdDetectionCapability {
+		let cwdDetection = this.capabilities.get(TerminalCapability.CwdDetection);
+		if (!cwdDetection) {
+			cwdDetection = new CwdDetectionCapability();
+			this.capabilities.add(TerminalCapability.CwdDetection, cwdDetection);
+		}
+		return cwdDetection;
+	}
+
+	private _createOrGetCommandDetection(terminal: Terminal): CommandDetectionCapability {
+		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+		if (!commandDetection) {
+			commandDetection = this._instantiationService.createInstance(CommandDetectionCapability, terminal);
+			this.capabilities.add(TerminalCapability.CommandDetection, commandDetection);
+		}
+		return commandDetection;
 	}
 }

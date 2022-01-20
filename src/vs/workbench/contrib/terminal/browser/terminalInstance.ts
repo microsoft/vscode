@@ -69,7 +69,7 @@ import { isFirefox } from 'vs/base/browser/browser';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 import { fromNow } from 'vs/base/common/date';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/browser/capabilities/terminalCapabilityStore';
 
 const enum Constants {
 	/**
@@ -701,7 +701,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async runRecent(type: 'command' | 'cwd'): Promise<void> {
-		const commands = this.xterm?.commandTracker.commands;
+		const commands = this.capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		if (!commands || !this.xterm) {
 			return;
 		}

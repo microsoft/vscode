@@ -5,10 +5,10 @@
 
 import { Event } from 'vs/base/common/event';
 import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
-import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/commandDetectionCapability';
-import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
-import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/naiveCwdDetectionCapability';
-import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/partialCommandDetectionCapability';
+import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
+import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/cwdDetectionCapability';
+import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/naiveCwdDetectionCapability';
+import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/partialCommandDetectionCapability';
 
 /**
  * An object that keeps track of additional capabilities and their implementations for features that
