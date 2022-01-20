@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
+import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('ExtHostDocumentsAndEditors', () => {

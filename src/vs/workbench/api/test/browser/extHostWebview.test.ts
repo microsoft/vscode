@@ -18,7 +18,7 @@ import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPane
 import { decodeAuthority, webviewResourceBaseHost } from 'vs/workbench/api/common/shared/webview';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import type * as vscode from 'vscode';
-import { SingleProxyRPCProtocol } from './testRPCProtocol';
+import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 
 suite('ExtHostWebview', () => {
 

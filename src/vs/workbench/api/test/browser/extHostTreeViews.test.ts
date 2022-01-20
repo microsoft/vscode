@@ -10,7 +10,7 @@ import { ExtHostTreeViews } from 'vs/workbench/api/common/extHostTreeViews';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainThreadTreeViewsShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { TreeDataProvider, TreeItem } from 'vscode';
-import { TestRPCProtocol } from './testRPCProtocol';
+import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
