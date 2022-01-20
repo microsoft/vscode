@@ -43,6 +43,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	private successiveFailures: number = 0;
 	private lastSyncTriggerTime: number | undefined = undefined;
 	private readonly syncTriggerDelayer: ThrottledDelayer<void>;
+	private suspendUntilRestart: boolean = false;
 
 	private readonly _onError: Emitter<UserDataSyncError> = this._register(new Emitter<UserDataSyncError>());
 	readonly onError: Event<UserDataSyncError> = this._onError.event;
@@ -165,6 +166,9 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		if (this.userDataSyncStoreService.donotMakeRequestsUntil) {
 			return { enabled: false, message: `Auto Sync: Suspended until ${toLocalISOString(this.userDataSyncStoreService.donotMakeRequestsUntil)} because server is not accepting requests until then.` };
 		}
+		if (this.suspendUntilRestart) {
+			return { enabled: false, message: 'Auto Sync: Suspended until restart.' };
+		}
 		return { enabled: true };
 	}
 
@@ -243,8 +247,15 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 			this.logService.info('Auto Sync: Turned off sync because sync is turned off in the cloud');
 		}
 
-		// Exceeded Rate Limit
-		else if (userDataSyncError.code === UserDataSyncErrorCode.LocalTooManyRequests || userDataSyncError.code === UserDataSyncErrorCode.TooManyRequests) {
+		// Exceeded Rate Limit on Client
+		else if (userDataSyncError.code === UserDataSyncErrorCode.LocalTooManyRequests) {
+			this.suspendUntilRestart = true;
+			this.logService.info('Auto Sync: Suspended sync because of making too many requests to server');
+			this.updateAutoSync();
+		}
+
+		// Exceeded Rate Limit on Server
+		else if (userDataSyncError.code === UserDataSyncErrorCode.TooManyRequests) {
 			await this.turnOff(false, true /* force soft turnoff on error */,
 				true /* do not disable machine because disabling a machine makes request to server and can fail with TooManyRequests */);
 			this.disableMachineEventually();
