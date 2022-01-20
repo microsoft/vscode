@@ -101,9 +101,9 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	async getLinks(y: number): Promise<IDetectedLinks | undefined> {
-		let unfilteredWordLinks = (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalWordLinkProvider.id)?.provideLinks(y, r)));
-		const webLinks = (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalProtocolLinkProvider.id)?.provideLinks(y, r)));
-		const fileLinks = (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalValidatedLocalLinkProvider.id)?.provideLinks(y, r)));
+		let unfilteredWordLinks = await this.getLinksForType(y, 'word');
+		const webLinks = await this.getLinksForType(y, 'web');
+		const fileLinks = await this.getLinksForType(y, 'file');
 		const words = new Set();
 		let wordLinks;
 		if (unfilteredWordLinks) {
@@ -116,6 +116,16 @@ export class TerminalLinkManager extends DisposableStore {
 			}
 		}
 		return { wordLinks, webLinks, fileLinks };
+	}
+	async getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined> {
+		switch (type) {
+			case 'word':
+				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalWordLinkProvider.id)?.provideLinks(y, r)));
+			case 'web':
+				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalProtocolLinkProvider.id)?.provideLinks(y, r)));
+			case 'file':
+				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalValidatedLocalLinkProvider.id)?.provideLinks(y, r)));
+		}
 	}
 	private _tooltipCallback(link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) {
 		if (!this._widgetManager) {

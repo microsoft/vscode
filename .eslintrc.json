@@ -273,23 +273,6 @@
 				]
 			},
 			{
-				// TODO@layers `contrib/notebook` does its own special layering with an inner /contrib/ folder
-				"target": "src/vs/workbench/contrib/notebook/browser/contrib/*/test/**",
-				"layer": "browser",
-				"test": true,
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/editor/~",
-					"vs/editor/contrib/*/!(test){,/**}",
-					"vs/workbench/~",
-					"vs/workbench/api/~",
-					"vs/workbench/services/*/~",
-					"vs/workbench/{contrib,contrib/welcome}/*/~"
-				]
-			},
-			{
 				// TODO@layers `contrib/welcome` does its own special layering with sub-layers
 				"target": "src/vs/workbench/{contrib,contrib/welcome}/*/~",
 				"restrictions": [

@@ -276,14 +276,22 @@ async function ensureStableCode(): Promise<void> {
 		logger.log(`Found VS Code v${version}, downloading previous VS Code version ${previousVersion.version}...`);
 
 		let lastProgressMessage: string | undefined = undefined;
+		let lastProgressReportedAt = 0;
 		const stableCodeExecutable = await measureAndLog(vscodetest.download({
 			cachePath: path.join(os.tmpdir(), 'vscode-test'),
 			version: previousVersion.version,
 			reporter: {
 				report: report => {
-					const progressMessage = `download stable code progress: ${report.stage}`;
-					if (progressMessage !== lastProgressMessage) {
+					let progressMessage = `download stable code progress: ${report.stage}`;
+					const now = Date.now();
+					if (progressMessage !== lastProgressMessage || now - lastProgressReportedAt > 10000) {
 						lastProgressMessage = progressMessage;
+						lastProgressReportedAt = now;
+
+						if (report.stage === 'downloading') {
+							progressMessage += ` (${report.bytesSoFar}/${report.totalBytes})`;
+						}
+
 						logger.log(progressMessage);
 					}
 				},
@@ -324,7 +332,7 @@ async function setup(): Promise<void> {
 
 // Before main suite (before all tests)
 before(async function () {
-	this.timeout(2 * 60 * 1000); // allow two minutes for setup
+	this.timeout(5 * 60 * 1000); // increase since we download VSCode
 
 	this.defaultOptions = {
 		quality,

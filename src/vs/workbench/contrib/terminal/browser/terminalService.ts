@@ -44,6 +44,8 @@ import { IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { getCwdForSplit } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -153,7 +155,9 @@ export class TerminalService implements ITerminalService {
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@INotificationService private readonly _notificationService: INotificationService
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
 		// the below avoids having to poll routinely.
@@ -222,7 +226,6 @@ export class TerminalService implements ITerminalService {
 			} else if (result.config && 'profileName' in result.config) {
 				if (keyMods?.alt && activeInstance) {
 					// create split, only valid if there's an active instance
-					const cwd = await getCwdForSplit(this.configHelper, activeInstance);
 					instance = await this.createTerminal({ location: { parentTerminal: activeInstance }, config: result.config, cwd });
 				} else {
 					instance = await this.createTerminal({ location: this.defaultLocation, config: result.config, cwd });
@@ -921,10 +924,13 @@ export class TerminalService implements ITerminalService {
 			contributedProfile = await this._terminalProfileService.getContributedDefaultProfile(shellLaunchConfig);
 		}
 
+		const splitActiveTerminal = typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? options.location.splitActiveTerminal : typeof options?.location === 'object' ? 'parentTerminal' in options.location : false;
+
+		this._updateCwdForSplit(shellLaunchConfig, splitActiveTerminal, options);
+
 		// Launch the contributed profile
 		if (contributedProfile) {
 			const resolvedLocation = this.resolveLocation(options?.location);
-			const splitActiveTerminal = typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? options.location.splitActiveTerminal : typeof options?.location === 'object' ? 'parentTerminal' in options.location : false;
 			let location: TerminalLocation | { viewColumn: number, preserveState?: boolean } | { splitActiveTerminal: boolean } | undefined;
 			if (splitActiveTerminal) {
 				location = resolvedLocation === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
@@ -941,10 +947,6 @@ export class TerminalService implements ITerminalService {
 			await instance.focusWhenReady();
 			this._terminalHasBeenCreated.set(true);
 			return instance;
-		}
-
-		if (options?.cwd) {
-			shellLaunchConfig.cwd = options.cwd;
 		}
 
 		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
@@ -968,6 +970,24 @@ export class TerminalService implements ITerminalService {
 			return this._splitTerminal(shellLaunchConfig, location, parent);
 		}
 		return this._createTerminal(shellLaunchConfig, location, options);
+	}
+
+	private async _updateCwdForSplit(shellLaunchConfig: IShellLaunchConfig, splitActiveTerminal: boolean, options?: ICreateTerminalOptions): Promise<void> {
+		let cwd = shellLaunchConfig.cwd;
+		if (!cwd) {
+			if (options?.cwd) {
+				shellLaunchConfig.cwd = options.cwd;
+			} else if (splitActiveTerminal && options?.location) {
+				let parent = this.activeInstance;
+				if (typeof options.location === 'object' && 'parentTerminal' in options.location) {
+					parent = options.location.parentTerminal;
+				}
+				if (!parent) {
+					throw new Error('Cannot split without an active instance');
+				}
+				shellLaunchConfig.cwd = await getCwdForSplit(this.configHelper, parent, this._workspaceContextService.getWorkspace().folders, this._commandService);
+			}
+		}
 	}
 
 	private _splitTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, parent: ITerminalInstance): ITerminalInstance {

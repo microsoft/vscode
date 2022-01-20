@@ -9,7 +9,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { InMemoryResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { Convert, TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { Convert, TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { emptyOutputController } from 'vs/workbench/contrib/testing/test/common/testResultService.test';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 

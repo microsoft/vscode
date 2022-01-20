@@ -95,9 +95,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				if (!this.capabilities.has(TerminalCapability.CommandDetection)) {
 					this.capabilities.add(TerminalCapability.CommandDetection, new CommandDetectionCapability());
 				}
-				if (!this.capabilities.has(TerminalCapability.CwdDetection)) {
-					this.capabilities.add(TerminalCapability.CwdDetection, new CwdDetectionCapability());
-				}
 			case ShellIntegrationOscPt.CommandStart:
 				type = ShellIntegrationInteraction.CommandStart;
 				break;
@@ -123,6 +120,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		const [type, info] = data.split('=');
 		switch (type) {
 			case ShellIntegrationInfo.CurrentDir:
+				if (!this.capabilities.has(TerminalCapability.CwdDetection)) {
+					this.capabilities.add(TerminalCapability.CwdDetection, new CwdDetectionCapability());
+				}
 				this.capabilities.get(TerminalCapability.CwdDetection)?.updateCwd(info);
 				value = info;
 				break;

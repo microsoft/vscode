@@ -10,7 +10,7 @@ import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/b
 import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { Convert, TestItemImpl } from 'vs/workbench/contrib/testing/common/testStubs';
+import { Convert, TestItemImpl } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
 
 class TestHierarchicalByLocationProjection extends HierarchicalByLocationProjection {

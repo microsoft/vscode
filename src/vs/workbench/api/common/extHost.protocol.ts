@@ -68,6 +68,7 @@ import { createProxyIdentifier, Dto, IRPCProtocol, SerializableObjectWithBuffers
 import { ILanguageStatus } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import * as search from 'vs/workbench/services/search/common/search';
+import { IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -1426,21 +1427,6 @@ export interface ExtHostLanguagesShape {
 	$acceptLanguageIds(ids: string[]): void;
 }
 
-export interface ObjectIdentifier {
-	$ident?: number;
-}
-
-export namespace ObjectIdentifier {
-	export const name = '$ident';
-	export function mixin<T>(obj: T, id: number): T & ObjectIdentifier {
-		Object.defineProperty(obj, name, { value: id, enumerable: true });
-		return <T & ObjectIdentifier>obj;
-	}
-	export function of(obj: any): number {
-		return obj[name];
-	}
-}
-
 export interface ExtHostHeapServiceShape {
 	$onGarbageCollection(ids: number[]): void;
 }
@@ -1523,43 +1509,15 @@ export interface ISignatureHelpContextDto {
 	readonly activeSignatureHelp: ISignatureHelpDto | undefined;
 }
 
-export interface IInlayHintDto {
-	cacheId?: ChainedCacheId;
-	label: string | Dto<modes.InlayHintLabelPart[]>;
-	tooltip?: string | IMarkdownString;
-	position: IPosition;
-	kind: modes.InlayHintKind;
-	whitespaceBefore?: boolean;
-	whitespaceAfter?: boolean;
-}
+export type IInlayHintDto = CachedSessionItem<Dto<modes.InlayHint>>;
 
-export interface IInlayHintsDto {
-	cacheId?: CacheId;
-	hints: IInlayHintDto[];
-}
+export type IInlayHintsDto = CachedSession<{ hints: IInlayHintDto[]; }>;
 
-export interface ILocationDto {
-	uri: UriComponents;
-	range: IRange;
-}
+export type ILocationDto = Dto<modes.Location>;
+export type ILocationLinkDto = Dto<modes.LocationLink>;
 
-export interface IDefinitionLinkDto {
-	originSelectionRange?: IRange;
-	uri: UriComponents;
-	range: IRange;
-	targetSelectionRange?: IRange;
-}
-
-export interface IWorkspaceSymbolDto extends IdObject {
-	name: string;
-	containerName?: string;
-	kind: modes.SymbolKind;
-	location: ILocationDto;
-}
-
-export interface IWorkspaceSymbolsDto extends IdObject {
-	symbols: IWorkspaceSymbolDto[];
-}
+export type IWorkspaceSymbolDto = CachedSessionItem<Dto<IWorkspaceSymbol>>;
+export type IWorkspaceSymbolsDto = CachedSession<{ symbols: IWorkspaceSymbolDto[]; }>;
 
 export interface IWorkspaceEditEntryMetadataDto {
 	needsConfirmation: boolean;
@@ -1629,7 +1587,7 @@ export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined): mod
 	return <modes.WorkspaceEdit>data;
 }
 
-export type ICommandDto = ObjectIdentifier & modes.Command;
+export type ICommandDto = { $ident?: number; } & modes.Command;
 
 export interface ICodeActionDto {
 	cacheId?: ChainedCacheId;
@@ -1655,28 +1613,14 @@ export interface ICodeActionProviderMetadataDto {
 export type CacheId = number;
 export type ChainedCacheId = [CacheId, CacheId];
 
-export interface ILinksListDto {
-	id?: CacheId;
-	links: ILinkDto[];
-}
+type CachedSessionItem<T> = T & { cacheId?: ChainedCacheId };
+type CachedSession<T> = T & { cacheId?: CacheId };
 
-export interface ILinkDto {
-	cacheId?: ChainedCacheId;
-	range: IRange;
-	url?: string | UriComponents;
-	tooltip?: string;
-}
+export type ILinksListDto = CachedSession<{ links: ILinkDto[]; }>;
+export type ILinkDto = CachedSessionItem<Dto<modes.ILink>>;
 
-export interface ICodeLensListDto {
-	cacheId?: number;
-	lenses: ICodeLensDto[];
-}
-
-export interface ICodeLensDto {
-	cacheId?: ChainedCacheId;
-	range: IRange;
-	command?: ICommandDto;
-}
+export type ICodeLensListDto = CachedSession<{ lenses: ICodeLensDto[]; }>;
+export type ICodeLensDto = CachedSessionItem<Dto<modes.CodeLens>>;
 
 export type ICallHierarchyItemDto = Dto<CallHierarchyItem>;
 
@@ -1713,10 +1657,10 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<ICodeLensListDto | undefined>;
 	$resolveCodeLens(handle: number, symbol: ICodeLensDto, token: CancellationToken): Promise<ICodeLensDto | undefined>;
 	$releaseCodeLenses(handle: number, id: number): void;
-	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
-	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
-	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
-	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
+	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILocationLinkDto[]>;
+	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILocationLinkDto[]>;
+	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILocationLinkDto[]>;
+	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILocationLinkDto[]>;
 	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.Hover | undefined>;
 	$provideEvaluatableExpression(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined>;
 	$provideInlineValues(handle: number, resource: UriComponents, range: IRange, context: modes.InlineValueContext, token: CancellationToken): Promise<modes.InlineValue[] | undefined>;

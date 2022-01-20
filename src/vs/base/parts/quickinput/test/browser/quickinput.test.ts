@@ -5,12 +5,9 @@
 
 import * as assert from 'assert';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
 import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { IQuickPick, IQuickPickItem } from 'vs/base/parts/quickinput/common/quickInput';
-// TODO@layers
-// eslint-disable-next-line code-import-patterns
-import { IWorkbenchListOptions } from 'vs/platform/list/browser/listService';
 
 // Simple promisify of setTimeout
 function wait(delayMS: number) {
@@ -43,7 +40,7 @@ suite('QuickInput', () => {
 				container: HTMLElement,
 				delegate: IListVirtualDelegate<T>,
 				renderers: IListRenderer<T, any>[],
-				options: IWorkbenchListOptions<T>,
+				options: IListOptions<T>,
 			) => new List<T>(user, container, delegate, renderers, options),
 			styles: {
 				button: {},
