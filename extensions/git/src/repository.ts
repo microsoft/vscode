@@ -857,7 +857,8 @@ export class Repository implements Disposable {
 		outputChannel: OutputChannel,
 		private telemetryReporter: TelemetryReporter
 	) {
-		const workspaceWatcher = workspace.createFileSystemWatcher(new RelativePattern(repository.root, '**'));
+		const rootUri = Uri.file(repository.root);
+		const workspaceWatcher = workspace.createFileSystemWatcher(new RelativePattern(rootUri, '**'));
 		this.disposables.push(workspaceWatcher);
 
 		const onWorkspaceRepositoryFileChange = anyEvent(workspaceWatcher.onDidChange, workspaceWatcher.onDidCreate, workspaceWatcher.onDidDelete);
@@ -872,7 +873,7 @@ export class Repository implements Disposable {
 			}
 
 			// Normalize the uri to be relative to the repository
-			return !/(?:\/|\\)\.git(?:\/|\\)/.test(path.relative(repository.root, uri.fsPath));
+			return !/(?:\/|\\)\.git(?:\/|\\)/.test(path.relative(rootUri.fsPath, uri.fsPath));
 		});
 
 		let onDotGitFileChange: Event<Uri>;
