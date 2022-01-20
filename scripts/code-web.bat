@@ -1,13 +1,9 @@
 @echo off
 setlocal
 
-title VSCode Web Server
+title VSCode Web Serverless
 
-pushd %~dp0\..\..
-
-:: Configuration
-set NODE_ENV=development
-set VSCODE_DEV=1
+pushd %~dp0\..
 
 :: Sync built-in extensions
 call yarn download-builtin-extensions
@@ -17,7 +13,7 @@ call yarn gulp node
 
 :: Launch Server
 FOR /F "tokens=*" %%g IN ('node build/lib/node.js') do (SET NODE=%%g)
-call "%NODE%" resources\server\bin-dev\code-web.js %*
+call "%NODE%" resources\web\bin-dev\code-web-playground.js %*
 
 popd
 

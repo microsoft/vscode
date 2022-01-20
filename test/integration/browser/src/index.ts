@@ -139,7 +139,7 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 			console.log(`Storing log files into '${logsPath}'`);
 		}
 	} else {
-		serverLocation = path.join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
+		serverLocation = path.join(root, `scripts/code-server.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 		serverArgs.push('--logsPath', logsPath);
 		process.env.VSCODE_DEV = '1';
 
