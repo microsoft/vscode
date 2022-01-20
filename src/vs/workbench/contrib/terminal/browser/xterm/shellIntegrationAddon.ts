@@ -46,9 +46,9 @@ const enum ShellIntegrationOscPs {
 }
 
 /**
- * The identifier for the textural parameter (`Pt`) for OSC commands used by shell integration.
+ * The identifier for the textural parameter (`Pt`) for FinalTerm OSC commands.
  */
-const enum ShellIntegrationOscPt {
+const enum FinalTermOscPt {
 	/**
 	 * The start of the prompt, this is expected to always appear at the start of a line.
 	 */
@@ -63,6 +63,16 @@ const enum ShellIntegrationOscPt {
 	CommandExecuted = 'C',
 	// TODO: Understand this sequence better and add docs
 	CommandFinished = 'D',
+}
+
+const enum VSCodeOscPt {
+	/**
+	 * Explicitly set the command line. This helps workaround problems with conpty not having a
+	 * passthrough mode by providing an option on Windows to send the command that was run. With
+	 * this sequence there's no need for the guessing based on the unreliable cursor positions that
+	 * would otherwise be required.
+	 */
+	CommandLine = 'A'
 }
 
 export const enum ShellIntegrationInfo {
@@ -104,21 +114,23 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		// Pass the sequence along to the capability
 		const [command, arg] = data.split(';');
 		switch (command) {
-			case ShellIntegrationOscPt.PromptStart:
+			case FinalTermOscPt.PromptStart:
 				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
 				return true;
-			case ShellIntegrationOscPt.CommandStart:
+			case FinalTermOscPt.CommandStart:
 				this._createOrGetCommandDetection(this._terminal).handleCommandStart();
 				return true;
-			case ShellIntegrationOscPt.CommandExecuted:
+			case FinalTermOscPt.CommandExecuted:
 				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
 				return true;
-			case ShellIntegrationOscPt.CommandFinished: {
+			case FinalTermOscPt.CommandFinished: {
 				const exitCode = parseInt(arg);
 				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
 				return true;
 			}
 		}
+
+		// Unrecognized sequence
 		return false;
 	}
 
@@ -126,11 +138,25 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (!this._terminal) {
 			return false;
 		}
-		console.log('vscode sequence!', data, data.split('').map(e => e.charCodeAt(0)));
+
+		// Pass the sequence along to the capability
+		const [command, arg] = data.split(';');
+		switch (command) {
+			case VSCodeOscPt.CommandLine: {
+				const commandLine = (arg
+					.replace(/<LF>/g, '\n')
+					.replace(/<CL>/g, ';'));
+				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine);
+				return true;
+			}
+		}
+
+		// Unrecognized sequence
 		return false;
 	}
 
 	private _handleITermSequence(data: string): boolean {
+		// Pass the sequence along to the capability
 		const [type, value] = data.split('=');
 		switch (type) {
 			case ShellIntegrationInfo.CurrentDir: {
@@ -142,6 +168,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 		}
+
+		// Unrecognized sequence
 		return false;
 	}
 

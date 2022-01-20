@@ -144,6 +144,14 @@ export class CommandDetectionCapability {
 		this._currentCommand.previousCommandMarker = this._currentCommand.commandStartMarker;
 		this._currentCommand = {};
 	}
+
+	/**
+	 * Set the command line explicitly.
+	 */
+	setCommandLine(commandLine: string) {
+		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine);
+		this._currentCommand.command = commandLine;
+	}
 }
 
 function getOutputForCommand(command: ICurrentPartialCommand, buffer: IBuffer): string | undefined {
