@@ -299,13 +299,21 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 				// Folder
 				case WorkspaceProvider.QUERY_PARAM_FOLDER:
-					workspace = { folderUri: URI.parse(value) };
+					if (config.remoteAuthority) {
+						workspace = { folderUri: URI.from({ scheme: 'vscode-remote', path: value }) }; // support the nicer URI syntax for folders when connected to a remote
+					} else {
+						workspace = { folderUri: URI.parse(value) };
+					}
 					foundWorkspace = true;
 					break;
 
 				// Workspace
 				case WorkspaceProvider.QUERY_PARAM_WORKSPACE:
-					workspace = { workspaceUri: URI.parse(value) };
+					if (config.remoteAuthority) {
+						workspace = { workspaceUri: URI.from({ scheme: 'vscode-remote', path: value }) }; // support the nicer URI syntax for workspaces when connected to a remote
+					} else {
+						workspace = { folderUri: URI.parse(value) };
+					}
 					foundWorkspace = true;
 					break;
 
@@ -357,14 +365,15 @@ class WorkspaceProvider implements IWorkspaceProvider {
 			window.localStorage.removeItem(WorkspaceProvider.LAST_WORKSPACE_STORAGE_KEY);
 		}
 
-		return new WorkspaceProvider(workspace, payload);
+		return new WorkspaceProvider(workspace, payload, config);
 	}
 
 	readonly trusted = true;
 
 	private constructor(
 		readonly workspace: IWorkspace,
-		readonly payload: object
+		readonly payload: object,
+		private readonly config: IWorkbenchConstructionOptions
 	) {
 	}
 
@@ -402,12 +411,26 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 		// Folder
 		else if (isFolderToOpen(workspace)) {
-			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_FOLDER}=${encodeURIComponent(workspace.folderUri.toString())}`;
+			let queryParamFolder: string;
+			if (this.config.remoteAuthority) {
+				queryParamFolder = workspace.folderUri.path; // prefer nicer, shorter URLs when connected to a remote to make opening local folders easier
+			} else {
+				queryParamFolder = encodeURIComponent(workspace.folderUri.toString(true));
+			}
+
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_FOLDER}=${queryParamFolder}`;
 		}
 
 		// Workspace
 		else if (isWorkspaceToOpen(workspace)) {
-			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${encodeURIComponent(workspace.workspaceUri.toString())}`;
+			let queryParamWorkspace: string;
+			if (this.config.remoteAuthority) {
+				queryParamWorkspace = workspace.workspaceUri.path; // prefer nicer, shorter URLs when connected to a remote to make opening local workspaces easier
+			} else {
+				queryParamWorkspace = encodeURIComponent(workspace.workspaceUri.toString(true));
+			}
+
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${queryParamWorkspace}`;
 		}
 
 		// Append payload if any
@@ -485,7 +508,6 @@ function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 		} : undefined,
 		workspaceProvider: WorkspaceProvider.create(config),
 		urlCallbackProvider: new LocalStorageURLCallbackProvider(),
-		// if we have a remote authority, we will use the remote side for storing secrets
-		credentialsProvider: config.remoteAuthority ? undefined : new LocalStorageCredentialsProvider()
+		credentialsProvider: config.remoteAuthority ? undefined : new LocalStorageCredentialsProvider() // with a remote, we don't use a local credentials provider
 	});
 })();
