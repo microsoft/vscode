@@ -25,7 +25,7 @@ import { CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
+import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { mock } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('NotebookKernel', function () {

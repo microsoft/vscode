@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { SingleProxyRPCProtocol } from './testRPCProtocol';
+import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { mock } from 'vs/base/test/common/mock';
 

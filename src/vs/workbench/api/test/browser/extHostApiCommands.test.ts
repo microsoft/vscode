@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestRPCProtocol } from './testRPCProtocol';
+import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
+import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { mock } from 'vs/base/test/common/mock';

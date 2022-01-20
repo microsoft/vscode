@@ -9,7 +9,7 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbench/api/common/extHostTypes';
 import { MainThreadTextEditorsShape, IWorkspaceEditDto, IWorkspaceTextEditDto, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/common/extHostDocumentSaveParticipant';
-import { SingleProxyRPCProtocol } from './testRPCProtocol';
+import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { SaveReason } from 'vs/workbench/common/editor';
 import type * as vscode from 'vscode';
 import { mock } from 'vs/base/test/common/mock';

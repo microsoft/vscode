@@ -15,7 +15,7 @@ import { IMainContext, IWorkspaceData, MainContext, ITextSearchComplete } from '
 import { RelativePattern } from 'vs/workbench/api/common/extHostTypes';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { mock } from 'vs/base/test/common/mock';
-import { TestRPCProtocol } from './testRPCProtocol';
+import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';

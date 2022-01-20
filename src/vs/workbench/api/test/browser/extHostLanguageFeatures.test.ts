@@ -11,7 +11,7 @@ import * as types from 'vs/workbench/api/common/extHostTypes';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { Position as EditorPosition, Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { TestRPCProtocol } from './testRPCProtocol';
+import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';

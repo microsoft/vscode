@@ -8,7 +8,7 @@ import { MainContext, IWorkspaceEditDto, WorkspaceEditType, MainThreadBulkEditsS
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { SingleProxyRPCProtocol, TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
+import { SingleProxyRPCProtocol, TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { assertType } from 'vs/base/common/types';
 import { ExtHostBulkEdits } from 'vs/workbench/api/common/extHostBulkEdits';

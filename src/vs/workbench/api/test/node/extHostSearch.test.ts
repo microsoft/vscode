@@ -22,7 +22,7 @@ import { NativeExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
 import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
 import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
-import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
+import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import type * as vscode from 'vscode';
 
 let rpcProtocol: TestRPCProtocol;
