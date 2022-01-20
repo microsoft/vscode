@@ -53,6 +53,7 @@ export interface ITerminalCapabilityImplMap {
 }
 
 export interface ICommandDetectionCapability {
+	readonly type: TerminalCapability.CommandDetection;
 	readonly commands: readonly ITerminalCommand[];
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	set cwd(value: string);
