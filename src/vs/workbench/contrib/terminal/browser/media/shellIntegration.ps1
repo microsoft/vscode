@@ -21,6 +21,7 @@ function Global:Prompt() {
 	# correctly. This isn't entirely safe but good for most cases, it's important for the Pt parameter
 	# to only be composed of _printable_ characters as per the spec.
 	# TODO: There are probably better serializable strings to use
+	# TODO: This doesn't work for empty commands of ^C
 	$Result += $(Get-History -Count 1).CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
 	$Result += "`u{7}"
 	# Command finished exit code

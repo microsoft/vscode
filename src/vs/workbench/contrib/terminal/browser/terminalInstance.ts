@@ -728,7 +728,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					}
 				}
 				detail = detail.trim();
-				const iconClass = exitCode ? `${ThemeIcon.asClassName(Codicon.x)}` : `${ThemeIcon.asClassName(Codicon.more)}`;
+				const iconClass = ThemeIcon.asClassName(Codicon.output);
 				const buttons: IQuickInputButton[] = [{
 					iconClass,
 					tooltip: nls.localize('viewCommandOutput', "View Command Output"),
@@ -744,7 +744,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				});
 			}
 		} else {
-			const cwds = this.xterm.commandTracker.cwds;
+			const cwds = this.capabilities.get(TerminalCapability.CwdDetection)?.cwds || [];
 			for (const label of cwds) {
 				items.push({ label });
 			}
