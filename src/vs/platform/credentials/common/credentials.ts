@@ -25,4 +25,16 @@ export interface ICredentialsChangeEvent {
 export interface ICredentialsService extends ICredentialsProvider {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangePassword: Event<ICredentialsChangeEvent>;
+
+	/*
+	 * Each CredentialsService must provide a prefix that will be used
+	 * by the SecretStorage API when storing secrets.
+	 * This is a method that returns a Promise so that it can be defined in
+	 * the main process and proxied on the renderer side.
+	 */
+	getSecretStoragePrefix(): Promise<string>;
 }
+
+export const ICredentialsMainService = createDecorator<ICredentialsMainService>('credentialsMainService');
+
+export interface ICredentialsMainService extends ICredentialsService { }

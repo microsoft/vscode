@@ -79,12 +79,12 @@ import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { IRemoteTelemetryService, RemoteNullTelemetryService, RemoteTelemetryService } from 'vs/server/node/remoteTelemetryService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { ICredentialsMainService } from 'vs/platform/credentials/common/credentials';
 import { CredentialsMainService } from 'vs/platform/credentials/node/credentialsMainService';
-import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
 import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
 import { RemoteTelemetryChannel } from 'vs/server/node/remoteTelemetryChannel';
 import { parseConnectionToken, ServerConnectionTokenParseError } from 'vs/server/node/connectionToken';
+import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -335,11 +335,9 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		);
 		services.set(IPtyService, ptyService);
 
-		const encryptionService = instantiationService.createInstance(EncryptionMainService, machineId);
-		services.set(IEncryptionService, encryptionService);
+		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
 
-		const credentialsService = instantiationService.createInstance(CredentialsMainService);
-		services.set(ICredentialsService, credentialsService);
+		services.set(ICredentialsMainService, new SyncDescriptor(CredentialsMainService, [true]));
 
 		return instantiationService.invokeFunction(accessor => {
 			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._connectionToken, this._environmentService, extensionManagementCLIService, this._logService, this._productService);
@@ -359,10 +357,10 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			const channel = new ExtensionManagementChannel(extensionManagementService, (ctx: RemoteAgentConnectionContext) => this._getUriTransformer(ctx.remoteAuthority));
 			this._socketServer.registerChannel('extensions', channel);
 
-			const encryptionChannel = ProxyChannel.fromService<RemoteAgentConnectionContext>(accessor.get(IEncryptionService));
+			const encryptionChannel = ProxyChannel.fromService<RemoteAgentConnectionContext>(accessor.get(IEncryptionMainService));
 			this._socketServer.registerChannel('encryption', encryptionChannel);
 
-			const credentialsChannel = ProxyChannel.fromService<RemoteAgentConnectionContext>(accessor.get(ICredentialsService));
+			const credentialsChannel = ProxyChannel.fromService<RemoteAgentConnectionContext>(accessor.get(ICredentialsMainService));
 			this._socketServer.registerChannel('credentials', credentialsChannel);
 
 			// clean up deprecated extensions
