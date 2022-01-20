@@ -709,10 +709,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		let links;
-		let i = this.xterm.raw.buffer.active.viewportY;
-		while ((!links || links.length === 0) && i <= this.xterm.raw.buffer.active.length) {
+		let i = this.xterm.raw.buffer.active.length;
+		while ((!links || links.length === 0) && i >= this.xterm.raw.buffer.active.viewportY) {
 			links = await this._linkManager.getLinksForType(i, type);
-			i++;
+			i--;
 		}
 
 		if (!links || links.length < 1) {
