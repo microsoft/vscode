@@ -17,7 +17,7 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { ViewContainerLocation, ViewContainerLocations } from 'vs/workbench/common/views';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IDisposable } from 'vs/workbench/workbench.web.api';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { IView } from 'vs/base/browser/ui/grid/grid';
 
 export interface IPaneCompositePart extends IView {
