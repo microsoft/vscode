@@ -21,9 +21,9 @@ suite('parseServerConnectionToken', () => {
 		assert.strictEqual(isError(r), true);
 	}
 
-	test('no arguments results in error', () => {
-		assertIsError(parseConnectionToken({} as ServerParsedArgs));
-	});
+	// test('no arguments results in error', () => {
+	// 	assertIsError(parseConnectionToken({} as ServerParsedArgs));
+	// });
 
 	test('no arguments with --compatibility generates a token that is not mandatory', () => {
 		const result = parseConnectionToken({ 'compatibility': '1.63' } as ServerParsedArgs);

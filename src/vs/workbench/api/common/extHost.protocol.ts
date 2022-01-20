@@ -36,7 +36,7 @@ import * as quickInput from 'vs/platform/quickinput/common/quickInput';
 import { IRemoteConnectionData, RemoteAuthorityResolverErrorCode, ResolverResult, TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryInfo, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ICreateContributedTerminalProfileOptions, IProcessProperty, IShellLaunchConfigDto, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IExtensionIdWithVersion } from 'vs/platform/extensionManagement/common/extensionStorage';
@@ -1723,8 +1723,8 @@ export interface ExtHostQuickOpenShape {
 }
 
 export interface ExtHostTelemetryShape {
-	$initializeTelemetryEnabled(enabled: boolean): void;
-	$onDidChangeTelemetryEnabled(enabled: boolean): void;
+	$initializeTelemetryLevel(level: TelemetryLevel): void;
+	$onDidChangeTelemetryLevel(level: TelemetryLevel): void;
 }
 
 export interface ITerminalLinkDto {

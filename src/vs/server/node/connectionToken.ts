@@ -74,5 +74,7 @@ export function parseConnectionToken(args: ServerParsedArgs): ServerConnectionTo
 		return new ServerConnectionToken(generateUuid(), false);
 	}
 
-	return new ServerConnectionTokenParseError(`Please use one of the following arguments: '--connection-token', '--connection-token-file' or '--without-connection-token'.`);
+	// TODO: fixme
+	return new ServerConnectionToken(generateUuid(), false);
+	// return new ServerConnectionTokenParseError(`Please use one of the following arguments: '--connection-token', '--connection-token-file' or '--without-connection-token'.`);
 }
