@@ -61,16 +61,16 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	const host = endpoint.host;
 	const protocol = 'vscode-remote';
 
-	const testWorkspaceUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.workspacePath)).path, protocol, host, slashes: true });
+	const testWorkspacePath = URI.file(path.resolve(optimist.argv.workspacePath)).path;
 	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionDevelopmentPath)).path, protocol, host, slashes: true });
 	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
 
 	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","d372f9187401bd145a0a6e15ba369e2d82d02005"],["skipWelcome","true"]]`;
 
-	if (path.extname(testWorkspaceUri) === '.code-workspace') {
-		await page.goto(`${endpoint.href}&workspace=${testWorkspaceUri}&payload=${payloadParam}`);
+	if (path.extname(testWorkspacePath) === '.code-workspace') {
+		await page.goto(`${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`);
 	} else {
-		await page.goto(`${endpoint.href}&folder=${testWorkspaceUri}&payload=${payloadParam}`);
+		await page.goto(`${endpoint.href}&folder=${testWorkspacePath}&payload=${payloadParam}`);
 	}
 
 	await page.exposeFunction('codeAutomationLog', (type: string, args: any[]) => {

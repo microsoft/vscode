@@ -284,7 +284,7 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	});
 
 	const payloadParam = `[["enableProposedApi",""],["webviewExternalEndpointCommit","d372f9187401bd145a0a6e15ba369e2d82d02005"],["skipWelcome","true"]]`;
-	await measureAndLog(page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
+	await measureAndLog(page.goto(`${endpoint}&folder=${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
 
 	return { browser, context, page };
 }
