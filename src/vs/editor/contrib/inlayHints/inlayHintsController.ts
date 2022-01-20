@@ -26,14 +26,17 @@ import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSym
 import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/inlayHints';
 import { goToDefinitionWithLocation, showGoToContextMenu } from 'vs/editor/contrib/inlayHints/inlayHintsLocations';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
-const MAX_DECORATORS = 1500;
+// --- hint caching service (per session)
 
 class InlayHintsCache {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _entries = new LRUCache<string, InlayHintItem[]>(50);
 
@@ -52,6 +55,12 @@ class InlayHintsCache {
 	}
 }
 
+interface IInlayHintsCache extends InlayHintsCache { }
+const IInlayHintsCache = createDecorator<IInlayHintsCache>('IInlayHintsCache');
+registerSingleton(IInlayHintsCache, InlayHintsCache, true);
+
+// --- rendered label
+
 export class RenderedInlayHintLabelPart {
 	constructor(readonly item: InlayHintItem, readonly index: number) { }
 
@@ -65,9 +74,13 @@ export class RenderedInlayHintLabelPart {
 	}
 }
 
+// --- controller
+
 export class InlayHintsController implements IEditorContribution {
 
 	static readonly ID: string = 'editor.contrib.InlayHints';
+
+	private static readonly _MAX_DECORATORS = 1500;
 
 	static get(editor: ICodeEditor) {
 		return editor.getContribution(InlayHintsController.ID) ?? undefined;
@@ -76,7 +89,6 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
 	private readonly _debounceInfo: IFeatureDebounceInformation;
-	private readonly _cache = new InlayHintsCache();
 	private readonly _decorationsMetadata = new Map<string, { item: InlayHintItem, classNameRef: IDisposable; }>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
@@ -85,6 +97,7 @@ export class InlayHintsController implements IEditorContribution {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ILanguageFeatureDebounceService _featureDebounce: ILanguageFeatureDebounceService,
+		@IInlayHintsCache private readonly _inlayHintsCache: IInlayHintsCache,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -121,7 +134,7 @@ export class InlayHintsController implements IEditorContribution {
 		}
 
 		// iff possible, quickly update from cache
-		const cached = this._cache.get(model);
+		const cached = this._inlayHintsCache.get(model);
 		if (cached) {
 			this._updateHintsDecorators([model.getFullModelRange()], cached);
 		}
@@ -173,7 +186,7 @@ export class InlayHintsController implements IEditorContribution {
 		// update inline hints when content or scroll position changes
 		this._sessionDisposables.add(this._editor.onDidChangeModelContent(() => scheduler.schedule()));
 		this._sessionDisposables.add(this._editor.onDidScrollChange(() => scheduler.schedule()));
-		scheduler.schedule();
+		scheduler.schedule(0);
 
 		// mouse gestures
 		this._sessionDisposables.add(this._installLinkGesture());
@@ -278,7 +291,7 @@ export class InlayHintsController implements IEditorContribution {
 			}
 			items.set(obj.item, value);
 		}
-		this._cache.set(model, Array.from(items.values()));
+		this._inlayHintsCache.set(model, Array.from(items.values()));
 	}
 
 	private _getHintsRanges(): Range[] {
@@ -402,7 +415,7 @@ export class InlayHintsController implements IEditorContribution {
 				addInjectedWhitespace(item, true);
 			}
 
-			if (newDecorationsData.length > MAX_DECORATORS) {
+			if (newDecorationsData.length > InlayHintsController._MAX_DECORATORS) {
 				break;
 			}
 		}
