@@ -330,11 +330,15 @@ registerAction2(class extends Action2 {
 			category: CATEGORIES.View,
 			f1: true,
 			icon: maximizeIcon,
+			// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
+			precondition: PanelAlignmentContext.isEqualTo('center'),
 			toggled: { condition: PanelMaximizedContext, icon: restoreIcon, tooltip: localize('minimizePanel', "Restore Panel Size") },
 			menu: [{
 				id: MenuId.PanelTitle,
 				group: 'navigation',
-				order: 1
+				order: 1,
+				// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
+				when: PanelAlignmentContext.isEqualTo('center')
 			}]
 		});
 	}
