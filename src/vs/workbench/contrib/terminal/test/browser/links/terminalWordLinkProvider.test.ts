@@ -42,9 +42,9 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 };
 
 class TestCommandTracker extends CognisantCommandTrackerAddon {
-	private _currentCwd: string | undefined;
+	// private _currentCwd: string | undefined;
 	setCwd(cwd: string): void {
-		this._currentCwd = cwd;
+		// this._currentCwd = cwd;
 	}
 }
 
