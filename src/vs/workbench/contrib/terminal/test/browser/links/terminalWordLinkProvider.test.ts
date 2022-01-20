@@ -36,8 +36,8 @@ import { EventType } from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { isWindows } from 'vs/base/common/platform';
-const filePrefix = 'file://';
 const pathSeparator = isWindows ? '\\' : '/';
+const filePrefix = 'file:' + pathSeparator.repeat(2);
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
