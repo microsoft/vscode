@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICommandTracker, TerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICommandTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
 
 /**
@@ -29,7 +29,6 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 
 	abstract activate(terminal: Terminal): void;
 	abstract handleIntegratedShellChange(event: { type: string, value: string }): void;
-	abstract getCwdForLine(line: number): string;
 
 	dispose(): void {
 	}
@@ -310,13 +309,7 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 }
 
 export class NaiveCommandTrackerAddon extends CommandTrackerAddon {
-	getCwdForLine(line: number): string {
-		throw new Error('Method not implemented.');
-	}
 	_terminal: Terminal | undefined;
-	get commands(): TerminalCommand[] {
-		return [];
-	}
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;

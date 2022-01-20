@@ -47,6 +47,17 @@ export class CommandDetectionCapability {
 	) {
 	}
 
+	/**
+	 * Gets the working directory for a line, this will return undefined if it's unknown in which
+	 * case the terminal's initial cwd should be used.
+	 */
+	getCwdForLine(line: number): string | undefined {
+		// TODO: It would be more reliable to take the closest cwd above the line if it isn't found for the line
+		// TODO: Use a reverse for loop to find the line to avoid creating another array
+		const reversed = [...this._commands].reverse();
+		return reversed.find(c => c.marker!.line <= line - 1)?.cwd;
+	}
+
 	handlePromptStart(): void {
 		this._currentCommand.promptStartMarker = this._terminal.registerMarker(0);
 		this._logService.debug('CommandDetectionCapability#handlePromptStart', this._terminal.buffer.active.cursorX, this._currentCommand.promptStartMarker?.line);

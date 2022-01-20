@@ -97,7 +97,6 @@ export interface ICommandTracker {
 	selectToNextCommand(): void;
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
-	getCwdForLine(line: number): string;
 	clearMarker(): void;
 }
 

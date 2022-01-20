@@ -28,7 +28,6 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 	private _exitCode: number | undefined;
 	private _cwd: string | undefined;
 	private _currentCommand: ICurrentPartialCommand = {};
-	private _initialCwd: string | undefined;
 
 	protected _terminal: Terminal | undefined;
 
@@ -141,11 +140,6 @@ export class CognisantCommandTrackerAddon extends CommandTrackerAddon {
 			} default:
 				return;
 		}
-	}
-
-	getCwdForLine(line: number): string {
-		const reversed = [...this._commands].reverse();
-		return reversed.find(c => c.marker!.line <= line - 1)?.cwd || this._initialCwd!;
 	}
 }
 
