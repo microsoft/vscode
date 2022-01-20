@@ -184,7 +184,7 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		// Ensure all links are provided
 		const links = (await new Promise<TerminalLink[] | undefined>(r => provider.provideLinks(1, r)))!;
 		const actualLinks = await Promise.all(links.map(async e => {
-			if (registerCwdDetectionCapability) {
+			if (capabilities.has(TerminalCapability.CwdDetection)) {
 				e.activate(new TerminalLinkQuickPickEvent(EventType.CLICK), e.text);
 				await e.asyncActivate;
 			}
@@ -277,11 +277,20 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		await assertLink('file:///C:/users/test/file.txt ', [{ range: [[1, 1], [30, 1]], text: 'file:///C:/users/test/file.txt' }]);
 		await assertLink('file:///C:/users/test/file.txt:1:10 ', [{ range: [[1, 1], [35, 1]], text: 'file:///C:/users/test/file.txt:1:10' }]);
 	});
-	test('should add cwd to link when the file exists', async () => {
+	test('should apply the cwd to the link only when the file exists and cwdDetection is enabled', async () => {
 		const pathSeparator = isWindows ? '\\' : '/';
 		const cwd = ['', 'Users', 'home', 'folder'].join(pathSeparator);
 		const text = 'file.txt';
-		await assertLink('file.txt', [{ range: [[1, 1], [8, 1]], text, linkActivationResult: { link: 'file://' + [cwd, 'file.txt'].join(pathSeparator), source: 'editor' } }], true, cwd, [['', 'Users', 'home', 'folder', 'file.txt'].join(pathSeparator)]);
-		await assertLink('file.txt', [{ range: [[1, 1], [8, 1]], text, linkActivationResult: { link: text, source: 'quickpick' } }], true, cwd, []);
+		const filePath = [cwd, text].join(pathSeparator);
+		await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: { link: 'file://' + filePath, source: 'editor' } }], true, cwd, [filePath]);
+		await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: { link: text, source: 'quickpick' } }], true, cwd, []);
+	});
+	test('should not add the cwd to the link when cwdDetection is not enabled', async () => {
+		const pathSeparator = isWindows ? '\\' : '/';
+		const cwd = ['', 'Users', 'home', 'folder'].join(pathSeparator);
+		const text = 'file.txt';
+		const filePath = [cwd, text].join(pathSeparator);
+		await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: undefined }], false, cwd, [filePath]);
+		await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: undefined }], false, cwd, []);
 	});
 });
