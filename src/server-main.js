@@ -5,9 +5,9 @@
 
 // @ts-check
 
-const perf = require('../base/common/performance');
+const perf = require('./vs/base/common/performance');
 const performance = require('perf_hooks').performance;
-const product = require('../../../product.json');
+const product = require('../product.json');
 const readline = require('readline');
 const http = require('http');
 
@@ -43,7 +43,7 @@ async function start() {
 	}
 
 	/**
-	 * @typedef { import('./remoteExtensionHostAgentServer').IServerAPI } IServerAPI
+	 * @typedef { import('./vs/server/remoteExtensionHostAgentServer').IServerAPI } IServerAPI
 	 */
 	/** @type {IServerAPI | null} */
 	let _remoteExtensionHostAgentServer = null;
@@ -247,7 +247,7 @@ async function findFreePort(host, start, end) {
 	return undefined;
 }
 
-/** @returns { Promise<typeof import('./remoteExtensionHostAgent')> } */
+/** @returns { Promise<typeof import('./vs/server/remoteExtensionHostAgent')> } */
 function loadCode() {
 	return new Promise((resolve, reject) => {
 		const path = require('path');
@@ -255,12 +255,12 @@ function loadCode() {
 		if (process.env['VSCODE_DEV']) {
 			// When running out of sources, we need to load node modules from remote/node_modules,
 			// which are compiled against nodejs, not electron
-			process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', '..', '..', 'remote', 'node_modules');
-			require('../../bootstrap-node').injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+			process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', 'remote', 'node_modules');
+			require('./bootstrap-node').injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
 		} else {
 			delete process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'];
 		}
-		require('../../bootstrap-amd').load('vs/server/remoteExtensionHostAgent', resolve, reject);
+		require('./bootstrap-amd').load('vs/server/remoteExtensionHostAgent', resolve, reject);
 	});
 }
 

@@ -22,7 +22,7 @@ function code() {
 
 	NODE_ENV=development \
 	VSCODE_DEV=1 \
-	$NODE "$ROOT/out/vs/server/main.js" "$@"
+	$NODE "$ROOT/out/server-main.js" "$@"
 }
 
 code "$@"
