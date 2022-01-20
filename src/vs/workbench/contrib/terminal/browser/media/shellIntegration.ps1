@@ -14,7 +14,23 @@ function Global:__VSCode-Get-LastExitCode {
 }
 
 function Global:Prompt() {
-  return "`e]633;$($(Get-History -Count 1).CommandLine)`u{7}`e]133;D;$(__VSCode-Get-LastExitCode)`u{7}`e]133;A`u{7}`e]1337;CurrentDir=$(Get-Location)`u{7}$(Invoke-Command -ScriptBlock $Global:__VSCodeOriginalPrompt)`e]133;B`u{7}"
+	# Command finished command line
+	# OSC 633 ; <CommandLine> ST
+	$Result  = "`e]633;$($(Get-History -Count 1).CommandLine)`u{7}"
+	# Command finished exit code
+	# OSC 133 ; D ; <ExitCode> ST
+	$Result += "`e]133;D;$(__VSCode-Get-LastExitCode)`u{7}"
+	# Prompt started
+	# OSC 133 ; A ST
+	$Result += "`e]133;A`u{7}"
+	# Current working directory
+	# OSC 1337 ; CurrentDir=<CurrentDir> ST
+	$Result += "`e]1337;CurrentDir=$(Get-Location)`u{7}"
+	# Write original prompt
+	$Result += "$(Invoke-Command -ScriptBlock $Global:__VSCodeOriginalPrompt)"
+	# Write command started
+	$Result += "`e]133;B`u{7}"
+  return $Result
 }
 
 # TODO: Gracefully fallback when PSReadLine is not loaded
