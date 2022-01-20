@@ -210,7 +210,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 				}
 			});
 
-			const cp = _cp.fork(join(__dirname, '../../server-main.js'), cmdLine, { stdio: 'inherit' });
+			const cp = _cp.fork(join(__dirname, '../../../server-main.js'), cmdLine, { stdio: 'inherit' });
 			cp.on('error', err => console.log(err));
 			return;
 		}
