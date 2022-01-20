@@ -346,7 +346,7 @@ registerAction2(class extends Action2 {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const notificationService = accessor.get(INotificationService);
 		if (layoutService.getPanelAlignment() !== 'center') {
-			notificationService.warn(localize('panelMaxNotSupported', "Maximizing the panel is not supported when it is not center aligned."));
+			notificationService.warn(localize('panelMaxNotSupported', "Maximizing the panel is only supported when it is center aligned."));
 			return;
 		}
 
