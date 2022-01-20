@@ -8,7 +8,6 @@
 }
 
 .settings-editor {
-	padding: 11px 0px 0px;
 	overflow: hidden;
 }
 
@@ -21,6 +20,7 @@
 	box-sizing: border-box;
 	margin: auto;
 	overflow: hidden;
+	margin-top: 11px;
 	padding-top: 3px;
 	padding-left: 24px;
 	padding-right: 24px;
@@ -205,7 +205,6 @@
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-list {
-	width: 160px;
 	pointer-events: initial;
 }
 
@@ -281,7 +280,7 @@
 	max-width: 1000px;
 	margin: auto;
 	box-sizing: border-box;
-	padding-left: 221px;
+	padding-left: 24px;
 	padding-right: 24px;
 	overflow: visible;
 }

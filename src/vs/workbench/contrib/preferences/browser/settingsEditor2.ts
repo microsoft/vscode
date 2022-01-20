@@ -15,7 +15,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import * as collections from 'vs/base/common/collections';
 import { fromNow } from 'vs/base/common/date';
 import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
@@ -55,6 +55,7 @@ import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/w
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -136,10 +137,13 @@ export class SettingsEditor2 extends EditorPane {
 
 	private rootElement!: HTMLElement;
 	private headerContainer!: HTMLElement;
+	private bodyContainer!: HTMLElement;
 	private searchWidget!: SuggestEnabledInput;
 	private countElement!: HTMLElement;
 	private controlsElement!: HTMLElement;
 	private settingsTargetsWidget!: SettingsTargetsWidget;
+
+	private splitView!: SplitView;
 
 	private settingsTreeContainer!: HTMLElement;
 	private settingsTree!: SettingsTree;
@@ -650,9 +654,9 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private createBody(parent: HTMLElement): void {
-		const bodyContainer = DOM.append(parent, $('.settings-body'));
+		this.bodyContainer = DOM.append(parent, $('.settings-body'));
 
-		this.noResultsMessage = DOM.append(bodyContainer, $('.no-results-message'));
+		this.noResultsMessage = DOM.append(this.bodyContainer, $('.no-results-message'));
 
 		this.noResultsMessage.innerText = localize('noResults', "No Settings Found");
 
@@ -671,8 +675,34 @@ export class SettingsEditor2 extends EditorPane {
 			this.noResultsMessage.style.color = colors.editorForeground ? colors.editorForeground.toString() : '';
 		}));
 
-		this.createTOC(bodyContainer);
-		this.createSettingsTree(bodyContainer);
+		this.tocTreeContainer = $('.settings-toc-container');
+		this.settingsTreeContainer = $('.settings-tree-container');
+
+		this.createTOC(this.tocTreeContainer);
+		this.createSettingsTree(this.settingsTreeContainer);
+
+		this.splitView = new SplitView(this.bodyContainer, {
+			orientation: Orientation.HORIZONTAL
+		});
+		this.splitView.addView({
+			onDidChange: Event.None,
+			element: this.tocTreeContainer,
+			minimumSize: 180,
+			maximumSize: Number.POSITIVE_INFINITY,
+			layout: (width) => {
+				this.tocTreeContainer.style.width = `${width}px`;
+			}
+		}, Sizing.Distribute);
+		this.splitView.addView({
+			onDidChange: Event.None,
+			element: this.settingsTreeContainer,
+			minimumSize: 300,
+			maximumSize: Number.POSITIVE_INFINITY,
+			layout: (width) => {
+				this.settingsTreeContainer.style.width = `${width}px`;
+			}
+		}, Sizing.Distribute);
+		this.splitView.startSnappingEnabled = true;
 	}
 
 	private addCtrlAInterceptor(container: HTMLElement): void {
@@ -690,12 +720,11 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 	}
 
-	private createTOC(parent: HTMLElement): void {
+	private createTOC(container: HTMLElement): void {
 		this.tocTreeModel = this.instantiationService.createInstance(TOCTreeModel, this.viewState);
-		this.tocTreeContainer = DOM.append(parent, $('.settings-toc-container'));
 
 		this.tocTree = this._register(this.instantiationService.createInstance(TOCTree,
-			DOM.append(this.tocTreeContainer, $('.settings-toc-wrapper', {
+			DOM.append(container, $('.settings-toc-wrapper', {
 				'role': 'navigation',
 				'aria-label': localize('settings', "Settings"),
 			})),
@@ -734,8 +763,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 	}
 
-	private createSettingsTree(parent: HTMLElement): void {
-		this.settingsTreeContainer = DOM.append(parent, $('.settings-tree-container'));
+	private createSettingsTree(container: HTMLElement): void {
 
 		this.settingRenderers = this.instantiationService.createInstance(SettingTreeRenderers);
 		this._register(this.settingRenderers.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value, e.type)));
@@ -769,7 +797,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsTree,
-			this.settingsTreeContainer,
+			container,
 			this.viewState,
 			this.settingRenderers.allRenderers));
 
@@ -1470,6 +1498,9 @@ export class SettingsEditor2 extends EditorPane {
 		const tocTreeHeight = settingsTreeHeight - 1;
 		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
 		this.tocTree.layout(tocTreeHeight);
+
+		this.splitView.el.style.height = `${settingsTreeHeight}px`;
+		this.splitView.layout(this.bodyContainer.clientWidth);
 	}
 
 	protected override saveState(): void {
