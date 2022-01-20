@@ -987,19 +987,19 @@ function parseConnectionToken(args: ServerParsedArgs): { connectionToken: string
 
 export interface IServerAPI {
 	/**
-	 * Do not remove!!. Called from vs/server/main.js
+	 * Do not remove!!. Called from server-main.js
 	 */
 	handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void>;
 	/**
-	 * Do not remove!!. Called from vs/server/main.js
+	 * Do not remove!!. Called from server-main.js
 	 */
 	handleUpgrade(req: http.IncomingMessage, socket: net.Socket): void;
 	/**
-	 * Do not remove!!. Called from vs/server/main.js
+	 * Do not remove!!. Called from server-main.js
 	 */
 	handleServerError(err: Error): void;
 	/**
-	 * Do not remove!!. Called from vs/server/main.js
+	 * Do not remove!!. Called from server-main.js
 	 */
 	dispose(): void;
 }

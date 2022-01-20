@@ -56,7 +56,7 @@ const env = { ...process.env };
 env['VSCODE_AGENT_FOLDER'] = env['VSCODE_AGENT_FOLDER'] || path.join(os.homedir(), '.vscode-server-oss-dev');
 env['NODE_ENV'] = 'development';
 env['VSCODE_DEV'] = '1';
-const entryPoint = path.join(__dirname, '..', '..', '..', 'out', 'vs', 'server', 'main.js');
+const entryPoint = path.join(__dirname, '..', '..', '..', 'out', 'server-main.js');
 
 startServer();
 

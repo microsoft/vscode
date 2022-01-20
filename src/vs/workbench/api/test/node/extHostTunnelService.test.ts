@@ -185,7 +185,7 @@ const processes: { pid: number, cwd: string, cmd: string }[] = [
 	{
 		pid: 314,
 		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft VS Code Insiders',
-		cmd: '/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/out/vs/server/main.js--port=0--use-host-proxy--enable-remote-auto-shutdown--print-ip-address'
+		cmd: '/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/out/server-main.js--port=0--use-host-proxy--enable-remote-auto-shutdown--print-ip-address'
 	},
 	{
 		pid: 3172,

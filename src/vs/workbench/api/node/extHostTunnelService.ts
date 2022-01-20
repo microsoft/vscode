@@ -107,7 +107,7 @@ export function loadConnectionTable(stdout: string): Record<string, string>[] {
 
 function knownExcludeCmdline(command: string): boolean {
 	return !!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/)
-		|| (command.indexOf('out/vs/server/main.js') !== -1)
+		|| (command.indexOf('out/server-main.js') !== -1)
 		|| (command.indexOf('_productName=VSCode') !== -1);
 }
 

@@ -209,7 +209,8 @@ export function main(desc: ProductDescription, args: string[]): void {
 					cmdLine.push(`--${opt}=${value}`);
 				}
 			});
-			const cp = _cp.fork(join(__dirname, 'main.js'), cmdLine, { stdio: 'inherit' });
+
+			const cp = _cp.fork(join(__dirname, '../../server-main.js'), cmdLine, { stdio: 'inherit' });
 			cp.on('error', err => console.log(err));
 			return;
 		}
