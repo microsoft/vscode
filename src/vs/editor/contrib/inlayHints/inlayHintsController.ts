@@ -167,8 +167,12 @@ export class InlayHintsController implements IEditorContribution {
 				// listen to provider changes
 				for (const provider of inlayHints.provider) {
 					if (typeof provider.onDidChangeInlayHints === 'function' && !watchedProviders.has(provider)) {
-						this._sessionDisposables.add(provider.onDidChangeInlayHints(() => scheduler.schedule()));
 						watchedProviders.add(provider);
+						this._sessionDisposables.add(provider.onDidChangeInlayHints(() => {
+							if (!scheduler.isScheduled()) { // ignore event when request is already scheduled
+								scheduler.schedule();
+							}
+						}));
 					}
 				}
 
@@ -188,11 +192,21 @@ export class InlayHintsController implements IEditorContribution {
 
 		this._sessionDisposables.add(scheduler);
 		this._sessionDisposables.add(toDisposable(() => cts?.dispose(true)));
-
-		// update inline hints when content or scroll position changes
-		this._sessionDisposables.add(this._editor.onDidChangeModelContent(() => scheduler.schedule()));
-		this._sessionDisposables.add(this._editor.onDidScrollChange(() => scheduler.schedule()));
 		scheduler.schedule(0);
+
+		this._sessionDisposables.add(this._editor.onDidScrollChange((e) => {
+			// update when scroll position changes
+			// uses scrollTopChanged has weak heuristic to differenatiate between scrolling due to
+			// typing or due to "actual" scrolling
+			if (e.scrollTopChanged || !scheduler.isScheduled()) {
+				scheduler.schedule();
+			}
+		}));
+		this._sessionDisposables.add(this._editor.onDidChangeModelContent((e) => {
+			// update less aggressive when typing
+			const delay = Math.max(scheduler.delay, 1250);
+			scheduler.schedule(delay);
+		}));
 
 		// mouse gestures
 		this._sessionDisposables.add(this._installLinkGesture());
