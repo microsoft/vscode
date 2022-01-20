@@ -985,10 +985,10 @@
     node-addon-api "^3.2.1"
     node-gyp-build "^4.3.0"
 
-"@playwright/test@1.18.0-rc1":
-  version "1.18.0-rc1"
-  resolved "https://registry.yarnpkg.com/@playwright/test/-/test-1.18.0-rc1.tgz#1c4f414c22063f1355dba7be9b6460b749ef6478"
-  integrity sha512-D6savDw2zknI9DTCRRFfL4mswDXxYt2w1PbcqmQnwS72is054nb5SR5Sxl43eot1pOfx6u+SH7mHU8ptUzNR+Q==
+"@playwright/test@1.18.0":
+  version "1.18.0"
+  resolved "https://registry.yarnpkg.com/@playwright/test/-/test-1.18.0.tgz#e6ac7b588d927fdd028d72f0db1030dd777a79a7"
+  integrity sha512-ceu4DqerPlyRsdNfke4IUyWH1WccRuBokngFdPAzc5CRzlGmSTT59NBkJyn8Fg/F01CziaMFgNRrHQIMSd4g5A==
   dependencies:
     "@babel/code-frame" "^7.14.5"
     "@babel/core" "^7.14.8"
@@ -1022,7 +1022,7 @@
     open "^8.3.0"
     pirates "^4.0.1"
     pixelmatch "^5.2.1"
-    playwright-core "=1.18.0-rc1"
+    playwright-core "=1.18.0"
     pngjs "^5.0.0"
     rimraf "^3.0.2"
     source-map-support "^0.4.18"
@@ -8969,10 +8969,10 @@ pkg-up@^3.1.0:
   dependencies:
     find-up "^3.0.0"
 
-playwright-core@=1.18.0-rc1:
-  version "1.18.0-rc1"
-  resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.18.0-rc1.tgz#585b542055729b6a6c55bd847a6805d3490984e1"
-  integrity sha512-l1kd9Z4msyQH6ozfyD5SM6b6g2t8l78E+plI0HSKe3b+FhFMd2LY3dDKXjR2DNOs4roowspX4znlFMxKTiFhUg==
+playwright-core@=1.18.0:
+  version "1.18.0"
+  resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.18.0.tgz#b4d2b9068f26357adaa952a13254796fd439f322"
+  integrity sha512-JTRlCVpfAFcC1nth+XIE07w6M5m6C8PaEoClv7wGWF97cyDMcHIij0xIVEKMKli7IG5N0mqjLDFc/akXSbMZ1g==
   dependencies:
     commander "^8.2.0"
     debug "^4.1.1"
