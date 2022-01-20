@@ -7,12 +7,12 @@ import * as os from 'os';
 import * as fs from 'fs';
 import * as net from 'net';
 import { FileAccess } from 'vs/base/common/network';
-import { run as runCli } from 'vs/server/remoteExtensionHostAgentCli';
-import { createServer as doCreateServer, IServerAPI } from 'vs/server/remoteExtensionHostAgentServer';
+import { run as runCli } from 'vs/server/node/remoteExtensionHostAgentCli';
+import { createServer as doCreateServer, IServerAPI } from 'vs/server/node/remoteExtensionHostAgentServer';
 import { parseArgs, ErrorReporter } from 'vs/platform/environment/node/argv';
 import { join, dirname } from 'vs/base/common/path';
 import { performance } from 'perf_hooks';
-import { serverOptions } from 'vs/server/serverEnvironmentService';
+import { serverOptions } from 'vs/server/node/serverEnvironmentService';
 import product from 'vs/platform/product/common/product';
 import * as perf from 'vs/base/common/performance';
 

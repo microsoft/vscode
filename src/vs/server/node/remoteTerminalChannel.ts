@@ -18,7 +18,7 @@ import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAg
 import { IPtyService, IShellLaunchConfig, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
+import { createRemoteURITransformer } from 'vs/server/node/remoteUriTransformer';
 import { CLIServerBase, ICommandsExecuter } from 'vs/workbench/api/node/extHostCLIServer';
 import { IEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
@@ -26,8 +26,8 @@ import { deserializeEnvironmentVariableCollection } from 'vs/workbench/contrib/t
 import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IWorkspaceFolderData } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { buildUserEnvironment } from 'vs/server/extensionHostConnection';
-import { IServerEnvironmentService } from 'vs/server/serverEnvironmentService';
+import { buildUserEnvironment } from 'vs/server/node/extensionHostConnection';
+import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 class CustomVariableResolver extends AbstractVariableResolverService {
