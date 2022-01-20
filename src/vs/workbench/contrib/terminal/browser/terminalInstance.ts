@@ -1325,7 +1325,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		let newArgs: string | string[] | undefined;
 		// TODO: Use backend OS
 		if (isWindows) {
-			if (shell === 'pwsh' && !originalArgs) {
+			if (shell === 'pwsh.exe' && !originalArgs) {
 				newArgs = [
 					'-noexit',
 					'-command',
