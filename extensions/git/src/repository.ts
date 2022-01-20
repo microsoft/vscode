@@ -866,9 +866,13 @@ export class Repository implements Disposable {
 				return false;
 			}
 
-			// Normalize the uri to be relative to the workspace, if possible
-			const folder = workspace.getWorkspaceFolder(uri);
-			return !/\/\.git\//.test(folder ? path.posix.relative(folder.uri.path, uri.path) : uri.path);
+			// Don't bother doing extra work, if /.git isn't in the path
+			if (!/\/\.git\//.test(uri.path)) {
+				return true;
+			}
+
+			// Normalize the uri to be relative to the repository
+			return !/(?:\/|\\)\.git(?:\/|\\)/.test(path.relative(repository.root, uri.fsPath));
 		});
 
 		let onDotGitFileChange: Event<Uri>;
