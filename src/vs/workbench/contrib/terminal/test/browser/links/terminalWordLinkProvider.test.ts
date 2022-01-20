@@ -35,6 +35,7 @@ import { TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browse
 import { EventType } from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
+import { isWindows } from 'vs/base/common/platform';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -277,7 +278,10 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		await assertLink('file:///C:/users/test/file.txt:1:10 ', [{ range: [[1, 1], [35, 1]], text: 'file:///C:/users/test/file.txt:1:10' }]);
 	});
 	test('should add cwd to link when the file exists', async () => {
-		await assertLink('file.txt', [{ range: [[1, 1], [8, 1]], text: 'file.txt', linkActivationResult: { link: 'file:///Users/home/folder/file.txt', source: 'editor' } }], true, '/Users/home/folder', ['/Users/home/folder/file.txt']);
-		await assertLink('file.txt', [{ range: [[1, 1], [8, 1]], text: 'file.txt', linkActivationResult: { link: 'file.txt', source: 'quickpick' } }], true, '/Users/home/folder', []);
+		const pathSeparator = isWindows ? '\\' : '/';
+		const cwd = ['', 'Users', 'home', 'folder'].join(pathSeparator);
+		const text = 'file.txt';
+		await assertLink('file.txt', [{ range: [[1, 1], [8, 1]], text, linkActivationResult: { link: 'file://' + [cwd, 'file.txt'].join(pathSeparator), source: 'editor' } }], true, cwd, [['', 'Users', 'home', 'folder', 'file.txt'].join(pathSeparator)]);
+		await assertLink('file.txt', [{ range: [[1, 1], [8, 1]], text, linkActivationResult: { link: text, source: 'quickpick' } }], true, cwd, []);
 	});
 });
