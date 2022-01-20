@@ -36,6 +36,7 @@ export const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathC
 replacing space with nonBreakningSpace or space ASCII code - 32. */
 export const lineAndColumnClause = [
 	'((\\S*)[\'"], line ((\\d+)( column (\\d+))?))', // "(file path)", line 45 [see #40468]
+	'((\\S*)[\'"]\\s((\\d+)(\/(\\d+))?))', // "(file path)" 45/18
 	'((\\S*)[\'"],((\\d+)(:(\\d+))?))', // "(file path)",45 [see #78205]
 	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
 	'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
