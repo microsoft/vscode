@@ -41,31 +41,43 @@ suite('ShellIntegrationAddon', () => {
 	});
 
 	suite('cwd detection', async () => {
-		test('should activate capability on the first prompt start sequence (OSC 133 ; A ST)', async () => {
+		test('should activate capability on the prompt start sequence (OSC 1337 ; CurrentDir=<cwd> ST)', async () => {
 			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
 			await writeP(xterm, 'foo');
 			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
-			await writeP(xterm, '\x1b]133;A\x07');
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), true);
-		});
-		test('should not activate capability on any other prompt sequence (OSC 133 ; B-D ST)', async () => {
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
-			await writeP(xterm, '\x1b]133;B\x07');
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
-			await writeP(xterm, '\x1b]133;C\x07');
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
-			await writeP(xterm, '\x1b]133;D\x07');
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
-		});
-		test('should activate capability on the first prompt start sequence (OSC 133 ; A ST)', async () => {
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
-			await writeP(xterm, 'foo');
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
-			await writeP(xterm, '\x1b]133;A\x07');
+			await writeP(xterm, '\x1b]1337;CurrentDir=/foo\x07');
 			strictEqual(capabilities.has(TerminalCapability.CwdDetection), true);
 		});
 	});
 
-	suite.skip('command tracking', async () => {
+	suite('command tracking', async () => {
+		test('should activate capability on the prompt start sequence (OSC 133 ; A ST)', async () => {
+			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
+			await writeP(xterm, 'foo');
+			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
+			await writeP(xterm, '\x1b]133;A\x07');
+			strictEqual(capabilities.has(TerminalCapability.CommandDetection), true);
+		});
+		test('should activate capability on the prompt start sequence (OSC 133 ; B ST)', async () => {
+			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
+			await writeP(xterm, 'foo');
+			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
+			await writeP(xterm, '\x1b]133;B\x07');
+			strictEqual(capabilities.has(TerminalCapability.CommandDetection), true);
+		});
+		test('should activate capability on the prompt start sequence (OSC 133 ; C ST)', async () => {
+			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
+			await writeP(xterm, 'foo');
+			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
+			await writeP(xterm, '\x1b]133;C\x07');
+			strictEqual(capabilities.has(TerminalCapability.CommandDetection), true);
+		});
+		test('should activate capability on the prompt start sequence (OSC 133 ; D ; <ExitCode> ST)', async () => {
+			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
+			await writeP(xterm, 'foo');
+			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
+			await writeP(xterm, '\x1b]133;D;0\x07');
+			strictEqual(capabilities.has(TerminalCapability.CommandDetection), true);
+		});
 	});
 });
