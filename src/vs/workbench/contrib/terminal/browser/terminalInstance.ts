@@ -1297,32 +1297,50 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._configHelper.config.enableShellIntegration || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal) {
 			return { args: shellLaunchConfig.args, enableShellIntegration: false };
 		}
-
+		const loginArgs = ['-login', '-l'];
+		const pwshImpliedArgs = ['-nol', '-l', '-nologo'];
 		const originalArgs = shellLaunchConfig.args;
 		const shell = path.basename(shellLaunchConfig.executable);
 		let newArgs: string | string[] | undefined;
 		if (this._processManager.os === OperatingSystem.Windows) {
-			if (shell === 'pwsh' && !originalArgs) {
+			if (shell === 'pwsh' && !originalArgs || originalArgs === [] || (originalArgs?.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase()))) {
 				newArgs = [
+					'-noexit',
+					'-command',
+					'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
+				];
+			} else if (originalArgs?.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase())) {
+				newArgs = [
+					originalArgs[0],
 					'-noexit',
 					'-command',
 					'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
 				];
 			}
 		} else {
-			if (!originalArgs || originalArgs === [] || originalArgs === ['-l']) {
-				switch (shell) {
-					case 'bash':
+			switch (shell) {
+				case 'bash':
+					if (!originalArgs || originalArgs === []) {
+						//TODO: support login args
 						newArgs = ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-bash.sh'];
-						break;
-					case 'pwsh':
+					}
+					break;
+				case 'pwsh':
+					if (!originalArgs || originalArgs === [] || (originalArgs.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase()))) {
 						newArgs = ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"'];
-						break;
-					case 'zsh':
+					} else if (originalArgs.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase())) {
+						newArgs = [originalArgs[0], '-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"'];
+					}
+					break;
+				case 'zsh':
+					if (!originalArgs || originalArgs === []) {
+						newArgs = ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh"; zsh -i'];
+					} else if (originalArgs.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase())) {
 						newArgs = ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh"; zsh -il'];
-						break;
-				}
-			} else {
+					}
+					break;
+			}
+			if (!newArgs) {
 				this._logService.warn(nls.localize('shellIntegrationArgsPreventEnablingWarning', "Shell integration cannot be enabled when custom args {0} are provided for {1}."), originalArgs, shell);
 			}
 		}
