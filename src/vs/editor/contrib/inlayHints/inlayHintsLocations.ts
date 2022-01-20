@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -17,6 +17,7 @@ import { ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/link/clickLink
 import { RenderedInlayHintLabelPart } from 'vs/editor/contrib/inlayHints/inlayHintsController';
 import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
 import { isIMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -25,6 +26,7 @@ export async function showGoToContextMenu(accessor: ServicesAccessor, editor: IC
 
 	const resolverService = accessor.get(ITextModelService);
 	const contextMenuService = accessor.get(IContextMenuService);
+	const commandService = accessor.get(ICommandService);
 	const instaService = accessor.get(IInstantiationService);
 
 	await part.item.resolve(CancellationToken.None);
@@ -53,6 +55,14 @@ export async function showGoToContextMenu(accessor: ServicesAccessor, editor: IC
 				}
 			}));
 		}
+	}
+
+	if (part.part.command) {
+		const { command } = part.part;
+		menuActions.push(new Separator());
+		menuActions.push(new Action(command.id, command.title, undefined, true, () => {
+			commandService.executeCommand(command.id, ...(command.arguments ?? []));
+		}));
 	}
 
 	// show context menu

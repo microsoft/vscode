@@ -258,13 +258,12 @@ export class InlayHintsController implements IEditorContribution {
 			const label = this._getInlayHintLabelPart(e);
 			if (label) {
 				const part = label.part;
-				if (languages.Command.is(part.command)) {
-					// command -> execute it
-					this._commandService.executeCommand(part.command.id, ...(part.command.arguments ?? [])).catch(err => this._notificationService.error(err));
-
-				} else if (part.location) {
+				if (part.location) {
 					// location -> execute go to def
 					this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, part.location);
+				} else if (languages.Command.is(part.command)) {
+					// command -> execute it
+					this._commandService.executeCommand(part.command.id, ...(part.command.arguments ?? [])).catch(err => this._notificationService.error(err));
 				}
 			}
 		});
