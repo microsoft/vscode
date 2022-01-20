@@ -49,4 +49,3 @@ preexec() {
 }
 precmd_functions+=($precmd_functions precmd)
 preexec_functions+=($preexec_functions preexec)
-update_cwd

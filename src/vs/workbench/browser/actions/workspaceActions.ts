@@ -327,6 +327,19 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '2_open',
 	command: {
+		// When we do not support opening folders/workspaces
+		// but we are in a workspace context, we add a
+		// "Open Folder" action that adds the folder as workspace
+		id: AddRootFolderAction.ID,
+		title: localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
+	},
+	order: 2,
+	when: ContextKeyExpr.and(OpenFolderWorkspaceSupportContext.toNegated(), WorkbenchStateContext.isEqualTo('workspace'))
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '2_open',
+	command: {
 		id: OpenFileFolderAction.ID,
 		title: localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")
 	},

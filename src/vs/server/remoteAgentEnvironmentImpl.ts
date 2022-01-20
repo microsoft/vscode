@@ -94,7 +94,6 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	}
 
 	async call(_: any, command: string, arg?: any): Promise<any> {
-		console.log(`Command received: ${command}`);
 		switch (command) {
 
 			case 'getEnvironmentData': {

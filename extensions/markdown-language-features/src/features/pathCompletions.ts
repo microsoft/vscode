@@ -6,7 +6,7 @@
 import { dirname, resolve } from 'path';
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider } from '../tableOfContentsProvider';
+import { TableOfContents } from '../tableOfContentsProvider';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
 import LinkProvider from './documentLinkProvider';
 
@@ -232,9 +232,8 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 	}
 
 	private async *provideHeaderSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext, insertionRange: vscode.Range): AsyncIterable<vscode.CompletionItem> {
-		const tocProvider = new TableOfContentsProvider(this.engine, document);
-		const toc = await tocProvider.getToc();
-		for (const entry of toc) {
+		const toc = await TableOfContents.createForDocumentOrNotebook(this.engine, document);
+		for (const entry of toc.entries) {
 			const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
 			yield {
 				kind: vscode.CompletionItemKind.Reference,

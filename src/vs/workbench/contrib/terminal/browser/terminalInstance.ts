@@ -27,7 +27,7 @@ import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMod
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent, TerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent, TerminalCommand, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import type { Terminal as XTermTerminal, ITerminalAddon, ILink } from 'xterm';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
@@ -698,6 +698,28 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 		return { wordLinks: wordResults, webLinks: webResults, fileLinks: fileResults };
+	}
+
+	async openRecentLink(type: 'file' | 'web'): Promise<void> {
+		if (!this.areLinksReady || !this._linkManager) {
+			throw new Error('terminal links are not ready, cannot open a link');
+		}
+		if (!this.xterm) {
+			throw new Error('no xterm');
+		}
+
+		let links;
+		let i = this.xterm.raw.buffer.active.viewportY;
+		while ((!links || links.length === 0) && i <= this.xterm.raw.buffer.active.length) {
+			links = await this._linkManager.getLinksForType(i, type);
+			i++;
+		}
+
+		if (!links || links.length < 1) {
+			return;
+		}
+		const event = new TerminalLinkQuickPickEvent(dom.EventType.CLICK);
+		links[0].activate(event, links[0].text);
 	}
 
 	async runRecent(type: 'command' | 'cwd'): Promise<void> {

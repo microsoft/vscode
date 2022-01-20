@@ -10986,8 +10986,15 @@ declare module 'vscode' {
 		 * *Note* that file changes for the path to be watched may not be delivered when the path itself
 		 * changes. For example, when watching a path `/Users/somename/Desktop` and the path itself is
 		 * being deleted, the watcher may not report an event and may not work anymore from that moment on.
+		 * The underlying behaviour depends on the path that is provided for watching:
+		 * * if the path is within any of the workspace folders, deletions are tracked and reported unless
+		 *   excluded via `files.watcherExclude` setting
+		 * * if the path is equal to any of the workspace folders, deletions are not tracked
+		 * * if the path is outside of any of the workspace folders, deletions are not tracked
+		 * 
 		 * If you are interested in being notified when the watched path itself is being deleted, you have
-		 * to watch it's parent folder.
+		 * to watch it's parent folder. Make sure to use a simple `pattern` (such as putting the name of the
+		 * folder) to not accidentally watch all sibling folders recursively.
 		 *
 		 * ### Examples
 		 *

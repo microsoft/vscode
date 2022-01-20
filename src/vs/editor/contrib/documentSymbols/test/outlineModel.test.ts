@@ -12,6 +12,7 @@ import { DocumentSymbol, DocumentSymbolProviderRegistry, SymbolKind } from 'vs/e
 import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { IModelService } from 'vs/editor/common/services/model';
 import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { OutlineElement, OutlineGroup, OutlineModel, OutlineModelService } from '../outlineModel';
 
@@ -27,7 +28,7 @@ suite('OutlineModel', function () {
 
 		const insta = createModelServices(disposables);
 		const modelService = insta.get(IModelService);
-		const service = new OutlineModelService(new LanguageFeatureDebounceService(), modelService);
+		const service = new OutlineModelService(new LanguageFeatureDebounceService(new NullLogService()), modelService);
 
 		let model = createTextModel('foo', undefined, undefined, URI.file('/fome/path.foo'));
 		let count = 0;
@@ -58,7 +59,7 @@ suite('OutlineModel', function () {
 
 		const insta = createModelServices(disposables);
 		const modelService = insta.get(IModelService);
-		const service = new OutlineModelService(new LanguageFeatureDebounceService(), modelService);
+		const service = new OutlineModelService(new LanguageFeatureDebounceService(new NullLogService()), modelService);
 		let model = createTextModel('foo', undefined, undefined, URI.file('/fome/path.foo'));
 		let isCancelled = false;
 

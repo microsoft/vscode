@@ -55,7 +55,7 @@ import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataPr
 export class DesktopMain extends Disposable {
 
 	constructor(
-		protected readonly configuration: INativeWorkbenchConfiguration
+		private readonly configuration: INativeWorkbenchConfiguration
 	) {
 		super();
 

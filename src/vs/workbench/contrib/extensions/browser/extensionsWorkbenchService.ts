@@ -463,7 +463,7 @@ class Extensions extends Disposable {
 
 	private async getCompatibleExtension(extensionOrIdentifier: IGalleryExtension | IExtensionIdentifier, includePreRelease: boolean): Promise<IGalleryExtension | null> {
 		if (isIExtensionIdentifier(extensionOrIdentifier)) {
-			return (await this.galleryService.getExtensions([{ ...extensionOrIdentifier, preRelease: includePreRelease }], { targetPlatform: await this.server.extensionManagementService.getTargetPlatform(), compatible: true }, CancellationToken.None))[0] || null;
+			return (await this.galleryService.getExtensions([{ ...extensionOrIdentifier, includePreRelease }], { targetPlatform: await this.server.extensionManagementService.getTargetPlatform(), compatible: true }, CancellationToken.None))[0] || null;
 		}
 		const extension = extensionOrIdentifier;
 		if (includePreRelease && extension.hasPreReleaseVersion && !extension.properties.isPreReleaseVersion) {

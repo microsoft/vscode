@@ -10,6 +10,7 @@ import { LanguageFeatureRegistry } from 'vs/editor/common/languages/languageFeat
 import { ITextModel } from 'vs/editor/common/model';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 
 
 export const ILanguageFeatureDebounceService = createDecorator<ILanguageFeatureDebounceService>('ILanguageFeatureDebounceService');
@@ -18,7 +19,7 @@ export interface ILanguageFeatureDebounceService {
 
 	readonly _serviceBrand: undefined;
 
-	for(feature: LanguageFeatureRegistry<object>, config?: { min?: number, salt?: string }): IFeatureDebounceInformation;
+	for(feature: LanguageFeatureRegistry<object>, debugName: string, config?: { min?: number, salt?: string }): IFeatureDebounceInformation;
 }
 
 export interface IFeatureDebounceInformation {
@@ -45,6 +46,8 @@ class FeatureDebounceInformation implements IFeatureDebounceInformation {
 	private readonly _cache = new LRUCache<string, SlidingWindowAverage>(50, 0.7);
 
 	constructor(
+		private readonly _logService: ILogService,
+		private readonly _name: string,
 		private readonly _registry: LanguageFeatureRegistry<object>,
 		private readonly _default: number,
 		private readonly _min: number,
@@ -67,10 +70,12 @@ class FeatureDebounceInformation implements IFeatureDebounceInformation {
 		const key = this._key(model);
 		let avg = this._cache.get(key);
 		if (!avg) {
-			avg = new SlidingWindowAverage(12);
+			avg = new SlidingWindowAverage(6);
 			this._cache.set(key, avg);
 		}
-		return clamp(avg.update(value), this._min, this._max);
+		const newValue = clamp(avg.update(value), this._min, this._max);
+		this._logService.trace(`[DEBOUNCE: ${this._name}] for ${model.uri.toString()} is ${newValue}ms`);
+		return newValue;
 	}
 
 	private _overall(): number {
@@ -94,13 +99,20 @@ export class LanguageFeatureDebounceService implements ILanguageFeatureDebounceS
 
 	private readonly _data = new Map<string, FeatureDebounceInformation>();
 
-	for(feature: LanguageFeatureRegistry<object>, config?: { min?: number, key?: string }): IFeatureDebounceInformation {
+	constructor(@ILogService private readonly _logService: ILogService) {
+
+	}
+
+	for(feature: LanguageFeatureRegistry<object>, name: string, config?: { min?: number, key?: string }): IFeatureDebounceInformation {
 		const min = config?.min ?? 50;
 		const extra = config?.key ?? undefined;
 		const key = `${IdentityHash.of(feature)},${min}${extra ? ',' + extra : ''}`;
 		let info = this._data.get(key);
 		if (!info) {
-			info = new FeatureDebounceInformation(feature,
+			info = new FeatureDebounceInformation(
+				this._logService,
+				name,
+				feature,
 				(this._overallAverage() | 0) || (min * 1.5), // default is overall default or derived from min-value
 				min
 			);

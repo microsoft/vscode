@@ -104,6 +104,9 @@ mkdirp.sync(extensionsPath);
 
 function fail(errorMessage): void {
 	logger.log(errorMessage);
+	if (!opts.verbose) {
+		console.error(errorMessage);
+	}
 	process.exit(1);
 }
 

@@ -1271,7 +1271,8 @@ class InlayHintsAdapter {
 				result.tooltip = part.tooltip && typeConvert.MarkdownString.from(part.tooltip);
 				if (Location.isLocation(part.location)) {
 					result.location = typeConvert.location.from(part.location);
-				} else if (part.command) {
+				}
+				if (part.command) {
 					result.command = this._commands.toInternal(part.command, disposables);
 				}
 				return result;

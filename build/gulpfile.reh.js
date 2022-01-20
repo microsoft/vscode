@@ -63,8 +63,8 @@ const serverResources = [
 	'out-build/vs/base/common/performance.js',
 
 	// main entry points
-	'out-build/vs/server/cli.js',
-	'out-build/vs/server/main.js',
+	'out-build/server-cli.js',
+	'out-build/server-main.js',
 
 	// Watcher
 	'out-build/vs/platform/files/**/*.exe',

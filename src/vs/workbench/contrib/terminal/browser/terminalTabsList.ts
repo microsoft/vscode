@@ -46,7 +46,6 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { getCwdForSplit } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 
 const $ = DOM.$;
 
@@ -146,8 +145,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		// unless multi-selection is in progress
 		this.onMouseClick(async e => {
 			if (e.browserEvent.altKey && e.element) {
-				const cwd = await getCwdForSplit(this._terminalService.configHelper, e.element);
-				await this._terminalService.createTerminal({ location: { parentTerminal: e.element }, cwd });
+				await this._terminalService.createTerminal({ location: { parentTerminal: e.element } });
 			} else if (this._getFocusMode() === 'singleClick') {
 				if (this.getSelection().length <= 1) {
 					e.element?.focus(true);
@@ -479,8 +477,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const actions = [
 			new Action(TerminalCommandId.SplitInstance, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
 				this._runForSelectionOrInstance(instance, async e => {
-					const cwd = await getCwdForSplit(this._terminalService.configHelper, e);
-					this._terminalService.createTerminal({ location: { parentTerminal: e }, cwd });
+					this._terminalService.createTerminal({ location: { parentTerminal: e } });
 				});
 			}),
 			new Action(TerminalCommandId.KillInstance, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {

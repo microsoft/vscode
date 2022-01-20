@@ -13,6 +13,7 @@ import { parseArgs, ErrorReporter } from 'vs/platform/environment/node/argv';
 import { join, dirname } from 'vs/base/common/path';
 import { performance } from 'perf_hooks';
 import { serverOptions } from 'vs/server/serverEnvironmentService';
+import product from 'vs/platform/product/common/product';
 import * as perf from 'vs/base/common/performance';
 
 perf.mark('code/server/codeLoaded');
@@ -34,7 +35,7 @@ const errorReporter: ErrorReporter = {
 
 const args = parseArgs(process.argv.slice(2), serverOptions, errorReporter);
 
-const REMOTE_DATA_FOLDER = process.env['VSCODE_AGENT_FOLDER'] || join(os.homedir(), '.vscode-remote');
+const REMOTE_DATA_FOLDER = args['server-data-dir'] || process.env['VSCODE_AGENT_FOLDER'] || join(os.homedir(), product.serverDataFolderName || '.vscode-remote');
 const USER_DATA_PATH = join(REMOTE_DATA_FOLDER, 'data');
 const APP_SETTINGS_HOME = join(USER_DATA_PATH, 'User');
 const GLOBAL_STORAGE_HOME = join(APP_SETTINGS_HOME, 'globalStorage');
@@ -54,14 +55,14 @@ args['extensions-dir'] = args['extensions-dir'] || join(REMOTE_DATA_FOLDER, 'ext
 });
 
 /**
- * invoked by vs/server/main.js
+ * invoked by server-main.js
  */
 export function spawnCli() {
 	runCli(args, REMOTE_DATA_FOLDER, serverOptions);
 }
 
 /**
- * invoked by vs/server/main.js
+ * invoked by server-main.js
  */
 export function createServer(address: string | net.AddressInfo | null): Promise<IServerAPI> {
 	return doCreateServer(address, args, REMOTE_DATA_FOLDER);

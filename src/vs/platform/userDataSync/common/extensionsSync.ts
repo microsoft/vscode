@@ -378,7 +378,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				}
 
 				// User Extension Sync: Install/Update, Enablement & State
-				const extension = (await this.extensionGalleryService.getExtensions([{ ...e.identifier, preRelease: e.preRelease }], CancellationToken.None))[0];
+				const extension = (await this.extensionGalleryService.getExtensions([{ ...e.identifier, includePreRelease: e.preRelease }], CancellationToken.None))[0];
 
 				/* Update extension state only if
 				 *	extension is installed and version is same as synced version or

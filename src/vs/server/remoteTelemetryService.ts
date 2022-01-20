@@ -45,7 +45,6 @@ export class RemoteTelemetryService extends TelemetryService implements IRemoteT
 		if (this._injectedTelemetryLevel < TelemetryLevel.USAGE) {
 			return Promise.resolve(undefined);
 		}
-		console.log(`Logging telemetry: ${eventName}`);
 		return super.publicLog(eventName, data, anonymizeFilePaths);
 	}
 
@@ -62,7 +61,6 @@ export class RemoteTelemetryService extends TelemetryService implements IRemoteT
 		if (this._injectedTelemetryLevel < TelemetryLevel.ERROR) {
 			return Promise.resolve(undefined);
 		}
-		console.log(`Logging telemetry: ${errorEventName}`);
 		return super.publicLogError(errorEventName, data);
 	}
 
