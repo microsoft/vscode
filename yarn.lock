@@ -1548,10 +1548,10 @@
     ts-morph "^12.2.0"
     vscode-ripgrep "^1.12.1"
 
-"@vscode/test-web@^0.0.18":
-  version "0.0.18"
-  resolved "https://registry.yarnpkg.com/@vscode/test-web/-/test-web-0.0.18.tgz#c9d33fe446794b444f18c3c24360371c45546d50"
-  integrity sha512-DHaE+m/c7tDKTidq2j2MdFPZYtMuhDZgjT2uHS6V7FpiZjVRJzwkvHHgAu1gQxxB0MHi59vorS/piQ9iWx1JTQ==
+"@vscode/test-web@^0.0.19":
+  version "0.0.19"
+  resolved "https://registry.yarnpkg.com/@vscode/test-web/-/test-web-0.0.19.tgz#2e2b030bca049c31f56bb73709b15c03b04bcaa1"
+  integrity sha512-7Idk5qmShFCG65OMg7zB5028L38CVk5StKONgnzJNDjKXMj4BOch5CMAK6ad1P+oah94EYVSzGrX/AF1EgpxWA==
   dependencies:
     "@koa/router" "^10.1.1"
     decompress "^4.2.1"

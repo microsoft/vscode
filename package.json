@@ -123,7 +123,7 @@
     "@typescript-eslint/eslint-plugin": "3.2.0",
     "@typescript-eslint/parser": "^3.3.0",
     "@vscode/telemetry-extractor": "^1.9.5",
-    "@vscode/test-web": "^0.0.18",
+    "@vscode/test-web": "^0.0.19",
     "ansi-colors": "^3.2.3",
     "asar": "^3.0.3",
     "chromium-pickle-js": "^0.2.0",
