@@ -1918,8 +1918,8 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.SelectDetectedLink,
-				title: { value: localize('workbench.action.terminal.selectDetectedLink', "Select Detected Link"), original: 'Select Detected Link' },
+				id: TerminalCommandId.OpenDetectedLink,
+				title: { value: localize('workbench.action.terminal.OpenDetectedLink', "Open Detected Link"), original: 'Open Detected Link' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
