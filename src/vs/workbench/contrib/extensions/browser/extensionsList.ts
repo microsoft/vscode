@@ -90,9 +90,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const name = append(header, $('span.name'));
 		const installCount = append(header, $('span.install-count'));
 		const ratings = append(header, $('span.ratings'));
-		const preRelease = append(header, $('span.pre-release'));
 		const syncIgnore = append(header, $('span.sync-ignored'));
 		const activationStatus = append(header, $('span.activation-status'));
+		const preRelease = append(header, $('span.pre-release'));
 		const headerRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, header, false);
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));

@@ -9,9 +9,9 @@
   "main": "./out/index.js",
   "private": true,
   "scripts": {
-    "compile": "npm run copy-driver && npm run copy-driver-definition && tsc",
+    "compile": "npm run copy-driver && npm run copy-driver-definition && node ../../node_modules/typescript/bin/tsc",
     "watch": "npm-run-all -lp watch-driver watch-driver-definition watch-tsc",
-    "watch-tsc": "tsc --watch --preserveWatchOutput",
+    "watch-tsc": "node ../../node_modules/typescript/bin/tsc --watch --preserveWatchOutput",
     "copy-driver": "cpx src/driver.js out/",
     "watch-driver": "cpx src/driver.js out/ -w",
     "copy-driver-definition": "node tools/copy-driver-definition.js",

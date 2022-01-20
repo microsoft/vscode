@@ -236,7 +236,7 @@ async function launchServer(options: LaunchOptions) {
 		logger.log(`Starting built server from '${serverLocation}'`);
 		logger.log(`Storing log files into '${logsPath}'`);
 	} else {
-		serverLocation = join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
+		serverLocation = join(root, `scripts/code-server.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 		args.push('--logsPath', logsPath);
 
 		logger.log(`Starting server out of sources from '${serverLocation}'`);

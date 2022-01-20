@@ -31,7 +31,7 @@ export async function migrateUnsupportedExtensions(extensionManagementService: I
 				continue;
 			}
 
-			const gallery = (await galleryService.getExtensions([{ id: preReleaseExtensionId, preRelease: true }], { targetPlatform: await extensionManagementService.getTargetPlatform(), compatible: true }, CancellationToken.None))[0];
+			const gallery = (await galleryService.getExtensions([{ id: preReleaseExtensionId, includePreRelease: true }], { targetPlatform: await extensionManagementService.getTargetPlatform(), compatible: true }, CancellationToken.None))[0];
 			if (!gallery) {
 				logService.info(`Skipping migrating '${unsupportedExtension.identifier.id}' extension because, the comaptible target '${preReleaseExtensionId}' extension is not found`);
 				continue;

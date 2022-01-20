@@ -232,8 +232,6 @@
 					"assert",
 					{ "when": "hasBrowser", "pattern": "vs/editor/contrib/*/!(test){,/**}" },
 					{ "when": "hasBrowser", "pattern": "vs/workbench/workbench.web.api" },
-					{ "when": "test", "pattern": "vscode" }, // TODO@layers
-					{ "when": "test", "pattern": "vs/workbench/api/~" }, // TODO@layers
 					{ "when": "test", "pattern": "vs/workbench/contrib/*/~" }, // TODO@layers
 					{ "when": "test", "pattern": "vs/workbench/workbench.desktop.main" } // TODO@layers
 				]
