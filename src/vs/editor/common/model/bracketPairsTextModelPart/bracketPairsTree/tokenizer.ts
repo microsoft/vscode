@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { NotSupportedError } from 'vs/base/common/errors';
-import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ITextModel } from 'vs/editor/common/model';
 import { SmallImmutableSet } from './smallImmutableSet';
 import { StandardTokenType, TokenMetadata } from 'vs/editor/common/languages';

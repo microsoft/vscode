@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { readUInt32BE, writeUInt32BE } from 'vs/base/common/buffer';
-import { ContiguousMultilineTokens } from 'vs/editor/common/model/tokens/contiguousMultilineTokens';
+import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
 
 export class ContiguousMultilineTokensBuilder {
 

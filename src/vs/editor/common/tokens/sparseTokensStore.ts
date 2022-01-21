@@ -5,8 +5,8 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
-import { SparseMultilineTokens } from 'vs/editor/common/model/tokens/sparseMultilineTokens';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { ILanguageIdCodec, MetadataConsts } from 'vs/editor/common/languages';
 
 /**

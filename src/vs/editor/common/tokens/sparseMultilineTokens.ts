@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { countEOL } from 'vs/editor/common/model/pieceTreeTextBuffer/eolCounter';
+import { countEOL } from 'vs/editor/common/core/eolCounter';
 
 /**
  * Represents sparse tokens over a contiguous range of lines.

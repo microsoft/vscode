@@ -10,7 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { countEOL } from 'vs/editor/common/model/pieceTreeTextBuffer/eolCounter';
+import { countEOL } from 'vs/editor/common/core/eolCounter';
 import { CollapseMemento, FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
 
 export class HiddenRangeModel {
