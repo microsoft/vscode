@@ -29,7 +29,7 @@ import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/termin
 import { TerminalExternalLinkProviderAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkProviderAdapter';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
@@ -49,10 +49,11 @@ export class TerminalLinkManager extends DisposableStore {
 	private _standardLinkProviders: Map<string, ILinkProvider> = new Map();
 	private _linkProvidersDisposables: IDisposable[] = [];
 	private readonly _xterm: Terminal;
+
 	constructor(
 		private _xtermTerminal: XtermTerminal,
 		private readonly _processManager: ITerminalProcessManager,
-		private readonly _capabilities: TerminalCapabilityStoreMultiplexer,
+		private readonly _capabilities: ITerminalCapabilityStore,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,

@@ -40,13 +40,6 @@ export const DEFAULT_FONT_WEIGHT = 'normal';
 export const DEFAULT_BOLD_FONT_WEIGHT = 'bold';
 export const SUGGESTIONS_FONT_WEIGHT = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
 
-
-export interface ITerminalLinkActivationResult {
-	source: 'editor' | 'quickpick',
-	link: string
-}
-
-
 export const ITerminalProfileResolverService = createDecorator<ITerminalProfileResolverService>('terminalProfileResolverService');
 export interface ITerminalProfileResolverService {
 	readonly _serviceBrand: undefined;
@@ -328,11 +321,30 @@ export interface IRemoteTerminalAttachTarget {
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 }
 
-// TODO: Replace IShellIntegration with ITerminalCapabilityStore
 export interface IShellIntegration {
 	capabilities: ITerminalCapabilityStore;
-	// TODO: Fire more fine-grained and stronger typed events
-	readonly onIntegratedShellChange: Event<{ type: string, value: string }>;
+}
+
+export interface ITerminalCommand {
+	command: string;
+	timestamp: number;
+	cwd?: string;
+	exitCode?: number;
+	marker?: IXtermMarker;
+	getOutput(): string | undefined;
+}
+
+/**
+ * A clone of the IMarker from xterm which cannot be imported from common
+ */
+export interface IXtermMarker {
+	readonly id: number;
+	readonly isDisposed: boolean;
+	readonly line: number;
+	dispose(): void;
+	onDispose: {
+		(listener: () => any): { dispose(): void };
+	}
 }
 
 export interface INavigationMode {

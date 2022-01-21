@@ -31,7 +31,7 @@ export function injectShellIntegrationArgs(logService: ILogService, enableShellI
 	const shell = basename(shellLaunchConfig.executable);
 	let newArgs: string | string[] | undefined;
 	if (isBackendWindows) {
-		if (shell === 'pwsh' && !originalArgs || originalArgs === [] || (originalArgs?.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase()))) {
+		if (shell === 'pwsh.exe' && !originalArgs || originalArgs === [] || (originalArgs?.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase()))) {
 			newArgs = [
 				'-noexit',
 				'-command',
