@@ -86,11 +86,11 @@ jobs:
 
       - name: Run Integration Tests (Browser, Firefox)
         timeout-minutes: 20
-        run: .\resources\server\test\test-web-integration.bat --browser firefox
+        run: .\scripts\test-web-integration.bat --browser firefox
 
       - name: Run Integration Tests (Remote)
         timeout-minutes: 20
-        run: .\resources\server\test\test-remote-integration.bat
+        run: .\scripts\test-remote-integration.bat
 
   linux:
     name: Linux
@@ -167,12 +167,12 @@ jobs:
 
       - name: Run Integration Tests (Browser, Chromium)
         id: browser-integration-tests
-        run: DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser chromium
+        run: DISPLAY=:10 ./scripts/test-web-integration.sh --browser chromium
 
       - name: Run Integration Tests (Remote)
         id: electron-remote-integration-tests
         timeout-minutes: 15
-        run: DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
+        run: DISPLAY=:10 ./scripts/test-remote-integration.sh
 
   darwin:
     name: macOS
@@ -242,11 +242,11 @@ jobs:
         run: DISPLAY=:10 ./scripts/test-integration.sh
 
       - name: Run Integration Tests (Browser, Webkit)
-        run: DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser webkit
+        run: DISPLAY=:10 ./scripts/test-web-integration.sh --browser webkit
 
       - name: Run Integration Tests (Remote)
         timeout-minutes: 15
-        run: DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
+        run: DISPLAY=:10 ./scripts/test-remote-integration.sh
 
   hygiene:
     name: Hygiene, Layering and Monaco Editor

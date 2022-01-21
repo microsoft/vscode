@@ -18,7 +18,7 @@ function code() {
 
 	NODE=$(node build/lib/node.js)
 
-	$NODE ./resources/web/bin-dev/code-web-playground.js "$@"
+	$NODE ./scripts/code-web.js "$@"
 }
 
 code "$@"

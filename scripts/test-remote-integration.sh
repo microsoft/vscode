@@ -3,11 +3,11 @@ set -e
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
-	ROOT=$(dirname $(dirname $(dirname $(dirname $(realpath "$0")))))
+	ROOT=$(dirname $(dirname $(realpath "$0")))
 	VSCODEUSERDATADIR=`mktemp -d -t 'myuserdatadir'`
 	TESTRESOLVER_DATA_FOLDER=`mktemp -d -t 'testresolverdatafolder'`
 else
-	ROOT=$(dirname $(dirname $(dirname $(dirname $(readlink -f $0)))))
+	ROOT=$(dirname $(dirname $(readlink -f $0)))
 	VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
 	TESTRESOLVER_DATA_FOLDER=`mktemp -d 2>/dev/null`
 	# --disable-dev-shm-usage --use-gl=swiftshader: when run on docker containers where size of /dev/shm

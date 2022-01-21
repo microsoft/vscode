@@ -17,7 +17,7 @@ call yarn gulp node
 
 :: Launch Server
 FOR /F "tokens=*" %%g IN ('node build/lib/node.js') do (SET NODE=%%g)
-call "%NODE%" resources\server\bin-dev\code-server.js %*
+call "%NODE%" scripts\code-server.js %*
 
 popd
 

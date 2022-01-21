@@ -50,10 +50,8 @@ if (args['port'] === undefined) {
 }
 
 const env = { ...process.env };
-env['NODE_ENV'] = 'development';
-env['VSCODE_DEV'] = '1';
-const entryPoint = path.join(__dirname, '..', '..', '..', 'out', 'server-main.js');
 
+const entryPoint = path.join(__dirname, '..', 'out', 'server-main.js');
 startServer();
 
 function startServer() {

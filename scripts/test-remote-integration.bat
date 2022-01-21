@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-pushd %~dp0\..\..\..
+pushd %~dp0\..
 
 IF "%~1" == "" (
 	set AUTHORITY=vscode-remote://test+test/
@@ -20,8 +20,8 @@ IF "%VSCODEUSERDATADIR%" == "" (
 )
 
 set REMOTE_VSCODE=%AUTHORITY%%EXT_PATH%
-set VSCODECRASHDIR=%~dp0\..\..\..\.build\crashes
-set VSCODELOGSDIR=%~dp0\..\..\..\.build\logs\integration-tests-remote
+set VSCODECRASHDIR=%~dp0\..\.build\crashes
+set VSCODELOGSDIR=%~dp0\..\.build\logs\integration-tests-remote
 set TESTRESOLVER_DATA_FOLDER=%TMP%\testresolverdatafolder-%RANDOM%-%TIME:~6,5%
 set TESTRESOLVER_LOGS_FOLDER=%VSCODELOGSDIR%\server
 

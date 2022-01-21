@@ -20,7 +20,7 @@ function code() {
 
 	NODE_ENV=development \
 	VSCODE_DEV=1 \
-	$NODE ./resources/server/bin-dev/code-server.js "$@"
+	$NODE ./scripts/code-server.js "$@"
 }
 
 code "$@"

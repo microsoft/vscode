@@ -17,7 +17,7 @@ const remote = require('gulp-remote-retry-src');
 const vfs = require('vinyl-fs');
 const opn = require('opn');
 
-const APP_ROOT = path.join(__dirname, '..', '..', '..');
+const APP_ROOT = path.join(__dirname, '..');
 const WEB_DEV_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'builtInWebDevExtensions');
 
 const WEB_PLAYGROUND_VERSION = '0.0.13';

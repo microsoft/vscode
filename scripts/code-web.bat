@@ -13,7 +13,7 @@ call yarn gulp node
 
 :: Launch Server
 FOR /F "tokens=*" %%g IN ('node build/lib/node.js') do (SET NODE=%%g)
-call "%NODE%" resources\web\bin-dev\code-web-playground.js %*
+call "%NODE%" scripts\code-web.js %*
 
 popd
 
