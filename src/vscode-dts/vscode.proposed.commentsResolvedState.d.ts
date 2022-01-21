@@ -22,6 +22,8 @@ declare module 'vscode' {
 		 * An optional color that may be used to indicate the comment's state.
 		 */
 		readonly color?: ThemeColor;
+
+		// todo@alexr00 Do we also need a priority so we can count how many high priority comments there are in the UI?
 	}
 
 	export interface CommentController {
