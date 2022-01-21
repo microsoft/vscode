@@ -398,7 +398,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		let compatibleExtension: IGalleryExtension | null = null;
 
 		if (fetchCompatibleVersion && extension.hasPreReleaseVersion && extension.properties.isPreReleaseVersion !== includePreRelease) {
-			compatibleExtension = (await this.galleryService.getExtensions([{ ...extension.identifier, includePreRelease }], { targetPlatform, compatible: true }, CancellationToken.None))[0] || null;
+			compatibleExtension = (await this.galleryService.getExtensions([{ ...extension.identifier, preRelease: includePreRelease }], { targetPlatform, compatible: true }, CancellationToken.None))[0] || null;
 		}
 
 		if (!compatibleExtension && await this.galleryService.isExtensionCompatible(extension, includePreRelease, targetPlatform)) {

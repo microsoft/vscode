@@ -572,7 +572,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			} else {
 				names.push(extensionInfo.id);
 			}
-			includePreRelease.push({ ...extensionInfo, includePreRelease: !!extensionInfo.includePreRelease });
+			includePreRelease.push({ ...extensionInfo, includePreRelease: !!extensionInfo.preRelease });
 			if (extensionInfo.version) {
 				versions.push({ ...extensionInfo, version: extensionInfo.version });
 			}
