@@ -20,7 +20,7 @@ import { IEncodingSupport, ILanguageSupport, ITextFileService } from 'vs/workben
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
+import { ensureValidWordDefinition } from 'vs/editor/common/core/wordHelper';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getCharContainingOffset } from 'vs/base/common/strings';

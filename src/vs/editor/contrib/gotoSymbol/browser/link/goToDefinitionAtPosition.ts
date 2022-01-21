@@ -18,7 +18,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, ITextModel, IWordAtPosition } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { IFoundBracket } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
 import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/services/language';
@@ -32,6 +32,7 @@ import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegist
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { DefinitionAction } from '../goToCommands';
 import { getDefinitionsAtPosition } from '../goToSymbol';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 
 export class GotoDefinitionAtPositionEditorContribution implements IEditorContribution {
 

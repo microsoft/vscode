@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/model/textModel';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import * as nls from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';

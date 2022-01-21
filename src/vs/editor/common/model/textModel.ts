@@ -39,12 +39,13 @@ import { ContiguousMultilineTokens } from 'vs/editor/common/model/tokens/contigu
 import { SparseMultilineTokens } from 'vs/editor/common/model/tokens/sparseMultilineTokens';
 import { ContiguousTokensStore } from 'vs/editor/common/model/tokens/contiguousTokensStore';
 import { SparseTokensStore } from 'vs/editor/common/model/tokens/sparseTokensStore';
-import { getWordAtText } from 'vs/editor/common/model/wordHelper';
+import { getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { FormattingOptions, StandardTokenType } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { IColorTheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -174,16 +175,6 @@ export const enum BackgroundTokenizationState {
 	InProgress = 1,
 	Completed = 2,
 }
-
-export const EDITOR_MODEL_DEFAULTS = {
-	tabSize: 4,
-	indentSize: 4,
-	insertSpaces: true,
-	detectIndentation: true,
-	trimAutoWhitespace: true,
-	largeFileOptimizations: true,
-	bracketPairColorizationOptions: { enabled: false }
-};
 
 export class TextModel extends Disposable implements model.ITextModel, IDecorationsTreesHost {
 
@@ -2153,7 +2144,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	// Having tokens allows implementing additional helper methods
 
-	public getWordAtPosition(_position: IPosition): model.IWordAtPosition | null {
+	public getWordAtPosition(_position: IPosition): IWordAtPosition | null {
 		this._assertNotDisposed();
 		const position = this.validatePosition(_position);
 		const lineContent = this.getLineContent(position.lineNumber);
@@ -2210,7 +2201,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return [startOffset, endOffset];
 	}
 
-	public getWordUntilPosition(position: IPosition): model.IWordAtPosition {
+	public getWordUntilPosition(position: IPosition): IWordAtPosition {
 		const wordAtPosition = this.getWordAtPosition(position);
 		if (!wordAtPosition) {
 			return {

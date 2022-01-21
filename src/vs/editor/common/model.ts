@@ -21,6 +21,7 @@ import { TextChange } from 'vs/editor/common/model/textChange';
 import { equals } from 'vs/base/common/objects';
 import { IBracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
 import { IGuidesTextModelPart } from 'vs/editor/common/model/guidesTextModelPart';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -298,24 +299,6 @@ export interface IModelDecorationsChangeAccessor {
 	 * @return An array containing the new decorations identifiers.
 	 */
 	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
-}
-
-/**
- * Word inside a model.
- */
-export interface IWordAtPosition {
-	/**
-	 * The word.
-	 */
-	readonly word: string;
-	/**
-	 * The column where the word starts.
-	 */
-	readonly startColumn: number;
-	/**
-	 * The column where the word ends.
-	 */
-	readonly endColumn: number;
 }
 
 /**

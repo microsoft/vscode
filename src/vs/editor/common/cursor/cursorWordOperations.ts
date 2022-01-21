@@ -12,7 +12,8 @@ import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } 
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
+import { ITextModel } from 'vs/editor/common/model';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { AutoClosingPairs } from 'vs/editor/common/languages/languageConfiguration';
 
 interface IFindWordResult {

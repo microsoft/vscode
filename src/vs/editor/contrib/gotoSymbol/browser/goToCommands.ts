@@ -21,7 +21,7 @@ import * as corePosition from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorAction, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { isLocationLink, Location, LocationLink } from 'vs/editor/common/languages';
 import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/browser/peek/referencesController';
 import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/browser/referencesModel';
@@ -38,6 +38,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { getDeclarationsAtPosition, getDefinitionsAtPosition, getImplementationsAtPosition, getReferencesAtPosition, getTypeDefinitionsAtPosition } from './goToSymbol';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 
 
 MenuRegistry.appendMenuItem(MenuId.EditorContext, <ISubmenuItem>{

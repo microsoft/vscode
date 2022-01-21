@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, FindMatch } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { SearchData, SearchParams, TextModelSearch, isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
+import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 // --------- Find
