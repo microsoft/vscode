@@ -94,6 +94,7 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 	private readonly testViewProg = this._register(new MutableDisposable<UnmanagedProgress>());
 	private readonly updateCountsEmitter = new Emitter<CountSummary>();
 	private readonly updateTextEmitter = new Emitter<string>();
+	private lastRunSoFar = 0;
 
 	public readonly onCountChange = this.updateCountsEmitter.event;
 	public readonly onTextChange = this.updateTextEmitter.event;
@@ -121,6 +122,7 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 
 			this.windowProg.clear();
 			this.testViewProg.clear();
+			this.lastRunSoFar = 0;
 			return;
 		}
 
@@ -140,7 +142,8 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 		const message = getTestProgressText(true, collected);
 		this.updateTextEmitter.fire(message);
 		this.windowProg.value.report({ message });
-		this.testViewProg.value!.report({ increment: collected.runSoFar, total: collected.totalWillBeRun });
+		this.testViewProg.value!.report({ increment: collected.runSoFar - this.lastRunSoFar, total: collected.totalWillBeRun });
+		this.lastRunSoFar = collected.runSoFar;
 	}
 }
 

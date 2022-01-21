@@ -568,7 +568,7 @@ export class TestingExplorerViewModel extends Disposable {
 
 			// follow running tests, or tests whose state changed. Tests that
 			// complete very fast may not enter the running state at all.
-			if (evt.item.ownComputedState !== TestResultState.Running && !(evt.previous === TestResultState.Queued && isStateWithResult(evt.item.ownComputedState))) {
+			if (evt.item.ownComputedState !== TestResultState.Running && !(evt.previousState === TestResultState.Queued && isStateWithResult(evt.item.ownComputedState))) {
 				return;
 			}
 

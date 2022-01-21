@@ -242,7 +242,7 @@ export const enum TestResultItemChangeReason {
 
 export type TestResultItemChange = { item: TestResultItem; result: ITestResult } & (
 	| { reason: TestResultItemChangeReason.Retired | TestResultItemChangeReason.ParentRetired | TestResultItemChangeReason.ComputedStateChange }
-	| { reason: TestResultItemChangeReason.OwnStateChange; previous: TestResultState }
+	| { reason: TestResultItemChangeReason.OwnStateChange; previousState: TestResultState; previousOwnDuration: number | undefined }
 );
 
 /**
@@ -401,7 +401,8 @@ export class LiveTestResult implements ITestResult {
 			item: entry,
 			result: this,
 			reason: TestResultItemChangeReason.OwnStateChange,
-			previous: entry.ownComputedState,
+			previousState: entry.ownComputedState,
+			previousOwnDuration: entry.ownDuration,
 		});
 	}
 
@@ -490,6 +491,7 @@ export class LiveTestResult implements ITestResult {
 
 	private fireUpdateAndRefresh(entry: TestResultItem, taskIndex: number, newState: TestResultState) {
 		const previousOwnComputed = entry.ownComputedState;
+		const previousOwnDuration = entry.ownDuration;
 		entry.tasks[taskIndex].state = newState;
 		const newOwnComputed = maxPriority(...entry.tasks.map(t => t.state));
 		if (newOwnComputed === previousOwnComputed) {
@@ -502,8 +504,17 @@ export class LiveTestResult implements ITestResult {
 		refreshComputedState(this.computedStateAccessor, entry).forEach(t =>
 			this.changeEmitter.fire(
 				t === entry
-					? { item: entry, result: this, reason: TestResultItemChangeReason.OwnStateChange, previous: previousOwnComputed }
-					: { item: t, result: this, reason: TestResultItemChangeReason.ComputedStateChange }
+					? {
+						item: entry,
+						result: this,
+						reason: TestResultItemChangeReason.OwnStateChange,
+						previousState: previousOwnComputed,
+						previousOwnDuration: previousOwnDuration,
+					} : {
+						item: t,
+						result: this,
+						reason: TestResultItemChangeReason.ComputedStateChange,
+					}
 			),
 		);
 	}

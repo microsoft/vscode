@@ -120,8 +120,9 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		onTestChanged.fire({
 			reason: TestResultItemChangeReason.OwnStateChange,
 			result: null as any,
-			previous: TestResultState.Unset,
+			previousState: TestResultState.Unset,
 			item: resultInState(TestResultState.Queued),
+			previousOwnDuration: undefined,
 		});
 		harness.projection.applyTo(harness.tree);
 
@@ -134,8 +135,9 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		onTestChanged.fire({
 			reason: TestResultItemChangeReason.OwnStateChange,
 			result: null as any,
-			previous: TestResultState.Queued,
+			previousState: TestResultState.Queued,
 			item: resultInState(TestResultState.Unset),
+			previousOwnDuration: undefined,
 		});
 		harness.projection.applyTo(harness.tree);
 
