@@ -21,7 +21,8 @@ const args = minimist(process.argv.slice(2), {
 		'host',
 		'port',
 		'driver',
-		'connection-token'
+		'connection-token',
+		'server-data-dir'
 	],
 });
 
@@ -30,6 +31,7 @@ if (args.help) {
 		'./scripts/code-server.sh|bat [options]\n' +
 		' --launch              Opens a browser'
 	);
+	// more help options will be printed by startServer
 }
 
 const serverArgs = process.argv.slice(2).filter(v => v !== '--launch');
@@ -48,17 +50,9 @@ if (args['port'] === undefined) {
 	serverArgs.push('--port', PORT);
 }
 
-if (args['driver']) {
-	// given a DRIVER, we auto-shutdown when tests are done
-	serverArgs.push('--enable-remote-auto-shutdown', '--remote-auto-shutdown-without-delay');
-}
-
 const env = { ...process.env };
-env['VSCODE_AGENT_FOLDER'] = env['VSCODE_AGENT_FOLDER'] || path.join(os.homedir(), '.vscode-server-oss-dev');
-env['NODE_ENV'] = 'development';
-env['VSCODE_DEV'] = '1';
-const entryPoint = path.join(__dirname, '..', '..', '..', 'out', 'server-main.js');
 
+const entryPoint = path.join(__dirname, '..', 'out', 'server-main.js');
 startServer();
 
 function startServer() {
@@ -75,7 +69,7 @@ function startServer() {
 		console.error(data.toString());
 	});
 
-	proc.on('exit', () => process.exit());
+	proc.on('exit', (code) => process.exit(code));
 
 	process.on('exit', () => proc.kill());
 	process.on('SIGINT', () => {

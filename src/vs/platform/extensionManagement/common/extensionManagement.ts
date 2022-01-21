@@ -234,7 +234,7 @@ export interface IExtensionIdentifier {
 
 export interface IExtensionInfo extends IExtensionIdentifier {
 	version?: string;
-	includePreRelease?: boolean;
+	preRelease?: boolean;
 }
 
 export interface IGalleryExtensionIdentifier extends IExtensionIdentifier {
