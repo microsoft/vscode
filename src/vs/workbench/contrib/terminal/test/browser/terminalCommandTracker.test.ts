@@ -10,6 +10,8 @@ import { isWindows } from 'vs/base/common/platform';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { timeout } from 'vs/base/common/async';
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
+import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/partialCommandDetectionCapability';
 
 interface TestTerminal extends Terminal {
 	_core: IXtermCore;
@@ -32,6 +34,7 @@ async function writeP(terminal: TestTerminal, data: string): Promise<void> {
 suite('Workbench - TerminalCommandTracker', function () {
 	let xterm: TestTerminal;
 	let commandTracker: CommandTrackerAddon;
+	let store: TerminalCapabilityStore;
 
 	// These tests are flaky on GH actions as sometimes they are particularly slow and timeout
 	// on the await writeP calls. These have been reduced but the timeout is increased to try
@@ -49,7 +52,9 @@ suite('Workbench - TerminalCommandTracker', function () {
 			data += `${i}\n`;
 		}
 		await writeP(xterm, data);
-		commandTracker = new CommandTrackerAddon(new TerminalCapabilityStore());
+		store = new TerminalCapabilityStore();
+		commandTracker = new CommandTrackerAddon(store);
+		store.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(xterm));
 		xterm.loadAddon(commandTracker);
 	});
 
