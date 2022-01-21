@@ -634,7 +634,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			mode: vscodeComment.mode,
 			contextValue: vscodeComment.contextValue,
 			uniqueIdInThread: commentUniqueId,
-			body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
+			body: (typeof vscodeComment.body === 'string') ? vscodeComment.body : extHostTypeConverter.MarkdownString.from(vscodeComment.body),
 			userName: vscodeComment.author.name,
 			userIconPath: iconPath,
 			label: vscodeComment.label,

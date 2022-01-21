@@ -162,7 +162,7 @@ export interface CommentProviderFeatures {
 
 export interface CommentChanges {
 	readonly uniqueIdInThread: number;
-	readonly body: IMarkdownString;
+	readonly body: string | IMarkdownString;
 	readonly userName: string;
 	readonly userIconPath?: string;
 	readonly contextValue?: string;
