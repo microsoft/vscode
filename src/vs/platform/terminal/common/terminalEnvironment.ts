@@ -32,7 +32,7 @@ export function injectShellIntegrationArgs(logService: ILogService, enableShellI
 	let newArgs: string | string[] | undefined;
 	if (isBackendWindows) {
 		if (shell === 'pwsh.exe') {
-			if (!originalArgs || originalArgs === [] || (originalArgs?.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase()))) {
+			if (!originalArgs || originalArgs.length === 0 || (originalArgs?.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase()))) {
 				newArgs = [
 					'-noexit',
 					'-command',
@@ -52,20 +52,20 @@ export function injectShellIntegrationArgs(logService: ILogService, enableShellI
 	} else {
 		switch (shell) {
 			case 'bash':
-				if (!originalArgs || originalArgs === []) {
+				if (!originalArgs || originalArgs.length === 0) {
 					//TODO: support login args
 					newArgs = ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-bash.sh'];
 				}
 				break;
 			case 'pwsh':
-				if (!originalArgs || originalArgs === [] || (originalArgs.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase()))) {
+				if (!originalArgs || originalArgs.length === 0 || (originalArgs.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase()))) {
 					newArgs = ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"'];
 				} else if (originalArgs.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase())) {
 					newArgs = [originalArgs[0], '-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"'];
 				}
 				break;
 			case 'zsh':
-				if (!originalArgs || originalArgs === []) {
+				if (!originalArgs || originalArgs.length === 0) {
 					newArgs = ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh"; zsh -i'];
 				} else if (originalArgs.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase())) {
 					newArgs = ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh"; zsh -il'];
