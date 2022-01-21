@@ -340,17 +340,21 @@ export interface ITerminalCommand {
 	timestamp: number;
 	cwd?: string;
 	exitCode?: number;
-	// This is a clone of the IMarker from xterm which cannot be imported from common
-	marker?: {
-		readonly id: number;
-		readonly isDisposed: boolean;
-		readonly line: number;
-		dispose(): void;
-		onDispose: {
-			(listener: () => any): { dispose(): void };
-		}
-	};
+	marker?: IXtermMarker;
 	getOutput(): string | undefined;
+}
+
+/**
+ * A clone of the IMarker from xterm which cannot be imported from common
+ */
+export interface IXtermMarker {
+	readonly id: number;
+	readonly isDisposed: boolean;
+	readonly line: number;
+	dispose(): void;
+	onDispose: {
+		(listener: () => any): { dispose(): void };
+	}
 }
 
 export interface INavigationMode {

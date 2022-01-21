@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { IPartialCommandDetectionCapability, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { IMarker, Terminal } from 'xterm';
 
 const enum Constants {
@@ -18,7 +18,7 @@ const enum Constants {
  * This capability guesses where commands are based on where the cursor was when enter was pressed.
  * It's very hit or miss but it's often correct and better than nothing.
  */
-export class PartialCommandDetectionCapability {
+export class PartialCommandDetectionCapability implements IPartialCommandDetectionCapability {
 	readonly type = TerminalCapability.PartialCommandDetection;
 
 	private readonly _commands: IMarker[] = [];

@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
 import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/naiveCwdDetectionCapability';
-import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalCommand, IXtermMarker } from 'vs/workbench/contrib/terminal/common/terminal';
 
 /**
  * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
@@ -98,6 +98,6 @@ export interface ICommandDetectionCapability {
 
 export interface IPartialCommandDetectionCapability {
 	readonly type: TerminalCapability.PartialCommandDetection;
-	readonly commands: readonly ITerminalCommand[];
-	readonly onCommandFinished: Event<ITerminalCommand>;
+	readonly commands: readonly IXtermMarker[];
+	readonly onCommandFinished: Event<IXtermMarker>;
 }
