@@ -10,7 +10,7 @@ import { SimpleWorkerClient, logOnceWebWorkerWarning, IWorkerClient } from 'vs/b
 import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IChange } from 'vs/editor/common/editorCommon';
+import { IChange } from 'vs/editor/common/diff/diffComputer';
 import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';

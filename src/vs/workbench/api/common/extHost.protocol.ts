@@ -69,6 +69,7 @@ import { ILanguageStatus } from 'vs/workbench/services/languageStatus/common/lan
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import * as search from 'vs/workbench/services/search/common/search';
 import { IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
+import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -313,7 +314,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 	$trySetSelections(id: string, selections: ISelection[]): Promise<void>;
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean>;
 	$tryInsertSnippet(id: string, template: string, selections: readonly IRange[], opts: IUndoStopOptions): Promise<boolean>;
-	$getDiffInformation(id: string): Promise<editorCommon.ILineChange[]>;
+	$getDiffInformation(id: string): Promise<ILineChange[]>;
 }
 
 export interface MainThreadTreeViewsShape extends IDisposable {

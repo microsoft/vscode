@@ -15,6 +15,7 @@ import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Command } from 'vs/editor/common/languages';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
@@ -903,7 +904,7 @@ export class CellSequence implements ISequence {
 
 export interface INotebookDiffResult {
 	cellsDiff: IDiffResult,
-	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[]; }[];
+	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: ILineChange[]; }[];
 }
 
 export interface INotebookCellStatusBarItem {

@@ -20,6 +20,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IDiffComputationResult } from 'vs/editor/common/services/editorWorker';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -1129,7 +1130,7 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	/**
 	 * Get the computed diff information.
 	 */
-	getLineChanges(): editorCommon.ILineChange[] | null;
+	getLineChanges(): ILineChange[] | null;
 
 	/**
 	 * Get the computed diff information.
