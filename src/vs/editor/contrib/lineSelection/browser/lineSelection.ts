@@ -6,8 +6,8 @@
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveCommands';
+import { CursorChangeReason } from 'vs/editor/common/cursor/cursorEvents';
+import { CursorMoveCommands } from 'vs/editor/common/cursor/cursorMoveCommands';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import * as nls from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';

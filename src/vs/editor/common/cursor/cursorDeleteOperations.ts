@@ -6,8 +6,8 @@
 import * as strings from 'vs/base/common/strings';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { EditorAutoClosingEditStrategy, EditorAutoClosingStrategy } from 'vs/editor/common/config/editorOptions';
-import { CursorColumns, CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/controller/cursorCommon';
-import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
+import { CursorColumns, CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/cursor/cursorCommon';
+import { MoveOperations } from 'vs/editor/common/cursor/cursorMoveOperations';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';

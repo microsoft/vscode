@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { WordCharacterClassifier } from 'vs/editor/common/cursor/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns } from 'vs/editor/common/cursor/cursorCommon';
 
 export const enum Direction {
 	Left,

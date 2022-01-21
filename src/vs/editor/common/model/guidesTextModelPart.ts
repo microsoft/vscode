@@ -5,7 +5,7 @@
 
 import { ArrayQueue, findLast } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
-import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
+import { CursorColumns } from 'vs/editor/common/cursor/cursorColumns';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { BracketPairInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
