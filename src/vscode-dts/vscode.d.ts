@@ -1543,6 +1543,7 @@ declare module 'vscode' {
 		/**
 		 * The event listeners can subscribe to.
 		 */
+		// eslint-disable-next-line vscode-dts-event-naming
 		event: Event<T>;
 
 		/**
@@ -1989,7 +1990,7 @@ declare module 'vscode' {
 		 * Otherwise, a uri or string should only be used if the pattern is for a file path outside the workspace.
 		 * @param pattern A file glob pattern like `*.{ts,js}` that will be matched on paths relative to the base.
 		 */
-		constructor(base: WorkspaceFolder | Uri | string, pattern: string)
+		constructor(base: WorkspaceFolder | Uri | string, pattern: string);
 	}
 
 	/**
@@ -10991,7 +10992,7 @@ declare module 'vscode' {
 		 *   excluded via `files.watcherExclude` setting
 		 * * if the path is equal to any of the workspace folders, deletions are not tracked
 		 * * if the path is outside of any of the workspace folders, deletions are not tracked
-		 * 
+		 *
 		 * If you are interested in being notified when the watched path itself is being deleted, you have
 		 * to watch it's parent folder. Make sure to use a simple `pattern` (such as putting the name of the
 		 * folder) to not accidentally watch all sibling folders recursively.
