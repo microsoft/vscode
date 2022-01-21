@@ -108,7 +108,7 @@ export class ScrollbarState {
 		const iScrollPosition = Math.round(scrollPosition);
 		if (this._scrollPosition !== iScrollPosition) {
 			this._scrollPosition = iScrollPosition;
-			this._refreshComputedValues();
+			this._onlyRefreshComputedSliderPositionValue();
 			return true;
 		}
 		return false;
@@ -155,6 +155,10 @@ export class ScrollbarState {
 		};
 	}
 
+	private static _computeSliderPositionValue(scrollPosition: number, computedSliderRatio: number) {
+		return Math.round(scrollPosition * computedSliderRatio);
+	}
+
 	private _refreshComputedValues(): void {
 		const r = ScrollbarState._computeValues(this._oppositeScrollbarSize, this._arrowSize, this._visibleSize, this._scrollSize, this._scrollPosition);
 		this._computedAvailableSize = r.computedAvailableSize;
@@ -162,6 +166,11 @@ export class ScrollbarState {
 		this._computedSliderSize = r.computedSliderSize;
 		this._computedSliderRatio = r.computedSliderRatio;
 		this._computedSliderPosition = r.computedSliderPosition;
+	}
+
+	private _onlyRefreshComputedSliderPositionValue(): void {
+		const r = ScrollbarState._computeSliderPositionValue(this._scrollPosition, this._computedSliderRatio);
+		this._computedSliderPosition = r;
 	}
 
 	public getArrowSize(): number {
