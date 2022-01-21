@@ -164,7 +164,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				this._createOrGetCwdDetection().updateCwd(value);
 				const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 				if (commandDetection) {
-					commandDetection.cwd = value;
+					commandDetection.setCwd(value);
 				}
 				return true;
 			}
@@ -177,18 +177,26 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _createOrGetCwdDetection(): CwdDetectionCapability {
 		let cwdDetection = this.capabilities.get(TerminalCapability.CwdDetection);
 		if (!cwdDetection) {
-			cwdDetection = new CwdDetectionCapability();
+			cwdDetection = this._createCwdDetection();
 			this.capabilities.add(TerminalCapability.CwdDetection, cwdDetection);
 		}
 		return cwdDetection;
 	}
 
+	protected _createCwdDetection(): InstanceType<typeof CwdDetectionCapability> {
+		return new CwdDetectionCapability();
+	}
+
 	private _createOrGetCommandDetection(terminal: Terminal): ICommandDetectionCapability {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 		if (!commandDetection) {
-			commandDetection = this._instantiationService.createInstance(CommandDetectionCapability, terminal);
+			commandDetection = this._createCommandDetection(terminal);
 			this.capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		}
 		return commandDetection;
+	}
+
+	protected _createCommandDetection(terminal: Terminal): ICommandDetectionCapability {
+		return this._instantiationService.createInstance(CommandDetectionCapability, terminal);
 	}
 }

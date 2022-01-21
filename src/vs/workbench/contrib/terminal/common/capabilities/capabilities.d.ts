@@ -56,7 +56,7 @@ export interface ICommandDetectionCapability {
 	readonly type: TerminalCapability.CommandDetection;
 	readonly commands: readonly ITerminalCommand[];
 	readonly onCommandFinished: Event<ITerminalCommand>;
-	set cwd(value: string);
+	setCwd(value: string): void;
 	/**
 	 * Gets the working directory for a line, this will return undefined if it's unknown in which
 	 * case the terminal's initial cwd should be used.

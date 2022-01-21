@@ -37,8 +37,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 
-	set cwd(value: string) { this._cwd = value; }
-
 	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
 	readonly onCommandFinished = this._onCommandFinished.event;
 
@@ -46,6 +44,10 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		private _terminal: Terminal,
 		@ILogService private readonly _logService: ILogService
 	) {
+	}
+
+	setCwd(value: string) {
+		this._cwd = value;
 	}
 
 	getCwdForLine(line: number): string | undefined {
