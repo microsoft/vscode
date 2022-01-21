@@ -98,15 +98,17 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 				return;
 			}
 
-			item.retired = result.retired;
-			item.ownState = result.ownComputedState;
-			item.ownDuration = result.ownDuration;
+			// Skip refreshing the duration if we can trivially tell it didn't change.
+			const refreshDuration = ev.reason === TestResultItemChangeReason.OwnStateChange && ev.previousOwnDuration !== result.ownDuration;
 			// For items without children, always use the computed state. They are
 			// either leaves (for which it's fine) or nodes where we haven't expanded
 			// children and should trust whatever the result service gives us.
 			const explicitComputed = item.children.size ? undefined : result.computedState;
-			// Skip refreshing the duration if we can trivially tell it didn't change.
-			const refreshDuration = ev.reason === TestResultItemChangeReason.OwnStateChange && ev.previousOwnDuration !== item.duration;
+
+			item.retired = result.retired;
+			item.ownState = result.ownComputedState;
+			item.ownDuration = result.ownDuration;
+
 			refreshComputedState(computedStateAccessor, item, explicitComputed, refreshDuration).forEach(this.addUpdated);
 			this.addUpdated(item);
 			this.updateEmitter.fire();
