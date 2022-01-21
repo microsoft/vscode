@@ -257,7 +257,7 @@ export class FindModelBoundToEditorModel {
 		let isUsingLineStops = this._state.isRegex && (
 			this._state.searchString.indexOf('^') >= 0
 			|| this._state.searchString.indexOf('$') >= 0
-		);
+		) && hasLineBoundaryAssertion(this._state.searchString).any;
 		let { lineNumber, column } = before;
 		let model = this._editor.getModel();
 
@@ -351,7 +351,7 @@ export class FindModelBoundToEditorModel {
 		let isUsingLineStops = this._state.isRegex && (
 			this._state.searchString.indexOf('^') >= 0
 			|| this._state.searchString.indexOf('$') >= 0
-		);
+		) && hasLineBoundaryAssertion(this._state.searchString).any;
 
 		let { lineNumber, column } = after;
 		let model = this._editor.getModel();
@@ -594,4 +594,51 @@ export class FindModelBoundToEditorModel {
 			this._ignoreModelContentChanged = false;
 		}
 	}
+}
+/**
+ * Checks if given regular expression has line boundary assertions (`^` and `$)
+ *
+ * @param str source text of regular expression
+ * @returns
+ */
+function hasLineBoundaryAssertion(str: string) {
+	const res = {
+		any: false,
+		start: false,
+		end: false
+	};
+
+	let i = 0;
+	let inCharactersClass = false;
+
+	while (i < str.length) {
+		const char = str[i];
+		switch (char) {
+			case '^':
+				if (!inCharactersClass) {
+					res.any = true;
+					res.start = true;
+				}
+				break;
+			case '$':
+				if (!inCharactersClass) {
+					res.any = true;
+					res.end = true;
+				}
+				break;
+			case '[':
+				inCharactersClass = true;
+				break;
+			case ']':
+				if (inCharactersClass) {
+					inCharactersClass = false;
+				}
+				break;
+			case '\\':
+				i++;
+				break;
+		}
+		i++;
+	}
+	return res;
 }
