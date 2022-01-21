@@ -19,9 +19,8 @@ import { ActiveEditorContext } from 'vs/workbench/common/editor';
 import { INotebookCellToolbarActionContext, INotebookCommandContext, NotebookMultiCellAction, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellInternalMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 
@@ -227,7 +226,7 @@ registerAction2(class ToggleActiveLineNumberAction extends NotebookMultiCellActi
 		super({
 			id: 'notebook.cell.toggleLineNumbers',
 			title: localize('notebook.cell.toggleLineNumbers.title', "Show Cell Line Numbers"),
-			precondition: ActiveEditorContext.isEqualTo(NotebookEditor.ID),
+			precondition: ActiveEditorContext.isEqualTo(NOTEBOOK_EDITOR_ID),
 			menu: [{
 				id: MenuId.NotebookCellTitle,
 				group: 'View',
