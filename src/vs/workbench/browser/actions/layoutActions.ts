@@ -28,6 +28,7 @@ import { AuxiliaryBarVisibleContext } from 'vs/workbench/common/auxiliarybar';
 import { PanelAlignmentContext, PanelVisibleContext } from 'vs/workbench/common/panel';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
 
 // --- Close Side Bar
 
@@ -1023,8 +1024,14 @@ const AlignPanelActions: CustomizeLayoutItem[] = [
 	CreateOptionLayoutItem('workbench.action.alignPanelJustify', PanelAlignmentContext.isEqualTo('justify'), localize('justifyPanel', "Justify")),
 ];
 
+const MiscLayoutOptions: CustomizeLayoutItem[] = [
+	CreateOptionLayoutItem('workbench.action.toggleZenMode', InEditorZenModeContext, localize('zenMode', "Zen Mode")),
+	CreateOptionLayoutItem('workbench.action.toggleCenteredLayout', IsCenteredLayoutContext, localize('centeredLayout', "Centered Layout")),
+	CreateOptionLayoutItem('workbench.action.toggleFullScreen', IsFullscreenContext, localize('fullscreen', "Full Screen")),
+];
+
 const LayoutContextKeySet = new Set<string>();
-for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...AlignPanelActions]) {
+for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...AlignPanelActions, ...MiscLayoutOptions]) {
 	for (const key of active.keys()) {
 		LayoutContextKeySet.add(key);
 	}
@@ -1083,7 +1090,12 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				type: 'separator',
 				label: localize('alignPanel', "Align Panel")
 			},
-			...AlignPanelActions.map(toQuickPickItem)
+			...AlignPanelActions.map(toQuickPickItem),
+			{
+				type: 'separator',
+				label: localize('layoutModes', "Layout Modes"),
+			},
+			...MiscLayoutOptions.map(toQuickPickItem),
 		];
 	}
 
@@ -1112,7 +1124,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 
 		quickPick.onDidAccept(event => {
 			if (quickPick.selectedItems.length) {
-				const selectedItem = quickPick.selectedItems[0] as CustomizeLayoutItem;
+				selectedItem = quickPick.selectedItems[0] as CustomizeLayoutItem;
 				commandService.executeCommand(selectedItem.id);
 			}
 		});
