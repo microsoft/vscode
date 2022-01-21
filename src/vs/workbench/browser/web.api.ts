@@ -3,16 +3,275 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
-import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-import { LogLevel } from 'vs/platform/log/common/log';
-import { IUpdateProvider } from 'vs/workbench/services/update/browser/updateService';
-import { Event } from 'vs/base/common/event';
-import { IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
-import { IProductConfiguration } from 'vs/base/common/product';
-import { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
-import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
+import type { PerformanceMark } from 'vs/base/common/performance';
+import type { UriComponents, URI } from 'vs/base/common/uri';
+import type { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
+import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
+import type { LogLevel } from 'vs/platform/log/common/log';
+import type { IUpdateProvider } from 'vs/workbench/services/update/browser/updateService';
+import type { Event } from 'vs/base/common/event';
+import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
+import type { IProductConfiguration } from 'vs/base/common/product';
+import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
+import type { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
+
+/**
+ * The `IWorkbench` interface is the API facade for web embedders
+ * to call into the workbench.
+ *
+ * Note: Changes to this interface need to be announced and adopted.
+ */
+export interface IWorkbench {
+
+	commands: {
+
+		/**
+		* Allows to execute any command if known with the provided arguments.
+		*
+		* @param command Identifier of the command to execute.
+		* @param rest Parameters passed to the command function.
+		* @return A promise that resolves to the returned value of the given command.
+		*/
+		executeCommand(command: string, ...args: any[]): Promise<unknown>;
+	}
+
+	env: {
+
+		/**
+		 * @returns the scheme to use for opening the associated desktop
+		 * experience via protocol handler.
+		 */
+		readonly uriScheme: string;
+
+		/**
+		 * Retrieve performance marks that have been collected during startup. This function
+		 * returns tuples of source and marks. A source is a dedicated context, like
+		 * the renderer or an extension host.
+		 *
+		 * *Note* that marks can be collected on different machines and in different processes
+		 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
+		 * across contexts should be taken with a grain of salt.
+		 *
+		 * @returns A promise that resolves to tuples of source and marks.
+		 */
+		retrievePerformanceMarks(): Promise<[string, readonly PerformanceMark[]][]>;
+
+		/**
+		 * Allows to open a `URI` with the standard opener service of the
+		 * workbench.
+		 */
+		openUri(target: URI): Promise<boolean>;
+	}
+
+	/**
+	 * Triggers shutdown of the workbench programmatically. After this method is
+	 * called, the workbench is not usable anymore and the page needs to reload
+	 * or closed.
+	 *
+	 * This will also remove any `beforeUnload` handlers that would bring up a
+	 * confirmation dialog.
+	 *
+	 * The returned promise should be awaited on to ensure any data to persist
+	 * has been persisted.
+	 */
+	shutdown: () => Promise<void>;
+}
+
+export interface IWorkbenchConstructionOptions {
+
+	//#region Connection related configuration
+
+	/**
+	 * The remote authority is the IP:PORT from where the workbench is served
+	 * from. It is for example being used for the websocket connections as address.
+	 */
+	readonly remoteAuthority?: string;
+
+	/**
+	 * The connection token to send to the server.
+	 */
+	readonly connectionToken?: string;
+
+	/**
+	 * An endpoint to serve iframe content ("webview") from. This is required
+	 * to provide full security isolation from the workbench host.
+	 */
+	readonly webviewEndpoint?: string;
+
+	/**
+	 * A factory for web sockets.
+	 */
+	readonly webSocketFactory?: IWebSocketFactory;
+
+	/**
+	 * A provider for resource URIs.
+	 */
+	readonly resourceUriProvider?: IResourceUriProvider;
+
+	/**
+	 * Resolves an external uri before it is opened.
+	 */
+	readonly resolveExternalUri?: IExternalUriResolver;
+
+	/**
+	 * A provider for supplying tunneling functionality,
+	 * such as creating tunnels and showing candidate ports to forward.
+	 */
+	readonly tunnelProvider?: ITunnelProvider;
+
+	/**
+	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
+	 */
+	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Endpoints to be used for proxying repository tarball download calls in the browser.
+	 */
+	readonly _tarballProxyEndpoints?: { [providerId: string]: string }
+
+	//#endregion
+
+
+	//#region Workbench configuration
+
+	/**
+	 * A handler for opening workspaces and providing the initial workspace.
+	 */
+	readonly workspaceProvider?: IWorkspaceProvider;
+
+	/**
+	 * Settings sync options
+	 */
+	readonly settingsSyncOptions?: ISettingsSyncOptions;
+
+	/**
+	 * The credentials provider to store and retrieve secrets.
+	 */
+	readonly credentialsProvider?: ICredentialsProvider;
+
+	/**
+	 * Additional builtin extensions those cannot be uninstalled but only be disabled.
+	 * It can be one of the following:
+	 * 	- an extension in the Marketplace
+	 * 	- location of the extension where it is hosted.
+	 */
+	readonly additionalBuiltinExtensions?: readonly (MarketplaceExtension | UriComponents)[];
+
+	/**
+	 * List of extensions to be enabled if they are installed.
+	 * Note: This will not install extensions if not installed.
+	 */
+	readonly enabledExtensions?: readonly ExtensionId[];
+
+	/**
+	 * Additional domains allowed to open from the workbench without the
+	 * link protection popup.
+	 */
+	readonly additionalTrustedDomains?: string[];
+
+	/**
+	 * Urls that will be opened externally that are allowed access
+	 * to the opener window. This is primarily used to allow
+	 * `window.close()` to be called from the newly opened window.
+	 */
+	readonly openerAllowedExternalUrlPrefixes?: string[];
+
+	/**
+	 * Support for URL callbacks.
+	 */
+	readonly urlCallbackProvider?: IURLCallbackProvider;
+
+	/**
+	 * Support adding additional properties to telemetry.
+	 */
+	readonly resolveCommonTelemetryProperties?: ICommonTelemetryPropertiesResolver;
+
+	/**
+	 * A set of optional commands that should be registered with the commands
+	 * registry.
+	 *
+	 * Note: commands can be called from extensions if the identifier is known!
+	 */
+	readonly commands?: readonly ICommand[];
+
+	/**
+	 * Optional default layout to apply on first time the workspace is opened (uness `force` is specified).
+	 */
+	readonly defaultLayout?: IDefaultLayout;
+
+	/**
+	 * Optional configuration default overrides contributed to the workbench.
+	 */
+	readonly configurationDefaults?: Record<string, any>;
+
+	//#endregion
+
+
+	//#region Update/Quality related
+
+	/**
+	 * Support for update reporting
+	 */
+	readonly updateProvider?: IUpdateProvider;
+
+	/**
+	 * Support for product quality switching
+	 */
+	readonly productQualityChangeHandler?: IProductQualityChangeHandler;
+
+	//#endregion
+
+
+	//#region Branding
+
+	/**
+	 * Optional home indicator to appear above the hamburger menu in the activity bar.
+	 */
+	readonly homeIndicator?: IHomeIndicator;
+
+	/**
+	 * Optional welcome banner to appear above the workbench. Can be dismissed by the
+	 * user.
+	 */
+	readonly welcomeBanner?: IWelcomeBanner;
+
+	/**
+	 * Optional override for the product configuration properties.
+	 */
+	readonly productConfiguration?: Partial<IProductConfiguration>;
+
+	/**
+	 * Optional override for properties of the window indicator in the status bar.
+	 */
+	readonly windowIndicator?: IWindowIndicator;
+
+	/**
+	 * Specifies the default theme type (LIGHT, DARK..) and allows to provide initial colors that are shown
+	 * until the color theme that is specified in the settings (`editor.colorTheme`) is loaded and applied.
+	 * Once there are persisted colors from a last run these will be used.
+	 *
+	 * The idea is that the colors match the main colors from the theme defined in the `configurationDefaults`.
+	 */
+	readonly initialColorTheme?: IInitialColorTheme;
+
+	//#endregion
+
+
+	//#region IPC
+
+	readonly messagePorts?: ReadonlyMap<ExtensionId, MessagePort>;
+
+	//#endregion
+
+
+	//#region Development options
+
+	readonly developmentOptions?: IDevelopmentOptions;
+
+	//#endregion
+
+}
 
 export interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -363,198 +622,3 @@ export interface IDevelopmentOptions {
 	readonly enableSmokeTestDriver?: boolean;
 }
 
-export interface IWorkbenchConstructionOptions {
-
-	//#region Connection related configuration
-
-	/**
-	 * The remote authority is the IP:PORT from where the workbench is served
-	 * from. It is for example being used for the websocket connections as address.
-	 */
-	readonly remoteAuthority?: string;
-
-	/**
-	 * The connection token to send to the server.
-	 */
-	readonly connectionToken?: string;
-
-	/**
-	 * An endpoint to serve iframe content ("webview") from. This is required
-	 * to provide full security isolation from the workbench host.
-	 */
-	readonly webviewEndpoint?: string;
-
-	/**
-	 * A factory for web sockets.
-	 */
-	readonly webSocketFactory?: IWebSocketFactory;
-
-	/**
-	 * A provider for resource URIs.
-	 */
-	readonly resourceUriProvider?: IResourceUriProvider;
-
-	/**
-	 * Resolves an external uri before it is opened.
-	 */
-	readonly resolveExternalUri?: IExternalUriResolver;
-
-	/**
-	 * A provider for supplying tunneling functionality,
-	 * such as creating tunnels and showing candidate ports to forward.
-	 */
-	readonly tunnelProvider?: ITunnelProvider;
-
-	/**
-	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
-	 */
-	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
-
-	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Endpoints to be used for proxying repository tarball download calls in the browser.
-	 */
-	readonly _tarballProxyEndpoints?: { [providerId: string]: string }
-
-	//#endregion
-
-
-	//#region Workbench configuration
-
-	/**
-	 * A handler for opening workspaces and providing the initial workspace.
-	 */
-	readonly workspaceProvider?: IWorkspaceProvider;
-
-	/**
-	 * Settings sync options
-	 */
-	readonly settingsSyncOptions?: ISettingsSyncOptions;
-
-	/**
-	 * The credentials provider to store and retrieve secrets.
-	 */
-	readonly credentialsProvider?: ICredentialsProvider;
-
-	/**
-	 * Additional builtin extensions those cannot be uninstalled but only be disabled.
-	 * It can be one of the following:
-	 * 	- an extension in the Marketplace
-	 * 	- location of the extension where it is hosted.
-	 */
-	readonly additionalBuiltinExtensions?: readonly (MarketplaceExtension | UriComponents)[];
-
-	/**
-	 * List of extensions to be enabled if they are installed.
-	 * Note: This will not install extensions if not installed.
-	 */
-	readonly enabledExtensions?: readonly ExtensionId[];
-
-	/**
-	 * Additional domains allowed to open from the workbench without the
-	 * link protection popup.
-	 */
-	readonly additionalTrustedDomains?: string[];
-
-	/**
-	 * Urls that will be opened externally that are allowed access
-	 * to the opener window. This is primarily used to allow
-	 * `window.close()` to be called from the newly opened window.
-	 */
-	readonly openerAllowedExternalUrlPrefixes?: string[];
-
-	/**
-	 * Support for URL callbacks.
-	 */
-	readonly urlCallbackProvider?: IURLCallbackProvider;
-
-	/**
-	 * Support adding additional properties to telemetry.
-	 */
-	readonly resolveCommonTelemetryProperties?: ICommonTelemetryPropertiesResolver;
-
-	/**
-	 * A set of optional commands that should be registered with the commands
-	 * registry.
-	 *
-	 * Note: commands can be called from extensions if the identifier is known!
-	 */
-	readonly commands?: readonly ICommand[];
-
-	/**
-	 * Optional default layout to apply on first time the workspace is opened (uness `force` is specified).
-	 */
-	readonly defaultLayout?: IDefaultLayout;
-
-	/**
-	 * Optional configuration default overrides contributed to the workbench.
-	 */
-	readonly configurationDefaults?: Record<string, any>;
-
-	//#endregion
-
-
-	//#region Update/Quality related
-
-	/**
-	 * Support for update reporting
-	 */
-	readonly updateProvider?: IUpdateProvider;
-
-	/**
-	 * Support for product quality switching
-	 */
-	readonly productQualityChangeHandler?: IProductQualityChangeHandler;
-
-	//#endregion
-
-
-	//#region Branding
-
-	/**
-	 * Optional home indicator to appear above the hamburger menu in the activity bar.
-	 */
-	readonly homeIndicator?: IHomeIndicator;
-
-	/**
-	 * Optional welcome banner to appear above the workbench. Can be dismissed by the
-	 * user.
-	 */
-	readonly welcomeBanner?: IWelcomeBanner;
-
-	/**
-	 * Optional override for the product configuration properties.
-	 */
-	readonly productConfiguration?: Partial<IProductConfiguration>;
-
-	/**
-	 * Optional override for properties of the window indicator in the status bar.
-	 */
-	readonly windowIndicator?: IWindowIndicator;
-
-	/**
-	 * Specifies the default theme type (LIGHT, DARK..) and allows to provide initial colors that are shown
-	 * until the color theme that is specified in the settings (`editor.colorTheme`) is loaded and applied.
-	 * Once there are persisted colors from a last run these will be used.
-	 *
-	 * The idea is that the colors match the main colors from the theme defined in the `configurationDefaults`.
-	 */
-	readonly initialColorTheme?: IInitialColorTheme;
-
-	//#endregion
-
-
-	//#region IPC
-
-	readonly messagePorts?: ReadonlyMap<ExtensionId, MessagePort>;
-
-	//#endregion
-
-
-	//#region Development options
-
-	readonly developmentOptions?: IDevelopmentOptions;
-
-	//#endregion
-
-}

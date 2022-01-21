@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICommand, ICommonTelemetryPropertiesResolver, IDefaultEditor, IDefaultLayout, IDefaultView, IDevelopmentOptions, IExternalUriResolver, IExternalURLOpener, IHomeIndicator, IInitialColorTheme, IPosition, IProductQualityChangeHandler, IRange, IResourceUriProvider, ISettingsSyncOptions, IShowPortCandidate, ITunnel, ITunnelFactory, ITunnelOptions, ITunnelProvider, IWelcomeBanner, IWelcomeBannerAction, IWindowIndicator, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
-import { IWorkbench, main } from 'vs/workbench/browser/web.main';
+import { IWorkbench, ICommand, ICommonTelemetryPropertiesResolver, IDefaultEditor, IDefaultLayout, IDefaultView, IDevelopmentOptions, IExternalUriResolver, IExternalURLOpener, IHomeIndicator, IInitialColorTheme, IPosition, IProductQualityChangeHandler, IRange, IResourceUriProvider, ISettingsSyncOptions, IShowPortCandidate, ITunnel, ITunnelFactory, ITunnelOptions, ITunnelProvider, IWelcomeBanner, IWelcomeBannerAction, IWindowIndicator, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
+import { BrowserMain } from 'vs/workbench/browser/web.main';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
 import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
@@ -21,12 +21,8 @@ import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { asArray } from 'vs/base/common/arrays';
 
-function asMenuId(menu: Menu): MenuId {
-	switch (menu) {
-		case Menu.CommandPalette: return MenuId.CommandPalette;
-		case Menu.StatusBarWindowIndicatorMenu: return MenuId.StatusBarWindowIndicatorMenu;
-	}
-}
+let created = false;
+const workbenchPromise = new DeferredPromise<IWorkbench>();
 
 /**
  * Creates the workbench with the provided options in the provided container.
@@ -34,8 +30,6 @@ function asMenuId(menu: Menu): MenuId {
  * @param domElement the container to create the workbench in
  * @param options for setting up the workbench
  */
-let created = false;
-const workbenchPromise = new DeferredPromise<IWorkbench>();
 function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
 
 	// Mark start of workbench
@@ -51,8 +45,7 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 
 	// Register commands if any
 	if (Array.isArray(options.commands)) {
-		for (const c of options.commands) {
-			const command: ICommand = c;
+		for (const command of options.commands) {
 
 			CommandsRegistry.registerCommand(command.id, (accessor, ...args) => {
 				// we currently only pass on the arguments but not the accessor
@@ -73,7 +66,7 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 
 	// Startup workbench and resolve waiters
 	let instantiatedWorkbench: IWorkbench | undefined = undefined;
-	main(domElement, options).then(workbench => {
+	new BrowserMain(domElement, options).open().then(workbench => {
 		instantiatedWorkbench = workbench;
 		workbenchPromise.complete(workbench);
 	});
@@ -87,18 +80,18 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 	});
 }
 
-
-//#region API Facade
+function asMenuId(menu: Menu): MenuId {
+	switch (menu) {
+		case Menu.CommandPalette: return MenuId.CommandPalette;
+		case Menu.StatusBarWindowIndicatorMenu: return MenuId.StatusBarWindowIndicatorMenu;
+	}
+}
 
 namespace commands {
 
 	/**
-	* Allows to execute any command if known with the provided arguments.
-	*
-	* @param command Identifier of the command to execute.
-	* @param rest Parameters passed to the command function.
-	* @return A promise that resolves to the returned value of the given command.
-	*/
+	 * {@linkcode IWorkbench.commands IWorkbench.commands.executeCommand}
+	 */
 	export async function executeCommand(command: string, ...args: any[]): Promise<unknown> {
 		const workbench = await workbenchPromise.p;
 
@@ -109,15 +102,7 @@ namespace commands {
 namespace env {
 
 	/**
-	 * Retrieve performance marks that have been collected during startup. This function
-	 * returns tuples of source and marks. A source is a dedicated context, like
-	 * the renderer or an extension host.
-	 *
-	 * *Note* that marks can be collected on different machines and in different processes
-	 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
-	 * across contexts should be taken with a grain of salt.
-	 *
-	 * @returns A promise that resolves to tuples of source and marks.
+	 * {@linkcode IWorkbench.env IWorkbench.env.retrievePerformanceMarks}
 	 */
 	export async function retrievePerformanceMarks(): Promise<[string, readonly PerformanceMark[]][]> {
 		const workbench = await workbenchPromise.p;
@@ -126,8 +111,7 @@ namespace env {
 	}
 
 	/**
-	 * @returns the scheme to use for opening the associated desktop
-	 * experience via protocol handler.
+	 * {@linkcode IWorkbench.env IWorkbench.env.getUriScheme}
 	 */
 	export async function getUriScheme(): Promise<string> {
 		const workbench = await workbenchPromise.p;
@@ -136,8 +120,7 @@ namespace env {
 	}
 
 	/**
-	 * Allows to open a `URI` with the standard opener service of the
-	 * workbench.
+	 * {@linkcode IWorkbench.env IWorkbench.env.openUri}
 	 */
 	export async function openUri(target: URI): Promise<boolean> {
 		const workbench = await workbenchPromise.p;
@@ -145,6 +128,15 @@ namespace env {
 		return workbench.env.openUri(target);
 	}
 }
+
+
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//
+// Do NOT change these exports in a way that something is removed unless
+// intentional. These exports are used by web embedders and thus require
+// an adoption when something changes.
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 export {
 
@@ -233,5 +225,3 @@ export {
 	// Development
 	IDevelopmentOptions
 };
-
-//#endregion

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mark, PerformanceMark } from 'vs/base/common/performance';
+import { mark } from 'vs/base/common/performance';
 import { domContentLoaded, detectFullscreen, getCookieValue, WebFileSystemAccess } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogger, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
@@ -32,7 +32,7 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { ConfigurationCache } from 'vs/workbench/services/configuration/common/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
-import { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
+import { IWorkbenchConstructionOptions, IWorkbench } from 'vs/workbench/browser/web.api';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
@@ -70,40 +70,7 @@ import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { BrowserCredentialsService } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 
-/**
- * The `IWorkbench` interface is the API facade for web embedders
- * to call into the workbench. Changes to this interface need to
- * be announced and adopted.
- */
-export interface IWorkbench {
-
-	commands: {
-		executeCommand(command: string, ...args: any[]): Promise<unknown>;
-	}
-
-	env: {
-		readonly uriScheme: string;
-
-		retrievePerformanceMarks(): Promise<[string, readonly PerformanceMark[]][]>;
-
-		openUri(target: URI): Promise<boolean>;
-	}
-
-	/**
-	 * Triggers shutdown of the workbench programmatically. After this method is
-	 * called, the workbench is not usable anymore and the page needs to reload
-	 * or closed.
-	 *
-	 * This will also remove any `beforeUnload` handlers that would bring up a
-	 * confirmation dialog.
-	 *
-	 * The returned promise should be awaited on to ensure any data to persist
-	 * has been persisted.
-	 */
-	shutdown: () => Promise<void>;
-}
-
-class BrowserMain extends Disposable {
+export class BrowserMain extends Disposable {
 
 	private readonly onWillShutdownDisposables = this._register(new DisposableStore());
 
@@ -471,10 +438,4 @@ class BrowserMain extends Disposable {
 
 		return { id: 'empty-window' };
 	}
-}
-
-export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<IWorkbench> {
-	const workbench = new BrowserMain(domElement, options);
-
-	return workbench.open();
 }
