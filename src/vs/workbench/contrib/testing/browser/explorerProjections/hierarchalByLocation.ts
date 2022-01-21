@@ -237,7 +237,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 			collapsible: node.test.expand !== TestItemExpandState.NotExpandable,
 			collapsed: this.lastState.expanded[node.treeId] !== undefined
 				? !this.lastState.expanded[node.treeId]
-				: node.test.expand === TestItemExpandState.Expandable ? true : undefined,
+				: node.depth > 0,
 			children: recurse(node.children),
 		};
 	};
