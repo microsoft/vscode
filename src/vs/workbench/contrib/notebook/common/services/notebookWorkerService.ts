@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { ILineChange } from 'vs/editor/common/editorCommon';
+import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { INotebookDiffResult } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 

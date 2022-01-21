@@ -12,7 +12,7 @@ import { getCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IRange } from 'vs/editor/common/core/range';
 import { IDiffEditor, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, OverviewRulerLane } from 'vs/editor/common/model';
-import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
+import { overviewRulerRangeHighlight } from 'vs/editor/common/core/editorColorRegistry';
 import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
 import { IKeyMods, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';

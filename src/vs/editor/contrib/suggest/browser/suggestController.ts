@@ -15,7 +15,7 @@ import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable 
 import * as platform from 'vs/base/common/platform';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType, isObject } from 'vs/base/common/types';
-import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
+import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as types from 'vs/base/common/types';
-import { CursorState, ICursorSimpleModel, PartialCursorState, SingleCursorState } from 'vs/editor/common/controller/cursorCommon';
-import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
-import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
+import { CursorState, ICursorSimpleModel, PartialCursorState, SingleCursorState } from 'vs/editor/common/cursor/cursorCommon';
+import { MoveOperations } from 'vs/editor/common/cursor/cursorMoveOperations';
+import { WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';

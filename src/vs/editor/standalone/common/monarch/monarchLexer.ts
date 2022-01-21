@@ -9,7 +9,7 @@
  */
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Token, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
+import { Token, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/languages/token';
 import * as modes from 'vs/editor/common/languages';
 import { NullState } from 'vs/editor/common/languages/nullMode';
 import { TokenTheme } from 'vs/editor/common/languages/supports/tokenization';

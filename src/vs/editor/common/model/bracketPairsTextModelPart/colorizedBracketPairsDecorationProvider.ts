@@ -13,7 +13,7 @@ import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import {
 	editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketHighlightingUnexpectedBracketForeground
-} from 'vs/editor/common/view/editorColorRegistry';
+} from 'vs/editor/common/core/editorColorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export class ColorizedBracketPairsDecorationProvider extends Disposable implements DecorationProvider {

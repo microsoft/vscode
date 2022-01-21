@@ -5,8 +5,8 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { DeleteWordContext, WordNavigationType, WordPartOperations } from 'vs/editor/common/controller/cursorWordOperations';
-import { WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { DeleteWordContext, WordNavigationType, WordPartOperations } from 'vs/editor/common/cursor/cursorWordOperations';
+import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';

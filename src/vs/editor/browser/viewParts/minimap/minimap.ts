@@ -1507,7 +1507,7 @@ class InnerMinimap extends Disposable {
 				continue;
 			}
 
-			const decorationColor = minimapOptions.getColor(this._theme);
+			const decorationColor = minimapOptions.getColor(this._theme.value);
 			if (!decorationColor || decorationColor.isTransparent()) {
 				continue;
 			}
@@ -1582,7 +1582,7 @@ class InnerMinimap extends Disposable {
 				continue;
 			}
 
-			const decorationColor = minimapOptions.getColor(this._theme);
+			const decorationColor = minimapOptions.getColor(this._theme.value);
 			if (!decorationColor || decorationColor.isTransparent()) {
 				continue;
 			}
