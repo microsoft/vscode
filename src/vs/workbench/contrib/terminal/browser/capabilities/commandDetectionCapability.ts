@@ -69,10 +69,11 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 	handleCommandExecuted(): void {
 		this._currentCommand.commandExecutedMarker = this._terminal.registerMarker(0);
-		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._terminal.buffer.active.cursorX, this._currentCommand.commandExecutedMarker?.line);
+		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
+		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
 		// TODO: Make sure this only runs on Windows backends (not frontends)
 		if (!isWindows && this._currentCommand.commandStartMarker && this._currentCommand.commandExecutedMarker && this._currentCommand.commandStartX) {
-			this._currentCommand.command = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line)?.translateToString().substring(this._currentCommand.commandStartX);
+			this._currentCommand.command = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line)?.translateToString(true, this._currentCommand.commandStartX);
 			let y = this._currentCommand.commandStartMarker.line + 1;
 			const commandExecutedLine = this._currentCommand.commandExecutedMarker.line;
 			for (; y < commandExecutedLine; y++) {
@@ -142,6 +143,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				marker: this._currentCommand.commandStartMarker
 			};
 			this._commands.push(newCommand);
+			this._onCommandFinished.fire(newCommand);
 		}
 		this._currentCommand.previousCommandMarker?.dispose();
 		this._currentCommand.previousCommandMarker = this._currentCommand.commandStartMarker;

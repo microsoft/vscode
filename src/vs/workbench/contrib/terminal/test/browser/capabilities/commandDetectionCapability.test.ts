@@ -9,6 +9,7 @@ import { Terminal } from 'xterm';
 import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
+import { isWindows } from 'vs/base/common/platform';
 
 async function writeP(terminal: Terminal, data: string): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
@@ -21,12 +22,14 @@ async function writeP(terminal: Terminal, data: string): Promise<void> {
 	});
 }
 
+type TestTerminalCommandMatch = Pick<ITerminalCommand, 'command' | 'cwd' | 'exitCode'> & { marker: { line: number } };
+
 suite('CommandDetectionCapability', () => {
 	let xterm: Terminal;
 	let capability: CommandDetectionCapability;
 	let addEvents: ITerminalCommand[];
 
-	function assertCommands(expectedCommands: Pick<ITerminalCommand, 'command' | 'cwd' | 'exitCode' | 'marker'>[]) {
+	function assertCommands(expectedCommands: TestTerminalCommandMatch[]) {
 		deepStrictEqual(capability.commands.map(e => e.command), expectedCommands.map(e => e.command));
 		deepStrictEqual(capability.commands.map(e => e.cwd), expectedCommands.map(e => e.cwd));
 		deepStrictEqual(capability.commands.map(e => e.exitCode), expectedCommands.map(e => e.exitCode));
@@ -53,7 +56,7 @@ suite('CommandDetectionCapability', () => {
 		assertCommands([]);
 	});
 
-	test.skip('should add commands for expected capability method calls', async () => {
+	(isWindows ? test.skip : test)('should add commands for expected capability method calls', async () => {
 		capability.handlePromptStart();
 		await writeP(xterm, '$ ');
 		capability.handleCommandStart();
@@ -62,7 +65,9 @@ suite('CommandDetectionCapability', () => {
 		await writeP(xterm, '\r\nfoo\r\n');
 		capability.handleCommandFinished(0);
 		assertCommands([{
-			command: 'echo foo'
+			command: 'echo foo',
+			exitCode: 0,
+			marker: { line: 0 }
 		}]);
 	});
 });
