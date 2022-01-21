@@ -39,22 +39,22 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { IOutlineModelService, OutlineModelService } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { IOutlineModelService, OutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
-import 'vs/editor/contrib/codeAction/codeAction';
-import 'vs/editor/contrib/codelens/codelens';
-import 'vs/editor/contrib/colorPicker/color';
-import 'vs/editor/contrib/format/format';
-import 'vs/editor/contrib/gotoSymbol/goToCommands';
-import 'vs/editor/contrib/documentSymbols/documentSymbols';
-import 'vs/editor/contrib/hover/getHover';
-import 'vs/editor/contrib/links/getLinks';
-import 'vs/editor/contrib/parameterHints/provideSignatureHelp';
-import 'vs/editor/contrib/smartSelect/smartSelect';
-import 'vs/editor/contrib/suggest/suggest';
-import 'vs/editor/contrib/rename/rename';
-import 'vs/editor/contrib/inlayHints/inlayHintsController';
+import 'vs/editor/contrib/codeAction/browser/codeAction';
+import 'vs/editor/contrib/codelens/browser/codelens';
+import 'vs/editor/contrib/colorPicker/browser/color';
+import 'vs/editor/contrib/format/browser/format';
+import 'vs/editor/contrib/gotoSymbol/browser/goToCommands';
+import 'vs/editor/contrib/documentSymbols/browser/documentSymbols';
+import 'vs/editor/contrib/hover/browser/getHover';
+import 'vs/editor/contrib/links/browser/getLinks';
+import 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
+import 'vs/editor/contrib/smartSelect/browser/smartSelect';
+import 'vs/editor/contrib/suggest/browser/suggest';
+import 'vs/editor/contrib/rename/browser/rename';
+import 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));

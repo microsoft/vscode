@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as modes from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { DocumentationExtensionPoint } from 'vs/workbench/contrib/codeActions/common/documentationExtensionPoint';
