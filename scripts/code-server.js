@@ -31,6 +31,7 @@ if (args.help) {
 		'./scripts/code-server.sh|bat [options]\n' +
 		' --launch              Opens a browser'
 	);
+	// more help options will be printed by startServer
 }
 
 const serverArgs = process.argv.slice(2).filter(v => v !== '--launch');

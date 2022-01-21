@@ -13,8 +13,11 @@ function code() {
 	# Sync built-in extensions
 	yarn download-builtin-extensions
 
-	# Load remote node
-	yarn gulp node
+	NODE=$(node build/lib/node.js)
+	if [ ! -e $NODE ];then
+		# Load remote node
+		yarn gulp node
+	fi
 
 	NODE=$(node build/lib/node.js)
 
