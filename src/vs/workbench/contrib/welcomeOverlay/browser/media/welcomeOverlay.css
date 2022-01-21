@@ -149,14 +149,14 @@
 	left: calc(50% - 193px);
 	width: 386px;
 	height: 197px;
-	background-image: url('media/commandpalette.svg');
+	background-image: url('commandpalette.svg');
 	background-repeat: no-repeat;
 	background-size: 100%;
 }
 
 .monaco-workbench.vs-dark > .welcomeOverlay > .commandPalettePlaceholder,
 .monaco-workbench.hc-black > .welcomeOverlay > .commandPalettePlaceholder {
-	background-image: url('media/commandpalette-dark.svg');
+	background-image: url('commandpalette-dark.svg');
 }
 @media screen and (max-width: 880px) {
 	.monaco-workbench > .welcomeOverlay {
