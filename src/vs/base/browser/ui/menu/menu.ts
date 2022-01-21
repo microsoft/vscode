@@ -620,22 +620,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 	}
 
 	override updateTooltip(): void {
-		let title: string | null = null;
-
-		if (this.getAction().tooltip) {
-			title = this.getAction().tooltip;
-
-		} else if (!this.options.label && this.getAction().label && this.options.icon) {
-			title = this.getAction().label;
-
-			if (this.options.keybinding) {
-				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
-			}
-		}
-
-		if (title && this.item) {
-			this.item.title = title;
-		}
+		// menus should function like native menus and they do not have tooltips
 	}
 
 	override updateClass(): void {
