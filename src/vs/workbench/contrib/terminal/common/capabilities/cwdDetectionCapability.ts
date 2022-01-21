@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
+import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 export class CwdDetectionCapability {
 	readonly type = TerminalCapability.CwdDetection;

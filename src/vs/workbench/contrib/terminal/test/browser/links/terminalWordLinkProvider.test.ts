@@ -20,7 +20,7 @@ import { ITerminalConfigHelper, ITerminalConfiguration, ITerminalLinkActivationR
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { TerminalCapability, TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
 import { TestViewDescriptorService } from 'vs/workbench/contrib/terminal/test/browser/xterm/xtermTerminal.test';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -36,6 +36,7 @@ import { URI } from 'vs/base/common/uri';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { isWindows } from 'vs/base/common/platform';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
+import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 const pathSeparator = isWindows ? '\\' : '/';
 const filePrefix = 'file:' + pathSeparator.repeat(2);
 

@@ -6,8 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
-import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
-import { ICommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ICommandDetectionCapability, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IBuffer, IMarker, Terminal } from 'xterm';
 

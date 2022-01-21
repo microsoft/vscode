@@ -4,11 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
 import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
 import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/naiveCwdDetectionCapability';
 import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/partialCommandDetectionCapability';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
+
+/**
+ * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
+ * progressively enhancing various features that may not be supported in all terminals/shells.
+ */
+export const enum TerminalCapability {
+	/**
+	 * The terminal can reliably detect the current working directory as soon as the change happens
+	 * within the buffer.
+	 */
+	CwdDetection,
+	/**
+	 * The terminal can reliably detect the current working directory when requested.
+	 */
+	NaiveCwdDetection,
+	/**
+	 * The terminal can reliably identify prompts, commands and command outputs within the buffer.
+	 */
+	CommandDetection,
+	/**
+	 * The terminal can often identify prompts, commands and command outputs within the buffer. It
+	 * may not be so good at remembering the position of commands that ran in the past. This state
+	 * may be enabled when something goes wrong or when using conpty for example.
+	 */
+	PartialCommandDetection
+}
 
 /**
  * An object that keeps track of additional capabilities and their implementations for features that
