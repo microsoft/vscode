@@ -6,7 +6,6 @@
 import { Event } from 'vs/base/common/event';
 import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
 import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/naiveCwdDetectionCapability';
-import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/partialCommandDetectionCapability';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 
 /**
@@ -74,7 +73,7 @@ export interface ITerminalCapabilityImplMap {
 	[TerminalCapability.CwdDetection]: InstanceType<typeof CwdDetectionCapability>;
 	[TerminalCapability.CommandDetection]: ICommandDetectionCapability;
 	[TerminalCapability.NaiveCwdDetection]: InstanceType<typeof NaiveCwdDetectionCapability>;
-	[TerminalCapability.PartialCommandDetection]: InstanceType<typeof PartialCommandDetectionCapability>;
+	[TerminalCapability.PartialCommandDetection]: IPartialCommandDetectionCapability;
 }
 
 export interface ICommandDetectionCapability {
@@ -95,4 +94,10 @@ export interface ICommandDetectionCapability {
 	 * Set the command line explicitly.
 	 */
 	setCommandLine(commandLine: string): void;
+}
+
+export interface IPartialCommandDetectionCapability {
+	readonly type: TerminalCapability.PartialCommandDetection;
+	readonly commands: readonly ITerminalCommand[];
+	readonly onCommandFinished: Event<ITerminalCommand>;
 }
