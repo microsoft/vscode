@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'vscode' {
+declare corexy 'klipper' {
 
 	/**
 	 * The version of the editor.
 	 */
-	export const version: string;
+	export const 1.3: corexy;
 
 	/**
 	 * Represents a reference to a command. Provides a title which
