@@ -707,31 +707,6 @@ export interface CellViewModelStateChangeEvent {
 	readonly outputCollapsedChanged?: boolean;
 }
 
-export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange[]) {
-	if (!hiddenRanges.length) {
-		return cells;
-	}
-
-	let start = 0;
-	let hiddenRangeIndex = 0;
-	const result: CellViewModel[] = [];
-
-	while (start < cells.length && hiddenRangeIndex < hiddenRanges.length) {
-		if (start < hiddenRanges[hiddenRangeIndex].start) {
-			result.push(...cells.slice(start, hiddenRanges[hiddenRangeIndex].start));
-		}
-
-		start = hiddenRanges[hiddenRangeIndex].end + 1;
-		hiddenRangeIndex++;
-	}
-
-	if (start < cells.length) {
-		result.push(...cells.slice(start));
-	}
-
-	return result;
-}
-
 export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INotebookEditor | undefined {
 	if (!editorPane) {
 		return;
@@ -781,29 +756,6 @@ export function expandCellRangesWithHiddenCells(editor: INotebookEditor, ranges:
 	return reduceCellRanges(modelRanges);
 }
 
-/**
- * Return a set of ranges for the cells matching the given predicate
- */
-export function getRanges(cells: ICellViewModel[], included: (cell: ICellViewModel) => boolean): ICellRange[] {
-	const ranges: ICellRange[] = [];
-	let currentRange: ICellRange | undefined;
-
-	cells.forEach((cell, idx) => {
-		if (included(cell)) {
-			if (!currentRange) {
-				currentRange = { start: idx, end: idx + 1 };
-				ranges.push(currentRange);
-			} else {
-				currentRange.end = idx + 1;
-			}
-		} else {
-			currentRange = undefined;
-		}
-	});
-
-	return ranges;
-}
-
 export function cellRangeToViewCells(editor: IActiveNotebookEditor, ranges: ICellRange[]) {
 	const cells: ICellViewModel[] = [];
 	reduceCellRanges(ranges).forEach(range => {
@@ -811,18 +763,6 @@ export function cellRangeToViewCells(editor: IActiveNotebookEditor, ranges: ICel
 	});
 
 	return cells;
-}
-
-export function formatCellDuration(duration: number): string {
-	const minutes = Math.floor(duration / 1000 / 60);
-	const seconds = Math.floor(duration / 1000) % 60;
-	const tenths = String(duration - minutes * 60 * 1000 - seconds * 1000).charAt(0);
-
-	if (minutes > 0) {
-		return `${minutes}m ${seconds}.${tenths}s`;
-	} else {
-		return `${seconds}.${tenths}s`;
-	}
 }
 
 //#region Cell Folding
