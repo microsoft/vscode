@@ -16,12 +16,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { ITerminalConfigHelper, ITerminalConfiguration, ITerminalLinkActivationResult } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalCommand, ITerminalConfigHelper, ITerminalConfiguration, IXtermMarker } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
 import { TestViewDescriptorService } from 'vs/workbench/contrib/terminal/test/browser/xterm/xtermTerminal.test';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -36,9 +35,7 @@ import { URI } from 'vs/base/common/uri';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { isWindows } from 'vs/base/common/platform';
 import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-
-const pathSeparator = isWindows ? '\\' : '/';
-const filePrefix = 'file:' + pathSeparator.repeat(2);
+import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -52,12 +49,17 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	wordSeparators: ' ()[]{}\',"`─‘’'
 };
 
+export interface ITerminalLinkActivationResult {
+	source: 'editor' | 'search',
+	link: string
+}
+
 class TestFileService extends FileService {
-	private _files: string[] = [];
+	private _files: string[] | '*' = '*';
 	override async resolve(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
 	override async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
 	override async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
-		if (this._files.includes(resource.path)) {
+		if (this._files === '*' || this._files.includes(resource.fsPath)) {
 			return { isFile: true, isDirectory: false, isSymbolicLink: false } as IFileStat;
 		} else {
 			return { isFile: false, isDirectory: false, isSymbolicLink: false } as IFileStat;
@@ -65,6 +67,12 @@ class TestFileService extends FileService {
 	}
 	setFiles(files: string[]): void {
 		this._files = files;
+	}
+}
+
+class TestCommandDetectionCapability extends CommandDetectionCapability {
+	setCommands(commands: ITerminalCommand[]) {
+		this._commands = commands;
 	}
 }
 
@@ -78,6 +86,7 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 	let configHelper: ITerminalConfigHelper;
 	let capabilities: TerminalCapabilityStore;
 	let activationResult: ITerminalLinkActivationResult | undefined;
+	let commandDetection: TestCommandDetectionCapability;
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
@@ -96,7 +105,6 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 
 		themeService = new TestThemeService();
 		viewDescriptorService = new TestViewDescriptorService();
-		capabilities = new TerminalCapabilityStore();
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IWorkbenchEnvironmentService, {
 			remoteAuthority: undefined
@@ -114,7 +122,7 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		instantiationService.stub(IQuickInputService, {
 			quickAccess: {
 				show(link: string) {
-					activationResult = { link, source: 'quickpick' };
+					activationResult = { link, source: 'search' };
 				}
 			}
 		} as Partial<IQuickInputService>);
@@ -128,20 +136,15 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		} as Partial<IEditorService>);
 
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
-		configHelper = instantiationService.createInstance(TerminalConfigHelper);
+		capabilities = new TerminalCapabilityStore();
 		xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, capabilities);
+		commandDetection = new TestCommandDetectionCapability(xterm.raw, new NullLogService());
+		capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 	});
 
-	async function assertLink(text: string, expected: { text: string, range: [number, number][], linkActivationResult?: ITerminalLinkActivationResult }[], registerCwdDetectionCapability?: boolean, cwd?: string, files?: string[]) {
-		xterm?.dispose();
+	async function assertLink(text: string, expected: { text: string, range: [number, number][], linkActivationResult?: ITerminalLinkActivationResult }[], assertActicationResult?: boolean) {
+		xterm.dispose();
 		xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, capabilities);
-		if (registerCwdDetectionCapability) {
-			capabilities = new TerminalCapabilityStore();
-			capabilities.add(TerminalCapability.CwdDetection, new CwdDetectionCapability());
-		}
-		if (files) {
-			fileService.setFiles(files);
-		}
 		// We don't want to cancel the event or anything from the tests so just pass in a wrapped
 		// link handler that does nothing.
 
@@ -163,7 +166,7 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		// Ensure all links are provided
 		const links = (await new Promise<TerminalLink[] | undefined>(r => provider.provideLinks(1, r)))!;
 		const actualLinks = await Promise.all(links.map(async e => {
-			if (capabilities.has(TerminalCapability.CwdDetection)) {
+			if (capabilities.has(TerminalCapability.CommandDetection)) {
 				e.activate(new TerminalLinkQuickPickEvent(EventType.CLICK), e.text);
 				await e.asyncActivate;
 			}
@@ -182,7 +185,16 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 			},
 			activationResult: e.linkActivationResult
 		}));
-		assert.deepStrictEqual(actualLinks, expectedVerbose);
+		assert.deepStrictEqual(
+			actualLinks.map(e => ({ text: e.text, range: e.range })),
+			expectedVerbose.map(e => ({ text: e.text, range: e.range }))
+		);
+		if (assertActicationResult) {
+			assert.deepStrictEqual(
+				actualLinks.map(e => e.activationResult),
+				expected.map(e => e.linkActivationResult)
+			);
+		}
 		assert.strictEqual(links.length, expected.length);
 	}
 
@@ -257,24 +269,44 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		await assertLink('file:///C:/users/test/file.txt:1:10 ', [{ range: [[1, 1], [35, 1]], text: 'file:///C:/users/test/file.txt:1:10' }]);
 	});
 	test('should apply the cwd to the link only when the file exists and cwdDetection is enabled', async () => {
-		if (!isWindows) {
-			const { text, cwd, filePath } = generateLinkArgs(['Users', 'home', 'folder']);
-			await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: { link: filePrefix + filePath, source: 'editor' } }], true, cwd, [filePath]);
-			await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: { link: text, source: 'quickpick' } }], true, cwd, []);
-		}
-	});
-	test('should not add the cwd to the link when cwdDetection is not enabled', async () => {
-		if (!isWindows) {
-			const { text, cwd, filePath } = generateLinkArgs(['Users', 'home', 'folder']);
-			await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: undefined }], false, cwd, [filePath]);
-			await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: undefined }], false, cwd, []);
-		}
+		const cwd = (isWindows
+			? 'c:\\Users\\home\\folder'
+			: '/Users/home/folder'
+		);
+		const absoluteFile = (isWindows
+			? 'c:\\Users\\home\\folder\\file.txt'
+			: '/Users/home/folder/file.txt'
+		);
+		fileService.setFiles([absoluteFile]);
+
+		// Set a fake detected command starting as line 0 to establish the cwd
+		commandDetection.setCommands([{
+			command: '',
+			cwd,
+			timestamp: 0,
+			getOutput() { return undefined; },
+			marker: {
+				line: 0
+			} as Partial<IXtermMarker> as any
+		}]);
+		await assertLink('file.txt', [{
+			range: [[1, 1], [8, 1]],
+			text: 'file.txt',
+			linkActivationResult: {
+				link: (isWindows
+					? 'file:///c%3A%5CUsers%5Chome%5Cfolder%5Cfile.txt'
+					: 'file:///Users/home/folder/file.txt'
+				),
+				source: 'editor'
+			}
+		}]);
+
+		// Clear deteceted commands and ensure the same request results in a search
+		commandDetection.setCommands([]);
+		await assertLink('file.txt', [{
+			range: [[1, 1], [8, 1]],
+			text: 'file.txt',
+			linkActivationResult: { link: 'file.txt', source: 'search' }
+		}]);
 	});
 });
-
-function generateLinkArgs(folders: string[]): { text: string, cwd: string, filePath: string } {
-	const cwd = ['', ...folders].join(pathSeparator);
-	const text = 'file.txt';
-	const filePath = [cwd, text].join(pathSeparator);
-	return { text, cwd, filePath };
-}

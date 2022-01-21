@@ -29,7 +29,7 @@ interface ICurrentPartialCommand {
 export class CommandDetectionCapability implements ICommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
 
-	private _commands: ITerminalCommand[] = [];
+	protected _commands: ITerminalCommand[] = [];
 	private _exitCode: number | undefined;
 	private _cwd: string | undefined;
 	private _currentCommand: ICurrentPartialCommand = {};

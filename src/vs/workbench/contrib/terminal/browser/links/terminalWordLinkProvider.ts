@@ -155,7 +155,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			}
 		});
 		let matchLink = link;
-		if (this._capabilities.has(TerminalCapability.CwdDetection)) {
+		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
 			matchLink = this._updateLinkWithRelativeCwd(y, link, pathSeparator) || link;
 		}
 		const sanitizedLink = matchLink.replace(/:\d+(:\d+)?$/, '');
