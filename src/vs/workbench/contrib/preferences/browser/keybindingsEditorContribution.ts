@@ -24,7 +24,7 @@ import { parseTree, Node } from 'vs/base/common/json';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
-import { overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
+import { overviewRulerInfo, overviewRulerError } from 'vs/editor/common/core/editorColorRegistry';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';

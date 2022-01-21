@@ -16,7 +16,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { editorBracketMatchBorder } from 'vs/editor/common/core/editorColorRegistry';
 import * as nls from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
