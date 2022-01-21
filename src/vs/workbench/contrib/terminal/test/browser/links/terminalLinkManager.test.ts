@@ -69,7 +69,7 @@ suite('TerminalLinkManager', () => {
 		linkManager = instantiationService.createInstance(TerminalLinkManager, xterm, upcastPartial<ITerminalProcessManager>({}), upcastPartial<ITerminalCapabilityStore>({}));
 	});
 
-	suite('getLinks and open recent link', async () => {
+	suite('getLinks and open recent link', () => {
 		test('should return no links', async () => {
 			xterm.raw.write('');
 			const links = await linkManager.getLinks();
