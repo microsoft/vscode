@@ -312,7 +312,7 @@ import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 
 // Code Actions
-import 'vs/workbench/contrib/codeActions/common/codeActions.contribution';
+import 'vs/workbench/contrib/codeActions/browser/codeActions.contribution';
 
 // Timeline
 import 'vs/workbench/contrib/timeline/browser/timeline.contribution';

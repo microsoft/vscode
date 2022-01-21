@@ -61,16 +61,16 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	const host = endpoint.host;
 	const protocol = 'vscode-remote';
 
-	const testWorkspaceUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.workspacePath)).path, protocol, host, slashes: true });
+	const testWorkspacePath = URI.file(path.resolve(optimist.argv.workspacePath)).path;
 	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionDevelopmentPath)).path, protocol, host, slashes: true });
 	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
 
 	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","d372f9187401bd145a0a6e15ba369e2d82d02005"],["skipWelcome","true"]]`;
 
-	if (path.extname(testWorkspaceUri) === '.code-workspace') {
-		await page.goto(`${endpoint.href}&workspace=${testWorkspaceUri}&payload=${payloadParam}`);
+	if (path.extname(testWorkspacePath) === '.code-workspace') {
+		await page.goto(`${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`);
 	} else {
-		await page.goto(`${endpoint.href}&folder=${testWorkspaceUri}&payload=${payloadParam}`);
+		await page.goto(`${endpoint.href}&folder=${testWorkspacePath}&payload=${payloadParam}`);
 	}
 
 	await page.exposeFunction('codeAutomationLog', (type: string, args: any[]) => {
@@ -130,7 +130,8 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
-		serverLocation = path.join(process.env.VSCODE_REMOTE_SERVER_PATH, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
+		const { serverApplicationName } = require(path.join(process.env.VSCODE_REMOTE_SERVER_PATH, 'product.json'));
+		serverLocation = path.join(process.env.VSCODE_REMOTE_SERVER_PATH, 'bin', `${serverApplicationName}${process.platform === 'win32' ? '.cmd' : ''}`);
 		serverArgs.push(`--logsPath=${logsPath}`);
 
 		if (optimist.argv.debug) {
@@ -138,7 +139,7 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 			console.log(`Storing log files into '${logsPath}'`);
 		}
 	} else {
-		serverLocation = path.join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
+		serverLocation = path.join(root, `scripts/code-server.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 		serverArgs.push('--logsPath', logsPath);
 		process.env.VSCODE_DEV = '1';
 

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { SnippetFile, Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { URI } from 'vs/base/common/uri';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 suite('Snippets', function () {
 

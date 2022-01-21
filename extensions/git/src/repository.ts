@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands } from 'vscode';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
 import { AutoFetcher } from './autofetch';
@@ -14,7 +14,7 @@ import { debounce, memoize, throttle } from './decorators';
 import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, logTimestamp, onceEvent } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, logTimestamp, onceEvent, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { Log, LogLevel } from './log';
 import { IPushErrorHandlerRegistry } from './pushError';
@@ -1161,8 +1161,8 @@ export class Repository implements Disposable {
 	}
 
 	async stage(resource: Uri, contents: string): Promise<void> {
-		const relativePath = path.relative(this.repository.root, resource.fsPath).replace(/\\/g, '/');
-		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
+		const path = relativePath(this.repository.root, resource.fsPath).replace(/\\/g, '/');
+		await this.run(Operation.Stage, () => this.repository.stage(path, contents));
 		this._onDidChangeOriginalResource.fire(resource);
 	}
 
@@ -1545,16 +1545,16 @@ export class Repository implements Disposable {
 
 	async show(ref: string, filePath: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
-			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
+			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
 			const defaultEncoding = configFiles.get<string>('encoding');
 			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
 
 			try {
-				return await this.repository.bufferString(`${ref}:${relativePath}`, defaultEncoding, autoGuessEncoding);
+				return await this.repository.bufferString(`${ref}:${path}`, defaultEncoding, autoGuessEncoding);
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.WrongCase) {
-					const gitRelativePath = await this.repository.getGitRelativePath(ref, relativePath);
+					const gitRelativePath = await this.repository.getGitRelativePath(ref, path);
 					return await this.repository.bufferString(`${ref}:${gitRelativePath}`, defaultEncoding, autoGuessEncoding);
 				}
 
@@ -1565,8 +1565,8 @@ export class Repository implements Disposable {
 
 	async buffer(ref: string, filePath: string): Promise<Buffer> {
 		return this.run(Operation.Show, () => {
-			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
-			return this.repository.buffer(`${ref}:${relativePath}`);
+			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
+			return this.repository.buffer(`${ref}:${path}`);
 		});
 	}
 
@@ -1610,7 +1610,7 @@ export class Repository implements Disposable {
 		return await this.run(Operation.Ignore, async () => {
 			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
 			const textToAppend = files
-				.map(uri => path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
+				.map(uri => relativePath(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
 				.join('\n');
 
 			const document = await new Promise(c => fs.exists(ignoreFile, c))

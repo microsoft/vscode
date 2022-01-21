@@ -50,4 +50,3 @@ preexec() {
 update_prompt
 PROMPT_COMMAND=${PROMPT_COMMAND:+"$PROMPT_COMMAND; "}'precmd'
 trap 'preexec' DEBUG
-update_cwd

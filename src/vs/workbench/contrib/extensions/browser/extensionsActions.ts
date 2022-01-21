@@ -1120,14 +1120,19 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.gallery && !!this.extension.server && this.extension.state === ExtensionState.Installed;
+		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.gallery && !!this.extension.local && !!this.extension.server && this.extension.state === ExtensionState.Installed;
+		this.label = this.extension?.local?.isPreReleaseVersion ? localize('install another pre-release version', "Install Another Pre-Release Version...") : localize('install another version', "Install Another Version...");
 	}
 
 	override async run(): Promise<any> {
 		if (!this.enabled) {
 			return;
 		}
-		const pick = await this.quickInputService.pick(this.getVersionEntries(), { placeHolder: localize('selectVersion', "Select Version to Install"), matchOnDetail: true });
+		const pick = await this.quickInputService.pick(this.getVersionEntries(),
+			{
+				placeHolder: this.extension!.local!.isPreReleaseVersion ? localize('selectPreReleaseVersion', "Select Pre-Release Version to Install") : localize('selectVersion', "Select Version to Install"),
+				matchOnDetail: true
+			});
 		if (pick) {
 			if (this.extension!.version === pick.id) {
 				return;
@@ -1147,14 +1152,14 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 
 	private async getVersionEntries(): Promise<(IQuickPickItem & { latest: boolean, id: string, isPreReleaseVersion: boolean; })[]> {
 		const targetPlatform = await this.extension!.server!.extensionManagementService.getTargetPlatform();
-		const allVersions = await this.extensionGalleryService.getAllCompatibleVersions(this.extension!.gallery!, true, targetPlatform);
+		const allVersions = await this.extensionGalleryService.getAllCompatibleVersions(this.extension!.gallery!, this.extension!.local!.isPreReleaseVersion, targetPlatform);
 		return allVersions.map((v, i) => {
 			return {
 				id: v.version,
 				label: v.version,
-				description: `${fromNow(new Date(Date.parse(v.date)), true)}${v.isPreReleaseVersion ? ` (${localize('pre-release', "pre-release")})` : ''}${v.version === this.extension!.version ? ` (${localize('current', "current")})` : ''}`,
+				description: `${fromNow(new Date(Date.parse(v.date)), true)}${v.version === this.extension!.version ? ` (${localize('current', "current")})` : ''}`,
 				latest: i === 0,
-				ariaLabel: `${v.isPreReleaseVersion ? 'Pre-Release version' : 'Release version'} ${v.version}`,
+				ariaLabel: v.version,
 				isPreReleaseVersion: v.isPreReleaseVersion
 			};
 		});
@@ -2623,7 +2628,7 @@ export class InstallLocalExtensionsInRemoteAction extends AbstractInstallExtensi
 		const targetPlatform = await this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.getTargetPlatform();
 		await Promises.settled(localExtensionsToInstall.map(async extension => {
 			if (this.extensionGalleryService.isEnabled()) {
-				const gallery = (await this.extensionGalleryService.getExtensions([{ ...extension.identifier, preRelease: !!extension.local?.preRelease }], { targetPlatform, compatible: true }, CancellationToken.None))[0];
+				const gallery = (await this.extensionGalleryService.getExtensions([{ ...extension.identifier, includePreRelease: !!extension.local?.preRelease }], { targetPlatform, compatible: true }, CancellationToken.None))[0];
 				if (gallery) {
 					galleryExtensions.push(gallery);
 					return;
@@ -2672,7 +2677,7 @@ export class InstallRemoteExtensionsInLocalAction extends AbstractInstallExtensi
 		const targetPlatform = await this.extensionManagementServerService.localExtensionManagementServer!.extensionManagementService.getTargetPlatform();
 		await Promises.settled(extensions.map(async extension => {
 			if (this.extensionGalleryService.isEnabled()) {
-				const gallery = (await this.extensionGalleryService.getExtensions([{ ...extension.identifier, preRelease: !!extension.local?.preRelease }], { targetPlatform, compatible: true }, CancellationToken.None))[0];
+				const gallery = (await this.extensionGalleryService.getExtensions([{ ...extension.identifier, includePreRelease: !!extension.local?.preRelease }], { targetPlatform, compatible: true }, CancellationToken.None))[0];
 				if (gallery) {
 					galleryExtensions.push(gallery);
 					return;

@@ -63,15 +63,15 @@ const serverResources = [
 	'out-build/vs/base/common/performance.js',
 
 	// main entry points
-	'out-build/vs/server/cli.js',
-	'out-build/vs/server/main.js',
+	'out-build/server-cli.js',
+	'out-build/server-main.js',
 
 	// Watcher
 	'out-build/vs/platform/files/**/*.exe',
 	'out-build/vs/platform/files/**/*.md',
 
 	// Uri transformer
-	'out-build/vs/server/uriTransformer.js',
+	'out-build/vs/server/node/uriTransformer.js',
 
 	// Process monitor
 	'out-build/vs/base/node/cpuUsage.sh',
@@ -91,15 +91,15 @@ const serverWithWebResources = [
 
 const serverEntryPoints = [
 	{
-		name: 'vs/server/remoteExtensionHostAgent',
+		name: 'vs/server/node/remoteExtensionHostAgent',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
-		name: 'vs/server/remoteCli',
+		name: 'vs/server/node/remoteCli',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
-		name: 'vs/server/remoteExtensionHostProcess',
+		name: 'vs/server/node/remoteExtensionHostProcess',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{

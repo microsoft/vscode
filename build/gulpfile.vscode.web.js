@@ -100,8 +100,7 @@ const createVSCodeWebFileContentMapper = (extensionsRoot) => {
 
 		// (2) Patch builtin extensions
 		if (path.endsWith('vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.js')) {
-			// Do not inline `vscode-web-playground` even if it has been packed!
-			const builtinExtensions = JSON.stringify(extensions.scanBuiltinExtensions(extensionsRoot, ['vscode-web-playground']));
+			const builtinExtensions = JSON.stringify(extensions.scanBuiltinExtensions(extensionsRoot));
 			return content.replace('/*BUILD->INSERT_BUILTIN_EXTENSIONS*/', builtinExtensions.substr(1, builtinExtensions.length - 2) /* without [ and ]*/);
 		}
 

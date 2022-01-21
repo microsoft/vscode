@@ -8,9 +8,10 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Action, IAction } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookKernelMatchResult, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { Event } from 'vs/base/common/event';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class NotebooKernelActionViewItem extends ActionViewItem {
@@ -19,7 +20,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 
 	constructor(
 		actualAction: IAction,
-		private readonly _editor: NotebookEditor | INotebookEditor,
+		private readonly _editor: { onDidChangeModel: Event<void>; textModel: NotebookTextModel | undefined } | INotebookEditor,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 	) {
 		super(

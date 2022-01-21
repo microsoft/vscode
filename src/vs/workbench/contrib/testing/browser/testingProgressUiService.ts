@@ -58,6 +58,10 @@ export class TestingProgressTrigger extends Disposable {
 	}
 
 	private attachAutoOpenForNewResults(result: LiveTestResult) {
+		if (result.request.isUiTriggered === false) {
+			return;
+		}
+
 		const cfg = getTestingConfiguration(this.configurationService, TestingConfigKeys.OpenTesting);
 		if (cfg === AutoOpenTesting.NeverOpen) {
 			return;

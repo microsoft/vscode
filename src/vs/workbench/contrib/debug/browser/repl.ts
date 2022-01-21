@@ -33,7 +33,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemKinds, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/languages';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';

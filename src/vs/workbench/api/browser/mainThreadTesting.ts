@@ -6,19 +6,19 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { revive } from 'vs/base/common/marshalling';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, SerializedTestMessage, TestDiffOpType, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
+import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestController, ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ExtHostContext, ExtHostTestingShape, IExtHostContext, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
-import { revive } from 'vs/base/common/marshalling';
 
 const reviveDiff = (diff: TestsDiff) => {
 	for (const entry of diff) {

@@ -109,9 +109,9 @@ function createCoverageReport(opts) {
 	return Promise.resolve(undefined);
 }
 
-function loadWorkbenchTestingModule() {
+function loadWorkbenchTestingUtilsModule() {
 	return new Promise((resolve, reject) => {
-		loader.require(['vs/workbench/test/electron-browser/testing'], resolve, reject);
+		loader.require(['vs/workbench/test/common/utils'], resolve, reject);
 	})
 }
 
@@ -172,7 +172,7 @@ function loadTests(opts) {
 		});
 	});
 
-	return loadWorkbenchTestingModule().then((workbenchTestingModule) => {
+	return loadWorkbenchTestingUtilsModule().then((workbenchTestingModule) => {
 		const assertCleanState = workbenchTestingModule.assertCleanState;
 
 		suite('Tests are using suiteSetup and setup correctly', () => {

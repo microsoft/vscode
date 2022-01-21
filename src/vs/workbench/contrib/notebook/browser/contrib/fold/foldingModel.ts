@@ -6,8 +6,8 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { FoldingRegion, FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
-import { IFoldingRangeData, sanitizeRanges } from 'vs/editor/contrib/folding/syntaxRangeProvider';
+import { FoldingRegion, FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
+import { IFoldingRangeData, sanitizeRanges } from 'vs/editor/contrib/folding/browser/syntaxRangeProvider';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';

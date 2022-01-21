@@ -18,7 +18,7 @@ import { IWorkerClient, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/b
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
+import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost, SearchWorkerFileSystemHandle } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
 import { memoize } from 'vs/base/common/decorators';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
@@ -91,7 +91,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 				const queryId = this.queryId++;
 				queryDisposables.add(token?.onCancellationRequested(e => this.cancelQuery(queryId)) || Disposable.None);
 
-				const handle = await this.fileSystemProvider.getHandle(fq.folder);
+				const handle: SearchWorkerFileSystemHandle | undefined = await this.fileSystemProvider.getHandle(fq.folder);
 				if (!handle || handle.kind !== 'directory') {
 					console.error('Could not get directory handle for ', fq);
 					return;
@@ -144,7 +144,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 				const queryId = this.queryId++;
 				queryDisposables.add(token?.onCancellationRequested(e => this.cancelQuery(queryId)) || Disposable.None);
 
-				const handle = await this.fileSystemProvider.getHandle(fq.folder);
+				const handle: SearchWorkerFileSystemHandle | undefined = await this.fileSystemProvider.getHandle(fq.folder);
 				if (!handle || handle.kind !== 'directory') {
 					console.error('Could not get directory handle for ', fq);
 					return;

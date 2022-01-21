@@ -103,13 +103,11 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	) {
 		super(SyncResource.Extensions, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
 		this._register(
-			Event.debounce(
-				Event.any<any>(
-					Event.filter(this.extensionManagementService.onDidInstallExtensions, (e => e.some(({ local }) => !!local))),
-					Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)),
-					this.extensionEnablementService.onDidChangeEnablement,
-					this.extensionStorageService.onDidChangeExtensionStorageToSync),
-				() => undefined, 500)(() => this.triggerLocalChange()));
+			Event.any<any>(
+				Event.filter(this.extensionManagementService.onDidInstallExtensions, (e => e.some(({ local }) => !!local))),
+				Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)),
+				this.extensionEnablementService.onDidChangeEnablement,
+				this.extensionStorageService.onDidChangeExtensionStorageToSync)(() => this.triggerLocalChange()));
 	}
 
 	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IExtensionResourcePreview[]> {
@@ -378,7 +376,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				}
 
 				// User Extension Sync: Install/Update, Enablement & State
-				const extension = (await this.extensionGalleryService.getExtensions([{ ...e.identifier, preRelease: e.preRelease }], CancellationToken.None))[0];
+				const extension = (await this.extensionGalleryService.getExtensions([{ ...e.identifier, includePreRelease: e.preRelease }], CancellationToken.None))[0];
 
 				/* Update extension state only if
 				 *	extension is installed and version is same as synced version or

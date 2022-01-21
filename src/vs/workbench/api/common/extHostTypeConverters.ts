@@ -1174,7 +1174,8 @@ export namespace InlayHintLabelPart {
 			: part.tooltip;
 		if (modes.Command.is(part.command)) {
 			result.command = converter.fromInternal(part.command);
-		} else if (part.location) {
+		}
+		if (part.location) {
 			result.location = location.to(part.location);
 		}
 		return result;
