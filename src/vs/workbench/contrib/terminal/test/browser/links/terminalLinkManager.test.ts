@@ -23,6 +23,7 @@ import { TestViewDescriptorService } from 'vs/workbench/contrib/terminal/test/br
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { equals } from 'vs/base/common/arrays';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -82,7 +83,7 @@ suite('TerminalLinkManager', () => {
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
-		xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
+		xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore());
 		linkManager = instantiationService.createInstance(TestLinkManager, xterm, upcastPartial<ITerminalProcessManager>({}), upcastPartial<ITerminalCapabilityStore>({}));
 	});
 
