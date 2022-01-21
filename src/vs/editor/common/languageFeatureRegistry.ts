@@ -5,9 +5,8 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ITextModel } from 'vs/editor/common/model';
-import { LanguageFilter, LanguageSelector, score } from 'vs/editor/common/languages/languageSelector';
-import { shouldSynchronizeModel } from 'vs/editor/common/services/model';
+import { ITextModel, shouldSynchronizeModel } from 'vs/editor/common/model';
+import { LanguageFilter, LanguageSelector, score } from 'vs/editor/common/languageSelector';
 
 interface Entry<T> {
 	selector: LanguageSelector;

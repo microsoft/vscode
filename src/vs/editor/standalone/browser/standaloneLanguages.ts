@@ -8,7 +8,6 @@ import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Token, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/languages/token';
 import * as model from 'vs/editor/common/model';
 import * as languages from 'vs/editor/common/languages';
 import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
@@ -89,16 +88,16 @@ export class EncodedTokenizationSupportAdapter implements languages.ITokenizatio
 		return this._actual.getInitialState();
 	}
 
-	public tokenize(line: string, hasEOL: boolean, state: languages.IState): TokenizationResult {
+	public tokenize(line: string, hasEOL: boolean, state: languages.IState): languages.TokenizationResult {
 		if (typeof this._actual.tokenize === 'function') {
 			return TokenizationSupportAdapter.adaptTokenize(this._languageId, <{ tokenize(line: string, state: languages.IState): ILineTokens; }>this._actual, line, state);
 		}
 		throw new Error('Not supported!');
 	}
 
-	public tokenizeEncoded(line: string, hasEOL: boolean, state: languages.IState): EncodedTokenizationResult {
+	public tokenizeEncoded(line: string, hasEOL: boolean, state: languages.IState): languages.EncodedTokenizationResult {
 		const result = this._actual.tokenizeEncoded(line, state);
-		return new EncodedTokenizationResult(result.tokens, result.endState);
+		return new languages.EncodedTokenizationResult(result.tokens, result.endState);
 	}
 }
 
@@ -119,8 +118,8 @@ export class TokenizationSupportAdapter implements languages.ITokenizationSuppor
 		return this._actual.getInitialState();
 	}
 
-	private static _toClassicTokens(tokens: IToken[], language: string): Token[] {
-		const result: Token[] = [];
+	private static _toClassicTokens(tokens: IToken[], language: string): languages.Token[] {
+		const result: languages.Token[] = [];
 		let previousStartIndex: number = 0;
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			const t = tokens[i];
@@ -135,14 +134,14 @@ export class TokenizationSupportAdapter implements languages.ITokenizationSuppor
 				startIndex = previousStartIndex;
 			}
 
-			result[i] = new Token(startIndex, t.scopes, language);
+			result[i] = new languages.Token(startIndex, t.scopes, language);
 
 			previousStartIndex = startIndex;
 		}
 		return result;
 	}
 
-	public static adaptTokenize(language: string, actual: { tokenize(line: string, state: languages.IState): ILineTokens; }, line: string, state: languages.IState): TokenizationResult {
+	public static adaptTokenize(language: string, actual: { tokenize(line: string, state: languages.IState): ILineTokens; }, line: string, state: languages.IState): languages.TokenizationResult {
 		const actualResult = actual.tokenize(line, state);
 		const tokens = TokenizationSupportAdapter._toClassicTokens(actualResult.tokens, language);
 
@@ -154,10 +153,10 @@ export class TokenizationSupportAdapter implements languages.ITokenizationSuppor
 			endState = actualResult.endState;
 		}
 
-		return new TokenizationResult(tokens, endState);
+		return new languages.TokenizationResult(tokens, endState);
 	}
 
-	public tokenize(line: string, hasEOL: boolean, state: languages.IState): TokenizationResult {
+	public tokenize(line: string, hasEOL: boolean, state: languages.IState): languages.TokenizationResult {
 		return TokenizationSupportAdapter.adaptTokenize(this._languageId, this._actual, line, state);
 	}
 
@@ -200,7 +199,7 @@ export class TokenizationSupportAdapter implements languages.ITokenizationSuppor
 		return actualResult;
 	}
 
-	public tokenizeEncoded(line: string, hasEOL: boolean, state: languages.IState): EncodedTokenizationResult {
+	public tokenizeEncoded(line: string, hasEOL: boolean, state: languages.IState): languages.EncodedTokenizationResult {
 		const actualResult = this._actual.tokenize(line, state);
 		const tokens = this._toBinaryTokens(this._languageService.languageIdCodec, actualResult.tokens);
 
@@ -212,7 +211,7 @@ export class TokenizationSupportAdapter implements languages.ITokenizationSuppor
 			endState = actualResult.endState;
 		}
 
-		return new EncodedTokenizationResult(tokens, endState);
+		return new languages.EncodedTokenizationResult(tokens, endState);
 	}
 }
 

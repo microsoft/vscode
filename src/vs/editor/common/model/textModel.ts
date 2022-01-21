@@ -15,36 +15,38 @@ import { listenStream } from 'vs/base/common/stream';
 import * as strings from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
-import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as model from 'vs/editor/common/model';
-import { IBracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
+import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
 import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
 import { ColorizedBracketPairsDecorationProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/colorizedBracketPairsDecorationProvider';
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { EditStack } from 'vs/editor/common/model/editStack';
-import { GuidesTextModelPart, IGuidesTextModelPart } from 'vs/editor/common/model/guidesTextModelPart';
+import { GuidesTextModelPart } from 'vs/editor/common/model/guidesTextModelPart';
+import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { IntervalNode, IntervalTree, recomputeMaxEnd } from 'vs/editor/common/model/intervalTree';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { TextChange } from 'vs/editor/common/model/textChange';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
-import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
+import { TextChange } from 'vs/editor/common/core/textChange';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
+import { SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
 import { TextModelTokenization } from 'vs/editor/common/model/textModelTokens';
-import { countEOL } from 'vs/editor/common/model/pieceTreeTextBuffer/eolCounter';
-import { ContiguousMultilineTokens } from 'vs/editor/common/model/tokens/contiguousMultilineTokens';
-import { SparseMultilineTokens } from 'vs/editor/common/model/tokens/sparseMultilineTokens';
-import { ContiguousTokensStore } from 'vs/editor/common/model/tokens/contiguousTokensStore';
-import { SparseTokensStore } from 'vs/editor/common/model/tokens/sparseTokensStore';
-import { getWordAtText } from 'vs/editor/common/model/wordHelper';
+import { countEOL } from 'vs/editor/common/core/eolCounter';
+import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
+import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
+import { ContiguousTokensStore } from 'vs/editor/common/tokens/contiguousTokensStore';
+import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
+import { getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { FormattingOptions, StandardTokenType } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { IColorTheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -174,16 +176,6 @@ export const enum BackgroundTokenizationState {
 	InProgress = 1,
 	Completed = 2,
 }
-
-export const EDITOR_MODEL_DEFAULTS = {
-	tabSize: 4,
-	indentSize: 4,
-	insertSpaces: true,
-	detectIndentation: true,
-	trimAutoWhitespace: true,
-	largeFileOptimizations: true,
-	bracketPairColorizationOptions: { enabled: false }
-};
 
 export class TextModel extends Disposable implements model.ITextModel, IDecorationsTreesHost {
 
@@ -1170,7 +1162,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
 	}
 
-	private findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): model.FindMatch[] {
+	private findMatchesLineByLine(searchRange: Range, searchData: model.SearchData, captureMatches: boolean, limitResultCount: number): model.FindMatch[] {
 		return this._buffer.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
 	}
 
@@ -2153,7 +2145,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	// Having tokens allows implementing additional helper methods
 
-	public getWordAtPosition(_position: IPosition): model.IWordAtPosition | null {
+	public getWordAtPosition(_position: IPosition): IWordAtPosition | null {
 		this._assertNotDisposed();
 		const position = this.validatePosition(_position);
 		const lineContent = this.getLineContent(position.lineNumber);
@@ -2210,7 +2202,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return [startOffset, endOffset];
 	}
 
-	public getWordUntilPosition(position: IPosition): model.IWordAtPosition {
+	public getWordUntilPosition(position: IPosition): IWordAtPosition {
 		const wordAtPosition = this.getWordAtPosition(position);
 		if (!wordAtPosition) {
 			return {

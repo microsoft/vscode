@@ -8,7 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { BracketPairColorizationOptions, IModelDecoration } from 'vs/editor/common/model';
-import { BracketInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
+import { BracketInfo } from 'vs/editor/common/textModelBracketPairs';
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import {

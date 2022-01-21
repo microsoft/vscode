@@ -9,7 +9,7 @@ import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensio
 import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { IDiffComputationResult } from 'vs/editor/common/services/editorWorker';
+import { IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';

@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICommandTracker, TerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { coalesce } from 'vs/base/common/arrays';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ICommandTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICommandDetectionCapability, IPartialCommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
-
-/**
- * The minimum size of the prompt in which to assume the line is a command.
- */
-const MINIMUM_PROMPT_LENGTH = 2;
 
 enum Boundary {
 	Top,
@@ -21,19 +19,43 @@ export const enum ScrollPosition {
 	Middle
 }
 
-export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
+export class CommandTrackerAddon extends Disposable implements ICommandTracker, ITerminalAddon {
 	private _currentMarker: IMarker | Boundary = Boundary.Bottom;
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
-	protected abstract _terminal: Terminal | undefined;
+	protected _terminal: Terminal | undefined;
 
-	abstract get commands(): TerminalCommand[];
-	abstract get cwds(): string[];
-	abstract activate(terminal: Terminal): void;
-	abstract handleIntegratedShellChange(event: { type: string, value: string }): void;
-	abstract getCwdForLine(line: number): string;
+	private _commandDetection?: ICommandDetectionCapability | IPartialCommandDetectionCapability;
 
-	dispose(): void {
+	activate(terminal: Terminal): void {
+		this._terminal = terminal;
+	}
+
+	constructor(store: ITerminalCapabilityStore) {
+		super();
+		this._refreshActiveCapability(store);
+		this._register(store.onDidAddCapability(() => this._refreshActiveCapability(store)));
+		this._register(store.onDidRemoveCapability(() => this._refreshActiveCapability(store)));
+	}
+
+	private _refreshActiveCapability(store: ITerminalCapabilityStore) {
+		const activeCommandDetection = store.get(TerminalCapability.CommandDetection) || store.get(TerminalCapability.PartialCommandDetection);
+		if (activeCommandDetection !== this._commandDetection) {
+			this._commandDetection = activeCommandDetection;
+		}
+	}
+
+	private _getCommandMarkers(): readonly IMarker[] {
+		if (!this._commandDetection) {
+			return [];
+		}
+		let commands: readonly IMarker[];
+		if (this._commandDetection.type === TerminalCapability.PartialCommandDetection) {
+			commands = this._commandDetection.commands;
+		} else {
+			commands = coalesce(this._commandDetection.commands.map(e => e.marker));
+		}
+		return commands;
 	}
 
 	clearMarker(): void {
@@ -57,11 +79,11 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 		if (!retainSelection && currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
-			const markersBelowViewport = this._terminal.markers.filter(e => e.line >= viewportY).length;
+			const markersBelowViewport = this._getCommandMarkers().filter(e => e.line >= viewportY).length;
 			// -1 will scroll to the top
-			markerIndex = this._terminal.markers.length - markersBelowViewport - 1;
+			markerIndex = this._getCommandMarkers().length - markersBelowViewport - 1;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			markerIndex = this._terminal.markers.length - 1;
+			markerIndex = this._getCommandMarkers().length - 1;
 		} else if (this._currentMarker === Boundary.Top) {
 			markerIndex = -1;
 		} else if (this._isDisposable) {
@@ -69,7 +91,7 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 			this._currentMarker.dispose();
 			this._isDisposable = false;
 		} else {
-			markerIndex = this._terminal.markers.indexOf(this._currentMarker) - 1;
+			markerIndex = this._getCommandMarkers().indexOf(this._currentMarker) - 1;
 		}
 
 		if (markerIndex < 0) {
@@ -78,7 +100,7 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 			return;
 		}
 
-		this._currentMarker = this._terminal.markers[markerIndex];
+		this._currentMarker = this._getCommandMarkers()[markerIndex];
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
@@ -96,11 +118,11 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 		if (!retainSelection && currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
-			const markersAboveViewport = this._terminal.markers.filter(e => e.line <= viewportY).length;
+			const markersAboveViewport = this._getCommandMarkers().filter(e => e.line <= viewportY).length;
 			// markers.length will scroll to the bottom
 			markerIndex = markersAboveViewport;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			markerIndex = this._terminal.markers.length;
+			markerIndex = this._getCommandMarkers().length;
 		} else if (this._currentMarker === Boundary.Top) {
 			markerIndex = 0;
 		} else if (this._isDisposable) {
@@ -108,16 +130,16 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 			this._currentMarker.dispose();
 			this._isDisposable = false;
 		} else {
-			markerIndex = this._terminal.markers.indexOf(this._currentMarker) + 1;
+			markerIndex = this._getCommandMarkers().indexOf(this._currentMarker) + 1;
 		}
 
-		if (markerIndex >= this._terminal.markers.length) {
+		if (markerIndex >= this._getCommandMarkers().length) {
 			this._currentMarker = Boundary.Bottom;
 			this._terminal.scrollToBottom();
 			return;
 		}
 
-		this._currentMarker = this._terminal.markers[markerIndex];
+		this._currentMarker = this._getCommandMarkers()[markerIndex];
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
@@ -280,12 +302,12 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 		if (this._currentMarker === Boundary.Top) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			return xterm.markers.length - 1;
+			return this._getCommandMarkers().length - 1;
 		}
 
 		let i;
-		for (i = xterm.markers.length - 1; i >= 0; i--) {
-			if (xterm.markers[i].line < this._currentMarker.line) {
+		for (i = this._getCommandMarkers().length - 1; i >= 0; i--) {
+			if (this._getCommandMarkers()[i].line < this._currentMarker.line) {
 				return i;
 			}
 		}
@@ -297,54 +319,16 @@ export abstract class CommandTrackerAddon implements ICommandTracker, ITerminalA
 		if (this._currentMarker === Boundary.Top) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			return xterm.markers.length - 1;
+			return this._getCommandMarkers().length - 1;
 		}
 
 		let i;
-		for (i = 0; i < xterm.markers.length; i++) {
-			if (xterm.markers[i].line > this._currentMarker.line) {
+		for (i = 0; i < this._getCommandMarkers().length; i++) {
+			if (this._getCommandMarkers()[i].line > this._currentMarker.line) {
 				return i;
 			}
 		}
 
-		return xterm.markers.length;
-	}
-}
-
-export class NaiveCommandTrackerAddon extends CommandTrackerAddon {
-	getCwdForLine(line: number): string {
-		throw new Error('Method not implemented.');
-	}
-	_terminal: Terminal | undefined;
-	get commands(): TerminalCommand[] {
-		return [];
-	}
-	get cwds(): string[] {
-		return [];
-	}
-
-	activate(terminal: Terminal): void {
-		this._terminal = terminal;
-		terminal.onKey(e => this._onKey(e.key));
-	}
-
-	private _onKey(key: string): void {
-		if (key === '\x0d') {
-			this._onEnter();
-		}
-
-		this.clearMarker();
-	}
-
-	private _onEnter(): void {
-		if (!this._terminal) {
-			return;
-		}
-		if (this._terminal.buffer.active.cursorX >= MINIMUM_PROMPT_LENGTH) {
-			this._terminal.registerMarker(0);
-		}
-	}
-
-	handleIntegratedShellChange(event: { type: string; value: string; }): void {
+		return this._getCommandMarkers().length;
 	}
 }

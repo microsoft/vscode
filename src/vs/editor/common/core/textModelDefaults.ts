@@ -3,16 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'vscode' {
-
-	// https://github.com/microsoft/vscode/issues/74967
-
-	export enum QuickPickItemKind {
-		Separator = -1,
-		Default = 1,
-	}
-
-	export interface QuickPickItem {
-		kind?: QuickPickItemKind
-	}
-}
+export const EDITOR_MODEL_DEFAULTS = {
+	tabSize: 4,
+	indentSize: 4,
+	insertSpaces: true,
+	detectIndentation: true,
+	trimAutoWhitespace: true,
+	largeFileOptimizations: true,
+	bracketPairColorizationOptions: { enabled: false }
+};

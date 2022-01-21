@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -18,7 +18,6 @@ import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-export { CursorColumns } from '../core/cursorColumns';
 
 export interface IColumnSelectData {
 	isReal: boolean;

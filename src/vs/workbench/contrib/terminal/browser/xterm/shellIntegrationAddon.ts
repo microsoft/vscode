@@ -5,12 +5,13 @@
 
 import { ITerminalAddon, Terminal } from 'xterm';
 import { IShellIntegration } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
-import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/commandDetectionCapability';
+import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
+import { ICommandDetectionCapability, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/partialCommandDetectionCapability';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -35,15 +36,19 @@ const enum ShellIntegrationOscPs {
 	 */
 	FinalTerm = 133,
 	/**
+	 * Sequences pioneered by VS Code.
+	 */
+	VSCode = 633,
+	/**
 	 * Sequences pioneered by iTerm.
 	 */
 	ITerm = 1337
 }
 
 /**
- * The identifier for the textural parameter (`Pt`) for OSC commands used by shell integration.
+ * The identifier for the textural parameter (`Pt`) for FinalTerm OSC commands.
  */
-const enum ShellIntegrationOscPt {
+const enum FinalTermOscPt {
 	/**
 	 * The start of the prompt, this is expected to always appear at the start of a line.
 	 */
@@ -60,6 +65,16 @@ const enum ShellIntegrationOscPt {
 	CommandFinished = 'D',
 }
 
+const enum VSCodeOscPt {
+	/**
+	 * Explicitly set the command line. This helps workaround problems with conpty not having a
+	 * passthrough mode by providing an option on Windows to send the command that was run. With
+	 * this sequence there's no need for the guessing based on the unreliable cursor positions that
+	 * would otherwise be required.
+	 */
+	CommandLine = 'A'
+}
+
 export const enum ShellIntegrationInfo {
 	CurrentDir = 'CurrentDir',
 }
@@ -71,68 +86,111 @@ export const enum ShellIntegrationInteraction {
 	CommandFinished = 'COMMAND_FINISHED'
 }
 
+/**
+ * The shell integration addon extends xterm by reading shell integration sequences and creating
+ * capabilities and passing along relevant sequences to the capabilities. This is meant to
+ * encapsulate all handling/parsing of sequences so the capabilities don't need to.
+ */
 export class ShellIntegrationAddon extends Disposable implements IShellIntegration, ITerminalAddon {
 	private _terminal?: Terminal;
 	readonly capabilities = new TerminalCapabilityStore();
-	private readonly _onIntegratedShellChange = new Emitter<{ type: string, value: string }>();
-	readonly onIntegratedShellChange = this._onIntegratedShellChange.event;
+
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
+	) {
+		super();
+	}
 
 	activate(xterm: Terminal) {
 		this._terminal = xterm;
-		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleShellIntegration(data)));
-		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._updateCwd(data)));
+		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleFinalTermSequence(data)));
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._handleITermSequence(data)));
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
 	}
 
-	private _handleShellIntegration(data: string): boolean {
+	private _handleFinalTermSequence(data: string): boolean {
 		if (!this._terminal) {
 			return false;
 		}
-		let type: ShellIntegrationInteraction | undefined;
-		const [command, exitCode] = data.split(';');
+
+		// Pass the sequence along to the capability
+		const [command, arg] = data.split(';');
 		switch (command) {
-			case ShellIntegrationOscPt.PromptStart:
-				type = ShellIntegrationInteraction.PromptStart;
-				if (!this.capabilities.has(TerminalCapability.CommandDetection)) {
-					this.capabilities.add(TerminalCapability.CommandDetection, new CommandDetectionCapability());
-				}
-			case ShellIntegrationOscPt.CommandStart:
-				type = ShellIntegrationInteraction.CommandStart;
-				break;
-			case ShellIntegrationOscPt.CommandExecuted:
-				type = ShellIntegrationInteraction.CommandExecuted;
-				break;
-			case ShellIntegrationOscPt.CommandFinished:
-				type = ShellIntegrationInteraction.CommandFinished;
-				break;
-			default:
-				return false;
+			case FinalTermOscPt.PromptStart:
+				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
+				return true;
+			case FinalTermOscPt.CommandStart:
+				this._createOrGetCommandDetection(this._terminal).handleCommandStart();
+				return true;
+			case FinalTermOscPt.CommandExecuted:
+				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
+				return true;
+			case FinalTermOscPt.CommandFinished: {
+				const exitCode = parseInt(arg);
+				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
+				return true;
+			}
 		}
-		const value = exitCode || type;
-		if (!value) {
-			return false;
-		}
-		this._onIntegratedShellChange.fire({ type, value });
-		return true;
+
+		// Unrecognized sequence
+		return false;
 	}
 
-	private _updateCwd(data: string): boolean {
-		let value: string | undefined;
-		const [type, info] = data.split('=');
-		switch (type) {
-			case ShellIntegrationInfo.CurrentDir:
-				if (!this.capabilities.has(TerminalCapability.CwdDetection)) {
-					this.capabilities.add(TerminalCapability.CwdDetection, new CwdDetectionCapability());
-				}
-				this.capabilities.get(TerminalCapability.CwdDetection)?.updateCwd(info);
-				value = info;
-				break;
-			default:
-				return false;
-		}
-		if (!value) {
+	private _handleVSCodeSequence(data: string): boolean {
+		if (!this._terminal) {
 			return false;
 		}
-		this._onIntegratedShellChange.fire({ type, value });
-		return true;
+
+		// Pass the sequence along to the capability
+		const [command, arg] = data.split(';');
+		switch (command) {
+			case VSCodeOscPt.CommandLine: {
+				const commandLine = (arg
+					.replace(/<LF>/g, '\n')
+					.replace(/<CL>/g, ';'));
+				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine);
+				return true;
+			}
+		}
+
+		// Unrecognized sequence
+		return false;
+	}
+
+	private _handleITermSequence(data: string): boolean {
+		// Pass the sequence along to the capability
+		const [type, value] = data.split('=');
+		switch (type) {
+			case ShellIntegrationInfo.CurrentDir: {
+				this._createOrGetCwdDetection().updateCwd(value);
+				const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+				if (commandDetection) {
+					commandDetection.setCwd(value);
+				}
+				return true;
+			}
+		}
+
+		// Unrecognized sequence
+		return false;
+	}
+
+	protected _createOrGetCwdDetection(): CwdDetectionCapability {
+		let cwdDetection = this.capabilities.get(TerminalCapability.CwdDetection);
+		if (!cwdDetection) {
+			cwdDetection = new CwdDetectionCapability();
+			this.capabilities.add(TerminalCapability.CwdDetection, cwdDetection);
+		}
+		return cwdDetection;
+	}
+
+	protected _createOrGetCommandDetection(terminal: Terminal): ICommandDetectionCapability {
+		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+		if (!commandDetection) {
+			commandDetection = this._instantiationService.createInstance(CommandDetectionCapability, terminal);
+			this.capabilities.add(TerminalCapability.CommandDetection, commandDetection);
+		}
+		return commandDetection;
 	}
 }

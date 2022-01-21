@@ -7,11 +7,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as strings from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ApplyEditsResult, EndOfLinePreference, FindMatch, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer, ITextSnapshot, ValidAnnotatedEditOperation, IValidEditOperation } from 'vs/editor/common/model';
+import { ApplyEditsResult, EndOfLinePreference, FindMatch, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer, ITextSnapshot, ValidAnnotatedEditOperation, IValidEditOperation, SearchData } from 'vs/editor/common/model';
 import { PieceTreeBase, StringBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { countEOL, StringEOL } from 'vs/editor/common/model/pieceTreeTextBuffer/eolCounter';
-import { TextChange } from 'vs/editor/common/model/textChange';
+import { countEOL, StringEOL } from 'vs/editor/common/core/eolCounter';
+import { TextChange } from 'vs/editor/common/core/textChange';
 import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface IValidatedEditOperation {

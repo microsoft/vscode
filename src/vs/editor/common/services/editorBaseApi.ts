@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Token } from 'vs/editor/common/languages/token';
+import { Token } from 'vs/editor/common/languages';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 
 export class KeyMod {

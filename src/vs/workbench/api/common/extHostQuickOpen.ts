@@ -18,7 +18,6 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { coalesce } from 'vs/base/common/arrays';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon as ThemeIconUtils } from 'vs/platform/theme/common/themeService';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export type Item = string | QuickPickItem;
 
@@ -522,8 +521,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private readonly _onDidChangeSelectionEmitter = new Emitter<T[]>();
 		private readonly _onDidTriggerItemButtonEmitter = new Emitter<QuickPickItemButtonEvent<T>>();
 
-		// TODO: revert this change once quickPickSeparators has been finalized.
-		constructor(private readonly extension: IExtensionDescription, onDispose: () => void) {
+		constructor(extension: IExtensionDescription, onDispose: () => void) {
 			super(extension.identifier, onDispose);
 			this._disposables.push(
 				this._onDidChangeActiveEmitter,
@@ -538,10 +536,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 
 		set items(items: T[]) {
-			if (items.some((item) => item.kind !== undefined)) {
-				checkProposedApiEnabled(this.extension, 'quickPickSeparators');
-			}
-
 			this._items = items.slice();
 			this._handlesToItems.clear();
 			this._itemsToHandles.clear();

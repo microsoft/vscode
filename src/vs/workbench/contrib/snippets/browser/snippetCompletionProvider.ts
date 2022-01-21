@@ -17,7 +17,7 @@ import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/sn
 import { isPatternInWord } from 'vs/base/common/filters';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { getWordAtText } from 'vs/editor/common/model/wordHelper';
+import { getWordAtText } from 'vs/editor/common/core/wordHelper';
 
 export class SnippetCompletion implements CompletionItem {
 

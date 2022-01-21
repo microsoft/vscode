@@ -8,7 +8,7 @@ import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
 
 export const enum ViewEventType {
 	ViewCompositionStart,

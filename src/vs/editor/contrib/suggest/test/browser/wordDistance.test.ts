@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
+import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/core/wordHelper';
 import * as modes from 'vs/editor/common/languages';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';

@@ -3,9 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWordAtPosition } from 'vs/editor/common/model';
-
 export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
+
+/**
+ * Word inside a model.
+ */
+export interface IWordAtPosition {
+	/**
+	 * The word.
+	 */
+	readonly word: string;
+	/**
+	 * The column where the word starts.
+	 */
+	readonly startColumn: number;
+	/**
+	 * The column where the word ends.
+	 */
+	readonly endColumn: number;
+}
 
 /**
  * Create a word definition regular expression based on default word separators.

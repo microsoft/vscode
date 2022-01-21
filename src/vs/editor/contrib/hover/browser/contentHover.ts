@@ -33,7 +33,7 @@ import { AsyncIterableObject } from 'vs/base/common/async';
 import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHintsHover';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Emitter } from 'vs/base/common/event';
-import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
 
 const $ = dom.$;
 

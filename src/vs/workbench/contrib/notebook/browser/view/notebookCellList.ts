@@ -19,16 +19,53 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellViewModel, CellEditState, CellFocusMode, NOTEBOOK_CELL_LIST_FOCUSED, ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { NOTEBOOK_CELL_LIST_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { clamp } from 'vs/base/common/numbers';
 import { ISplice } from 'vs/base/common/sequence';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
+
+const enum CellRevealType {
+	Line,
+	Range
+}
+
+const enum CellRevealPosition {
+	Top,
+	Center,
+	Bottom
+}
+
+function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange[]) {
+	if (!hiddenRanges.length) {
+		return cells;
+	}
+
+	let start = 0;
+	let hiddenRangeIndex = 0;
+	const result: CellViewModel[] = [];
+
+	while (start < cells.length && hiddenRangeIndex < hiddenRanges.length) {
+		if (start < hiddenRanges[hiddenRangeIndex].start) {
+			result.push(...cells.slice(start, hiddenRanges[hiddenRangeIndex].start));
+		}
+
+		start = hiddenRanges[hiddenRangeIndex].end + 1;
+		hiddenRangeIndex++;
+	}
+
+	if (start < cells.length) {
+		result.push(...cells.slice(start));
+	}
+
+	return result;
+}
 
 export interface IFocusNextPreviousDelegate {
 	onFocusNext(applyFocusNext: () => void): void;

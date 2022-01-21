@@ -17,7 +17,6 @@ import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/b
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { IMarker } from 'xterm';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
@@ -81,25 +80,13 @@ export interface IQuickPickTerminalObject {
 	keyMods: IKeyMods | undefined
 }
 
-export interface TerminalCommand {
-	command: string;
-	timestamp: number;
-	cwd?: string;
-	exitCode?: number;
-	marker?: IMarker;
-	getOutput(): string | undefined;
-}
-
 export interface ICommandTracker {
-	readonly commands: TerminalCommand[];
-	readonly cwds: string[];
 	scrollToPreviousCommand(): void;
 	scrollToNextCommand(): void;
 	selectToPreviousCommand(): void;
 	selectToNextCommand(): void;
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
-	getCwdForLine(line: number): string;
 	clearMarker(): void;
 }
 
@@ -343,6 +330,7 @@ export interface ITerminalInstanceHost {
 	readonly onDidFocusInstance: Event<ITerminalInstance>;
 	readonly onDidChangeActiveInstance: Event<ITerminalInstance | undefined>;
 	readonly onDidChangeInstances: Event<void>;
+	readonly onDidChangeInstanceCapability: Event<ITerminalInstance>;
 
 	setActiveInstance(instance: ITerminalInstance): void;
 	/**
@@ -879,11 +867,6 @@ export interface IXtermTerminal {
 	 * viewport.
 	 */
 	clearBuffer(): void;
-
-	/*
-	 * When process capabilites are updated, update the command tracker
-	 */
-	upgradeCommandTracker(): void;
 }
 
 export interface IRequestAddInstanceToGroupEvent {

@@ -94,6 +94,7 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 	private readonly testViewProg = this._register(new MutableDisposable<UnmanagedProgress>());
 	private readonly updateCountsEmitter = new Emitter<CountSummary>();
 	private readonly updateTextEmitter = new Emitter<string>();
+	private lastRunSoFar = 0;
 
 	public readonly onCountChange = this.updateCountsEmitter.event;
 	public readonly onTextChange = this.updateTextEmitter.event;
@@ -121,6 +122,7 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 
 			this.windowProg.clear();
 			this.testViewProg.clear();
+			this.lastRunSoFar = 0;
 			return;
 		}
 
@@ -140,7 +142,8 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 		const message = getTestProgressText(true, collected);
 		this.updateTextEmitter.fire(message);
 		this.windowProg.value.report({ message });
-		this.testViewProg.value!.report({ increment: collected.runSoFar, total: collected.totalWillBeRun });
+		this.testViewProg.value!.report({ increment: collected.runSoFar - this.lastRunSoFar, total: collected.totalWillBeRun });
+		this.lastRunSoFar = collected.runSoFar;
 	}
 }
 
@@ -172,7 +175,7 @@ const collectTestStateCounts = (isRunning: boolean, ...counts: ReadonlyArray<Tes
 	};
 };
 
-const getTestProgressText = (running: boolean, { passed, runSoFar, skipped, failed }: CountSummary) => {
+const getTestProgressText = (running: boolean, { passed, runSoFar, totalWillBeRun, skipped, failed }: CountSummary) => {
 	let percent = passed / runSoFar * 100;
 	if (failed > 0) {
 		// fix: prevent from rounding to 100 if there's any failed test
@@ -183,11 +186,11 @@ const getTestProgressText = (running: boolean, { passed, runSoFar, skipped, fail
 
 	if (running) {
 		if (runSoFar === 0) {
-			return localize('testProgress.runningInitial', 'Running tests...', passed, runSoFar, percent.toPrecision(3));
+			return localize('testProgress.runningInitial', 'Running tests...');
 		} else if (skipped === 0) {
-			return localize('testProgress.running', 'Running tests, {0}/{1} passed ({2}%)', passed, runSoFar, percent.toPrecision(3));
+			return localize('testProgress.running', 'Running tests, {0}/{1} passed ({2}%)', passed, totalWillBeRun, percent.toPrecision(3));
 		} else {
-			return localize('testProgressWithSkip.running', 'Running tests, {0}/{1} tests passed ({2}%, {3} skipped)', passed, runSoFar, percent.toPrecision(3), skipped);
+			return localize('testProgressWithSkip.running', 'Running tests, {0}/{1} tests passed ({2}%, {3} skipped)', passed, totalWillBeRun, percent.toPrecision(3), skipped);
 		}
 	} else {
 		if (skipped === 0) {

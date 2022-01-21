@@ -1372,6 +1372,24 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * Word inside a model.
+	 */
+	export interface IWordAtPosition {
+		/**
+		 * The word.
+		 */
+		readonly word: string;
+		/**
+		 * The column where the word starts.
+		 */
+		readonly startColumn: number;
+		/**
+		 * The column where the word ends.
+		 */
+		readonly endColumn: number;
+	}
+
+	/**
 	 * Vertical Lane in the overview ruler of the editor.
 	 */
 	export enum OverviewRulerLane {
@@ -1574,24 +1592,6 @@ declare namespace monaco.editor {
 		 * Options associated with this decoration.
 		 */
 		readonly options: IModelDecorationOptions;
-	}
-
-	/**
-	 * Word inside a model.
-	 */
-	export interface IWordAtPosition {
-		/**
-		 * The word.
-		 */
-		readonly word: string;
-		/**
-		 * The column where the word starts.
-		 */
-		readonly startColumn: number;
-		/**
-		 * The column where the word ends.
-		 */
-		readonly endColumn: number;
 	}
 
 	/**
@@ -2088,6 +2088,7 @@ declare namespace monaco.editor {
 		 */
 		isAttachedToEditor(): boolean;
 	}
+
 	/**
 	 * A change
 	 */
@@ -2113,6 +2114,10 @@ declare namespace monaco.editor {
 	 */
 	export interface ILineChange extends IChange {
 		readonly charChanges: ICharChange[] | undefined;
+	}
+	export interface IDimension {
+		width: number;
+		height: number;
 	}
 
 	/**
@@ -2205,11 +2210,6 @@ declare namespace monaco.editor {
 		 * The `uri` of the new model or null.
 		 */
 		readonly newModelUrl: Uri | null;
-	}
-
-	export interface IDimension {
-		width: number;
-		height: number;
 	}
 
 	export interface IContentSizeChangedEvent {
@@ -4436,6 +4436,18 @@ declare namespace monaco.editor {
 
 	export type FindComputedEditorOptionValueById<T extends EditorOption> = NonNullable<ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>>;
 
+	export interface IEditorConstructionOptions extends IEditorOptions {
+		/**
+		 * The initial editor dimension (to avoid measuring the container).
+		 */
+		dimension?: IDimension;
+		/**
+		 * Place overflow widgets inside an external DOM node.
+		 * Defaults to an internal DOM node.
+		 */
+		overflowWidgetsDomNode?: HTMLElement;
+	}
+
 	/**
 	 * A view zone is a full horizontal rectangle that 'pushes' text down.
 	 * The editor reserves space for view zones when rendering.
@@ -4834,18 +4846,6 @@ declare namespace monaco.editor {
 	export interface IPasteEvent {
 		readonly range: Range;
 		readonly languageId: string | null;
-	}
-
-	export interface IEditorConstructionOptions extends IEditorOptions {
-		/**
-		 * The initial editor dimension (to avoid measuring the container).
-		 */
-		dimension?: IDimension;
-		/**
-		 * Place overflow widgets inside an external DOM node.
-		 * Defaults to an internal DOM node.
-		 */
-		overflowWidgetsDomNode?: HTMLElement;
 	}
 
 	export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {

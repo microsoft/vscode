@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { LineInjectedText, ModelRawChange, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
+import { LineInjectedText, ModelRawChange, RawContentChangedType } from 'vs/editor/common/textModelEvents';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 suite('Editor Model - Injected Text Events', () => {

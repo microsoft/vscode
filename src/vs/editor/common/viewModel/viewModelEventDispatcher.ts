@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { ViewEvent } from 'vs/editor/common/view/viewEvents';
+import { ViewEvent } from 'vs/editor/common/viewModel/viewEvents';
 import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 import { Emitter } from 'vs/base/common/event';
 import { Selection } from 'vs/editor/common/core/selection';

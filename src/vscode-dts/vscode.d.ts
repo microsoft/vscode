@@ -1639,6 +1639,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The kind of {@link QuickPickItem quick pick item}.
+	 */
+	export enum QuickPickItemKind {
+		/**
+		 * When a {@link QuickPickItem} has a kind of {@link Separator}, the item is just a visual separator and does not represent a real item.
+		 * The only property that applies is {@link label}. All other properties on {@link QuickPickItem} will be ignored and have no effect.
+		 */
+		Separator = -1,
+		/**
+		 * The default {@link QuickPickItem.kind} is an item that can be selected in the quick pick.
+		 */
+		Default = 0,
+	}
+
+	/**
 	 * Represents an item that can be selected from
 	 * a list of items.
 	 */
@@ -1651,14 +1666,24 @@ declare module 'vscode' {
 		label: string;
 
 		/**
+		 * The kind of QuickPickItem that will determine how this item is rendered in the quick pick. When not specified,
+		 * the default is {@link QuickPickItemKind.Default}.
+		 */
+		kind?: QuickPickItemKind;
+
+		/**
 		 * A human-readable string which is rendered less prominent in the same line. Supports rendering of
 		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
+		 *
+		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		description?: string;
 
 		/**
 		 * A human-readable string which is rendered less prominent in a separate line. Supports rendering of
 		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
+		 *
+		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		detail?: string;
 
@@ -1669,11 +1694,15 @@ declare module 'vscode' {
 		 * (*Note:* This is only honored when the picker allows multiple selections.)
 		 *
 		 * @see {@link QuickPickOptions.canPickMany}
+		 *
+		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		picked?: boolean;
 
 		/**
 		 * Always show this item.
+		 *
+		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		alwaysShow?: boolean;
 
@@ -1682,6 +1711,8 @@ declare module 'vscode' {
 		 * an {@link QuickPickItemButtonEvent} when clicked. Buttons are only rendered when using a quickpick
 		 * created by the {@link window.createQuickPick()} API. Buttons are not rendered when using
 		 * the {@link window.showQuickPick()} API.
+		 *
+		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		buttons?: readonly QuickInputButton[];
 	}

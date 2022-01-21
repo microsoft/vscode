@@ -7,8 +7,8 @@ import * as arrays from 'vs/base/common/arrays';
 import { readUInt32BE, writeUInt32BE } from 'vs/base/common/buffer';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { countEOL } from 'vs/editor/common/model/pieceTreeTextBuffer/eolCounter';
-import { ContiguousTokensEditing } from 'vs/editor/common/model/tokens/contiguousTokensEditing';
+import { countEOL } from 'vs/editor/common/core/eolCounter';
+import { ContiguousTokensEditing } from 'vs/editor/common/tokens/contiguousTokensEditing';
 
 /**
  * Represents contiguous tokens over a contiguous range of lines.

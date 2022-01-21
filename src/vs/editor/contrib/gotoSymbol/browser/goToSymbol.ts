@@ -9,7 +9,7 @@ import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensi
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { DeclarationProviderRegistry, DefinitionProviderRegistry, ImplementationProviderRegistry, LocationLink, ProviderResult, ReferenceProviderRegistry, TypeDefinitionProviderRegistry } from 'vs/editor/common/languages';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languages/languageFeatureRegistry';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/browser/referencesModel';
 
 function getLocationLinks<T>(

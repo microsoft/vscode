@@ -15,7 +15,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Memento } from 'vs/workbench/common/memento';
-import { HAS_OPENED_NOTEBOOK } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { HAS_OPENED_NOTEBOOK } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
