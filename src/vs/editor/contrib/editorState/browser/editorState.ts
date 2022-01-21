@@ -10,7 +10,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
-import { EditorKeybindingCancellationTokenSource } from 'vs/editor/browser/core/keybindingCancellation';
+import { EditorKeybindingCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/keybindingCancellation';
 
 export const enum CodeEditorStateFlag {
 	Value = 1,
