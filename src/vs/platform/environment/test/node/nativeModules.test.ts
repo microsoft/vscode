@@ -89,9 +89,9 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof processTree.getProcessTree === 'function', testErrorMessage('windows-process-tree'));
 	});
 
-	test('vscode-windows-registry', async () => {
+	test('@vscode/windows-registry', async () => {
 		const windowsRegistry = await import('@vscode/windows-registry');
-		assert.ok(typeof windowsRegistry.GetStringRegKey === 'function', testErrorMessage('vscode-windows-registry'));
+		assert.ok(typeof windowsRegistry.GetStringRegKey === 'function', testErrorMessage('@vscode/windows-registry'));
 	});
 
 	test('vscode-windows-ca-certs', async () => {

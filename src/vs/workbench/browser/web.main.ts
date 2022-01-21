@@ -372,7 +372,7 @@ export class BrowserMain extends Disposable {
 						if (storageService instanceof BrowserStorageService) {
 							await storageService.clear();
 						}
-						if (credentialsService.clear) {
+						if (typeof credentialsService.clear === 'function') {
 							await credentialsService.clear();
 						}
 					} catch (error) {
