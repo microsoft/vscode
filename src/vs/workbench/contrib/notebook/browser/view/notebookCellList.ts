@@ -13,7 +13,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { Range } from 'vs/editor/common/core/range';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
