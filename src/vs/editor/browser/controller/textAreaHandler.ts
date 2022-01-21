@@ -19,7 +19,7 @@ import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/line
 import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
 import { RenderLineNumbersType, EditorOption, IComputedEditorOptions, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/cursor/wordCharacterClassifier';
+import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';

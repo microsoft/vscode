@@ -11,7 +11,7 @@ import { EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptio
 import { CursorState } from 'vs/editor/common/cursor/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/cursor/cursorEvents';
 import { DeleteWordContext, WordNavigationType, WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
-import { getMapForWordSeparators, WordCharacterClassifier } from 'vs/editor/common/cursor/wordCharacterClassifier';
+import { getMapForWordSeparators, WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';

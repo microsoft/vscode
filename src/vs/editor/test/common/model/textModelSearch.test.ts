@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { getMapForWordSeparators } from 'vs/editor/common/cursor/wordCharacterClassifier';
+import { getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, FindMatch } from 'vs/editor/common/model';

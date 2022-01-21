@@ -10,7 +10,7 @@ import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWith
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
 import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/cursor/cursorCommon';
-import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/cursor/wordCharacterClassifier';
+import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
