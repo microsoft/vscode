@@ -26,16 +26,15 @@ suite('CommandDetectionCapability', () => {
 	let capability: CommandDetectionCapability;
 	let addEvents: ITerminalCommand[];
 
-	function assertCommands(expectedCommands: Pick<ITerminalCommand, 'command' | 'cwd' | 'exitCode' | 'marker' | 'timestamp'>[]) {
+	function assertCommands(expectedCommands: Pick<ITerminalCommand, 'command' | 'cwd' | 'exitCode' | 'marker'>[]) {
 		deepStrictEqual(capability.commands.map(e => e.command), expectedCommands.map(e => e.command));
 		deepStrictEqual(capability.commands.map(e => e.cwd), expectedCommands.map(e => e.cwd));
 		deepStrictEqual(capability.commands.map(e => e.exitCode), expectedCommands.map(e => e.exitCode));
 		deepStrictEqual(capability.commands.map(e => e.marker?.line), expectedCommands.map(e => e.marker?.line));
-		// Ensure timestamps were captured recently
+		// Ensure timestamps are set and were captured recently
 		for (const command of capability.commands) {
 			ok(Math.abs(Date.now() - command.timestamp) < 2000);
 		}
-		deepStrictEqual(capability.commands.map(e => e.timestamp), expectedCommands.map(e => e.timestamp));
 		deepStrictEqual(addEvents, capability.commands);
 	}
 
@@ -63,8 +62,7 @@ suite('CommandDetectionCapability', () => {
 		await writeP(xterm, '\r\nfoo\r\n');
 		capability.handleCommandFinished(0);
 		assertCommands([{
-			command: 'echo foo',
-			timestamp: -1,
+			command: 'echo foo'
 		}]);
 	});
 });
