@@ -688,7 +688,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			throw new Error('no xterm');
 		}
-		return this.xterm.openRecentLink(this._linkManager, type);
+		this.xterm.openRecentLink(this._linkManager, type);
 	}
 
 	async runRecent(type: 'command' | 'cwd'): Promise<void> {
