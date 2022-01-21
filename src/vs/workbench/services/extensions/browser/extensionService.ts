@@ -18,7 +18,8 @@ import { RemoteExtensionHost, IRemoteExtensionHostDataProvider, IRemoteExtension
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionIdentifier, IExtensionDescription, ExtensionKind, IExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, IExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browser/webWorkerFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { DisposableStore } from 'vs/base/common/lifecycle';

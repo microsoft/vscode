@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, SourceControlActionButton } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -1935,7 +1935,7 @@ export class Repository implements Disposable {
 			return undefined;
 		});
 
-		let actionButton: SourceControl['actionButton'];
+		let actionButton: SourceControlActionButton | undefined;
 		if (HEAD !== undefined) {
 			const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 			const showActionButton = config.get<string>('showUnpublishedCommitsButton', 'whenEmpty');
@@ -1948,18 +1948,23 @@ export class Repository implements Disposable {
 							const rebaseWhenSync = config.get<string>('rebaseWhenSync');
 
 							actionButton = {
-								command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
-								title: localize('scm button sync title', '$(sync) Sync Changes {0}{1}', HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
-								tooltip: this.syncTooltip,
-								arguments: [this._sourceControl],
+								command: {
+									command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
+									title: localize('scm button sync title', "$(sync) {0}{1}", HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
+									tooltip: this.syncTooltip,
+									arguments: [this._sourceControl],
+								},
+								description: localize('scm button sync description', "$(sync) Sync Changes {0}{1}", HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`)
 							};
 						}
 					} else {
 						actionButton = {
-							command: 'git.publish',
-							title: localize('scm button publish title', "$(cloud-upload) Publish Branch"),
-							tooltip: localize('scm button publish tooltip', "Publish Branch"),
-							arguments: [this._sourceControl],
+							command: {
+								command: 'git.publish',
+								title: localize('scm button publish title', "$(cloud-upload) Publish Branch"),
+								tooltip: localize('scm button publish tooltip', "Publish Branch"),
+								arguments: [this._sourceControl],
+							}
 						};
 					}
 				}

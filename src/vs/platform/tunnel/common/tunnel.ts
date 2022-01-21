@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
+import { TunnelPrivacy } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export const ITunnelService = createDecorator<ITunnelService>('tunnelService');
 export const ISharedTunnelsService = createDecorator<ISharedTunnelsService>('sharedTunnelsService');
@@ -47,12 +48,6 @@ export enum TunnelPrivacyId {
 
 export interface TunnelCreationOptions {
 	elevationRequired?: boolean;
-}
-
-export interface TunnelPrivacy {
-	themeIcon: string;
-	id: string;
-	label: string;
 }
 
 export interface TunnelProviderFeatures {

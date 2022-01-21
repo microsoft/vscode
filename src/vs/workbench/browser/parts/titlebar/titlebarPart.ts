@@ -42,7 +42,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
-import { getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
+import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';

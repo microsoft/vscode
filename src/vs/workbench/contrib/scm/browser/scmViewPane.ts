@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -82,8 +82,7 @@ import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { Command } from 'vs/editor/common/languages';
+import { Button, ButtonWithDescription } from 'vs/base/browser/ui/button/button';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
@@ -95,7 +94,7 @@ interface ISCMLayout {
 }
 
 interface ActionButtonTemplate {
-	readonly actionButton: ScmActionButton;
+	readonly actionButton: SCMActionButton;
 	disposable: IDisposable;
 	readonly templateDisposable: IDisposable;
 }
@@ -120,7 +119,7 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 		container.parentElement!.parentElement!.classList.add('force-no-hover');
 
 		const buttonContainer = append(container, $('.button-container'));
-		const actionButton = new ScmActionButton(buttonContainer, this.commandService, this.themeService, this.notificationService);
+		const actionButton = new SCMActionButton(buttonContainer, this.commandService, this.themeService, this.notificationService);
 
 		return { actionButton, disposable: Disposable.None, templateDisposable: actionButton };
 	}
@@ -832,7 +831,7 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 		} else if (isSCMInput(element)) {
 			return localize('input', "Source Control Input");
 		} else if (isSCMActionButton(element)) {
-			return element.button?.title ?? '';
+			return element.button?.command.title ?? '';
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
 		} else {
@@ -2479,8 +2478,8 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
-export class ScmActionButton implements IDisposable {
-	private button: Button | undefined;
+export class SCMActionButton implements IDisposable {
+	private button: Button | ButtonWithDescription | undefined;
 	private readonly disposables = new MutableDisposable<DisposableStore>();
 
 	constructor(
@@ -2495,19 +2494,26 @@ export class ScmActionButton implements IDisposable {
 		this.disposables?.dispose();
 	}
 
-
-	setButton(button: Command | undefined): void {
+	setButton(button: ISCMActionButtonDescriptor | undefined): void {
 		// Clear old button
 		this.clear();
 		if (!button) {
 			return;
 		}
 
-		this.button = new Button(this.container, { title: button.tooltip, supportIcons: true });
-		this.button.label = button.title;
+		if (button.description) {
+			// ButtonWithDescription
+			this.button = new ButtonWithDescription(this.container, { supportIcons: true });
+			(this.button as ButtonWithDescription).description = button.description;
+		} else {
+			// Button
+			this.button = new Button(this.container, { supportIcons: true });
+		}
+
+		this.button.label = button.command.title;
 		this.button.onDidClick(async () => {
 			try {
-				await this.commandService.executeCommand(button!.id, ...(button!.arguments || []));
+				await this.commandService.executeCommand(button.command.id, ...(button.command.arguments || []));
 			} catch (ex) {
 				this.notificationService.error(ex);
 			}

@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
-import { AbstractTunnelService, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { AbstractTunnelService, ITunnelService, RemoteTunnel } from 'vs/platform/tunnel/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class TunnelService extends AbstractTunnelService {

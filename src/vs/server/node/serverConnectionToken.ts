@@ -9,21 +9,51 @@ import { ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 
 const connectionTokenRegex = /^[0-9A-Za-z-]+$/;
 
-export class ServerConnectionToken {
-	constructor(
-		public readonly value: string,
-		public readonly isMandatory: boolean,
-	) {
+export const enum ServerConnectionTokenType {
+	None,
+	Optional,// TODO: Remove this soon
+	Mandatory
+}
+
+export class NoneServerConnectionToken {
+	public readonly type = ServerConnectionTokenType.None;
+
+	public validate(connectionToken: any): boolean {
+		return true;
 	}
 }
+
+export class OptionalServerConnectionToken {
+	public readonly type = ServerConnectionTokenType.Optional;
+
+	constructor(public readonly value: string) {
+	}
+
+	public validate(connectionToken: any): boolean {
+		return (connectionToken === this.value);
+	}
+}
+
+export class MandatoryServerConnectionToken {
+	public readonly type = ServerConnectionTokenType.Mandatory;
+
+	constructor(public readonly value: string) {
+	}
+
+	public validate(connectionToken: any): boolean {
+		return (connectionToken === this.value);
+	}
+}
+
+export type ServerConnectionToken = NoneServerConnectionToken | OptionalServerConnectionToken | MandatoryServerConnectionToken;
 
 export class ServerConnectionTokenParseError {
 	constructor(
 		public readonly message: string
-	) {}
+	) { }
 }
 
-export function parseConnectionToken(args: ServerParsedArgs): ServerConnectionToken | ServerConnectionTokenParseError {
+export function parseServerConnectionToken(args: ServerParsedArgs): ServerConnectionToken | ServerConnectionTokenParseError {
 	const withoutConnectionToken = args['without-connection-token'];
 	const connectionToken = args['connection-token'];
 	const connectionTokenFile = args['connection-token-file'];
@@ -33,7 +63,7 @@ export function parseConnectionToken(args: ServerParsedArgs): ServerConnectionTo
 		if (typeof connectionToken !== 'undefined' || typeof connectionTokenFile !== 'undefined') {
 			return new ServerConnectionTokenParseError(`Please do not use the argument '--connection-token' or '--connection-token-file' at the same time as '--without-connection-token'.`);
 		}
-		return new ServerConnectionToken('without-connection-token' /* to be implemented @alexd */, false);
+		return new NoneServerConnectionToken();
 	}
 
 	if (typeof connectionTokenFile !== 'undefined') {
@@ -52,7 +82,7 @@ export function parseConnectionToken(args: ServerParsedArgs): ServerConnectionTo
 			return new ServerConnectionTokenParseError(`The connection token defined in '${connectionTokenFile} does not adhere to the characters 0-9, a-z, A-Z or -.`);
 		}
 
-		return new ServerConnectionToken(rawConnectionToken, true);
+		return new MandatoryServerConnectionToken(rawConnectionToken);
 	}
 
 	if (typeof connectionToken !== 'undefined') {
@@ -62,19 +92,17 @@ export function parseConnectionToken(args: ServerParsedArgs): ServerConnectionTo
 
 		if (compatibility) {
 			// TODO: Remove this case soon
-			return new ServerConnectionToken(connectionToken, false);
+			return new OptionalServerConnectionToken(connectionToken);
 		}
 
-		return new ServerConnectionToken(connectionToken, true);
+		return new MandatoryServerConnectionToken(connectionToken);
 	}
 
 	if (compatibility) {
 		// TODO: Remove this case soon
 		console.log(`Breaking change in the next release: Please use one of the following arguments: '--connection-token', '--connection-token-file' or '--without-connection-token'.`);
-		return new ServerConnectionToken(generateUuid(), false);
+		return new OptionalServerConnectionToken(generateUuid());
 	}
 
-	// TODO: fixme
-	return new ServerConnectionToken(generateUuid(), false);
-	// return new ServerConnectionTokenParseError(`Please use one of the following arguments: '--connection-token', '--connection-token-file' or '--without-connection-token'.`);
+	return new ServerConnectionTokenParseError(`Please use one of the following arguments: '--connection-token', '--connection-token-file' or '--without-connection-token'.`);
 }

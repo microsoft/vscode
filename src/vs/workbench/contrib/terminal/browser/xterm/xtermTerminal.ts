@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, ITheme, RendererType, Terminal as RawXtermTerminal } from 'xterm';
+import type { IBuffer, ILink, ITheme, RendererType, Terminal as RawXtermTerminal } from 'xterm';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
 import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
@@ -15,7 +15,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { TerminalCapability, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IShellIntegration, ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { ICommandTracker, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICommandTracker, IXtermTerminal, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -31,6 +31,8 @@ import { Color } from 'vs/base/common/color';
 import { ShellIntegrationAddon, ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
 import { CognisantCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/cognisantCommandTrackerAddon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
+import { EventType } from 'vs/base/browser/dom';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -117,8 +119,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			fastScrollModifier: 'alt',
-			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
-			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
+			fastScrollSensitivity: config.fastScrollSensitivity,
+			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType),
 			wordSeparator: config.wordSeparators
 		}));
@@ -167,6 +169,45 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			this._commandTrackerAddon.handleIntegratedShellChange(e);
 		});
 
+	}
+
+	async getLinks(linkManager: TerminalLinkManager): Promise<IDetectedLinks> {
+		const wordResults: ILink[] = [];
+		const webResults: ILink[] = [];
+		const fileResults: ILink[] = [];
+
+		for (let i = this.raw.buffer.active.length - 1; i >= this.raw.buffer.active.viewportY; i--) {
+			const links = await linkManager.getLinks(i);
+			if (links) {
+				const { wordLinks, webLinks, fileLinks } = links;
+				if (wordLinks && wordLinks.length) {
+					wordResults.push(...wordLinks.reverse());
+				}
+				if (webLinks && webLinks.length) {
+					webResults.push(...webLinks.reverse());
+				}
+				if (fileLinks && fileLinks.length) {
+					fileResults.push(...fileLinks.reverse());
+				}
+			}
+		}
+		return { webLinks: webResults, fileLinks: fileResults, wordLinks: wordResults };
+	}
+
+	async openRecentLink(linkManager: TerminalLinkManager, type: 'file' | 'web'): Promise<ILink | undefined> {
+		let links;
+		let i = this.raw.buffer.active.length;
+		while ((!links || links.length === 0) && i >= this.raw.buffer.active.viewportY) {
+			links = await linkManager.getLinksForType(i, type);
+			i--;
+		}
+
+		if (!links || links.length < 1) {
+			return undefined;
+		}
+		const event = new TerminalLinkQuickPickEvent(EventType.CLICK);
+		links[0].activate(event, links[0].text);
+		return links[0];
 	}
 
 	upgradeCommandTracker(): void {
