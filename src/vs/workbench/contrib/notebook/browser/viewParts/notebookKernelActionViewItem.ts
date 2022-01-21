@@ -12,6 +12,7 @@ import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebook
 import { INotebookKernelMatchResult, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { Event } from 'vs/base/common/event';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class NotebooKernelActionViewItem extends ActionViewItem {
 
@@ -19,7 +20,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 
 	constructor(
 		actualAction: IAction,
-		private readonly _editor: { onDidChangeModel: Event<void>; textModel: NotebookTextModel | undefined },
+		private readonly _editor: { onDidChangeModel: Event<void>; textModel: NotebookTextModel | undefined } | INotebookEditor,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 	) {
 		super(
