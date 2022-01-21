@@ -13,7 +13,7 @@ import type { Event } from 'vs/base/common/event';
 import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
-import type { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
+import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders

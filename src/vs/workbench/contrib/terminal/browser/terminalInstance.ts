@@ -27,9 +27,9 @@ import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMod
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent, TerminalCommand, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent, TerminalCommand } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import type { Terminal as XTermTerminal, ITerminalAddon, ILink } from 'xterm';
+import type { Terminal as XTermTerminal, ITerminalAddon } from 'xterm';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
@@ -678,26 +678,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			throw new Error('no xterm');
 		}
-		const wordResults: ILink[] = [];
-		const webResults: ILink[] = [];
-		const fileResults: ILink[] = [];
-
-		for (let i = this.xterm.raw.buffer.active.length - 1; i >= this.xterm.raw.buffer.active.viewportY; i--) {
-			const links = await this._linkManager.getLinks(i);
-			if (links) {
-				const { wordLinks, webLinks, fileLinks } = links;
-				if (wordLinks && wordLinks.length) {
-					wordResults!.push(...wordLinks.reverse());
-				}
-				if (webLinks && webLinks.length) {
-					webResults!.push(...webLinks.reverse());
-				}
-				if (fileLinks && fileLinks.length) {
-					fileResults!.push(...fileLinks.reverse());
-				}
-			}
-		}
-		return { wordLinks: wordResults, webLinks: webResults, fileLinks: fileResults };
+		return this.xterm.getLinks(this._linkManager);
 	}
 
 	async openRecentLink(type: 'file' | 'web'): Promise<void> {
@@ -707,19 +688,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			throw new Error('no xterm');
 		}
-
-		let links;
-		let i = this.xterm.raw.buffer.active.length;
-		while ((!links || links.length === 0) && i >= this.xterm.raw.buffer.active.viewportY) {
-			links = await this._linkManager.getLinksForType(i, type);
-			i--;
-		}
-
-		if (!links || links.length < 1) {
-			return;
-		}
-		const event = new TerminalLinkQuickPickEvent(dom.EventType.CLICK);
-		links[0].activate(event, links[0].text);
+		this.xterm.openRecentLink(this._linkManager, type);
 	}
 
 	async runRecent(type: 'command' | 'cwd'): Promise<void> {

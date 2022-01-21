@@ -85,10 +85,10 @@ import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandb
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
-import { ISharedTunnelsService } from 'vs/platform/remote/common/tunnel';
-import { SharedTunnelsService } from 'vs/platform/remote/node/tunnelService';
+import { ISharedTunnelsService } from 'vs/platform/tunnel/common/tunnel';
+import { SharedTunnelsService } from 'vs/platform/tunnel/node/tunnelService';
 import { ipcSharedProcessTunnelChannelName, ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
-import { SharedProcessTunnelService } from 'vs/platform/remote/node/sharedProcessTunnelService';
+import { SharedProcessTunnelService } from 'vs/platform/tunnel/node/sharedProcessTunnelService';
 import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerConfiguration, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
 import { AssignmentService } from 'vs/platform/assignment/common/assignmentService';
