@@ -11,7 +11,7 @@ import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/v
 import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { editorCursorBackground, editorCursorForeground } from 'vs/editor/common/core/editorColorRegistry';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';

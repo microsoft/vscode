@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 

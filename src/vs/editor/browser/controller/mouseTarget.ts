@@ -12,7 +12,7 @@ import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/v
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { HorizontalPosition } from 'vs/editor/common/view/renderingContext';
+import { HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorColumns } from 'vs/editor/common/cursor/cursorCommon';

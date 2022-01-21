@@ -6,7 +6,7 @@
 import 'vs/css!./currentLineHighlight';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { editorLineHighlight, editorLineHighlightBorder } from 'vs/editor/common/core/editorColorRegistry';
-import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
 import * as arrays from 'vs/base/common/arrays';

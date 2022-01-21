@@ -25,7 +25,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference } from 'vs/editor/common/model';
-import { RenderingContext, RestrictedRenderingContext, HorizontalPosition } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext, HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';

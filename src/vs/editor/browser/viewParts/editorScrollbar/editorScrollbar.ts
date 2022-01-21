@@ -10,7 +10,7 @@ import { IOverviewRulerLayoutInfo, SmoothScrollableElement } from 'vs/base/brows
 import { ScrollableElementChangeOptions, ScrollableElementCreationOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
 import { registerThemingParticipant, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
