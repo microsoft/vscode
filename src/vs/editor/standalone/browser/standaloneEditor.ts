@@ -13,7 +13,6 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { DiffNavigator, IDiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { ApplyUpdateResult, ConfigurationChangedEvent, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
-import { Token } from 'vs/editor/common/languages/token';
 import { EditorType } from 'vs/editor/common/editorCommon';
 import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import * as languages from 'vs/editor/common/languages';
@@ -229,13 +228,13 @@ function getSafeTokenizationSupport(language: string): Omit<languages.ITokenizat
 /**
  * Tokenize `text` using language `languageId`
  */
-export function tokenize(text: string, languageId: string): Token[][] {
+export function tokenize(text: string, languageId: string): languages.Token[][] {
 	// Needed in order to get the mode registered for subsequent look-ups
 	languages.TokenizationRegistry.getOrCreate(languageId);
 
 	const tokenizationSupport = getSafeTokenizationSupport(languageId);
 	const lines = splitLines(text);
-	const result: Token[][] = [];
+	const result: languages.Token[][] = [];
 	let state = tokenizationSupport.getInitialState();
 	for (let i = 0, len = lines.length; i < len; i++) {
 		const line = lines[i];

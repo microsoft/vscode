@@ -7,7 +7,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { SymbolKind, ProviderResult, SymbolTag } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languages/languageFeatureRegistry';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { isNonEmptyArray } from 'vs/base/common/arrays';

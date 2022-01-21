@@ -10,7 +10,7 @@ import Severity from 'vs/base/common/severity';
 import { compare } from 'vs/base/common/strings';
 import { ITextModel } from 'vs/editor/common/model';
 import { Command } from 'vs/editor/common/languages';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languages/languageFeatureRegistry';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { LanguageSelector } from 'vs/editor/common/languages/languageSelector';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

@@ -6,7 +6,7 @@
 import { doHash } from 'vs/base/common/hash';
 import { LRUCache } from 'vs/base/common/map';
 import { clamp, MovingAverage, SlidingWindowAverage } from 'vs/base/common/numbers';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languages/languageFeatureRegistry';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
