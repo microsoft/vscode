@@ -25,7 +25,7 @@ import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/
 import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
 import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { CursorsController } from 'vs/editor/common/cursor/cursor';
-import { CursorColumns } from 'vs/editor/common/cursor/cursorCommon';
+import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { CursorChangeReason, ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursor/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';

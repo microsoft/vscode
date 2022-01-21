@@ -18,7 +18,6 @@ import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-export { CursorColumns } from '../core/cursorColumns';
 
 export interface IColumnSelectData {
 	isReal: boolean;
