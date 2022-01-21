@@ -435,18 +435,6 @@ export interface IEditorAriaOptions {
 	role?: string;
 }
 
-export interface IEditorConstructionOptions extends IEditorOptions {
-	/**
-	 * The initial editor dimension (to avoid measuring the container).
-	 */
-	dimension?: editorCommon.IDimension;
-	/**
-	 * Place overflow widgets inside an external DOM node.
-	 * Defaults to an internal DOM node.
-	 */
-	overflowWidgetsDomNode?: HTMLElement;
-}
-
 export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 	/**
 	 * The initial editor dimension (to avoid measuring the container).

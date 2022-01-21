@@ -16,7 +16,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { EditorConfiguration } from 'vs/editor/browser/config/editorConfiguration';
+import { EditorConfiguration, IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -254,7 +254,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	constructor(
 		domElement: HTMLElement,
-		_options: Readonly<editorBrowser.IEditorConstructionOptions>,
+		_options: Readonly<IEditorConstructionOptions>,
 		codeEditorWidgetOptions: ICodeEditorWidgetOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -353,7 +353,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._codeEditorService.addCodeEditor(this);
 	}
 
-	protected _createConfiguration(isSimpleWidget: boolean, options: Readonly<editorBrowser.IEditorConstructionOptions>, accessibilityService: IAccessibilityService): EditorConfiguration {
+	protected _createConfiguration(isSimpleWidget: boolean, options: Readonly<IEditorConstructionOptions>, accessibilityService: IAccessibilityService): EditorConfiguration {
 		return new EditorConfiguration(isSimpleWidget, options, this._domElement, accessibilityService);
 	}
 

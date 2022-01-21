@@ -4437,6 +4437,18 @@ declare namespace monaco.editor {
 
 	export type FindComputedEditorOptionValueById<T extends EditorOption> = NonNullable<ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>>;
 
+	export interface IEditorConstructionOptions extends IEditorOptions {
+		/**
+		 * The initial editor dimension (to avoid measuring the container).
+		 */
+		dimension?: IDimension;
+		/**
+		 * Place overflow widgets inside an external DOM node.
+		 * Defaults to an internal DOM node.
+		 */
+		overflowWidgetsDomNode?: HTMLElement;
+	}
+
 	/**
 	 * A view zone is a full horizontal rectangle that 'pushes' text down.
 	 * The editor reserves space for view zones when rendering.
@@ -4835,18 +4847,6 @@ declare namespace monaco.editor {
 	export interface IPasteEvent {
 		readonly range: Range;
 		readonly languageId: string | null;
-	}
-
-	export interface IEditorConstructionOptions extends IEditorOptions {
-		/**
-		 * The initial editor dimension (to avoid measuring the container).
-		 */
-		dimension?: IDimension;
-		/**
-		 * Place overflow widgets inside an external DOM node.
-		 * Defaults to an internal DOM node.
-		 */
-		overflowWidgetsDomNode?: HTMLElement;
 	}
 
 	export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {

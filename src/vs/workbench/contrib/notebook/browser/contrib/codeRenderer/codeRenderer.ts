@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/services/language';

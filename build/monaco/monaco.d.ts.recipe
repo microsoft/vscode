@@ -77,6 +77,7 @@ export interface ICommandHandler {
 #includeAll(vs/editor/common/cursor/cursorEvents):
 #include(vs/platform/accessibility/common/accessibility): AccessibilitySupport
 #includeAll(vs/editor/common/config/editorOptions):
+#include(vs/editor/browser/config/editorConfiguration): IEditorConstructionOptions
 #includeAll(vs/editor/browser/editorBrowser;editorCommon.=>):
 #include(vs/editor/common/config/fontInfo): FontInfo, BareFontInfo
 
