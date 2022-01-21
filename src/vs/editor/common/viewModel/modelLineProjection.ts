@@ -7,7 +7,7 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
+import { LineInjectedText } from 'vs/editor/common/textModelEvents';
 import { InjectedText, ModelLineProjectionData } from 'vs/editor/common/viewModel/modelLineProjectionData';
 import { SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 

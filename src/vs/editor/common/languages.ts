@@ -312,7 +312,7 @@ export interface EvaluatableExpressionProvider {
 }
 
 /**
-	 * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
+ * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
  * @internal
  */
 export interface InlineValueContext {

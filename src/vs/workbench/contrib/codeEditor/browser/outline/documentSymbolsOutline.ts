@@ -26,7 +26,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';

@@ -11,16 +11,16 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelInjectedTextChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { SearchData } from 'vs/editor/common/model/textModelSearch';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelInjectedTextChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/textModelEvents';
+import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
 import { FormattingOptions, StandardTokenType } from 'vs/editor/common/languages';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
-import { TextChange } from 'vs/editor/common/model/textChange';
+import { TextChange } from 'vs/editor/common/core/textChange';
 import { equals } from 'vs/base/common/objects';
-import { IBracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
-import { IGuidesTextModelPart } from 'vs/editor/common/model/guidesTextModelPart';
+import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
+import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 
 /**
@@ -1356,6 +1356,31 @@ export interface IReadonlyTextBuffer {
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 	findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[];
+}
+
+/**
+ * @internal
+ */
+export class SearchData {
+
+	/**
+	 * The regex to search for. Always defined.
+	 */
+	public readonly regex: RegExp;
+	/**
+	 * The word separator classifier.
+	 */
+	public readonly wordSeparators: WordCharacterClassifier | null;
+	/**
+	 * The simple string to search for (if possible).
+	 */
+	public readonly simpleSearch: string | null;
+
+	constructor(regex: RegExp, wordSeparators: WordCharacterClassifier | null, simpleSearch: string | null) {
+		this.regex = regex;
+		this.wordSeparators = wordSeparators;
+		this.simpleSearch = simpleSearch;
+	}
 }
 
 /**

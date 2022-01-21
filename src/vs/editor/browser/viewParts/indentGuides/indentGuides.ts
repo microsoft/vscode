@@ -15,7 +15,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { ArrayQueue } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { isDefined } from 'vs/base/common/types';
-import { IndentGuide, HorizontalGuidesState, BracketPairGuidesClassNames } from 'vs/editor/common/model/guidesTextModelPart';
+import { BracketPairGuidesClassNames } from 'vs/editor/common/model/guidesTextModelPart';
+import { IndentGuide, HorizontalGuidesState } from 'vs/editor/common/textModelGuides';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 

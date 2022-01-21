@@ -9,7 +9,7 @@ import { createStringBuilder, IStringBuilder } from 'vs/editor/common/core/strin
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
+import { LineInjectedText } from 'vs/editor/common/textModelEvents';
 import { InjectedTextOptions } from 'vs/editor/common/model';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, ModelLineProjectionData } from 'vs/editor/common/viewModel/modelLineProjectionData';
 

@@ -9,7 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
 import { CollapseMemento, FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
 
