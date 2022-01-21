@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEqual, deepStrictEqual } from 'assert';
-import { equals } from 'vs/base/common/arrays';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { Terminal } from 'xterm';
+import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
+import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ITerminalConfigHelper, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { deepStrictEqual, strictEqual } from 'assert';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { ITerminalConfigHelper, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TestViewDescriptorService } from 'vs/workbench/contrib/terminal/test/browser/xterm/xtermTerminal.test';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { Terminal } from 'xterm';
+import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { TestViewDescriptorService } from 'vs/workbench/contrib/terminal/test/browser/xterm/xtermTerminal.test';
+import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
+import { equals } from 'vs/base/common/arrays';
+import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -69,8 +69,7 @@ suite('TerminalLinkManager', () => {
 		linkManager = instantiationService.createInstance(TerminalLinkManager, xterm, upcastPartial<ITerminalProcessManager>({}), upcastPartial<ITerminalCapabilityStore>({}));
 	});
 
-
-	suite.only('getLinks and open recent link', async () => {
+	suite('getLinks and open recent link', async () => {
 		test('should return no links', async () => {
 			xterm.raw.write('');
 			const links = await linkManager.getLinks();

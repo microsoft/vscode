@@ -17,9 +17,8 @@ import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/b
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { ILink, IMarker } from 'xterm';
+import { IMarker } from 'xterm';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
