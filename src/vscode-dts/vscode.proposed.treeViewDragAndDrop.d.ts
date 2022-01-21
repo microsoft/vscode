@@ -103,7 +103,8 @@ declare module 'vscode' {
 		 * will be preserved. See the documentation for `TreeDataTransferItem` for how best to take advantage of this.
 		 *
 		 * To add a data transfer item that can be dragged into the editor, use the application specific mime type "resourceurls".
-		 * The data for "resourceurls" should be an array of `toString()`ed Uris.
+		 * The data for "resourceurls" should be an array of `toString()`ed Uris. To specify a cursor position in the file,
+		 * set the Uri's fragment to `L3,5`, where 3 is the line number and 5 is the column number.
 		 *
 		 * @param source The source items for the drag and drop operation.
 		 * @param treeDataTransfer The data transfer associated with this drag.
