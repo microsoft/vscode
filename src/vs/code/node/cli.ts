@@ -401,7 +401,11 @@ export async function main(argv: string[]): Promise<any> {
 							const stream = outputType === 'stdout' ? process.stdout : process.stderr;
 
 							const cts = new CancellationTokenSource();
-							child.on('close', () => cts.dispose(true));
+							child.on('close', () => {
+								// We must dispose the token to stop watching,
+								// but the watcher might still be reading data.
+								setTimeout(() => cts.dispose(true), 200);
+							});
 							await watchFileContents(tmpName, chunk => stream.write(chunk), () => { /* ignore */ }, cts.token);
 						} finally {
 							unlinkSync(tmpName);
