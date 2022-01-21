@@ -8,6 +8,12 @@ import * as strings from 'vs/base/common/strings';
 
 const MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
 
+export interface IDiffComputationResult {
+	quitEarly: boolean;
+	identical: boolean;
+	changes: ILineChange[];
+}
+
 /**
  * A change
  */

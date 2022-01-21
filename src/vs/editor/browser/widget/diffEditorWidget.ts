@@ -27,7 +27,7 @@ import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/strin
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
@@ -53,7 +53,7 @@ import { IViewLineTokens } from 'vs/editor/common/model/tokens/lineTokens';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ILineBreaksComputer } from 'vs/editor/common/viewModel/modelLineProjectionData';
-import { IChange, ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { IChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
 
 export interface IDiffCodeEditorWidgetOptions {
 	originalEditor?: ICodeEditorWidgetOptions;

@@ -17,10 +17,9 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguag
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IDiffComputationResult } from 'vs/editor/common/services/editorWorker';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
-import { ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.

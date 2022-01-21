@@ -2088,6 +2088,7 @@ declare namespace monaco.editor {
 		 */
 		isAttachedToEditor(): boolean;
 	}
+
 	/**
 	 * A change
 	 */
