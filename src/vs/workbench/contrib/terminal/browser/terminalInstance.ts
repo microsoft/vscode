@@ -63,13 +63,14 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
+import { escapeNonWindowsPath, injectShellIntegrationArgs } from 'vs/platform/terminal/common/terminalEnvironment';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isFirefox } from 'vs/base/browser/browser';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 import { fromNow } from 'vs/base/common/date';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 const enum Constants {
 	/**
@@ -325,7 +326,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService
 	) {
 		super();
 
@@ -1264,7 +1266,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const hadIcon = !!this.shellLaunchConfig.icon;
-		const shellIntegration = this._updateArgsForShellIntegration(this.shellLaunchConfig);
+		const isBackendWindows = await this._backendIsWindows();
+		const shellIntegration = injectShellIntegrationArgs(this._logService, this._configHelper.config.enableShellIntegration, this.shellLaunchConfig, isBackendWindows);
 		this.shellLaunchConfig.args = shellIntegration.args;
 		const enableShellIntegration = shellIntegration.enableShellIntegration;
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
@@ -1280,63 +1283,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private _updateArgsForShellIntegration(shellLaunchConfig: IShellLaunchConfig): { args: string | string[] | undefined, enableShellIntegration: boolean } {
-		// Shell integration arg injection is disabled when:
-		// - The global setting is disabled
-		// - There is no executable (not sure what script to run)
-		// - The terminal is used by a feature like tasks or debugging
-		if (!this._configHelper.config.enableShellIntegration || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal) {
-			return { args: shellLaunchConfig.args, enableShellIntegration: false };
+	private async _backendIsWindows(): Promise<boolean> {
+		let os = OS;
+		if (!!this.remoteAuthority) {
+			const remoteEnv = await this._remoteAgentService.getEnvironment();
+			if (!remoteEnv) {
+				throw new Error(`Failed to get remote environment for remote authority "${this.remoteAuthority}"`);
+			}
+			os = remoteEnv.os;
 		}
-		const loginArgs = ['-login', '-l'];
-		const pwshImpliedArgs = ['-nol', '-l', '-nologo'];
-		const originalArgs = shellLaunchConfig.args;
-		const shell = path.basename(shellLaunchConfig.executable);
-		let newArgs: string | string[] | undefined;
-		if (this._processManager.os === OperatingSystem.Windows) {
-			if (shell === 'pwsh' && !originalArgs || originalArgs === [] || (originalArgs?.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase()))) {
-				newArgs = [
-					'-noexit',
-					'-command',
-					'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
-				];
-			} else if (originalArgs?.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase())) {
-				newArgs = [
-					originalArgs[0],
-					'-noexit',
-					'-command',
-					'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
-				];
-			}
-		} else {
-			switch (shell) {
-				case 'bash':
-					if (!originalArgs || originalArgs === []) {
-						//TODO: support login args
-						newArgs = ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-bash.sh'];
-					}
-					break;
-				case 'pwsh':
-					if (!originalArgs || originalArgs === [] || (originalArgs.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase()))) {
-						newArgs = ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"'];
-					} else if (originalArgs.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase())) {
-						newArgs = [originalArgs[0], '-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"'];
-					}
-					break;
-				case 'zsh':
-					if (!originalArgs || originalArgs === []) {
-						newArgs = ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh"; zsh -i'];
-					} else if (originalArgs.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase())) {
-						newArgs = ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh"; zsh -il'];
-					}
-					break;
-			}
-			if (!newArgs) {
-				this._logService.warn(nls.localize('shellIntegrationArgsPreventEnablingWarning', "Shell integration cannot be enabled when custom args {0} are provided for {1}."), originalArgs, shell);
-			}
-		}
-		return { args: newArgs || originalArgs, enableShellIntegration: newArgs !== undefined };
+		return os === OperatingSystem.Windows;
 	}
+
 	private _onProcessData(ev: IProcessDataEvent): void {
 		const messageId = ++this._latestXtermWriteData;
 		if (ev.trackCommit) {
