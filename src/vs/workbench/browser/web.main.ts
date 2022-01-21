@@ -32,7 +32,7 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { ConfigurationCache } from 'vs/workbench/services/configuration/common/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
-import type { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
+import { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
@@ -85,7 +85,7 @@ export interface IWorkbench {
 		readonly uriScheme: string;
 
 		retrievePerformanceMarks(): Promise<[string, readonly PerformanceMark[]][]>;
-		
+
 		openUri(target: URI): Promise<boolean>;
 	}
 

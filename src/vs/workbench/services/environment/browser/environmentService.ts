@@ -10,7 +10,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import { IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import type { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/browser/web.api';
+import { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/browser/web.api';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';

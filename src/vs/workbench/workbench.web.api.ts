@@ -156,9 +156,9 @@ import 'vs/workbench/contrib/offline/browser/offline.contribution';
 //#endregion
 
 
-//#region --- workbench embedder API
+//#region --- export workbench factory
 
-import * as webApi from 'vs/workbench/browser/web.api';
-export = webApi;
+import * as factory from 'vs/workbench/browser/web.factory';
+export = factory;
 
 //#endregion
