@@ -13,7 +13,7 @@ export function setup(logger: Logger) {
 		// Shared before/after handling
 		installAllHandlers(logger);
 
-		it('turns off editor line numbers and verifies the live change', async function () {
+		it.skip('turns off editor line numbers and verifies the live change', async function () { // https://github.com/microsoft/vscode/issues/141054
 			const app = this.app as Application;
 			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'app.js'));
 			await app.code.waitForElements('.line-numbers', false, elements => !!elements.length);
