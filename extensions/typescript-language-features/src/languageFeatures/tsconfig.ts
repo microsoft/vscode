@@ -17,8 +17,8 @@ function mapChildren<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): 
 		: [];
 }
 
-const OPEN_EXTENDS_LINK_COMMAND_ID = '_typescript.openExtendsLink';
-type OPEN_EXTENDS_LINK_COMMAND_ARGS = {
+const openExtendsLinkCommandId = '_typescript.openExtendsLink';
+type OpenExtendsLinkCommandArgs = {
 	resourceUri: vscode.Uri
 	extendsValue: string
 };
@@ -49,14 +49,14 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 			return undefined;
 		}
 
-		const args: OPEN_EXTENDS_LINK_COMMAND_ARGS = {
+		const args: OpenExtendsLinkCommandArgs = {
 			resourceUri: document.uri,
 			extendsValue: extendsNode.value
 		};
 
 		return new vscode.DocumentLink(
 			this.getRange(document, extendsNode),
-			vscode.Uri.parse(`command:${OPEN_EXTENDS_LINK_COMMAND_ID}?${JSON.stringify(args)}`)
+			vscode.Uri.parse(`command:${openExtendsLinkCommandId}?${JSON.stringify(args)}`)
 		);
 	}
 
@@ -133,13 +133,13 @@ const getTsconfigPath = async (baseDirUri: vscode.Uri, extendsValue: string): Pr
 	}
 
 	// Otherwise resolve like a module
-	return resolveNodeModulesPath(baseDirUri, [
+	return resolveNodeModulesPath([
 		extendsValue,
 		`${extendsValue}.json`,
 		`${extendsValue}/tsconfig.json`,
 	]);
 
-	async function resolveNodeModulesPath(baseDirUri: vscode.Uri, pathCandidates: string[]): Promise<vscode.Uri | undefined> {
+	async function resolveNodeModulesPath(pathCandidates: string[]): Promise<vscode.Uri | undefined> {
 		let currentUri = baseDirUri;
 		while (true) {
 			const nodeModulesUri = vscode.Uri.joinPath(currentUri, 'node_modules');
@@ -176,13 +176,13 @@ export function register() {
 			patterns.map((pattern): vscode.DocumentFilter => ({ language, pattern }))));
 
 	return vscode.Disposable.from(
-		vscode.commands.registerCommand(OPEN_EXTENDS_LINK_COMMAND_ID, async ({ resourceUri, extendsValue, }: OPEN_EXTENDS_LINK_COMMAND_ARGS) => {
+		vscode.commands.registerCommand(openExtendsLinkCommandId, async ({ resourceUri, extendsValue, }: OpenExtendsLinkCommandArgs) => {
 			const tsconfigPath = await getTsconfigPath(Utils.dirname(resourceUri), extendsValue);
 			if (tsconfigPath === undefined) {
-				void vscode.window.showErrorMessage(localize('openTsconfigExtendsModuleFail', "Failed to resolve {0} as module", extendsValue));
+				vscode.window.showErrorMessage(localize('openTsconfigExtendsModuleFail', "Failed to resolve {0} as module", extendsValue));
 				return;
 			}
-			await vscode.window.showTextDocument(tsconfigPath);
+			await vscode.workspace.openTextDocument(tsconfigPath);
 		}),
 		vscode.languages.registerDocumentLinkProvider(selector, new TsconfigLinkProvider()),
 	);
