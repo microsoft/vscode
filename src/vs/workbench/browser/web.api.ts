@@ -26,8 +26,7 @@ interface IResourceUriProvider {
 }
 
 /**
- * The identifier of an extension in the format: `PUBLISHER.NAME`.
- * For example: `vscode.csharp`
+ * The identifier of an extension in the format: `PUBLISHER.NAME`. For example: `vscode.csharp`
  */
 type ExtensionId = string;
 
@@ -41,9 +40,6 @@ interface IExternalUriResolver {
 	(uri: URI): Promise<URI>;
 }
 
-/**
- * External URL opener
- */
 interface IExternalURLOpener {
 
 	/**
@@ -358,6 +354,42 @@ interface ISettingsSyncOptions {
 	enablementHandler?(enablement: boolean): void;
 }
 
+interface IDevelopmentOptions {
+
+	/**
+	 * Current logging level. Default is `LogLevel.Info`.
+	 */
+	readonly logLevel?: LogLevel;
+
+	/**
+	 * Location of a module containing extension tests to run once the workbench is open.
+	 */
+	readonly extensionTestsPath?: UriComponents;
+
+	/**
+	 * Add extensions under development.
+	 */
+	readonly extensions?: readonly UriComponents[];
+
+	/**
+	 * Whether to enable the smoke test driver.
+	 */
+	readonly enableSmokeTestDriver?: boolean;
+}
+
+interface IPerformanceMark {
+
+	/**
+	 * The name of a performace marker.
+	 */
+	readonly name: string;
+
+	/**
+	 * The UNIX timestamp at which the marker has been set.
+	 */
+	readonly startTime: number;
+}
+
 interface IWorkbenchConstructionOptions {
 
 	//#region Connection related configuration
@@ -552,42 +584,6 @@ interface IWorkbenchConstructionOptions {
 
 	//#endregion
 
-}
-
-interface IDevelopmentOptions {
-
-	/**
-	 * Current logging level. Default is `LogLevel.Info`.
-	 */
-	readonly logLevel?: LogLevel;
-
-	/**
-	 * Location of a module containing extension tests to run once the workbench is open.
-	 */
-	readonly extensionTestsPath?: UriComponents;
-
-	/**
-	 * Add extensions under development.
-	 */
-	readonly extensions?: readonly UriComponents[];
-
-	/**
-	 * Whether to enable the smoke test driver.
-	 */
-	readonly enableSmokeTestDriver?: boolean;
-}
-
-interface IPerformanceMark {
-
-	/**
-	 * The name of a performace marker.
-	 */
-	readonly name: string;
-
-	/**
-	 * The UNIX timestamp at which the marker has been set.
-	 */
-	readonly startTime: number;
 }
 
 interface IWorkbench {
