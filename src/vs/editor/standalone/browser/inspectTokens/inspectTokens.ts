@@ -12,7 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
-import { Token } from 'vs/editor/common/core/token';
+import { Token } from 'vs/editor/common/languages/token';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { FontStyle, IState, ITokenizationSupport, StandardTokenType, TokenMetadata, TokenizationRegistry, ILanguageIdCodec } from 'vs/editor/common/languages';

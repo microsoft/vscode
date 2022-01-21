@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Selection } from 'vs/editor/common/core/selection';
-import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
+import { EncodedTokenizationResult } from 'vs/editor/common/languages/token';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { ColorId, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
 import { CommentRule } from 'vs/editor/common/languages/languageConfiguration';

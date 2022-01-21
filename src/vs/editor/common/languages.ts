@@ -12,7 +12,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
+import { TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/languages/token';
 import * as model from 'vs/editor/common/model';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languages/languageFeatureRegistry';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/languages/tokenizationRegistry';

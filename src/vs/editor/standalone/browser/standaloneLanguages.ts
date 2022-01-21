@@ -8,7 +8,7 @@ import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Token, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
+import { Token, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/languages/token';
 import * as model from 'vs/editor/common/model';
 import * as languages from 'vs/editor/common/languages';
 import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
