@@ -85,14 +85,14 @@ export function activate(context: vscode.ExtensionContext) {
 			const { updateUrl, commit, quality, serverDataFolderName, serverApplicationName, dataFolderName } = getProductConfiguration();
 			const commandArgs = ['--host=127.0.0.1', '--port=0', '--disable-telemetry', '--use-host-proxy', '--accept-server-license-terms'];
 			const env = getNewEnv();
-			const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), serverDataFolderName || `${dataFolderName}-testresolver`);
+			const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), `${serverDataFolderName || dataFolderName}-testresolver`);
 			const logsDir = process.env['TESTRESOLVER_LOGS_FOLDER'];
 			if (logsDir) {
 				commandArgs.push('--logsPath', logsDir);
 			}
 
-			env['VSCODE_AGENT_FOLDER'] = remoteDataDir;
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
+			commandArgs.push('--server-data-dir', remoteDataDir);
 
 			const connectionTokenFile = path.join(remoteDataDir, `${process.pid}-${new Date().getTime()}.token`);
 			if (!fs.existsSync(remoteDataDir)) {
@@ -106,7 +106,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const vscodePath = path.resolve(path.join(context.extensionPath, '..', '..'));
 				const serverCommandPath = path.join(vscodePath, 'scripts', serverCommand);
 
-				outputChannel.appendLine(`Launching server: VSCODE_AGENT_FOLDER="${remoteDataDir}" "${serverCommandPath}" ${commandArgs.join(' ')}`);
+				outputChannel.appendLine(`Launching server: "${serverCommandPath}" ${commandArgs.join(' ')}`);
 
 				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath });
 			} else {

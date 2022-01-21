@@ -21,7 +21,8 @@ const args = minimist(process.argv.slice(2), {
 		'host',
 		'port',
 		'driver',
-		'connection-token'
+		'connection-token',
+		'server-data-dir'
 	],
 });
 
@@ -38,7 +39,7 @@ const HOST = args['host'] ?? 'localhost';
 const PORT = args['port'] ?? '9888';
 const TOKEN = args['connection-token'] ?? String(crypto.randomInt(0xffffffff));
 
-if (args['connection-token'] === undefined && args['connection-token-file'] === undefined && !args['no-connection-token']) {
+if (args['launch'] && args['connection-token'] === undefined && args['connection-token-file'] === undefined && !args['no-connection-token']) {
 	serverArgs.push('--connection-token', TOKEN);
 }
 if (args['host'] === undefined) {
@@ -48,13 +49,7 @@ if (args['port'] === undefined) {
 	serverArgs.push('--port', PORT);
 }
 
-if (args['driver']) {
-	// given a DRIVER, we auto-shutdown when tests are done
-	serverArgs.push('--enable-remote-auto-shutdown', '--remote-auto-shutdown-without-delay');
-}
-
 const env = { ...process.env };
-env['VSCODE_AGENT_FOLDER'] = env['VSCODE_AGENT_FOLDER'] || path.join(os.homedir(), '.vscode-server-oss-dev');
 env['NODE_ENV'] = 'development';
 env['VSCODE_DEV'] = '1';
 const entryPoint = path.join(__dirname, '..', '..', '..', 'out', 'server-main.js');
@@ -75,7 +70,7 @@ function startServer() {
 		console.error(data.toString());
 	});
 
-	proc.on('exit', () => process.exit());
+	proc.on('exit', (code) => process.exit(code));
 
 	process.on('exit', () => proc.kill());
 	process.on('SIGINT', () => {
