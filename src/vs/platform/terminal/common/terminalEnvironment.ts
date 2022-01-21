@@ -31,21 +31,23 @@ export function injectShellIntegrationArgs(logService: ILogService, enableShellI
 	const shell = basename(shellLaunchConfig.executable);
 	let newArgs: string | string[] | undefined;
 	if (isBackendWindows) {
-		if (shell === 'pwsh.exe' && !originalArgs || originalArgs === [] || (originalArgs?.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase()))) {
-			newArgs = [
-				'-noexit',
-				'-command',
-				'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
-			];
-		} else if (originalArgs?.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase())) {
-			newArgs = [
-				originalArgs[0],
-				'-noexit',
-				'-command',
-				'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
-			];
-		} else {
-			logService.warn(`Shell integration cannot be enabled when custom args ${originalArgs} are provided for ${shell} on Windows.`);
+		if (shell === 'pwsh.exe') {
+			if (!originalArgs || originalArgs === [] || (originalArgs?.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase()))) {
+				newArgs = [
+					'-noexit',
+					'-command',
+					'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
+				];
+			} else if (originalArgs?.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase())) {
+				newArgs = [
+					originalArgs[0],
+					'-noexit',
+					'-command',
+					'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
+				];
+			} else {
+				logService.warn(`Shell integration cannot be enabled when custom args ${originalArgs} are provided for ${shell} on Windows.`);
+			}
 		}
 	} else {
 		switch (shell) {
