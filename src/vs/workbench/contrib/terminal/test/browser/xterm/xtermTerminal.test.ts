@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEvent, Terminal } from 'xterm';
+import { IEvent, ILink, Terminal } from 'xterm';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -24,6 +24,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { isSafari } from 'vs/base/browser/browser';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 
 class TestWebglAddon {
 	static shouldThrow = false;
@@ -39,6 +40,31 @@ class TestWebglAddon {
 		TestWebglAddon.isEnabled = false;
 	}
 	clearTextureAtlas() { }
+}
+
+class TestLinkManager extends TerminalLinkManager {
+	private _links: Map<number, IDetectedLinks | undefined> = new Map();
+	override async getLinks(y: number): Promise<IDetectedLinks | undefined> {
+		return this._links.get(y);
+	}
+	override async getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined> {
+		const linkResult = await this.getLinks(y);
+		if (!linkResult) {
+			return undefined;
+		}
+		const { wordLinks, webLinks, fileLinks } = linkResult;
+		switch (type) {
+			case 'word':
+				return wordLinks;
+			case 'web':
+				return webLinks;
+			case 'file':
+				return fileLinks;
+		}
+	}
+	setLinks(links: Map<number, IDetectedLinks | undefined>): void {
+		this._links = links;
+	}
 }
 
 class TestXtermTerminal extends XtermTerminal {
@@ -85,7 +111,7 @@ suite('XtermTerminal', () => {
 	let configurationService: TestConfigurationService;
 	let themeService: TestThemeService;
 	let viewDescriptorService: TestViewDescriptorService;
-
+	let linkManager: TestLinkManager;
 	let xterm: TestXtermTerminal;
 	let configHelper: ITerminalConfigHelper;
 
@@ -111,6 +137,7 @@ suite('XtermTerminal', () => {
 
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
 		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
+		linkManager = instantiationService.createInstance(TestLinkManager);
 
 		TestWebglAddon.shouldThrow = false;
 		TestWebglAddon.isEnabled = false;
@@ -267,6 +294,19 @@ suite('XtermTerminal', () => {
 			await xterm.webglAddonPromise; // await addon activate
 			strictEqual(xterm.raw.options.rendererType, 'canvas');
 			strictEqual(TestWebglAddon.isEnabled, false);
+		});
+	});
+	suite('links', async () => {
+		test('should return no links', async () => {
+			const map: Map<number, IDetectedLinks> = new Map();
+			map.set(0, {});
+			linkManager.setLinks(map);
+			const links = await xterm.getLinks(linkManager);
+			strictEqual(links, []);
+			const webLink = await xterm.openRecentLink(linkManager, 'web');
+			strictEqual(webLink, undefined);
+			const fileLink = await xterm.openRecentLink(linkManager, 'file');
+			strictEqual(fileLink, undefined);
 		});
 	});
 });
