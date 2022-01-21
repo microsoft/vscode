@@ -208,13 +208,17 @@ class SharedProcessMain extends Disposable {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+		// Specifically for user data, use the disk file system provider
+		// from the main process to enable atomic read/write operations.
+		// Since user data can change very frequently across multiple
+		// processes, we want a single process handling these operations.
+		const diskFileSystemProviderOnMain = this._register(new DiskFileSystemProviderClient(mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux }));
+		const diskFileSystemProviderOnMainScheme = 'vscode-file-main';
+		fileService.registerProvider(diskFileSystemProviderOnMainScheme, diskFileSystemProviderOnMain);
+
 		const userDataFileSystemProvider = this._register(new FileUserDataProvider(
-			Schemas.file,
-			// Specifically for user data, use the disk file system provider
-			// from the main process to enable atomic read/write operations.
-			// Since user data can change very frequently across multiple
-			// processes, we want a single process handling these operations.
-			this._register(new DiskFileSystemProviderClient(mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux })),
+			diskFileSystemProviderOnMainScheme,
+			diskFileSystemProviderOnMain,
 			Schemas.userData,
 			fileService,
 			logService
