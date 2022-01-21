@@ -35,6 +35,10 @@ import { EventType } from 'vs/base/browser/dom';
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
 
+interface ITerminalLinkManager {
+	getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined>;
+}
+
 interface IPath {
 	join(...paths: string[]): string;
 	normalize(path: string): string;
@@ -44,7 +48,7 @@ interface IPath {
 /**
  * An object responsible for managing registration of link matchers and link providers.
  */
-export class TerminalLinkManager extends DisposableStore {
+export class TerminalLinkManager extends DisposableStore implements ITerminalLinkManager {
 	private _widgetManager: TerminalWidgetManager | undefined;
 	private _processCwd: string | undefined;
 	private _standardLinkProviders: Map<string, ILinkProvider> = new Map();
@@ -168,6 +172,7 @@ export class TerminalLinkManager extends DisposableStore {
 				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalValidatedLocalLinkProvider.id)?.provideLinks(y, r)));
 		}
 	}
+
 	private _tooltipCallback(link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) {
 		if (!this._widgetManager) {
 			return;

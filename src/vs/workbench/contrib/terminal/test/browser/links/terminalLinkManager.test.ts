@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal } from 'xterm';
+import { ILink, Terminal } from 'xterm';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -20,7 +20,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { TestViewDescriptorService } from 'vs/workbench/contrib/terminal/test/browser/xterm/xtermTerminal.test';
-import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
+import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { equals } from 'vs/base/common/arrays';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
@@ -35,6 +35,23 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	unicodeVersion: '11'
 };
 
+class TestLinkManager extends TerminalLinkManager {
+	private _links: IDetectedLinks | undefined;
+	override async getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined> {
+		switch (type) {
+			case 'word':
+				return this._links?.wordLinks?.[y] ? [this._links?.wordLinks?.[y]] : undefined;
+			case 'web':
+				return this._links?.webLinks?.[y] ? [this._links?.webLinks?.[y]] : undefined;
+			case 'file':
+				return this._links?.fileLinks?.[y] ? [this._links?.fileLinks?.[y]] : undefined;
+		}
+	}
+	setLinks(links: IDetectedLinks): void {
+		this._links = links;
+	}
+}
+
 suite('TerminalLinkManager', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
@@ -42,7 +59,7 @@ suite('TerminalLinkManager', () => {
 	let viewDescriptorService: TestViewDescriptorService;
 	let xterm: XtermTerminal;
 	let configHelper: ITerminalConfigHelper;
-	let linkManager: TerminalLinkManager;
+	let linkManager: TestLinkManager;
 
 	setup(() => {
 		configurationService = new TestConfigurationService({
@@ -66,12 +83,11 @@ suite('TerminalLinkManager', () => {
 
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
 		xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
-		linkManager = instantiationService.createInstance(TerminalLinkManager, xterm, upcastPartial<ITerminalProcessManager>({}), upcastPartial<ITerminalCapabilityStore>({}));
+		linkManager = instantiationService.createInstance(TestLinkManager, xterm, upcastPartial<ITerminalProcessManager>({}), upcastPartial<ITerminalCapabilityStore>({}));
 	});
 
 	suite('getLinks and open recent link', () => {
 		test('should return no links', async () => {
-			xterm.raw.write('');
 			const links = await linkManager.getLinks();
 			equals(links.webLinks, []);
 			equals(links.wordLinks, []);
@@ -82,8 +98,6 @@ suite('TerminalLinkManager', () => {
 			strictEqual(fileLink, undefined);
 		});
 		test('should return word links in order', async () => {
-			xterm.raw.writeln('1_我是学生.txt');
-			xterm.raw.writeln('2_我是学生.txt');
 			const link1 = {
 				range: {
 					start: { x: 1, y: 1 }, end: { x: 14, y: 1 }
@@ -98,8 +112,10 @@ suite('TerminalLinkManager', () => {
 				text: '2_我是学生.txt',
 				activate: () => Promise.resolve('')
 			};
+			linkManager.setLinks({ wordLinks: [link1, link2] });
 			const links = await linkManager.getLinks();
-			deepStrictEqual(links, { webLinks: [], wordLinks: [link2, link1], fileLinks: [] });
+			deepStrictEqual(links.wordLinks?.[0].text, link2.text);
+			deepStrictEqual(links.wordLinks?.[1].text, link1.text);
 			const webLink = await linkManager.openRecentLink('web');
 			strictEqual(webLink, undefined);
 			const fileLink = await linkManager.openRecentLink('file');
@@ -116,8 +132,10 @@ suite('TerminalLinkManager', () => {
 				text: 'https://foo.bar/[this is foo site 2]',
 				activate: () => Promise.resolve('')
 			};
+			linkManager.setLinks({ webLinks: [link1, link2] });
 			const links = await linkManager.getLinks();
-			deepStrictEqual(links, { webLinks: [link2, link1], wordLinks: [], fileLinks: [] });
+			deepStrictEqual(links.webLinks?.[0].text, link2.text);
+			deepStrictEqual(links.webLinks?.[1].text, link1.text);
 			const webLink = await linkManager.openRecentLink('web');
 			strictEqual(webLink, link2);
 			const fileLink = await linkManager.openRecentLink('file');
@@ -134,10 +152,13 @@ suite('TerminalLinkManager', () => {
 				text: 'file:///C:/users/test/file_2.txt',
 				activate: () => Promise.resolve('')
 			};
+			linkManager.setLinks({ fileLinks: [link1, link2] });
 			const links = await linkManager.getLinks();
-			deepStrictEqual(links, { webLinks: [], wordLinks: [], fileLinks: [link2, link1] });
+			deepStrictEqual(links.fileLinks?.[0].text, link2.text);
+			deepStrictEqual(links.fileLinks?.[1].text, link1.text);
 			const webLink = await linkManager.openRecentLink('web');
 			strictEqual(webLink, undefined);
+			linkManager.setLinks({ fileLinks: [link2] });
 			const fileLink = await linkManager.openRecentLink('file');
 			strictEqual(fileLink, link2);
 		});
