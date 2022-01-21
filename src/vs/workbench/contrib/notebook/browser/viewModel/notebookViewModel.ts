@@ -22,7 +22,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
+import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
 import { CellEditState, CellFindMatch, CellFindMatchWithIndex, ICellViewModel, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, NotebookLayoutInfo, NotebookMetadataChangedEvent, OutputFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';

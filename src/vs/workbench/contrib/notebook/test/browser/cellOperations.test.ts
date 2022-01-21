@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
+import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
 import { changeCellToKind, computeCellLinesContents, copyCellRange, joinNotebookCells, moveCellRange, moveCellToIdx, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';

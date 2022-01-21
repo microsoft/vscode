@@ -66,11 +66,11 @@ import 'vs/workbench/contrib/notebook/browser/controller/executeActions';
 import 'vs/workbench/contrib/notebook/browser/controller/layoutActions';
 import 'vs/workbench/contrib/notebook/browser/controller/editActions';
 import 'vs/workbench/contrib/notebook/browser/controller/apiActions';
+import 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 
 // Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
 import 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
-import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
 import 'vs/workbench/contrib/notebook/browser/contrib/gettingStarted/notebookGettingStarted';
 import 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';
