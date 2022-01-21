@@ -2962,7 +2962,7 @@ export class QuickInputButtons {
 
 export enum QuickPickItemKind {
 	Separator = -1,
-	Default = 1,
+	Default = 0,
 }
 
 export enum ExtensionKind {

@@ -1638,6 +1638,11 @@ declare module 'vscode' {
 		provideTextDocumentContent(uri: Uri, token: CancellationToken): ProviderResult<string>;
 	}
 
+	export enum QuickPickItemKind {
+		Separator = -1,
+		Default = 0,
+	}
+
 	/**
 	 * Represents an item that can be selected from
 	 * a list of items.
@@ -1649,6 +1654,8 @@ declare module 'vscode' {
 		 * the `$(<name>)`-syntax.
 		 */
 		label: string;
+
+		kind?: QuickPickItemKind;
 
 		/**
 		 * A human-readable string which is rendered less prominent in the same line. Supports rendering of
