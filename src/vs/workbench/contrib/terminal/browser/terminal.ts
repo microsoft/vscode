@@ -885,16 +885,6 @@ export interface IXtermTerminal {
 	 * When process capabilites are updated, update the command tracker
 	 */
 	upgradeCommandTracker(): void;
-
-	/*
-	 * Activates the most recent link for the type
-	 */
-	openRecentLink(linkManager: TerminalLinkManager, type: 'file' | 'web'): Promise<ILink | undefined>;
-
-	/*
-	 * Gets all of the links
-	 */
-	getLinks(linkManager: TerminalLinkManager): Promise<IDetectedLinks>;
 }
 
 export interface IRequestAddInstanceToGroupEvent {
