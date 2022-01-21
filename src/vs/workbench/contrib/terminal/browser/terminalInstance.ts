@@ -351,6 +351,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(this._contextKeyService);
 
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
+		this._register(this.capabilities.onDidAddCapability(e => this._logService.debug('terminalInstance added capability', e)));
+		this._register(this.capabilities.onDidRemoveCapability(e => this._logService.debug('terminalInstance removed capability', e)));
 
 		// Resolve just the icon ahead of time so that it shows up immediately in the tabs. This is
 		// disabled in remote because this needs to be sync and the OS may differ on the remote
