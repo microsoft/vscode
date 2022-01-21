@@ -733,7 +733,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			if (lane === 0) {
 				continue;
 			}
-			const color = opts.getColor(theme);
+			const color = opts.getColor(theme.value);
 			const viewStartLineNumber = this.coordinatesConverter.getViewLineNumberOfModelPosition(decoration.range.startLineNumber, decoration.range.startColumn);
 			const viewEndLineNumber = this.coordinatesConverter.getViewLineNumberOfModelPosition(decoration.range.endLineNumber, decoration.range.endColumn);
 

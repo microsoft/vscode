@@ -44,8 +44,7 @@ import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { FormattingOptions, StandardTokenType } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/services/language';
-import { EditorTheme } from 'vs/editor/common/view/viewContext';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
 
 function createTextBufferBuilder() {
@@ -2425,7 +2424,7 @@ export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
 		this.position = (typeof options.position === 'number' ? options.position : model.OverviewRulerLane.Center);
 	}
 
-	public getColor(theme: EditorTheme): string {
+	public getColor(theme: IColorTheme): string {
 		if (!this._resolvedColor) {
 			if (theme.type !== 'light' && this.darkColor) {
 				this._resolvedColor = this._resolveColor(this.darkColor, theme);
@@ -2440,7 +2439,7 @@ export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
 		this._resolvedColor = null;
 	}
 
-	private _resolveColor(color: string | ThemeColor, theme: EditorTheme): string {
+	private _resolveColor(color: string | ThemeColor, theme: IColorTheme): string {
 		if (typeof color === 'string') {
 			return color;
 		}
@@ -2462,7 +2461,7 @@ export class ModelDecorationMinimapOptions extends DecorationOptions {
 		this.position = options.position;
 	}
 
-	public getColor(theme: EditorTheme): Color | undefined {
+	public getColor(theme: IColorTheme): Color | undefined {
 		if (!this._resolvedColor) {
 			if (theme.type !== 'light' && this.darkColor) {
 				this._resolvedColor = this._resolveColor(this.darkColor, theme);
@@ -2478,7 +2477,7 @@ export class ModelDecorationMinimapOptions extends DecorationOptions {
 		this._resolvedColor = undefined;
 	}
 
-	private _resolveColor(color: string | ThemeColor, theme: EditorTheme): Color | undefined {
+	private _resolveColor(color: string | ThemeColor, theme: IColorTheme): Color | undefined {
 		if (typeof color === 'string') {
 			return Color.fromHex(color);
 		}
