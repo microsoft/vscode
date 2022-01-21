@@ -75,7 +75,7 @@ export interface ICommandHandler {
 #include(vs/editor/common/diff/diffComputer): IChange, ICharChange, ILineChange
 #include(vs/editor/common/core/dimension): IDimension
 #includeAll(vs/editor/common/editorCommon): IScrollEvent
-#includeAll(vs/editor/common/model/textModelEvents):
+#includeAll(vs/editor/common/textModelEvents):
 #includeAll(vs/editor/common/cursor/cursorEvents):
 #include(vs/platform/accessibility/common/accessibility): AccessibilitySupport
 #includeAll(vs/editor/common/config/editorOptions):
