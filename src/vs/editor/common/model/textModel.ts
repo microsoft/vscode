@@ -15,7 +15,6 @@ import { listenStream } from 'vs/base/common/stream';
 import * as strings from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -175,6 +174,16 @@ export const enum BackgroundTokenizationState {
 	InProgress = 1,
 	Completed = 2,
 }
+
+export const EDITOR_MODEL_DEFAULTS = {
+	tabSize: 4,
+	indentSize: 4,
+	insertSpaces: true,
+	detectIndentation: true,
+	trimAutoWhitespace: true,
+	largeFileOptimizations: true,
+	bracketPairColorizationOptions: { enabled: false }
+};
 
 export class TextModel extends Disposable implements model.ITextModel, IDecorationsTreesHost {
 

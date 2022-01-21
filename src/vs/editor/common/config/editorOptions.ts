@@ -14,6 +14,7 @@ import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/c
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/model/textModel';
 
 //#region typed options
 
@@ -4288,19 +4289,6 @@ export const EDITOR_FONT_DEFAULTS = {
 	),
 	lineHeight: 0,
 	letterSpacing: 0,
-};
-
-/**
- * @internal
- */
-export const EDITOR_MODEL_DEFAULTS = {
-	tabSize: 4,
-	indentSize: 4,
-	insertSpaces: true,
-	detectIndentation: true,
-	trimAutoWhitespace: true,
-	largeFileOptimizations: true,
-	bracketPairColorizationOptions: { enabled: false }
 };
 
 /**
