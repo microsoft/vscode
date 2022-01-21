@@ -24,7 +24,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import * as nls from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';

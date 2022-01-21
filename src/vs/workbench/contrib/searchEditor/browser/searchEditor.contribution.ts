@@ -8,7 +8,7 @@ import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
-import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
+import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/browser/findModel';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';

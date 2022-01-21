@@ -169,9 +169,9 @@ export interface CommentChanges {
 	readonly commentReactions?: modes.CommentReaction[];
 	readonly label?: string;
 	readonly mode?: modes.CommentMode;
-	readonly detail?: {
+	readonly timestamp?: {
 		$mid: MarshalledId.Date
-	} | string;
+	};
 }
 
 export type CommentThreadChanges = Partial<{

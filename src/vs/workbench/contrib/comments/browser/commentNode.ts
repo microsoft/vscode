@@ -55,8 +55,8 @@ export class CommentNode extends Disposable {
 	private _commentEditorDisposables: IDisposable[] = [];
 	private _commentEditorModel: ITextModel | null = null;
 	private _isPendingLabel!: HTMLElement;
-	private _detail: HTMLElement | undefined;
-	private _timestamp: TimestampWidget | undefined;
+	private _timestamp: HTMLElement | undefined;
+	private _timestampWidget: TimestampWidget | undefined;
 	private _contextKeyService: IContextKeyService;
 	private _commentContextValue: IContextKey<string>;
 
@@ -126,29 +126,24 @@ export class CommentNode extends Disposable {
 		return this._onDidClick.event;
 	}
 
-	private createDetail(container: HTMLElement) {
-		this._detail = dom.append(container, dom.$('span.detail'));
-		this.updateDetail(this.comment.detail);
+	private createTimestamp(container: HTMLElement) {
+		this._timestamp = dom.append(container, dom.$('span.timestamp-container'));
+		this.updateTimestamp(this.comment.timestamp);
 	}
 
-	private updateDetail(detail?: Date | string) {
-		if (!this._detail) {
+	private updateTimestamp(timestamp?: Date) {
+		if (!this._timestamp) {
 			return;
 		}
 
-		if (!detail) {
-			this._timestamp?.dispose();
-			this._detail.innerText = '';
-		} else if (typeof detail === 'string') {
-			this._timestamp?.dispose();
-			this._detail.innerText = detail;
+		if (!timestamp) {
+			this._timestampWidget?.dispose();
 		} else {
-			this._detail.innerText = '';
-			if (!this._timestamp) {
-				this._timestamp = new TimestampWidget(this.configurationService, this._detail, detail);
-				this._register(this._timestamp);
+			if (!this._timestampWidget) {
+				this._timestampWidget = new TimestampWidget(this.configurationService, this._timestamp, timestamp);
+				this._register(this._timestampWidget);
 			} else {
-				this._timestamp.setTimestamp(detail);
+				this._timestampWidget.setTimestamp(timestamp);
 			}
 		}
 	}
@@ -157,7 +152,7 @@ export class CommentNode extends Disposable {
 		const header = dom.append(commentDetailsContainer, dom.$(`div.comment-title.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
 		const author = dom.append(header, dom.$('strong.author'));
 		author.innerText = this.comment.userName;
-		this.createDetail(header);
+		this.createTimestamp(header);
 		this._isPendingLabel = dom.append(header, dom.$('span.isPending'));
 
 		if (this.comment.label) {
@@ -549,8 +544,8 @@ export class CommentNode extends Disposable {
 			this._commentContextValue.reset();
 		}
 
-		if (this.comment.detail) {
-			this.updateDetail(this.comment.detail);
+		if (this.comment.timestamp) {
+			this.updateTimestamp(this.comment.timestamp);
 		}
 	}
 

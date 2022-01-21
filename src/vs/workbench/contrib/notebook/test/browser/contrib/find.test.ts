@@ -8,7 +8,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextBuffer, ValidAnnotatedEditOperation } from 'vs/editor/common/model';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { ILanguageService } from 'vs/editor/common/services/language';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
