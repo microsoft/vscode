@@ -22,27 +22,22 @@ import { refineServiceDecorator } from 'vs/platform/instantiation/common/instant
 
 export const IBrowserWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, IBrowserWorkbenchEnvironmentService>(IEnvironmentService);
 
-interface IBrowserWorkbenchOptions extends IWorkbenchConstructionOptions {
-	workspaceId: string;
-	logsPath: URI;
-}
-
 /**
- * A subclass of the `IWorkbenchEnvironmentService` to be used only in browser
- * environments (Electron, web).
+ * A subclass of the `IWorkbenchEnvironmentService` to be used only environments
+ * where the web API is available (browsers, Electron).
  */
 export interface IBrowserWorkbenchEnvironmentService extends IWorkbenchEnvironmentService {
 
 	/**
 	 * Options used to configure the workbench.
 	 */
-	readonly options?: IBrowserWorkbenchOptions;
+	readonly options?: IWorkbenchConstructionOptions;
 }
 
 class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 
 	constructor(
-		private readonly options: IBrowserWorkbenchOptions,
+		private readonly options: IWorkbenchConstructionOptions,
 		private readonly payload: Map<string, string> | undefined
 	) { }
 
@@ -123,13 +118,13 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get isBuilt(): boolean { return !!this.productService.commit; }
 
 	@memoize
-	get logsPath(): string { return this.options.logsPath.path; }
+	get logsPath(): string { return this.logsHome.path; }
 
 	@memoize
 	get logLevel(): string | undefined { return this.payload?.get('logLevel') || (this.options.developmentOptions?.logLevel !== undefined ? LogLevelToString(this.options.developmentOptions?.logLevel) : undefined); }
 
 	@memoize
-	get logFile(): URI { return joinPath(this.options.logsPath, 'window.log'); }
+	get logFile(): URI { return joinPath(this.logsHome, 'window.log'); }
 
 	@memoize
 	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.userData }); }
@@ -152,16 +147,18 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	@memoize
 	get workspaceStorageHome(): URI { return URI.joinPath(this.userRoamingDataHome, 'workspaceStorage'); }
 
-	/*
-	 * In Web every workspace can potentially have scoped user-data and/or extensions and if Sync state is shared then it can make
-	 * Sync error prone - say removing extensions from another workspace. Hence scope Sync state per workspace.
-	 * Sync scoped to a workspace is capable of handling opening same workspace in multiple windows.
+	/**
+	 * In Web every workspace can potentially have scoped user-data
+	 * and/or extensions and if Sync state is shared then it can make
+	 * Sync error prone - say removing extensions from another workspace.
+	 * Hence scope Sync state per workspace. Sync scoped to a workspace
+	 * is capable of handling opening same workspace in multiple windows.
 	 */
 	@memoize
-	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync', this.options.workspaceId); }
+	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync', this.workspaceId); }
 
 	@memoize
-	get userDataSyncLogResource(): URI { return joinPath(this.options.logsPath, 'userDataSync.log'); }
+	get userDataSyncLogResource(): URI { return joinPath(this.logsHome, 'userDataSync.log'); }
 
 	@memoize
 	get sync(): 'on' | 'off' | undefined { return undefined; }
@@ -179,7 +176,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
 
 	@memoize
-	get extHostLogsPath(): URI { return joinPath(this.options.logsPath, 'exthost'); }
+	get extHostLogsPath(): URI { return joinPath(this.logsHome, 'exthost'); }
 
 	private _extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
 	get debugExtensionHost(): IExtensionHostDebugParams {
@@ -255,7 +252,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	}
 
 	@memoize
-	get telemetryLogResource(): URI { return joinPath(this.options.logsPath, 'telemetry.log'); }
+	get telemetryLogResource(): URI { return joinPath(this.logsHome, 'telemetry.log'); }
 	get disableTelemetry(): boolean { return false; }
 
 	get verbose(): boolean { return this.payload?.get('verbose') === 'true'; }
@@ -270,7 +267,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	private payload: Map<string, string> | undefined;
 
 	constructor(
-		readonly options: IBrowserWorkbenchOptions,
+		private readonly workspaceId: string,
+		private readonly logsHome: URI,
+		readonly options: IWorkbenchConstructionOptions,
 		private readonly productService: IProductService
 	) {
 		if (options.workspaceProvider && Array.isArray(options.workspaceProvider.payload)) {
