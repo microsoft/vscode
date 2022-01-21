@@ -21,27 +21,27 @@ import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands'
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import * as modes from 'vs/editor/common/languages';
-import { getCodeLensModel } from 'vs/editor/contrib/codelens/codelens';
-import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from 'vs/editor/contrib/gotoSymbol/goToSymbol';
-import { getHoverPromise } from 'vs/editor/contrib/hover/getHover';
-import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/wordHighlighter';
-import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
+import { getCodeLensModel } from 'vs/editor/contrib/codelens/browser/codelens';
+import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
+import { getHoverPromise } from 'vs/editor/contrib/hover/browser/getHover';
+import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
+import { getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
-import { rename } from 'vs/editor/contrib/rename/rename';
-import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
-import { provideSuggestionItems, CompletionOptions } from 'vs/editor/contrib/suggest/suggest';
-import { getDocumentFormattingEditsUntilResult, getDocumentRangeFormattingEditsUntilResult, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/format';
-import { getLinks } from 'vs/editor/contrib/links/getLinks';
+import { rename } from 'vs/editor/contrib/rename/browser/rename';
+import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
+import { provideSuggestionItems, CompletionOptions } from 'vs/editor/contrib/suggest/browser/suggest';
+import { getDocumentFormattingEditsUntilResult, getDocumentRangeFormattingEditsUntilResult, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/browser/format';
+import { getLinks } from 'vs/editor/contrib/links/browser/getLinks';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import type * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
-import { getColors } from 'vs/editor/contrib/colorPicker/color';
+import { getColors } from 'vs/editor/contrib/colorPicker/browser/color';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { nullExtensionDescription as defaultExtension } from 'vs/workbench/services/extensions/common/extensions';
-import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
+import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import { mock } from 'vs/base/test/common/mock';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { dispose } from 'vs/base/common/lifecycle';
@@ -50,7 +50,7 @@ import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDep
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 
 suite('ExtHostLanguageFeatures', function () {
 

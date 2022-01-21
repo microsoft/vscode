@@ -162,16 +162,16 @@ export interface CommentProviderFeatures {
 
 export interface CommentChanges {
 	readonly uniqueIdInThread: number;
-	readonly body: IMarkdownString;
+	readonly body: string | IMarkdownString;
 	readonly userName: string;
 	readonly userIconPath?: string;
 	readonly contextValue?: string;
 	readonly commentReactions?: modes.CommentReaction[];
 	readonly label?: string;
 	readonly mode?: modes.CommentMode;
-	readonly detail?: {
+	readonly timestamp?: {
 		$mid: MarshalledId.Date
-	} | string;
+	};
 }
 
 export type CommentThreadChanges = Partial<{

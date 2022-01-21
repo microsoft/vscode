@@ -35,8 +35,8 @@ import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from 'vs/e
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { basename } from 'vs/base/common/path';
-import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
-import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
+import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { HoverStartMode } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Event } from 'vs/base/common/event';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';

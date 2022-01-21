@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IMarkerListProvider, MarkerList, IMarkerNavigationService } from 'vs/editor/contrib/gotoError/markerNavigationService';
+import { IMarkerListProvider, MarkerList, IMarkerNavigationService } from 'vs/editor/contrib/gotoError/browser/markerNavigationService';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

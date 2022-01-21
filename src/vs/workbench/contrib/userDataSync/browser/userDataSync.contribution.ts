@@ -51,7 +51,7 @@ class UserDataSyncReportIssueContribution extends Disposable implements IWorkben
 			}
 			case UserDataSyncErrorCode.TooManyRequests: {
 				const operationId = error.operationId ? localize('operationId', "Operation Id: {0}", error.operationId) : undefined;
-				const message = localize({ key: 'server too many requests', comment: ['Settings Sync is the name of the feature'] }, "Settings sync is disabled because the current device is making too many requests. Please retry after some time.");
+				const message = localize({ key: 'server too many requests', comment: ['Settings Sync is the name of the feature'] }, "Settings sync is disabled because the current device is making too many requests. Please wait for 10 minutes and turn on sync.");
 				this.notificationService.notify({
 					severity: Severity.Error,
 					message: operationId ? `${message} ${operationId}` : message,

@@ -6,10 +6,9 @@
 declare module 'vscode' {
 	export interface Comment {
 		/**
-		 * An optional detail that will be displayed less prominently than the `author`.
-		 * If a date is provided, then the date will be formatted according to the user's
-		 * locale and settings.
+		 * An optional timestamp that will be displayed in comments.
+		 * The date will be formatted according to the user's locale and settings.
 		 */
-		detail?: Date | string
+		timestamp?: Date;
 	}
 }

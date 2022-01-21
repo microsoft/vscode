@@ -19,7 +19,7 @@ import { IntervalNode, IntervalTree } from 'vs/editor/common/model/intervalTree'
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { WorkspaceTextEdit } from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
+import { FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';

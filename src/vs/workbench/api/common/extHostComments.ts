@@ -618,30 +618,28 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 		const iconPath = vscodeComment.author && vscodeComment.author.iconPath ? vscodeComment.author.iconPath.toString() : undefined;
 
-		if (vscodeComment.detail) {
+		if (vscodeComment.timestamp) {
 			checkProposedApiEnabled(thread.extensionDescription, 'commentTimestamp');
 		}
 
-		let detail: { $mid: MarshalledId.Date, source: any } | string | undefined;
-		if (vscodeComment.detail && (typeof vscodeComment.detail !== 'string')) {
-			detail = {
-				source: vscodeComment.detail,
+		let timestamp: { $mid: MarshalledId.Date, source: any } | undefined;
+		if (vscodeComment.timestamp) {
+			timestamp = {
+				source: vscodeComment.timestamp,
 				$mid: MarshalledId.Date
 			};
-		} else {
-			detail = vscodeComment.detail;
 		}
 
 		return {
 			mode: vscodeComment.mode,
 			contextValue: vscodeComment.contextValue,
 			uniqueIdInThread: commentUniqueId,
-			body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
+			body: (typeof vscodeComment.body === 'string') ? vscodeComment.body : extHostTypeConverter.MarkdownString.from(vscodeComment.body),
 			userName: vscodeComment.author.name,
 			userIconPath: iconPath,
 			label: vscodeComment.label,
 			commentReactions: vscodeComment.reactions ? vscodeComment.reactions.map(reaction => convertToReaction(reaction)) : undefined,
-			detail: detail
+			timestamp
 		};
 	}
 
