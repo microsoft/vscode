@@ -35,8 +35,8 @@ import { EventType } from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { isWindows } from 'vs/base/common/platform';
-import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+
 const pathSeparator = isWindows ? '\\' : '/';
 const filePrefix = 'file:' + pathSeparator.repeat(2);
 
@@ -68,17 +68,13 @@ class TestFileService extends FileService {
 	}
 }
 
-class TestXtermTerminal extends XtermTerminal {
-	override get commandTracker(): CommandTrackerAddon { return new CommandTrackerAddon(new TerminalCapabilityStore()); }
-}
-
 suite('Workbench - TerminalWordLinkProvider', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let themeService: TestThemeService;
 	let fileService: TestFileService;
 	let viewDescriptorService: TestViewDescriptorService;
-	let xterm: TestXtermTerminal;
+	let xterm: XtermTerminal;
 	let configHelper: ITerminalConfigHelper;
 	let capabilities: TerminalCapabilityStore;
 	let activationResult: ITerminalLinkActivationResult | undefined;
@@ -133,16 +129,12 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
-		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
+		xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, capabilities);
 	});
 
 	async function assertLink(text: string, expected: { text: string, range: [number, number][], linkActivationResult?: ITerminalLinkActivationResult }[], registerCwdDetectionCapability?: boolean, cwd?: string, files?: string[]) {
 		xterm?.dispose();
-		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
-		// TODO: Make sure tests pass - cwd now belongs to command detection capability
-		// if (cwd) {
-		// 	xterm.commandTracker.setCwd(cwd);
-		// }
+		xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, capabilities);
 		if (registerCwdDetectionCapability) {
 			capabilities = new TerminalCapabilityStore();
 			capabilities.add(TerminalCapability.CwdDetection, new CwdDetectionCapability());
