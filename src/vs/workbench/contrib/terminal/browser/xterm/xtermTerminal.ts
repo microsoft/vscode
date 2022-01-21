@@ -181,13 +181,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			if (links) {
 				const { wordLinks, webLinks, fileLinks } = links;
 				if (wordLinks && wordLinks.length) {
-					wordResults!.push(...wordLinks.reverse());
+					wordResults.push(...wordLinks.reverse());
 				}
 				if (webLinks && webLinks.length) {
-					webResults!.push(...webLinks.reverse());
+					webResults.push(...webLinks.reverse());
 				}
 				if (fileLinks && fileLinks.length) {
-					fileResults!.push(...fileLinks.reverse());
+					fileResults.push(...fileLinks.reverse());
 				}
 			}
 		}
