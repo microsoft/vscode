@@ -151,6 +151,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		}
 
 		await this.proxy.$runTests({
+			isUiTriggered: false,
 			targets: [{
 				testIds: req.include?.map(t => t.id) ?? [controller.collection.root.id],
 				profileGroup: profileGroupToBitset[profile.kind],
