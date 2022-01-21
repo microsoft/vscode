@@ -45,7 +45,7 @@ export function injectShellIntegrationArgs(logService: ILogService, enableShellI
 				'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
 			];
 		} else {
-			logService.warn(`Shell integration cannot be enabled with custom args ${originalArgs} are provided for ${shell} on Windows.`);
+			logService.warn(`Shell integration cannot be enabled when custom args ${originalArgs} are provided for ${shell} on Windows.`);
 		}
 	} else {
 		switch (shell) {
