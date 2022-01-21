@@ -12,8 +12,8 @@ import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle, EditorOption } fr
 import { Position } from 'vs/editor/common/core/position';
 import { editorCursorBackground, editorCursorForeground } from 'vs/editor/common/core/editorColorRegistry';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export class ViewCursors extends ViewPart {

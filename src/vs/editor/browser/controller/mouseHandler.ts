@@ -16,8 +16,8 @@ import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { HorizontalPosition } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 

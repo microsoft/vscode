@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
 
 export class ViewEventHandler extends Disposable {
 

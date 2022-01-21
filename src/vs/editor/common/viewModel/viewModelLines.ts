@@ -13,7 +13,7 @@ import { IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity }
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide, IndentGuideHorizontalLine } from 'vs/editor/common/model/guidesTextModelPart';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
 import { createModelLineProjection, IModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
 import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/modelLineProjectionData';
 import { ConstantTimePrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';

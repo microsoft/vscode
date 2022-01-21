@@ -9,8 +9,8 @@ import { IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrow
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Position } from 'vs/editor/common/core/position';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
 import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IWhitespaceChangeAccessor, IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';

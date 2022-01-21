@@ -13,7 +13,7 @@ import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOp
 import { Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { HorizontalPosition } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorColumns } from 'vs/editor/common/cursor/cursorCommon';
 import * as dom from 'vs/base/browser/dom';

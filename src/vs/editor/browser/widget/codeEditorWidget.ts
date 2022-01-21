@@ -40,7 +40,7 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguag
 import * as modes from 'vs/editor/common/languages';
 import { editorUnnecessaryCodeBorder, editorUnnecessaryCodeOpacity } from 'vs/editor/common/core/editorColorRegistry';
 import { editorErrorBorder, editorErrorForeground, editorHintBorder, editorHintForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, editorForeground, editorErrorBackground, editorInfoBackground, editorWarningBackground } from 'vs/platform/theme/common/colorRegistry';
-import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
+import { VerticalRevealType } from 'vs/editor/common/viewModel/viewEvents';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { ICommandService } from 'vs/platform/commands/common/commands';
