@@ -26,12 +26,12 @@ async function writeP(terminal: Terminal, data: string): Promise<void> {
 
 class TestShellIntegrationAddon extends ShellIntegrationAddon {
 	getCommandDetectionMock(terminal: Terminal): sinon.SinonMock {
-		const capability = super._createCommandDetection(terminal);
+		const capability = super._createOrGetCommandDetection(terminal);
 		this.capabilities.add(TerminalCapability.CommandDetection, capability);
 		return sinon.mock(capability);
 	}
 	getCwdDectionMock(): sinon.SinonMock {
-		const capability = super._createCwdDetection();
+		const capability = super._createOrGetCwdDetection();
 		this.capabilities.add(TerminalCapability.CwdDetection, capability);
 		return sinon.mock(capability);
 	}

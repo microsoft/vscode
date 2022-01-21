@@ -87,6 +87,11 @@ export const enum ShellIntegrationInteraction {
 	CommandFinished = 'COMMAND_FINISHED'
 }
 
+/**
+ * The shell integration addon extends xterm by reading shell integration sequences and creating
+ * capabilities and passing along relevant sequences to the capabilities. This is meant to
+ * encapsulate all handling/parsing of sequences so the capabilities don't need to.
+ */
 export class ShellIntegrationAddon extends Disposable implements IShellIntegration, ITerminalAddon {
 	private _terminal?: Terminal;
 	readonly capabilities = new TerminalCapabilityStore();
@@ -174,29 +179,21 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		return false;
 	}
 
-	private _createOrGetCwdDetection(): CwdDetectionCapability {
+	protected _createOrGetCwdDetection(): CwdDetectionCapability {
 		let cwdDetection = this.capabilities.get(TerminalCapability.CwdDetection);
 		if (!cwdDetection) {
-			cwdDetection = this._createCwdDetection();
+			cwdDetection = new CwdDetectionCapability();
 			this.capabilities.add(TerminalCapability.CwdDetection, cwdDetection);
 		}
 		return cwdDetection;
 	}
 
-	protected _createCwdDetection(): InstanceType<typeof CwdDetectionCapability> {
-		return new CwdDetectionCapability();
-	}
-
-	private _createOrGetCommandDetection(terminal: Terminal): ICommandDetectionCapability {
+	protected _createOrGetCommandDetection(terminal: Terminal): ICommandDetectionCapability {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 		if (!commandDetection) {
-			commandDetection = this._createCommandDetection(terminal);
+			commandDetection = this._instantiationService.createInstance(CommandDetectionCapability, terminal);
 			this.capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		}
 		return commandDetection;
-	}
-
-	protected _createCommandDetection(terminal: Terminal): ICommandDetectionCapability {
-		return this._instantiationService.createInstance(CommandDetectionCapability, terminal);
 	}
 }
