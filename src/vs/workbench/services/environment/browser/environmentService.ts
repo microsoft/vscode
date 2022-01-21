@@ -7,10 +7,10 @@ import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import { IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/browser/web.api';
+import { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -18,6 +18,26 @@ import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { LogLevelToString } from 'vs/platform/log/common/log';
 import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
 import { isUndefined } from 'vs/base/common/types';
+import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export const IBrowserWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, IBrowserWorkbenchEnvironmentService>(IEnvironmentService);
+
+interface IBrowserWorkbenchOptions extends IWorkbenchConstructionOptions {
+	workspaceId: string;
+	logsPath: URI;
+}
+
+/**
+ * A subclass of the `IWorkbenchEnvironmentService` to be used only in browser
+ * environments (Electron, web).
+ */
+export interface IBrowserWorkbenchEnvironmentService extends IWorkbenchEnvironmentService {
+
+	/**
+	 * Options used to configure the workbench.
+	 */
+	readonly options?: IBrowserWorkbenchOptions;
+}
 
 class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 
@@ -73,11 +93,6 @@ class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 	}
 }
 
-interface IBrowserWorkbenchOptions extends IWorkbenchOptions {
-	workspaceId: string;
-	logsPath: URI;
-}
-
 interface IExtensionHostDebugEnvironment {
 	params: IExtensionHostDebugParams;
 	debugRenderer: boolean;
@@ -88,7 +103,7 @@ interface IExtensionHostDebugEnvironment {
 	extensionEnabledProposedApi?: string[];
 }
 
-export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
+export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
 

@@ -24,7 +24,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { isObject } from 'vs/base/common/types';
 
 export class DefaultConfiguration extends Disposable {
@@ -42,7 +42,7 @@ export class DefaultConfiguration extends Disposable {
 
 	constructor(
 		private readonly configurationCache: IConfigurationCache,
-		environmentService: IWorkbenchEnvironmentService,
+		environmentService: IBrowserWorkbenchEnvironmentService,
 	) {
 		super();
 		if (environmentService.options?.configurationDefaults) {
