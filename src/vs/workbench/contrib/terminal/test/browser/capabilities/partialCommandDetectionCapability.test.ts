@@ -41,7 +41,7 @@ suite('PartialCommandDetectionCapability', () => {
 		capability.onCommandFinished(e => addEvents.push(e));
 	});
 
-	test('should not add commands when the cursor position is to close to the left side', async () => {
+	test('should not add commands when the cursor position is too close to the left side', async () => {
 		assertCommands([]);
 		xterm._core._onKey.fire({ key: '\x0d' });
 		await writeP(xterm, '\r\n');
@@ -52,7 +52,7 @@ suite('PartialCommandDetectionCapability', () => {
 		assertCommands([]);
 	});
 
-	test('should add commands when the cursor position is to close to the left side', async () => {
+	test('should add commands when the cursor position is not too close to the left side', async () => {
 		assertCommands([]);
 		await writeP(xterm, 'ab');
 		xterm._core._onKey.fire({ key: '\x0d' });

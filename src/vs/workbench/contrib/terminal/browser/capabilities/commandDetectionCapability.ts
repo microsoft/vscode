@@ -127,7 +127,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		const command = this._currentCommand.command;
 		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, this._currentCommand.commandFinishedMarker?.line, this._currentCommand.command, this._currentCommand);
 		this._exitCode = exitCode;
-		if (!this._currentCommand.commandStartMarker?.line || !this._terminal.buffer.active) {
+		if (this._currentCommand.commandStartMarker === undefined || !this._terminal.buffer.active) {
 			return;
 		}
 		if (command && !command.startsWith('\\') && command !== '') {
