@@ -305,7 +305,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, this._productService.commit, this._productService.version + '-remote', machineId, this._productService.msftInternalDomains, this._environmentService.installSourcePath, 'remoteAgent'),
 				piiPaths: [this._environmentService.appRoot]
 			};
-			const initialTelemetryLevelArg = this._environmentService.args['initial-telemetry-level'];
+			const initialTelemetryLevelArg = this._environmentService.args['telemetry-level'];
 			let injectedTelemetryLevel: TelemetryLevel | undefined = undefined;
 			// Convert the passed in CLI argument into a telemetry level for the telemetry service
 			if (initialTelemetryLevelArg === 'all') {
