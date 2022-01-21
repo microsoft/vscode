@@ -34,7 +34,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { ITelemetryAppender, NullAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
@@ -306,8 +306,19 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, this._productService.commit, this._productService.version + '-remote', machineId, this._productService.msftInternalDomains, this._environmentService.installSourcePath, 'remoteAgent'),
 				piiPaths: [this._environmentService.appRoot]
 			};
-
-			services.set(IRemoteTelemetryService, new SyncDescriptor(RemoteTelemetryService, [config, undefined]));
+			const initialTelemetryLevelArg = this._environmentService.args['initial-telemetry-level'];
+			let injectedTelemetryLevel: TelemetryLevel | undefined = undefined;
+			// Convert the passed in CLI argument into a telemetry level for the telemetry service
+			if (initialTelemetryLevelArg === 'all') {
+				injectedTelemetryLevel = TelemetryLevel.USAGE;
+			} else if (initialTelemetryLevelArg === 'error') {
+				injectedTelemetryLevel = TelemetryLevel.ERROR;
+			} else if (initialTelemetryLevelArg === 'crash') {
+				injectedTelemetryLevel = TelemetryLevel.CRASH;
+			} else if (initialTelemetryLevelArg !== undefined) {
+				injectedTelemetryLevel = TelemetryLevel.NONE;
+			}
+			services.set(IRemoteTelemetryService, new SyncDescriptor(RemoteTelemetryService, [config, injectedTelemetryLevel]));
 		} else {
 			services.set(IRemoteTelemetryService, RemoteNullTelemetryService);
 		}
