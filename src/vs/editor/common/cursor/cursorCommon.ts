@@ -17,8 +17,8 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
-import { CursorColumns } from 'vs/editor/common/cursor/cursorColumns';
-export { CursorColumns } from './cursorColumns';
+import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
+export { CursorColumns } from '../core/cursorColumns';
 
 export interface IColumnSelectData {
 	isReal: boolean;
