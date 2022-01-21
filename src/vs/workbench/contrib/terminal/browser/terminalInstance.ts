@@ -707,7 +707,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			throw new Error('no xterm');
 		}
-
 		let links;
 		let i = this.xterm.raw.buffer.active.length;
 		while ((!links || links.length === 0) && i >= this.xterm.raw.buffer.active.viewportY) {

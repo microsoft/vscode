@@ -22,7 +22,7 @@ export class TerminalProtocolLinkProvider extends TerminalBaseLinkProvider {
 	static id: string = 'TerminalProtocolLinkProvider';
 	constructor(
 		private readonly _xterm: Terminal,
-		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => void,
+		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => Promise<void>,
 		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		private readonly _validationCallback: (link: string, callback: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => void,
