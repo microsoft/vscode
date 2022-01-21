@@ -117,8 +117,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			fastScrollModifier: 'alt',
-			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
-			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
+			fastScrollSensitivity: config.fastScrollSensitivity,
+			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType),
 			wordSeparator: config.wordSeparators
 		}));
