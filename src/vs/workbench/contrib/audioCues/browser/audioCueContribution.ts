@@ -133,7 +133,7 @@ export class AudioCueContribution extends DisposableStore implements IWorkbenchC
 							hadMarker = hasMarker;
 
 							const regionAtLine = foldingModel?.getRegionAtLine(lineNumber);
-							const hasFolding = regionAtLine?.startLineNumber === lineNumber;
+							const hasFolding = !regionAtLine ? false : regionAtLine.isCollapsed && regionAtLine.startLineNumber === lineNumber;
 							if (hasFolding && !hadFoldedArea) {
 								this.handleFoldedAreasOnLine();
 							}
