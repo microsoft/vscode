@@ -20,7 +20,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellViewModelStateChangeEvent, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { ClickTargetType, IClickTarget } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';

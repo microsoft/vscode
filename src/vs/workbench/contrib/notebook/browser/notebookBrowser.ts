@@ -16,11 +16,12 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorPane } from 'vs/workbench/common/editor';
+import { CellViewModelStateChangeEvent, NotebookCellStateChangedEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookSearchOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookDocumentMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookSearchOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
@@ -144,18 +145,6 @@ export interface IFocusNotebookCellOptions {
 }
 
 //#endregion
-
-export interface NotebookLayoutInfo {
-	width: number;
-	height: number;
-	fontInfo: FontInfo;
-}
-
-export interface NotebookLayoutChangeEvent {
-	width?: boolean;
-	height?: boolean;
-	fontInfo?: boolean;
-}
 
 export enum CellLayoutState {
 	Uninitialized,
@@ -317,40 +306,6 @@ export interface INotebookEditorCreationOptions {
 	};
 	readonly options?: NotebookOptions;
 }
-
-export enum NotebookViewEventType {
-	LayoutChanged = 1,
-	MetadataChanged = 2,
-	CellStateChanged = 3
-}
-
-export class NotebookLayoutChangedEvent {
-	public readonly type = NotebookViewEventType.LayoutChanged;
-
-	constructor(readonly source: NotebookLayoutChangeEvent, readonly value: NotebookLayoutInfo) {
-
-	}
-}
-
-
-export class NotebookMetadataChangedEvent {
-	public readonly type = NotebookViewEventType.MetadataChanged;
-
-	constructor(readonly source: NotebookDocumentMetadata) {
-
-	}
-}
-
-export class NotebookCellStateChangedEvent {
-	public readonly type = NotebookViewEventType.CellStateChanged;
-
-	constructor(readonly source: CellViewModelStateChangeEvent, readonly cell: ICellViewModel) {
-
-	}
-}
-
-
-export type NotebookViewEvent = NotebookLayoutChangedEvent | NotebookMetadataChangedEvent | NotebookCellStateChangedEvent;
 
 export interface INotebookWebviewMessage {
 	message: unknown;
@@ -688,23 +643,6 @@ export enum CursorAtBoundary {
 	Top,
 	Bottom,
 	Both
-}
-
-export interface CellViewModelStateChangeEvent {
-	readonly metadataChanged?: boolean;
-	readonly internalMetadataChanged?: boolean;
-	readonly selectionChanged?: boolean;
-	readonly focusModeChanged?: boolean;
-	readonly editStateChanged?: boolean;
-	readonly languageChanged?: boolean;
-	readonly foldingStateChanged?: boolean;
-	readonly contentChanged?: boolean;
-	readonly outputIsHoveredChanged?: boolean;
-	readonly outputIsFocusedChanged?: boolean;
-	readonly cellIsHoveredChanged?: boolean;
-	readonly cellLineNumberChanged?: boolean;
-	readonly inputCollapsedChanged?: boolean;
-	readonly outputCollapsedChanged?: boolean;
 }
 
 export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INotebookEditor | undefined {
