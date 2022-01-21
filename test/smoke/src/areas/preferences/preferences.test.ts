@@ -8,12 +8,12 @@ import { Application, ActivityBarPosition, Logger } from '../../../../automation
 import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
-	describe('Preferences', () => {
+	describe.skip('Preferences', () => { // TODO@sandy081 TODO@roblourens https://github.com/microsoft/vscode/issues/141054
 
 		// Shared before/after handling
 		installAllHandlers(logger);
 
-		it.skip('turns off editor line numbers and verifies the live change', async function () { // https://github.com/microsoft/vscode/issues/141054
+		it('turns off editor line numbers and verifies the live change', async function () {
 			const app = this.app as Application;
 			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'app.js'));
 			await app.code.waitForElements('.line-numbers', false, elements => !!elements.length);
