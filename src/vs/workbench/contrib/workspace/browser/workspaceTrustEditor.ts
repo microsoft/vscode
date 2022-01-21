@@ -30,7 +30,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Link } from 'vs/platform/opener/browser/link';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { isVirtualResource, isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
+import { isVirtualResource, isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { buttonBackground, buttonSecondaryBackground, editorErrorForeground } from 'vs/platform/theme/common/colorRegistry';

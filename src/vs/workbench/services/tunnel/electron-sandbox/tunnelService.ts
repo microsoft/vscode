@@ -7,7 +7,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITunnelService, AbstractTunnelService, RemoteTunnel, TunnelPrivacyId } from 'vs/platform/remote/common/tunnel';
+import { ITunnelService, AbstractTunnelService, RemoteTunnel, TunnelPrivacyId } from 'vs/platform/tunnel/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';

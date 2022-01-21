@@ -17,7 +17,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -25,7 +25,8 @@ import { isWeb } from 'vs/base/common/platform';
 import { once } from 'vs/base/common/functional';
 import { truncate } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { getRemoteName, getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
+import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
@@ -36,7 +37,6 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { RemoteNameContext, VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
@@ -66,7 +66,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IMenuService private menuService: IMenuService,

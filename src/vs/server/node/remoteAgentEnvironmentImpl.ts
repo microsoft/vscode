@@ -30,6 +30,7 @@ import { IExtensionManagementCLIService, InstallOptions } from 'vs/platform/exte
 import { cwd } from 'vs/base/common/process';
 import { Promises } from 'vs/base/node/pfs';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
 
 let _SystemExtensionsRoot: string | null = null;
 function getSystemExtensionsRoot(): string {
@@ -54,7 +55,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	private readonly whenExtensionsReady: Promise<void>;
 
 	constructor(
-		private readonly _connectionToken: string,
+		private readonly _connectionToken: ServerConnectionToken,
 		private readonly environmentService: IServerEnvironmentService,
 		extensionManagementCLIService: IExtensionManagementCLIService,
 		private readonly logService: ILogService,
@@ -310,7 +311,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	private async _getEnvironmentData(): Promise<IRemoteAgentEnvironmentDTO> {
 		return {
 			pid: process.pid,
-			connectionToken: this._connectionToken,
+			connectionToken: (this._connectionToken.type !== ServerConnectionTokenType.None ? this._connectionToken.value : ''),
 			appRoot: URI.file(this.environmentService.appRoot),
 			settingsPath: this.environmentService.machineSettingsResource,
 			logsPath: URI.file(this.environmentService.logsPath),

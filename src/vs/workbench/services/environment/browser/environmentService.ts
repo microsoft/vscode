@@ -7,22 +7,36 @@ import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
+import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import { IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import type { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { LogLevelToString } from 'vs/platform/log/common/log';
-import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
 import { isUndefined } from 'vs/base/common/types';
+import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export const IBrowserWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, IBrowserWorkbenchEnvironmentService>(IEnvironmentService);
+
+/**
+ * A subclass of the `IWorkbenchEnvironmentService` to be used only environments
+ * where the web API is available (browsers, Electron).
+ */
+export interface IBrowserWorkbenchEnvironmentService extends IWorkbenchEnvironmentService {
+
+	/**
+	 * Options used to configure the workbench.
+	 */
+	readonly options?: IWorkbenchConstructionOptions;
+}
 
 class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 
 	constructor(
-		private readonly options: IBrowserWorkbenchOptions,
+		private readonly options: IWorkbenchConstructionOptions,
 		private readonly payload: Map<string, string> | undefined
 	) { }
 
@@ -73,11 +87,6 @@ class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 	}
 }
 
-interface IBrowserWorkbenchOptions extends IWorkbenchOptions {
-	workspaceId: string;
-	logsPath: URI;
-}
-
 interface IExtensionHostDebugEnvironment {
 	params: IExtensionHostDebugParams;
 	debugRenderer: boolean;
@@ -88,7 +97,7 @@ interface IExtensionHostDebugEnvironment {
 	extensionEnabledProposedApi?: string[];
 }
 
-export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
+export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -108,13 +117,13 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get isBuilt(): boolean { return !!this.productService.commit; }
 
 	@memoize
-	get logsPath(): string { return this.options.logsPath.path; }
+	get logsPath(): string { return this.logsHome.path; }
 
 	@memoize
 	get logLevel(): string | undefined { return this.payload?.get('logLevel') || (this.options.developmentOptions?.logLevel !== undefined ? LogLevelToString(this.options.developmentOptions?.logLevel) : undefined); }
 
 	@memoize
-	get logFile(): URI { return joinPath(this.options.logsPath, 'window.log'); }
+	get logFile(): URI { return joinPath(this.logsHome, 'window.log'); }
 
 	@memoize
 	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.userData }); }
@@ -137,16 +146,18 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	@memoize
 	get workspaceStorageHome(): URI { return URI.joinPath(this.userRoamingDataHome, 'workspaceStorage'); }
 
-	/*
-	 * In Web every workspace can potentially have scoped user-data and/or extensions and if Sync state is shared then it can make
-	 * Sync error prone - say removing extensions from another workspace. Hence scope Sync state per workspace.
-	 * Sync scoped to a workspace is capable of handling opening same workspace in multiple windows.
+	/**
+	 * In Web every workspace can potentially have scoped user-data
+	 * and/or extensions and if Sync state is shared then it can make
+	 * Sync error prone - say removing extensions from another workspace.
+	 * Hence scope Sync state per workspace. Sync scoped to a workspace
+	 * is capable of handling opening same workspace in multiple windows.
 	 */
 	@memoize
-	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync', this.options.workspaceId); }
+	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync', this.workspaceId); }
 
 	@memoize
-	get userDataSyncLogResource(): URI { return joinPath(this.options.logsPath, 'userDataSync.log'); }
+	get userDataSyncLogResource(): URI { return joinPath(this.logsHome, 'userDataSync.log'); }
 
 	@memoize
 	get sync(): 'on' | 'off' | undefined { return undefined; }
@@ -164,7 +175,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
 
 	@memoize
-	get extHostLogsPath(): URI { return joinPath(this.options.logsPath, 'exthost'); }
+	get extHostLogsPath(): URI { return joinPath(this.logsHome, 'exthost'); }
 
 	private _extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
 	get debugExtensionHost(): IExtensionHostDebugParams {
@@ -240,7 +251,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	}
 
 	@memoize
-	get telemetryLogResource(): URI { return joinPath(this.options.logsPath, 'telemetry.log'); }
+	get telemetryLogResource(): URI { return joinPath(this.logsHome, 'telemetry.log'); }
 	get disableTelemetry(): boolean { return false; }
 
 	get verbose(): boolean { return this.payload?.get('verbose') === 'true'; }
@@ -255,7 +266,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	private payload: Map<string, string> | undefined;
 
 	constructor(
-		readonly options: IBrowserWorkbenchOptions,
+		private readonly workspaceId: string,
+		private readonly logsHome: URI,
+		readonly options: IWorkbenchConstructionOptions,
 		private readonly productService: IProductService
 	) {
 		if (options.workspaceProvider && Array.isArray(options.workspaceProvider.payload)) {

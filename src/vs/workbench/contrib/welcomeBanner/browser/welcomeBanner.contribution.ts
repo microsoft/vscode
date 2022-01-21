@@ -8,7 +8,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { URI } from 'vs/base/common/uri';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
@@ -19,7 +19,7 @@ class WelcomeBannerContribution {
 	constructor(
 		@IBannerService bannerService: IBannerService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService
 	) {
 		const welcomeBanner = environmentService.options?.welcomeBanner;
 		if (!welcomeBanner) {

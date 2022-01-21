@@ -5,7 +5,6 @@
 
 import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
 import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -20,6 +19,13 @@ export interface IExtensionHostDebugParams extends IDebugParams {
 	debugId?: string;
 	env?: Record<string, string>;
 }
+
+/**
+ * Type of extension.
+ *
+ * **NOTE**: This is defined in `platform/environment` because it can appear as a CLI argument.
+ */
+export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
 /**
  * A basic environment service that can be used in various processes,

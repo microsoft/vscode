@@ -1709,14 +1709,14 @@ export enum CommentMode {
  */
 export interface Comment {
 	readonly uniqueIdInThread: number;
-	readonly body: IMarkdownString;
+	readonly body: string | IMarkdownString;
 	readonly userName: string;
 	readonly userIconPath?: string;
 	readonly contextValue?: string;
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
 	readonly mode?: CommentMode;
-	readonly detail?: Date | string;
+	readonly timestamp?: Date;
 }
 
 /**

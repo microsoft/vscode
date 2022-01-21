@@ -15,7 +15,7 @@ import { IAuthenticationService } from 'vs/workbench/services/authentication/bro
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
 const TRUSTED_DOMAINS_URI = URI.parse('trustedDomains:/Trusted Domains');
 
@@ -214,7 +214,7 @@ export async function readAuthenticationTrustedDomains(accessor: ServicesAccesso
 export function readStaticTrustedDomains(accessor: ServicesAccessor): IStaticTrustedDomains {
 	const storageService = accessor.get(IStorageService);
 	const productService = accessor.get(IProductService);
-	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
 
 	const defaultTrustedDomains = [
 		...productService.linkProtectionTrustedDomains ?? [],

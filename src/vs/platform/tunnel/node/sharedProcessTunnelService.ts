@@ -5,7 +5,7 @@
 
 import { ILogService } from 'vs/platform/log/common/log';
 import { ISharedProcessTunnel, ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
-import { ISharedTunnelsService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { ISharedTunnelsService, RemoteTunnel } from 'vs/platform/tunnel/common/tunnel';
 import { IAddress, IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { canceled } from 'vs/base/common/errors';

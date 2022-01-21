@@ -16,8 +16,6 @@ import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/s
 import { localize } from 'vs/nls';
 import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { TunnelFactoryContribution } from 'vs/workbench/contrib/remote/common/tunnelFactory';
-import { ShowCandidateContribution } from 'vs/workbench/contrib/remote/common/showCandidate';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -162,8 +160,6 @@ workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, 
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteInvalidWorkspaceDetector, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
-workbenchContributionsRegistry.registerWorkbenchContribution(TunnelFactoryContribution, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(ShowCandidateContribution, LifecyclePhase.Ready);
 
 const enableDiagnostics = true;
 

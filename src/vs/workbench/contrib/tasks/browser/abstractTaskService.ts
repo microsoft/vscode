@@ -3013,7 +3013,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			switch (taskSource) {
 				case TaskSourceKind.User: tasksExistInFile = this.configHasTasks(configValue.userValue); target = ConfigurationTarget.USER; break;
 				case TaskSourceKind.WorkspaceFile: tasksExistInFile = this.configHasTasks(configValue.workspaceValue); target = ConfigurationTarget.WORKSPACE; break;
-				default: tasksExistInFile = this.configHasTasks(configValue.value); target = ConfigurationTarget.WORKSPACE_FOLDER;
+				default: tasksExistInFile = this.configHasTasks(configValue.workspaceFolderValue); target = ConfigurationTarget.WORKSPACE_FOLDER;
 			}
 			let content;
 			if (!tasksExistInFile) {
@@ -3156,7 +3156,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						}
 					}
 				}
-				if (needsCreateOrOpen) {
+				if (needsCreateOrOpen || (taskMap.get(USER_TASKS_GROUP_KEY).length === tasks.length)) {
 					let label = stats[0] !== undefined ? openLabel : createLabel;
 					if (entries.length) {
 						entries.push({ type: 'separator' });

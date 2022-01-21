@@ -8,7 +8,6 @@ import { dirname, sep } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import * as byline from 'byline';
-import path = require('path');
 
 export const isMacintosh = process.platform === 'darwin';
 export const isWindows = process.platform === 'win32';
@@ -288,16 +287,6 @@ export function detectUnicodeEncoding(buffer: Buffer): Encoding | null {
 	return null;
 }
 
-function normalizePath(path: string): string {
-	// Windows & Mac are currently being handled
-	// as case insensitive file systems in VS Code.
-	if (isWindows || isMacintosh) {
-		return path.toLowerCase();
-	}
-
-	return path;
-}
-
 export function isDescendant(parent: string, descendant: string): boolean {
 	if (parent === descendant) {
 		return true;
@@ -307,15 +296,25 @@ export function isDescendant(parent: string, descendant: string): boolean {
 		parent += sep;
 	}
 
-	return normalizePath(descendant).startsWith(normalizePath(parent));
+	// Windows & Mac are currently being handled
+	// as case insensitive file systems in VS Code.
+	if (isWindows || isMacintosh) {
+		parent = parent.toLowerCase();
+		descendant = descendant.toLowerCase();
+	}
+
+	return descendant.startsWith(parent);
 }
 
 export function pathEquals(a: string, b: string): boolean {
-	return normalizePath(a) === normalizePath(b);
-}
+	// Windows & Mac are currently being handled
+	// as case insensitive file systems in VS Code.
+	if (isWindows || isMacintosh) {
+		a = a.toLowerCase();
+		b = b.toLowerCase();
+	}
 
-export function relativePath(from: string, to: string): string {
-	return path.relative(normalizePath(from), normalizePath(to));
+	return a === b;
 }
 
 export function* splitInChunks(array: string[], maxChunkLength: number): IterableIterator<string[]> {

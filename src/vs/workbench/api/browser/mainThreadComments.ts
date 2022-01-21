@@ -152,7 +152,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 				userName: comment.userName,
 				commentReactions: comment.commentReactions,
 				contextValue: comment.contextValue,
-				detail: comment.detail ? <Date | string>revive<Date | string>(comment.detail) : undefined,
+				timestamp: comment.timestamp ? <Date>revive<Date>(comment.timestamp) : undefined,
 				label: comment.label,
 				mode: comment.mode,
 				userIconPath: comment.userIconPath

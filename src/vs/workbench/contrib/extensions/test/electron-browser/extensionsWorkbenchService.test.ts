@@ -34,7 +34,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionType, IExtension, ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
+import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentService';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';

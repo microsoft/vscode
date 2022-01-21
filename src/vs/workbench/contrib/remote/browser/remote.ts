@@ -17,7 +17,7 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { AutomaticPortForwarding, ForwardedPortsView, PortRestore, VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
+import { VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -27,14 +27,13 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { IProgress, IProgressStep, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ReconnectionWaitEvent, PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/remote/browser/explorerViewItems';
 import { Action } from 'vs/base/common/actions';
 import { isStringArray } from 'vs/base/common/types';
@@ -48,13 +47,11 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Event } from 'vs/base/common/event';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
 import * as icons from 'vs/workbench/contrib/remote/browser/remoteIcons';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-
 
 export interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -582,7 +579,7 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 		order: 4
 	}, ViewContainerLocation.Sidebar);
 
-class RemoteMarkers implements IWorkbenchContribution {
+export class RemoteMarkers implements IWorkbenchContribution {
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
@@ -701,7 +698,7 @@ class ReconnectionTimer implements IDisposable {
  */
 const DISCONNECT_PROMPT_TIME = 40 * 1000; // 40 seconds
 
-class RemoteAgentConnectionStatusListener extends Disposable implements IWorkbenchContribution {
+export class RemoteAgentConnectionStatusListener extends Disposable implements IWorkbenchContribution {
 
 	private _reloadWindowShown: boolean = false;
 
@@ -963,11 +960,3 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 		}
 	}
 }
-
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicator, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(ForwardedPortsView, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(PortRestore, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteMarkers, LifecyclePhase.Eventually);
