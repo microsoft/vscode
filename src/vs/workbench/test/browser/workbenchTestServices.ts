@@ -1757,6 +1757,7 @@ export class TestTerminalEditorService implements ITerminalEditorService {
 	instances: readonly ITerminalInstance[] = [];
 	onDidDisposeInstance = Event.None;
 	onDidFocusInstance = Event.None;
+	onDidChangeInstanceCapability = Event.None;
 	onDidChangeActiveInstance = Event.None;
 	onDidChangeInstances = Event.None;
 	openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void> { throw new Error('Method not implemented.'); }
@@ -1789,6 +1790,7 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	onDidChangePanelOrientation = Event.None;
 	onDidDisposeInstance = Event.None;
 	onDidFocusInstance = Event.None;
+	onDidChangeInstanceCapability = Event.None;
 	onDidChangeActiveInstance = Event.None;
 	onDidChangeInstances = Event.None;
 	createGroup(instance?: any): ITerminalGroup { throw new Error('Method not implemented.'); }

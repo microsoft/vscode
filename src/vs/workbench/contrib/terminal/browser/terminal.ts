@@ -332,6 +332,7 @@ export interface ITerminalInstanceHost {
 	readonly onDidFocusInstance: Event<ITerminalInstance>;
 	readonly onDidChangeActiveInstance: Event<ITerminalInstance | undefined>;
 	readonly onDidChangeInstances: Event<void>;
+	readonly onDidChangeInstanceCapability: Event<ITerminalInstance>;
 
 	setActiveInstance(instance: ITerminalInstance): void;
 	/**

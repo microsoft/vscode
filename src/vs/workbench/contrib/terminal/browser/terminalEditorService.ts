@@ -39,6 +39,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	readonly onDidDisposeInstance = this._onDidDisposeInstance.event;
 	private readonly _onDidFocusInstance = new Emitter<ITerminalInstance>();
 	readonly onDidFocusInstance = this._onDidFocusInstance.event;
+	private readonly _onDidChangeInstanceCapability = new Emitter<ITerminalInstance>();
+	readonly onDidChangeInstanceCapability = this._onDidChangeInstanceCapability.event;
 	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
 	readonly onDidChangeActiveInstance = this._onDidChangeActiveInstance.event;
 	private readonly _onDidChangeInstances = new Emitter<void>();
@@ -228,7 +230,9 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._editorInputs.set(inputKey, input);
 		this._instanceDisposables.set(inputKey, [
 			instance.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance),
-			instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
+			instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance),
+			instance.capabilities.onDidAddCapability(() => this._onDidChangeInstanceCapability.fire(instance)),
+			instance.capabilities.onDidRemoveCapability(() => this._onDidChangeInstanceCapability.fire(instance)),
 		]);
 		this.instances.push(instance);
 		this._onDidChangeInstances.fire();
