@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { main } from 'vs/workbench/browser/web.main';
+import { IWorkbench, main } from 'vs/workbench/browser/web.main';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
 import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
@@ -14,7 +14,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/base/common/product';
-import { mark } from 'vs/base/common/performance';
+import { mark, PerformanceMark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -377,19 +377,6 @@ interface IDevelopmentOptions {
 	readonly enableSmokeTestDriver?: boolean;
 }
 
-interface IPerformanceMark {
-
-	/**
-	 * The name of a performace marker.
-	 */
-	readonly name: string;
-
-	/**
-	 * The UNIX timestamp at which the marker has been set.
-	 */
-	readonly startTime: number;
-}
-
 interface IWorkbenchConstructionOptions {
 
 	//#region Connection related configuration
@@ -586,48 +573,6 @@ interface IWorkbenchConstructionOptions {
 
 }
 
-interface IWorkbench {
-
-	commands: {
-
-		/**
-		 * @see [executeCommand](#commands.executeCommand)
-		 */
-		executeCommand(command: string, ...args: any[]): Promise<unknown>;
-	}
-
-	env: {
-
-		/**
-		 * @see [getUriScheme](#env.getUriScheme)
-		 */
-		readonly uriScheme: string;
-
-		/**
-		 * @see [retrievePerformanceMarks](#commands.retrievePerformanceMarks)
-		 */
-		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
-
-		/**
-		 * @see [openUri](#env.openUri)
-		 */
-		openUri(target: URI): Promise<boolean>;
-	}
-
-	/**
-	 * Triggers shutdown of the workbench programmatically. After this method is
-	 * called, the workbench is not usable anymore and the page needs to reload
-	 * or closed.
-	 *
-	 * This will also remove any `beforeUnload` handlers that would bring up a
-	 * confirmation dialog.
-	 *
-	 * The returned promise should be awaited on to ensure any data to persist
-	 * has been persisted.
-	 */
-	shutdown: () => Promise<void>;
-}
-
 /**
  * Creates the workbench with the provided options in the provided container.
  *
@@ -719,7 +664,7 @@ namespace env {
 	 *
 	 * @returns A promise that resolves to tuples of source and marks.
 	 */
-	export async function retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]> {
+	export async function retrievePerformanceMarks(): Promise<[string, readonly PerformanceMark[]][]> {
 		const workbench = await workbenchPromise.p;
 
 		return workbench.env.retrievePerformanceMarks();
@@ -828,7 +773,6 @@ export {
 	IRange as ISelection,
 
 	// Env
-	IPerformanceMark,
 	env,
 
 	// Development
