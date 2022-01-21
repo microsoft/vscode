@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
 import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
 import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/naiveCwdDetectionCapability';
-import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/partialCommandDetectionCapability';
+import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/partialCommandDetectionCapability';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 
 /**

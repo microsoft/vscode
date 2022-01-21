@@ -22,7 +22,6 @@ import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/ca
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TerminalCapability, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
-import { CognisantCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/cognisantCommandTrackerAddon';
 import { TestViewDescriptorService } from 'vs/workbench/contrib/terminal/test/browser/xterm/xtermTerminal.test';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -36,6 +35,7 @@ import { EventType } from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { isWindows } from 'vs/base/common/platform';
+import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 const pathSeparator = isWindows ? '\\' : '/';
 const filePrefix = 'file:' + pathSeparator.repeat(2);
 
@@ -67,14 +67,8 @@ class TestFileService extends FileService {
 	}
 }
 
-class TestCommandTracker extends CognisantCommandTrackerAddon {
-	setCwd(cwd: string): void {
-		// this._currentCwd = cwd;
-	}
-}
-
 class TestXtermTerminal extends XtermTerminal {
-	override get commandTracker(): TestCommandTracker { return new TestCommandTracker(new NullLogService()); }
+	override get commandTracker(): CommandTrackerAddon { return new CommandTrackerAddon(new TerminalCapabilityStore()); }
 }
 
 suite('Workbench - TerminalWordLinkProvider', () => {
@@ -144,9 +138,10 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 	async function assertLink(text: string, expected: { text: string, range: [number, number][], linkActivationResult?: ITerminalLinkActivationResult }[], registerCwdDetectionCapability?: boolean, cwd?: string, files?: string[]) {
 		xterm?.dispose();
 		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
-		if (cwd) {
-			xterm.commandTracker.setCwd(cwd);
-		}
+		// TODO: Make sure tests pass - cwd now belongs to command detection capability
+		// if (cwd) {
+		// 	xterm.commandTracker.setCwd(cwd);
+		// }
 		if (registerCwdDetectionCapability) {
 			capabilities = new TerminalCapabilityStore();
 			capabilities.add(TerminalCapability.CwdDetection, new CwdDetectionCapability());

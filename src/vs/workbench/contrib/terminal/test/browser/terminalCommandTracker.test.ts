@@ -5,10 +5,11 @@
 
 import * as assert from 'assert';
 import { Terminal } from 'xterm';
-import { CommandTrackerAddon, NaiveCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
+import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { isWindows } from 'vs/base/common/platform';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { timeout } from 'vs/base/common/async';
+import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 
 interface TestTerminal extends Terminal {
 	_core: IXtermCore;
@@ -48,7 +49,7 @@ suite('Workbench - TerminalCommandTracker', function () {
 			data += `${i}\n`;
 		}
 		await writeP(xterm, data);
-		commandTracker = new NaiveCommandTrackerAddon();
+		commandTracker = new CommandTrackerAddon(new TerminalCapabilityStore());
 		xterm.loadAddon(commandTracker);
 	});
 

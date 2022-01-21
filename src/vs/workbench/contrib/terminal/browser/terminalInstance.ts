@@ -569,7 +569,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('Terminal disposed of during xterm.js creation');
 		}
 
-		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel);
+		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this.capabilities);
 		this.xterm = xterm;
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
@@ -1293,20 +1293,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const originalArgs = shellLaunchConfig.args;
 		const shell = path.basename(shellLaunchConfig.executable);
 		let newArgs: string | string[] | undefined;
-		if (this._processManager.os === OperatingSystem.Windows) {
-			if (shell === 'pwsh' && !originalArgs || originalArgs === [] || (originalArgs?.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase()))) {
-				newArgs = [
-					'-noexit',
-					'-command',
-					'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
-				];
-			} else if (originalArgs?.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase())) {
-				newArgs = [
-					originalArgs[0],
-					'-noexit',
-					'-command',
-					'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
-				];
+		if (isWindows) {
+			if (shell === 'pwsh.exe') {
+				if (!originalArgs || originalArgs === [] || (originalArgs?.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase()))) {
+					newArgs = [
+						'-noexit',
+						'-command',
+						'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
+					];
+				} else if (originalArgs?.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase())) {
+					newArgs = [
+						originalArgs[0],
+						'-noexit',
+						'-command',
+						'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
+					];
+				}
 			}
 		} else {
 			switch (shell) {

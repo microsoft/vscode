@@ -41,7 +41,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	readonly onCommandFinished = this._onCommandFinished.event;
 
 	constructor(
-		private _terminal: Terminal,
+		private readonly _terminal: Terminal,
 		@ILogService private readonly _logService: ILogService
 	) {
 	}

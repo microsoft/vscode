@@ -345,7 +345,10 @@ export interface ITerminalCommand {
 		readonly id: number;
 		readonly isDisposed: boolean;
 		readonly line: number;
-		onDispose(listener: () => any): { dispose(): void };
+		dispose(): void;
+		onDispose: {
+			(listener: () => any): { dispose(): void };
+		}
 	};
 	getOutput(): string | undefined;
 }
