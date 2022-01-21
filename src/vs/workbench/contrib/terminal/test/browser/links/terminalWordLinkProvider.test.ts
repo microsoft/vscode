@@ -280,9 +280,11 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		await assertLink('file:///C:/users/test/file.txt:1:10 ', [{ range: [[1, 1], [35, 1]], text: 'file:///C:/users/test/file.txt:1:10' }]);
 	});
 	test('should apply the cwd to the link only when the file exists and cwdDetection is enabled', async () => {
-		const { text, cwd, filePath } = generateLinkArgs(['Users', 'home', 'folder']);
-		await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: { link: isWindows ? filePath : filePrefix + filePath, source: 'editor' } }], true, cwd, [filePath]);
-		await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: { link: text, source: 'quickpick' } }], true, cwd, []);
+		if (!isWindows) {
+			const { text, cwd, filePath } = generateLinkArgs(['Users', 'home', 'folder']);
+			await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: { link: filePrefix + filePath, source: 'editor' } }], true, cwd, [filePath]);
+			await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: { link: text, source: 'quickpick' } }], true, cwd, []);
+		}
 	});
 	test('should not add the cwd to the link when cwdDetection is not enabled', async () => {
 		const { text, cwd, filePath } = generateLinkArgs(['Users', 'home', 'folder']);
