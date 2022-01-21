@@ -103,6 +103,11 @@ declare module 'vscode' {
 		 */
 		command?: Command;
 
+		/**
+		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
+		 * Defaults to `false`.
+		*/
+		completeBracketPairs?: boolean;
 		constructor(text: string, range?: Range, command?: Command);
 	}
 

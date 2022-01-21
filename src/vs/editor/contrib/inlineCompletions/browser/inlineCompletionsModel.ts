@@ -22,6 +22,8 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { inlineSuggestCommitId } from './consts';
 import { SharedInlineCompletionCache } from './ghostTextModel';
 import { inlineCompletionToGhostText, NormalizedInlineCompletion } from './inlineCompletionToGhostText';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { fixBracketsInLine } from 'vs/editor/common/model/bracketPairsTextModelPart/fixBrackets';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -36,6 +38,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		private readonly editor: IActiveCodeEditor,
 		private readonly cache: SharedInlineCompletionCache,
 		@ICommandService private readonly commandService: ICommandService,
+		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
 
@@ -138,7 +141,8 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 			() => this.active,
 			this.commandService,
 			this.cache,
-			triggerKind
+			triggerKind,
+			this.languageConfigurationService
 		);
 		this.completionSession.value.takeOwnership(
 			this.completionSession.value.onDidChange(() => {
@@ -189,7 +193,8 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		private readonly shouldUpdate: () => boolean,
 		private readonly commandService: ICommandService,
 		private readonly cache: SharedInlineCompletionCache,
-		private initialTriggerKind: InlineCompletionTriggerKind
+		private initialTriggerKind: InlineCompletionTriggerKind,
+		private readonly languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super(editor);
 
@@ -342,7 +347,8 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 				result = await provideInlineCompletions(position,
 					this.editor.getModel(),
 					{ triggerKind, selectedSuggestionInfo: undefined },
-					token
+					token,
+					this.languageConfigurationService
 				);
 			} catch (e) {
 				onUnexpectedError(e);
@@ -544,7 +550,8 @@ export async function provideInlineCompletions(
 	position: Position,
 	model: ITextModel,
 	context: InlineCompletionContext,
-	token: CancellationToken = CancellationToken.None
+	token: CancellationToken = CancellationToken.None,
+	languageConfigurationService?: ILanguageConfigurationService
 ): Promise<TrackedInlineCompletions> {
 	const defaultReplaceRange = getDefaultRange(position, model);
 
@@ -570,19 +577,34 @@ export async function provideInlineCompletions(
 	for (const result of results) {
 		const completions = result.completions;
 		if (completions) {
-			for (const item of completions.items.map<TrackedInlineCompletion>(item => ({
-				text: item.text,
-				range: item.range ? Range.lift(item.range) : defaultReplaceRange,
-				command: item.command,
-				sourceProvider: result.provider,
-				sourceInlineCompletions: completions,
-				sourceInlineCompletion: item
-			}))) {
-				if (item.range.startLineNumber !== item.range.endLineNumber) {
+			for (const item of completions.items) {
+				const range = item.range ? Range.lift(item.range) : defaultReplaceRange;
+
+				if (range.startLineNumber !== range.endLineNumber) {
 					// Ignore invalid ranges.
 					continue;
 				}
-				itemsByHash.set(JSON.stringify({ text: item.text, range: item.range }), item);
+
+				const text =
+					languageConfigurationService && item.completeBracketPairs
+						? closeBrackets(
+							item.text,
+							range.getStartPosition(),
+							model,
+							languageConfigurationService
+						)
+						: item.text;
+
+				const trackedItem: TrackedInlineCompletion = ({
+					text,
+					range,
+					command: item.command,
+					sourceProvider: result.provider,
+					sourceInlineCompletions: completions,
+					sourceInlineCompletion: item
+				});
+
+				itemsByHash.set(JSON.stringify({ text, range: item.range }), trackedItem);
 			}
 		}
 	}
@@ -595,6 +617,22 @@ export async function provideInlineCompletions(
 			}
 		},
 	};
+}
+
+function closeBrackets(text: string, position: Position, model: ITextModel, languageConfigurationService: ILanguageConfigurationService): string {
+	const lineStart = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
+	const newLine = lineStart + text;
+
+	const newTokens = model.tokenizeLineWithEdit(position, newLine.length - (position.column - 1), text);
+	const slicedTokens = newTokens?.sliceAndInflate(position.column - 1, newLine.length, 0);
+	if (!slicedTokens) {
+		return text;
+	}
+
+	console.log(slicedTokens);
+	const newText = fixBracketsInLine(slicedTokens, languageConfigurationService);
+
+	return newText;
 }
 
 /**
