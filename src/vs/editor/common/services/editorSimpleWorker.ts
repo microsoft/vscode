@@ -10,8 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
-import { IChange } from 'vs/editor/common/editorCommon';
+import { DiffComputer, IChange } from 'vs/editor/common/diff/diffComputer';
 import { EndOfLineSequence, IWordAtPosition } from 'vs/editor/common/model';
 import { IMirrorTextModel, IModelChangedEvent, MirrorTextModel as BaseMirrorModel } from 'vs/editor/common/model/mirrorTextModel';
 import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model/wordHelper';
@@ -19,7 +18,7 @@ import { IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/
 import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/languages/supports/inplaceReplaceSupport';
 import { IDiffComputationResult, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
-import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
+import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
 import * as types from 'vs/base/common/types';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';

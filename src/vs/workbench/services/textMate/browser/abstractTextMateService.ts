@@ -12,7 +12,7 @@ import * as resources from 'vs/base/common/resources';
 import * as types from 'vs/base/common/types';
 import { equals as equalArray } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
-import { TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
+import { TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/languages/token';
 import { IState, ITokenizationSupport, LanguageId, TokenMetadata, TokenizationRegistry, StandardTokenType, ITokenizationSupportFactory } from 'vs/editor/common/languages';
 import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';

@@ -9,7 +9,7 @@ import { firstNonWhitespaceIndex } from 'vs/base/common/strings';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
+import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/consts';

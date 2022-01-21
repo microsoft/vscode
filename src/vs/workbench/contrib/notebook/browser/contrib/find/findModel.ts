@@ -10,7 +10,7 @@ import { FindDecorations } from 'vs/editor/contrib/find/browser/findDecorations'
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { FindMatch, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ICellModelDeltaDecorations, ICellModelDecorations } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { CellKind, INotebookSearchOptions, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

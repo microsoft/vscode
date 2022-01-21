@@ -10,7 +10,7 @@ import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } 
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsText } from 'vs/editor/common/commands/replaceCommand';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
+import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';

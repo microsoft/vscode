@@ -10,7 +10,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
-import { EditorKeybindingCancellationTokenSource } from 'vs/editor/browser/core/keybindingCancellation';
+import { EditorKeybindingCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/keybindingCancellation';
 
 export const enum CodeEditorStateFlag {
 	Value = 1,
@@ -140,47 +140,5 @@ export class TextModelCancellationTokenSource extends CancellationTokenSource im
 	override dispose() {
 		this._listener.dispose();
 		super.dispose();
-	}
-}
-
-export class StableEditorScrollState {
-
-	public static capture(editor: ICodeEditor): StableEditorScrollState {
-		let visiblePosition: Position | null = null;
-		let visiblePositionScrollDelta = 0;
-		if (editor.getScrollTop() !== 0) {
-			const visibleRanges = editor.getVisibleRanges();
-			if (visibleRanges.length > 0) {
-				visiblePosition = visibleRanges[0].getStartPosition();
-				const visiblePositionScrollTop = editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
-				visiblePositionScrollDelta = editor.getScrollTop() - visiblePositionScrollTop;
-			}
-		}
-		return new StableEditorScrollState(visiblePosition, visiblePositionScrollDelta, editor.getPosition());
-	}
-
-	constructor(
-		private readonly _visiblePosition: Position | null,
-		private readonly _visiblePositionScrollDelta: number,
-		private readonly _cursorPosition: Position | null
-	) {
-	}
-
-	public restore(editor: ICodeEditor): void {
-		if (this._visiblePosition) {
-			const visiblePositionScrollTop = editor.getTopForPosition(this._visiblePosition.lineNumber, this._visiblePosition.column);
-			editor.setScrollTop(visiblePositionScrollTop + this._visiblePositionScrollDelta);
-		}
-	}
-
-	public restoreRelativeVerticalPositionOfCursor(editor: ICodeEditor): void {
-		const currentCursorPosition = editor.getPosition();
-
-		if (!this._cursorPosition || !currentCursorPosition) {
-			return;
-		}
-
-		const offset = editor.getTopForLineNumber(currentCursorPosition.lineNumber) - editor.getTopForLineNumber(this._cursorPosition.lineNumber);
-		editor.setScrollTop(editor.getScrollTop() + offset);
 	}
 }

@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
-import { IChange, ILineChange } from 'vs/editor/common/editorCommon';
+import { IChange, ILineChange } from 'vs/editor/common/diff/diffComputer';
 import { IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/languages';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/languages/unicodeTextModelHighlighter';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';

@@ -100,6 +100,7 @@ class NodeModuleAliasingModuleFactory implements IAlternativeModuleProvider {
 	 */
 	private static readonly aliased: ReadonlyMap<string, string> = new Map([
 		['vscode-ripgrep', '@vscode/ripgrep'],
+		['vscode-windows-registry', '@vscode/windows-registry'],
 	]);
 
 	private readonly re?: RegExp;

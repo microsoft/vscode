@@ -19,6 +19,10 @@ export class EditorTheme {
 		return this._theme.type;
 	}
 
+	public get value(): IColorTheme {
+		return this._theme;
+	}
+
 	constructor(theme: IColorTheme) {
 		this._theme = theme;
 	}

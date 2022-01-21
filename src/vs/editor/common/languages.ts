@@ -12,7 +12,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
+import { TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/languages/token';
 import * as model from 'vs/editor/common/model';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languages/languageFeatureRegistry';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/languages/tokenizationRegistry';
@@ -20,6 +20,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 /**
  * Open ended enum at runtime
@@ -615,7 +616,7 @@ export interface CompletionItem {
 	 * selecting this completion. Edits must not overlap with the main edit
 	 * nor with themselves.
 	 */
-	additionalTextEdits?: model.ISingleEditOperation[];
+	additionalTextEdits?: ISingleEditOperation[];
 	/**
 	 * A command that should be run upon acceptance of this item.
 	 */
