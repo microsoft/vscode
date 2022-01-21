@@ -125,7 +125,7 @@ import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
 import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 
 // Welcome Banner
-import 'vs/workbench/contrib/welcome/banner/browser/welcomeBanner.contribution';
+import 'vs/workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.web.contribution';
