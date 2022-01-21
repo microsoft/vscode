@@ -11,7 +11,7 @@ import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';

@@ -27,9 +27,9 @@ import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/vie
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/diff/diffElementOutputs';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { AccessibilityHelpController } from 'vs/workbench/contrib/codeEditor/browser/accessibility/accessibility';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';

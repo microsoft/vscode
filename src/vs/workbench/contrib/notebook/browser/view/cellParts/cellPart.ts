@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CellViewModelStateChangeEvent, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookRenderingCommon';
+import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export abstract class CellPart extends Disposable {

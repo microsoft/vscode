@@ -17,7 +17,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
+import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';

@@ -20,7 +20,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellViewModelStateChangeEvent, ICellViewModel, INotebookEditorDelegate, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookRenderingCommon';
+import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 
 export class RunToolbar extends CellPart {
 	toolbar!: ToolBar;

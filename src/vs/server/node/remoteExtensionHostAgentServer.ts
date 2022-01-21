@@ -83,7 +83,7 @@ import { ICredentialsMainService } from 'vs/platform/credentials/common/credenti
 import { CredentialsMainService } from 'vs/platform/credentials/node/credentialsMainService';
 import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
 import { RemoteTelemetryChannel } from 'vs/server/node/remoteTelemetryChannel';
-import { parseConnectionToken, ServerConnectionTokenParseError } from 'vs/server/node/connectionToken';
+import { parseConnectionToken, ServerConnectionTokenParseError } from 'vs/server/node/serverConnectionToken';
 import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;

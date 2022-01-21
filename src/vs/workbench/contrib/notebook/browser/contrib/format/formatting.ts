@@ -14,7 +14,7 @@ import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { getDocumentFormattingEditsUntilResult, formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/format';
+import { getDocumentFormattingEditsUntilResult, formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/browser/format';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';

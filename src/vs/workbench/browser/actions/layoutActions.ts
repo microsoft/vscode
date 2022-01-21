@@ -11,7 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
+import { isWindows, isLinux, isWeb, isMacintosh, isNative } from 'vs/base/common/platform';
 import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext } from 'vs/workbench/common/editor';
@@ -28,6 +28,7 @@ import { AuxiliaryBarVisibleContext } from 'vs/workbench/common/auxiliarybar';
 import { PanelAlignmentContext, PanelVisibleContext } from 'vs/workbench/common/panel';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
 
 // --- Close Side Bar
 
@@ -998,14 +999,18 @@ const CreateOptionLayoutItem = (id: string, active: ContextKeyExpression, label:
 };
 
 const MenuBarToggledContext = ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact')) as ContextKeyExpression;
-const ToggleVisibilityActions: CustomizeLayoutItem[] = [
-	CreateToggleLayoutItem('workbench.action.toggleMenuBar', MenuBarToggledContext, localize('menuBar', "Menu Bar")),
+const ToggleVisibilityActions: CustomizeLayoutItem[] = [];
+if (!isMacintosh || !isNative) {
+	ToggleVisibilityActions.push(CreateToggleLayoutItem('workbench.action.toggleMenuBar', MenuBarToggledContext, localize('menuBar', "Menu Bar")));
+}
+
+ToggleVisibilityActions.push(...[
 	CreateToggleLayoutItem(ToggleActivityBarVisibilityAction.ID, ContextKeyExpr.equals('config.workbench.activityBar.visible', true), localize('activityBar', "Activity Bar")),
 	CreateToggleLayoutItem(ToggleSidebarVisibilityAction.ID, SideBarVisibleContext, localize('sideBar', "Side Bar")),
 	CreateToggleLayoutItem(TogglePanelAction.ID, PanelVisibleContext, localize('panel', "Panel")),
 	CreateToggleLayoutItem(ToggleAuxiliaryBarAction.ID, AuxiliaryBarVisibleContext, localize('sidePanel', "Side Panel")),
 	CreateToggleLayoutItem(ToggleStatusbarVisibilityAction.ID, ContextKeyExpr.equals('config.workbench.statusBar.visible', true), localize('statusBar', "Status Bar")),
-];
+]);
 
 const MoveSideBarActions: CustomizeLayoutItem[] = [
 	CreateOptionLayoutItem(MoveSidebarLeftAction.ID, ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), localize('leftSideBar', "Left")),
@@ -1019,8 +1024,14 @@ const AlignPanelActions: CustomizeLayoutItem[] = [
 	CreateOptionLayoutItem('workbench.action.alignPanelJustify', PanelAlignmentContext.isEqualTo('justify'), localize('justifyPanel', "Justify")),
 ];
 
+const MiscLayoutOptions: CustomizeLayoutItem[] = [
+	CreateOptionLayoutItem('workbench.action.toggleZenMode', InEditorZenModeContext, localize('zenMode', "Zen Mode")),
+	CreateOptionLayoutItem('workbench.action.toggleCenteredLayout', IsCenteredLayoutContext, localize('centeredLayout', "Centered Layout")),
+	CreateOptionLayoutItem('workbench.action.toggleFullScreen', IsFullscreenContext, localize('fullscreen', "Full Screen")),
+];
+
 const LayoutContextKeySet = new Set<string>();
-for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...AlignPanelActions]) {
+for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...AlignPanelActions, ...MiscLayoutOptions]) {
 	for (const key of active.keys()) {
 		LayoutContextKeySet.add(key);
 	}
@@ -1030,7 +1041,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.customizeLayout',
-			title: localize('customizeLayout', "Customize layout..."),
+			title: localize('customizeLayout', "Customize Layout..."),
 			f1: true,
 			menu: [
 				{
@@ -1079,7 +1090,12 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				type: 'separator',
 				label: localize('alignPanel', "Align Panel")
 			},
-			...AlignPanelActions.map(toQuickPickItem)
+			...AlignPanelActions.map(toQuickPickItem),
+			{
+				type: 'separator',
+				label: localize('layoutModes', "Layout Modes"),
+			},
+			...MiscLayoutOptions.map(toQuickPickItem),
 		];
 	}
 
@@ -1108,7 +1124,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 
 		quickPick.onDidAccept(event => {
 			if (quickPick.selectedItems.length) {
-				const selectedItem = quickPick.selectedItems[0] as CustomizeLayoutItem;
+				selectedItem = quickPick.selectedItems[0] as CustomizeLayoutItem;
 				commandService.executeCommand(selectedItem.id);
 			}
 		});

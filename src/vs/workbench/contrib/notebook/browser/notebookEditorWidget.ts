@@ -24,7 +24,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import * as nls from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -47,7 +47,7 @@ import { notebookDebug } from 'vs/workbench/contrib/notebook/browser/notebookLog
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellContextKeys';
 import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
 import { NotebookCellList, NOTEBOOK_WEBVIEW_BOUNDARY } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
-import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/notebookRenderingCommon';
+import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { CodeCellRenderer, MarkupCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';

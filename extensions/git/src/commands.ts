@@ -14,7 +14,7 @@ import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri } from './uri';
-import { grep, isDescendant, logTimestamp, pathEquals, relativePath } from './util';
+import { grep, isDescendant, logTimestamp, pathEquals } from './util';
 import { Log, LogLevel } from './log';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
@@ -803,7 +803,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const from = relativePath(repository.root, fromUri.fsPath);
+		const from = path.relative(repository.root, fromUri.fsPath);
 		let to = await window.showInputBox({
 			value: from,
 			valueSelection: [from.length - path.basename(from).length, from.length]

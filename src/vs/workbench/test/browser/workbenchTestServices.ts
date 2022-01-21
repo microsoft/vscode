@@ -141,7 +141,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';

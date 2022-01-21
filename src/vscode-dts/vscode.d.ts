@@ -1484,22 +1484,25 @@ declare module 'vscode' {
 	export class Disposable {
 
 		/**
-		 * Combine many disposable-likes into one. Use this method
-		 * when having objects with a dispose function which are not
-		 * instances of Disposable.
+		 * Combine many disposable-likes into one. You can use this method when having objects with
+		 * a dispose function which aren't instances of `Disposable`.
 		 *
-		 * @param disposableLikes Objects that have at least a `dispose`-function member.
+		 * @param disposableLikes Objects that have at least a `dispose`-function member. Note that asynchronous
+		 * dispose-functions aren't awaited.
 		 * @return Returns a new disposable which, upon dispose, will
 		 * dispose all provided disposables.
 		 */
 		static from(...disposableLikes: { dispose: () => any }[]): Disposable;
 
 		/**
-		 * Creates a new Disposable calling the provided function
+		 * Creates a new disposable that calls the provided function
 		 * on dispose.
+		 *
+		 * *Note* that an asynchronous function is not awaited.
+		 *
 		 * @param callOnDispose Function that disposes something.
 		 */
-		constructor(callOnDispose: Function);
+		constructor(callOnDispose: () => any);
 
 		/**
 		 * Dispose this object.
@@ -6274,6 +6277,8 @@ declare module 'vscode' {
 		/**
 		 * An array to which disposables can be added. When this
 		 * extension is deactivated the disposables will be disposed.
+		 *
+		 * *Note* that asynchronous dispose-functions aren't awaited.
 		 */
 		readonly subscriptions: { dispose(): any }[];
 
@@ -10991,10 +10996,21 @@ declare module 'vscode' {
 		 *   excluded via `files.watcherExclude` setting
 		 * * if the path is equal to any of the workspace folders, deletions are not tracked
 		 * * if the path is outside of any of the workspace folders, deletions are not tracked
-		 * 
+		 *
 		 * If you are interested in being notified when the watched path itself is being deleted, you have
 		 * to watch it's parent folder. Make sure to use a simple `pattern` (such as putting the name of the
 		 * folder) to not accidentally watch all sibling folders recursively.
+		 *
+		 * *Note* that the file paths that are reported for having changed may have a different path casing
+		 * compared to the actual casing on disk on case-insensitive platforms (typically macOS and Windows
+		 * but not Linux). We allow a user to open a workspace folder with any desired path casing and try
+		 * to preserve that. This means:
+		 * * if the path is within any of the workspace folders, the path will match the casing of the
+		 *   workspace folder up to that portion of the path and match the casing on disk for children
+		 * * if the path is outside of any of the workspace folders, the casing will match the case of the
+		 *   path that was provided for watching
+		 * In the same way, symbolic links are preserved, i.e. the file event will report the path of the
+		 * symbolic link as it was provided for watching and not the target.
 		 *
 		 * ### Examples
 		 *

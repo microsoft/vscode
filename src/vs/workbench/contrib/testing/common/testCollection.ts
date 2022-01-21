@@ -61,9 +61,11 @@ export interface ResolvedTestRunRequest {
 		controllerId: string;
 		profileGroup: TestRunProfileBitset;
 		profileId: number;
-	}[]
+	}[];
 	exclude?: string[];
 	isAutoRun?: boolean;
+	/** Whether this was trigged by a user action in UI. Default=true */
+	isUiTriggered?: boolean;
 }
 
 /**

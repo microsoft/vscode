@@ -53,6 +53,7 @@ import { ByNameTestItemElement, HierarchicalByNameProjection } from 'vs/workbenc
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
+import { ConfigureTestProfilesAction, DebugSelectedAction, RunSelectedAction, SelectDefaultTestProfiles } from 'vs/workbench/contrib/testing/browser/testExplorerActions';
 import { TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
@@ -69,7 +70,6 @@ import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ConfigureTestProfilesAction, DebugSelectedAction, RunSelectedAction, SelectDefaultTestProfiles } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
