@@ -192,7 +192,6 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	* of the particular link is used to narrow down the result for an exact file match, if possible.
 	*/
 	private _updateLinkWithRelativeCwd(y: number, link: string, pathSeparator: string): string | undefined {
-		// TODO: If the capability is set but getCwdForLine returns undefined, the line should be relative to initialCwd
 		const cwd = this._capabilities.get(TerminalCapability.CommandDetection)?.getCwdForLine(y);
 		if (!cwd) {
 			return undefined;
