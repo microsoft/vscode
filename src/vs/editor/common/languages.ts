@@ -20,6 +20,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 /**
  * Open ended enum at runtime
@@ -615,7 +616,7 @@ export interface CompletionItem {
 	 * selecting this completion. Edits must not overlap with the main edit
 	 * nor with themselves.
 	 */
-	additionalTextEdits?: model.ISingleEditOperation[];
+	additionalTextEdits?: ISingleEditOperation[];
 	/**
 	 * A command that should be run upon acceptance of this item.
 	 */

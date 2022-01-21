@@ -10,7 +10,8 @@ import { RenderLineNumbersType, TextEditorCursorStyle, cursorStyleToString, Edit
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IDecorationOptions, ScrollType } from 'vs/editor/common/editorCommon';
-import { ISingleEditOperation, ITextModel, ITextModelUpdateOptions, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { ITextModel, ITextModelUpdateOptions, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IModelService } from 'vs/editor/common/services/model';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';

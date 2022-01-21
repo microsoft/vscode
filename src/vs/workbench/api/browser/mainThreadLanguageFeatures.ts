@@ -5,7 +5,8 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ITextModel, ISingleEditOperation } from 'vs/editor/common/model';
+import { ITextModel } from 'vs/editor/common/model';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import * as modes from 'vs/editor/common/languages';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
