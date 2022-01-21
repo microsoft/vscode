@@ -287,9 +287,11 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		}
 	});
 	test('should not add the cwd to the link when cwdDetection is not enabled', async () => {
-		const { text, cwd, filePath } = generateLinkArgs(['Users', 'home', 'folder']);
-		await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: undefined }], false, cwd, [filePath]);
-		await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: undefined }], false, cwd, []);
+		if (!isWindows) {
+			const { text, cwd, filePath } = generateLinkArgs(['Users', 'home', 'folder']);
+			await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: undefined }], false, cwd, [filePath]);
+			await assertLink(text, [{ range: [[1, 1], [8, 1]], text, linkActivationResult: undefined }], false, cwd, []);
+		}
 	});
 });
 
