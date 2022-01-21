@@ -123,12 +123,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 
 	handleCommandFinished(exitCode: number): void {
-		// TODO: Make sure naive command tracking still works
-		// if (this._terminal.buffer.active.cursorX >= 2) {
-		// this._terminal.registerMarker(0);
-		// this.clearMarker();
-		// }
-
 		this._currentCommand.commandFinishedMarker = this._terminal.registerMarker(0);
 		const command = this._currentCommand.command;
 		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, this._currentCommand.commandFinishedMarker?.line, this._currentCommand.command, this._currentCommand);
@@ -161,10 +155,10 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 }
 
 function getOutputForCommand(command: ICurrentPartialCommand, buffer: IBuffer): string | undefined {
-	const startLine = command.previousCommandMarker ? command.previousCommandMarker.line! + 1 : 0;
-	const endLine = command.commandStartMarker!.line!;
+	const startLine = command.commandStartMarker!.line;
+	const endLine = command.commandFinishedMarker!.line;
 	let output = '';
-	for (let i = startLine; i < endLine; i++) {
+	for (let i = startLine; i <= endLine; i++) {
 		output += buffer.getLine(i)?.translateToString() + '\n';
 	}
 	return output === '' ? undefined : output;
