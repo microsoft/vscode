@@ -134,12 +134,12 @@ declare module 'vscode' {
 		 *
 		 * *Note* that inlay hints that are not {@link Range.contains contained} by the range are ignored.
 		 *
-		 * @param model The document in which the command was invoked.
+		 * @param document The document in which the command was invoked.
 		 * @param range The range for which inlay hints should be computed.
 		 * @param token A cancellation token.
 		 * @return An array of inlay hints or a thenable that resolves to such.
 		 */
-		provideInlayHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<T[]>;
+		provideInlayHints(document: TextDocument, range: Range, token: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * Given an inlay hint fill in {@link InlayHint.tooltip tooltip} or complete label {@link InlayHintLabelPart parts}.
