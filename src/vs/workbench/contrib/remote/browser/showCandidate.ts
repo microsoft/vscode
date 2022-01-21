@@ -5,13 +5,13 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { CandidatePort, IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 
 export class ShowCandidateContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 	) {
 		super();
 		const showPortCandidate = environmentService.options?.tunnelProvider?.showPortCandidate;

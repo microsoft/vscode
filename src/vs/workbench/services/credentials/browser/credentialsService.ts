@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICredentialsService, ICredentialsProvider, ICredentialsChangeEvent, InMemoryCredentialsProvider } from 'vs/platform/credentials/common/credentials';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -24,7 +24,7 @@ export class BrowserCredentialsService extends Disposable implements ICredential
 	public async getSecretStoragePrefix() { return this._secretStoragePrefix; }
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IProductService private readonly productService: IProductService
 	) {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./watermark';
+import 'vs/css!./media/watermark';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isMacintosh, isWeb, OS } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';

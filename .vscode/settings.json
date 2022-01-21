@@ -26,7 +26,7 @@
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true,
 		"src/vs/base/test/node/uri.test.data.txt": true,
-		"src/vs/workbench/test/browser/api/extHostDocumentData.test.perf-data.ts": true
+		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true
 	},
 	"lcov.path": [
 		"./.build/coverage/lcov.info",
