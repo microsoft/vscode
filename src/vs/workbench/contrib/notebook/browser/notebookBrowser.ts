@@ -879,3 +879,16 @@ export function formatCellDuration(duration: number): string {
 		return `${seconds}.${tenths}s`;
 	}
 }
+
+//#region Cell Folding
+export const enum CellFoldingState {
+	None,
+	Expanded,
+	Collapsed
+}
+
+export interface EditorFoldingStateDelegate {
+	getCellIndex(cell: CellViewModel): number;
+	getFoldingState(index: number): CellFoldingState;
+}
+//#endregion
