@@ -18,6 +18,7 @@ import { extname, dirname, join, normalize } from 'vs/base/common/path';
 import { FileAccess } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -73,7 +74,7 @@ const APP_ROOT = dirname(FileAccess.asFileUri('', require).fsPath);
 export class WebClientServer {
 
 	constructor(
-		private readonly _connectionToken: string,
+		private readonly _connectionToken: ServerConnectionToken,
 		private readonly _environmentService: IServerEnvironmentService,
 		private readonly _logService: ILogService,
 		private readonly _productService: IProductService
@@ -111,7 +112,7 @@ export class WebClientServer {
 
 	private _hasCorrectTokenCookie(req: http.IncomingMessage): boolean {
 		const cookies = cookie.parse(req.headers.cookie || '');
-		return (cookies['vscode-tkn'] === this._connectionToken);
+		return this._connectionToken.validate(cookies['vscode-tkn']);
 	}
 
 	/**
@@ -207,14 +208,25 @@ export class WebClientServer {
 			'manifest-src \'self\';'
 		].join(' ');
 
-		res.writeHead(200, {
+		const headers: http.OutgoingHttpHeaders = {
 			'Content-Type': 'text/html',
+			'Content-Security-Policy': cspDirectives
+		};
+		if (this._connectionToken.type !== ServerConnectionTokenType.None) {
 			// At this point we know the client has a valid cookie
 			// and we want to set it prolong it to ensure that this
 			// client is valid for another 1 week at least
-			'Set-Cookie': cookie.serialize('vscode-tkn', this._connectionToken, { sameSite: 'strict', maxAge: 60 * 60 * 24 * 7 /* 1 week */ }),
-			'Content-Security-Policy': cspDirectives
-		});
+			headers['Set-Cookie'] = cookie.serialize(
+				'vscode-tkn',
+				this._connectionToken.value,
+				{
+					sameSite: 'strict',
+					maxAge: 60 * 60 * 24 * 7 /* 1 week */
+				}
+			);
+		}
+
+		res.writeHead(200, headers);
 		return res.end(data);
 	}
 

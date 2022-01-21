@@ -154,9 +154,10 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		initData: extHostProtocol.IWebviewInitData,
 		showOptions: extHostProtocol.WebviewPanelShowOptions,
 	): void {
+		const targetGroup = this.getTargetGroupFromShowOptions(showOptions);
 		const mainThreadShowOptions: ICreateWebViewShowOptions = showOptions ? {
 			preserveFocus: !!showOptions.preserveFocus,
-			group: columnToEditorGroup(this._editorGroupService, showOptions.viewColumn)
+			group: targetGroup
 		} : {};
 
 		const extension = reviveWebviewExtension(extensionData);
@@ -197,7 +198,19 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 			return;
 		}
 
-		this._webviewWorkbenchService.revealWebview(webview, showOptions.viewColumn ?? ACTIVE_GROUP, !!showOptions.preserveFocus);
+		const targetGroup = this.getTargetGroupFromShowOptions(showOptions);
+		this._webviewWorkbenchService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
+	}
+
+	private getTargetGroupFromShowOptions(showOptions: extHostProtocol.WebviewPanelShowOptions) {
+		if (typeof showOptions.viewColumn !== 'undefined') {
+			if (showOptions.viewColumn >= 0) {
+				return columnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
+			} else {
+				return showOptions.viewColumn;
+			}
+		}
+		return ACTIVE_GROUP;
 	}
 
 	public $registerSerializer(viewType: string, options: { serializeBuffersForPostMessage: boolean }): void {

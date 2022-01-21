@@ -9,11 +9,11 @@ import { Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IEncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
+import { ICredentialsMainService } from 'vs/platform/credentials/common/credentials';
+import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { ICredentialsMainService } from 'vs/platform/credentials/node/credentialsMainService';
 
 interface ElectronAuthenticationResponseDetails extends AuthenticationResponseDetails {
 	firstAuthAttempt?: boolean; // https://github.com/electron/electron/blob/84a42a050e7d45225e69df5bd2d2bf9f1037ea41/shell/browser/login_handler.cc#L70

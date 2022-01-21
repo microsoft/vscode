@@ -9,7 +9,7 @@
 			"properties": {
 				"name": {
 					"type": "string",
-					"description": "A name to show for the workspace folder."
+					"description": "A name for the dev container displayed in the UI."
 				},
 				"extensions": {
 					"type": "array",

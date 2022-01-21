@@ -34,7 +34,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { ITelemetryAppender, NullAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
@@ -79,12 +79,12 @@ import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { IRemoteTelemetryService, RemoteNullTelemetryService, RemoteTelemetryService } from 'vs/server/node/remoteTelemetryService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { ICredentialsMainService } from 'vs/platform/credentials/common/credentials';
 import { CredentialsMainService } from 'vs/platform/credentials/node/credentialsMainService';
-import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
 import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
 import { RemoteTelemetryChannel } from 'vs/server/node/remoteTelemetryChannel';
-import { parseConnectionToken, ServerConnectionTokenParseError } from 'vs/server/node/connectionToken';
+import { parseServerConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
+import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -227,8 +227,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	constructor(
 		private readonly _environmentService: IServerEnvironmentService,
 		private readonly _productService: IProductService,
-		private readonly _connectionToken: string,
-		private readonly _connectionTokenIsMandatory: boolean,
+		private readonly _connectionToken: ServerConnectionToken,
 		hasWebClient: boolean,
 		REMOTE_DATA_FOLDER: string
 	) {
@@ -306,8 +305,19 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, this._productService.commit, this._productService.version + '-remote', machineId, this._productService.msftInternalDomains, this._environmentService.installSourcePath, 'remoteAgent'),
 				piiPaths: [this._environmentService.appRoot]
 			};
-
-			services.set(IRemoteTelemetryService, new SyncDescriptor(RemoteTelemetryService, [config, undefined]));
+			const initialTelemetryLevelArg = this._environmentService.args['initial-telemetry-level'];
+			let injectedTelemetryLevel: TelemetryLevel | undefined = undefined;
+			// Convert the passed in CLI argument into a telemetry level for the telemetry service
+			if (initialTelemetryLevelArg === 'all') {
+				injectedTelemetryLevel = TelemetryLevel.USAGE;
+			} else if (initialTelemetryLevelArg === 'error') {
+				injectedTelemetryLevel = TelemetryLevel.ERROR;
+			} else if (initialTelemetryLevelArg === 'crash') {
+				injectedTelemetryLevel = TelemetryLevel.CRASH;
+			} else if (initialTelemetryLevelArg !== undefined) {
+				injectedTelemetryLevel = TelemetryLevel.NONE;
+			}
+			services.set(IRemoteTelemetryService, new SyncDescriptor(RemoteTelemetryService, [config, injectedTelemetryLevel]));
 		} else {
 			services.set(IRemoteTelemetryService, RemoteNullTelemetryService);
 		}
@@ -335,11 +345,9 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		);
 		services.set(IPtyService, ptyService);
 
-		const encryptionService = instantiationService.createInstance(EncryptionMainService, machineId);
-		services.set(IEncryptionService, encryptionService);
+		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
 
-		const credentialsService = instantiationService.createInstance(CredentialsMainService);
-		services.set(ICredentialsService, credentialsService);
+		services.set(ICredentialsMainService, new SyncDescriptor(CredentialsMainService, [true]));
 
 		return instantiationService.invokeFunction(accessor => {
 			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._connectionToken, this._environmentService, extensionManagementCLIService, this._logService, this._productService);
@@ -359,10 +367,10 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			const channel = new ExtensionManagementChannel(extensionManagementService, (ctx: RemoteAgentConnectionContext) => this._getUriTransformer(ctx.remoteAuthority));
 			this._socketServer.registerChannel('extensions', channel);
 
-			const encryptionChannel = ProxyChannel.fromService<RemoteAgentConnectionContext>(accessor.get(IEncryptionService));
+			const encryptionChannel = ProxyChannel.fromService<RemoteAgentConnectionContext>(accessor.get(IEncryptionMainService));
 			this._socketServer.registerChannel('encryption', encryptionChannel);
 
-			const credentialsChannel = ProxyChannel.fromService<RemoteAgentConnectionContext>(accessor.get(ICredentialsService));
+			const credentialsChannel = ProxyChannel.fromService<RemoteAgentConnectionContext>(accessor.get(ICredentialsMainService));
 			this._socketServer.registerChannel('credentials', credentialsChannel);
 
 			// clean up deprecated extensions
@@ -416,7 +424,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		if (pathname === '/vscode-remote-resource') {
 			// Handle HTTP requests for resources rendered in the rich client (images, fonts, etc.)
 			// These resources could be files shipped with extensions or even workspace files.
-			if (parsedUrl.query['tkn'] !== this._connectionToken) {
+			if (!this._connectionToken.validate(parsedUrl.query['tkn'])) {
 				return serveError(req, res, 403, `Forbidden.`);
 			}
 
@@ -614,7 +622,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					return rejectWebSocketConnection(`Invalid first message`);
 				}
 
-				if (this._connectionTokenIsMandatory && msg1.auth !== this._connectionToken) {
+				if (this._connectionToken.type === ServerConnectionTokenType.Mandatory && !this._connectionToken.validate(msg1.auth)) {
 					return rejectWebSocketConnection(`Unauthorized client refused: auth mismatch`);
 				}
 
@@ -669,7 +677,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				let valid = false;
 				if (!validator) {
 					valid = true;
-				} else if (msg2.signedData === this._connectionToken) {
+				} else if (this._connectionToken.validate(msg2.signedData)) {
 					// web client
 					valid = true;
 				} else {
@@ -989,21 +997,20 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		}
 	}
 
-	const connectionTokenParseResult = parseConnectionToken(args);
-	if (connectionTokenParseResult instanceof ServerConnectionTokenParseError) {
-		console.warn(connectionTokenParseResult.message);
+	const connectionToken = parseServerConnectionToken(args);
+	if (connectionToken instanceof ServerConnectionTokenParseError) {
+		console.warn(connectionToken.message);
 		process.exit(1);
 	}
-	const connectionToken = connectionTokenParseResult.value;
-	const connectionTokenIsMandatory = connectionTokenParseResult.isMandatory;
 	const hasWebClient = fs.existsSync(FileAccess.asFileUri('vs/code/browser/workbench/workbench.html', require).fsPath);
 
 	if (hasWebClient && address && typeof address !== 'string') {
 		// ships the web ui!
-		console.log(`Web UI available at http://${args.host || 'localhost'}${address.port === 80 ? '' : `:${address.port}`}/?tkn=${connectionToken}`);
+		const queryPart = (connectionToken.type !== ServerConnectionTokenType.None ? `?tkn=${connectionToken.value}` : '');
+		console.log(`Web UI available at http://localhost${address.port === 80 ? '' : `:${address.port}`}/${queryPart}`);
 	}
 
-	const remoteExtensionHostAgentServer = new RemoteExtensionHostAgentServer(environmentService, productService, connectionToken, connectionTokenIsMandatory, hasWebClient, REMOTE_DATA_FOLDER);
+	const remoteExtensionHostAgentServer = new RemoteExtensionHostAgentServer(environmentService, productService, connectionToken, hasWebClient, REMOTE_DATA_FOLDER);
 	const services = await remoteExtensionHostAgentServer.initialize();
 	const { telemetryService } = services;
 

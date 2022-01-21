@@ -27,9 +27,9 @@ import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMod
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import type { Terminal as XTermTerminal, ITerminalAddon, ILink } from 'xterm';
+import type { Terminal as XTermTerminal, ITerminalAddon } from 'xterm';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
@@ -678,26 +678,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			throw new Error('no xterm');
 		}
-		const wordResults: ILink[] = [];
-		const webResults: ILink[] = [];
-		const fileResults: ILink[] = [];
-
-		for (let i = this.xterm.raw.buffer.active.length - 1; i >= this.xterm.raw.buffer.active.viewportY; i--) {
-			const links = await this._linkManager.getLinks(i);
-			if (links) {
-				const { wordLinks, webLinks, fileLinks } = links;
-				if (wordLinks && wordLinks.length) {
-					wordResults!.push(...wordLinks.reverse());
-				}
-				if (webLinks && webLinks.length) {
-					webResults!.push(...webLinks.reverse());
-				}
-				if (fileLinks && fileLinks.length) {
-					fileResults!.push(...fileLinks.reverse());
-				}
-			}
-		}
-		return { wordLinks: wordResults, webLinks: webResults, fileLinks: fileResults };
+		return this.xterm.getLinks(this._linkManager);
 	}
 
 	async openRecentLink(type: 'file' | 'web'): Promise<void> {
@@ -707,19 +688,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			throw new Error('no xterm');
 		}
-
-		let links;
-		let i = this.xterm.raw.buffer.active.viewportY;
-		while ((!links || links.length === 0) && i <= this.xterm.raw.buffer.active.length) {
-			links = await this._linkManager.getLinksForType(i, type);
-			i++;
-		}
-
-		if (!links || links.length < 1) {
-			return;
-		}
-		const event = new TerminalLinkQuickPickEvent(dom.EventType.CLICK);
-		links[0].activate(event, links[0].text);
+		this.xterm.openRecentLink(this._linkManager, type);
 	}
 
 	async runRecent(type: 'command' | 'cwd'): Promise<void> {
@@ -1319,31 +1288,51 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._configHelper.config.enableShellIntegration || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal) {
 			return { args: shellLaunchConfig.args, enableShellIntegration: false };
 		}
-
+		const loginArgs = ['-login', '-l'];
+		const pwshImpliedArgs = ['-nol', '-l', '-nologo'];
 		const originalArgs = shellLaunchConfig.args;
 		const shell = path.basename(shellLaunchConfig.executable);
 		let newArgs: string | string[] | undefined;
-		// TODO: Use backend OS
-		if (isWindows) {
-			if (shell === 'pwsh.exe' && !originalArgs) {
+		if (this._processManager.os === OperatingSystem.Windows) {
+			if (shell === 'pwsh' && !originalArgs || originalArgs === [] || (originalArgs?.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase()))) {
 				newArgs = [
+					'-noexit',
+					'-command',
+					'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
+				];
+			} else if (originalArgs?.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase())) {
+				newArgs = [
+					originalArgs[0],
 					'-noexit',
 					'-command',
 					'. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"'
 				];
 			}
 		} else {
-			// TODO: Read current args, only enable if they are recognized (ie. [] and ["-l"]), warn otherwise
 			switch (shell) {
 				case 'bash':
-					newArgs = ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-bash.sh'];
+					if (!originalArgs || originalArgs === []) {
+						//TODO: support login args
+						newArgs = ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-bash.sh'];
+					}
 					break;
 				case 'pwsh':
-					newArgs = ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"'];
+					if (!originalArgs || originalArgs === [] || (originalArgs.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase()))) {
+						newArgs = ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"'];
+					} else if (originalArgs.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase())) {
+						newArgs = [originalArgs[0], '-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"'];
+					}
 					break;
 				case 'zsh':
-					newArgs = ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh"; zsh -il'];
+					if (!originalArgs || originalArgs === []) {
+						newArgs = ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh"; zsh -i'];
+					} else if (originalArgs.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase())) {
+						newArgs = ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh"; zsh -il'];
+					}
 					break;
+			}
+			if (!newArgs) {
+				this._logService.warn(nls.localize('shellIntegrationArgsPreventEnablingWarning', "Shell integration cannot be enabled when custom args {0} are provided for {1}."), originalArgs, shell);
 			}
 		}
 		return { args: newArgs || originalArgs, enableShellIntegration: newArgs !== undefined };
