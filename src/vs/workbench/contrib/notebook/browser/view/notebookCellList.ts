@@ -19,7 +19,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CursorAtBoundary, getVisibleCells, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -30,6 +30,17 @@ import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/vie
 import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
+
+const enum CellRevealType {
+	Line,
+	Range
+}
+
+const enum CellRevealPosition {
+	Top,
+	Center,
+	Bottom
+}
 
 export interface IFocusNextPreviousDelegate {
 	onFocusNext(applyFocusNext: () => void): void;

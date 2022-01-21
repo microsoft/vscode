@@ -664,17 +664,6 @@ export interface CellFindMatchWithIndex {
 	modelMatchCount: number;
 }
 
-export enum CellRevealType {
-	Line,
-	Range
-}
-
-export enum CellRevealPosition {
-	Top,
-	Center,
-	Bottom
-}
-
 export enum CellEditState {
 	/**
 	 * Default state.
