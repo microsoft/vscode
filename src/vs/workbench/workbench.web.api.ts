@@ -17,7 +17,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
-import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
+import { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { asArray } from 'vs/base/common/arrays';

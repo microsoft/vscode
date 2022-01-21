@@ -27,7 +27,7 @@ import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private'
 import { TerminalHover, ILinkHoverTargetOptions } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { TerminalExternalLinkProviderAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkProviderAdapter';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 
