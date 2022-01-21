@@ -48,6 +48,7 @@ export class PartialCommandDetectionCapability implements IPartialCommandDetecti
 			const marker = this._terminal.registerMarker(0);
 			if (marker) {
 				this._commands.push(marker);
+				this._onCommandFinished.fire(marker);
 			}
 		}
 	}
