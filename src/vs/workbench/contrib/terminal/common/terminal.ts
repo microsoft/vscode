@@ -328,11 +328,8 @@ export interface IRemoteTerminalAttachTarget {
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 }
 
-// TODO: Replace IShellIntegration with ITerminalCapabilityStore
 export interface IShellIntegration {
 	capabilities: ITerminalCapabilityStore;
-	// TODO: Fire more fine-grained and stronger typed events
-	readonly onIntegratedShellChange: Event<{ type: string, value: string }>;
 }
 
 export interface ITerminalCommand {

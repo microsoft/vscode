@@ -5,7 +5,6 @@
 
 import { ITerminalAddon, Terminal } from 'xterm';
 import { IShellIntegration } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
@@ -95,9 +94,6 @@ export const enum ShellIntegrationInteraction {
 export class ShellIntegrationAddon extends Disposable implements IShellIntegration, ITerminalAddon {
 	private _terminal?: Terminal;
 	readonly capabilities = new TerminalCapabilityStore();
-
-	private readonly _onIntegratedShellChange = new Emitter<{ type: string, value: string }>();
-	readonly onIntegratedShellChange = this._onIntegratedShellChange.event;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
