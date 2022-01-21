@@ -60,6 +60,7 @@ import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModel
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
+import { IDimension } from 'vs/editor/common/core/dimension';
 
 let EDITOR_ID = 0;
 
@@ -1347,7 +1348,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.view.delegateVerticalScrollbarMouseDown(browserEvent);
 	}
 
-	public layout(dimension?: editorCommon.IDimension): void {
+	public layout(dimension?: IDimension): void {
 		this._configuration.observeContainer(dimension);
 		this.render();
 	}

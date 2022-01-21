@@ -13,6 +13,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness, IValidEditOperation } from 'vs/editor/common/model';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IDimension } from 'vs/editor/common/core/dimension';
 
 /**
  * A builder and helper for edit operations for a command.
@@ -114,11 +115,6 @@ export interface IModelChangedEvent {
 	 * The `uri` of the new model or null.
 	 */
 	readonly newModelUrl: URI | null;
-}
-
-export interface IDimension {
-	width: number;
-	height: number;
 }
 
 // --- view

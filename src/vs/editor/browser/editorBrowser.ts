@@ -21,6 +21,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
 import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { IDimension } from 'vs/editor/common/core/dimension';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -165,7 +166,7 @@ export interface IContentWidget {
 	 * the content widget. If a dimension is returned the editor will
 	 * attempt to use it.
 	 */
-	beforeRender?(): editorCommon.IDimension | null;
+	beforeRender?(): IDimension | null;
 	/**
 	 * Optional function that is invoked after rendering the content
 	 * widget. Is being invoked with the selected position preference
@@ -440,7 +441,7 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 	/**
 	 * The initial editor dimension (to avoid measuring the container).
 	 */
-	dimension?: editorCommon.IDimension;
+	dimension?: IDimension;
 
 	/**
 	 * Place overflow widgets inside an external DOM node.

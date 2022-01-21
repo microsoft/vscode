@@ -2115,6 +2115,10 @@ declare namespace monaco.editor {
 	export interface ILineChange extends IChange {
 		readonly charChanges: ICharChange[] | undefined;
 	}
+	export interface IDimension {
+		width: number;
+		height: number;
+	}
 
 	/**
 	 * A builder and helper for edit operations for a command.
@@ -2206,11 +2210,6 @@ declare namespace monaco.editor {
 		 * The `uri` of the new model or null.
 		 */
 		readonly newModelUrl: Uri | null;
-	}
-
-	export interface IDimension {
-		width: number;
-		height: number;
 	}
 
 	export interface IContentSizeChangedEvent {
