@@ -94,12 +94,7 @@ export function activate(context: vscode.ExtensionContext) {
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
 			commandArgs.push('--server-data-dir', remoteDataDir);
 
-			const connectionTokenFile = path.join(remoteDataDir, `${process.pid}-${new Date().getTime()}.token`);
-			if (!fs.existsSync(remoteDataDir)) {
-				fs.mkdirSync(remoteDataDir, { recursive: true });
-			}
-			fs.writeFileSync(connectionTokenFile, connectionToken);
-			commandArgs.push('--connection-token-file', connectionTokenFile);
+			commandArgs.push('--connection-token', connectionToken);
 
 			if (!commit) { // dev mode
 				const serverCommand = process.platform === 'win32' ? 'code-server.bat' : 'code-server.sh';
@@ -142,11 +137,6 @@ export function activate(context: vscode.ExtensionContext) {
 				dispose: () => {
 					if (extHostProcess) {
 						terminateProcess(extHostProcess, context.extensionPath);
-					}
-					try {
-						fs.unlinkSync(connectionTokenFile);
-					} catch (_e) {
-						//ignore
 					}
 				}
 			});
