@@ -180,7 +180,7 @@ if (!opts.web) {
 	}
 
 	if (!fs.existsSync(electronPath || '')) {
-		fail(`Can't find VSCode at ${electronPath}.`);
+		fail(`Can't find VSCode at ${electronPath}. Please run VSCode once first (scripts/code.sh, scripts\\code.bat) and try again.`);
 	}
 
 	if (process.env.VSCODE_DEV === '1') {

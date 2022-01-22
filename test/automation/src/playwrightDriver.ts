@@ -253,7 +253,7 @@ async function launchServer(options: LaunchOptions) {
 
 	return {
 		serverProcess,
-		endpoint: await measureAndLog(waitForEndpoint(serverProcess), 'waitForEndpoint(serverProcess)', logger)
+		endpoint: await measureAndLog(waitForEndpoint(serverProcess, logger), 'waitForEndpoint(serverProcess)', logger)
 	};
 }
 
@@ -314,12 +314,30 @@ async function teardown(server: ChildProcess, logger: Logger): Promise<void> {
 	logger.log(`Gave up tearing down server after ${retries} attempts...`);
 }
 
-function waitForEndpoint(server: ChildProcess): Promise<string> {
+function waitForEndpoint(server: ChildProcess, logger: Logger): Promise<string> {
 	return new Promise<string>((resolve, reject) => {
-		server.stdout?.on('data', (d: Buffer) => {
-			const matches = d.toString('ascii').match(/Web UI available at (.+)/);
+		let endpointFound = false;
+
+		server.stdout?.on('data', data => {
+			if (!endpointFound) {
+				logger.log(`[server] stdout: ${data}`); // log until endpoint found to diagnose issues
+			}
+
+			const matches = data.toString('ascii').match(/Web UI available at (.+)/);
 			if (matches !== null) {
+				endpointFound = true;
+
 				resolve(matches[1]);
+			}
+		});
+
+		server.stderr?.on('data', error => {
+			if (!endpointFound) {
+				logger.log(`[server] stderr: ${error}`); // log until endpoint found to diagnose issues
+			}
+
+			if (error.toString().indexOf('EADDRINUSE') !== -1) {
+				reject(new Error(error));
 			}
 		});
 	});
