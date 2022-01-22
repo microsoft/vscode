@@ -444,8 +444,7 @@ export function injectShellIntegrationArgs(logService: ILogService, enableShellI
 	} else {
 		switch (shell) {
 			case 'bash':
-				if (!originalArgs || originalArgs.length === 0) {
-					//TODO: support login args
+				if (!originalArgs || originalArgs.length === 0 || areZshBashLoginArgs(originalArgs)) {
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 				}
 				break;
@@ -459,7 +458,7 @@ export function injectShellIntegrationArgs(logService: ILogService, enableShellI
 			case 'zsh':
 				if (!originalArgs || originalArgs.length === 0) {
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
-				} else if (areZshLoginArgs(originalArgs)) {
+				} else if (areZshBashLoginArgs(originalArgs)) {
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
 				}
 				break;
@@ -490,7 +489,7 @@ function arePwshImpliedArgs(originalArgs: string | string[]): boolean {
 	}
 }
 
-function areZshLoginArgs(originalArgs: string | string[]): boolean {
+function areZshBashLoginArgs(originalArgs: string | string[]): boolean {
 	return originalArgs === 'string' && loginArgs.includes(originalArgs.toLowerCase())
 		|| typeof originalArgs !== 'string' && originalArgs.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase());
 }
