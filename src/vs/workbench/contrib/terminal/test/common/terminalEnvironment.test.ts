@@ -256,9 +256,9 @@ suite('Workbench - TerminalEnvironment', () => {
 		const logService = new NullLogService();
 		let shellIntegrationEnabled = true;
 
-		suite('should not enable for feature terminals or when the executable is undefined', () => {
+		suite('should not enable', () => {
 			const executable = isWindows ? 'pwsh.exe' : 'pwsh';
-			test('undefined, [], empty string, or empty string in array', () => {
+			test('when undefined, [], empty string, or empty string in array', () => {
 				let { args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: ['-l', '-NoLogo'], isFeatureTerminal: true }, isWindows);
 				terminalProfileArgsMatch(args, ['-l', '-NoLogo']);
 				strictEqual(enableShellIntegration, shellIntegrationEnabled);
@@ -274,23 +274,21 @@ suite('Workbench - TerminalEnvironment', () => {
 
 			suite('should override args', () => {
 				const expectedArgs = isWindows ? shellIntegrationArgs.get(ShellIntegrationExecutable.Pwsh) : shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwsh);
-				suite('undefined', () => {
-					test('undefined, [], empty string, or empty string in array', () => {
-						let { args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: [''] }, isWindows);
-						terminalProfileArgsMatch(args, expectedArgs);
-						strictEqual(enableShellIntegration, shellIntegrationEnabled);
-						({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: [] }, isWindows));
-						terminalProfileArgsMatch(args, expectedArgs);
-						strictEqual(enableShellIntegration, shellIntegrationEnabled);
-						({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: undefined }, isWindows));
-						terminalProfileArgsMatch(args, expectedArgs);
-						strictEqual(enableShellIntegration, shellIntegrationEnabled);
-						({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: '' }, isWindows));
-						terminalProfileArgsMatch(args, expectedArgs);
-						strictEqual(enableShellIntegration, shellIntegrationEnabled);
-					});
+				test('undefined, [], empty string, or empty string in array', () => {
+					let { args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: [''] }, isWindows);
+					terminalProfileArgsMatch(args, expectedArgs);
+					strictEqual(enableShellIntegration, shellIntegrationEnabled);
+					({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: [] }, isWindows));
+					terminalProfileArgsMatch(args, expectedArgs);
+					strictEqual(enableShellIntegration, shellIntegrationEnabled);
+					({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: undefined }, isWindows));
+					terminalProfileArgsMatch(args, expectedArgs);
+					strictEqual(enableShellIntegration, shellIntegrationEnabled);
+					({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: '' }, isWindows));
+					terminalProfileArgsMatch(args, expectedArgs);
+					strictEqual(enableShellIntegration, shellIntegrationEnabled);
 				});
-				suite('should ignore no logo arg', () => {
+				suite('when no logo', () => {
 					test('array - case insensitive', () => {
 						let { args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: ['-NoLogo'] }, isWindows);
 						terminalProfileArgsMatch(args, expectedArgs);
@@ -323,12 +321,12 @@ suite('Workbench - TerminalEnvironment', () => {
 			});
 			suite('should incorporate login arg', () => {
 				const expectedArgs = isWindows ? shellIntegrationArgs.get(ShellIntegrationExecutable.PwshLogin) : shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwshLogin);
-				test('array contains no logo and login', () => {
+				test('when array contains no logo and login', () => {
 					const { args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: ['-l', '-NoLogo'] }, isWindows);
 					terminalProfileArgsMatch(args, expectedArgs);
 					strictEqual(enableShellIntegration, shellIntegrationEnabled);
 				});
-				test('string', () => {
+				test('when string', () => {
 					const { args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: '-l' }, isWindows);
 					terminalProfileArgsMatch(args, expectedArgs);
 					strictEqual(enableShellIntegration, shellIntegrationEnabled);
@@ -364,30 +362,28 @@ suite('Workbench - TerminalEnvironment', () => {
 
 				suite('should override args', () => {
 					const expectedArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
-					suite('undefined', () => {
-						test('undefined, [], empty string, or empty string in array', () => {
-							let { args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: [''] }, isWindows);
-							terminalProfileArgsMatch(args, expectedArgs);
-							strictEqual(enableShellIntegration, shellIntegrationEnabled);
-							({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: [] }, isWindows));
-							terminalProfileArgsMatch(args, expectedArgs);
-							strictEqual(enableShellIntegration, shellIntegrationEnabled);
-							({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: undefined }, isWindows));
-							terminalProfileArgsMatch(args, expectedArgs);
-							strictEqual(enableShellIntegration, shellIntegrationEnabled);
-							({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: '' }, isWindows));
-							terminalProfileArgsMatch(args, expectedArgs);
-							strictEqual(enableShellIntegration, shellIntegrationEnabled);
-						});
+					test('when undefined, [], empty string, or empty string in array', () => {
+						let { args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: [''] }, isWindows);
+						terminalProfileArgsMatch(args, expectedArgs);
+						strictEqual(enableShellIntegration, shellIntegrationEnabled);
+						({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: [] }, isWindows));
+						terminalProfileArgsMatch(args, expectedArgs);
+						strictEqual(enableShellIntegration, shellIntegrationEnabled);
+						({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: undefined }, isWindows));
+						terminalProfileArgsMatch(args, expectedArgs);
+						strictEqual(enableShellIntegration, shellIntegrationEnabled);
+						({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: '' }, isWindows));
+						terminalProfileArgsMatch(args, expectedArgs);
+						strictEqual(enableShellIntegration, shellIntegrationEnabled);
 					});
 					suite('should incorporate login arg', () => {
 						const expectedArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
-						test('array', () => {
+						test('when array', () => {
 							const { args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: ['-l'] }, isWindows);
 							terminalProfileArgsMatch(args, expectedArgs);
 							strictEqual(enableShellIntegration, shellIntegrationEnabled);
 						});
-						test('string', () => {
+						test('when string', () => {
 							const { args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: '-l' }, isWindows);
 							terminalProfileArgsMatch(args, expectedArgs);
 							strictEqual(enableShellIntegration, shellIntegrationEnabled);
@@ -421,21 +417,19 @@ suite('Workbench - TerminalEnvironment', () => {
 
 				suite('should override args', () => {
 					const expectedArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
-					suite('undefined', () => {
-						test('undefined, [], empty string, or empty string in array', () => {
-							let { args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: [''] }, isWindows);
-							terminalProfileArgsMatch(args, expectedArgs);
-							strictEqual(enableShellIntegration, shellIntegrationEnabled);
-							({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: [] }, isWindows));
-							terminalProfileArgsMatch(args, expectedArgs);
-							strictEqual(enableShellIntegration, shellIntegrationEnabled);
-							({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: undefined }, isWindows));
-							terminalProfileArgsMatch(args, expectedArgs);
-							strictEqual(enableShellIntegration, shellIntegrationEnabled);
-							({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: '' }, isWindows));
-							terminalProfileArgsMatch(args, expectedArgs);
-							strictEqual(enableShellIntegration, shellIntegrationEnabled);
-						});
+					test('when undefined, [], empty string, or empty string in array', () => {
+						let { args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: [''] }, isWindows);
+						terminalProfileArgsMatch(args, expectedArgs);
+						strictEqual(enableShellIntegration, shellIntegrationEnabled);
+						({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: [] }, isWindows));
+						terminalProfileArgsMatch(args, expectedArgs);
+						strictEqual(enableShellIntegration, shellIntegrationEnabled);
+						({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: undefined }, isWindows));
+						terminalProfileArgsMatch(args, expectedArgs);
+						strictEqual(enableShellIntegration, shellIntegrationEnabled);
+						({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: '' }, isWindows));
+						terminalProfileArgsMatch(args, expectedArgs);
+						strictEqual(enableShellIntegration, shellIntegrationEnabled);
 					});
 					suite('should not modify args', () => {
 						shellIntegrationEnabled = false;
