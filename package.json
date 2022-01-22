@@ -33,7 +33,7 @@
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.js",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
-    "smoketest": "cd test/smoke && yarn compile && node test/index.js",
+    "smoketest": "node build/lib/preLaunch.js && cd test/smoke && yarn compile && node test/index.js",
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "download-builtin-extensions-cg": "node build/lib/builtInExtensionsCG.js",
