@@ -376,15 +376,8 @@ class NewExtensionsInitializer implements IUserDataInitializer {
 		}
 
 		const newlyEnabledExtensions: ILocalExtension[] = [];
-		const uuids: string[] = [], names: string[] = [];
-		for (const { uuid, id } of preview.newExtensions) {
-			if (uuid) {
-				uuids.push(uuid);
-			} else {
-				names.push(id);
-			}
-		}
-		const galleryExtensions = (await this.galleryService.query({ ids: uuids, names: names, pageSize: uuids.length + names.length }, CancellationToken.None)).firstPage;
+		const targetPlatform = await this.extensionManagementService.getTargetPlatform();
+		const galleryExtensions = await this.galleryService.getExtensions(preview.newExtensions, { targetPlatform, compatible: true }, CancellationToken.None);
 		for (const galleryExtension of galleryExtensions) {
 			try {
 				const extensionToSync = preview.remoteExtensions.find(({ identifier }) => areSameExtensions(identifier, galleryExtension.identifier));

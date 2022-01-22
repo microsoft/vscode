@@ -497,7 +497,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 export interface IExtensionsInitializerPreviewResult {
 	readonly installedExtensions: ILocalExtension[];
 	readonly disabledExtensions: IExtensionIdentifier[];
-	readonly newExtensions: IExtensionIdentifier[];
+	readonly newExtensions: (IExtensionIdentifier & { preRelease: boolean })[];
 	readonly remoteExtensions: ISyncExtension[];
 }
 
@@ -520,7 +520,7 @@ export abstract class AbstractExtensionsInitializer extends AbstractInitializer 
 
 	protected generatePreview(remoteExtensions: ISyncExtension[], localExtensions: ILocalExtension[]): IExtensionsInitializerPreviewResult {
 		const installedExtensions: ILocalExtension[] = [];
-		const newExtensions: IExtensionIdentifier[] = [];
+		const newExtensions: (IExtensionIdentifier & { preRelease: boolean })[] = [];
 		const disabledExtensions: IExtensionIdentifier[] = [];
 		for (const extension of remoteExtensions) {
 			if (this.ignoredExtensionsManagementService.hasToNeverSyncExtension(extension.identifier.id)) {
@@ -535,7 +535,7 @@ export abstract class AbstractExtensionsInitializer extends AbstractInitializer 
 					disabledExtensions.push(extension.identifier);
 				}
 			} else if (extension.installed) {
-				newExtensions.push(extension.identifier);
+				newExtensions.push({ ...extension.identifier, preRelease: !!extension.preRelease });
 				if (extension.disabled) {
 					disabledExtensions.push(extension.identifier);
 				}
