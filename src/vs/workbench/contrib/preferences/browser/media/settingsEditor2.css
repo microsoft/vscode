@@ -93,14 +93,6 @@
 	opacity: 1;
 }
 
-.monaco-workbench.vs .settings-editor > .settings-header > .settings-header-controls {
-	border-color: #cccccc;
-}
-
-.monaco-workbench.vs-dark .settings-editor > .settings-header > .settings-header-controls {
-	border-color: #3c3c3c;
-}
-
 .settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	margin-right: 0px;
 }
