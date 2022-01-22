@@ -125,10 +125,9 @@ const getTsconfigPath = async (baseDirUri: vscode.Uri, extendsValue: string): Pr
 	const isRelativePath = ['./', '../'].some(str => extendsValue.startsWith(str));
 	if (isRelativePath) {
 		const absolutePath = vscode.Uri.joinPath(baseDirUri, extendsValue);
-		if (await exists(absolutePath)) {
+		if (await exists(absolutePath) || absolutePath.path.endsWith('.json')) {
 			return absolutePath;
 		}
-		// Will suggest to create a .json variant if it doesn't exist yet
 		return absolutePath.with({
 			path: `${absolutePath.path}.json`
 		});
@@ -186,6 +185,7 @@ export function register() {
 				vscode.window.showErrorMessage(localize('openTsconfigExtendsModuleFail', "Failed to resolve {0} as module", extendsValue));
 				return;
 			}
+			// Will suggest to create a .json variant if it doesn't exist yet (but only for relative paths)
 			await vscode.commands.executeCommand('vscode.open', tsconfigPath);
 		}),
 		vscode.languages.registerDocumentLinkProvider(selector, new TsconfigLinkProvider()),
