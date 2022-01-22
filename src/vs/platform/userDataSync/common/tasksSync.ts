@@ -310,6 +310,11 @@ function merge(originalLocalContent: string | null, originalRemoteContent: strin
 		return { content: null, hasLocalChanged: false, hasRemoteChanged: false, hasConflicts: false };
 	}
 
+	/* no changes */
+	if (originalLocalContent === originalRemoteContent) {
+		return { content: null, hasLocalChanged: false, hasRemoteChanged: false, hasConflicts: false };
+	}
+
 	const localForwarded = baseContent !== originalLocalContent;
 	const remoteForwarded = baseContent !== originalRemoteContent;
 

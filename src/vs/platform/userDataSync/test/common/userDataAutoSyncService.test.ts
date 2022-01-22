@@ -147,6 +147,9 @@ suite('UserDataAutoSyncService', () => {
 			// Snippets
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '0' } },
+			// Tasks
+			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/tasks`, headers: { 'If-Match': '0' } },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },

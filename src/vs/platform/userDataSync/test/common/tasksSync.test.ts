@@ -116,6 +116,37 @@ suite('TasksSync', () => {
 		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
 	});
 
+	test('first time sync: when tasks file exists locally with same content as remote', async () => {
+		const client2 = disposableStore.add(new UserDataSyncClient(server));
+		await client2.setUp(true);
+		const content = JSON.stringify({
+			'version': '2.0.0',
+			'tasks': [{
+				'type': 'npm',
+				'script': 'watch',
+				'label': 'Watch'
+			}]
+		});
+		const uriIdentityService2 = client2.instantiationService.get(IUriIdentityService);
+		const tasksResource2 = uriIdentityService2.extUri.joinPath(uriIdentityService2.extUri.dirname(client2.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		await client2.instantiationService.get(IFileService).writeFile(tasksResource2, VSBuffer.fromString(content));
+		await client2.sync();
+
+		const fileService = client.instantiationService.get(IFileService);
+		const uriIdentityService = client.instantiationService.get(IUriIdentityService);
+		const tasksResource = uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(client.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		await fileService.writeFile(tasksResource, VSBuffer.fromString(content));
+
+		await testObject.sync(await client.manifest());
+
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
+		const lastSyncUserData = await testObject.getLastSyncUserData();
+		const remoteUserData = await testObject.getRemoteUserData(null);
+		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual((await fileService.readFile(tasksResource)).value.toString(), content);
+	});
+
 	test('when tasks file locally has moved forward', async () => {
 		const fileService = client.instantiationService.get(IFileService);
 		const uriIdentityService = client.instantiationService.get(IUriIdentityService);
@@ -175,6 +206,46 @@ suite('TasksSync', () => {
 		fileService2.writeFile(tasksResource2, VSBuffer.fromString(content));
 
 		await client2.sync();
+		await testObject.sync(await client.manifest());
+
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
+		const lastSyncUserData = await testObject.getLastSyncUserData();
+		const remoteUserData = await testObject.getRemoteUserData(null);
+		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
+		assert.strictEqual((await fileService.readFile(tasksResource)).value.toString(), content);
+	});
+
+	test('when tasks file has moved forward locally and remotely with same changes', async () => {
+		const client2 = disposableStore.add(new UserDataSyncClient(server));
+		await client2.setUp(true);
+		const uriIdentityService2 = client2.instantiationService.get(IUriIdentityService);
+		const tasksResource2 = uriIdentityService2.extUri.joinPath(uriIdentityService2.extUri.dirname(client2.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const fileService2 = client2.instantiationService.get(IFileService);
+		await fileService2.writeFile(tasksResource2, VSBuffer.fromString(JSON.stringify({
+			'version': '2.0.0',
+			'tasks': []
+		})));
+
+		const fileService = client.instantiationService.get(IFileService);
+		const uriIdentityService = client.instantiationService.get(IUriIdentityService);
+		const tasksResource = uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(client.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+
+		await client2.sync();
+		await testObject.sync(await client.manifest());
+
+		const content = JSON.stringify({
+			'version': '2.0.0',
+			'tasks': [{
+				'type': 'npm',
+				'script': 'watch',
+				'label': 'Watch'
+			}]
+		});
+		fileService2.writeFile(tasksResource2, VSBuffer.fromString(content));
+		await client2.sync();
+
+		fileService.writeFile(tasksResource, VSBuffer.fromString(content));
 		await testObject.sync(await client.manifest());
 
 		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
