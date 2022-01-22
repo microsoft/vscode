@@ -63,7 +63,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { escapeNonWindowsPath, injectShellIntegrationArgs } from 'vs/platform/terminal/common/terminalEnvironment';
+import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isFirefox } from 'vs/base/browser/browser';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
@@ -72,6 +72,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { injectShellIntegrationArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 
 const enum Constants {
 	/**
