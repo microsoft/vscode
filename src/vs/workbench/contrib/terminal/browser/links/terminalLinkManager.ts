@@ -30,6 +30,7 @@ import { TerminalExternalLinkProviderAdapter } from 'vs/workbench/contrib/termin
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { EventType } from 'vs/base/browser/dom';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
@@ -101,7 +102,46 @@ export class TerminalLinkManager extends DisposableStore {
 		this._registerStandardLinkProviders();
 	}
 
-	async getLinks(y: number): Promise<IDetectedLinks | undefined> {
+	async openRecentLink(type: 'file' | 'web'): Promise<ILink | undefined> {
+		let links;
+		let i = this._xtermTerminal.raw.buffer.active.length;
+		while ((!links || links.length === 0) && i >= this._xtermTerminal.raw.buffer.active.viewportY) {
+			links = await this.getLinksForType(i, type);
+			i--;
+		}
+
+		if (!links || links.length < 1) {
+			return undefined;
+		}
+		const event = new TerminalLinkQuickPickEvent(EventType.CLICK);
+		links[0].activate(event, links[0].text);
+		return links[0];
+	}
+
+	async getLinks(): Promise<IDetectedLinks> {
+		const wordResults: ILink[] = [];
+		const webResults: ILink[] = [];
+		const fileResults: ILink[] = [];
+
+		for (let i = this._xtermTerminal.raw.buffer.active.length - 1; i >= this._xtermTerminal.raw.buffer.active.viewportY; i--) {
+			const links = await this._getLinksForLine(i);
+			if (links) {
+				const { wordLinks, webLinks, fileLinks } = links;
+				if (wordLinks && wordLinks.length) {
+					wordResults.push(...wordLinks.reverse());
+				}
+				if (webLinks && webLinks.length) {
+					webResults.push(...webLinks.reverse());
+				}
+				if (fileLinks && fileLinks.length) {
+					fileResults.push(...fileLinks.reverse());
+				}
+			}
+		}
+		return { webLinks: webResults, fileLinks: fileResults, wordLinks: wordResults };
+	}
+
+	private async _getLinksForLine(y: number): Promise<IDetectedLinks | undefined> {
 		let unfilteredWordLinks = await this.getLinksForType(y, 'word');
 		const webLinks = await this.getLinksForType(y, 'web');
 		const fileLinks = await this.getLinksForType(y, 'file');
@@ -118,6 +158,7 @@ export class TerminalLinkManager extends DisposableStore {
 		}
 		return { wordLinks, webLinks, fileLinks };
 	}
+
 	async getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined> {
 		switch (type) {
 			case 'word':
@@ -128,6 +169,7 @@ export class TerminalLinkManager extends DisposableStore {
 				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalValidatedLocalLinkProvider.id)?.provideLinks(y, r)));
 		}
 	}
+
 	private _tooltipCallback(link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) {
 		if (!this._widgetManager) {
 			return;
@@ -188,7 +230,7 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable {
-		// Clear and re-register the standard link providers so they are a lower priority that the new one
+		// Clear and re-register the standard link providers so they are a lower priority than the new one
 		this._clearLinkProviders();
 		const wrappedLinkProvider = this._instantiationService.createInstance(TerminalExternalLinkProviderAdapter, this._xterm, instance, linkProvider, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
 		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);

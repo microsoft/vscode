@@ -683,7 +683,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			throw new Error('no xterm');
 		}
-		return this.xterm.getLinks(this._linkManager);
+		return this._linkManager.getLinks();
 	}
 
 	async openRecentLink(type: 'file' | 'web'): Promise<void> {
@@ -693,7 +693,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			throw new Error('no xterm');
 		}
-		this.xterm.openRecentLink(this._linkManager, type);
+		this._linkManager.openRecentLink(type);
 	}
 
 	async runRecent(type: 'command' | 'cwd'): Promise<void> {
