@@ -873,7 +873,7 @@ export class Repository implements Disposable {
 			}
 
 			// Normalize the uri to be relative to the repository
-			return !/(?:\/|\\)\.git(?:\/|\\)/.test(path.relative(rootUri.fsPath, uri.fsPath));
+			return !/(?:\/|\\)\.git(?:\/|\\)/.test(uri.fsPath.substr(rootUri.fsPath.length + 1));
 		});
 
 		let onDotGitFileChange: Event<Uri>;
