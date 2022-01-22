@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/welcome/walkThrough/browser/editor/vs_code_editor_walkthrough';
+import 'vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough';
 import { localize } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Action } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
+import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThroughInput';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -21,7 +21,7 @@ const inputOptions: WalkThroughInputOptions = {
 	resource: FileAccess.asBrowserUri('./vs_code_editor_walkthrough.md', require)
 		.with({
 			scheme: Schemas.walkThrough,
-			query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/walkThrough/browser/editor/vs_code_editor_walkthrough' })
+			query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough' })
 		}),
 	telemetryFrom: 'walkThrough'
 };

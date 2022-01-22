@@ -282,12 +282,12 @@ import 'vs/workbench/contrib/surveys/browser/ces.contribution';
 import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
 
 // Welcome
-import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
-import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
-import 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted.contribution';
-import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
-import 'vs/workbench/contrib/welcome/common/viewsWelcome.contribution';
-import 'vs/workbench/contrib/welcome/common/newFile.contribution';
+import 'vs/workbench/contrib/welcomeOverlay/browser/welcomeOverlay';
+import 'vs/workbench/contrib/welcomePage/browser/welcomePage.contribution';
+import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.contribution';
+import 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThrough.contribution';
+import 'vs/workbench/contrib/welcomeViews/common/viewsWelcome.contribution';
+import 'vs/workbench/contrib/welcomeViews/common/newFile.contribution';
 
 // Call Hierarchy
 import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';

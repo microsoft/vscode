@@ -256,8 +256,7 @@
 				]
 			},
 			{
-				// TODO@layers `contrib/welcome` does its own special layering with sub-layers
-				"target": "src/vs/workbench/{contrib,contrib/welcome}/*/~",
+				"target": "src/vs/workbench/contrib/*/~",
 				"restrictions": [
 					"vs/base/~",
 					"vs/base/parts/*/~",
@@ -267,7 +266,7 @@
 					"vs/workbench/~",
 					"vs/workbench/api/~",
 					"vs/workbench/services/*/~",
-					"vs/workbench/{contrib,contrib/welcome}/*/~",
+					"vs/workbench/contrib/*/~",
 					{ "when": "hasBrowser", "pattern": "xterm" }, // node module allowed even in /browser/
 					{ "when": "hasBrowser", "pattern": "xterm-addon-*" }, // node module allowed even in /browser/
 					{ "when": "hasBrowser", "pattern": "vscode-textmate" } // node module allowed even in /browser/
@@ -294,7 +293,7 @@
 					"vs/workbench/~",
 					"vs/workbench/api/~",
 					"vs/workbench/services/*/~",
-					"vs/workbench/{contrib,contrib/welcome}/*/~",
+					"vs/workbench/contrib/*/~",
 					"vs/server/~"
 				]
 			},
@@ -311,7 +310,7 @@
 					"vs/workbench/~",
 					"vs/workbench/api/~",
 					"vs/workbench/services/*/~",
-					"vs/workbench/{contrib,contrib/welcome}/*/~"
+					"vs/workbench/contrib/*/~"
 				]
 			},
 			{
@@ -327,7 +326,7 @@
 					"vs/workbench/~",
 					"vs/workbench/api/~",
 					"vs/workbench/services/*/~",
-					"vs/workbench/{contrib,contrib/welcome}/*/~",
+					"vs/workbench/contrib/*/~",
 					"vs/workbench/workbench.common.main"
 				]
 			},
@@ -344,7 +343,7 @@
 					"vs/workbench/~",
 					"vs/workbench/api/~",
 					"vs/workbench/services/*/~",
-					"vs/workbench/{contrib,contrib/welcome}/*/~",
+					"vs/workbench/contrib/*/~",
 					"vs/workbench/workbench.common.main",
 					"vs/workbench/workbench.sandbox.main"
 				]
@@ -362,7 +361,7 @@
 					"vs/workbench/~",
 					"vs/workbench/api/~",
 					"vs/workbench/services/*/~",
-					"vs/workbench/{contrib,contrib/welcome}/*/~",
+					"vs/workbench/contrib/*/~",
 					"vs/workbench/workbench.common.main",
 					"vs/workbench/workbench.sandbox.main"
 				]
