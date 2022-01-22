@@ -62,37 +62,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			border-bottom: 2px solid;
 		}
 
-		h2, h3, h4, h5, h6 {
-			font-weight: normal;
-		}
-
-		h1 {
-			font-size: 2.3em;
-		}
-
-		h2 {
-			font-size: 2em;
-		}
-
-		h3 {
-			font-size: 1.7em;
-		}
-
-		h3 {
-			font-size: 1.5em;
-		}
-
-		h4 {
-			font-size: 1.3em;
-		}
-
-		h5 {
-			font-size: 1.2em;
-		}
-
-		h1,
-		h2,
-		h3 {
+		h1, h2, h3, h4, h5, h6 {
 			font-weight: normal;
 		}
 
