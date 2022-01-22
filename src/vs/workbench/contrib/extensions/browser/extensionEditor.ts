@@ -484,7 +484,7 @@ export class ExtensionEditor extends EditorPane {
 		if (!preRelease && !extension.hasReleaseVersion) {
 			return null;
 		}
-		return (await this.extensionGalleryService.query({ includePreRelease: preRelease, names: [extension.identifier.id] }, CancellationToken.None)).firstPage[0] || null;
+		return (await this.extensionGalleryService.getExtensions([{ ...extension.identifier, preRelease, hasPreRelease: extension.hasPreReleaseVersion }], CancellationToken.None))[0] || null;
 	}
 
 	private async render(extension: IExtension, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
