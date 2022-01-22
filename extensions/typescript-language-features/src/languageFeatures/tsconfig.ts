@@ -186,7 +186,7 @@ export function register() {
 				vscode.window.showErrorMessage(localize('openTsconfigExtendsModuleFail', "Failed to resolve {0} as module", extendsValue));
 				return;
 			}
-			await vscode.workspace.openTextDocument(tsconfigPath);
+			await vscode.commands.executeCommand('vscode.open', tsconfigPath);
 		}),
 		vscode.languages.registerDocumentLinkProvider(selector, new TsconfigLinkProvider()),
 	);
