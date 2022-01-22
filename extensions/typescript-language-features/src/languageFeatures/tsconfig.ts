@@ -125,7 +125,9 @@ const getTsconfigPath = async (baseDirUri: vscode.Uri, extendsValue: string): Pr
 	const isRelativePath = ['./', '../'].some(str => extendsValue.startsWith(str));
 	if (isRelativePath) {
 		const absolutePath = vscode.Uri.joinPath(baseDirUri, extendsValue);
-		if (await exists(absolutePath)) { return absolutePath; }
+		if (await exists(absolutePath)) {
+			return absolutePath;
+		}
 		// Will suggest to create a .json variant if it doesn't exist yet
 		return absolutePath.with({
 			path: `${absolutePath.path}.json`
@@ -155,7 +157,9 @@ const getTsconfigPath = async (baseDirUri: vscode.Uri, extendsValue: string): Pr
 				}
 			}
 			// reached the root
-			if (posix.relative(currentUri.path, '/') === '') { return; }
+			if (posix.relative(currentUri.path, '/') === '') {
+				return;
+			}
 
 			currentUri = vscode.Uri.joinPath(currentUri, '..');
 		}
