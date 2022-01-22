@@ -5,19 +5,13 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
-import { IChange, ILineChange } from 'vs/editor/common/editorCommon';
+import { IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';
 import { IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/languages';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/languages/unicodeTextModelHighlighter';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ID_EDITOR_WORKER_SERVICE = 'editorWorkerService';
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>(ID_EDITOR_WORKER_SERVICE);
-
-export interface IDiffComputationResult {
-	quitEarly: boolean;
-	identical: boolean;
-	changes: ILineChange[];
-}
 
 export interface IEditorWorkerService {
 	readonly _serviceBrand: undefined;

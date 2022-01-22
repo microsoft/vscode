@@ -10,7 +10,6 @@
   "enabledApiProposals": [
     "inlayHints",
     "languageStatus",
-    "quickPickSeparators",
     "resolvers",
     "workspaceTrust"
   ],

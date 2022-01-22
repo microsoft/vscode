@@ -17,9 +17,7 @@ import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/b
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { ILink, IMarker } from 'xterm';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -82,25 +80,13 @@ export interface IQuickPickTerminalObject {
 	keyMods: IKeyMods | undefined
 }
 
-export interface TerminalCommand {
-	command: string;
-	timestamp: number;
-	cwd?: string;
-	exitCode?: number;
-	marker?: IMarker;
-	getOutput(): string | undefined;
-}
-
 export interface ICommandTracker {
-	readonly commands: TerminalCommand[];
-	readonly cwds: string[];
 	scrollToPreviousCommand(): void;
 	scrollToNextCommand(): void;
 	selectToPreviousCommand(): void;
 	selectToNextCommand(): void;
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
-	getCwdForLine(line: number): string;
 	clearMarker(): void;
 }
 
@@ -344,6 +330,7 @@ export interface ITerminalInstanceHost {
 	readonly onDidFocusInstance: Event<ITerminalInstance>;
 	readonly onDidChangeActiveInstance: Event<ITerminalInstance | undefined>;
 	readonly onDidChangeInstances: Event<void>;
+	readonly onDidChangeInstanceCapability: Event<ITerminalInstance>;
 
 	setActiveInstance(instance: ITerminalInstance): void;
 	/**
@@ -880,21 +867,6 @@ export interface IXtermTerminal {
 	 * viewport.
 	 */
 	clearBuffer(): void;
-
-	/*
-	 * When process capabilites are updated, update the command tracker
-	 */
-	upgradeCommandTracker(): void;
-
-	/*
-	 * Activates the most recent link for the type
-	 */
-	openRecentLink(linkManager: TerminalLinkManager, type: 'file' | 'web'): Promise<ILink | undefined>;
-
-	/*
-	 * Gets all of the links
-	 */
-	getLinks(linkManager: TerminalLinkManager): Promise<IDetectedLinks>;
 }
 
 export interface IRequestAddInstanceToGroupEvent {

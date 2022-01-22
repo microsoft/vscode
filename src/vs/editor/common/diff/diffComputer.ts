@@ -5,9 +5,41 @@
 
 import { IDiffChange, ISequence, LcsDiff, IDiffResult } from 'vs/base/common/diff/diff';
 import * as strings from 'vs/base/common/strings';
-import { ICharChange, ILineChange } from 'vs/editor/common/editorCommon';
 
 const MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
+
+export interface IDiffComputationResult {
+	quitEarly: boolean;
+	identical: boolean;
+	changes: ILineChange[];
+}
+
+/**
+ * A change
+ */
+export interface IChange {
+	readonly originalStartLineNumber: number;
+	readonly originalEndLineNumber: number;
+	readonly modifiedStartLineNumber: number;
+	readonly modifiedEndLineNumber: number;
+}
+
+/**
+ * A character level change.
+ */
+export interface ICharChange extends IChange {
+	readonly originalStartColumn: number;
+	readonly originalEndColumn: number;
+	readonly modifiedStartColumn: number;
+	readonly modifiedEndColumn: number;
+}
+
+/**
+ * A line change
+ */
+export interface ILineChange extends IChange {
+	readonly charChanges: ICharChange[] | undefined;
+}
 
 export interface IDiffComputerResult {
 	quitEarly: boolean;

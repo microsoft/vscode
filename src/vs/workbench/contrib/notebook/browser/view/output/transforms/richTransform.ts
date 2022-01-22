@@ -14,14 +14,13 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { ICellOutputViewModel, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookDelegateForOutput, IOutputTransformContribution as IOutputRendererContribution } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { ICellOutputViewModel, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookDelegateForOutput } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
 import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
 import { IOutputItemDto, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-
-class JavaScriptRendererContrib extends Disposable implements IOutputRendererContribution {
+class JavaScriptRendererContrib extends Disposable implements IOutputTransformContribution {
 	getType() {
 		return RenderOutputType.Html;
 	}
@@ -49,7 +48,7 @@ class JavaScriptRendererContrib extends Disposable implements IOutputRendererCon
 	}
 }
 
-class StreamRendererContrib extends Disposable implements IOutputRendererContribution {
+class StreamRendererContrib extends Disposable implements IOutputTransformContribution {
 	getType() {
 		return RenderOutputType.Mainframe;
 	}
@@ -98,7 +97,7 @@ class StderrRendererContrib extends StreamRendererContrib {
 	}
 }
 
-class JSErrorRendererContrib implements IOutputRendererContribution {
+class JSErrorRendererContrib implements IOutputTransformContribution {
 
 	constructor(
 		public notebookEditor: INotebookDelegateForOutput,
@@ -153,7 +152,7 @@ class JSErrorRendererContrib implements IOutputRendererContribution {
 	}
 }
 
-class PlainTextRendererContrib extends Disposable implements IOutputRendererContribution {
+class PlainTextRendererContrib extends Disposable implements IOutputTransformContribution {
 	getType() {
 		return RenderOutputType.Mainframe;
 	}
@@ -186,7 +185,7 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 	}
 }
 
-class HTMLRendererContrib extends Disposable implements IOutputRendererContribution {
+class HTMLRendererContrib extends Disposable implements IOutputTransformContribution {
 	getType() {
 		return RenderOutputType.Html;
 	}
@@ -211,7 +210,7 @@ class HTMLRendererContrib extends Disposable implements IOutputRendererContribut
 	}
 }
 
-class ImgRendererContrib extends Disposable implements IOutputRendererContribution {
+class ImgRendererContrib extends Disposable implements IOutputTransformContribution {
 	getType() {
 		return RenderOutputType.Mainframe;
 	}

@@ -1,3 +1,6 @@
+# Source .bashrc because --init-file doesn't support it
+. ~/.bashrc
+
 IN_COMMAND_EXECUTION="1"
 prompt_start() {
     printf "\033]133;A\007"
@@ -48,5 +51,12 @@ preexec() {
 }
 
 update_prompt
-PROMPT_COMMAND=${PROMPT_COMMAND:+"$PROMPT_COMMAND; "}'precmd'
+prompt_cmd() {
+	${ORIGINAL_PROMPT_COMMAND}
+	precmd
+}
+export ORIGINAL_PROMPT_COMMAND=$PROMPT_COMMAND
+export PROMPT_COMMAND=prompt_cmd
 trap 'preexec' DEBUG
+
+echo -e "\033[01;32mShell integration activated!\033[0m"

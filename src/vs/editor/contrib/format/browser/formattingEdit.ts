@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLineSequence, ISingleEditOperation } from 'vs/editor/common/model';
+import { EndOfLineSequence } from 'vs/editor/common/model';
 import { TextEdit } from 'vs/editor/common/languages';
 
 export class FormattingEdit {

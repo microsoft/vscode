@@ -208,7 +208,7 @@ steps:
   - script: |
       set -e
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
-      ./resources/server/test/test-web-integration.sh --browser webkit
+      ./scripts/test-web-integration.sh --browser webkit
     displayName: Run integration tests (Browser, Webkit)
     timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
@@ -219,7 +219,7 @@ steps:
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
-      ./resources/server/test/test-remote-integration.sh
+      ./scripts/test-remote-integration.sh
     displayName: Run integration tests (Remote)
     timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEvent, ILink, Terminal } from 'xterm';
+import { IEvent, Terminal } from 'xterm';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITerminalConfigHelper, ITerminalConfiguration, ITerminalProcessManager, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfigHelper, ITerminalConfiguration, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { deepStrictEqual, strictEqual } from 'assert';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -24,9 +24,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { isSafari } from 'vs/base/browser/browser';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
-import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { equals } from 'vs/base/common/objects';
+import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 
 class TestWebglAddon {
 	static shouldThrow = false;
@@ -42,31 +40,6 @@ class TestWebglAddon {
 		TestWebglAddon.isEnabled = false;
 	}
 	clearTextureAtlas() { }
-}
-
-class TestLinkManager extends TerminalLinkManager {
-	private _links: Map<number, IDetectedLinks | undefined> = new Map();
-	override async getLinks(y: number): Promise<IDetectedLinks | undefined> {
-		return this._links.get(y);
-	}
-	override async getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined> {
-		const linkResult = await this.getLinks(y);
-		if (!linkResult) {
-			return undefined;
-		}
-		const { wordLinks, webLinks, fileLinks } = linkResult;
-		switch (type) {
-			case 'word':
-				return wordLinks;
-			case 'web':
-				return webLinks;
-			case 'file':
-				return fileLinks;
-		}
-	}
-	setLinks(links: Map<number, IDetectedLinks | undefined>): void {
-		this._links = links;
-	}
 }
 
 class TestXtermTerminal extends XtermTerminal {
@@ -113,7 +86,6 @@ suite('XtermTerminal', () => {
 	let configurationService: TestConfigurationService;
 	let themeService: TestThemeService;
 	let viewDescriptorService: TestViewDescriptorService;
-	let linkManager: TestLinkManager;
 	let xterm: TestXtermTerminal;
 	let configHelper: ITerminalConfigHelper;
 
@@ -138,8 +110,7 @@ suite('XtermTerminal', () => {
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
-		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
-		linkManager = instantiationService.createInstance(TestLinkManager, xterm, upcastPartial<ITerminalProcessManager>({}), upcastPartial<ITerminalCapabilityStore>({}));
+		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore());
 
 		TestWebglAddon.shouldThrow = false;
 		TestWebglAddon.isEnabled = false;
@@ -156,7 +127,7 @@ suite('XtermTerminal', () => {
 				[PANEL_BACKGROUND]: '#ff0000',
 				[SIDE_BAR_BACKGROUND]: '#00ff00'
 			}));
-			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
+			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore());
 			strictEqual(xterm.raw.options.theme?.background, '#ff0000');
 			viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.Sidebar);
 			strictEqual(xterm.raw.options.theme?.background, '#00ff00');
@@ -189,7 +160,7 @@ suite('XtermTerminal', () => {
 				'terminal.ansiBrightCyan': '#150000',
 				'terminal.ansiBrightWhite': '#160000',
 			}));
-			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel);
+			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore());
 			deepStrictEqual(xterm.raw.options.theme, {
 				background: '#000100',
 				foreground: '#000200',
@@ -298,88 +269,4 @@ suite('XtermTerminal', () => {
 			strictEqual(TestWebglAddon.isEnabled, false);
 		});
 	});
-	suite('getLinks and open recent link', async () => {
-		test('should return no links', async () => {
-			const map: Map<number, IDetectedLinks> = new Map();
-			map.set(0, {});
-			linkManager.setLinks(map);
-			const links = await xterm.getLinks(linkManager);
-			equals(links, { webLinks: [], wordLinks: [], fileLinks: [] });
-			const webLink = await xterm.openRecentLink(linkManager, 'web');
-			strictEqual(webLink, undefined);
-			const fileLink = await xterm.openRecentLink(linkManager, 'file');
-			strictEqual(fileLink, undefined);
-		});
-		test('should return word links in order', async () => {
-			const map: Map<number, IDetectedLinks> = new Map();
-			const link1 = {
-				range: {
-					start: { x: 1, y: 1 }, end: { x: 14, y: 1 }
-				},
-				text: '1_我是学生.txt',
-				activate: () => Promise.resolve('')
-			};
-			const link2 = {
-				range: {
-					start: { x: 1, y: 1 }, end: { x: 14, y: 1 }
-				},
-				text: '2_我是学生.txt',
-				activate: () => Promise.resolve('')
-			};
-			map.set(0, { wordLinks: [link1, link2] });
-			linkManager.setLinks(map);
-			const links = await xterm.getLinks(linkManager);
-			deepStrictEqual(links, { webLinks: [], wordLinks: [link2, link1], fileLinks: [] });
-			const webLink = await xterm.openRecentLink(linkManager, 'web');
-			strictEqual(webLink, undefined);
-			const fileLink = await xterm.openRecentLink(linkManager, 'file');
-			strictEqual(fileLink, undefined);
-		});
-		test('should return web links in order', async () => {
-			const map: Map<number, IDetectedLinks> = new Map();
-			const link1 = {
-				range: { start: { x: 5, y: 1 }, end: { x: 40, y: 1 } },
-				text: 'https://foo.bar/[this is foo site 1]',
-				activate: () => Promise.resolve('')
-			};
-			const link2 = {
-				range: { start: { x: 5, y: 2 }, end: { x: 40, y: 2 } },
-				text: 'https://foo.bar/[this is foo site 2]',
-				activate: () => Promise.resolve('')
-			};
-			map.set(0, { webLinks: [link1, link2] });
-			linkManager.setLinks(map);
-			const links = await xterm.getLinks(linkManager);
-			deepStrictEqual(links, { webLinks: [link2, link1], wordLinks: [], fileLinks: [] });
-			const webLink = await xterm.openRecentLink(linkManager, 'web');
-			strictEqual(webLink, link2);
-			const fileLink = await xterm.openRecentLink(linkManager, 'file');
-			strictEqual(fileLink, undefined);
-		});
-		test('should return file links in order', async () => {
-			const map: Map<number, IDetectedLinks> = new Map();
-			const link1 = {
-				range: { start: { x: 1, y: 1 }, end: { x: 32, y: 1 } },
-				text: 'file:///C:/users/test/file_1.txt',
-				activate: () => Promise.resolve('')
-			};
-			const link2 = {
-				range: { start: { x: 1, y: 2 }, end: { x: 32, y: 2 } },
-				text: 'file:///C:/users/test/file_2.txt',
-				activate: () => Promise.resolve('')
-			};
-			map.set(0, { fileLinks: [link1, link2] });
-			linkManager.setLinks(map);
-			const links = await xterm.getLinks(linkManager);
-			deepStrictEqual(links, { webLinks: [], wordLinks: [], fileLinks: [link2, link1] });
-			const webLink = await xterm.openRecentLink(linkManager, 'web');
-			strictEqual(webLink, undefined);
-			const fileLink = await xterm.openRecentLink(linkManager, 'file');
-			strictEqual(fileLink, link2);
-		});
-	});
 });
-
-function upcastPartial<T>(v: Partial<T>): T {
-	return v as T;
-}

@@ -13,10 +13,9 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { DiffNavigator, IDiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { ApplyUpdateResult, ConfigurationChangedEvent, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
-import { Token } from 'vs/editor/common/core/token';
 import { EditorType } from 'vs/editor/common/editorCommon';
 import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { NullState, nullTokenize } from 'vs/editor/common/languages/nullMode';
 import { ILanguageService } from 'vs/editor/common/services/language';
@@ -215,27 +214,27 @@ export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize
 /**
  * @internal
  */
-function getSafeTokenizationSupport(language: string): Omit<modes.ITokenizationSupport, 'tokenizeEncoded'> {
-	const tokenizationSupport = modes.TokenizationRegistry.get(language);
+function getSafeTokenizationSupport(language: string): Omit<languages.ITokenizationSupport, 'tokenizeEncoded'> {
+	const tokenizationSupport = languages.TokenizationRegistry.get(language);
 	if (tokenizationSupport) {
 		return tokenizationSupport;
 	}
 	return {
 		getInitialState: () => NullState,
-		tokenize: (line: string, hasEOL: boolean, state: modes.IState) => nullTokenize(language, state)
+		tokenize: (line: string, hasEOL: boolean, state: languages.IState) => nullTokenize(language, state)
 	};
 }
 
 /**
  * Tokenize `text` using language `languageId`
  */
-export function tokenize(text: string, languageId: string): Token[][] {
+export function tokenize(text: string, languageId: string): languages.Token[][] {
 	// Needed in order to get the mode registered for subsequent look-ups
-	modes.TokenizationRegistry.getOrCreate(languageId);
+	languages.TokenizationRegistry.getOrCreate(languageId);
 
 	const tokenizationSupport = getSafeTokenizationSupport(languageId);
 	const lines = splitLines(text);
-	const result: Token[][] = [];
+	const result: languages.Token[][] = [];
 	let state = tokenizationSupport.getInitialState();
 	for (let i = 0, len = lines.length; i < len; i++) {
 		const line = lines[i];

@@ -205,7 +205,7 @@ steps:
   - script: |
       set -e
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
-      ./resources/server/test/test-web-integration.sh --browser chromium
+      ./scripts/test-web-integration.sh --browser chromium
     displayName: Run integration tests (Browser, Chromium)
     timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
@@ -217,7 +217,7 @@ steps:
       INTEGRATION_TEST_APP_NAME="$APP_NAME" \
       INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
-      ./resources/server/test/test-remote-integration.sh
+      ./scripts/test-remote-integration.sh
     displayName: Run integration tests (Remote)
     timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
