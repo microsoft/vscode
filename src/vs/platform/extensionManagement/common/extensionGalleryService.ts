@@ -572,9 +572,10 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			} else {
 				names.push(extensionInfo.id);
 			}
-			includePreRelease.push({ ...extensionInfo, includePreRelease: !!extensionInfo.preRelease });
+			// Set includePreRelease to true if version is set, because the version can be a pre-release version
+			includePreRelease.push({ id: extensionInfo.id, uuid: extensionInfo.uuid, includePreRelease: !!(extensionInfo.version || extensionInfo.preRelease) });
 			if (extensionInfo.version) {
-				versions.push({ ...extensionInfo, version: extensionInfo.version });
+				versions.push({ id: extensionInfo.id, uuid: extensionInfo.uuid, version: extensionInfo.version });
 			}
 		}
 

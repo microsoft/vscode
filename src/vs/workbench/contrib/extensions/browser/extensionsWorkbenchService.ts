@@ -434,8 +434,7 @@ class Extensions extends Disposable {
 		for (const [extension, gallery] of extensions) {
 			// update metadata of the extension if it does not exist
 			if (extension.local && !extension.local.identifier.uuid) {
-				const local = await this.server.extensionManagementService.updateMetadata(extension.local, { id: gallery.identifier.uuid, publisherDisplayName: gallery.publisherDisplayName, publisherId: gallery.publisherId, isPreReleaseVersion: gallery.properties.isPreReleaseVersion });
-				extension.local = local;
+				extension.local = await this.updateMetadata(extension.local, gallery);
 			}
 			if (!extension.gallery || extension.gallery.version !== gallery.version) {
 				extension.gallery = gallery;
@@ -488,6 +487,15 @@ class Extensions extends Disposable {
 			}
 		}
 		return mappedExtensions;
+	}
+
+	private async updateMetadata(localExtension: ILocalExtension, gallery: IGalleryExtension): Promise<ILocalExtension> {
+		let isPreReleaseVersion = false;
+		if (localExtension.manifest.version !== gallery.version) {
+			const galleryWithLocalVersion: IGalleryExtension | undefined = (await this.galleryService.getExtensions([{ ...localExtension.identifier, version: localExtension.manifest.version }], CancellationToken.None))[0];
+			isPreReleaseVersion = !!galleryWithLocalVersion?.properties?.isPreReleaseVersion;
+		}
+		return this.server.extensionManagementService.updateMetadata(localExtension, { id: gallery.identifier.uuid, publisherDisplayName: gallery.publisherDisplayName, publisherId: gallery.publisherId, isPreReleaseVersion });
 	}
 
 	canInstall(galleryExtension: IGalleryExtension): Promise<boolean> {
