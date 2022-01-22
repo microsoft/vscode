@@ -9,8 +9,7 @@
   "main": "./out/main",
   "private": true,
   "scripts": {
-    "test": "mocha",
-    "test-browser": "node test/unit/browser/index.js",
+    "test-browser": "npx playwright install && node test/unit/browser/index.js",
     "test-node": "mocha test/unit/node/index.js --delay --ui=tdd --exit",
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "node build/npm/postinstall.js",
