@@ -258,7 +258,7 @@ suite('Workbench - TerminalEnvironment', () => {
 
 		suite('should not enable', () => {
 			const executable = isWindows ? 'pwsh.exe' : 'pwsh';
-			test('when undefined, [], empty string, or empty string in array', () => {
+			test('when isFeatureTerminal or when no executable is provided', () => {
 				let { args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: ['-l', '-NoLogo'], isFeatureTerminal: true }, isWindows);
 				terminalProfileArgsMatch(args, ['-l', '-NoLogo']);
 				strictEqual(enableShellIntegration, shellIntegrationEnabled);
@@ -274,7 +274,7 @@ suite('Workbench - TerminalEnvironment', () => {
 
 			suite('should override args', () => {
 				const expectedArgs = isWindows ? shellIntegrationArgs.get(ShellIntegrationExecutable.Pwsh) : shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwsh);
-				test('undefined, [], empty string, or empty string in array', () => {
+				test('when undefined, [], empty string, or empty string in array', () => {
 					let { args, enableShellIntegration } = injectShellIntegrationArgs(logService, shellIntegrationEnabled, { executable, args: [''] }, isWindows);
 					terminalProfileArgsMatch(args, expectedArgs);
 					strictEqual(enableShellIntegration, shellIntegrationEnabled);
