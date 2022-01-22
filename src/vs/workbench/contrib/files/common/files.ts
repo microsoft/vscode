@@ -120,6 +120,7 @@ export const enum SortOrder {
 	Type = 'type',
 	Modified = 'modified',
 	FoldersNestsFiles = 'foldersNestsFiles',
+	IndexFirst = 'indexFirst',
 }
 
 export const enum UndoEnablement {

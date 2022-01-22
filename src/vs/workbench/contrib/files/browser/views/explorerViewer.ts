@@ -750,7 +750,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 			case 'mixed':
 				break; // not sorting when "mixed" is on
 
-			default: /* 'default', 'modified' */
+			default: /* 'default', 'modified', 'indexFirst' */
 				if (statA.isDirectory && !statB.isDirectory) {
 					return -1;
 				}
@@ -770,6 +770,20 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 			case 'modified':
 				if (statA.mtime !== statB.mtime) {
 					return (statA.mtime && statB.mtime && statA.mtime < statB.mtime) ? 1 : -1;
+				}
+
+				return compareFileNames(statA.name, statB.name);
+
+			case 'indexFirst':
+				const isIndexFile = /(^|\/|\\)index\.[^\/\\]+$/
+				const statAIsIndex = isIndexFile.test(statA.name);
+				const statBIsIndex = isIndexFile.test(statB.name);
+				if (statAIsIndex && !statBIsIndex) {
+					return -1;
+				}
+
+				if (statBIsIndex && !statAIsIndex) {
+					return 1;
 				}
 
 				return compareFileNames(statA.name, statB.name);
