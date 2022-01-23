@@ -2431,21 +2431,23 @@ export class CommandCenter {
 	@command('git.ignore')
 	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		resourceStates = resourceStates.filter(s => !!s);
-
-		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
-			const resource = this.getSCMResource();
-
-			if (!resource) {
-				return;
+		let resources;
+		const uri = (resourceStates[0] as any).uri;
+		if (uri instanceof Uri) {
+			resources = [uri];	// A special case for folders.
+		} else {
+			if (resourceStates.length === 0 || (resourceStates[0]
+				&& !(resourceStates[0].resourceUri instanceof Uri))) {
+				const resource = this.getSCMResource();
+				if (!resource) {
+					return;
+				}
+				resourceStates = [resource];
 			}
-
-			resourceStates = [resource];
+			resources = resourceStates
+				.filter(s => s instanceof Resource)
+				.map(r => r.resourceUri);
 		}
-
-		const resources = resourceStates
-			.filter(s => s instanceof Resource)
-			.map(r => r.resourceUri);
-
 		if (!resources.length) {
 			return;
 		}

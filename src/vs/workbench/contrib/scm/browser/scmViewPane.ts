@@ -373,7 +373,12 @@ class RepositoryPaneActionRunner extends ActionRunner {
 		const selection = this.getSelectedResources();
 		const contextIsSelected = selection.some(s => s === context);
 		const actualContext = contextIsSelected ? selection : [context];
-		const args = flatten(actualContext.map(e => ResourceTree.isResourceNode(e) ? ResourceTree.collect(e) : [e]));
+		let args;
+		if (action.id === 'git.ignore') {
+			args = actualContext; // A special case for ignoring folders.
+		} else {
+			args = flatten(actualContext.map(e => ResourceTree.isResourceNode(e) ? ResourceTree.collect(e) : [e]));
+		}
 		await action.run(...args);
 	}
 }
