@@ -15,10 +15,10 @@ import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegis
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
 import { NotificationActionRunner, CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
-import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
+import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 
 export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
 	widgetAriaLabel?: string;

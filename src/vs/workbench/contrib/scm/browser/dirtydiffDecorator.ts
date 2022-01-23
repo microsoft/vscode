@@ -49,7 +49,7 @@ import { EncodingMode, ITextFileEditorModel, IResolvedTextFileEditorModel, IText
 import { gotoNextLocation, gotoPreviousLocation } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { TextCompareEditorActiveContext } from 'vs/workbench/common/editor';
+import { TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IChange } from 'vs/editor/common/diff/diffComputer';
 
