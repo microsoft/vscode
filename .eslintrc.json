@@ -281,7 +281,7 @@
 					"vs/editor/~",
 					"vs/editor/contrib/*/~",
 					"vs/code/~",
-					{ "when": "hasBrowser", "pattern": "vs/workbench/workbench.web.api" }
+					{ "when": "hasBrowser", "pattern": "vs/workbench/workbench.web.main" }
 				]
 			},
 			{
@@ -314,7 +314,7 @@
 				]
 			},
 			{
-				"target": "src/vs/workbench/workbench.web.api.ts",
+				"target": "src/vs/workbench/workbench.web.main.ts",
 				"layer": "browser",
 				"restrictions": [
 					"vs/base/~",
@@ -367,7 +367,7 @@
 				]
 			},
 			{
-				"target": "src/vs/workbench/{workbench.desktop.main.nls.js,workbench.web.api.nls.js}",
+				"target": "src/vs/workbench/{workbench.desktop.main.nls.js,workbench.web.main.nls.js}",
 				"restrictions": []
 			},
 			{

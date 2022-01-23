@@ -64,7 +64,7 @@ const vscodeWebResources = [
 const buildfile = require('../src/buildfile');
 
 const vscodeWebEntryPoints = _.flatten([
-	buildfile.entrypoint('vs/workbench/workbench.web.api'),
+	buildfile.entrypoint('vs/workbench/workbench.web.main'),
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
@@ -167,6 +167,13 @@ function packageTask(sourceFolderName, destinationFolderName) {
 			gulp.src('resources/server/code-512.png', { base: 'resources/server' })
 		);
 
+		// TODO@bpasero remove me in Feb
+		const legacyMain = es.merge(
+			gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.js').pipe(rename('out/vs/workbench/workbench.web.api.js')),
+			gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.css').pipe(rename('out/vs/workbench/workbench.web.api.css')),
+			gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.nls.js').pipe(rename('out/vs/workbench/workbench.web.api.nls.js')),
+		);
+
 		let all = es.merge(
 			packageJsonStream,
 			license,
@@ -174,7 +181,8 @@ function packageTask(sourceFolderName, destinationFolderName) {
 			deps,
 			favicon,
 			manifest,
-			pwaicons
+			pwaicons,
+			legacyMain
 		);
 
 		let result = all
