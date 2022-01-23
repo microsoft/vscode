@@ -79,6 +79,7 @@ export class UserDataSyncDataViews extends Disposable {
 		const treeView = this.instantiationService.createInstance(TreeView, id, name);
 		const dataProvider = this.instantiationService.createInstance(UserDataSyncMachinesViewDataProvider, treeView);
 		treeView.showRefreshAction = true;
+		treeView.canSelectMany = true;
 		const disposable = treeView.onDidChangeVisibility(visible => {
 			if (visible && !treeView.dataProvider) {
 				disposable.dispose();
@@ -131,8 +132,8 @@ export class UserDataSyncDataViews extends Disposable {
 					},
 				});
 			}
-			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				if (await dataProvider.disable(handle.$treeItemHandle)) {
+			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg, selected?: TreeViewItemHandleArg[]): Promise<void> {
+				if (await dataProvider.disable((selected || [handle]).map(handle => handle.$treeItemHandle))) {
 					await treeView.refresh();
 				}
 			}
@@ -487,16 +488,17 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 		return this.machinesPromise;
 	}
 
-	async disable(machineId: string): Promise<boolean> {
+	async disable(machineIds: string[]): Promise<boolean> {
 		const machines = await this.getMachines();
-		const machine = machines.find(({ id }) => id === machineId);
-		if (!machine) {
-			throw new Error(localize('not found', "machine not found with id: {0}", machineId));
+		const machinesToDisable = machines.filter(({ id }) => machineIds.includes(id));
+		if (!machinesToDisable.length) {
+			throw new Error(localize('not found', "machine not found with id: {0}", machineIds.join(',')));
 		}
 
 		const result = await this.dialogService.confirm({
 			type: 'info',
-			message: localize('turn off sync on machine', "Are you sure you want to turn off sync on {0}?", machine.name),
+			message: machinesToDisable.length > 1 ? localize('turn off sync on multiple machines', "Are you sure you want to turn off sync on selected machines?")
+				: localize('turn off sync on machine', "Are you sure you want to turn off sync on {0}?", machinesToDisable[0].name),
 			primaryButton: localize({ key: 'turn off', comment: ['&& denotes a mnemonic'] }, "&&Turn off"),
 		});
 
@@ -504,10 +506,14 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 			return false;
 		}
 
-		if (machine.isCurrent) {
+		if (machinesToDisable.some(machine => machine.isCurrent)) {
 			await this.userDataSyncWorkbenchService.turnoff(false);
-		} else {
-			await this.userDataSyncMachinesService.setEnablement(machineId, false);
+		}
+
+		const otherMachinesToDisable: [string, boolean][] = machinesToDisable.filter(machine => !machine.isCurrent)
+			.map(machine => ([machine.id, false]));
+		if (otherMachinesToDisable.length) {
+			await this.userDataSyncMachinesService.setEnablements(otherMachinesToDisable);
 		}
 
 		return true;

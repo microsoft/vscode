@@ -289,7 +289,7 @@ suite('UserDataAutoSyncService', () => {
 		const userDataSyncMachinesService = testClient.instantiationService.get(IUserDataSyncMachinesService);
 		const machines = await userDataSyncMachinesService.getMachines();
 		const currentMachine = machines.find(m => m.isCurrent)!;
-		await userDataSyncMachinesService.setEnablement(currentMachine.id, false);
+		await userDataSyncMachinesService.setEnablements([[currentMachine.id, false]]);
 
 		target.reset();
 
