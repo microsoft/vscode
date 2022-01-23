@@ -342,7 +342,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 							}
 						}
 						allDependenciesAndPacks.push({ gallery: compatible.extension, manifest: compatible.manifest });
-						await collectDependenciesAndPackExtensionsToInstall(compatible.extension.identifier, manifest);
+						await collectDependenciesAndPackExtensionsToInstall(compatible.extension.identifier, compatible.manifest);
 					}
 				}
 			}
