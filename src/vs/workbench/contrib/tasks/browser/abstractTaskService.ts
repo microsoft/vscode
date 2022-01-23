@@ -2882,8 +2882,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							// eat the error, it has already been surfaced to the user and we don't care about it here
 						});
 						return;
-					} else if (globbedTasks.length > 1) {
-						tasks = globbedTasks;
 					}
 				}
 
