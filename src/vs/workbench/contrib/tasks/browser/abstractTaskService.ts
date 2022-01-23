@@ -2864,8 +2864,29 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			location: ProgressLocation.Window,
 			title: nls.localize('TaskService.fetchingTestTasks', 'Fetching test tasks...')
 		};
+
+		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
 		let promise = this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
 			if (tasks.length > 0) {
+
+				// First filter out globbed tasks
+				if (uri) {
+					const globbedTasks = tasks.filter(task => {
+						const group = task?.configurationProperties?.group;
+						if (typeof group === 'string') { return; }
+						return group?._id === 'test' && group.glob && glob.match(group.glob, uri?.path);
+					});
+
+					if (globbedTasks.length === 1) {
+						this.run(globbedTasks[0], undefined, TaskRunSource.User).then(undefined, reason => {
+							// eat the error, it has already been surfaced to the user and we don't care about it here
+						});
+						return;
+					} else if (globbedTasks.length > 1) {
+						tasks = globbedTasks;
+					}
+				}
+
 				let { none, defaults } = this.splitPerGroupType(tasks);
 				if (defaults.length === 1) {
 					this.run(defaults[0], undefined, TaskRunSource.User).then(undefined, reason => {
