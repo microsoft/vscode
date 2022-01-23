@@ -16,6 +16,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as Types from 'vs/base/common/types';
 import { TerminateResponseCode } from 'vs/base/common/processes';
 import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
+import * as glob from 'vs/base/common/glob';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import { LRUCache, Touch } from 'vs/base/common/map';
@@ -69,7 +70,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { toFormattedString } from 'vs/base/common/jsonFormatter';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { SaveReason } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SaveReason } from 'vs/workbench/common/editor';
 import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -341,7 +342,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	public get supportsMultipleTaskExecutions(): boolean {
 		return this.inTerminal();
 	}
-
 	private registerCommands(): void {
 		CommandsRegistry.registerCommand({
 			id: 'workbench.action.tasks.runTask',
@@ -2779,7 +2779,26 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			title: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...')
 		};
 		let promise = (async () => {
-			const buildTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Build, false);
+
+			let buildTasks: (Task | ConfiguringTask)[] = [];
+
+			// First check for globs before checking for default build tasks
+			const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
+			if (uri) {
+				buildTasks = await this._findWorkspaceTasks((task) => {
+					const taskGroup = task.configurationProperties.group;
+					if (taskGroup && typeof taskGroup !== 'string' && taskGroup.glob) {
+						return (taskGroup._id === 'build' && glob.match(taskGroup.glob, uri?.path));
+					}
+
+					return false;
+				});
+			}
+
+			// If no globs are found or matched fallback to checking for default build tasks
+			if (!buildTasks.length) {
+				buildTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Build, false);
+			}
 
 			async function runSingleBuildTask(task: Task | undefined, problemMatcherOptions: ProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
 				that.run(task, problemMatcherOptions, TaskRunSource.User).then(undefined, reason => {

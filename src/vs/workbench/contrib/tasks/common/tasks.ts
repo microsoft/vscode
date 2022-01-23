@@ -394,6 +394,7 @@ export namespace TaskGroup {
 export interface TaskGroup {
 	_id: string;
 	isDefault?: boolean;
+	glob?: string;
 }
 
 export const enum TaskScope {
