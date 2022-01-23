@@ -9,7 +9,7 @@ import { Action2, ICommandActionTitle, MenuId, registerAction2 } from 'vs/platfo
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ActiveEditorContext } from 'vs/workbench/common/editor';
+import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';

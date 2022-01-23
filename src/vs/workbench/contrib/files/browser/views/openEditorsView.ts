@@ -31,7 +31,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, IMenu, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { ResourcesDropHandler, fillEditorsDragData, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';

@@ -14,21 +14,17 @@ import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isWeb, isMacintosh, isNative } from 'vs/base/common/platform';
 import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext } from 'vs/workbench/common/editor';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
-import { IViewDescriptorService, IViewsService, FocusedViewContext, ViewContainerLocation, IViewDescriptor, ViewContainerLocationToString } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsService, ViewContainerLocation, IViewDescriptor, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
 import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { AuxiliaryBarVisibleContext } from 'vs/workbench/common/auxiliarybar';
-import { PanelAlignmentContext, PanelVisibleContext } from 'vs/workbench/common/panel';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext, IsFullscreenContext } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
 
 // --- Close Side Bar
 

@@ -7,10 +7,12 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import {
-	IEditorFactoryRegistry, TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorExtensions, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext,
-	MultipleEditorGroupsContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorGroupEmptyContext, EditorTabsVisibleContext
-} from 'vs/workbench/common/editor';
+	TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext,
+	MultipleEditorGroupsContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext,
+	ActiveEditorGroupEmptyContext, EditorTabsVisibleContext
+} from 'vs/workbench/common/contextkeys';
 import { SideBySideEditorInput, SideBySideEditorInputSerializer } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';

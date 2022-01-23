@@ -14,7 +14,8 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { RuntimeExtensionsEditor, StartExtensionHostProfileAction, StopExtensionHostProfileAction, CONTEXT_PROFILE_SESSION_STATE, CONTEXT_EXTENSION_HOST_PROFILE_RECORDED, SaveExtensionHostProfileAction, IExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-sandbox/runtimeExtensionsEditor';
 import { DebugExtensionHostAction } from 'vs/workbench/contrib/extensions/electron-sandbox/debugExtensionHostAction';
-import { IEditorSerializer, IEditorFactoryRegistry, ActiveEditorContext, EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';

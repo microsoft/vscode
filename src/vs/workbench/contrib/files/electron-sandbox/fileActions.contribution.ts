@@ -18,7 +18,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { revealResourcesInOS } from 'vs/workbench/contrib/files/electron-sandbox/fileCommands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { appendToCommandPalette, appendEditorTitleContextMenuItem } from 'vs/workbench/contrib/files/browser/fileActions.contribution';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';

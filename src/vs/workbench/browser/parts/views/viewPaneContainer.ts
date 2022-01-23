@@ -36,7 +36,8 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { Component } from 'vs/workbench/common/component';
 import { PANEL_SECTION_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_HEADER_FOREGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_FOREGROUND } from 'vs/workbench/common/theme';
-import { FocusedViewContext, IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerModel, IViewDescriptor, IViewDescriptorRef, IViewDescriptorService, IViewPaneContainer, IViewsService, ViewContainer, ViewContainerLocation, ViewContainerLocationToString, ViewVisibilityState } from 'vs/workbench/common/views';
+import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerModel, IViewDescriptor, IViewDescriptorRef, IViewDescriptorService, IViewPaneContainer, IViewsService, ViewContainer, ViewContainerLocation, ViewContainerLocationToString, ViewVisibilityState } from 'vs/workbench/common/views';
+import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
