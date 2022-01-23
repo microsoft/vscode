@@ -198,6 +198,7 @@
 
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action.label {
 	max-width: 150px;
+	line-height: 16px;
 }
 
 .extension-list-item .footer .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {
