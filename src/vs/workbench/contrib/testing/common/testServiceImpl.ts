@@ -25,6 +25,7 @@ import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { AmbiguousRunTestsRequest, IMainThreadTestController, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TestService extends Disposable implements ITestService {
 	declare readonly _serviceBrand: undefined;
@@ -81,6 +82,7 @@ export class TestService extends Disposable implements ITestService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService private readonly storage: IStorageService,
+		@IEditorService private readonly editorService: IEditorService
 		@ITestProfileService private readonly testProfiles: ITestProfileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITestResultService private readonly testResults: ITestResultService,
@@ -203,7 +205,7 @@ export class TestService extends Disposable implements ITestService {
 					this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', err.message));
 				})
 			);
-
+			await this.editorService.saveAll();
 			await Promise.all(requests);
 			return result;
 		} finally {
