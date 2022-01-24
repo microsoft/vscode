@@ -18,4 +18,4 @@ if (process.env['VSCODE_DEV']) {
 } else {
 	delete process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'];
 }
-require('./bootstrap-amd').load('vs/server/node/remoteCli');
+require('./bootstrap-amd').load('vs/server/node/server.cli');

@@ -95,7 +95,7 @@ const serverEntryPoints = [
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
-		name: 'vs/server/node/remoteCli',
+		name: 'vs/server/node/server.cli',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
