@@ -692,6 +692,21 @@ export enum OverviewRulerLane {
 	Full = 7
 }
 
+export enum PositionAffinity {
+	/**
+	 * Prefers the left most position.
+	*/
+	Left = 0,
+	/**
+	 * Prefers the right most position.
+	*/
+	Right = 1,
+	/**
+	 * No preference.
+	*/
+	None = 2
+}
+
 export enum RenderLineNumbersType {
 	Off = 0,
 	On = 1,

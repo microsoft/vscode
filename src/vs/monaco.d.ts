@@ -2089,6 +2089,21 @@ declare namespace monaco.editor {
 		isAttachedToEditor(): boolean;
 	}
 
+	export enum PositionAffinity {
+		/**
+		 * Prefers the left most position.
+		*/
+		Left = 0,
+		/**
+		 * Prefers the right most position.
+		*/
+		Right = 1,
+		/**
+		 * No preference.
+		*/
+		None = 2
+	}
+
 	/**
 	 * A change
 	 */
@@ -4461,8 +4476,13 @@ declare namespace monaco.editor {
 		/**
 		 * The column after which this zone should appear.
 		 * If not set, the maxLineColumn of `afterLineNumber` will be used.
+		 * This is relevant for wrapped lines.
 		 */
 		afterColumn?: number;
+		/**
+		 * If the `afterColumn` has multiple view columns, the affinity specifies which one to use. Defaults to `none`.
+		*/
+		afterColumnAffinity?: PositionAffinity;
 		/**
 		 * Suppress mouse down events.
 		 * If set, the editor will attach a mouse down listener to the view zone and .preventDefault on it.
