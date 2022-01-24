@@ -224,21 +224,34 @@ export class SuggestWidget implements IDisposable {
 			mouseSupport: false,
 			accessibilityProvider: {
 				getRole: () => 'option',
-				getAriaLabel: (item: CompletionItem) => {
-					if (item.isResolved && this._isDetailsVisible()) {
-						const { documentation, detail } = item.completion;
-						const docs = strings.format(
-							'{0}{1}',
-							detail || '',
-							documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
-
-						return nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", item.textLabel, docs);
-					} else {
-						return item.textLabel;
-					}
-				},
 				getWidgetAriaLabel: () => nls.localize('suggest', "Suggest"),
-				getWidgetRole: () => 'listbox'
+				getWidgetRole: () => 'listbox',
+				getAriaLabel: (item: CompletionItem) => {
+
+					let label = item.textLabel;
+					if (typeof item.completion.label !== 'string') {
+						const { detail, description } = item.completion.label;
+						if (detail && description) {
+							label = nls.localize('label.full', '{0}{1}, {2}', label, detail, description);
+						} else if (detail) {
+							label = nls.localize('label.detail', '{0}{1}', label, detail);
+						} else if (description) {
+							label = nls.localize('label.desc', '{0}, {1}', label, description);
+						}
+					}
+
+					if (!item.isResolved || !this._isDetailsVisible()) {
+						return label;
+					}
+
+					const { documentation, detail } = item.completion;
+					const docs = strings.format(
+						'{0}{1}',
+						detail || '',
+						documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
+
+					return nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", label, docs);
+				},
 			}
 		});
 
