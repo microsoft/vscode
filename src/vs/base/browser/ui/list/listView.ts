@@ -472,7 +472,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		// try to reuse rows, avoid removing them from DOM
 		const rowsToDispose = new Map<string, IRow[]>();
-		for (let i = removeRange.start; i < removeRange.end; i++) {
+		for (let i = removeRange.end - 1; i >= removeRange.start; i--) {
 			const item = this.items[i];
 			item.dragStartDisposable.dispose();
 
