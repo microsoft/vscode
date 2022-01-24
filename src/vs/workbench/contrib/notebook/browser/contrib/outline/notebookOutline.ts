@@ -37,6 +37,7 @@ import * as marked from 'vs/base/common/marked/marked';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { executingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { URI } from 'vs/base/common/uri';
 
 export interface IOutlineMarkerInfo {
 	readonly count: number;
@@ -289,6 +290,7 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 
 	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
 
+	private _uri: URI | undefined;
 	private _entries: OutlineEntry[] = [];
 	private _activeEntry?: OutlineEntry;
 	private readonly _entriesDisposables = this._register(new DisposableStore());
@@ -387,6 +389,7 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 		this._entriesDisposables.clear();
 		this._activeEntry = undefined;
 		this._entries.length = 0;
+		this._uri = undefined;
 
 		const notebookEditorControl = this._editor.getControl();
 
@@ -397,6 +400,8 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 		if (!notebookEditorControl.hasModel()) {
 			return;
 		}
+
+		this._uri = notebookEditorControl.textModel.uri;
 
 		const notebookEditorWidget: IActiveNotebookEditor = notebookEditorControl;
 
@@ -555,6 +560,10 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 
 	get isEmpty(): boolean {
 		return this._entries.length === 0;
+	}
+
+	get uri() {
+		return this._uri;
 	}
 
 	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {
