@@ -149,7 +149,7 @@ module.exports = new class {
         // resolve relative paths
         if (importPath[0] === '.') {
             const relativeFilename = getRelativeFilename(context);
-            importPath = path.join(path.dirname(relativeFilename), importPath);
+            importPath = path.posix.join(path.posix.dirname(relativeFilename), importPath);
             if (/^src\/vs\//.test(importPath)) {
                 // resolve using AMD base url
                 importPath = importPath.substring('src/'.length);
