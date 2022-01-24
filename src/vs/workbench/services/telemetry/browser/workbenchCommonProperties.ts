@@ -17,11 +17,7 @@ import { Gesture } from 'vs/base/browser/touch';
  * @returns A simplified user agent with less detail
  */
 function cleanUserAgent(userAgent: string): string {
-	// Regex to match AppleWebKit/<number>+ as we don't care about renderer
-	let cleanedAgent = userAgent.replace(/AppleWebKit\/((\d|\.| )+)/, '');
-	// Convert any number in the form 1.2.3.4 to 1.2
-	cleanedAgent = cleanedAgent.replace(/((\d+\.\d+)\.\d+\.\d+)/g, '$2');
-	return cleanedAgent;
+	return userAgent.replace(/(\d+\.\d+)(\.\d+)+/g, '$1');
 }
 
 export async function resolveWorkbenchCommonProperties(
