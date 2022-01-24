@@ -14,7 +14,7 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IModelDeltaDecoration, PositionAffinity } from 'vs/editor/common/model';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { ghostTextBackground, ghostTextBorder, ghostTextForeground } from 'vs/editor/common/core/editorColorRegistry';
@@ -290,7 +290,6 @@ class AdditionalLinesWidget implements IDisposable {
 					afterLineNumber: lineNumber,
 					heightInLines: heightInLines,
 					domNode,
-					afterColumnAffinity: PositionAffinity.Right
 				});
 			}
 		});

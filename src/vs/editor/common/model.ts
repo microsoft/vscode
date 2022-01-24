@@ -1273,6 +1273,9 @@ export interface ITextModel {
 	readonly guides: IGuidesTextModelPart;
 }
 
+/**
+ * @internal
+ */
 export const enum PositionAffinity {
 	/**
 	 * Prefers the left most position.
