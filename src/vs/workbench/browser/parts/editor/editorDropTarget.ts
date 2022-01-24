@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editordroptarget';
-import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType, CodeDataTransfers, extractFilesDropData, DraggedTreeItemsIdentifier } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType, CodeDataTransfers, extractFilesDropData, DraggedTreeItemsIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
 import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState } from 'vs/workbench/browser/parts/editor/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
@@ -303,12 +303,19 @@ class DropOverlay extends Themable {
 				const treeData = Promise.all(
 					data.map(id => this.treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier)));
 				treeData.then(dataTransferItems => {
-					const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true /* open workspace instead of file if dropped */ });
-					dataTransferItems.forEach(dataTransferItem => {
+					return Promise.all(dataTransferItems.map(async (dataTransferItem) => {
 						if (dataTransferItem) {
-							dropHandler.handleDrop(dataTransferItem, () => ensureTargetGroup(), targetGroup => targetGroup?.focus());
+							const treeDropData = await extractTreeDropData(dataTransferItem);
+							await this.editorService.openEditors(treeDropData.map(editor => ({
+								...editor,
+								resource: editor.resource,
+								options: {
+									...editor.options,
+									pinned: true,
+								}
+							})), ensureTargetGroup(), { validateTrust: true });
 						}
-					});
+					}));
 				});
 			}
 			this.treeItemsTransfer.clearData(DraggedTreeItemsIdentifier.prototype);

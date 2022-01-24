@@ -63,6 +63,26 @@ export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInpu
 	isExternal?: boolean;
 }
 
+
+function createDraggedEditorInputFromRawResourcesData(rawResourcesData: string | undefined): IDraggedResourceEditorInput[] {
+	const editors: IDraggedResourceEditorInput[] = [];
+	if (rawResourcesData) {
+		const resourcesRaw: string[] = JSON.parse(rawResourcesData);
+		for (const resourceRaw of resourcesRaw) {
+			if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/microsoft/vscode/issues/124946
+				const resource = URI.parse(resourceRaw);
+				editors.push({
+					resource,
+					options: {
+						selection: selectionFragment(resource)
+					}
+				});
+			}
+		}
+	}
+	return editors;
+}
+
 export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEditorInput> {
 	const editors: IDraggedResourceEditorInput[] = [];
 	if (e.dataTransfer && e.dataTransfer.types.length > 0) {
@@ -81,14 +101,7 @@ export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEdit
 		else {
 			try {
 				const rawResourcesData = e.dataTransfer.getData(DataTransfers.RESOURCES);
-				if (rawResourcesData) {
-					const resourcesRaw: string[] = JSON.parse(rawResourcesData);
-					for (const resourceRaw of resourcesRaw) {
-						if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/microsoft/vscode/issues/124946
-							editors.push({ resource: URI.parse(resourceRaw) });
-						}
-					}
-				}
+				editors.push(...createDraggedEditorInputFromRawResourcesData(rawResourcesData));
 			} catch (error) {
 				// Invalid transfer
 			}
@@ -144,20 +157,7 @@ export async function extractTreeDropData(dataTransfer: ITreeDataTransfer): Prom
 	if (dataTransfer.has(resourcesKey)) {
 		try {
 			const rawResourcesData = await dataTransfer.get(resourcesKey)?.asString();
-			if (rawResourcesData) {
-				const rawResourceList = JSON.parse(rawResourcesData);
-				for (const resourceRaw of rawResourceList) {
-					if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/microsoft/vscode/issues/124946
-						const resource = URI.parse(resourceRaw);
-						editors.push({
-							resource,
-							options: {
-								selection: selectionFragment(resource)
-							}
-						});
-					}
-				}
-			}
+			editors.push(...createDraggedEditorInputFromRawResourcesData(rawResourcesData));
 		} catch (error) {
 			// Invalid transfer
 		}
@@ -230,8 +230,8 @@ export class ResourcesDropHandler {
 	) {
 	}
 
-	async handleDrop(event: DragEvent | ITreeDataTransfer, resolveTargetGroup: () => IEditorGroup | undefined, afterDrop: (targetGroup: IEditorGroup | undefined) => void, targetIndex?: number): Promise<void> {
-		const editors = event instanceof DragEvent ? extractEditorsDropData(event) : await extractTreeDropData(event);
+	async handleDrop(event: DragEvent, resolveTargetGroup: () => IEditorGroup | undefined, afterDrop: (targetGroup: IEditorGroup | undefined) => void, targetIndex?: number): Promise<void> {
+		const editors = extractEditorsDropData(event);
 		if (!editors.length) {
 			return;
 		}
