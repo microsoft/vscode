@@ -33,6 +33,10 @@ if "%VSCODE_REMOTE_SERVER_PATH%"=="" (
 					compile-extension-media
 )
 
+if not exist ".\test\integration\browser\out\index.js" (
+	call yarn --cwd test/integration/browser compile
+	call yarn playwright-install
+)
 call node .\test\integration\browser\out\index.js --workspacePath=.\extensions\vscode-api-tests\testWorkspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=.\extensions\vscode-api-tests --extensionTestsPath=.\extensions\vscode-api-tests\out\singlefolder-tests %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 
