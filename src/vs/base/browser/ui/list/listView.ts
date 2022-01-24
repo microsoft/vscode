@@ -19,9 +19,9 @@ import { getOrDefault } from 'vs/base/common/objects';
 import { IRange, Range } from 'vs/base/common/range';
 import { INewScrollDimensions, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffect } from './list';
-import { RangeMap, shift } from './rangeMap';
-import { IRow, RowCache } from './rowCache';
+import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
+import { RangeMap, shift } from 'vs/base/browser/ui/list/rangeMap';
+import { IRow, RowCache } from 'vs/base/browser/ui/list/rowCache';
 
 interface IItem<T> {
 	readonly id: string;
