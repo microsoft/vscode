@@ -65,12 +65,17 @@ preexec() {
 }
 
 update_prompt
+
+if [ -n "$PROMPT_COMMAND" ]; then
+    export ORIGINAL_PROMPT_COMMAND=$PROMPT_COMMAND
+fi
+
 prompt_cmd() {
-    ${ORIGINAL_PROMPT_COMMAND}
+    if [ -n "$ORIGINAL_PROMPT_COMMAND" ]; then
+        ${ORIGINAL_PROMPT_COMMAND}
+    fi
     precmd
 }
-export ORIGINAL_PROMPT_COMMAND=$PROMPT_COMMAND
 export PROMPT_COMMAND=prompt_cmd
 trap 'preexec' DEBUG
-
 echo -e "\033[01;32mShell integration activated!\033[0m"
