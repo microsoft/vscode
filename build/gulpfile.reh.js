@@ -284,37 +284,15 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			].map(resource => gulp.src(resource, { base: '.' }).pipe(rename(resource)));
 		}
 
-		let all;
-		if (type === 'reh-web') {
-
-			// TODO@bpasero remove me in Feb
-			const legacyMain = es.merge(
-				gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.js').pipe(rename('out/vs/workbench/workbench.web.api.js')).pipe(replace('workbench.web.main', 'workbench.web.api')),
-				gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.css').pipe(rename('out/vs/workbench/workbench.web.api.css')),
-				gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.nls.js').pipe(rename('out/vs/workbench/workbench.web.api.nls.js')).pipe(replace('workbench.web.main', 'workbench.web.api')),
-			);
-
-			all = es.merge(
-				packageJsonStream,
-				productJsonStream,
-				license,
-				sources,
-				deps,
-				node,
-				...web,
-				legacyMain
-			);
-		} else {
-			all = es.merge(
-				packageJsonStream,
-				productJsonStream,
-				license,
-				sources,
-				deps,
-				node,
-				...web
-			);
-		}
+		let all = es.merge(
+			packageJsonStream,
+			productJsonStream,
+			license,
+			sources,
+			deps,
+			node,
+			...web
+		);
 
 		let result = all
 			.pipe(util.skipDirectories())
