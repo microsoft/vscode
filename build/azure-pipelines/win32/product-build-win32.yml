@@ -67,6 +67,7 @@ steps:
       $ErrorActionPreference = "Stop"
       exec { npx https://aka.ms/enablesecurefeed standAlone }
     timeoutInMinutes: 5
+    retryCountOnTaskFailure: 3
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
     displayName: Switch to Terrapin packages
 
