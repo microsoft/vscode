@@ -37,7 +37,7 @@ import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { MementoObject, Memento } from 'vs/workbench/common/memento';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -215,22 +215,9 @@ export class MarkersView extends ViewPane implements IMarkersView {
 	}
 
 	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
-		const { resource, selection, event, data } = element instanceof Marker ? { resource: element.resource, selection: element.range, event: 'problems.selectDiagnostic', data: this.getTelemetryData(element.marker) } :
-			element instanceof RelatedInformation ? { resource: element.raw.resource, selection: element.raw, event: 'problems.selectRelatedInformation', data: this.getTelemetryData(element.marker) } : { resource: null, selection: null, event: null, data: null };
-		if (resource && selection && event) {
-			/* __GDPR__
-			"problems.selectDiagnostic" : {
-				"source": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"code" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-			}
-			*/
-			/* __GDPR__
-				"problems.selectRelatedInformation" : {
-					"source": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-					"code" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog(event, data);
+		const { resource, selection } = element instanceof Marker ? { resource: element.resource, selection: element.range } :
+			element instanceof RelatedInformation ? { resource: element.raw.resource, selection: element.raw } : { resource: null, selection: null };
+		if (resource && selection) {
 			this.editorService.openEditor({
 				resource,
 				options: {
@@ -426,18 +413,6 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, !!options.editorOptions.preserveFocus, options.sideBySide, !!options.editorOptions.pinned);
 		}));
-		this._register(this.tree.onDidChangeCollapseState(({ node }) => {
-			const { element } = node;
-			if (element instanceof RelatedInformation && !node.collapsed) {
-				/* __GDPR__
-				"problems.expandRelatedInformation" : {
-					"source": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-					"code" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-				}
-				*/
-				this.telemetryService.publicLog('problems.expandRelatedInformation', this.getTelemetryData(element.marker));
-			}
-		}));
 
 		this._register(this.tree.onContextMenu(this.onContextMenu, this));
 
@@ -524,7 +499,6 @@ export class MarkersView extends ViewPane implements IMarkersView {
 
 		// Markers Filters
 		disposables.push(this.filters.onDidChange((event: IMarkersFiltersChangeEvent) => {
-			this.reportFilteringUsed();
 			if (event.activeFile) {
 				this.refreshPanel();
 			} else if (event.filterText || event.excludedFiles || event.showWarnings || event.showErrors || event.showInfos) {
@@ -863,30 +837,6 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		}
 
 		return { total: this.markersModel.total, filtered };
-	}
-
-	private getTelemetryData({ source, code }: IMarker): any {
-		return { source, code };
-	}
-
-	private reportFilteringUsed(): void {
-		const data = {
-			errors: this.filters.showErrors,
-			warnings: this.filters.showWarnings,
-			infos: this.filters.showInfos,
-			activeFile: this.filters.activeFile,
-			excludedFiles: this.filters.excludedFiles,
-		};
-		/* __GDPR__
-			"problems.filter" : {
-				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"warnings": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"infos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"activeFile": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"excludedFiles": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		this.telemetryService.publicLog('problems.filter', data);
 	}
 
 	override saveState(): void {
