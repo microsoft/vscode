@@ -203,7 +203,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
       ./scripts/test-integration.sh --build --tfs "Integration Tests"
     displayName: Run integration tests (Electron)
-    timeoutInMinutes: 10
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -211,7 +211,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
       ./scripts/test-web-integration.sh --browser webkit
     displayName: Run integration tests (Browser, Webkit)
-    timeoutInMinutes: 10
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -222,7 +222,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
       ./scripts/test-remote-integration.sh
     displayName: Run integration tests (Remote)
-    timeoutInMinutes: 10
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
