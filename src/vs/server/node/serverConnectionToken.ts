@@ -104,5 +104,5 @@ export function parseServerConnectionToken(args: ServerParsedArgs): ServerConnec
 		return new OptionalServerConnectionToken(generateUuid());
 	}
 
-	return new ServerConnectionTokenParseError(`Please use one of the following arguments: '--connection-token', '--connection-token-file' or '--without-connection-token'.`);
+	return new MandatoryServerConnectionToken(generateUuid());
 }

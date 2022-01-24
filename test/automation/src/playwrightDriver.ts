@@ -14,7 +14,6 @@ import * as kill from 'tree-kill';
 import { PageFunction } from 'playwright-core/types/structs';
 import { Logger, measureAndLog } from './logger';
 import type { LaunchOptions } from './code';
-import * as crypto from 'crypto';
 
 const width = 1200;
 const height = 800;
@@ -225,7 +224,7 @@ async function launchServer(options: LaunchOptions) {
 		...process.env
 	};
 
-	const args = ['--connection-token', String(crypto.randomInt(0xffffffff)), '--disable-telemetry', '--port', `${port++}`, '--driver', 'web', '--extensions-dir', extensionsPath, '--server-data-dir', agentFolder];
+	const args = ['--disable-telemetry', '--port', `${port++}`, '--driver', 'web', '--extensions-dir', extensionsPath, '--server-data-dir', agentFolder];
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {

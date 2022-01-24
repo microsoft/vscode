@@ -21,8 +21,10 @@ suite('parseServerConnectionToken', () => {
 		assert.strictEqual(isError(r), true);
 	}
 
-	test('no arguments results in error', () => {
-		assertIsError(parseServerConnectionToken({} as ServerParsedArgs));
+	test('no arguments generates a token that is mandatory', () => {
+		const result = parseServerConnectionToken({} as ServerParsedArgs);
+		assert.ok(!(result instanceof ServerConnectionTokenParseError));
+		assert.ok(result.type === ServerConnectionTokenType.Mandatory);
 	});
 
 	test('no arguments with --compatibility generates a token that is not mandatory', () => {
