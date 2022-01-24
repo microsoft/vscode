@@ -1,5 +1,19 @@
-# Source .bashrc because --init-file doesn't support it
-. ~/.bashrc
+
+if [ -z "$VSCODE_SHELL_LOGIN"]; then
+    . ~/.bashrc
+else
+    # Imitate -l because --init-file doesn't support it
+    if [ -f "~/.bash_profile"]; then
+        . ~/.bash_profile
+    fi
+    elif [ -f "~/.bash_login"]; then
+        . ~/.bash_login
+    fi
+    elif [ -f "~/.profile"]; then
+        . ~/.profile
+    fi
+    VSCODE_SHELL_LOGIN=""
+fi
 
 IN_COMMAND_EXECUTION="1"
 prompt_start() {
@@ -52,8 +66,8 @@ preexec() {
 
 update_prompt
 prompt_cmd() {
-	${ORIGINAL_PROMPT_COMMAND}
-	precmd
+    ${ORIGINAL_PROMPT_COMMAND}
+    precmd
 }
 export ORIGINAL_PROMPT_COMMAND=$PROMPT_COMMAND
 export PROMPT_COMMAND=prompt_cmd

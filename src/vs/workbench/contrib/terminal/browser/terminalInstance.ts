@@ -71,8 +71,6 @@ import { fromNow } from 'vs/base/common/date';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { injectShellIntegrationArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 
 const enum Constants {
 	/**
@@ -328,8 +326,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super();
 
@@ -1270,13 +1267,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const hadIcon = !!this.shellLaunchConfig.icon;
-		const isBackendWindows = await this._backendIsWindows();
-		const shellIntegration = injectShellIntegrationArgs(this._logService, this._configHelper.config.enableShellIntegration, this.shellLaunchConfig, isBackendWindows);
-		this.shellLaunchConfig.args = shellIntegration.args;
-		const enableShellIntegration = shellIntegration.enableShellIntegration;
+
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
 			if (error) {
-				this._onProcessExit(error, enableShellIntegration);
+				this._onProcessExit(error, error.code === 1337);
 			}
 		});
 		if (this.xterm?.shellIntegration) {
@@ -1285,18 +1279,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!hadIcon && this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
 			this._onIconChanged.fire(this);
 		}
-	}
-
-	private async _backendIsWindows(): Promise<boolean> {
-		let os = OS;
-		if (!!this.remoteAuthority) {
-			const remoteEnv = await this._remoteAgentService.getEnvironment();
-			if (!remoteEnv) {
-				throw new Error(`Failed to get remote environment for remote authority "${this.remoteAuthority}"`);
-			}
-			os = remoteEnv.os;
-		}
-		return os === OperatingSystem.Windows;
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {

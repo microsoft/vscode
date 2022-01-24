@@ -63,6 +63,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	isDisconnected: boolean = false;
 	environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	backend: ITerminalBackend | undefined;
+	shellIntegrationAttempted: boolean = false;
 	readonly capabilities = new TerminalCapabilityStore();
 
 	private _isDisposed: boolean = false;
@@ -225,7 +226,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this.os = remoteEnv.os;
 
 				// this is a copy of what the merged environment collection is on the remote side
-				await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
+				const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
 				const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.disablePersistence;
 				if (shellLaunchConfig.attachPersistentProcess) {
@@ -242,13 +243,17 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						os: this.os
 					});
 					try {
+						const isBackendWindows = await this._backendIsWindows();
+						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, isBackendWindows);
+						shellLaunchConfig.args = shellIntegration.args;
+						this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
 						newProcess = await backend.createProcess(
 							shellLaunchConfig,
 							'', // TODO: Fix cwd
 							cols,
 							rows,
 							this._configHelper.config.unicodeVersion,
-							{}, // TODO: Fix env
+							env,
 							true, // TODO: Fix enable
 							shouldPersist
 						);
@@ -416,6 +421,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
+		const isBackendWindows = await this._backendIsWindows();
+		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, isBackendWindows);
+		shellLaunchConfig.args = shellIntegration.args;
+		this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
+		this._logService.debug('integration', shellIntegration);
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
 		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, useConpty, shouldPersist);
@@ -466,6 +476,18 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				}
 			}
 		}));
+	}
+
+	private async _backendIsWindows(): Promise<boolean> {
+		let os = OS;
+		if (!!this.remoteAuthority) {
+			const remoteEnv = await this._remoteAgentService.getEnvironment();
+			if (!remoteEnv) {
+				throw new Error(`Failed to get remote environment for remote authority "${this.remoteAuthority}"`);
+			}
+			os = remoteEnv.os;
+		}
+		return os === OperatingSystem.Windows;
 	}
 
 	setDimensions(cols: number, rows: number): Promise<void>;
@@ -570,7 +592,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._setProcessState(ProcessState.KilledByProcess);
 		}
 
-		this._onProcessExit.fire(exitCode);
+		this._onProcessExit.fire(this.shellIntegrationAttempted ? 1337 : exitCode);
 	}
 
 	private _setProcessState(state: ProcessState) {
