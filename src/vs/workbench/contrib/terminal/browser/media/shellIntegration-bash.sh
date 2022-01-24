@@ -1,15 +1,14 @@
 
-if [ -z "$VSCODE_SHELL_LOGIN"]; then
+if [ -z "$VSCODE_SHELL_LOGIN" ]; then
     . ~/.bashrc
 else
-    # Imitate -l because --init-file doesn't support it
-    if [ -f "~/.bash_profile"]; then
+    # Imitate -l because --init-file doesn't support it:
+    # run the first of these files that exists
+    if [ -f "~/.bash_profile" ]; then
         . ~/.bash_profile
-    fi
-    elif [ -f "~/.bash_login"]; then
+    elif [ -f "~/.bash_login" ]; then
         . ~/.bash_login
-    fi
-    elif [ -f "~/.profile"]; then
+    elif [ -f "~/.profile" ]; then
         . ~/.profile
     fi
     VSCODE_SHELL_LOGIN=""
@@ -65,17 +64,21 @@ preexec() {
 }
 
 update_prompt
-
-if [ -n "$PROMPT_COMMAND" ]; then
-    export ORIGINAL_PROMPT_COMMAND=$PROMPT_COMMAND
-fi
+export ORIGINAL_PROMPT_COMMAND=$PROMPT_COMMAND
 
 prompt_cmd() {
-    if [ -n "$ORIGINAL_PROMPT_COMMAND" ]; then
-        ${ORIGINAL_PROMPT_COMMAND}
-    fi
-    precmd
+	precmd
 }
-export PROMPT_COMMAND=prompt_cmd
+original_cmd() {
+    ${ORIGINAL_PROMPT_COMMAND}
+    prompt_cmd
+}
+if [ -n "$ORIGINAL_PROMPT_COMMAND" ]; then
+    export PROMPT_COMMAND=original_cmd
+else
+    export PROMPT_COMMAND=prompt_cmd
+fi
+
 trap 'preexec' DEBUG
+
 echo -e "\033[01;32mShell integration activated!\033[0m"
