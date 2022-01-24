@@ -960,7 +960,7 @@ class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 			}
 		}
 
-		return a.label.localeCompare(b.label);
+		return (a.sortText || a.label).localeCompare(b.sortText || b.label);
 	}
 }
 

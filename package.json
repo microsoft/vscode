@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.64.0",
-  "distro": "23e7c60db78368b9a0db94a744027230f6b6b5ef",
+  "distro": "b28c5d1e1847e54e9ee7851d5f555adf51c413a6",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -128,6 +128,7 @@
     "ansi-colors": "^3.2.3",
     "asar": "^3.0.3",
     "chromium-pickle-js": "^0.2.0",
+    "cookie": "^0.4.0",
     "copy-webpack-plugin": "^6.0.3",
     "cson-parser": "^1.3.3",
     "css-loader": "^3.2.0",

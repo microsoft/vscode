@@ -32,6 +32,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
@@ -78,7 +79,7 @@ function getUriTransformer(remoteAuthority: string): IURITransformer {
 	return _uriTransformerCache[remoteAuthority];
 }
 
-export async function setupServerServices(connectionToken: ServerConnectionToken, args: ServerParsedArgs, disposables: DisposableStore) {
+export async function setupServerServices(connectionToken: ServerConnectionToken, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, disposables: DisposableStore) {
 	const services = new ServiceCollection();
 	const socketServer = new SocketServer<RemoteAgentConnectionContext>();
 
@@ -93,6 +94,13 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const logService = new MultiplexLogService([new ServerLogService(getLogLevel(environmentService)), spdLogService]);
 	services.set(ILogService, logService);
 	setTimeout(() => cleanupOlderLogs(environmentService.logsPath).then(null, err => logService.error(err)), 10000);
+
+	logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
+	logService.trace('process arguments:', environmentService.args);
+	const serverGreeting = productService.serverGreeting.join('\n');
+	if (serverGreeting) {
+		logService.info(`\n\n${serverGreeting}\n\n`);
+	}
 
 	// ExtensionHost Debug broadcast service
 	socketServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ExtensionHostDebugBroadcastChannel());
@@ -152,7 +160,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
-	const instantiationService = new InstantiationService(services);
+	const instantiationService: IInstantiationService = new InstantiationService(services);
 	services.set(ILocalizationsService, instantiationService.createInstance(LocalizationsService));
 
 	const extensionManagementCLIService = instantiationService.createInstance(ExtensionManagementCLIService);

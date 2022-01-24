@@ -12,7 +12,7 @@ import { ILanguageService } from 'vs/editor/common/services/language';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { INotebookActionContext, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState, CellFocusMode, expandCellRangesWithHiddenCells, IActiveNotebookEditor, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellEditType, CellKind, ICellEditOperation, ICellReplaceEdit, IOutputDto, ISelectionState, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellRangeContains, cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -425,7 +425,7 @@ export async function joinNotebookCells(editor: IActiveNotebookEditor, range: IC
 export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, context: INotebookCellActionContext, direction: 'above' | 'below'): Promise<void> {
 	const editor = context.notebookEditor;
 	const textModel = editor.textModel;
-	const viewModel = editor._getViewModel();
+	const viewModel = editor._getViewModel() as NotebookViewModel;
 	let ret: {
 		edits: ResourceEdit[];
 		cell: ICellViewModel;
@@ -583,7 +583,7 @@ export function insertCell(
 	initialText: string = '',
 	ui: boolean = false
 ) {
-	const viewModel = editor._getViewModel();
+	const viewModel = editor._getViewModel() as NotebookViewModel;
 	const activeKernel = editor.activeKernel;
 	if (viewModel.options.isReadOnly) {
 		return null;

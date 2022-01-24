@@ -3,8 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as cookie from 'cookie';
 import * as fs from 'fs';
+import * as http from 'http';
+import * as url from 'url';
 import { generateUuid } from 'vs/base/common/uuid';
+import { connectionTokenCookieName, connectionTokenQueryName } from 'vs/base/common/network';
 import { ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 
 const connectionTokenRegex = /^[0-9A-Za-z-]+$/;
@@ -105,4 +109,15 @@ export function parseServerConnectionToken(args: ServerParsedArgs): ServerConnec
 	}
 
 	return new MandatoryServerConnectionToken(generateUuid());
+}
+
+export function requestHasValidConnectionToken(connectionToken: ServerConnectionToken, req: http.IncomingMessage, parsedUrl: url.UrlWithParsedQuery) {
+	// First check if there is a valid query parameter
+	if (connectionToken.validate(parsedUrl.query[connectionTokenQueryName])) {
+		return true;
+	}
+
+	// Otherwise, check if there is a valid cookie
+	const cookies = cookie.parse(req.headers.cookie || '');
+	return connectionToken.validate(cookies[connectionTokenCookieName]);
 }

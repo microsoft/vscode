@@ -8,7 +8,7 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { FoldingRegion, FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
 import { IFoldingRangeData, sanitizeRanges } from 'vs/editor/contrib/folding/browser/syntaxRangeProvider';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
@@ -17,7 +17,7 @@ type RegionFilterWithLevel = (r: FoldingRegion, level: number) => boolean;
 
 
 export class FoldingModel implements IDisposable {
-	private _viewModel: NotebookViewModel | null = null;
+	private _viewModel: INotebookViewModel | null = null;
 	private readonly _viewModelStore = new DisposableStore();
 	private _regions: FoldingRegions;
 	get regions() {
@@ -43,7 +43,7 @@ export class FoldingModel implements IDisposable {
 		this._viewModel = null;
 	}
 
-	attachViewModel(model: NotebookViewModel) {
+	attachViewModel(model: INotebookViewModel) {
 		this._viewModel = model;
 
 		this._viewModelStore.add(this._viewModel.onDidChangeViewCells(() => {

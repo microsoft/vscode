@@ -2218,6 +2218,17 @@
           "default": 10000,
           "description": "%config.statusLimit%"
         },
+        "git.experimental.installGuide": {
+          "type": "string",
+          "enum": [
+            "default",
+            "download"
+          ],
+          "tags": ["experimental"],
+          "scope": "machine",
+          "description": "%config.experimental.installGuide%",
+          "default": "default"
+        },
         "git.repositoryScanMaxDepth": {
           "type": "number",
           "scope": "resource",
@@ -2337,8 +2348,28 @@
       },
       {
         "view": "scm",
+        "contents": "%view.workbench.scm.missing.guide%",
+        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.missing.guide.mac%",
+        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isMac"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.missing.guide.windows%",
+        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isWindows"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.missing.guide.windows%",
+        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isLinux"
+      },
+      {
+        "view": "scm",
         "contents": "%view.workbench.scm.missing%",
-        "when": "config.git.enabled && git.missing"
+        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == default"
       },
       {
         "view": "scm",

@@ -22,7 +22,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFindMatch, CellFindMatchWithIndex, CellFoldingState, EditorFoldingStateDelegate, ICellViewModel, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, OutputFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, CellFindMatchWithIndex, CellFoldingState, EditorFoldingStateDelegate, ICellViewModel, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, OutputFindMatch, ICellModelDecorations, ICellModelDeltaDecorations, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
@@ -33,47 +33,7 @@ import { CellKind, ICell, INotebookSearchOptions, ISelectionState, NotebookCells
 import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NotebookLayoutInfo, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 
-export interface INotebookEditorViewState {
-	editingCells: { [key: number]: boolean; };
-	collapsedInputCells: { [key: number]: boolean; };
-	collapsedOutputCells: { [key: number]: boolean; };
-	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null; };
-	hiddenFoldingRanges?: ICellRange[];
-	cellTotalHeights?: { [key: number]: number; };
-	scrollPosition?: { left: number; top: number; };
-	focus?: number;
-	editorFocused?: boolean;
-	contributionsState?: { [id: string]: unknown; };
-}
-
-export interface ICellModelDecorations {
-	ownerId: number;
-	decorations: string[];
-}
-
-export interface ICellModelDeltaDecorations {
-	ownerId: number;
-	decorations: IModelDeltaDecoration[];
-}
-
-export interface IModelDecorationsChangeAccessor {
-	deltaDecorations(oldDecorations: ICellModelDecorations[], newDecorations: ICellModelDeltaDecorations[]): ICellModelDecorations[];
-}
-
 const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
-
-
-export type NotebookViewCellsSplice = [
-	number /* start */,
-	number /* delete count */,
-	CellViewModel[]
-];
-
-export interface INotebookViewCellsUpdateEvent {
-	synchronous: boolean;
-	splices: NotebookViewCellsSplice[];
-}
-
 
 class DecorationsTree {
 	private readonly _decorationsTree: IntervalTree;
