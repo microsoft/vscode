@@ -912,7 +912,7 @@ export class SettingsEditor2 extends EditorPane {
 		return this.configurationService.updateValue(key, value, overrides, configurationTarget)
 			.then(() => {
 				const query = this.searchWidget.getValue();
-				if (query.includes('@modified')) {
+				if (query.includes(`@${MODIFIED_SETTING_TAG}`)) {
 					// The user might have reset a setting.
 					this.refreshTOCTree();
 				}
