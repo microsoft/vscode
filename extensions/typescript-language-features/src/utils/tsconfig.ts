@@ -28,26 +28,26 @@ export function inferredProjectCompilerOptions(
 ): Proto.ExternalProjectCompilerOptions {
 	const projectConfig: Proto.ExternalProjectCompilerOptions = {
 		module: 'commonjs' as Proto.ModuleKind,
-		target: 'es2016' as Proto.ScriptTarget,
+		target: 'es2020' as Proto.ScriptTarget,
 		jsx: 'preserve' as Proto.JsxEmit,
 	};
 
-	if (serviceConfig.implictProjectConfiguration.checkJs) {
+	if (serviceConfig.implicitProjectConfiguration.checkJs) {
 		projectConfig.checkJs = true;
 		if (projectType === ProjectType.TypeScript) {
 			projectConfig.allowJs = true;
 		}
 	}
 
-	if (serviceConfig.implictProjectConfiguration.experimentalDecorators) {
+	if (serviceConfig.implicitProjectConfiguration.experimentalDecorators) {
 		projectConfig.experimentalDecorators = true;
 	}
 
-	if (serviceConfig.implictProjectConfiguration.strictNullChecks) {
+	if (serviceConfig.implicitProjectConfiguration.strictNullChecks) {
 		projectConfig.strictNullChecks = true;
 	}
 
-	if (serviceConfig.implictProjectConfiguration.strictFunctionTypes) {
+	if (serviceConfig.implicitProjectConfiguration.strictFunctionTypes) {
 		projectConfig.strictFunctionTypes = true;
 	}
 
@@ -115,8 +115,8 @@ export async function openProjectConfigOrPromptToCreate(
 
 	const selected = await vscode.window.showInformationMessage(
 		(projectType === ProjectType.TypeScript
-			? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project. Click [here]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=841896')
-			: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project Click [here]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=759670')
+			? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project. View the [tsconfig.json documentation]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=841896')
+			: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project. View the [jsconfig.json documentation]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=759670')
 		),
 		CreateConfigItem);
 

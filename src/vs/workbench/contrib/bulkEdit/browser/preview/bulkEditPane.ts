@@ -8,8 +8,7 @@ import { WorkbenchAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/lis
 import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, CategoryElementRenderer, BulkEditNaviLabelProvider, CategoryElement, BulkEditSorter } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -68,6 +67,7 @@ export class BulkEditPane extends ViewPane {
 	private readonly _sessionDisposables = new DisposableStore();
 	private _currentResolve?: (edit?: ResourceEdit[]) => void;
 	private _currentInput?: BulkFileOperations;
+	private _currentProvider?: BulkEditPreviewProvider;
 
 
 	constructor(
@@ -100,12 +100,12 @@ export class BulkEditPane extends ViewPane {
 		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(_contextKeyService);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._tree.dispose();
 		this._disposables.dispose();
 	}
 
-	protected renderBody(parent: HTMLElement): void {
+	protected override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 
 		const resourceLabels = this._instaService.createInstance(
@@ -137,7 +137,7 @@ export class BulkEditPane extends ViewPane {
 				multipleSelectionSupport: false,
 				keyboardNavigationLabelProvider: new BulkEditNaviLabelProvider(),
 				sorter: new BulkEditSorter(),
-				openOnFocus: true
+				selectionNavigation: true
 			}
 		);
 
@@ -154,7 +154,7 @@ export class BulkEditPane extends ViewPane {
 		this._setState(State.Message);
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this._tree.layout(height, width);
 	}
@@ -174,8 +174,8 @@ export class BulkEditPane extends ViewPane {
 		}
 
 		const input = await this._instaService.invokeFunction(BulkFileOperations.create, edit);
-		const provider = this._instaService.createInstance(BulkEditPreviewProvider, input);
-		this._sessionDisposables.add(provider);
+		this._currentProvider = this._instaService.createInstance(BulkEditPreviewProvider, input);
+		this._sessionDisposables.add(this._currentProvider);
 		this._sessionDisposables.add(input);
 
 		//
@@ -186,7 +186,7 @@ export class BulkEditPane extends ViewPane {
 
 		this._currentInput = input;
 
-		return new Promise<ResourceEdit[] | undefined>(async resolve => {
+		return new Promise<ResourceEdit[] | undefined>(resolve => {
 
 			token.onCancellationRequested(() => resolve(undefined));
 
@@ -245,7 +245,7 @@ export class BulkEditPane extends ViewPane {
 			message = localize('conflict.N', "Cannot apply refactoring because {0} other files have changed in the meantime.", conflicts.length);
 		}
 
-		this._dialogService.show(Severity.Warning, message, []).finally(() => this._done(false));
+		this._dialogService.show(Severity.Warning, message).finally(() => this._done(false));
 	}
 
 	discard() {
@@ -318,7 +318,7 @@ export class BulkEditPane extends ViewPane {
 			return;
 		}
 
-		const previewUri = BulkEditPreviewProvider.asPreviewUri(fileElement.edit.uri);
+		const previewUri = this._currentProvider!.asPreviewUri(fileElement.edit.uri);
 
 		if (fileElement.edit.type & BulkFileOperationType.Delete) {
 			// delete -> show single editor
@@ -353,8 +353,8 @@ export class BulkEditPane extends ViewPane {
 			}
 
 			this._editorService.openEditor({
-				leftResource,
-				rightResource: previewUri,
+				original: { resource: leftResource },
+				modified: { resource: previewUri },
 				label,
 				description: this._labelService.getUriLabel(dirname(leftResource), { relative: true }),
 				options
@@ -377,15 +377,3 @@ export class BulkEditPane extends ViewPane {
 		});
 	}
 }
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-
-	const diffInsertedColor = theme.getColor(diffInserted);
-	if (diffInsertedColor) {
-		collector.addRule(`.monaco-workbench .bulk-edit-panel .highlight.insert { background-color: ${diffInsertedColor}; }`);
-	}
-	const diffRemovedColor = theme.getColor(diffRemoved);
-	if (diffRemovedColor) {
-		collector.addRule(`.monaco-workbench .bulk-edit-panel .highlight.remove { background-color: ${diffRemovedColor}; }`);
-	}
-});

@@ -10,7 +10,7 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IGetEnvironmentDataArguments {
 	remoteAuthority: string;
@@ -42,7 +42,9 @@ export interface IRemoteAgentEnvironmentDTO {
 	workspaceStorageHome: UriComponents;
 	userHome: UriComponents;
 	os: platform.OperatingSystem;
-	marks: performance.PerformanceMark[]
+	arch: string;
+	marks: performance.PerformanceMark[];
+	useHostProxy: boolean;
 }
 
 export class RemoteExtensionEnvironmentChannelClient {
@@ -66,7 +68,9 @@ export class RemoteExtensionEnvironmentChannelClient {
 			workspaceStorageHome: URI.revive(data.workspaceStorageHome),
 			userHome: URI.revive(data.userHome),
 			os: data.os,
-			marks: data.marks
+			arch: data.arch,
+			marks: data.marks,
+			useHostProxy: data.useHostProxy
 		};
 	}
 
@@ -107,8 +111,8 @@ export class RemoteExtensionEnvironmentChannelClient {
 		return channel.call<IDiagnosticInfo>('getDiagnosticInfo', options);
 	}
 
-	static disableTelemetry(channel: IChannel): Promise<void> {
-		return channel.call<void>('disableTelemetry');
+	static updateTelemetryLevel(channel: IChannel, telemetryLevel: TelemetryLevel): Promise<void> {
+		return channel.call<void>('updateTelemetryLevel', { telemetryLevel });
 	}
 
 	static logTelemetry(channel: IChannel, eventName: string, data: ITelemetryData): Promise<void> {

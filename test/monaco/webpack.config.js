@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 const path = require('path');
+const WarningsToErrorsPlugin = require('warnings-to-errors-webpack-plugin');
 
 module.exports = {
 	mode: 'production',
@@ -51,5 +52,8 @@ module.exports = {
 		moduleTrace: true,
 		errorDetails: true,
 		chunks: true
-	}
+	},
+	plugins: [
+		new WarningsToErrorsPlugin()
+	],
 };

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import { createHash } from 'crypto';
-import { join } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { writeFileSync, writeFile, readdir, exists, rimraf, RimRafMode } from 'vs/base/node/pfs';
-import { IBackupMainService, IWorkspaceBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
-import { IBackupWorkspacesFormat, IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { URI } from 'vs/base/common/uri';
+import * as fs from 'fs';
 import { isEqual } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
+import { join } from 'vs/base/common/path';
+import { isLinux } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { Promises, RimRafMode, writeFileSync } from 'vs/base/node/pfs';
+import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
+import { IBackupWorkspacesFormat, IDeprecatedBackupWorkspacesFormat, IEmptyWindowBackupInfo, isEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { HotExitConfiguration, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IFolderBackupInfo, isFolderBackupInfo, isWorkspaceIdentifier, IWorkspaceBackupInfo, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export class BackupMainService implements IBackupMainService {
 
@@ -28,7 +28,7 @@ export class BackupMainService implements IBackupMainService {
 	protected workspacesJsonPath: string;
 
 	private workspaces: IWorkspaceBackupInfo[] = [];
-	private folders: URI[] = [];
+	private folders: IFolderBackupInfo[] = [];
 	private emptyWindows: IEmptyWindowBackupInfo[] = [];
 
 	// Comparers for paths and resources that will
@@ -47,40 +47,45 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	async initialize(): Promise<void> {
-		let backups: IBackupWorkspacesFormat;
+		let backups: IBackupWorkspacesFormat & IDeprecatedBackupWorkspacesFormat;
 		try {
-			backups = JSON.parse(await fs.promises.readFile(this.workspacesJsonPath, 'utf8')); // invalid JSON or permission issue can happen here
+			backups = JSON.parse(await Promises.readFile(this.workspacesJsonPath, 'utf8')); // invalid JSON or permission issue can happen here
 		} catch (error) {
 			backups = Object.create(null);
 		}
 
-		// read empty workspaces backups first
-		if (backups.emptyWorkspaceInfos) {
-			this.emptyWindows = await this.validateEmptyWorkspaces(backups.emptyWorkspaceInfos);
-		}
+		// validate empty workspaces backups first
+		this.emptyWindows = await this.validateEmptyWorkspaces(backups.emptyWorkspaceInfos);
 
 		// read workspace backups
 		let rootWorkspaces: IWorkspaceBackupInfo[] = [];
 		try {
 			if (Array.isArray(backups.rootURIWorkspaces)) {
-				rootWorkspaces = backups.rootURIWorkspaces.map(workspace => ({ workspace: { id: workspace.id, configPath: URI.parse(workspace.configURIPath) }, remoteAuthority: workspace.remoteAuthority }));
+				rootWorkspaces = backups.rootURIWorkspaces.map(workspace => ({
+					workspace: { id: workspace.id, configPath: URI.parse(workspace.configURIPath) },
+					remoteAuthority: workspace.remoteAuthority
+				}));
 			}
 		} catch (e) {
 			// ignore URI parsing exceptions
 		}
 
+		// validate workspace backups
 		this.workspaces = await this.validateWorkspaces(rootWorkspaces);
 
 		// read folder backups
-		let workspaceFolders: URI[] = [];
+		let workspaceFolders: IFolderBackupInfo[] = [];
 		try {
-			if (Array.isArray(backups.folderURIWorkspaces)) {
-				workspaceFolders = backups.folderURIWorkspaces.map(folder => URI.parse(folder));
+			if (Array.isArray(backups.folderWorkspaceInfos)) {
+				workspaceFolders = backups.folderWorkspaceInfos.map(folder => ({ folderUri: URI.parse(folder.folderUri), remoteAuthority: folder.remoteAuthority }));
+			} else if (Array.isArray(backups.folderURIWorkspaces)) {
+				workspaceFolders = backups.folderURIWorkspaces.map(folder => ({ folderUri: URI.parse(folder), remoteAuthority: undefined }));
 			}
 		} catch (e) {
 			// ignore URI parsing exceptions
 		}
 
+		// validate folder backups
 		this.folders = await this.validateFolders(workspaceFolders);
 
 		// save again in case some workspaces or folders have been removed
@@ -97,7 +102,7 @@ export class BackupMainService implements IBackupMainService {
 		return this.workspaces.slice(0); // return a copy
 	}
 
-	getFolderBackupPaths(): URI[] {
+	getFolderBackupPaths(): IFolderBackupInfo[] {
 		if (this.isHotExitOnExitAndWindowClose()) {
 			// Only non-folder windows are restored on main process launch when
 			// hot exit is configured as onExitAndWindowClose.
@@ -166,17 +171,17 @@ export class BackupMainService implements IBackupMainService {
 		}
 	}
 
-	registerFolderBackupSync(folderUri: URI): string {
-		if (!this.folders.some(folder => this.backupUriComparer.isEqual(folderUri, folder))) {
-			this.folders.push(folderUri);
+	registerFolderBackupSync(folderInfo: IFolderBackupInfo): string {
+		if (!this.folders.some(folder => this.backupUriComparer.isEqual(folderInfo.folderUri, folder.folderUri))) {
+			this.folders.push(folderInfo);
 			this.saveSync();
 		}
 
-		return this.getBackupPath(this.getFolderHash(folderUri));
+		return this.getBackupPath(this.getFolderHash(folderInfo));
 	}
 
 	unregisterFolderBackupSync(folderUri: URI): void {
-		const index = this.folders.findIndex(folder => this.backupUriComparer.isEqual(folderUri, folder));
+		const index = this.folders.findIndex(folder => this.backupUriComparer.isEqual(folderUri, folder.folderUri));
 		if (index !== -1) {
 			this.folders.splice(index, 1);
 			this.saveSync();
@@ -230,7 +235,7 @@ export class BackupMainService implements IBackupMainService {
 
 				// If the workspace has no backups, ignore it
 				if (hasBackups) {
-					if (workspace.configPath.scheme !== Schemas.file || await exists(workspace.configPath.fsPath)) {
+					if (workspace.configPath.scheme !== Schemas.file || await Promises.exists(workspace.configPath.fsPath)) {
 						result.push(workspaceInfo);
 					} else {
 						// If the workspace has backups, but the target workspace is missing, convert backups to empty ones
@@ -245,25 +250,26 @@ export class BackupMainService implements IBackupMainService {
 		return result;
 	}
 
-	private async validateFolders(folderWorkspaces: URI[]): Promise<URI[]> {
+	private async validateFolders(folderWorkspaces: IFolderBackupInfo[]): Promise<IFolderBackupInfo[]> {
 		if (!Array.isArray(folderWorkspaces)) {
 			return [];
 		}
 
-		const result: URI[] = [];
+		const result: IFolderBackupInfo[] = [];
 		const seenIds: Set<string> = new Set();
-		for (let folderURI of folderWorkspaces) {
+		for (let folderInfo of folderWorkspaces) {
+			const folderURI = folderInfo.folderUri;
 			const key = this.backupUriComparer.getComparisonKey(folderURI);
 			if (!seenIds.has(key)) {
 				seenIds.add(key);
 
-				const backupPath = this.getBackupPath(this.getFolderHash(folderURI));
+				const backupPath = this.getBackupPath(this.getFolderHash(folderInfo));
 				const hasBackups = await this.doHasBackups(backupPath);
 
 				// If the folder has no backups, ignore it
 				if (hasBackups) {
-					if (folderURI.scheme !== Schemas.file || await exists(folderURI.fsPath)) {
-						result.push(folderURI);
+					if (folderURI.scheme !== Schemas.file || await Promises.exists(folderURI.fsPath)) {
+						result.push(folderInfo);
 					} else {
 						// If the folder has backups, but the target workspace is missing, convert backups to empty ones
 						await this.convertToEmptyWindowBackup(backupPath);
@@ -309,8 +315,8 @@ export class BackupMainService implements IBackupMainService {
 
 	private async deleteStaleBackup(backupPath: string): Promise<void> {
 		try {
-			if (await exists(backupPath)) {
-				await rimraf(backupPath, RimRafMode.MOVE);
+			if (await Promises.exists(backupPath)) {
+				await Promises.rm(backupPath, RimRafMode.MOVE);
 			}
 		} catch (error) {
 			this.logService.error(`Backup: Could not delete stale backup: ${error.toString()}`);
@@ -328,7 +334,7 @@ export class BackupMainService implements IBackupMainService {
 		// Rename backupPath to new empty window backup path
 		const newEmptyWindowBackupPath = this.getBackupPath(newBackupFolder);
 		try {
-			await fs.promises.rename(backupPath, newEmptyWindowBackupPath);
+			await Promises.rename(backupPath, newEmptyWindowBackupPath);
 		} catch (error) {
 			this.logService.error(`Backup: Could not rename backup folder: ${error.toString()}`);
 			return false;
@@ -359,13 +365,13 @@ export class BackupMainService implements IBackupMainService {
 		return true;
 	}
 
-	async getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>> {
-		const dirtyWorkspaces: Array<IWorkspaceIdentifier | URI> = [];
+	async getDirtyWorkspaces(): Promise<Array<IWorkspaceBackupInfo | IFolderBackupInfo>> {
+		const dirtyWorkspaces: Array<IWorkspaceBackupInfo | IFolderBackupInfo> = [];
 
 		// Workspaces with backups
 		for (const workspace of this.workspaces) {
 			if ((await this.hasBackups(workspace))) {
-				dirtyWorkspaces.push(workspace.workspace);
+				dirtyWorkspaces.push(workspace);
 			}
 		}
 
@@ -379,22 +385,22 @@ export class BackupMainService implements IBackupMainService {
 		return dirtyWorkspaces;
 	}
 
-	private hasBackups(backupLocation: IWorkspaceBackupInfo | IEmptyWindowBackupInfo | URI): Promise<boolean> {
+	private hasBackups(backupLocation: IWorkspaceBackupInfo | IEmptyWindowBackupInfo | IFolderBackupInfo): Promise<boolean> {
 		let backupPath: string;
 
+		// Empty
+		if (isEmptyWindowBackupInfo(backupLocation)) {
+			backupPath = backupLocation.backupFolder;
+		}
+
 		// Folder
-		if (URI.isUri(backupLocation)) {
+		else if (isFolderBackupInfo(backupLocation)) {
 			backupPath = this.getBackupPath(this.getFolderHash(backupLocation));
 		}
 
 		// Workspace
-		else if (isWorkspaceBackupInfo(backupLocation)) {
-			backupPath = this.getBackupPath(backupLocation.workspace.id);
-		}
-
-		// Empty
 		else {
-			backupPath = backupLocation.backupFolder;
+			backupPath = this.getBackupPath(backupLocation.workspace.id);
 		}
 
 		return this.doHasBackups(backupPath);
@@ -402,11 +408,11 @@ export class BackupMainService implements IBackupMainService {
 
 	private async doHasBackups(backupPath: string): Promise<boolean> {
 		try {
-			const backupSchemas = await readdir(backupPath);
+			const backupSchemas = await Promises.readdir(backupPath);
 
 			for (const backupSchema of backupSchemas) {
 				try {
-					const backupSchemaChildren = await readdir(join(backupPath, backupSchema));
+					const backupSchemaChildren = await Promises.readdir(join(backupPath, backupSchema));
 					if (backupSchemaChildren.length > 0) {
 						return true;
 					}
@@ -431,7 +437,7 @@ export class BackupMainService implements IBackupMainService {
 
 	private async save(): Promise<void> {
 		try {
-			await writeFile(this.workspacesJsonPath, JSON.stringify(this.serializeBackups()));
+			await Promises.writeFile(this.workspacesJsonPath, JSON.stringify(this.serializeBackups()));
 		} catch (error) {
 			this.logService.error(`Backup: Could not save workspaces.json: ${error.toString()}`);
 		}
@@ -440,7 +446,7 @@ export class BackupMainService implements IBackupMainService {
 	private serializeBackups(): IBackupWorkspacesFormat {
 		return {
 			rootURIWorkspaces: this.workspaces.map(workspace => ({ id: workspace.workspace.id, configURIPath: workspace.workspace.configPath.toString(), remoteAuthority: workspace.remoteAuthority })),
-			folderURIWorkspaces: this.folders.map(folder => folder.toString()),
+			folderWorkspaceInfos: this.folders.map(folder => ({ folderUri: folder.folderUri.toString(), remoteAuthority: folder.remoteAuthority })),
 			emptyWorkspaceInfos: this.emptyWindows
 		};
 	}
@@ -449,7 +455,8 @@ export class BackupMainService implements IBackupMainService {
 		return (Date.now() + Math.round(Math.random() * 1000)).toString();
 	}
 
-	protected getFolderHash(folderUri: URI): string {
+	protected getFolderHash(folder: IFolderBackupInfo): string {
+		const folderUri = folder.folderUri;
 		let key: string;
 
 		if (folderUri.scheme === Schemas.file) {

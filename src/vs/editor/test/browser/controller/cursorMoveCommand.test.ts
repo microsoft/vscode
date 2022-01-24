@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
-import { CursorMove } from 'vs/editor/common/controller/cursorMoveCommands';
+import { CursorMove } from 'vs/editor/common/cursor/cursorMoveCommands';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';

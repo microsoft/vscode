@@ -1257,8 +1257,8 @@
 		"c": "%s",
 		"t": "source.go string.quoted.double.go constant.other.placeholder.go",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
@@ -1279,8 +1279,8 @@
 		"c": "%s",
 		"t": "source.go string.quoted.double.go constant.other.placeholder.go",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.placeholder: #9CDCFE",
+			"light_plus": "constant.other.placeholder: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"

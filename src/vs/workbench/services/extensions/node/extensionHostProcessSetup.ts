@@ -7,7 +7,7 @@ import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import * as minimist from 'minimist';
 import * as performance from 'vs/base/common/performance';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol, ProtocolConstants, BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
@@ -18,17 +18,19 @@ import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessag
 import { ExtensionHostMain, IExitFn } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
-import { exists } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { ProcessTimeRunOnceScheduler } from 'vs/base/common/async';
+import { boolean } from 'vs/editor/common/config/editorOptions';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/node/extHost.node.services';
 
 interface ParsedExtHostArgs {
 	uriTransformerPath?: string;
-	useHostProxy?: string;
+	skipWorkspaceStorageLock?: boolean;
+	useHostProxy?: boolean;
 }
 
 // workaround for https://github.com/microsoft/vscode/issues/85490
@@ -44,7 +46,10 @@ interface ParsedExtHostArgs {
 
 const args = minimist(process.argv.slice(2), {
 	string: [
-		'uriTransformerPath',
+		'uriTransformerPath'
+	],
+	boolean: [
+		'skipWorkspaceStorageLock',
 		'useHostProxy'
 	]
 }) as ParsedExtHostArgs;
@@ -60,7 +65,7 @@ const args = minimist(process.argv.slice(2), {
 
 	Module._load = function (request: string) {
 		if (request === 'natives') {
-			throw new Error('Either the extension or a NPM dependency is using the "natives" node module which is unsupported as it can cause a crash of the extension host. Click [here](https://go.microsoft.com/fwlink/?linkid=871887) to find out more');
+			throw new Error('Either the extension or an NPM dependency is using the [unsupported "natives" node module](https://go.microsoft.com/fwlink/?linkid=871887).');
 		}
 
 		return originalLoad.apply(this, arguments);
@@ -105,23 +110,27 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 			let protocol: PersistentProtocol | null = null;
 
 			let timer = setTimeout(() => {
-				reject(new Error('VSCODE_EXTHOST_IPC_SOCKET timeout'));
+				onTerminate('VSCODE_EXTHOST_IPC_SOCKET timeout');
 			}, 60000);
 
 			const reconnectionGraceTime = ProtocolConstants.ReconnectionGraceTime;
 			const reconnectionShortGraceTime = ProtocolConstants.ReconnectionShortGraceTime;
-			const disconnectRunner1 = new RunOnceScheduler(() => onTerminate('renderer disconnected for too long (1)'), reconnectionGraceTime);
-			const disconnectRunner2 = new RunOnceScheduler(() => onTerminate('renderer disconnected for too long (2)'), reconnectionShortGraceTime);
+			const disconnectRunner1 = new ProcessTimeRunOnceScheduler(() => onTerminate('renderer disconnected for too long (1)'), reconnectionGraceTime);
+			const disconnectRunner2 = new ProcessTimeRunOnceScheduler(() => onTerminate('renderer disconnected for too long (2)'), reconnectionShortGraceTime);
 
 			process.on('message', (msg: IExtHostSocketMessage | IExtHostReduceGraceTimeMessage, handle: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
+					// Disable Nagle's algorithm. We also do this on the server process,
+					// but nodejs doesn't document if this option is transferred with the socket
+					handle.setNoDelay(true);
+
 					const initialDataChunk = VSBuffer.wrap(Buffer.from(msg.initialDataChunk, 'base64'));
 					let socket: NodeSocket | WebSocketNodeSocket;
 					if (msg.skipWebSocketFrames) {
-						socket = new NodeSocket(handle);
+						socket = new NodeSocket(handle, 'extHost-socket');
 					} else {
 						const inflateBytes = VSBuffer.wrap(Buffer.from(msg.inflateBytes, 'base64'));
-						socket = new WebSocketNodeSocket(new NodeSocket(handle), msg.permessageDeflate, inflateBytes, false);
+						socket = new WebSocketNodeSocket(new NodeSocket(handle, 'extHost-socket'), msg.permessageDeflate, inflateBytes, false);
 					}
 					if (protocol) {
 						// reconnection case
@@ -129,9 +138,11 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 						disconnectRunner2.cancel();
 						protocol.beginAcceptReconnection(socket, initialDataChunk);
 						protocol.endAcceptReconnection();
+						protocol.sendResume();
 					} else {
 						clearTimeout(timer);
 						protocol = new PersistentProtocol(socket, initialDataChunk);
+						protocol.sendResume();
 						protocol.onDidDispose(() => onTerminate('renderer disconnected'));
 						resolve(protocol);
 
@@ -169,10 +180,13 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 
 			const socket = net.createConnection(pipeName, () => {
 				socket.removeListener('error', reject);
-				resolve(new PersistentProtocol(new NodeSocket(socket)));
+				resolve(new PersistentProtocol(new NodeSocket(socket, 'extHost-renderer')));
 			});
 			socket.once('error', reject);
 
+			socket.on('close', () => {
+				onTerminate('renderer closed the socket');
+			});
 		});
 	}
 }
@@ -231,39 +245,6 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				}
 			}
 
-			// Print a console message when rejection isn't handled within N seconds. For details:
-			// see https://nodejs.org/api/process.html#process_event_unhandledrejection
-			// and https://nodejs.org/api/process.html#process_event_rejectionhandled
-			const unhandledPromises: Promise<any>[] = [];
-			process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
-				unhandledPromises.push(promise);
-				setTimeout(() => {
-					const idx = unhandledPromises.indexOf(promise);
-					if (idx >= 0) {
-						promise.catch(e => {
-							unhandledPromises.splice(idx, 1);
-							console.warn(`rejected promise not handled within 1 second: ${e}`);
-							if (e && e.stack) {
-								console.warn(`stack trace: ${e.stack}`);
-							}
-							onUnexpectedError(reason);
-						});
-					}
-				}, 1000);
-			});
-
-			process.on('rejectionHandled', (promise: Promise<any>) => {
-				const idx = unhandledPromises.indexOf(promise);
-				if (idx >= 0) {
-					unhandledPromises.splice(idx, 1);
-				}
-			});
-
-			// Print a console message when an exception isn't handled.
-			process.on('uncaughtException', function (err: Error) {
-				onUnexpectedError(err);
-			});
-
 			// Kill oneself if one's parent dies. Much drama.
 			let epermErrors = 0;
 			setInterval(function () {
@@ -309,6 +290,44 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 }
 
 export async function startExtensionHostProcess(): Promise<void> {
+
+	// Print a console message when rejection isn't handled within N seconds. For details:
+	// see https://nodejs.org/api/process.html#process_event_unhandledrejection
+	// and https://nodejs.org/api/process.html#process_event_rejectionhandled
+	const unhandledPromises: Promise<any>[] = [];
+	process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+		unhandledPromises.push(promise);
+		setTimeout(() => {
+			const idx = unhandledPromises.indexOf(promise);
+			if (idx >= 0) {
+				promise.catch(e => {
+					unhandledPromises.splice(idx, 1);
+					if (!isCancellationError(e)) {
+						console.warn(`rejected promise not handled within 1 second: ${e}`);
+						if (e && e.stack) {
+							console.warn(`stack trace: ${e.stack}`);
+						}
+						if (reason) {
+							onUnexpectedError(reason);
+						}
+					}
+				});
+			}
+		}, 1000);
+	});
+
+	process.on('rejectionHandled', (promise: Promise<any>) => {
+		const idx = unhandledPromises.indexOf(promise);
+		if (idx >= 0) {
+			unhandledPromises.splice(idx, 1);
+		}
+	});
+
+	// Print a console message when an exception isn't handled.
+	process.on('uncaughtException', function (err: Error) {
+		onUnexpectedError(err);
+	});
+
 	performance.mark(`code/extHost/willConnectToRenderer`);
 	const protocol = await createExtHostProtocol();
 	performance.mark(`code/extHost/didConnectToRenderer`);
@@ -317,13 +336,15 @@ export async function startExtensionHostProcess(): Promise<void> {
 	const { initData } = renderer;
 	// setup things
 	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/microsoft/vscode/issues/37708)
-	initData.environment.useHostProxy = args.useHostProxy !== undefined ? args.useHostProxy !== 'false' : undefined;
+	initData.environment.useHostProxy = !!args.useHostProxy;
+	initData.environment.skipWorkspaceStorageLock = boolean(args.skipWorkspaceStorageLock, false);
 
 	// host abstraction
 	const hostUtils = new class NodeHost implements IHostUtils {
 		declare readonly _serviceBrand: undefined;
+		public readonly pid = process.pid;
 		exit(code: number) { nativeExit(code); }
-		exists(path: string) { return exists(path); }
+		exists(path: string) { return Promises.exists(path); }
 		realpath(path: string) { return realpath(path); }
 	};
 

@@ -71,13 +71,13 @@ export interface RelativePattern {
 
 /**
  * A file glob pattern to match file paths against. This can either be a glob pattern string
- * (like `**​/*.{ts,js}` or `*.{ts,js}`) or a [relative pattern](#RelativePattern).
+ * (like `** /*.{ts,js}` without space before / or `*.{ts,js}`) or a [relative pattern](#RelativePattern).
  *
  * Glob patterns can have the following syntax:
  * * `*` to match one or more characters in a path segment
  * * `?` to match on one character in a path segment
  * * `**` to match any number of path segments, including none
- * * `{}` to group conditions (e.g. `**​/*.{ts,js}` matches all TypeScript and JavaScript files)
+ * * `{}` to group conditions (e.g. `** /*.{ts,js}` without space before / matches all TypeScript and JavaScript files)
  * * `[]` to declare a range of characters to match in a path segment (e.g., `example.[0-9]` to match on `example.0`, `example.1`, …)
  * * `[!...]` to negate a range of characters to match in a path segment (e.g., `example.[!0-9]` to match on `example.a`, `example.b`, but not `example.0`)
  *
@@ -161,6 +161,12 @@ export interface SearchOptions {
 	 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
 	 */
 	useGlobalIgnoreFiles: boolean;
+
+	/**
+	 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
+	 * See the vscode setting `"search.useParentIgnoreFiles"`.
+	 */
+	useParentIgnoreFiles: boolean;
 }
 
 /**
@@ -217,6 +223,32 @@ export interface TextSearchOptions extends SearchOptions {
 }
 
 /**
+ * Represents the severiry of a TextSearchComplete message.
+ */
+export enum TextSearchCompleteMessageType {
+	Information = 1,
+	Warning = 2,
+}
+
+/**
+ * A message regarding a completed search.
+ */
+export interface TextSearchCompleteMessage {
+	/**
+	 * Markdown text of the message.
+	 */
+	text: string,
+	/**
+	 * Whether the source of the message is trusted, command links are disabled for untrusted message sources.
+	 */
+	trusted?: boolean,
+	/**
+	 * The message type, this affects how the message will be rendered.
+	 */
+	type: TextSearchCompleteMessageType,
+}
+
+/**
  * Information collected when text search is complete.
  */
 export interface TextSearchComplete {
@@ -228,6 +260,15 @@ export interface TextSearchComplete {
 	 * - If search hits an internal limit which is less than `maxResults`, this should be true.
 	 */
 	limitHit?: boolean;
+
+	/**
+	 * Additional information regarding the state of the completed search.
+	 *
+	 * Supports links in markdown syntax:
+	 * - Click to [run a command](command:workbench.action.OpenQuickPick)
+	 * - Click to [open a website](https://aka.ms)
+	 */
+	message?: TextSearchCompleteMessage | TextSearchCompleteMessage[];
 }
 
 /**
@@ -383,6 +424,12 @@ export interface FindTextInFilesOptions {
 	 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
 	 */
 	useGlobalIgnoreFiles?: boolean;
+
+	/**
+	 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
+	 * See the vscode setting `"search.useParentIgnoreFiles"`.
+	 */
+	useParentIgnoreFiles: boolean;
 
 	/**
 	 * Whether symlinks should be followed while searching.

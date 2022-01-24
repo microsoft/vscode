@@ -5,6 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
+	font-display: block;
 	src: url("./codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
 }
 
@@ -14,6 +15,7 @@
 	text-decoration: none;
 	text-rendering: auto;
 	text-align: center;
+	text-transform: none;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 	user-select: none;
@@ -21,4 +23,4 @@
 	-ms-user-select: none;
 }
 
-/* icon rules are dynamically created in codiconStyles */
+/* icon rules are dynamically created by the platform theme service (see iconsStyleSheet.ts) */

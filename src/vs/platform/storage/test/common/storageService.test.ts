@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEqual, ok } from 'assert';
-import { StorageScope, InMemoryStorageService, StorageTarget, IStorageValueChangeEvent, IStorageTargetChangeEvent, IStorageService } from 'vs/platform/storage/common/storage';
+import { ok, strictEqual } from 'assert';
+import { InMemoryStorageService, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export function createSuite<T extends IStorageService>(params: { setup: () => Promise<T>, teardown: (service: T) => Promise<void> }): void {
 

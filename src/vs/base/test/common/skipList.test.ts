@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { binarySearch } from 'vs/base/common/arrays';
 import { SkipList } from 'vs/base/common/skipList';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { binarySearch } from 'vs/base/common/arrays';
 
 
 suite('SkipList', function () {

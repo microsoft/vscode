@@ -7,5 +7,5 @@ function realpath() { python -c "import os,sys; print(os.path.realpath(sys.argv[
 CONTENTS="$(dirname "$(dirname "$(dirname "$(dirname "$(realpath "$0")")")")")"
 ELECTRON="$CONTENTS/MacOS/Electron"
 CLI="$CONTENTS/Resources/app/out/cli.js"
-ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"
+ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" --ms-enable-electron-run-as-node "$@"
 exit $?

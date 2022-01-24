@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
-import { parseArgs, ErrorReporter, OPTIONS } from 'vs/platform/environment/node/argv';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { ErrorReporter, OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
+import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
 
 function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): NativeParsedArgs {
 	const errorReporter: ErrorReporter = {
@@ -15,7 +16,10 @@ function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): Nativ
 			console.warn(localize('unknownOption', "Warning: '{0}' is not in the list of known options, but still passed to Electron/Chromium.", id));
 		},
 		onMultipleValues: (id, val) => {
-			console.warn(localize('multipleValues', "Option '{0}' is defined more than once. Using value '{1}.'", id, val));
+			console.warn(localize('multipleValues', "Option '{0}' is defined more than once. Using value '{1}'.", id, val));
+		},
+		onDeprecatedOption: (deprecatedOption: string, message: string) => {
+			console.warn(localize('deprecatedArgument', "Option '{0}' is deprecated: {1}", deprecatedOption, message));
 		}
 	};
 
@@ -79,6 +83,6 @@ export function addArg(argv: string[], ...args: string[]): string[] {
 	return argv;
 }
 
-export function isLaunchedFromCli(env: NodeJS.ProcessEnv): boolean {
+export function isLaunchedFromCli(env: IProcessEnvironment): boolean {
 	return env['VSCODE_CLI'] === '1';
 }

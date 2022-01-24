@@ -21,12 +21,13 @@
 	position: absolute;
 	top: 0;
 	right: 10px;
-	margin-top: 5px;
+	margin-top: 4px;
 	display: flex;
 }
 
 .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .recording-badge {
 	margin-right: 8px;
+	padding: 4px;
 }
 
 .keybindings-editor > .keybindings-header.small > .search-container > .keybindings-search-actions-container > .recording-badge,
@@ -34,13 +35,17 @@
 	display: none;
 }
 
-.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .icon {
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container .monaco-action-bar .action-item > .icon {
 	width:16px;
 	height: 18px;
 }
 
-.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item {
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container .monaco-action-bar .action-item {
 	margin-right: 4px;
+}
+.keybindings-editor .monaco-action-bar .action-item .monaco-custom-checkbox {
+	margin: 0;
+	padding: 2px;
 }
 
 .keybindings-editor .monaco-action-bar .action-item > .codicon {
@@ -48,6 +53,7 @@
 	align-items: center;
 	justify-content: center;
 	color: inherit;
+	box-sizing: content-box;
 }
 
 .keybindings-editor > .keybindings-header .open-keybindings-container {
@@ -147,7 +153,10 @@
 
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when .monaco-inputbox {
 	line-height: normal;
-	margin-right: 10px;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when .monaco-inputbox input {
+	padding-left: 10px;
 }
 
 .monaco-workbench.mac .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when .monaco-inputbox,
@@ -188,4 +197,14 @@
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row.selected .monaco-table-td .highlight,
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row.selected.focused .monaco-table-td .highlight {
 	color: inherit;
+}
+
+.keybindings-editor .monaco-table-th,
+.keybindings-editor .monaco-table-td {
+	padding-left: 10px;
+}
+
+.keybindings-editor .monaco-table-th[data-col-index="0"],
+.keybindings-editor .monaco-table-td[data-col-index="0"] {
+	padding-left: 20px;
 }

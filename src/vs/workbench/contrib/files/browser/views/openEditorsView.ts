@@ -10,14 +10,15 @@ import { IAction, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExe
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorGroupsService, IEditorGroup, GroupChangeKind, GroupsOrder, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorInput, Verbosity, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { Verbosity, EditorResourceAccessor, SideBySideEditor, EditorInputCapabilities, IEditorIdentifier, GroupModelChangeKind } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
 import { CloseAllEditorsAction, CloseEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { IContextKeyService, IContextKey, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -26,22 +27,21 @@ import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAn
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, IMenu, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
+import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
+import { ResourcesDropHandler, fillEditorsDragData, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
 import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { URI } from 'vs/base/common/uri';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { isWeb } from 'vs/base/common/platform';
-import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -52,6 +52,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Schemas } from 'vs/base/common/network';
+import { extUriIgnorePathCase } from 'vs/base/common/resources';
 
 const $ = dom.$;
 
@@ -69,7 +71,7 @@ export class OpenEditorsView extends ViewPane {
 	private contributedContextMenu!: IMenu;
 	private needsRefresh = false;
 	private elements: (OpenEditor | IEditorGroup)[] = [];
-	private sortOrder: 'editorOrder' | 'alphabetical';
+	private sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath';
 	private resourceContext!: ResourceContextKey;
 	private groupFocusedContext!: IContextKey<boolean>;
 	private dirtyEditorFocusedContext!: IContextKey<boolean>;
@@ -80,7 +82,6 @@ export class OpenEditorsView extends ViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -107,7 +108,7 @@ export class OpenEditorsView extends ViewPane {
 			}
 			this.needsRefresh = false;
 
-			if (this.sortOrder === 'alphabetical') {
+			if (this.sortOrder === 'alphabetical' || this.sortOrder === 'fullPath') {
 				// We need to resort the list if the editor label changed
 				elements.forEach(e => {
 					if (e instanceof OpenEditor) {
@@ -139,7 +140,7 @@ export class OpenEditorsView extends ViewPane {
 
 		const groupDisposables = new Map<number, IDisposable>();
 		const addGroupListener = (group: IEditorGroup) => {
-			groupDisposables.set(group.id, group.onDidGroupChange(e => {
+			const groupModelChangeListener = group.onDidModelChange(e => {
 				if (this.listRefreshScheduler.isScheduled()) {
 					return;
 				}
@@ -150,33 +151,31 @@ export class OpenEditorsView extends ViewPane {
 
 				const index = this.getIndex(group, e.editor);
 				switch (e.kind) {
-					case GroupChangeKind.GROUP_INDEX: {
+					case GroupModelChangeKind.EDITOR_ACTIVE:
+					case GroupModelChangeKind.GROUP_ACTIVE:
+						this.focusActiveEditor();
+						break;
+					case GroupModelChangeKind.GROUP_INDEX:
 						if (index >= 0) {
 							this.list.splice(index, 1, [group]);
 						}
 						break;
-					}
-					case GroupChangeKind.GROUP_ACTIVE:
-					case GroupChangeKind.EDITOR_ACTIVE: {
-						this.focusActiveEditor();
-						break;
-					}
-					case GroupChangeKind.EDITOR_DIRTY:
-					case GroupChangeKind.EDITOR_LABEL:
-					case GroupChangeKind.EDITOR_STICKY:
-					case GroupChangeKind.EDITOR_PIN: {
+					case GroupModelChangeKind.EDITOR_DIRTY:
+					case GroupModelChangeKind.EDITOR_STICKY:
+					case GroupModelChangeKind.EDITOR_CAPABILITIES:
+					case GroupModelChangeKind.EDITOR_PIN:
+					case GroupModelChangeKind.EDITOR_LABEL:
 						this.list.splice(index, 1, [new OpenEditor(e.editor!, group)]);
 						this.focusActiveEditor();
 						break;
-					}
-					case GroupChangeKind.EDITOR_OPEN:
-					case GroupChangeKind.EDITOR_CLOSE:
-					case GroupChangeKind.EDITOR_MOVE: {
+					case GroupModelChangeKind.EDITOR_OPEN:
+					case GroupModelChangeKind.EDITOR_MOVE:
+					case GroupModelChangeKind.EDITOR_CLOSE:
 						updateWholeList();
 						break;
-					}
 				}
-			}));
+			});
+			groupDisposables.set(group.id, groupModelChangeListener);
 			this._register(groupDisposables.get(group.id)!);
 		};
 
@@ -192,7 +191,7 @@ export class OpenEditorsView extends ViewPane {
 		}));
 	}
 
-	protected renderHeaderTitle(container: HTMLElement): void {
+	protected override renderHeaderTitle(container: HTMLElement): void {
 		super.renderHeaderTitle(container, this.title);
 
 		const count = dom.append(container, $('.count'));
@@ -214,7 +213,7 @@ export class OpenEditorsView extends ViewPane {
 		this.updateDirtyIndicator();
 	}
 
-	renderBody(container: HTMLElement): void {
+	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		container.classList.add('open-editors');
@@ -268,7 +267,7 @@ export class OpenEditorsView extends ViewPane {
 			if (element instanceof OpenEditor) {
 				const resource = element.getResource();
 				this.dirtyEditorFocusedContext.set(element.editor.isDirty() && !element.editor.isSaving());
-				this.readonlyEditorFocusedContext.set(element.editor.isReadonly());
+				this.readonlyEditorFocusedContext.set(element.editor.hasCapability(EditorInputCapabilities.Readonly));
 				this.resourceContext.set(withUndefinedAsNull(resource));
 			} else if (!!element) {
 				this.groupFocusedContext.set(true);
@@ -309,7 +308,7 @@ export class OpenEditorsView extends ViewPane {
 		}));
 	}
 
-	focus(): void {
+	override focus(): void {
 		super.focus();
 		this.list.domFocus();
 	}
@@ -318,7 +317,7 @@ export class OpenEditorsView extends ViewPane {
 		return this.list;
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		if (this.list) {
 			this.list.layout(height, width);
@@ -338,6 +337,32 @@ export class OpenEditorsView extends ViewPane {
 			let editors = g.editors.map(ei => new OpenEditor(ei, g));
 			if (this.sortOrder === 'alphabetical') {
 				editors = editors.sort((first, second) => compareFileNamesDefault(first.editor.getName(), second.editor.getName()));
+			} else if (this.sortOrder === 'fullPath') {
+				editors = editors.sort((first, second) => {
+					const firstResource = first.editor.resource;
+					const secondResource = second.editor.resource;
+					//put 'system' editors before everything
+					if (firstResource === undefined && secondResource === undefined) {
+						return compareFileNamesDefault(first.editor.getName(), second.editor.getName());
+					} else if (firstResource === undefined) {
+						return -1;
+					} else if (secondResource === undefined) {
+						return 1;
+					} else {
+						const firstScheme = firstResource.scheme;
+						const secondScheme = secondResource.scheme;
+						//put non-file editors before files
+						if (firstScheme !== Schemas.file && secondScheme !== Schemas.file) {
+							return extUriIgnorePathCase.compare(firstResource, secondResource);
+						} else if (firstScheme !== Schemas.file) {
+							return -1;
+						} else if (secondScheme !== Schemas.file) {
+							return 1;
+						} else {
+							return extUriIgnorePathCase.compare(firstResource, secondResource);
+						}
+					}
+				});
 			}
 			this.elements.push(...editors);
 		});
@@ -345,7 +370,7 @@ export class OpenEditorsView extends ViewPane {
 		return this.elements;
 	}
 
-	private getIndex(group: IEditorGroup, editor: IEditorInput | undefined | null): number {
+	private getIndex(group: IEditorGroup, editor: EditorInput | undefined | null): number {
 		if (!editor) {
 			return this.elements.findIndex(e => !(e instanceof OpenEditor) && e.id === group.id);
 		}
@@ -361,7 +386,8 @@ export class OpenEditorsView extends ViewPane {
 			if (!preserveActivateGroup) {
 				this.editorGroupService.activateGroup(element.group); // needed for https://github.com/microsoft/vscode/issues/6672
 			}
-			this.editorService.openEditor(element.editor, options, options.sideBySide ? SIDE_GROUP : element.group);
+			const targetGroup = options.sideBySide ? this.editorGroupService.sideGroup : this.editorGroupService.activeGroup;
+			targetGroup.openEditor(element.editor, options);
 		}
 	}
 
@@ -467,7 +493,7 @@ export class OpenEditorsView extends ViewPane {
 		this.structuralRefreshDelay = delay;
 	}
 
-	getOptimalWidth(): number {
+	override getOptimalWidth(): number {
 		let parentNode = this.list.getHTMLElement();
 		let childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
 
@@ -492,7 +518,7 @@ interface IEditorGroupTemplateData {
 class OpenEditorActionRunner extends ActionRunner {
 	public editor: OpenEditor | undefined;
 
-	async run(action: IAction): Promise<void> {
+	override async run(action: IAction): Promise<void> {
 		if (!this.editor) {
 			return;
 		}
@@ -600,7 +626,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 			description: editor.getDescription(Verbosity.MEDIUM)
 		}, {
 			italic: openedEditor.isPreview(),
-			extraClasses: ['open-editor'],
+			extraClasses: ['open-editor'].concat(openedEditor.editor.getLabelExtraClasses()),
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations,
 			title: editor.getTitle(Verbosity.LONG)
 		});
@@ -652,21 +678,18 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		const items = (data as ElementsDragAndDropData<OpenEditor | IEditorGroup>).elements;
-		const resources: URI[] = [];
+		const editors: IEditorIdentifier[] = [];
 		if (items) {
-			items.forEach(i => {
-				if (i instanceof OpenEditor) {
-					const resource = i.getResource();
-					if (resource) {
-						resources.push(resource);
-					}
+			for (const item of items) {
+				if (item instanceof OpenEditor) {
+					editors.push(item);
 				}
-			});
+			}
 		}
 
-		if (resources.length) {
+		if (editors.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, undefined, originalEvent);
+			this.instantiationService.invokeFunction(fillEditorsDragData, editors, originalEvent);
 		}
 	}
 
@@ -721,15 +744,15 @@ registerAction2(class extends Action2 {
 			title: { value: nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout"), original: 'Toggle Vertical/Horizontal Editor Layout' },
 			f1: true,
 			keybinding: {
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 },
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.Digit0,
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Digit0 },
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			icon: Codicon.editorLayout,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', OpenEditorsView.ID),
+				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
 				order: 10
 			}
 		});
@@ -743,10 +766,14 @@ registerAction2(class extends Action2 {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: 'z_flip',
+	group: '4_flip',
 	command: {
 		id: toggleEditorGroupLayoutId,
-		title: nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout")
+		title: {
+			original: 'Flip Layout',
+			value: nls.localize('miToggleEditorLayoutWithoutMnemonic', "Flip Layout"),
+			mnemonicTitle: nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout")
+		}
 	},
 	order: 1
 });
@@ -761,7 +788,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', OpenEditorsView.ID),
+				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
 				order: 20
 			}
 		});
@@ -783,7 +810,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', OpenEditorsView.ID),
+				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
 				order: 30
 			}
 		});
@@ -806,7 +833,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', OpenEditorsView.ID),
+				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
 				order: 5
 			}
 		});

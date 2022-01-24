@@ -2,10 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Token } from 'markdown-it';
+import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider, TocEntry } from '../tableOfContentsProvider';
+import { TableOfContents, TocEntry } from '../tableOfContentsProvider';
+
+interface MarkdownItTokenWithMap extends Token {
+	map: [number, number];
+}
 
 export default class MarkdownSmartSelect implements vscode.SelectionRangeProvider {
 
@@ -49,24 +53,22 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 	}
 
 	private async getHeaderSelectionRange(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.SelectionRange | undefined> {
+		const toc = await TableOfContents.create(this.engine, document);
 
-		const tocProvider = new TableOfContentsProvider(this.engine, document);
-		const toc = await tocProvider.getToc();
-
-		const headerInfo = getHeadersForPosition(toc, position);
+		const headerInfo = getHeadersForPosition(toc.entries, position);
 
 		const headers = headerInfo.headers;
 
 		let currentRange: vscode.SelectionRange | undefined;
 
 		for (let i = 0; i < headers.length; i++) {
-			currentRange = createHeaderRange(headers[i], i === headers.length - 1, headerInfo.headerOnThisLine, currentRange, getFirstChildHeader(document, headers[i], toc));
+			currentRange = createHeaderRange(headers[i], i === headers.length - 1, headerInfo.headerOnThisLine, currentRange, getFirstChildHeader(document, headers[i], toc.entries));
 		}
 		return currentRange;
 	}
 }
 
-function getHeadersForPosition(toc: TocEntry[], position: vscode.Position): { headers: TocEntry[], headerOnThisLine: boolean } {
+function getHeadersForPosition(toc: readonly TocEntry[], position: vscode.Position): { headers: TocEntry[], headerOnThisLine: boolean } {
 	const enclosingHeaders = toc.filter(header => header.location.range.start.line <= position.line && header.location.range.end.line >= position.line);
 	const sortedHeaders = enclosingHeaders.sort((header1, header2) => (header1.line - position.line) - (header2.line - position.line));
 	const onThisLine = toc.find(header => header.line === position.line) !== undefined;
@@ -96,8 +98,8 @@ function createHeaderRange(header: TocEntry, isClosestHeaderToPosition: boolean,
 	}
 }
 
-function getBlockTokensForPosition(tokens: Token[], position: vscode.Position, parent?: vscode.SelectionRange): Token[] {
-	const enclosingTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] > position.line) && (!parent || (token.map[0] >= parent.range.start.line && token.map[1] <= parent.range.end.line + 1)) && isBlockElement(token));
+function getBlockTokensForPosition(tokens: Token[], position: vscode.Position, parent?: vscode.SelectionRange): MarkdownItTokenWithMap[] {
+	const enclosingTokens = tokens.filter((token): token is MarkdownItTokenWithMap => !!token.map && (token.map[0] <= position.line && token.map[1] > position.line) && (!parent || (token.map[0] >= parent.range.start.line && token.map[1] <= parent.range.end.line + 1)) && isBlockElement(token));
 	if (enclosingTokens.length === 0) {
 		return [];
 	}
@@ -105,7 +107,7 @@ function getBlockTokensForPosition(tokens: Token[], position: vscode.Position, p
 	return sortedTokens;
 }
 
-function createBlockRange(block: Token, document: vscode.TextDocument, cursorLine: number, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
+function createBlockRange(block: MarkdownItTokenWithMap, document: vscode.TextDocument, cursorLine: number, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
 	if (block.type === 'fence') {
 		return createFencedRange(block, cursorLine, document, parent);
 	} else {
@@ -144,7 +146,7 @@ function createInlineRange(document: vscode.TextDocument, cursorPosition: vscode
 	return inlineCodeBlockSelection || linkSelection || comboSelection || boldSelection || italicSelection;
 }
 
-function createFencedRange(token: Token, cursorLine: number, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange {
+function createFencedRange(token: MarkdownItTokenWithMap, cursorLine: number, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange {
 	const startLine = token.map[0];
 	const endLine = token.map[1] - 1;
 	const onFenceLine = cursorLine === startLine || cursorLine === endLine;
@@ -234,7 +236,7 @@ function isBlockElement(token: Token): boolean {
 	return !['list_item_close', 'paragraph_close', 'bullet_list_close', 'inline', 'heading_close', 'heading_open'].includes(token.type);
 }
 
-function getFirstChildHeader(document: vscode.TextDocument, header?: TocEntry, toc?: TocEntry[]): vscode.Position | undefined {
+function getFirstChildHeader(document: vscode.TextDocument, header?: TocEntry, toc?: readonly TocEntry[]): vscode.Position | undefined {
 	let childRange: vscode.Position | undefined;
 	if (header && toc) {
 		let children = toc.filter(t => header.location.range.contains(t.location.range) && t.location.range.start.line > header.location.range.start.line).sort((t1, t2) => t1.line - t2.line);

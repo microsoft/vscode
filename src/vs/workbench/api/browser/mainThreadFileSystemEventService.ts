@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileChangeType, FileOperation, IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../common/extHost.protocol';
+import { ExtHostContext, IExtHostContext } from '../common/extHost.protocol';
 import { localize } from 'vs/nls';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -45,33 +45,13 @@ export class MainThreadFileSystemEventService {
 
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
 
-		// file system events - (changes the editor and other make)
-		const events: FileSystemEvents = {
-			created: [],
-			changed: [],
-			deleted: []
-		};
 		this._listener.add(fileService.onDidFilesChange(event => {
-			for (let change of event.changes) {
-				switch (change.type) {
-					case FileChangeType.ADDED:
-						events.created.push(change.resource);
-						break;
-					case FileChangeType.UPDATED:
-						events.changed.push(change.resource);
-						break;
-					case FileChangeType.DELETED:
-						events.deleted.push(change.resource);
-						break;
-				}
-			}
-
-			proxy.$onFileEvent(events);
-			events.created.length = 0;
-			events.changed.length = 0;
-			events.deleted.length = 0;
+			proxy.$onFileEvent({
+				created: event.rawAdded,
+				changed: event.rawUpdated,
+				deleted: event.rawDeleted
+			});
 		}));
-
 
 		const fileOperationParticipant = new class implements IWorkingCopyFileOperationParticipant {
 			async participate(files: SourceTargetPair[], operation: FileOperation, undoInfo: IFileOperationUndoRedoInfo | undefined, timeout: number, token: CancellationToken) {
@@ -89,7 +69,7 @@ export class MainThreadFileSystemEventService {
 					delay: Math.min(timeout / 2, 3000)
 				}, () => {
 					// race extension host event delivery against timeout AND user-cancel
-					const onWillEvent = proxy.$onWillRunFileOperation(operation, files, timeout, token);
+					const onWillEvent = proxy.$onWillRunFileOperation(operation, files, timeout, cts.token);
 					return raceCancellation(onWillEvent, cts.token);
 				}, () => {
 					// user-cancel
@@ -100,8 +80,8 @@ export class MainThreadFileSystemEventService {
 					clearTimeout(timer);
 				});
 
-				if (!data) {
-					// cancelled or no reply
+				if (!data || data.edit.edits.length === 0) {
+					// cancelled, no reply, or no edits
 					return;
 				}
 

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
 import { isEqual, isEqualOrParent } from 'vs/base/common/extpath';
-import { FileChangeType, FileChangesEvent, isParent } from 'vs/platform/files/common/files';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 import { toResource } from 'vs/base/test/common/utils';
+import { FileChangesEvent, FileChangeType, isParent } from 'vs/platform/files/common/files';
 
 suite('Files', () => {
 
@@ -57,12 +57,12 @@ suite('Files', () => {
 			}
 			assert(!event.contains(toResource.call(this, '/bar/folder2/somefile'), FileChangeType.DELETED));
 
-			assert.strictEqual(6, event.changes.length);
-			assert.strictEqual(1, event.getAdded().length);
+			assert.strictEqual(1, event.rawAdded.length);
+			assert.strictEqual(2, event.rawUpdated.length);
+			assert.strictEqual(3, event.rawDeleted.length);
+			assert.strictEqual(6, event.rawChanges.length);
 			assert.strictEqual(true, event.gotAdded());
-			assert.strictEqual(2, event.getUpdated().length);
 			assert.strictEqual(true, event.gotUpdated());
-			assert.strictEqual(ignorePathCasing ? 2 : 3, event.getDeleted().length);
 			assert.strictEqual(true, event.gotDeleted());
 		}
 	});
@@ -100,13 +100,10 @@ suite('Files', () => {
 
 				switch (type) {
 					case FileChangeType.ADDED:
-						assert.strictEqual(8, event.getAdded().length);
-						break;
-					case FileChangeType.UPDATED:
-						assert.strictEqual(8, event.getUpdated().length);
+						assert.strictEqual(8, event.rawAdded.length);
 						break;
 					case FileChangeType.DELETED:
-						assert.strictEqual(8, event.getDeleted().length);
+						assert.strictEqual(8, event.rawDeleted.length);
 						break;
 				}
 			}

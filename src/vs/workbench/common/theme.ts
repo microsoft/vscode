@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
@@ -165,25 +165,25 @@ export const TAB_ACTIVE_MODIFIED_BORDER = registerColor('tab.activeModifiedBorde
 	dark: '#3399CC',
 	light: '#33AAEE',
 	hc: null
-}, localize('tabActiveModifiedBorder', "Border on the top of modified (dirty) active tabs in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, localize('tabActiveModifiedBorder', "Border on the top of modified active tabs in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_INACTIVE_MODIFIED_BORDER = registerColor('tab.inactiveModifiedBorder', {
 	dark: transparent(TAB_ACTIVE_MODIFIED_BORDER, 0.5),
 	light: transparent(TAB_ACTIVE_MODIFIED_BORDER, 0.5),
 	hc: Color.white
-}, localize('tabInactiveModifiedBorder', "Border on the top of modified (dirty) inactive tabs in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, localize('tabInactiveModifiedBorder', "Border on the top of modified inactive tabs in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER = registerColor('tab.unfocusedActiveModifiedBorder', {
 	dark: transparent(TAB_ACTIVE_MODIFIED_BORDER, 0.5),
 	light: transparent(TAB_ACTIVE_MODIFIED_BORDER, 0.7),
 	hc: Color.white
-}, localize('unfocusedActiveModifiedBorder', "Border on the top of modified (dirty) active tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, localize('unfocusedActiveModifiedBorder', "Border on the top of modified active tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER = registerColor('tab.unfocusedInactiveModifiedBorder', {
 	dark: transparent(TAB_INACTIVE_MODIFIED_BORDER, 0.5),
 	light: transparent(TAB_INACTIVE_MODIFIED_BORDER, 0.5),
 	hc: Color.white
-}, localize('unfocusedINactiveModifiedBorder', "Border on the top of modified (dirty) inactive tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, localize('unfocusedINactiveModifiedBorder', "Border on the top of modified inactive tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 //#endregion
 
@@ -194,12 +194,6 @@ export const EDITOR_PANE_BACKGROUND = registerColor('editorPane.background', {
 	light: editorBackground,
 	hc: editorBackground
 }, localize('editorPaneBackground', "Background color of the editor pane visible on the left and right side of the centered editor layout."));
-
-registerColor('editorGroup.background', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('editorGroupBackground', "Deprecated background color of an editor group."), false, localize('deprecatedEditorGroupBackground', "Deprecated: Background color of an editor group is no longer being supported with the introduction of the grid editor layout. You can use editorGroup.emptyBackground to set the background color of empty editor groups."));
 
 export const EDITOR_GROUP_EMPTY_BACKGROUND = registerColor('editorGroup.emptyBackground', {
 	dark: null,
@@ -249,13 +243,17 @@ export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBa
 	hc: null
 }, localize('editorDragAndDropBackground', "Background color when dragging editors around. The color should have transparency so that the editor contents can still shine through."));
 
-// < --- Resource Viewer --- >
+export const SIDE_BY_SIDE_EDITOR_HORIZONTAL_BORDER = registerColor('sideBySideEditor.horizontalBorder', {
+	dark: EDITOR_GROUP_BORDER,
+	light: EDITOR_GROUP_BORDER,
+	hc: EDITOR_GROUP_BORDER
+}, localize('sideBySideEditor.horizontalBorder', "Color to separate two editors from each other when shown side by side in an editor group from top to bottom."));
 
-export const IMAGE_PREVIEW_BORDER = registerColor('imagePreview.border', {
-	dark: Color.fromHex('#808080').transparent(0.35),
-	light: Color.fromHex('#808080').transparent(0.35),
-	hc: contrastBorder
-}, localize('imagePreviewBorder', "Border color for image in image preview."));
+export const SIDE_BY_SIDE_EDITOR_VERTICAL_BORDER = registerColor('sideBySideEditor.verticalBorder', {
+	dark: EDITOR_GROUP_BORDER,
+	light: EDITOR_GROUP_BORDER,
+	hc: EDITOR_GROUP_BORDER
+}, localize('sideBySideEditor.verticalBorder', "Color to separate two editors from each other when shown side by side in an editor group from left to right."));
 
 // < --- Panels --- >
 
@@ -332,6 +330,25 @@ export const PANEL_SECTION_BORDER = registerColor('panelSection.border', {
 	hc: PANEL_BORDER
 }, localize('panelSectionBorder', "Panel section border color used when multiple views are stacked horizontally in the panel. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
 
+// < --- Banner --- >
+
+export const BANNER_BACKGROUND = registerColor('banner.background', {
+	dark: listActiveSelectionBackground,
+	light: darken(listActiveSelectionBackground, 0.3),
+	hc: listActiveSelectionBackground
+}, localize('banner.background', "Banner background color. The banner is shown under the title bar of the window."));
+
+export const BANNER_FOREGROUND = registerColor('banner.foreground', {
+	dark: listActiveSelectionForeground,
+	light: listActiveSelectionForeground,
+	hc: listActiveSelectionForeground
+}, localize('banner.foreground', "Banner foreground color. The banner is shown under the title bar of the window."));
+
+export const BANNER_ICON_FOREGROUND = registerColor('banner.iconForeground', {
+	dark: editorInfoForeground,
+	light: editorInfoForeground,
+	hc: editorInfoForeground
+}, localize('banner.iconForeground', "Banner icon color. The banner is shown under the title bar of the window."));
 
 // < --- Status --- >
 
@@ -383,6 +400,12 @@ export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.hov
 	hc: Color.white.transparent(0.12)
 }, localize('statusBarItemHoverBackground', "Status bar item background color when hovering. The status bar is shown in the bottom of the window."));
 
+export const STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND = registerColor('statusBarItem.compactHoverBackground', {
+	dark: Color.white.transparent(0.20),
+	light: Color.white.transparent(0.20),
+	hc: Color.white.transparent(0.20)
+}, localize('statusBarItemCompactHoverBackground', "Status bar item background color when hovering an item that contains two hovers. The status bar is shown in the bottom of the window."));
+
 export const STATUS_BAR_PROMINENT_ITEM_FOREGROUND = registerColor('statusBarItem.prominentForeground', {
 	dark: STATUS_BAR_FOREGROUND,
 	light: STATUS_BAR_FOREGROUND,
@@ -412,6 +435,19 @@ export const STATUS_BAR_ERROR_ITEM_FOREGROUND = registerColor('statusBarItem.err
 	light: Color.white,
 	hc: Color.white,
 }, localize('statusBarErrorItemForeground', "Status bar error items foreground color. Error items stand out from other status bar entries to indicate error conditions. The status bar is shown in the bottom of the window."));
+
+export const STATUS_BAR_WARNING_ITEM_BACKGROUND = registerColor('statusBarItem.warningBackground', {
+	dark: darken(editorWarningForeground, .4),
+	light: darken(editorWarningForeground, .4),
+	hc: null,
+}, localize('statusBarWarningItemBackground', "Status bar warning items background color. Warning items stand out from other status bar entries to indicate warning conditions. The status bar is shown in the bottom of the window."));
+
+export const STATUS_BAR_WARNING_ITEM_FOREGROUND = registerColor('statusBarItem.warningForeground', {
+	dark: Color.white,
+	light: Color.white,
+	hc: Color.white,
+}, localize('statusBarWarningItemForeground', "Status bar warning items foreground color. Warning items stand out from other status bar entries to indicate warning conditions. The status bar is shown in the bottom of the window."));
+
 
 // < --- Activity Bar --- >
 

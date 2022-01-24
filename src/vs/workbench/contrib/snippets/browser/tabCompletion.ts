@@ -12,22 +12,22 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/suggest';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Snippet } from './snippetsFile';
 import { SnippetCompletion } from './snippetCompletionProvider';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/contrib/editorState/browser/editorState';
 
 export class TabCompletionController implements IEditorContribution {
 
 	public static readonly ID = 'editor.tabCompletionController';
 	static readonly ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);
 
-	public static get(editor: ICodeEditor): TabCompletionController {
+	public static get(editor: ICodeEditor): TabCompletionController | null {
 		return editor.getContribution<TabCompletionController>(TabCompletionController.ID);
 	}
 
@@ -140,7 +140,7 @@ export class TabCompletionController implements IEditorContribution {
 					return;
 				}
 			}
-			SnippetController2.get(this._editor).insert(snippet.codeSnippet, {
+			SnippetController2.get(this._editor)?.insert(snippet.codeSnippet, {
 				overwriteBefore: snippet.prefix.length, overwriteAfter: 0,
 				clipboardText
 			});

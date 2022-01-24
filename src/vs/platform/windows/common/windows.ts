@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMacintosh, isLinux, isWeb, IProcessEnvironment } from 'vs/base/common/platform';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { LogLevel } from 'vs/platform/log/common/log';
 import { PerformanceMark } from 'vs/base/common/performance';
+import { isLinux, isMacintosh, isNative, isWeb } from 'vs/base/common/platform';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { FileType } from 'vs/platform/files/common/files';
+import { LogLevel } from 'vs/platform/log/common/log';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export const WindowMinimumSize = {
 	WIDTH: 400,
@@ -18,7 +20,20 @@ export const WindowMinimumSize = {
 };
 
 export interface IBaseOpenWindowsOptions {
+
+	/**
+	 * Whether to reuse the window or open a new one.
+	 */
 	readonly forceReuseWindow?: boolean;
+
+	/**
+	 * The remote authority to use when windows are opened with either
+	 * - no workspace (empty window)
+	 * - a workspace that is neither `file://` nor `vscode-remote://`
+	 * Use 'null' for a local window.
+	 * If not set, defaults to the remote authority of the current window.
+	 */
+	readonly remoteAuthority?: string | null;
 }
 
 export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
@@ -47,9 +62,7 @@ export interface IOpenedWindow {
 	readonly dirty: boolean;
 }
 
-export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions {
-	readonly remoteAuthority?: string;
-}
+export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
 
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
 
@@ -87,7 +100,7 @@ export function getMenuBarVisibility(configurationService: IConfigurationService
 	const titleBarStyle = getTitleBarStyle(configurationService);
 	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>('window.menuBarVisibility');
 
-	if (menuBarVisibility === 'default' || (titleBarStyle === 'native' && menuBarVisibility === 'compact')) {
+	if (menuBarVisibility === 'default' || (titleBarStyle === 'native' && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
 		return 'classic';
 	} else {
 		return menuBarVisibility;
@@ -116,13 +129,17 @@ export interface IWindowSettings {
 	readonly clickThroughInactive: boolean;
 }
 
+interface IWindowBorderColors {
+	readonly 'window.activeBorder'?: string;
+	readonly 'window.inactiveBorder'?: string;
+}
+
 export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
 	if (isWeb) {
 		return 'custom';
 	}
 
 	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
-
 	if (configuration) {
 		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
 		if (useNativeTabs) {
@@ -132,6 +149,11 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
 		if (useSimpleFullScreen) {
 			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
+		}
+
+		const colorCustomizations = configurationService.getValue<IWindowBorderColors | undefined>('workbench.colorCustomizations');
+		if (colorCustomizations?.['window.activeBorder'] || colorCustomizations?.['window.inactiveBorder']) {
+			return 'custom'; // window border colors do not work with native title style
 		}
 
 		const style = configuration.titleBarStyle;
@@ -154,21 +176,31 @@ export interface IPathData {
 	// the file path to open within the instance
 	readonly fileUri?: UriComponents;
 
-	// the line number in the file path to open
-	readonly lineNumber?: number;
-
-	// the column number in the file path to open
-	readonly columnNumber?: number;
+	/**
+	 * An optional selection to apply in the file
+	 */
+	readonly selection?: {
+		readonly startLineNumber: number;
+		readonly startColumn: number;
+		readonly endLineNumber?: number;
+		readonly endColumn?: number;
+	}
 
 	// a hint that the file exists. if true, the
 	// file exists, if false it does not. with
-	// undefined the state is unknown.
+	// `undefined` the state is unknown.
 	readonly exists?: boolean;
 
-	// Specifies if the file should be only be opened if it exists
+	// a hint about the file type of this path.
+	// with `undefined` the type is unknown.
+	readonly type?: FileType;
+
+	// Specifies if the file should be only be opened
+	// if it exists
 	readonly openOnlyIfExists?: boolean;
 
-	// Specifies an optional id to override the editor used to edit the resource, e.g. custom editor.
+	// Specifies an optional id to override the editor
+	// used to edit the resource, e.g. custom editor.
 	readonly editorOverrideId?: string;
 }
 
@@ -211,12 +243,7 @@ export interface IColorScheme {
 }
 
 export interface IWindowConfiguration {
-	sessionId: string;
-
 	remoteAuthority?: string;
-
-	colorScheme: IColorScheme;
-	autoDetectHighContrast?: boolean;
 
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
@@ -224,32 +251,61 @@ export interface IWindowConfiguration {
 
 export interface IOSConfiguration {
 	readonly release: string;
+	readonly hostname: string;
 }
 
-export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs {
+export interface IPartsSplash {
+	baseTheme: string;
+	colorInfo: {
+		background: string;
+		foreground: string | undefined;
+		editorBackground: string | undefined;
+		titleBarBackground: string | undefined;
+		activityBarBackground: string | undefined;
+		sideBarBackground: string | undefined;
+		statusBarBackground: string | undefined;
+		statusBarNoFolderBackground: string | undefined;
+		windowBorder: string | undefined;
+	}
+	layoutInfo: {
+		sideBarSide: string;
+		editorPartMinWidth: number;
+		titleBarHeight: number;
+		activityBarWidth: number;
+		sideBarWidth: number;
+		statusBarHeight: number;
+		windowBorder: boolean;
+		windowBorderRadius: string | undefined;
+	} | undefined
+}
+
+export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
 
-	windowId: number;
 	machineId: string;
 
-	appRoot: string;
 	execPath: string;
 	backupPath?: string;
 
-	nodeCachedDataDir?: string;
-	partsSplashPath: string;
+	homeDir: string;
+	tmpDir: string;
+	userDataDir: string;
+
+	partsSplash?: IPartsSplash;
 
 	workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;
-	zoomLevel?: number;
+
 	fullscreen?: boolean;
 	maximized?: boolean;
 	accessibilitySupport?: boolean;
+	colorScheme: IColorScheme;
+	autoDetectHighContrast?: boolean;
+
 	perfMarks: PerformanceMark[];
 
-	userEnv: IProcessEnvironment;
 	filesToWait?: IPathsToWaitFor;
 
 	os: IOSConfiguration;

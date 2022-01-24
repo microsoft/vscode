@@ -31,10 +31,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/backup",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/bulkEdit",
 			"project": "vscode-workbench"
 		},
@@ -48,6 +44,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/callHierarchy",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/typeHierarchy",
 			"project": "vscode-workbench"
 		},
 		{
@@ -96,6 +96,14 @@
 		},
 		{
 			"name": "vs/workbench/contrib/issue",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/interactive",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/languageStatus",
 			"project": "vscode-workbench"
 		},
 		{
@@ -235,7 +243,23 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/welcome",
+			"name": "vs/workbench/contrib/welcomeGettingStarted",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomeOverlay",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomePage",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomeViews",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomeWalkthrough",
 			"project": "vscode-workbench"
 		},
 		{
@@ -251,11 +275,27 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/languageDetection",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/audioCues",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/offline",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/actions",
 			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/authToken",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/backup",
 			"project": "vscode-workbench"
 		},
 		{
@@ -319,7 +359,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/mode",
+			"name": "vs/workbench/services/language",
 			"project": "vscode-workbench"
 		},
 		{
@@ -396,6 +436,10 @@
 		},
 		{
 			"name": "vs/workbench/services/gettingStarted",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/host",
 			"project": "vscode-workbench"
 		}
 	]

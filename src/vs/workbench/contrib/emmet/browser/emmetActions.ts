@@ -5,10 +5,8 @@
 
 import { EditorAction, ServicesAccessor, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { IExtensionService, ExtensionPointContribution } from 'vs/workbench/services/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 interface ModeScopeMap {
@@ -17,10 +15,6 @@ interface ModeScopeMap {
 
 export interface IGrammarContributions {
 	getGrammar(mode: string): string;
-}
-
-export interface ILanguageIdentifierResolver {
-	getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier | null;
 }
 
 class GrammarContributions implements IGrammarContributions {
@@ -77,13 +71,12 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const extensionService = accessor.get(IExtensionService);
-		const modeService = accessor.get(IModeService);
 		const commandService = accessor.get(ICommandService);
 
 		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
 
 			if (this.id === 'editor.emmet.action.expandAbbreviation' && grammarContributions) {
-				return commandService.executeCommand<void>('emmet.expandAbbreviation', EmmetEditorAction.getLanguage(modeService, editor, grammarContributions));
+				return commandService.executeCommand<void>('emmet.expandAbbreviation', EmmetEditorAction.getLanguage(editor, grammarContributions));
 			}
 
 			return undefined;
@@ -91,7 +84,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 	}
 
-	public static getLanguage(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICodeEditor, grammars: IGrammarContributions) {
+	public static getLanguage(editor: ICodeEditor, grammars: IGrammarContributions) {
 		const model = editor.getModel();
 		const selection = editor.getSelection();
 
@@ -102,9 +95,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const position = selection.getStartPosition();
 		model.tokenizeIfCheap(position.lineNumber);
 		const languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
-		const languageIdentifier = languageIdentifierResolver.getLanguageIdentifier(languageId);
-		const language = languageIdentifier ? languageIdentifier.language : '';
-		const syntax = language.split('.').pop();
+		const syntax = languageId.split('.').pop();
 
 		if (!syntax) {
 			return null;

@@ -11,6 +11,7 @@ import { ExtHostTextEditor, TextEditorDecorationType } from 'vs/workbench/api/co
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { TextEditorSelectionChangeKind } from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostEditors implements ExtHostEditorsShape {
 
@@ -91,8 +92,8 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		}
 	}
 
-	createTextEditorDecorationType(options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
-		return new TextEditorDecorationType(this._proxy, options).value;
+	createTextEditorDecorationType(extension: IExtensionDescription, options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
+		return new TextEditorDecorationType(this._proxy, extension, options).value;
 	}
 
 	// --- called from main thread

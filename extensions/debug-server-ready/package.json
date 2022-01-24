@@ -8,10 +8,19 @@
   "engines": {
     "vscode": "^1.32.0"
   },
+  "icon": "media/icon.png",
   "activationEvents": [
     "onDebugResolve"
   ],
-  "enableProposedApi": true,
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "enabledApiProposals": [
+    "terminalDataWriteEvent"
+  ],
   "main": "./out/extension",
   "scripts": {
     "compile": "gulp compile-extension:debug-server-ready",
@@ -62,19 +71,23 @@
                     "additionalProperties": false,
                     "markdownDescription": "%debug.server.ready.serverReadyAction.description%",
                     "default": {
-                      "action": "openExternally"
+                      "action": "debugWithEdge",
+                      "pattern": "listening on port ([0-9]+)",
+                      "uriFormat": "http://localhost:%s",
+                      "webRoot": "${workspaceFolder}"
                     },
                     "properties": {
                       "action": {
                         "type": "string",
                         "enum": [
-                          "debugWithChrome"
+                          "debugWithChrome",
+                          "debugWithEdge"
                         ],
                         "enumDescriptions": [
                           "%debug.server.ready.action.debugWithChrome.description%"
                         ],
                         "markdownDescription": "%debug.server.ready.action.description%",
-                        "default": "openExternally"
+                        "default": "debugWithEdge"
                       },
                       "pattern": {
                         "type": "string",
@@ -140,7 +153,7 @@
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9"
+    "@types/node": "14.x"
   },
   "repository": {
     "type": "git",

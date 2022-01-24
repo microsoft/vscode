@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { illegalState } from 'vs/base/common/errors';
-import { Graph } from 'vs/platform/instantiation/common/graph';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ServiceIdentifier, IInstantiationService, ServicesAccessor, _util, optional } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IdleValue } from 'vs/base/common/async';
+import { illegalState } from 'vs/base/common/errors';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { Graph } from 'vs/platform/instantiation/common/graph';
+import { IInstantiationService, ServiceIdentifier, ServicesAccessor, _util } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 // TRACING
 const _enableTracing = false;
@@ -16,7 +16,7 @@ const _enableTracing = false;
 class CyclicDependencyError extends Error {
 	constructor(graph: Graph<any>) {
 		super('cyclic dependency between services');
-		this.message = graph.toString();
+		this.message = graph.findCycleSlow() ?? `UNABLE to detect cycle, dumping graph: \n${graph.toString()}`;
 	}
 }
 
@@ -45,14 +45,14 @@ export class InstantiationService implements IInstantiationService {
 		let _done = false;
 		try {
 			const accessor: ServicesAccessor = {
-				get: <T>(id: ServiceIdentifier<T>, isOptional?: typeof optional) => {
+				get: <T>(id: ServiceIdentifier<T>) => {
 
 					if (_done) {
 						throw illegalState('service accessor is only valid during the invocation of its target method');
 					}
 
 					const result = this._getOrCreateServiceInstance(id, _trace);
-					if (!result && isOptional !== optional) {
+					if (!result) {
 						throw new Error(`[invokeFunction] unknown service '${id}'`);
 					}
 					return result;
@@ -129,7 +129,7 @@ export class InstantiationService implements IInstantiationService {
 		}
 	}
 
-	private _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>, _trace: Trace): T {
+	protected _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>, _trace: Trace): T {
 		let thing = this._getServiceInstanceOrDescriptor(id);
 		if (thing instanceof SyncDescriptor) {
 			return this._safeCreateAndCacheServiceInstance(id, thing, _trace.branch(id, true));
@@ -263,12 +263,12 @@ const enum TraceType {
 	Creation, Invocation, Branch
 }
 
-class Trace {
+export class Trace {
 
 	private static readonly _None = new class extends Trace {
 		constructor() { super(-1, null); }
-		stop() { }
-		branch() { return this; }
+		override stop() { }
+		override branch() { return this; }
 	};
 
 	static traceInvocation(ctor: any): Trace {

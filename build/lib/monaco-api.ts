@@ -178,25 +178,6 @@ function getMassagedTopLevelDeclarationText(ts: typeof import('typescript'), sou
 				// life..
 			}
 		});
-	} else if (declaration.kind === ts.SyntaxKind.VariableStatement) {
-		const jsDoc = result.substr(0, declaration.getLeadingTriviaWidth(sourceFile));
-		if (jsDoc.indexOf('@monacodtsreplace') >= 0) {
-			const jsDocLines = jsDoc.split(/\r\n|\r|\n/);
-			let directives: [RegExp, string][] = [];
-			for (const jsDocLine of jsDocLines) {
-				const m = jsDocLine.match(/^\s*\* \/([^/]+)\/([^/]+)\/$/);
-				if (m) {
-					directives.push([new RegExp(m[1], 'g'), m[2]]);
-				}
-			}
-			// remove the jsdoc
-			result = result.substr(jsDoc.length);
-			if (directives.length > 0) {
-				// apply replace directives
-				const replacer = createReplacerFromDirectives(directives);
-				result = replacer(result);
-			}
-		}
 	}
 	result = result.replace(/export default /g, 'export ');
 	result = result.replace(/export declare /g, 'export ');

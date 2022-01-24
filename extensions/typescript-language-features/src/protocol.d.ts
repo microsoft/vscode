@@ -11,4 +11,3 @@ declare module 'typescript/lib/protocol' {
 		readonly _serverType?: ServerType;
 	}
 }
-

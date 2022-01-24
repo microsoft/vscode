@@ -9,7 +9,7 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
+import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
@@ -26,8 +26,6 @@ type AccessibilityMetricsClassification = {
 
 export class NativeAccessibilityService extends AccessibilityService implements IAccessibilityService {
 
-	declare readonly _serviceBrand: undefined;
-
 	private didSendTelemetry = false;
 	private shouldAlwaysUnderlineAccessKeys: boolean | undefined = undefined;
 
@@ -42,7 +40,7 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 		this.setAccessibilitySupport(environmentService.configuration.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 	}
 
-	async alwaysUnderlineAccessKeys(): Promise<boolean> {
+	override async alwaysUnderlineAccessKeys(): Promise<boolean> {
 		if (!isWindows) {
 			return false;
 		}
@@ -55,7 +53,7 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 		return this.shouldAlwaysUnderlineAccessKeys;
 	}
 
-	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
+	override setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
 		super.setAccessibilitySupport(accessibilitySupport);
 
 		if (!this.didSendTelemetry && accessibilitySupport === AccessibilitySupport.Enabled) {

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
 import { ThrottledDelayer } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export enum StorageHint {
@@ -29,6 +29,12 @@ export interface IUpdateRequest {
 export interface IStorageItemsChangeEvent {
 	readonly changed?: Map<string, string>;
 	readonly deleted?: Set<string>;
+}
+
+export function isStorageItemsChangeEvent(thing: unknown): thing is IStorageItemsChangeEvent {
+	const candidate = thing as IStorageItemsChangeEvent | undefined;
+
+	return candidate?.changed instanceof Map || candidate?.deleted instanceof Set;
 }
 
 export interface IStorageDatabase {
@@ -62,6 +68,7 @@ export interface IStorage extends IDisposable {
 	set(key: string, value: string | boolean | number | undefined | null): Promise<void>;
 	delete(key: string): Promise<void>;
 
+	flush(delay?: number): Promise<void>;
 	whenFlushed(): Promise<void>;
 
 	close(): Promise<void>;
@@ -230,7 +237,7 @@ export class Storage extends Disposable implements IStorage {
 		this._onDidChangeStorage.fire(key);
 
 		// Accumulate work by scheduling after timeout
-		return this.flushDelayer.trigger(() => this.flushPending());
+		return this.doFlush();
 	}
 
 	async delete(key: string): Promise<void> {
@@ -254,7 +261,7 @@ export class Storage extends Disposable implements IStorage {
 		this._onDidChangeStorage.fire(key);
 
 		// Accumulate work by scheduling after timeout
-		return this.flushDelayer.trigger(() => this.flushPending());
+		return this.doFlush();
 	}
 
 	async close(): Promise<void> {
@@ -277,7 +284,7 @@ export class Storage extends Disposable implements IStorage {
 		// Recovery: we pass our cache over as recovery option in case
 		// the DB is not healthy.
 		try {
-			await this.flushDelayer.trigger(() => this.flushPending(), 0 /* as soon as possible */);
+			await this.doFlush(0 /* as soon as possible */);
 		} catch (error) {
 			// Ignore
 		}
@@ -312,6 +319,18 @@ export class Storage extends Disposable implements IStorage {
 		});
 	}
 
+	async flush(delay?: number): Promise<void> {
+		if (!this.hasPending) {
+			return; // return early if nothing to do
+		}
+
+		return this.doFlush(delay);
+	}
+
+	private async doFlush(delay?: number): Promise<void> {
+		return this.flushDelayer.trigger(() => this.flushPending(), delay);
+	}
+
 	async whenFlushed(): Promise<void> {
 		if (!this.hasPending) {
 			return; // return early if nothing to do
@@ -320,8 +339,7 @@ export class Storage extends Disposable implements IStorage {
 		return new Promise(resolve => this.whenFlushedCallbacks.push(resolve));
 	}
 
-	dispose(): void {
-		this.flushDelayer.cancel(); // workaround https://github.com/microsoft/vscode/issues/116777
+	override dispose(): void {
 		this.flushDelayer.dispose();
 
 		super.dispose();

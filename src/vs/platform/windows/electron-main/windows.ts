@@ -3,17 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWindowOpenable, IOpenEmptyWindowOptions, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { URI } from 'vs/base/common/uri';
-import { Rectangle, BrowserWindow, WebContents } from 'electron';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { BrowserWindow, Rectangle, WebContents } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IProcessEnvironment } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { INativeWindowConfiguration, IOpenEmptyWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+
+export const enum LoadReason {
+
+	/**
+	 * The window is loaded for the first time.
+	 */
+	INITIAL = 1,
+
+	/**
+	 * The window is loaded into a different workspace context.
+	 */
+	LOAD,
+
+	/**
+	 * The window is reloaded.
+	 */
+	RELOAD
+}
+
+export const enum UnloadReason {
+
+	/**
+	 * The window is closed.
+	 */
+	CLOSE = 1,
+
+	/**
+	 * All windows unload because the application quits.
+	 */
+	QUIT,
+
+	/**
+	 * The window is reloaded.
+	 */
+	RELOAD,
+
+	/**
+	 * The window is loaded into a different workspace context.
+	 */
+	LOAD
+}
 
 export const enum OpenContext {
 
@@ -62,6 +103,7 @@ export const enum WindowMode {
 
 export interface ILoadEvent {
 	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
+	reason: LoadReason;
 }
 
 export interface ICodeWindow extends IDisposable {
@@ -162,6 +204,7 @@ export interface IWindowsMainService {
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[];
+	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[];
 
 	sendToFocused(channel: string, ...args: any[]): void;
@@ -197,6 +240,12 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly gotoLineMode?: boolean;
 	readonly initialStartup?: boolean;
 	readonly noRecentEntry?: boolean;
+	/**
+	 * The remote authority to use when windows are opened with either
+	 * - no workspace (empty window)
+	 * - a workspace that is neither `file://` nor `vscode-remote://`
+	 */
+	readonly remoteAuthority?: string;
 }
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }

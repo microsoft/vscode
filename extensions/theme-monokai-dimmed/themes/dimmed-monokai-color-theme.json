@@ -3,7 +3,7 @@
 	"colors": {
 		"dropdown.background": "#525252",
 		"list.activeSelectionBackground": "#707070",
-		"quickInput.list.focusBackground": "#707070",
+		"quickInputList.focusBackground": "#707070",
 		"list.inactiveSelectionBackground": "#4e4e4e",
 		"list.hoverBackground": "#444444",
 		"list.highlightForeground": "#e58520",
@@ -16,7 +16,7 @@
 		"editor.lineHighlightBackground": "#303030",
 		"editorLineNumber.activeForeground": "#949494",
 		"editor.wordHighlightBackground": "#4747a180",
-        "editor.wordHighlightStrongBackground": "#6767ce80",
+		"editor.wordHighlightStrongBackground": "#6767ce80",
 		"editorCursor.foreground": "#c07020",
 		"editorWhitespace.foreground": "#505037",
 		"editorIndentGuide.background": "#505037",
@@ -33,6 +33,7 @@
 		"statusBar.noFolderBackground": "#505050",
 		"titleBar.activeBackground": "#505050",
 		"statusBarItem.remoteBackground": "#3655b5",
+		"ports.iconRunningProcessForeground": "#CCCCCC",
 		"activityBar.background": "#353535",
 		"activityBar.foreground": "#ffffff",
 		"activityBarBadge.background": "#3655b5",
@@ -346,7 +347,7 @@
 		},
 		{
 			"name": "HTML String",
-			"scope": "string.quoted.double.html, punctuation.definition.string.begin.html, punctuation.definition.string.end.html",
+			"scope": "string.quoted.double.html, punctuation.definition.string.begin.html, punctuation.definition.string.end.html, punctuation.definition.string.end.html source, string.quoted.double.html source",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#9AA83A"
@@ -598,6 +599,12 @@
 			"scope": "markup.italic.markdown",
 			"settings": {
 				"fontStyle": "italic"
+			}
+		},
+		{
+			"scope": "markup.strikethrough",
+			"settings": {
+				"fontStyle": "strikethrough"
 			}
 		},
 		{

@@ -12,10 +12,11 @@ import { LanguageConfigurationManager } from './languageFeatures/languageConfigu
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
-import { ChildServerProcess } from './tsServer/serverProcess.electron';
+import { ElectronServiceProcessFactory } from './tsServer/serverProcess.electron';
 import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
 import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
-import { onCaseInsenitiveFileSystem } from './utils/fileSystem.electron';
+import { ElectronServiceConfigurationProvider } from './utils/configuration.electron';
+import { onCaseInsensitiveFileSystem } from './utils/fileSystem.electron';
 import { PluginManager } from './utils/plugins';
 import * as temp from './utils/temp.electron';
 
@@ -39,14 +40,15 @@ export function activate(
 	const activeJsTsEditorTracker = new ActiveJsTsEditorTracker();
 	context.subscriptions.push(activeJsTsEditorTracker);
 
-	const lazyClientHost = createLazyClientHost(context, onCaseInsenitiveFileSystem(), {
+	const lazyClientHost = createLazyClientHost(context, onCaseInsensitiveFileSystem(), {
 		pluginManager,
 		commandManager,
 		logDirectoryProvider,
 		cancellerFactory: nodeRequestCancellerFactory,
 		versionProvider,
-		processFactory: ChildServerProcess,
+		processFactory: new ElectronServiceProcessFactory(),
 		activeJsTsEditorTracker,
+		serviceConfigurationProvider: new ElectronServiceConfigurationProvider(),
 	}, item => {
 		onCompletionAccepted.fire(item);
 	});

@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { relativePath } from 'vs/base/common/resources';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class ResourceGlobMatcher {
 
@@ -69,6 +69,15 @@ export class FilterOptions {
 
 		const filesExcludeByRoot = Array.isArray(filesExclude) ? filesExclude : [];
 		const excludesExpression: IExpression = Array.isArray(filesExclude) ? getEmptyExpression() : filesExclude;
+
+		for (const { expression } of filesExcludeByRoot) {
+			for (const pattern of Object.keys(expression)) {
+				if (!pattern.endsWith('/**')) {
+					// Append `/**` to pattern to match a parent folder #103631
+					expression[`${strings.rtrim(pattern, '/')}/**`] = expression[pattern];
+				}
+			}
+		}
 
 		const negate = filter.startsWith('!');
 		this.textFilter = { text: (negate ? strings.ltrim(filter, '!') : filter).trim(), negate };

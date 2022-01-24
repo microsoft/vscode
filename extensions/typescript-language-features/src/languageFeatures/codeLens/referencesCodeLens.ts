@@ -19,7 +19,7 @@ const localize = nls.loadMessageBundle();
 
 export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 	public constructor(
-		protected client: ITypeScriptServiceClient,
+		client: ITypeScriptServiceClient,
 		protected _cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 		private modeId: string
 	) {
@@ -69,11 +69,12 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 		}
 
 		switch (item.kind) {
-			case PConst.Kind.function:
+			case PConst.Kind.function: {
 				const showOnAllFunctions = vscode.workspace.getConfiguration(this.modeId).get<boolean>('referencesCodeLens.showOnAllFunctions');
 				if (showOnAllFunctions) {
 					return getSymbolRange(document, item);
 				}
+			}
 			// fallthrough
 
 			case PConst.Kind.const:

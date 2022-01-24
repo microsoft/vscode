@@ -29,6 +29,7 @@ export class CommentGlyphWidget {
 
 	private createDecorationOptions(): ModelDecorationOptions {
 		const decorationOptions: IModelDecorationOptions = {
+			description: 'comment-glyph-widget',
 			isWholeLine: true,
 			overviewRuler: {
 				color: themeColorFromId(overviewRulerCommentingRangeForeground),

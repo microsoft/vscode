@@ -13,8 +13,8 @@ import { CommandCenter } from './commands';
 import { GitFileSystemProvider } from './fileSystemProvider';
 import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
-import { toDisposable, filterEvent, eventToPromise } from './util';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import { toDisposable, filterEvent, eventToPromise, logTimestamp } from './util';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import { GitExtension } from './api/git';
 import { GitProtocolHandler } from './protocolHandler';
 import { GitExtensionImpl } from './api/extension';
@@ -34,8 +34,30 @@ export async function deactivate(): Promise<any> {
 }
 
 async function createModel(context: ExtensionContext, outputChannel: OutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
-	const pathHint = workspace.getConfiguration('git').get<string | string[]>('path');
-	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
+	const pathValue = workspace.getConfiguration('git').get<string | string[]>('path');
+	let pathHints = Array.isArray(pathValue) ? pathValue : pathValue ? [pathValue] : [];
+
+	const { isTrusted, workspaceFolders = [] } = workspace;
+	const excludes = isTrusted ? [] : workspaceFolders.map(f => path.normalize(f.uri.fsPath).replace(/[\r\n]+$/, ''));
+
+	if (!isTrusted && pathHints.length !== 0) {
+		// Filter out any non-absolute paths
+		pathHints = pathHints.filter(p => path.isAbsolute(p));
+	}
+
+	const info = await findGit(pathHints, gitPath => {
+		outputChannel.appendLine(localize('validating', "{0} Validating found git in: {1}", logTimestamp(), gitPath));
+		if (excludes.length === 0) {
+			return true;
+		}
+
+		const normalized = path.normalize(gitPath).replace(/[\r\n]+$/, '');
+		const skip = excludes.some(e => normalized.startsWith(e));
+		if (skip) {
+			outputChannel.appendLine(localize('skipped', "{0} Skipped found git in: {1}", logTimestamp(), gitPath));
+		}
+		return !skip;
+	});
 
 	const askpass = await Askpass.create(outputChannel, context.storagePath);
 	disposables.push(askpass);
@@ -51,7 +73,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 		version: info.version,
 		env: environment,
 	});
-	const model = new Model(git, askpass, context.globalState, outputChannel);
+	const model = new Model(git, askpass, context.globalState, outputChannel, telemetryReporter);
 	disposables.push(model);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
@@ -59,7 +81,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	model.onDidCloseRepository(onRepository, null, disposables);
 	onRepository();
 
-	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
+	outputChannel.appendLine(localize('using git', "{0} Using git {1} from {2}", logTimestamp(), info.version, info.path));
 
 	const onOutput = (str: string) => {
 		const lines = str.split(/\r?\n/mg);
@@ -68,7 +90,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 			lines.pop();
 		}
 
-		outputChannel.appendLine(lines.join('\n'));
+		outputChannel.appendLine(`${logTimestamp()} ${lines.join('\n')}`);
 	};
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
@@ -129,7 +151,7 @@ async function warnAboutMissingGit(): Promise<void> {
 	);
 
 	if (choice === download) {
-		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+		commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-download-git'));
 	} else if (choice === neverShowAgain) {
 		await config.update('ignoreMissingGitWarning', true, true);
 	}
@@ -168,7 +190,7 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 		}
 
 		console.warn(err.message);
-		outputChannel.appendLine(err.message);
+		outputChannel.appendLine(`${logTimestamp()} ${err.message}`);
 
 		commands.executeCommand('setContext', 'git.missing', true);
 		warnAboutMissingGit();
@@ -212,7 +234,7 @@ async function checkGitv1(info: IGit): Promise<void> {
 	);
 
 	if (choice === update) {
-		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+		commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-download-git'));
 	} else if (choice === neverShowAgain) {
 		await config.update('ignoreLegacyWarning', true, true);
 	}
@@ -239,7 +261,7 @@ async function checkGitWindows(info: IGit): Promise<void> {
 	);
 
 	if (choice === update) {
-		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+		commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-download-git'));
 	} else if (choice === neverShowAgain) {
 		await config.update('ignoreWindowsGit27Warning', true, true);
 	}

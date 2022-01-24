@@ -7,7 +7,7 @@ import { sha1Hex } from 'vs/base/browser/hash';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITextFileService, } from 'vs/workbench/services/textfile/common/textfiles';
@@ -36,7 +36,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 		@IProductService private readonly productService: IProductService,
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
-		if (this.telemetryService.isOptedIn) {
+		if (this.telemetryService.telemetryLevel === TelemetryLevel.USAGE) {
 			this.report();
 		}
 	}
@@ -80,6 +80,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 				telemetryId,
 				rendererSessionId: info.sessionId,
 				folders: workspace.folders,
+				transient: workspace.transient,
 				configuration: workspace.configuration
 			};
 		});

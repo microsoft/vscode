@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ISerializableItemsChangeEvent, ISerializableUpdateRequest, IBaseSerializableStorageRequest, Key, Value } from 'vs/platform/storage/common/storageIpc';
+import { IBaseSerializableStorageRequest, ISerializableItemsChangeEvent, ISerializableUpdateRequest, Key, Value } from 'vs/platform/storage/common/storageIpc';
 import { IStorageChangeEvent, IStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';

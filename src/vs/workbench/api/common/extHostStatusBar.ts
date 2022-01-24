@@ -3,35 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor } from './extHostTypes';
 import type * as vscode from 'vscode';
 import { MainContext, MainThreadStatusBarShape, IMainContext, ICommandDto } from './extHost.protocol';
 import { localize } from 'vs/nls';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
+import { isNumber } from 'vs/base/common/types';
 
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
+
 	private static ID_GEN = 0;
 
 	private static ALLOWED_BACKGROUND_COLORS = new Map<string, ThemeColor>(
-		[['statusBarItem.errorBackground', new ThemeColor('statusBarItem.errorForeground')]]
+		[
+			['statusBarItem.errorBackground', new ThemeColor('statusBarItem.errorForeground')],
+			['statusBarItem.warningBackground', new ThemeColor('statusBarItem.warningForeground')]
+		]
 	);
 
 	#proxy: MainThreadStatusBarShape;
 	#commands: CommandsConverter;
 
-	private _id: number;
+	private _entryId: number;
+
+	private _extension?: IExtensionDescription;
+
+	private _id?: string;
 	private _alignment: number;
 	private _priority?: number;
+
 	private _disposed: boolean = false;
 	private _visible: boolean = false;
 
-	private _statusId: string;
-	private _statusName: string;
-
 	private _text: string = '';
-	private _tooltip?: string;
+	private _tooltip?: string | vscode.MarkdownString;
+	private _name?: string;
 	private _color?: string | ThemeColor;
 	private _backgroundColor?: ThemeColor;
 	private readonly _internalCommandRegistration = new DisposableStore();
@@ -43,20 +52,44 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private _timeoutHandle: any;
 	private _accessibilityInformation?: vscode.AccessibilityInformation;
 
-	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, id: string, name: string, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number, accessibilityInformation?: vscode.AccessibilityInformation) {
+	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, extension: IExtensionDescription, id?: string, alignment?: ExtHostStatusBarAlignment, priority?: number);
+	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, extension: IExtensionDescription | undefined, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number);
+	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, extension?: IExtensionDescription, id?: string, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
 		this.#proxy = proxy;
 		this.#commands = commands;
 
-		this._id = ExtHostStatusBarEntry.ID_GEN++;
-		this._statusId = id;
-		this._statusName = name;
+		this._entryId = ExtHostStatusBarEntry.ID_GEN++;
+
+		this._extension = extension;
+
+		this._id = id;
 		this._alignment = alignment;
-		this._priority = priority;
-		this._accessibilityInformation = accessibilityInformation;
+		this._priority = this.validatePriority(priority);
 	}
 
-	public get id(): number {
-		return this._id;
+	private validatePriority(priority?: number): number | undefined {
+		if (!isNumber(priority)) {
+			return undefined; // using this method to catch `NaN` too!
+		}
+
+		// Our RPC mechanism use JSON to serialize data which does
+		// not support `Infinity` so we need to fill in the number
+		// equivalent as close as possible.
+		// https://github.com/microsoft/vscode/issues/133317
+
+		if (priority === Number.POSITIVE_INFINITY) {
+			return Number.MAX_VALUE;
+		}
+
+		if (priority === Number.NEGATIVE_INFINITY) {
+			return -Number.MAX_VALUE;
+		}
+
+		return priority;
+	}
+
+	public get id(): string {
+		return this._id ?? this._extension!.identifier.value;
 	}
 
 	public get alignment(): vscode.StatusBarAlignment {
@@ -71,7 +104,11 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		return this._text;
 	}
 
-	public get tooltip(): string | undefined {
+	public get name(): string | undefined {
+		return this._name;
+	}
+
+	public get tooltip(): vscode.MarkdownString | string | undefined {
 		return this._tooltip;
 	}
 
@@ -96,7 +133,12 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		this.update();
 	}
 
-	public set tooltip(tooltip: string | undefined) {
+	public set name(name: string | undefined) {
+		this._name = name;
+		this.update();
+	}
+
+	public set tooltip(tooltip: vscode.MarkdownString | string | undefined) {
 		this._tooltip = tooltip;
 		this.update();
 	}
@@ -150,7 +192,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	public hide(): void {
 		clearTimeout(this._timeoutHandle);
 		this._visible = false;
-		this.#proxy.$dispose(this.id);
+		this.#proxy.$dispose(this._entryId);
 	}
 
 	private update(): void {
@@ -164,15 +206,39 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		this._timeoutHandle = setTimeout(() => {
 			this._timeoutHandle = undefined;
 
+			// If the id is not set, derive it from the extension identifier,
+			// otherwise make sure to prefix it with the extension identifier
+			// to get a more unique value across extensions.
+			let id: string;
+			if (this._extension) {
+				if (this._id) {
+					id = `${this._extension.identifier.value}.${this._id}`;
+				} else {
+					id = this._extension.identifier.value;
+				}
+			} else {
+				id = this._id!;
+			}
+
+			// If the name is not set, derive it from the extension descriptor
+			let name: string;
+			if (this._name) {
+				name = this._name;
+			} else {
+				name = localize('extensionLabel', "{0} (Extension)", this._extension!.displayName || this._extension!.name);
+			}
+
 			// If a background color is set, the foreground is determined
 			let color = this._color;
 			if (this._backgroundColor) {
 				color = ExtHostStatusBarEntry.ALLOWED_BACKGROUND_COLORS.get(this._backgroundColor.id);
 			}
 
+			const tooltip = this._tooltip ? MarkdownString.fromStrict(this._tooltip) : undefined;
+
 			// Set to status bar
-			this.#proxy.$setEntry(this.id, this._statusId, this._statusName, this._text, this._tooltip, this._command?.internal, color,
-				this._backgroundColor, this._alignment === ExtHostStatusBarAlignment.Left ? MainThreadStatusBarAlignment.LEFT : MainThreadStatusBarAlignment.RIGHT,
+			this.#proxy.$setEntry(this._entryId, id, name, this._text, tooltip, this._command?.internal, color,
+				this._backgroundColor, this._alignment === ExtHostStatusBarAlignment.Left,
 				this._priority, this._accessibilityInformation);
 		}, 0);
 	}
@@ -189,7 +255,8 @@ class StatusBarMessage {
 	private _messages: { message: string }[] = [];
 
 	constructor(statusBar: ExtHostStatusBar) {
-		this._item = statusBar.createStatusBarEntry('status.extensionMessage', localize('status.extensionMessage', "Extension Status"), ExtHostStatusBarAlignment.Left, Number.MIN_VALUE);
+		this._item = statusBar.createStatusBarEntry(undefined, 'status.extensionMessage', ExtHostStatusBarAlignment.Left, Number.MIN_VALUE);
+		this._item.name = localize('status.extensionMessage', "Extension Status");
 	}
 
 	dispose() {
@@ -233,12 +300,13 @@ export class ExtHostStatusBar {
 		this._statusMessage = new StatusBarMessage(this);
 	}
 
-	createStatusBarEntry(id: string, name: string, alignment?: ExtHostStatusBarAlignment, priority?: number, accessibilityInformation?: vscode.AccessibilityInformation): vscode.StatusBarItem {
-		return new ExtHostStatusBarEntry(this._proxy, this._commands, id, name, alignment, priority, accessibilityInformation);
+	createStatusBarEntry(extension: IExtensionDescription | undefined, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number): vscode.StatusBarItem;
+	createStatusBarEntry(extension: IExtensionDescription, id?: string, alignment?: ExtHostStatusBarAlignment, priority?: number): vscode.StatusBarItem;
+	createStatusBarEntry(extension: IExtensionDescription, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number): vscode.StatusBarItem {
+		return new ExtHostStatusBarEntry(this._proxy, this._commands, extension, id, alignment, priority);
 	}
 
 	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {
-
 		const d = this._statusMessage.setMessage(text);
 		let handle: any;
 

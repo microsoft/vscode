@@ -5,93 +5,77 @@
 
 import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
-import { createCancelablePromise } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
 import { OS } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Cache, CacheResult } from 'vs/base/common/cache';
 import { Action, IAction } from 'vs/base/common/actions';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { domEvent } from 'vs/base/browser/event';
-import { append, $, finalHandler, join, hide, show, addDisposableListener, EventType, setParentFlowTo } from 'vs/base/browser/dom';
+import { getErrorMessage, isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
+import { dispose, toDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { append, $, finalHandler, join, addDisposableListener, EventType, setParentFlowTo, reset, Dimension } from 'vs/base/browser/dom';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IExtensionManifest, IKeyBinding, IView, IViewContainer } from 'vs/platform/extensions/common/extensions';
-import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
-import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
-import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
+import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers, ExtensionEditorTab, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
+import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget, ExtensionWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import {
-	UpdateAction, ReloadAction, MaliciousStatusLabelAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction,
-	RemoteInstallAction, ExtensionToolTipAction, SystemDisabledWarningAction, LocalInstallAction, ToggleSyncExtensionAction, SetProductIconThemeAction,
+	UpdateAction, ReloadAction, EnableDropDownAction, DisableDropDownAction, ExtensionStatusLabelAction, SetFileIconThemeAction, SetColorThemeAction,
+	RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ToggleSyncExtensionAction, SetProductIconThemeAction,
 	ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, UninstallAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction,
-	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction
+	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ExtensionsTree, ExtensionData, ExtensionsGridView, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
 import { isUndefined } from 'vs/base/common/types';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IWebviewService, Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, IWebview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { generateUuid } from 'vs/base/common/uuid';
 import { platform } from 'vs/base/common/process';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { renderMarkdownDocument } from 'vs/workbench/contrib/markdown/common/markdownDocumentRenderer';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
+import { buttonForeground, buttonHoverBackground, editorBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { insane } from 'vs/base/common/insane/insane';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-
-function removeEmbeddedSVGs(documentContent: string): string {
-	return insane(documentContent, {
-		allowedTags: [
-			'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'br', 'b', 'i', 'strong', 'em', 'a', 'pre', 'code', 'img', 'tt',
-			'div', 'ins', 'del', 'sup', 'sub', 'p', 'ol', 'ul', 'table', 'thead', 'tbody', 'tfoot', 'blockquote', 'dl', 'dt',
-			'dd', 'kbd', 'q', 'samp', 'var', 'hr', 'ruby', 'rt', 'rp', 'li', 'tr', 'td', 'th', 's', 'strike', 'summary', 'details',
-			'caption', 'figure', 'figcaption', 'abbr', 'bdo', 'cite', 'dfn', 'mark', 'small', 'span', 'time', 'wbr'
-		],
-		allowedAttributes: {
-			'*': [
-				'align',
-			],
-			img: ['src', 'alt', 'title', 'aria-label', 'width', 'height'],
-		},
-		filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
-			return token.tag !== 'svg';
-		}
-	});
-}
+import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { errorIcon, infoIcon, starEmptyIcon, verifiedPublisherIcon as verifiedPublisherThemeIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 class NavBar extends Disposable {
 
-	private _onChange = this._register(new Emitter<{ id: string | null, focus: boolean }>());
-	get onChange(): Event<{ id: string | null, focus: boolean }> { return this._onChange.event; }
+	private _onChange = this._register(new Emitter<{ id: string | null, focus: boolean; }>());
+	get onChange(): Event<{ id: string | null, focus: boolean; }> { return this._onChange.event; }
 
 	private _currentId: string | null = null;
 	get currentId(): string | null { return this._currentId; }
@@ -107,7 +91,7 @@ class NavBar extends Disposable {
 	}
 
 	push(id: string, label: string, tooltip: string): void {
-		const action = new Action(id, label, undefined, true, () => this._update(id, true));
+		const action = new Action(id, label, undefined, true, () => this.update(id, true));
 
 		action.tooltip = tooltip;
 
@@ -115,7 +99,7 @@ class NavBar extends Disposable {
 		this.actionbar.push(action);
 
 		if (this.actions.length === 1) {
-			this._update(id);
+			this.update(id);
 		}
 	}
 
@@ -124,24 +108,21 @@ class NavBar extends Disposable {
 		this.actionbar.clear();
 	}
 
-	update(): void {
-		this._update(this._currentId);
+	switch(id: string): boolean {
+		const action = this.actions.find(action => action.id === id);
+		if (action) {
+			action.run();
+			return true;
+		}
+		return false;
 	}
 
-	_update(id: string | null = this._currentId, focus?: boolean): Promise<void> {
+	private update(id: string, focus?: boolean): void {
 		this._currentId = id;
 		this._onChange.fire({ id, focus: !!focus });
 		this.actions.forEach(a => a.checked = a.id === id);
-		return Promise.resolve(undefined);
 	}
 }
-
-const NavbarSection = {
-	Readme: 'readme',
-	Contributions: 'contributions',
-	Changelog: 'changelog',
-	Dependencies: 'dependencies',
-};
 
 interface ILayoutParticipant {
 	layout(): void;
@@ -155,23 +136,24 @@ interface IExtensionEditorTemplate {
 	iconContainer: HTMLElement;
 	icon: HTMLImageElement;
 	name: HTMLElement;
-	identifier: HTMLElement;
 	preview: HTMLElement;
 	builtin: HTMLElement;
-	license: HTMLElement;
-	version: HTMLElement;
 	publisher: HTMLElement;
+	publisherDisplayName: HTMLElement;
+	verifiedPublisherIcon: HTMLElement;
 	installCount: HTMLElement;
 	rating: HTMLElement;
-	repository: HTMLElement;
 	description: HTMLElement;
+	actionsAndStatusContainer: HTMLElement;
 	extensionActionBar: ActionBar;
+	status: HTMLElement;
+	recommendation: HTMLElement;
 	navbar: NavBar;
 	content: HTMLElement;
-	subtextContainer: HTMLElement;
-	subtext: HTMLElement;
-	ignoreActionbar: ActionBar;
 	header: HTMLElement;
+	extension: IExtension;
+	gallery: IGalleryExtension | null;
+	manifest: IExtensionManifest | null;
 }
 
 const enum WebviewIndex {
@@ -179,10 +161,62 @@ const enum WebviewIndex {
 	Changelog
 }
 
+const CONTEXT_SHOW_PRE_RELEASE_VERSION = new RawContextKey<boolean>('showPreReleaseVersion', false);
+
+abstract class ExtensionWithDifferentGalleryVersionWidget extends ExtensionWidget {
+	private _gallery: IGalleryExtension | null = null;
+	get gallery(): IGalleryExtension | null { return this._gallery; }
+	set gallery(gallery: IGalleryExtension | null) {
+		if (this.extension && gallery && !areSameExtensions(this.extension.identifier, gallery.identifier)) {
+			return;
+		}
+		this._gallery = gallery;
+		this.update();
+	}
+}
+
+class VersionWidget extends ExtensionWithDifferentGalleryVersionWidget {
+	private readonly element: HTMLElement;
+	constructor(container: HTMLElement) {
+		super();
+		this.element = append(container, $('code.version', { title: localize('extension version', "Extension Version") }));
+		this.render();
+	}
+	render(): void {
+		if (!this.extension) {
+			return;
+		}
+		this.element.textContent = `v${this.gallery ? this.gallery.version : this.extension.version}`;
+	}
+}
+
+class PreReleaseTextWidget extends ExtensionWithDifferentGalleryVersionWidget {
+	private readonly element: HTMLElement;
+	constructor(container: HTMLElement) {
+		super();
+		this.element = append(container, $('span.pre-release'));
+		this.element.textContent = localize('preRelease', "Pre-Release");
+		this.render();
+	}
+	render(): void {
+		this.element.style.display = this.isPreReleaseVersion() ? 'inherit' : 'none';
+	}
+	private isPreReleaseVersion(): boolean {
+		if (!this.extension) {
+			return false;
+		}
+		if (this.gallery) {
+			return this.gallery.properties.isPreReleaseVersion;
+		}
+		return !!(this.extension.local?.isPreReleaseVersion || this.extension.gallery?.properties.isPreReleaseVersion);
+	}
+}
+
 export class ExtensionEditor extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.extension';
 
+	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
 	private template: IExtensionEditorTemplate | undefined;
 
 	private extensionReadme: Cache<string> | null;
@@ -199,14 +233,17 @@ export class ExtensionEditor extends EditorPane {
 	private readonly contentDisposables = this._register(new DisposableStore());
 	private readonly transientDisposables = this._register(new DisposableStore());
 	private activeElement: IActiveElement | null = null;
-	private editorLoadComplete: boolean = false;
+	private dimension: Dimension | undefined;
+
+	private showPreReleaseVersionContextKey: IContextKey<boolean> | undefined;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IViewletService private readonly viewletService: IViewletService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IThemeService protected themeService: IThemeService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IThemeService themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -214,10 +251,10 @@ export class ExtensionEditor extends EditorPane {
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
 		@IStorageService storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IWebviewService private readonly webviewService: IWebviewService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
@@ -225,8 +262,16 @@ export class ExtensionEditor extends EditorPane {
 		this.extensionManifest = null;
 	}
 
+	override get scopedContextKeyService(): IContextKeyService | undefined {
+		return this._scopedContextKeyService.value;
+	}
+
 	createEditor(parent: HTMLElement): void {
 		const root = append(parent, $('.extension-editor'));
+		this._scopedContextKeyService.value = this.contextKeyService.createScoped(root);
+		this._scopedContextKeyService.value.createKey('inExtensionEditor', true);
+		this.showPreReleaseVersionContextKey = CONTEXT_SHOW_PRE_RELEASE_VERSION.bindTo(this._scopedContextKeyService.value);
+
 		root.tabIndex = 0; // this is required for the focus tracker on the editor
 		root.style.outline = 'none';
 		root.setAttribute('role', 'document');
@@ -234,42 +279,73 @@ export class ExtensionEditor extends EditorPane {
 
 		const iconContainer = append(header, $('.icon-container'));
 		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { draggable: false }));
+		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer, true);
 
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
 		const name = append(title, $('span.name.clickable', { title: localize('name', "Extension name"), role: 'heading', tabIndex: 0 }));
-		const identifier = append(title, $('span.identifier', { title: localize('extension id', "Extension identifier") }));
+		const versionWidget = new VersionWidget(title);
 
 		const preview = append(title, $('span.preview', { title: localize('preview', "Preview") }));
 		preview.textContent = localize('preview', "Preview");
 
+		const preReleaseWidget = new PreReleaseTextWidget(title);
 		const builtin = append(title, $('span.builtin'));
 		builtin.textContent = localize('builtin', "Built-in");
 
 		const subtitle = append(details, $('.subtitle'));
-		const publisher = append(append(subtitle, $('.subtitle-entry')), $('span.publisher.clickable', { title: localize('publisher', "Publisher name"), tabIndex: 0 }));
+		const publisher = append(append(subtitle, $('.subtitle-entry')), $('.publisher.clickable', { title: localize('publisher', "Publisher"), tabIndex: 0 }));
+		publisher.setAttribute('role', 'button');
+		const verifiedPublisherIcon = append(publisher, $(`.publisher-verified${ThemeIcon.asCSSSelector(verifiedPublisherThemeIcon)}`));
+		const publisherDisplayName = append(publisher, $('.publisher-name'));
 
 		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
+		const installCountWidget = this.instantiationService.createInstance(InstallCountWidget, installCount, false);
 
 		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
+		rating.setAttribute('role', 'link'); // #132645
+		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, rating, false);
 
-		const repository = append(append(subtitle, $('.subtitle-entry')), $('span.repository.clickable'));
-		repository.textContent = localize('repository', 'Repository');
-		repository.style.display = 'none';
-		repository.tabIndex = 0;
-
-		const license = append(append(subtitle, $('.subtitle-entry')), $('span.license.clickable'));
-		license.textContent = localize('license', 'License');
-		license.style.display = 'none';
-		license.tabIndex = 0;
-
-		const version = append(append(subtitle, $('.subtitle-entry')), $('span.version'));
-		version.textContent = localize('version', 'Version');
+		const widgets = [
+			remoteBadge,
+			versionWidget,
+			preReleaseWidget,
+			installCountWidget,
+			ratingsWidget,
+		];
 
 		const description = append(details, $('.description'));
 
-		const extensionActions = append(details, $('.actions'));
-		const extensionActionBar = this._register(new ActionBar(extensionActions, {
+		const installAction = this.instantiationService.createInstance(InstallDropdownAction);
+		const actions = [
+			this.instantiationService.createInstance(ReloadAction),
+			this.instantiationService.createInstance(ExtensionStatusLabelAction),
+			this.instantiationService.createInstance(UpdateAction),
+			this.instantiationService.createInstance(SetColorThemeAction),
+			this.instantiationService.createInstance(SetFileIconThemeAction),
+			this.instantiationService.createInstance(SetProductIconThemeAction),
+
+			this.instantiationService.createInstance(EnableDropDownAction),
+			this.instantiationService.createInstance(DisableDropDownAction),
+			this.instantiationService.createInstance(RemoteInstallAction, false),
+			this.instantiationService.createInstance(LocalInstallAction),
+			this.instantiationService.createInstance(WebInstallAction),
+			installAction,
+			this.instantiationService.createInstance(InstallingLabelAction),
+			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.uninstall', UninstallAction.UninstallLabel, [
+				[
+					this.instantiationService.createInstance(UninstallAction),
+					this.instantiationService.createInstance(InstallAnotherVersionAction),
+				]
+			]),
+			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction),
+			this.instantiationService.createInstance(SwitchToReleasedVersionAction),
+			this.instantiationService.createInstance(ToggleSyncExtensionAction),
+			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
+		];
+
+		const actionsAndStatusContainer = append(details, $('.actions-status-container'));
+		const extensionActionBar = this._register(new ActionBar(actionsAndStatusContainer, {
 			animated: false,
 			actionViewItemProvider: (action: IAction) => {
 				if (action instanceof ExtensionDropDownAction) {
@@ -279,19 +355,27 @@ export class ExtensionEditor extends EditorPane {
 					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
 				}
 				return undefined;
-			}
+			},
+			focusOnlyEnabledItems: true
 		}));
 
-		const subtextContainer = append(details, $('.subtext-container'));
-		const subtext = append(subtextContainer, $('.subtext'));
-		const ignoreActionbar = this._register(new ActionBar(subtextContainer, { animated: false }));
+		extensionActionBar.push(actions, { icon: true, label: true });
+		extensionActionBar.setFocusable(true);
+		// update focusable elements when the enablement of an action changes
+		this._register(Event.any(...actions.map(a => Event.filter(a.onDidChange, e => e.enabled !== undefined)))(() => {
+			extensionActionBar.setFocusable(false);
+			extensionActionBar.setFocusable(true);
+		}));
+
+		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
+		for (const disposable of [...actions, ...widgets, extensionContainers]) {
+			this._register(disposable);
+		}
+
+		const status = append(actionsAndStatusContainer, $('.status'));
+		const recommendation = append(details, $('.recommendation'));
 
 		this._register(Event.chain(extensionActionBar.onDidRun)
-			.map(({ error }) => error)
-			.filter(error => !!error)
-			.on(this.onError, this));
-
-		this._register(Event.chain(ignoreActionbar.onDidRun)
 			.map(({ error }) => error)
 			.filter(error => !!error)
 			.on(this.onError, this));
@@ -306,23 +390,31 @@ export class ExtensionEditor extends EditorPane {
 			builtin,
 			content,
 			description,
-			extensionActionBar,
 			header,
 			icon,
 			iconContainer,
-			identifier,
-			version,
-			ignoreActionbar,
 			installCount,
-			license,
 			name,
 			navbar,
 			preview,
 			publisher,
+			publisherDisplayName,
+			verifiedPublisherIcon,
 			rating,
-			repository,
-			subtext,
-			subtextContainer
+			actionsAndStatusContainer,
+			extensionActionBar,
+			status,
+			recommendation,
+			set extension(extension: IExtension) {
+				extensionContainers.extension = extension;
+			},
+			set gallery(gallery: IGalleryExtension | null) {
+				versionWidget.gallery = gallery;
+				preReleaseWidget.gallery = gallery;
+			},
+			set manifest(manifest: IExtensionManifest | null) {
+				installAction.manifest = manifest;
+			}
 		};
 	}
 
@@ -340,49 +432,129 @@ export class ExtensionEditor extends EditorPane {
 		return disposables;
 	}
 
-	async setInput(input: ExtensionsInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: ExtensionsInput, options: IExtensionEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
+		this.updatePreReleaseVersionContext();
 		if (this.template) {
-			await this.updateTemplate(input, this.template, !!options?.preserveFocus);
+			this.render(input.extension, this.template, !!options?.preserveFocus);
 		}
 	}
 
-	private async updateTemplate(input: ExtensionsInput, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
-		this.activeElement = null;
-		this.editorLoadComplete = false;
-		const extension = input.extension;
-
-		if (this.currentIdentifier !== extension.identifier.id) {
-			this.initialScrollProgress.clear();
-			this.currentIdentifier = extension.identifier.id;
+	override setOptions(options: IExtensionEditorOptions | undefined): void {
+		const currentOptions: IExtensionEditorOptions | undefined = this.options;
+		super.setOptions(options);
+		this.updatePreReleaseVersionContext();
+		if (this.input && this.template && currentOptions?.showPreReleaseVersion !== options?.showPreReleaseVersion) {
+			this.render((this.input as ExtensionsInput).extension, this.template, !!options?.preserveFocus);
 		}
+	}
 
+	private updatePreReleaseVersionContext(): void {
+		let showPreReleaseVersion = (<IExtensionEditorOptions | undefined>this.options)?.showPreReleaseVersion;
+		if (isUndefined(showPreReleaseVersion)) {
+			showPreReleaseVersion = !!(<ExtensionsInput>this.input).extension.gallery?.properties.isPreReleaseVersion;
+		}
+		this.showPreReleaseVersionContextKey?.set(showPreReleaseVersion);
+	}
+
+	async openTab(tab: ExtensionEditorTab): Promise<void> {
+		if (!this.input || !this.template) {
+			return;
+		}
+		if (this.template.navbar.switch(tab)) {
+			return;
+		}
+		// Fallback to Readme tab if ExtensionPack tab does not exist
+		if (tab === ExtensionEditorTab.ExtensionPack) {
+			this.template.navbar.switch(ExtensionEditorTab.Readme);
+		}
+	}
+
+	private async getGalleryVersionToShow(extension: IExtension, preRelease?: boolean): Promise<IGalleryExtension | null> {
+		if (isUndefined(preRelease)) {
+			return null;
+		}
+		if (preRelease === extension.gallery?.properties.isPreReleaseVersion) {
+			return null;
+		}
+		if (preRelease && !extension.hasPreReleaseVersion) {
+			return null;
+		}
+		if (!preRelease && !extension.hasReleaseVersion) {
+			return null;
+		}
+		return (await this.extensionGalleryService.getExtensions([{ ...extension.identifier, preRelease, hasPreRelease: extension.hasPreReleaseVersion }], CancellationToken.None))[0] || null;
+	}
+
+	private async render(extension: IExtension, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
+		this.activeElement = null;
 		this.transientDisposables.clear();
 
-		this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(token)));
-		this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(token)));
-		this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(token)));
+		const token = this.transientDisposables.add(new CancellationTokenSource()).token;
 
-		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, template.iconContainer, true);
-		const onError = Event.once(domEvent(template.icon, 'error'));
-		onError(() => template.icon.src = extension.iconUrlFallback, null, this.transientDisposables);
+		const gallery = await this.getGalleryVersionToShow(extension, (this.options as IExtensionEditorOptions)?.showPreReleaseVersion);
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		this.extensionReadme = new Cache(() => gallery ? this.extensionGalleryService.getReadme(gallery, token) : extension.getReadme(token));
+		this.extensionChangelog = new Cache(() => gallery ? this.extensionGalleryService.getChangelog(gallery, token) : extension.getChangelog(token));
+		this.extensionManifest = new Cache(() => gallery ? this.extensionGalleryService.getManifest(gallery, token) : extension.getManifest(token));
+
+		template.extension = extension;
+		template.gallery = gallery;
+		template.manifest = null;
+
+		this.transientDisposables.add(addDisposableListener(template.icon, 'error', () => template.icon.src = extension.iconUrlFallback, { once: true }));
 		template.icon.src = extension.iconUrl;
 
 		template.name.textContent = extension.displayName;
-		template.identifier.textContent = extension.identifier.id;
+		template.name.classList.toggle('clickable', !!extension.url);
 		template.preview.style.display = extension.preview ? 'inherit' : 'none';
 		template.builtin.style.display = extension.isBuiltin ? 'inherit' : 'none';
 
-		template.publisher.textContent = extension.publisherDisplayName;
-		template.version.textContent = `v${extension.version}`;
 		template.description.textContent = extension.description;
 
+		// subtitle
+		template.publisher.classList.toggle('clickable', !!extension.url);
+		template.publisherDisplayName.textContent = extension.publisherDisplayName;
+		template.verifiedPublisherIcon.style.display = extension.publisherDomain?.verified ? 'inherit' : 'none';
+		template.publisher.title = extension.publisherDomain?.verified && extension.publisherDomain.link ? localize('publisher verified tooltip', "This publisher has verified ownership of {0}", URI.parse(extension.publisherDomain.link).authority) : '';
+
+		template.installCount.parentElement?.classList.toggle('hide', !extension.url);
+		template.rating.parentElement?.classList.toggle('hide', !extension.url);
+		template.rating.classList.toggle('clickable', !!extension.url);
+
+		if (extension.url) {
+			this.transientDisposables.add(this.onClick(template.name, () => this.openerService.open(URI.parse(extension.url!))));
+			this.transientDisposables.add(this.onClick(template.rating, () => this.openerService.open(URI.parse(`${extension.url}&ssr=false#review-details`))));
+			this.transientDisposables.add(this.onClick(template.publisher, () => {
+				this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true)
+					.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
+					.then(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
+			}));
+		}
+
+		this.setStatus(extension, template);
+		this.setRecommendationText(extension, template);
+
+		const manifest = await this.extensionManifest.get().promise;
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		if (manifest) {
+			template.manifest = manifest;
+		}
+
+		this.renderNavbar(extension, manifest, template, preserveFocus);
+
+		// report telemetry
 		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
 		let recommendationsData = {};
 		if (extRecommendations[extension.identifier.id.toLowerCase()]) {
 			recommendationsData = { recommendationReason: extRecommendations[extension.identifier.id.toLowerCase()].reasonId };
 		}
-
 		/* __GDPR__
 		"extensionGallery:openExtension" : {
 			"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -393,137 +565,124 @@ export class ExtensionEditor extends EditorPane {
 		*/
 		this.telemetryService.publicLog('extensionGallery:openExtension', { ...extension.telemetryData, ...recommendationsData });
 
-		template.name.classList.toggle('clickable', !!extension.url);
-		template.publisher.classList.toggle('clickable', !!extension.url);
-		template.rating.classList.toggle('clickable', !!extension.url);
-		if (extension.url) {
-			this.transientDisposables.add(this.onClick(template.name, () => this.openerService.open(URI.parse(extension.url!))));
-			this.transientDisposables.add(this.onClick(template.rating, () => this.openerService.open(URI.parse(`${extension.url}#review-details`))));
-			this.transientDisposables.add(this.onClick(template.publisher, () => {
-				this.viewletService.openViewlet(VIEWLET_ID, true)
-					.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-					.then(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
-			}));
+	}
 
-			if (extension.licenseUrl) {
-				this.transientDisposables.add(this.onClick(template.license, () => this.openerService.open(URI.parse(extension.licenseUrl!))));
-				template.license.style.display = 'initial';
-			} else {
-				template.license.style.display = 'none';
-			}
-		} else {
-			template.license.style.display = 'none';
-		}
-
-		if (extension.repository) {
-			this.transientDisposables.add(this.onClick(template.repository, () => this.openerService.open(URI.parse(extension.repository!))));
-			template.repository.style.display = 'initial';
-		}
-		else {
-			template.repository.style.display = 'none';
-		}
-
-		const widgets = [
-			remoteBadge,
-			this.instantiationService.createInstance(InstallCountWidget, template.installCount, false),
-			this.instantiationService.createInstance(RatingsWidget, template.rating, false)
-		];
-		const reloadAction = this.instantiationService.createInstance(ReloadAction);
-		const combinedInstallAction = this.instantiationService.createInstance(InstallDropdownAction);
-		const systemDisabledWarningAction = this.instantiationService.createInstance(SystemDisabledWarningAction);
-		const actions = [
-			reloadAction,
-			this.instantiationService.createInstance(StatusLabelAction),
-			this.instantiationService.createInstance(UpdateAction),
-			this.instantiationService.createInstance(SetColorThemeAction, await this.workbenchThemeService.getColorThemes()),
-			this.instantiationService.createInstance(SetFileIconThemeAction, await this.workbenchThemeService.getFileIconThemes()),
-			this.instantiationService.createInstance(SetProductIconThemeAction, await this.workbenchThemeService.getProductIconThemes()),
-
-			this.instantiationService.createInstance(EnableDropDownAction),
-			this.instantiationService.createInstance(DisableDropDownAction),
-			this.instantiationService.createInstance(RemoteInstallAction, false),
-			this.instantiationService.createInstance(LocalInstallAction),
-			this.instantiationService.createInstance(WebInstallAction),
-			combinedInstallAction,
-			this.instantiationService.createInstance(InstallingLabelAction),
-			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.uninstall', UninstallAction.UninstallLabel, [
-				this.instantiationService.createInstance(UninstallAction),
-				this.instantiationService.createInstance(InstallAnotherVersionAction),
-			]),
-			this.instantiationService.createInstance(ToggleSyncExtensionAction),
-			this.instantiationService.createInstance(ExtensionEditorManageExtensionAction),
-			systemDisabledWarningAction,
-			this.instantiationService.createInstance(ExtensionToolTipAction, systemDisabledWarningAction, reloadAction),
-			this.instantiationService.createInstance(MaliciousStatusLabelAction, true),
-		];
-		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
-		extensionContainers.extension = extension;
-
-		template.extensionActionBar.clear();
-		template.extensionActionBar.push(actions, { icon: true, label: true });
-		for (const disposable of [...actions, ...widgets, extensionContainers]) {
-			this.transientDisposables.add(disposable);
-		}
-
-		this.setSubText(extension, template);
-		template.content.innerText = ''; // Clear content before setting navbar actions.
-
+	private renderNavbar(extension: IExtension, manifest: IExtensionManifest | null, template: IExtensionEditorTemplate, preserveFocus: boolean): void {
+		template.content.innerText = '';
 		template.navbar.clear();
 
-		if (extension.hasReadme()) {
-			template.navbar.push(NavbarSection.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
+		if (this.currentIdentifier !== extension.identifier.id) {
+			this.initialScrollProgress.clear();
+			this.currentIdentifier = extension.identifier.id;
 		}
 
-		const manifest = await this.extensionManifest.get().promise;
-		if (manifest) {
-			combinedInstallAction.manifest = manifest;
+		if (extension.hasReadme()) {
+			template.navbar.push(ExtensionEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
 		}
 		if (manifest && manifest.contributes) {
-			template.navbar.push(NavbarSection.Contributions, localize('contributions', "Feature Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
+			template.navbar.push(ExtensionEditorTab.Contributions, localize('contributions', "Feature Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
 		}
 		if (extension.hasChangelog()) {
-			template.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
+			template.navbar.push(ExtensionEditorTab.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
 		}
 		if (extension.dependencies.length) {
-			template.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
+			template.navbar.push(ExtensionEditorTab.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
+		}
+		if (manifest && manifest.extensionPack?.length && !this.shallRenderAsExensionPack(manifest)) {
+			template.navbar.push(ExtensionEditorTab.ExtensionPack, localize('extensionpack', "Extension Pack"), localize('extensionpacktooltip', "Lists extensions those will be installed together with this extension"));
+		}
+
+		const addRuntimeStatusSection = () => template.navbar.push(ExtensionEditorTab.RuntimeStatus, localize('runtimeStatus', "Runtime Status"), localize('runtimeStatus description', "Extension runtime status"));
+		if (this.extensionsWorkbenchService.getExtensionStatus(extension)) {
+			addRuntimeStatusSection();
+		} else {
+			const disposable = this.extensionService.onDidChangeExtensionsStatus(e => {
+				if (e.some(extensionIdentifier => areSameExtensions({ id: extensionIdentifier.value }, extension.identifier))) {
+					addRuntimeStatusSection();
+					disposable.dispose();
+				}
+			}, this, this.transientDisposables);
 		}
 
 		if (template.navbar.currentId) {
 			this.onNavbarChange(extension, { id: template.navbar.currentId, focus: !preserveFocus }, template);
 		}
 		template.navbar.onChange(e => this.onNavbarChange(extension, e, template), this, this.transientDisposables);
-
-		this.editorLoadComplete = true;
 	}
 
-	private setSubText(extension: IExtension, template: IExtensionEditorTemplate): void {
-		hide(template.subtextContainer);
-
-		const updateRecommendationFn = () => {
-			const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
-			if (extRecommendations[extension.identifier.id.toLowerCase()]) {
-				template.subtext.textContent = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
-				show(template.subtextContainer);
-			} else if (this.extensionIgnoredRecommendationsService.globalIgnoredRecommendations.indexOf(extension.identifier.id.toLowerCase()) !== -1) {
-				template.subtext.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
-				show(template.subtextContainer);
-			} else {
-				template.subtext.textContent = '';
-				hide(template.subtextContainer);
+	private setStatus(extension: IExtension, template: IExtensionEditorTemplate): void {
+		const disposables = this.transientDisposables.add(new DisposableStore());
+		const extensionStatus = disposables.add(this.instantiationService.createInstance(ExtensionStatusAction));
+		extensionStatus.extension = extension;
+		const updateStatus = (layout: boolean) => {
+			disposables.clear();
+			reset(template.status);
+			const status = extensionStatus.status;
+			if (status) {
+				if (status.icon) {
+					const statusIconActionBar = disposables.add(new ActionBar(template.status, { animated: false }));
+					statusIconActionBar.push(extensionStatus, { icon: true, label: false });
+				}
+				disposables.add(this.renderMarkdownText(status.message.value, append(template.status, $('.status-text'))));
+			}
+			if (layout && this.dimension) {
+				this.layout(this.dimension);
 			}
 		};
-		updateRecommendationFn();
-		this.transientDisposables.add(this.extensionRecommendationsService.onDidChangeRecommendations(() => updateRecommendationFn()));
+		updateStatus(false);
+		this.transientDisposables.add(extensionStatus.onDidChangeStatus(() => updateStatus(true)));
+
+		const updateActionLayout = () => template.actionsAndStatusContainer.classList.toggle('list-layout', extension.state === ExtensionState.Installed);
+		updateActionLayout();
+		this.transientDisposables.add(this.extensionsWorkbenchService.onChange(() => updateActionLayout()));
 	}
 
-	clearInput(): void {
+	private setRecommendationText(extension: IExtension, template: IExtensionEditorTemplate): void {
+		const updateRecommendationText = (layout: boolean) => {
+			const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
+			if (extRecommendations[extension.identifier.id.toLowerCase()]) {
+				const reasonText = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
+				if (reasonText) {
+					append(template.recommendation, $(`div${ThemeIcon.asCSSSelector(starEmptyIcon)}`));
+					append(template.recommendation, $(`div.recommendation-text`, undefined, reasonText));
+				}
+			} else if (this.extensionIgnoredRecommendationsService.globalIgnoredRecommendations.indexOf(extension.identifier.id.toLowerCase()) !== -1) {
+				append(template.recommendation, $(`div.recommendation-text`, undefined, localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.")));
+			}
+			if (layout && this.dimension) {
+				this.layout(this.dimension);
+			}
+		};
+		reset(template.recommendation);
+		if (extension.state === ExtensionState.Installed) {
+			return;
+		}
+		updateRecommendationText(false);
+		this.transientDisposables.add(this.extensionRecommendationsService.onDidChangeRecommendations(() => updateRecommendationText(true)));
+	}
+
+	private renderMarkdownText(markdownText: string, parent: HTMLElement): IDisposable {
+		const disposables = new DisposableStore();
+		const rendered = disposables.add(renderMarkdown(new MarkdownString(markdownText, { isTrusted: true, supportThemeIcons: true }), {
+			actionHandler: {
+				callback: (content) => {
+					this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
+				},
+				disposables: disposables
+			}
+		}));
+		append(parent, rendered.element);
+		return disposables;
+	}
+
+	override clearInput(): void {
 		this.contentDisposables.clear();
 		this.transientDisposables.clear();
 
 		super.clearInput();
 	}
 
-	focus(): void {
+	override focus(): void {
 		this.activeElement?.focus();
 	}
 
@@ -535,26 +694,14 @@ export class ExtensionEditor extends EditorPane {
 		this.activeWebview?.runFindAction(previous);
 	}
 
-	public get activeWebview(): Webview | undefined {
-		if (!this.activeElement || !(this.activeElement as Webview).runFindAction) {
+	public get activeWebview(): IWebview | undefined {
+		if (!this.activeElement || !(this.activeElement as IWebview).runFindAction) {
 			return undefined;
 		}
-		return this.activeElement as Webview;
+		return this.activeElement as IWebview;
 	}
 
-	private onNavbarChange(extension: IExtension, { id, focus }: { id: string | null, focus: boolean }, template: IExtensionEditorTemplate): void {
-		if (this.editorLoadComplete) {
-			/* __GDPR__
-				"extensionEditor:navbarChange" : {
-					"navItem": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"${include}": [
-						"${GalleryExtensionTelemetryData}"
-					]
-				}
-			*/
-			this.telemetryService.publicLog('extensionEditor:navbarChange', { ...extension.telemetryData, navItem: id });
-		}
-
+	private onNavbarChange(extension: IExtension, { id, focus }: { id: string | null, focus: boolean; }, template: IExtensionEditorTemplate): void {
 		this.contentDisposables.clear();
 		template.content.innerText = '';
 		this.activeElement = null;
@@ -576,22 +723,24 @@ export class ExtensionEditor extends EditorPane {
 
 	private open(id: string, extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		switch (id) {
-			case NavbarSection.Readme: return this.openReadme(template, token);
-			case NavbarSection.Contributions: return this.openContributions(template, token);
-			case NavbarSection.Changelog: return this.openChangelog(template, token);
-			case NavbarSection.Dependencies: return this.openDependencies(extension, template, token);
+			case ExtensionEditorTab.Readme: return this.openDetails(extension, template, token);
+			case ExtensionEditorTab.Contributions: return this.openContributions(template, token);
+			case ExtensionEditorTab.Changelog: return this.openChangelog(template, token);
+			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, template, token);
+			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, template, token);
+			case ExtensionEditorTab.RuntimeStatus: return this.openRuntimeStatus(extension, template, token);
 		}
 		return Promise.resolve(null);
 	}
 
-	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, template: IExtensionEditorTemplate, webviewIndex: WebviewIndex, token: CancellationToken): Promise<IActiveElement | null> {
+	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, container: HTMLElement, webviewIndex: WebviewIndex, token: CancellationToken): Promise<IActiveElement | null> {
 		try {
-			const body = await this.renderMarkdown(cacheResult, template);
+			const body = await this.renderMarkdown(cacheResult, container);
 			if (token.isCancellationRequested) {
 				return Promise.resolve(null);
 			}
 
-			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay('extensionEditor', {
+			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay(generateUuid(), {
 				enableFindWidget: true,
 				tryRestoreScrollPosition: true,
 			}, {}, undefined));
@@ -599,8 +748,8 @@ export class ExtensionEditor extends EditorPane {
 			webview.initialScrollProgress = this.initialScrollProgress.get(webviewIndex) || 0;
 
 			webview.claim(this, this.scopedContextKeyService);
-			setParentFlowTo(webview.container, template.content);
-			webview.layoutWebviewOverElement(template.content);
+			setParentFlowTo(webview.container, container);
+			webview.layoutWebviewOverElement(container);
 
 			webview.html = body;
 			webview.claim(this, undefined);
@@ -611,7 +760,7 @@ export class ExtensionEditor extends EditorPane {
 
 			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
 				layout: () => {
-					webview.layoutWebviewOverElement(template.content);
+					webview.layoutWebviewOverElement(container);
 				}
 			});
 			this.contentDisposables.add(toDisposable(removeLayoutParticipant));
@@ -621,7 +770,7 @@ export class ExtensionEditor extends EditorPane {
 
 			this.contentDisposables.add(this.themeService.onDidColorThemeChange(async () => {
 				// Render again since syntax highlighting of code blocks may have changed
-				const body = await this.renderMarkdown(cacheResult, template);
+				const body = await this.renderMarkdown(cacheResult, container);
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
 					webview.html = body;
 				}
@@ -632,26 +781,26 @@ export class ExtensionEditor extends EditorPane {
 					return;
 				}
 				// Only allow links with specific schemes
-				if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)
-					|| (matchesScheme(link, Schemas.command) && URI.parse(link).path === ShowCurrentReleaseNotesActionId)
-				) {
+				if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)) {
 					this.openerService.open(link);
 				}
-			}, null, this.contentDisposables));
+				if (matchesScheme(link, Schemas.command) && URI.parse(link).path === ShowCurrentReleaseNotesActionId) {
+					this.openerService.open(link, { allowCommands: true }); // TODO@sandy081 use commands service
+				}
+			}));
 
 			return webview;
 		} catch (e) {
-			const p = append(template.content, $('p.nocontent'));
+			const p = append(container, $('p.nocontent'));
 			p.textContent = noContentCopy;
 			return p;
 		}
 	}
 
-	private async renderMarkdown(cacheResult: CacheResult<string>, template: IExtensionEditorTemplate) {
-		const contents = await this.loadContents(() => cacheResult, template);
-		const content = await renderMarkdownDocument(contents, this.extensionService, this.modeService);
-		const sanitizedContent = removeEmbeddedSVGs(content);
-		return await this.renderBody(sanitizedContent);
+	private async renderMarkdown(cacheResult: CacheResult<string>, container: HTMLElement) {
+		const contents = await this.loadContents(() => cacheResult, container);
+		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService);
+		return this.renderBody(content);
 	}
 
 	private async renderBody(body: string): Promise<string> {
@@ -664,100 +813,7 @@ export class ExtensionEditor extends EditorPane {
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src 'nonce-${nonce}';">
 				<style nonce="${nonce}">
-					body {
-						padding: 10px 20px;
-						line-height: 22px;
-						max-width: 882px;
-						margin: 0 auto;
-					}
-
-					img {
-						max-width: 100%;
-						max-height: 100%;
-					}
-
-					a {
-						text-decoration: none;
-					}
-
-					a:hover {
-						text-decoration: underline;
-					}
-
-					a:focus,
-					input:focus,
-					select:focus,
-					textarea:focus {
-						outline: 1px solid -webkit-focus-ring-color;
-						outline-offset: -1px;
-					}
-
-					hr {
-						border: 0;
-						height: 2px;
-						border-bottom: 2px solid;
-					}
-
-					h1 {
-						padding-bottom: 0.3em;
-						line-height: 1.2;
-						border-bottom-width: 1px;
-						border-bottom-style: solid;
-					}
-
-					h1, h2, h3 {
-						font-weight: normal;
-					}
-
-					table {
-						border-collapse: collapse;
-					}
-
-					table > thead > tr > th {
-						text-align: left;
-						border-bottom: 1px solid;
-					}
-
-					table > thead > tr > th,
-					table > thead > tr > td,
-					table > tbody > tr > th,
-					table > tbody > tr > td {
-						padding: 5px 10px;
-					}
-
-					table > tbody > tr + tr > td {
-						border-top: 1px solid;
-					}
-
-					blockquote {
-						margin: 0 7px 0 5px;
-						padding: 0 16px 0 10px;
-						border-left-width: 5px;
-						border-left-style: solid;
-					}
-
-					code {
-						font-family: "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
-						font-size: 14px;
-						line-height: 19px;
-					}
-
-					pre code {
-						font-family: var(--vscode-editor-font-family);
-						font-weight: var(--vscode-editor-font-weight);
-						font-size: var(--vscode-editor-font-size);
-						line-height: 1.5;
-					}
-
-					code > div {
-						padding: 16px;
-						border-radius: 3px;
-						overflow: auto;
-					}
-
-					.monaco-tokenized-source {
-							white-space: pre;
-					}
+					${DEFAULT_MARKDOWN_STYLES}
 
 					#scroll-to-top {
 						position: fixed;
@@ -805,44 +861,6 @@ export class ExtensionEditor extends EditorPane {
 						width: 16px;
 						height: 16px;
 					}
-
-					/** Theming */
-					.vscode-light code > div {
-						background-color: rgba(220, 220, 220, 0.4);
-					}
-
-					.vscode-dark code > div {
-						background-color: rgba(10, 10, 10, 0.4);
-					}
-
-					.vscode-high-contrast code > div {
-						background-color: rgb(0, 0, 0);
-					}
-
-					.vscode-high-contrast h1 {
-						border-color: rgb(0, 0, 0);
-					}
-
-					.vscode-light table > thead > tr > th {
-						border-color: rgba(0, 0, 0, 0.69);
-					}
-
-					.vscode-dark table > thead > tr > th {
-						border-color: rgba(255, 255, 255, 0.69);
-					}
-
-					.vscode-light h1,
-					.vscode-light hr,
-					.vscode-light table > tbody > tr + tr > td {
-						border-color: rgba(0, 0, 0, 0.18);
-					}
-
-					.vscode-dark h1,
-					.vscode-dark hr,
-					.vscode-dark table > tbody > tr + tr > td {
-						border-color: rgba(255, 255, 255, 0.18);
-					}
-
 					${css}
 				</style>
 			</head>
@@ -853,20 +871,37 @@ export class ExtensionEditor extends EditorPane {
 		</html>`;
 	}
 
-	private async openReadme(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private async openDetails(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		const details = append(template.content, $('.details'));
+		const readmeContainer = append(details, $('.readme-container'));
+		const additionalDetailsContainer = append(details, $('.additional-details-container'));
+
+		const layout = () => details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);
+		layout();
+		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
+
+		let activeElement: IActiveElement | null = null;
 		const manifest = await this.extensionManifest!.get().promise;
-		if (manifest && manifest.extensionPack && manifest.extensionPack.length) {
-			return this.openExtensionPackReadme(manifest, template, token);
+		if (manifest && manifest.extensionPack?.length && this.shallRenderAsExensionPack(manifest)) {
+			activeElement = await this.openExtensionPackReadme(manifest, readmeContainer, token);
+		} else {
+			activeElement = await this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContainer, WebviewIndex.Readme, token);
 		}
-		return this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), template, WebviewIndex.Readme, token);
+
+		this.renderAdditionalDetails(additionalDetailsContainer, extension);
+		return activeElement;
 	}
 
-	private async openExtensionPackReadme(manifest: IExtensionManifest, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private shallRenderAsExensionPack(manifest: IExtensionManifest): boolean {
+		return !!(manifest.categories?.some(category => category.toLowerCase() === 'extension packs'));
+	}
+
+	private async openExtensionPackReadme(manifest: IExtensionManifest, container: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
 			return Promise.resolve(null);
 		}
 
-		const extensionPackReadme = append(template.content, $('div', { class: 'extension-pack-readme' }));
+		const extensionPackReadme = append(container, $('div', { class: 'extension-pack-readme' }));
 		extensionPackReadme.style.margin = '0 auto';
 		extensionPackReadme.style.maxWidth = '882px';
 
@@ -890,19 +925,99 @@ export class ExtensionEditor extends EditorPane {
 
 		await Promise.all([
 			this.renderExtensionPack(manifest, extensionPackContent, token),
-			this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), { ...template, ...{ content: readmeContent } }, WebviewIndex.Readme, token),
+			this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContent, WebviewIndex.Readme, token),
 		]);
 
 		return { focus: () => extensionPackContent.focus() };
 	}
 
+	private renderAdditionalDetails(container: HTMLElement, extension: IExtension): void {
+		const content = $('div', { class: 'additional-details-content', tabindex: '0' });
+		const scrollableContent = new DomScrollableElement(content, {});
+		const layout = () => scrollableContent.scanDomNode();
+		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
+		this.contentDisposables.add(scrollableContent);
+
+		this.renderCategories(content, extension);
+		this.renderResources(content, extension);
+		this.renderMoreInfo(content, extension);
+
+		append(container, scrollableContent.getDomNode());
+		scrollableContent.scanDomNode();
+	}
+
+	private renderCategories(container: HTMLElement, extension: IExtension): void {
+		if (extension.categories.length) {
+			const categoriesContainer = append(container, $('.categories-container'));
+			append(categoriesContainer, $('.additional-details-title', undefined, localize('categories', "Categories")));
+			const categoriesElement = append(categoriesContainer, $('.categories'));
+			for (const category of extension.categories) {
+				this.transientDisposables.add(this.onClick(append(categoriesElement, $('span.category', undefined, category)), () => {
+					this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true)
+						.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
+						.then(viewlet => viewlet.search(`@category:"${category}"`));
+				}));
+			}
+		}
+	}
+
+	private renderResources(container: HTMLElement, extension: IExtension): void {
+		const resources: [string, URI][] = [];
+		if (extension.url) {
+			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
+		}
+		if (extension.repository) {
+			resources.push([localize('repository', "Repository"), URI.parse(extension.repository)]);
+		}
+		if (extension.url && extension.licenseUrl) {
+			resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
+		}
+		if (extension.publisherDomain?.verified) {
+			const publisherDomainUri = URI.parse(extension.publisherDomain.link);
+			resources.push([publisherDomainUri.authority, publisherDomainUri]);
+		}
+		if (resources.length) {
+			const resourcesContainer = append(container, $('.resources-container'));
+			append(resourcesContainer, $('.additional-details-title', undefined, localize('resources', "Resources")));
+			const resourcesElement = append(resourcesContainer, $('.resources'));
+			for (const [label, uri] of resources) {
+				this.transientDisposables.add(this.onClick(append(resourcesElement, $('a.resource', { title: uri.toString() }, label)), () => this.openerService.open(uri)));
+			}
+		}
+	}
+
+	private renderMoreInfo(container: HTMLElement, extension: IExtension): void {
+		const gallery = extension.gallery;
+		const moreInfoContainer = append(container, $('.more-info-container'));
+		append(moreInfoContainer, $('.additional-details-title', undefined, localize('more info', "More Info")));
+		const moreInfo = append(moreInfoContainer, $('.more-info'));
+		if (gallery) {
+			append(moreInfo,
+				$('.more-info-entry', undefined,
+					$('div', undefined, localize('release date', "Released on")),
+					$('div', undefined, new Date(gallery.releaseDate).toLocaleString(undefined, { hour12: false }))
+				),
+				$('.more-info-entry', undefined,
+					$('div', undefined, localize('last updated', "Last updated")),
+					$('div', undefined, new Date(gallery.lastUpdated).toLocaleString(undefined, { hour12: false }))
+				)
+			);
+		}
+		append(moreInfo,
+			$('.more-info-entry', undefined,
+				$('div', undefined, localize('id', "Identifier")),
+				$('code', undefined, extension.identifier.id)
+			));
+	}
+
 	private openChangelog(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template, WebviewIndex.Changelog, token);
+		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template.content, WebviewIndex.Changelog, token);
 	}
 
 	private openContributions(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		const content = $('div', { class: 'subcontent', tabindex: '0' });
-		return this.loadContents(() => this.extensionManifest!.get(), template)
+		const content = $('div.subcontent.feature-contributions', { tabindex: '0' });
+		return this.loadContents(() => this.extensionManifest!.get(), template.content)
 			.then(manifest => {
 				if (token.isCancellationRequested) {
 					return null;
@@ -925,6 +1040,7 @@ export class ExtensionEditor extends EditorPane {
 					this.renderLanguages(content, manifest, layout),
 					this.renderColorThemes(content, manifest, layout),
 					this.renderIconThemes(content, manifest, layout),
+					this.renderProductIconThemes(content, manifest, layout),
 					this.renderColors(content, manifest, layout),
 					this.renderJSONValidation(content, manifest, layout),
 					this.renderDebuggers(content, manifest, layout),
@@ -932,6 +1048,8 @@ export class ExtensionEditor extends EditorPane {
 					this.renderViews(content, manifest, layout),
 					this.renderLocalizations(content, manifest, layout),
 					this.renderCustomEditors(content, manifest, layout),
+					this.renderNotebooks(content, manifest, layout),
+					this.renderNotebookRenderers(content, manifest, layout),
 					this.renderAuthentication(content, manifest, layout),
 					this.renderActivationEvents(content, manifest, layout),
 				];
@@ -958,7 +1076,7 @@ export class ExtensionEditor extends EditorPane {
 			});
 	}
 
-	private openDependencies(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private openExtensionDependencies(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
 			return Promise.resolve(null);
 		}
@@ -991,16 +1109,100 @@ export class ExtensionEditor extends EditorPane {
 		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
 	}
 
-	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement, token: CancellationToken): Promise<void> {
+	private async openExtensionPack(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
-			return;
+			return Promise.resolve(null);
+		}
+		const manifest = await this.loadContents(() => this.extensionManifest!.get(), template.content);
+		if (token.isCancellationRequested) {
+			return null;
+		}
+		if (!manifest) {
+			return null;
+		}
+		return this.renderExtensionPack(manifest, template.content, token);
+	}
+
+	private async openRuntimeStatus(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		const content = $('div', { class: 'subcontent', tabindex: '0' });
+
+		const scrollableContent = new DomScrollableElement(content, {});
+		const layout = () => scrollableContent.scanDomNode();
+		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
+
+		const updateContent = () => {
+			scrollableContent.scanDomNode();
+			reset(content, this.renderRuntimeStatus(extension, layout));
+		};
+
+		updateContent();
+		this.extensionService.onDidChangeExtensionsStatus(e => {
+			if (e.some(extensionIdentifier => areSameExtensions({ id: extensionIdentifier.value }, extension.identifier))) {
+				updateContent();
+			}
+		}, this, this.contentDisposables);
+
+		this.contentDisposables.add(scrollableContent);
+		append(template.content, scrollableContent.getDomNode());
+		return content;
+	}
+
+	private renderRuntimeStatus(extension: IExtension, onDetailsToggle: Function): HTMLElement {
+		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(extension);
+		const element = $('.runtime-status');
+
+		if (extensionStatus?.activationTimes) {
+			const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
+			append(element, $('div.activation-message', undefined, `${localize('activation', "Activation time")}${extensionStatus.activationTimes.activationReason.startup ? ` (${localize('startup', "Startup")})` : ''} : ${activationTime}ms`));
+		}
+
+		else if (extension.local && (extension.local.manifest.main || extension.local.manifest.browser)) {
+			append(element, $('div.activation-message', undefined, localize('not yet activated', "Not yet activated.")));
+		}
+
+		if (extensionStatus?.runtimeErrors.length) {
+			append(element, $('details', { open: true, ontoggle: onDetailsToggle },
+				$('summary', { tabindex: '0' }, localize('uncaught errors', "Uncaught Errors ({0})", extensionStatus.runtimeErrors.length)),
+				$('div', undefined,
+					...extensionStatus.runtimeErrors.map(error => $('div.message-entry', undefined,
+						$(`span${ThemeIcon.asCSSSelector(errorIcon)}`, undefined),
+						$('span', undefined, getErrorMessage(error)),
+					))
+				),
+			));
+		}
+
+		if (extensionStatus?.messages.length) {
+			append(element, $('details', { open: true, ontoggle: onDetailsToggle },
+				$('summary', { tabindex: '0' }, localize('messages', "Messages ({0})", extensionStatus?.messages.length)),
+				$('div', undefined,
+					...extensionStatus.messages.sort((a, b) => b.type - a.type)
+						.map(message => $('div.message-entry', undefined,
+							$(`span${ThemeIcon.asCSSSelector(message.type === Severity.Error ? errorIcon : message.type === Severity.Warning ? warningIcon : infoIcon)}`, undefined),
+							$('span', undefined, message.message)
+						))
+				),
+			));
+		}
+
+		if (element.children.length === 0) {
+			append(element, $('div.no-status-message')).textContent = localize('noStatus', "No status available.");
+		}
+
+		return element;
+	}
+
+	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
+		if (token.isCancellationRequested) {
+			return null;
 		}
 
 		const content = $('div', { class: 'subcontent' });
 		const scrollableContent = new DomScrollableElement(content, { useShadows: false });
 		append(parent, scrollableContent.getDomNode());
 
-		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content);
+		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content, new Delegate());
 		const extensions: IExtension[] = await getExtensions(manifest.extensionPack!, this.extensionsWorkbenchService);
 		extensionsGridView.setExtensions(extensions);
 		scrollableContent.scanDomNode();
@@ -1008,6 +1210,8 @@ export class ExtensionEditor extends EditorPane {
 		this.contentDisposables.add(scrollableContent);
 		this.contentDisposables.add(extensionsGridView);
 		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout: () => scrollableContent.scanDomNode() })));
+
+		return content;
 	}
 
 	private renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
@@ -1034,11 +1238,18 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('description', "Description")),
 					$('th', undefined, localize('default', "Default"))
 				),
-				...contrib.map(key => $('tr', undefined,
-					$('td', undefined, $('code', undefined, key)),
-					$('td', undefined, properties[key].description),
-					$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`))
-				))
+				...contrib.map(key => {
+					let description: (Node | string) = properties[key].description;
+					if (properties[key].markdownDescription) {
+						const { element, dispose } = renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this.contentDisposables } });
+						description = element;
+						this.contentDisposables.add(toDisposable(dispose));
+					}
+					return $('tr', undefined,
+						$('td', undefined, $('code', undefined, key)),
+						$('td', undefined, description),
+						$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`)));
+				})
 			)
 		);
 
@@ -1076,7 +1287,7 @@ export class ExtensionEditor extends EditorPane {
 			let viewContainersForLocation: IViewContainer[] = contrib[location];
 			result.push(...viewContainersForLocation.map(viewContainer => ({ ...viewContainer, location })));
 			return result;
-		}, [] as Array<{ id: string, title: string, location: string }>);
+		}, [] as Array<{ id: string, title: string, location: string; }>);
 
 		if (!viewContainers.length) {
 			return false;
@@ -1101,7 +1312,7 @@ export class ExtensionEditor extends EditorPane {
 			let viewsForLocation: IView[] = contrib[location];
 			result.push(...viewsForLocation.map(view => ({ ...view, location })));
 			return result;
-		}, [] as Array<{ id: string, name: string, location: string }>);
+		}, [] as Array<{ id: string, name: string, location: string; }>);
 
 		if (!views.length) {
 			return false;
@@ -1128,7 +1339,7 @@ export class ExtensionEditor extends EditorPane {
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', { tabindex: '0' }, localize('localizations', "Localizations ({0})", localizations.length)),
 			$('table', undefined,
-				$('tr', undefined, $('th', undefined, localize('localizations language id', "Language Id")), $('th', undefined, localize('localizations language name', "Language Name")), $('th', undefined, localize('localizations localized language name', "Language Name (Localized)"))),
+				$('tr', undefined, $('th', undefined, localize('localizations language id', "Language ID")), $('th', undefined, localize('localizations language name', "Language Name")), $('th', undefined, localize('localizations localized language name', "Language Name (Localized)"))),
 				...localizations.map(localization => $('tr', undefined, $('td', undefined, localization.languageId), $('td', undefined, localization.languageName || ''), $('td', undefined, localization.localizedLanguageName || '')))
 			)
 		);
@@ -1242,6 +1453,21 @@ export class ExtensionEditor extends EditorPane {
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', { tabindex: '0' }, localize('iconThemes', "File Icon Themes ({0})", contrib.length)),
+			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderProductIconThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contrib = manifest.contributes?.productIconThemes || [];
+		if (!contrib.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', { tabindex: '0' }, localize('productThemes', "Product Icon Themes ({0})", contrib.length)),
 			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
 		);
 
@@ -1367,7 +1593,9 @@ export class ExtensionEditor extends EditorPane {
 
 		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
 			const element = $('');
-			new KeybindingLabel(element, OS).set(keybinding);
+			const kbl = new KeybindingLabel(element, OS);
+			kbl.set(keybinding);
+			this.contentDisposables.add(attachKeybindingLabelStyler(kbl, this.themeService));
 			return element;
 		};
 
@@ -1450,8 +1678,8 @@ export class ExtensionEditor extends EditorPane {
 					$('td', undefined, l.id),
 					$('td', undefined, l.name),
 					$('td', undefined, ...join(l.extensions.map(ext => $('code', undefined, ext)), ' ')),
-					$('td', undefined, document.createTextNode(l.hasGrammar ? '✔︎' : '—')),
-					$('td', undefined, document.createTextNode(l.hasSnippets ? '✔︎' : '—'))
+					$('td', undefined, document.createTextNode(l.hasGrammar ? '✔︎' : '\u2014')),
+					$('td', undefined, document.createTextNode(l.hasSnippets ? '✔︎' : '\u2014'))
 				))
 			)
 		);
@@ -1475,6 +1703,54 @@ export class ExtensionEditor extends EditorPane {
 		return true;
 	}
 
+	private renderNotebooks(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contrib = manifest.contributes?.notebooks || [];
+
+		if (!contrib.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', { tabindex: '0' }, localize('Notebooks', "Notebooks ({0})", contrib.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('Notebook id', "Id")),
+					$('th', undefined, localize('Notebook name', "Name")),
+				),
+				...contrib.map(d => $('tr', undefined,
+					$('td', undefined, d.type),
+					$('td', undefined, d.displayName)))
+			)
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderNotebookRenderers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contrib = manifest.contributes?.notebookRenderer || [];
+
+		if (!contrib.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', { tabindex: '0' }, localize('NotebookRenderers', "Notebook Renderers ({0})", contrib.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('Notebook renderer name', "Name")),
+					$('th', undefined, localize('Notebook mimetypes', "Mimetypes")),
+				),
+				...contrib.map(d => $('tr', undefined,
+					$('td', undefined, d.displayName),
+					$('td', undefined, d.mimeTypes.join(','))))
+			)
+		);
+
+		append(container, details);
+		return true;
+	}
+
 	private resolveKeybinding(rawKeyBinding: IKeyBinding): ResolvedKeybinding | null {
 		let key: string | undefined;
 
@@ -1484,30 +1760,26 @@ export class ExtensionEditor extends EditorPane {
 			case 'darwin': key = rawKeyBinding.mac; break;
 		}
 
-		const keyBinding = KeybindingParser.parseKeybinding(key || rawKeyBinding.key, OS);
-		if (keyBinding) {
-			return this.keybindingService.resolveKeybinding(keyBinding)[0];
-
-		}
-		return null;
+		return this.keybindingService.resolveUserBinding(key || rawKeyBinding.key)[0];
 	}
 
-	private loadContents<T>(loadingTask: () => CacheResult<T>, template: IExtensionEditorTemplate): Promise<T> {
-		template.content.classList.add('loading');
+	private loadContents<T>(loadingTask: () => CacheResult<T>, container: HTMLElement): Promise<T> {
+		container.classList.add('loading');
 
 		const result = this.contentDisposables.add(loadingTask());
-		const onDone = () => template.content.classList.remove('loading');
+		const onDone = () => container.classList.remove('loading');
 		result.promise.then(onDone, onDone);
 
 		return result.promise;
 	}
 
-	layout(): void {
+	layout(dimension: Dimension): void {
+		this.dimension = dimension;
 		this.layoutParticipants.forEach(p => p.layout());
 	}
 
 	private onError(err: any): void {
-		if (isPromiseCanceledError(err)) {
+		if (isCancellationError(err)) {
 			return;
 		}
 
@@ -1524,7 +1796,7 @@ registerAction2(class ShowExtensionEditorFindAction extends Action2 {
 			keybinding: {
 				when: contextKeyExpr,
 				weight: KeybindingWeight.EditorContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyF,
 			}
 		});
 	}
@@ -1578,6 +1850,36 @@ registerAction2(class StartExtensionEditorFindPreviousAction extends Action2 {
 			extensionEditor.runFindAction(true);
 		}
 	}
+});
+
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+
+	const link = theme.getColor(textLinkForeground);
+	if (link) {
+		collector.addRule(`.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content .feature-contributions a { color: ${link}; }`);
+	}
+
+	const activeLink = theme.getColor(textLinkActiveForeground);
+	if (activeLink) {
+		collector.addRule(`.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a:hover,
+			.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a:active { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content .feature-contributions a:hover,
+			.monaco-workbench .extension-editor .content .feature-contributions a:active { color: ${activeLink}; }`);
+	}
+
+	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
+	if (buttonHoverBackgroundColor) {
+		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .categories-container > .categories > .category:hover { background-color: ${buttonHoverBackgroundColor}; border-color: ${buttonHoverBackgroundColor}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .tags-container > .tags > .tag:hover { background-color: ${buttonHoverBackgroundColor}; border-color: ${buttonHoverBackgroundColor}; }`);
+	}
+
+	const buttonForegroundColor = theme.getColor(buttonForeground);
+	if (buttonForegroundColor) {
+		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .categories-container > .categories > .category:hover { color: ${buttonForegroundColor}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .tags-container > .tags > .tag:hover { color: ${buttonForegroundColor}; }`);
+	}
+
 });
 
 function getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor | null {

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
 import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/links';
+import { dirname } from '../util/path';
 
 const localize = nls.loadMessageBundle();
 
@@ -15,7 +15,9 @@ function parseLink(
 	document: vscode.TextDocument,
 	link: string,
 ): { uri: vscode.Uri, tooltip?: string } | undefined {
-	const externalSchemeUri = getUriForLinkWithKnownExternalScheme(link);
+
+	const cleanLink = stripAngleBrackets(link);
+	const externalSchemeUri = getUriForLinkWithKnownExternalScheme(cleanLink);
 	if (externalSchemeUri) {
 		// Normalize VS Code links to target currently running version
 		if (isOfScheme(Schemes.vscode, link) || isOfScheme(Schemes['vscode-insiders'], link)) {
@@ -43,7 +45,7 @@ function parseLink(
 				resourceUri = vscode.Uri.joinPath(root, tempUri.path);
 			}
 		} else {
-			const base = document.uri.with({ path: path.dirname(document.uri.fsPath) });
+			const base = document.uri.with({ path: dirname(document.uri.fsPath) });
 			resourceUri = vscode.Uri.joinPath(base, tempUri.path);
 		}
 	}
@@ -89,10 +91,22 @@ function extractDocumentLink(
 	}
 }
 
+const angleBracketLinkRe = /^<(.*)>$/;
+
+/**
+ * Used to strip brackets from the markdown link
+ *
+ * <http://example.com> will be transformed to http://example.com
+*/
+export function stripAngleBrackets(link: string) {
+	return link.replace(angleBracketLinkRe, '$1');
+}
+
+const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*(".*?")?\)/g;
+const referenceLinkPattern = /(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]/g;
+const definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>]+>)/gm;
+
 export default class LinkProvider implements vscode.DocumentLinkProvider {
-	private readonly linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*(".*?")?\)/g;
-	private readonly referenceLinkPattern = /(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]/g;
-	private readonly definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)(\S+)/gm;
 
 	public provideDocumentLinks(
 		document: vscode.TextDocument,
@@ -111,7 +125,7 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 		document: vscode.TextDocument,
 	): vscode.DocumentLink[] {
 		const results: vscode.DocumentLink[] = [];
-		for (const match of text.matchAll(this.linkPattern)) {
+		for (const match of text.matchAll(linkPattern)) {
 			const matchImage = match[4] && extractDocumentLink(document, match[3].length + 1, match[4], match.index);
 			if (matchImage) {
 				results.push(matchImage);
@@ -130,8 +144,8 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 	): vscode.DocumentLink[] {
 		const results: vscode.DocumentLink[] = [];
 
-		const definitions = this.getDefinitions(text, document);
-		for (const match of text.matchAll(this.referenceLinkPattern)) {
+		const definitions = LinkProvider.getDefinitions(text, document);
+		for (const match of text.matchAll(referenceLinkPattern)) {
 			let linkStart: vscode.Position;
 			let linkEnd: vscode.Position;
 			let reference = match[3];
@@ -175,21 +189,29 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 		return results;
 	}
 
-	private getDefinitions(text: string, document: vscode.TextDocument) {
+	public static getDefinitions(text: string, document: vscode.TextDocument) {
 		const out = new Map<string, { link: string, linkRange: vscode.Range }>();
-		for (const match of text.matchAll(this.definitionPattern)) {
+		for (const match of text.matchAll(definitionPattern)) {
 			const pre = match[1];
 			const reference = match[2];
 			const link = match[3].trim();
-
 			const offset = (match.index || 0) + pre.length;
-			const linkStart = document.positionAt(offset);
-			const linkEnd = document.positionAt(offset + link.length);
 
-			out.set(reference, {
-				link: link,
-				linkRange: new vscode.Range(linkStart, linkEnd)
-			});
+			if (angleBracketLinkRe.test(link)) {
+				const linkStart = document.positionAt(offset + 1);
+				const linkEnd = document.positionAt(offset + link.length - 1);
+				out.set(reference, {
+					link: link.substring(1, link.length - 1),
+					linkRange: new vscode.Range(linkStart, linkEnd)
+				});
+			} else {
+				const linkStart = document.positionAt(offset);
+				const linkEnd = document.positionAt(offset + link.length);
+				out.set(reference, {
+					link: link,
+					linkRange: new vscode.Range(linkStart, linkEnd)
+				});
+			}
 		}
 		return out;
 	}

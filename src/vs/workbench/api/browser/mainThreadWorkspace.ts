@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { WorkspaceTrustStateChangeEvent, IWorkspaceTrustService, WorkspaceTrustRequest, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -31,7 +31,7 @@ import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, ITextSearchComp
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	private readonly _toDispose = new DisposableStore();
-	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource } = Object.create(null);
+	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource; } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
 	private readonly _queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 
@@ -47,20 +47,21 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
-		@IWorkspaceTrustService private readonly _workspaceTrustService: IWorkspaceTrustService
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		const workspace = this._contextService.getWorkspace();
 		// The workspace file is provided be a unknown file system provider. It might come
 		// from the extension host. So initialize now knowing that `rootPath` is undefined.
-		if (workspace.configuration && !isNative && !fileService.canHandleResource(workspace.configuration)) {
-			this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.getWorkspaceTrustState());
+		if (workspace.configuration && !isNative && !fileService.hasProvider(workspace.configuration)) {
+			this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted());
 		} else {
-			this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.getWorkspaceTrustState()));
+			this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted()));
 		}
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
 		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
-		this._workspaceTrustService.onDidChangeTrustState(this._onDidChangeWorkspaceTrustState, this, this._toDispose);
+		this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this, this._toDispose);
 	}
 
 	dispose(): void {
@@ -74,7 +75,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- workspace ---
 
-	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, foldersToAdd: { uri: UriComponents, name?: string }[]): Promise<void> {
+	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, foldersToAdd: { uri: UriComponents, name?: string; }[]): Promise<void> {
 		const workspaceFoldersToAdd = foldersToAdd.map(f => ({ uri: URI.revive(f.uri), name: f.name }));
 
 		// Indicate in status message
@@ -128,7 +129,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false,
 			folders: workspace.folders,
 			id: workspace.id,
-			name: this._labelService.getWorkspaceLabel(workspace)
+			name: this._labelService.getWorkspaceLabel(workspace),
+			transient: workspace.transient
 		};
 	}
 
@@ -156,7 +158,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return this._searchService.fileSearch(query, token).then(result => {
 			return result.results.map(m => m.resource);
 		}, err => {
-			if (!isPromiseCanceledError(err)) {
+			if (!isCancellationError(err)) {
 				return Promise.reject(err);
 			}
 			return null;
@@ -182,7 +184,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 				return { limitHit: result.limitHit };
 			},
 			err => {
-				if (!isPromiseCanceledError(err)) {
+				if (!isCancellationError(err)) {
 					return Promise.reject(err);
 				}
 
@@ -208,15 +210,15 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- trust ---
 
-	$requireWorkspaceTrust(request?: WorkspaceTrustRequest): Promise<WorkspaceTrustState> {
-		return this._workspaceTrustService.requireWorkspaceTrust(request);
+	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
+		return this._workspaceTrustRequestService.requestWorkspaceTrust(options);
 	}
 
-	private getWorkspaceTrustState(): WorkspaceTrustState {
-		return this._workspaceTrustService.getWorkspaceTrustState();
+	private isWorkspaceTrusted(): boolean {
+		return this._workspaceTrustManagementService.isWorkspaceTrusted();
 	}
 
-	private _onDidChangeWorkspaceTrustState(state: WorkspaceTrustStateChangeEvent): void {
-		this._proxy.$onDidChangeWorkspaceTrustState(state);
+	private _onDidGrantWorkspaceTrust(): void {
+		this._proxy.$onDidGrantWorkspaceTrust();
 	}
 }

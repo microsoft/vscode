@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyChord, KeyCode, KeyMod, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod, ScanCode } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding, createKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { ScanCode, ScanCodeBinding } from 'vs/base/common/scanCode';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 import { IResolvedKeybinding, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/electron-browser/keyboardMapperTestUtils';
 
@@ -19,7 +19,7 @@ suite('keyboardMapper - MAC fallback', () => {
 
 	test('resolveKeybinding Cmd+Z', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.KEY_Z,
+			KeyMod.CtrlCmd | KeyCode.KeyZ,
 			[{
 				label: '⌘Z',
 				ariaLabel: 'Command+Z',
@@ -35,7 +35,7 @@ suite('keyboardMapper - MAC fallback', () => {
 
 	test('resolveKeybinding Cmd+K Cmd+=', () => {
 		_assertResolveKeybinding(
-			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_EQUAL),
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Equal),
 			[{
 				label: '⌘K ⌘=',
 				ariaLabel: 'Command+K Command+=',
@@ -58,7 +58,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
-				keyCode: KeyCode.KEY_Z,
+				keyCode: KeyCode.KeyZ,
 				code: null!
 			},
 			{
@@ -82,7 +82,7 @@ suite('keyboardMapper - MAC fallback', () => {
 		assertResolveUserBinding(
 			mapper, [
 			new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
-			new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+			new SimpleKeybinding(false, false, false, true, KeyCode.Slash),
 		],
 			[{
 				label: '⌘, ⌘/',
@@ -161,7 +161,7 @@ suite('keyboardMapper - MAC fallback', () => {
 			},
 			{
 				label: '⌥',
-				ariaLabel: 'Alt',
+				ariaLabel: 'Option',
 				electronAccelerator: null,
 				userSettingsLabel: 'alt',
 				isWYSIWYG: true,
@@ -233,7 +233,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 
 	test('resolveKeybinding Ctrl+Z', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.KEY_Z,
+			KeyMod.CtrlCmd | KeyCode.KeyZ,
 			[{
 				label: 'Ctrl+Z',
 				ariaLabel: 'Control+Z',
@@ -249,7 +249,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 
 	test('resolveKeybinding Ctrl+K Ctrl+=', () => {
 		_assertResolveKeybinding(
-			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_EQUAL),
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Equal),
 			[{
 				label: 'Ctrl+K Ctrl+=',
 				ariaLabel: 'Control+K Control+=',
@@ -272,7 +272,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
-				keyCode: KeyCode.KEY_Z,
+				keyCode: KeyCode.KeyZ,
 				code: null!
 			},
 			{
@@ -292,7 +292,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 		assertResolveUserBinding(
 			mapper, [
 			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			new SimpleKeybinding(true, false, false, false, KeyCode.Slash),
 		],
 			[{
 				label: 'Ctrl+, Ctrl+/',

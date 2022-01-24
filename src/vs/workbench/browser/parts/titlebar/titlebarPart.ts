@@ -12,14 +12,14 @@ import { getZoomFactor } from 'vs/base/browser/browser';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { EditorResourceAccessor, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -28,20 +28,28 @@ import { trim } from 'vs/base/common/strings';
 import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame, prepend } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { template } from 'vs/base/common/labels';
+import { mnemonicButtonLabel, template } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, IMenu, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { getIconRegistry, registerIcon } from 'vs/platform/theme/common/iconRegistry';
+
+const layoutControlIcon = registerIcon('layout-control', Codicon.layout, localize('layoutControlIcon', "Icon for the layout control menu found in the title bar."));
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -65,10 +73,13 @@ export class TitlebarPart extends Part implements ITitleService {
 	declare readonly _serviceBrand: undefined;
 
 	protected title!: HTMLElement;
+
 	protected customMenubar: CustomMenubarControl | undefined;
 	protected appIcon: HTMLElement | undefined;
 	private appIconBadge: HTMLElement | undefined;
 	protected menubar?: HTMLElement;
+	protected windowControls: HTMLElement | undefined;
+	private layoutToolbar: ActionBar | undefined;
 	protected lastLayoutDimensions: Dimension | undefined;
 	private titleBarStyle: 'native' | 'custom';
 
@@ -87,15 +98,16 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IProductService private readonly productService: IProductService,
 	) {
@@ -133,7 +145,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.titleUpdater.schedule();
 		}
 
-		if (this.titleBarStyle !== 'native') {
+		if (this.titleBarStyle !== 'native' && (!isMacintosh || isWeb)) {
 			if (event.affectsConfiguration('window.menuBarVisibility')) {
 				if (this.currentMenubarVisibility === 'compact') {
 					this.uninstallMenubar();
@@ -141,6 +153,10 @@ export class TitlebarPart extends Part implements ITitleService {
 					this.installMenubar();
 				}
 			}
+		}
+
+		if (this.titleBarStyle !== 'native' && this.windowControls && event.affectsConfiguration('workbench.experimental.layoutControl.enabled')) {
+			this.windowControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
 		}
 	}
 
@@ -278,6 +294,19 @@ export class TitlebarPart extends Part implements ITitleService {
 			folder = withNullAsUndefined(this.contextService.getWorkspaceFolder(editorResource));
 		}
 
+		// Compute remote
+		// vscode-remtoe: use as is
+		// otherwise figure out if we have a virtual folder opened
+		let remoteName: string | undefined = undefined;
+		if (this.environmentService.remoteAuthority) {
+			remoteName = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.remoteAuthority);
+		} else {
+			const virtualWorkspaceLocation = getVirtualWorkspaceLocation(workspace);
+			if (virtualWorkspaceLocation) {
+				remoteName = this.labelService.getHostLabel(virtualWorkspaceLocation.scheme, virtualWorkspaceLocation.authority);
+			}
+		}
+
 		// Variables
 		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';
 		const activeEditorMedium = editor ? editor.getTitle(Verbosity.MEDIUM) : activeEditorShort;
@@ -291,7 +320,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
 		const dirty = editor?.isDirty() && !editor.isSaving() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.productService.nameLong;
-		const remoteName = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.remoteAuthority);
 		const separator = this.configurationService.getValue<string>('window.titleSeparator');
 		const titleTemplate = this.configurationService.getValue<string>('window.title');
 
@@ -341,7 +369,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this._register(this.customMenubar.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
 	}
 
-	createContentArea(parent: HTMLElement): HTMLElement {
+	override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
 		// App Icon (Native Windows/Linux and Web)
@@ -352,13 +380,10 @@ export class TitlebarPart extends Part implements ITitleService {
 			if (isWeb) {
 				const homeIndicator = this.environmentService.options?.homeIndicator;
 				if (homeIndicator) {
-					let codicon = iconRegistry.get(homeIndicator.icon);
-					if (!codicon) {
-						codicon = Codicon.code;
-					}
+					const icon: ThemeIcon = getIconRegistry().getIcon(homeIndicator.icon) ? { id: homeIndicator.icon } : Codicon.code;
 
 					this.appIcon.setAttribute('href', homeIndicator.href);
-					this.appIcon.classList.add(...codicon.classNamesArray);
+					this.appIcon.classList.add(...ThemeIcon.asClassNameArray(icon));
 					this.appIconBadge = document.createElement('div');
 					this.appIconBadge.classList.add('home-bar-icon-badge');
 					this.appIcon.appendChild(this.appIconBadge);
@@ -382,6 +407,53 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.titleUpdater.schedule();
 		}
 
+		if (this.titleBarStyle !== 'native') {
+			this.windowControls = append(this.element, $('div.window-controls-container'));
+			this.windowControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
+
+			const layoutDropdownContainer = append(this.windowControls, $('div.layout-dropdown-container'));
+			this.layoutToolbar = new ActionBar(layoutDropdownContainer,
+				{
+					ariaLabel: localize('layoutMenu', "Configure Layout"),
+					actionViewItemProvider: action => {
+						if (action instanceof SubmenuAction) {
+							return new DropdownMenuActionViewItem(action, action.actions, this.contextMenuService, {
+								classNames: ThemeIcon.asClassNameArray(layoutControlIcon),
+								anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
+								keybindingProvider: action => this.keybindingService.lookupKeybinding(action.id)
+							});
+						}
+						return undefined;
+					}
+				});
+
+
+			const menu = this._register(this.menuService.createMenu(MenuId.LayoutControlMenu, this.contextKeyService));
+			const updateLayoutMenu = () => {
+				if (!this.layoutToolbar) {
+					return;
+				}
+
+				const actions: IAction[] = [];
+				const toDispose = createAndFillInContextMenuActions(menu, undefined, { primary: [], secondary: actions });
+
+				this.layoutToolbar.clear();
+				this.layoutToolbar.push(new SubmenuAction('stenir', localize('layoutMenu', "Configure Layout"), actions.map(action => {
+					if (action instanceof MenuItemAction) {
+						(action as IAction).label = mnemonicButtonLabel(typeof action.item.title === 'string'
+							? action.item.title
+							: action.item.title.mnemonicTitle ?? action.item.title.value, true);
+					}
+					return action;
+				})));
+
+				toDispose.dispose();
+			};
+
+			menu.onDidChange(updateLayoutMenu);
+			updateLayoutMenu();
+		}
+
 		// Context menu on title
 		[EventType.CONTEXT_MENU, EventType.MOUSE_DOWN].forEach(event => {
 			this._register(addDisposableListener(this.title, event, e => {
@@ -400,6 +472,10 @@ export class TitlebarPart extends Part implements ITitleService {
 				return;
 			}
 
+			if (e.target && this.layoutToolbar && isAncestor(e.target as HTMLElement, this.layoutToolbar.getContainer())) {
+				return;
+			}
+
 			const active = document.activeElement;
 			setTimeout(() => {
 				if (active instanceof HTMLElement) {
@@ -413,7 +489,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		return this.element;
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 
 		// Part container
@@ -494,15 +570,25 @@ export class TitlebarPart extends Part implements ITitleService {
 		return getMenuBarVisibility(this.configurationService);
 	}
 
+	private get layoutControlEnabled(): boolean {
+		return this.configurationService.getValue<boolean>('workbench.experimental.layoutControl.enabled');
+	}
+
 	updateLayout(dimension: Dimension): void {
 		this.lastLayoutDimensions = dimension;
 
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if ((!isWeb && isMacintosh) || this.currentMenubarVisibility === 'hidden') {
-				this.title.style.zoom = `${1 / getZoomFactor()}`;
+				(this.title.style as any).zoom = `${1 / getZoomFactor()}`;
+				if (this.windowControls) {
+					(this.windowControls.style as any).zoom = `${1 / getZoomFactor()}`;
+				}
 			} else {
-				this.title.style.zoom = '';
+				(this.title.style as any).zoom = '';
+				if (this.windowControls) {
+					(this.windowControls.style as any).zoom = '';
+				}
 			}
 
 			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
@@ -514,7 +600,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
-	layout(width: number, height: number): void {
+	override layout(width: number, height: number): void {
 		this.updateLayout(new Dimension(width, height));
 
 		super.layoutContents(width, height);

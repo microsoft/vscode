@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises } from 'fs';
-import { exists, writeFile } from 'vs/base/node/pfs';
-import { Event, Emitter } from 'vs/base/common/event';
+import { DeferredPromise } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
-import { Storage, InMemoryStorageDatabase, StorageHint, IStorage } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
+import { Promises } from 'vs/base/node/pfs';
+import { InMemoryStorageDatabase, IStorage, Storage, StorageHint } from 'vs/base/parts/storage/common/storage';
+import { ISQLiteStorageDatabaseLoggingOptions, SQLiteStorageDatabase } from 'vs/base/parts/storage/node/storage';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
-import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { generateUuid } from 'vs/base/common/uuid';
+import { currentSessionDateStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export interface IStorageMainOptions {
@@ -46,6 +45,18 @@ export interface IStorageMain extends IDisposable {
 	 * Access to all cached items of this storage service.
 	 */
 	readonly items: Map<string, string>;
+
+	/**
+	 * Allows to join on the `init` call having completed
+	 * to be able to safely use the storage.
+	 */
+	readonly whenInit: Promise<void>;
+
+	/**
+	 * Provides access to the `IStorage` implementation which will be
+	 * in-memory for as long as the storage has not been initialized.
+	 */
+	readonly storage: IStorage;
 
 	/**
 	 * Required call to ensure the service can be used.
@@ -88,9 +99,13 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 	private readonly _onDidCloseStorage = this._register(new Emitter<void>());
 	readonly onDidCloseStorage = this._onDidCloseStorage.event;
 
-	private storage: IStorage = new Storage(new InMemoryStorageDatabase()); // storage is in-memory until initialized
+	private _storage: IStorage = new Storage(new InMemoryStorageDatabase()); // storage is in-memory until initialized
+	get storage(): IStorage { return this._storage; }
 
 	private initializePromise: Promise<void> | undefined = undefined;
+
+	private readonly whenInitPromise = new DeferredPromise<void>();
+	readonly whenInit = this.whenInitPromise.p;
 
 	constructor(
 		protected readonly logService: ILogService
@@ -109,8 +124,8 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 					// Replace our in-memory storage with the real
 					// once as soon as possible without awaiting
 					// the init call.
-					this.storage.dispose();
-					this.storage = storage;
+					this._storage.dispose();
+					this._storage = storage;
 
 					// Re-emit storage changes via event
 					this._register(storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
@@ -127,6 +142,8 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 					}
 				} catch (error) {
 					this.logService.error(`StorageMain#initialize(): Unable to init storage due to ${error}`);
+				} finally {
+					this.whenInitPromise.complete();
 				}
 			})();
 		}
@@ -134,7 +151,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 		return this.initializePromise;
 	}
 
-	protected createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
+	protected createLoggingOptions(): ISQLiteStorageDatabaseLoggingOptions {
 		return {
 			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
 			logError: error => this.logService.error(error)
@@ -147,20 +164,20 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
 	protected abstract doCreate(): Promise<IStorage>;
 
-	get items(): Map<string, string> { return this.storage.items; }
+	get items(): Map<string, string> { return this._storage.items; }
 
 	get(key: string, fallbackValue: string): string;
 	get(key: string, fallbackValue?: string): string | undefined;
 	get(key: string, fallbackValue?: string): string | undefined {
-		return this.storage.get(key, fallbackValue);
+		return this._storage.get(key, fallbackValue);
 	}
 
 	set(key: string, value: string | boolean | number | undefined | null): Promise<void> {
-		return this.storage.set(key, value);
+		return this._storage.set(key, value);
 	}
 
 	delete(key: string): Promise<void> {
-		return this.storage.delete(key);
+		return this._storage.delete(key);
 	}
 
 	async close(): Promise<void> {
@@ -174,7 +191,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 		}
 
 		// Propagate to storage lib
-		await this.storage.close();
+		await this._storage.close();
 
 		// Signal as event
 		this._onDidCloseStorage.fire();
@@ -202,11 +219,11 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 		}
 
 		return new Storage(new SQLiteStorageDatabase(storagePath, {
-			logging: this.createLogginOptions()
+			logging: this.createLoggingOptions()
 		}));
 	}
 
-	protected async doInit(storage: IStorage): Promise<void> {
+	protected override async doInit(storage: IStorage): Promise<void> {
 		await super.doInit(storage);
 
 		// Apply global telemetry values as part of the initialization
@@ -214,12 +231,6 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 	}
 
 	private updateTelemetryState(storage: IStorage): void {
-
-		// Instance UUID (once)
-		const instanceId = storage.get(instanceStorageKey, undefined);
-		if (instanceId === undefined) {
-			storage.set(instanceStorageKey, generateUuid());
-		}
 
 		// First session date (once)
 		const firstSessionDate = storage.get(firstSessionDateStorageKey, undefined);
@@ -255,7 +266,7 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		const { storageFilePath, wasCreated } = await this.prepareWorkspaceStorageFolder();
 
 		return new Storage(new SQLiteStorageDatabase(storageFilePath, {
-			logging: this.createLogginOptions()
+			logging: this.createLoggingOptions()
 		}), { hint: wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined });
 	}
 
@@ -270,13 +281,13 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		const workspaceStorageFolderPath = join(this.environmentService.workspaceStorageHome.fsPath, this.workspace.id);
 		const workspaceStorageDatabasePath = join(workspaceStorageFolderPath, WorkspaceStorageMain.WORKSPACE_STORAGE_NAME);
 
-		const storageExists = await exists(workspaceStorageFolderPath);
+		const storageExists = await Promises.exists(workspaceStorageFolderPath);
 		if (storageExists) {
 			return { storageFilePath: workspaceStorageDatabasePath, wasCreated: false };
 		}
 
 		// Ensure storage folder exists
-		await promises.mkdir(workspaceStorageFolderPath, { recursive: true });
+		await Promises.mkdir(workspaceStorageFolderPath, { recursive: true });
 
 		// Write metadata into folder (but do not await)
 		this.ensureWorkspaceStorageFolderMeta(workspaceStorageFolderPath);
@@ -295,9 +306,9 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		if (meta) {
 			try {
 				const workspaceStorageMetaPath = join(workspaceStorageFolderPath, WorkspaceStorageMain.WORKSPACE_META_NAME);
-				const storageExists = await exists(workspaceStorageMetaPath);
+				const storageExists = await Promises.exists(workspaceStorageMetaPath);
 				if (!storageExists) {
-					await writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
+					await Promises.writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
 				}
 			} catch (error) {
 				this.logService.error(`StorageMain#ensureWorkspaceStorageFolderMeta(): Unable to create workspace storage metadata due to ${error}`);

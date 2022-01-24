@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, dispose, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -53,7 +53,7 @@ interface CompositeItem {
 
 export abstract class CompositePart<T extends Composite> extends Part {
 
-	protected readonly onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite, focus: boolean }>());
+	protected readonly onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite, focus: boolean; }>());
 	protected readonly onDidCompositeClose = this._register(new Emitter<IComposite>());
 
 	protected toolBar: ToolBar | undefined;
@@ -75,7 +75,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		protected readonly storageService: IStorageService,
 		private readonly telemetryService: ITelemetryService,
 		protected readonly contextMenuService: IContextMenuService,
-		protected readonly layoutService: IWorkbenchLayoutService,
+		layoutService: IWorkbenchLayoutService,
 		protected readonly keybindingService: IKeybindingService,
 		protected readonly instantiationService: IInstantiationService,
 		themeService: IThemeService,
@@ -258,14 +258,12 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.telemetryActionsListener.value = toolBar.actionRunner.onDidRun(e => {
 
 			// Check for Error
-			if (e.error && !isPromiseCanceledError(e.error)) {
+			if (e.error && !isCancellationError(e.error)) {
 				this.notificationService.error(e.error);
 			}
 
 			// Log in telemetry
-			if (this.telemetryService) {
-				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: this.nameForTelemetry });
-			}
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: this.nameForTelemetry });
 		});
 
 		// Indicate to composite that it is now visible
@@ -376,7 +374,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return composite;
 	}
 
-	createTitleArea(parent: HTMLElement): HTMLElement {
+	override createTitleArea(parent: HTMLElement): HTMLElement {
 
 		// Title Area Container
 		const titleArea = append(parent, $('.composite'));
@@ -423,7 +421,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		};
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 
 		// Forward to title label
@@ -451,7 +449,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return null;
 	}
 
-	createContentArea(parent: HTMLElement): HTMLElement {
+	override createContentArea(parent: HTMLElement): HTMLElement {
 		const contentContainer = append(parent, $('.content'));
 
 		this.progressBar = this._register(new ProgressBar(contentContainer));
@@ -471,8 +469,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return AnchorAlignment.RIGHT;
 	}
 
-	layout(width: number, height: number): void {
-		super.layout(width, height);
+	override layout(width: number, height: number, top: number, left: number): void {
+		super.layout(width, height, top, left);
 
 		// Layout contents
 		this.contentAreaSize = Dimension.lift(super.layoutContents(width, height).contentSize);
@@ -500,7 +498,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return true;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.mapCompositeToCompositeContainer.clear();
 		this.mapActionsBindingToComposite.clear();
 

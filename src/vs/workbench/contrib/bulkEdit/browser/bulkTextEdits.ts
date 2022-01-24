@@ -12,11 +12,11 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IProgress } from 'vs/platform/progress/common/progress';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IUndoRedoService, UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { SingleModelEditStackElement, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { ResourceMap } from 'vs/base/common/map';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -102,18 +102,26 @@ class ModelEditTask implements IDisposable {
 
 class EditorEditTask extends ModelEditTask {
 
-	private _editor: ICodeEditor;
+	private readonly _editor: ICodeEditor;
 
 	constructor(modelReference: IReference<IResolvedTextEditorModel>, editor: ICodeEditor) {
 		super(modelReference);
 		this._editor = editor;
 	}
 
-	getBeforeCursorState(): Selection[] | null {
-		return this._editor.getSelections();
+	override getBeforeCursorState(): Selection[] | null {
+		return this._canUseEditor() ? this._editor.getSelections() : null;
 	}
 
-	apply(): void {
+	override apply(): void {
+
+		// Check that the editor is still for the wanted model. It might have changed in the
+		// meantime and that means we cannot use the editor anymore (instead we perform the edit through the model)
+		if (!this._canUseEditor()) {
+			super.apply();
+			return;
+		}
+
 		if (this._edits.length > 0) {
 			this._edits = this._edits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 			this._editor.executeEdits('', this._edits);
@@ -123,6 +131,10 @@ class EditorEditTask extends ModelEditTask {
 				this._editor.getModel().pushEOL(this._newEol);
 			}
 		}
+	}
+
+	private _canUseEditor(): boolean {
+		return this._editor?.getModel()?.uri.toString() === this.model.uri.toString();
 	}
 }
 

@@ -11,16 +11,82 @@
 	position: relative;
 }
 
-.monaco-workbench .cell.markdown {
-	user-select: text;
-	-webkit-user-select: text;
-	-ms-user-select: text;
-	white-space: initial;
+.monaco-workbench .notebookOverlay .notebook-toolbar-container {
+	width: 100%;
+	display: none;
+	margin-top: 2px;
+	margin-bottom: 2px;
+	contain: style;
 }
 
-.monaco-workbench .cell.markdown p.emptyMarkdownPlaceholder {
-	font-style: italic;
-	opacity: 0.6;
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item {
+	height: 22px;
+	display: flex;
+	align-items: center;
+	border-radius: 5px;
+	margin-right: 8px;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container > .monaco-scrollable-element {
+	flex: 1;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container > .monaco-scrollable-element .notebook-toolbar-left {
+	padding: 0px 0px 0px 8px;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-right {
+	display: flex;
+	padding: 0px 0px 0px 0px;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item  .kernel-label {
+	background-size: 16px;
+	padding: 0px 5px 0px 3px;
+	border-radius: 5px;
+	font-size: 13px;
+	height: 22px;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-left .monaco-action-bar .action-item .action-label.separator {
+	margin: 5px 0px !important;
+	padding: 0px !important;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item:not(.disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .action-label {
+	background-size: 16px;
+	padding-left: 2px;
+}
+
+.monaco-workbench .notebook-action-view-item .action-label {
+	display: inline-flex;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .notebook-label {
+	background-size: 16px;
+	padding: 0px 5px 0px 2px;
+	border-radius: 5px;
+	background-color: unset;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item.disabled .notebook-label {
+	opacity: 0.4;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active .action-label:not(.disabled) {
+	background-color: unset;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
+	background-color: unset;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active {
+	background-color: unset;
 }
 
 .monaco-workbench .notebookOverlay .simple-fr-find-part-wrapper.visible {
@@ -74,10 +140,6 @@
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-editor-container > div {
 	padding: 12px 16px;
-}
-
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-drag-handle {
-	display: none;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image.code-cell-row .cell-focus-indicator-side {
@@ -143,13 +205,17 @@
 .monaco-workbench .notebookOverlay .output {
 	position: absolute;
 	height: 0px;
+	font-size: var(--notebook-cell-output-font-size);
 	user-select: text;
 	-webkit-user-select: text;
 	-ms-user-select: text;
-	transform: translate3d(0px, 0px, 0px);
 	cursor: auto;
 	box-sizing: border-box;
-	z-index: 27; /* Over drag handle */
+	z-index: var(--z-index-notebook-output);
+}
+
+.monaco-workbench .notebookOverlay .output .cell-output-toolbar {
+	z-index: var(--z-index-notebook-cell-output-toolbar);
 }
 
 .monaco-workbench .notebookOverlay .output p {
@@ -166,29 +232,45 @@
 
 .monaco-workbench .notebookOverlay .output > div.foreground.output-inner-container {
 	width: 100%;
-	padding: 4px 8px;
 	box-sizing: border-box;
+}
+
+.monaco-workbench .notebookOverlay .output > div.foreground.output-inner-container .rendered-output {
+	display: inline;
+	transform: translate3d(0px, 0px, 0px);
 }
 
 .monaco-workbench .notebookOverlay .output > div.foreground .output-stream,
 .monaco-workbench .notebookOverlay .output > div.foreground .output-plaintext {
-	font-family: var(--monaco-monospace-font);
+	font-family: var(--notebook-cell-output-font-family);
 	white-space: pre-wrap;
 	word-wrap: break-word;
 }
 
-.monaco-workbench .notebookOverlay .cell-drag-image .output .multi-mimetype-output {
+.monaco-workbench .notebookOverlay .output > div.foreground .output-stream pre,
+.monaco-workbench .notebookOverlay .output > div.foreground .output-plaintext pre {
+	font-family: var(--notebook-cell-output-font-family);
+}
+
+.monaco-workbench .notebookOverlay .output > div.foreground.error .output-stream {
+	color: red; /*TODO@rebornix theme color*/
+}
+
+.monaco-workbench .notebookOverlay .cell-drag-image .output .cell-output-toolbar {
 	display: none;
 }
 
-.monaco-workbench .notebookOverlay .output .multi-mimetype-output {
+.monaco-workbench .notebookOverlay .output .cell-output-toolbar {
 	position: absolute;
 	top: 4px;
-	left: -30px;
-	width: 16px;
+	left: -32px;
 	height: 16px;
 	cursor: pointer;
-	padding: 6px;
+	padding: 6px 0px;
+}
+
+.monaco-workbench .notebookOverlay .output .cell-output-toolbar .actions-container {
+	justify-content: center;
 }
 
 .monaco-workbench .notebookOverlay .output pre {
@@ -196,7 +278,7 @@
 }
 
 .monaco-workbench .notebookOverlay .output .error_message {
-	color: red;
+	color: red; /*TODO@rebornix theme color*/
 }
 
 .monaco-workbench .notebookOverlay .output .error > div {
@@ -251,82 +333,116 @@
 	outline: none !important;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-collapsed-part {
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container {
 	position: relative;
 	box-sizing: border-box;
+	width: 100%;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-collapsed-part .codicon {
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .cell-collapse-preview {
+	padding: 0px 8px;
+}
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .cell-collapse-preview .monaco-tokenized-source {
+	font-size: var(--notebook-cell-input-preview-font-size);
+	font-family: var(--notebook-cell-input-preview-font-family);
+	cursor: pointer;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .cell-collapse-preview .monaco-tokenized-source {
+	display: inline-block;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .cell-collapse-preview .expandInputIcon {
+	position: relative;
+	left: 0px;
+	padding: 2px;
+	border-radius: 5px;
+	vertical-align:middle;
+	height: 16px;
+	width: 16px;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .cell-collapse-preview .expandInputIcon:before {
+	color: grey;
+	font-size: 12px;
+	line-height: 16px;
+	vertical-align: bottom;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .codicon {
 	position: absolute;
-	padding: 2px 6px;
+	padding: 4px 6px;
 	left: -30px;
 	bottom: 0;
 	cursor: pointer;
-	z-index: 29; /* Over drag handle and bottom cell toolbar */
+	z-index: var(--z-index-notebook-input-collapse-condicon);
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.collapsed .notebook-folding-indicator,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.collapsed .cell-title-toolbar {
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .output-collapse-container {
+	cursor: pointer;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .output-collapse-container .expandOutputPlaceholder {
+	font-style: italic;
+	font-size: var(--notebook-cell-output-font-size);
+	font-family: var(--monaco-monospace-font);
+	min-height: 24px;
+	opacity: 0.7;
+	user-select: none;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .output-collapse-container .expandOutputIcon {
+	position: relative;
+	left: 0px;
+	padding: 2px;
+	border-radius: 5px;
+	vertical-align:middle;
+	margin-left: 4px;
+	height: 16px;
+	width: 16px;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .output-collapse-container .expandOutputIcon:before {
+	color: grey;
+	font-size: 12px;
+	line-height: 16px;
+	vertical-align: bottom;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapsed .notebook-folding-indicator {
 	display: none;
 }
 
-/* top and bottom borders on cells */
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
-.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:before,
-.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:after {
-	content: "";
-	position: absolute;
-	width: 100%;
-	height: 1px;
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .notebook-folding-indicator.mouseover .codicon.codicon-notebook-expanded {
+	opacity: 0;
+	transition: opacity 0.1 s;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-left:before,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-right:before {
-	content: "";
-	position: absolute;
-	width: 1px;
-	height: 100%;
-	z-index: 10;
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .markdown-cell-hover .notebook-folding-indicator.mouseover .codicon.codicon-notebook-expanded {
+	opacity: 1;
 }
 
-/* top border */
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before {
-	border-top: 1px solid transparent;
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .notebook-folding-indicator.mouseover .codicon.codicon-notebook-expanded {
+	opacity: 1;
 }
 
-/* left border */
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-left:before {
-	border-left: 1px solid transparent;
-}
-
-/* bottom border */
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before {
-	border-bottom: 1px solid transparent;
-}
-
-/* right border */
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-right:before {
-	border-right: 1px solid transparent;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before {
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top:before {
 	top: 0;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-left:before {
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left:before {
 	left: 0;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before {
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom:before {
 	bottom: 0px;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-right:before {
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right:before {
 	right: 0;
 }
 
-.monaco-workbench.hc-black .notebookOverlay .monaco-list-row .cell-editor-focus .cell-editor-part:before {
+.monaco-workbench.hc-black .notebookOverlay .monaco-list-row.focused .cell-editor-focus .cell-editor-part:before {
 	outline-style: dashed;
 }
 
@@ -336,28 +452,16 @@
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
-	visibility: hidden;
+	opacity: 0;
 	display: inline-flex;
 	position: absolute;
 	height: 26px;
 	top: -14px;
 	/* this lines up the bottom toolbar border with the current line when on line 01 */
-	z-index: 30;
+	z-index: var(--z-index-notebook-cell-toolbar);
 }
 
-.monaco-workbench .notebookOverlay.cell-title-toolbar-right > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
-	right: 44px;
-}
-
-.monaco-workbench .notebookOverlay.cell-title-toolbar-left > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
-	left: 76px;
-}
-
-.monaco-workbench .notebookOverlay.cell-title-toolbar-hidden > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
-	display: none;
-}
-
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar .action-item {
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar .action-item.menu-entry {
 	width: 24px;
 	height: 24px;
 	display: flex;
@@ -384,9 +488,10 @@
 	font-size: 12px;
 	display: flex;
 	position: relative;
+	overflow: hidden;
 }
 
-.monaco-workbench .notebookOverlay.cell-statusbar-hidden .cell-statusbar-container {
+.monaco-workbench .notebookOverlay .cell-statusbar-hidden .cell-statusbar-container {
 	display: none;
 }
 
@@ -397,9 +502,8 @@
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-left,
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right {
-	padding-right: 12px;
 	display: flex;
-	z-index: 26;
+	z-index: var(--z-index-notebook-cell-status);
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right .cell-contributed-items {
@@ -418,69 +522,45 @@
 	white-space: pre;
 
 	height: 21px; /* Editor outline is -1px in, don't overlap */
-	padding: 0px 6px;
+	margin: 0px 3px;
+	padding: 0px 3px;
+	overflow: hidden;
+	text-overflow: clip;
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-item.cell-status-item-has-command {
 	cursor: pointer;
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-language-picker {
-	cursor: pointer;
-}
-
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-duration {
-	margin-right: 8px;
-}
-
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-duration,
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-message {
-	display: flex;
-	align-items: center;
-}
-
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-message {
-	margin-right: 6px;
-}
-
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status {
-	height: 100%;
-	display: flex;
-	align-items: center;
-	margin-left: 18px;
-	width: 18px;
-	margin-right: 2px;
-}
-
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-left > div:first-child {
-	margin-left: 18px;
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-left > .cell-contributed-items {
+	margin-left: 10px;
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .codicon {
 	font-size: 14px;
+	color: unset; /* Inherit from parent cell-status-item */
 }
 
-.monaco-workbench .notebookOverlay .cell-status-placeholder {
-	position: absolute;
-	left: 18px;
-	display: flex;
-	align-items: center;
-	bottom: 0px;
-	top: 0px;
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-item-show-when-active {
+	display: none;
 }
+
+.monaco-workbench .notebookOverlay .cell-statusbar-container.is-active-cell .cell-status-item-show-when-active {
+	display: initial;
+}
+
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .run-button-container {
-	position: relative;
+	position: absolute;
 	flex-shrink: 0;
-	z-index: 27;
-	/* Above the drag handle */
+	z-index: var(--z-index-run-button-container);
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .run-button-container .monaco-toolbar {
 	visibility: hidden;
+	height: initial;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .run-button-container .monaco-toolbar .codicon {
-	margin: 0 4px 0 0;
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .run-button-container .monaco-toolbar .action-item:not(.monaco-dropdown-with-primary) .codicon {
 	padding: 6px;
 }
 
@@ -488,9 +568,10 @@
 	justify-content: center;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .runnable .run-button-container .monaco-toolbar,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused .runnable .run-button-container .monaco-toolbar,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-output-hover .runnable .run-button-container .monaco-toolbar {
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .run-button-container .monaco-toolbar,
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused .run-button-container .monaco-toolbar,
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-run-toolbar-dropdown-active .run-button-container .monaco-toolbar,
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-output-hover .run-button-container .monaco-toolbar {
 	visibility: visible;
 }
 
@@ -500,17 +581,15 @@
 	font-family: var(--monaco-monospace-font);
 	white-space: pre;
 	box-sizing: border-box;
-	opacity: .6;
+	opacity: .7;
 
 	/* Sizing hacks */
-	left: 26px;
-	width: 35px;
 	bottom: 0px;
 	text-align: center;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .output-collapsed .execution-count-label {
-	bottom: 24px;
+.monaco-workbench .notebookOverlay>.cell-list-container>.monaco-list>.monaco-scrollable-element>.monaco-list-rows>.monaco-list-row .cell-statusbar-hidden .execution-count-label {
+	line-height: 15px;
 }
 
 .monaco-workbench .notebookOverlay .cell .cell-editor-part {
@@ -522,7 +601,7 @@
 
 	position: absolute;
 	left: 0;
-	z-index: 5;
+	z-index: var(--z-index-notebook-progress-bar);
 	height: 2px;
 }
 
@@ -530,14 +609,25 @@
 	height: 2px;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list:focus-within > .monaco-scrollable-element > .monaco-list-rows:not(:hover) > .monaco-list-row.focused .cell-has-toolbar-actions .cell-title-toolbar,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .cell-has-toolbar-actions .cell-title-toolbar,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .markdown-cell-hover.cell-has-toolbar-actions .cell-title-toolbar,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-has-toolbar-actions.cell-output-hover .cell-title-toolbar,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-has-toolbar-actions:hover .cell-title-toolbar {
-	visibility: visible;
+/* toolbar visible on hover */
+.monaco-workbench .notebookOverlay.cell-toolbar-hover > .cell-list-container > .monaco-list:focus-within > .monaco-scrollable-element > .monaco-list-rows:not(:hover) > .monaco-list-row.focused .cell-has-toolbar-actions .cell-title-toolbar,
+.monaco-workbench .notebookOverlay.cell-toolbar-hover > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .cell-has-toolbar-actions .cell-title-toolbar,
+.monaco-workbench .notebookOverlay.cell-toolbar-hover > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .markdown-cell-hover.cell-has-toolbar-actions .cell-title-toolbar,
+.monaco-workbench .notebookOverlay.cell-toolbar-hover > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-has-toolbar-actions.cell-output-hover .cell-title-toolbar,
+.monaco-workbench .notebookOverlay.cell-toolbar-hover > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-has-toolbar-actions:hover .cell-title-toolbar,
+.monaco-workbench .notebookOverlay.cell-toolbar-hover > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar:hover,
+.monaco-workbench .notebookOverlay.cell-toolbar-hover > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-toolbar-dropdown-active .cell-title-toolbar {
+	opacity: 1;
 }
 
+/* toolbar visible on click */
+.monaco-workbench .notebookOverlay.cell-toolbar-click > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
+	visibility: hidden;
+}
+.monaco-workbench .notebookOverlay.cell-toolbar-click > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused .cell-title-toolbar {
+	opacity: 1;
+	visibility: visible;
+}
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list:not(.element-focused):focus:before {
 	outline: none !important;
@@ -554,6 +644,16 @@
 	bottom: 0px;
 }
 
+.monaco-workbench .notebookOverlay .monaco-list .webview-backed-markdown-cell .cell-focus-indicator-side {
+	/* Disable pointer events for the folding container */
+	pointer-events: none;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .webview-backed-markdown-cell .cell-focus-indicator-side .notebook-folding-indicator {
+	/* But allow clicking on the folding indicator itself */
+	pointer-events: all;
+}
+
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top,
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom {
 	width: 100%;
@@ -563,19 +663,40 @@
 	right: 0px;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-drag-handle {
-	position: absolute;
-	top: 0px;
-	z-index: 26; /* Above the bottom toolbar */
+/** cell border colors */
+
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-top:before,
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-bottom:before,
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container.cell-editor-focus:before {
+	border-color: var(notebook-selected-cell-border-color) !important;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-drag-handle:hover,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row .cell-inner-container:hover {
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before {
+	border-color: var(--notebook-inactive-focused-cell-border-color) !important;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-top:before,
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-bottom:before,
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-left:before,
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-right:before {
+	border-color: var(--notebook-focused-cell-border-color) !important;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left .codeOutput-focus-indicator {
+	position: relative;
+	width: 0px;
+	cursor: pointer;
+	pointer-events: all; /* Take pointer-events in markdown cell */
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row .cell-inner-container {
 	cursor: grab;
 }
 
 .monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar.visible {
-	z-index: 25;
+	z-index: var(--z-index-notebook-scrollbar);
 	cursor: default;
 }
 
@@ -584,7 +705,7 @@
 }
 
 .monaco-workbench .notebookOverlay .monaco-list-row .cell-editor-part:before {
-	z-index: 20;
+	z-index: var(--z-index-notebook-cell-editor-outline);
 	content: "";
 	right: 0px;
 	left: 0px;
@@ -606,13 +727,16 @@
 	left: 0px;
 	right: 0px;
 	opacity: 0;
-	z-index: 10;
+	z-index: var(--z-index-notebook-list-insertion-indicator);
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list .monaco-list-row .cell-dragging {
 	opacity: 0.5 !important;
 }
 
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container {
+	padding-top: 1px !important;
+}
 
 .monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container.emptyNotebook {
 	opacity: 1 !important;
@@ -622,35 +746,42 @@
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container {
 	position: absolute;
 	display: flex;
-	align-items: center;
 	justify-content: center;
-	z-index: 28; /* over the focus outline on the editor, below the title toolbar */
-	width: 100%;
+	z-index: var(--z-index-notebook-cell-bottom-toolbar-container);
+	width: calc(100% - 32px);
 	opacity: 0;
-	transition: opacity 0.2s ease-in-out;
+	transition: opacity 0.3s ease-in-out;
 	padding: 0;
+	margin: 0 16px 0 16px;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container {
+	top: 0px;
+	height: 33px;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-bottom-toolbar-container {
 	display: none;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container:focus-within,
+/* .monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container:focus-within,
 .monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container:hover,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .cell-bottom-toolbar-container,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .markdown-cell-hover .cell-bottom-toolbar-container,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list:focus-within > .monaco-scrollable-element > .monaco-list-rows:not(:hover) > .monaco-list-row.focused .cell-bottom-toolbar-container,
 .monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:focus-within {
 	opacity: 1;
-}
+} */
 
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar {
-	margin: 8px 0px 8px;
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container:focus-within,
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container:hover,
+.monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:hover,
+.monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:focus-within {
+	opacity: 1;
 }
 
 .monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar {
-	margin-top: 12px;
+	margin-top: 3px; /* This is the minimum to keep the top edge from being cut off at the top of the editor */
 }
 
 .monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-item,
@@ -669,6 +800,8 @@
 	margin: 0px;
 	display: inline-flex;
 	padding: 0px 4px;
+	border-radius: 0;
+	align-items: center;
 }
 
 .monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-label .codicon,
@@ -691,145 +824,9 @@
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container span.codicon {
 	text-align: center;
 	font-size: 14px;
-	color: inherit;
 }
 
 /* markdown */
-
-
-.monaco-workbench .notebookOverlay .cell.markdown img {
-	max-width: 100%;
-	max-height: 100%;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown a {
-	text-decoration: none;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown a:hover {
-	text-decoration: underline;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown a:focus,
-.monaco-workbench .notebookOverlay .cell.markdown input:focus,
-.monaco-workbench .notebookOverlay .cell.markdown select:focus,
-.monaco-workbench .notebookOverlay .cell.markdown textarea:focus {
-	outline: 1px solid -webkit-focus-ring-color;
-	outline-offset: -1px;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown hr {
-	border: 0;
-	height: 2px;
-	border-bottom: 2px solid;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown h1 {
-	padding-bottom: 0.3em;
-	line-height: 1.2;
-	border-bottom-width: 1px;
-	border-bottom-style: solid;
-	border-color: rgba(255, 255, 255, 0.18);
-}
-
-.monaco-workbench.vs .monaco-workbench .notebookOverlay .cell.markdown h1 {
-	border-color: rgba(0, 0, 0, 0.18);
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown h1,
-.monaco-workbench .notebookOverlay .cell.markdown h2,
-.monaco-workbench .notebookOverlay .cell.markdown h3 {
-	font-weight: normal;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown div {
-	width: 100%;
-}
-
-/* Adjust margin of first item in markdown cell */
-.monaco-workbench .notebookOverlay .cell.markdown div *:first-child {
-	margin-top: 0px;
-}
-
-/* h1 tags don't need top margin */
-.monaco-workbench .notebookOverlay .cell.markdown div h1:first-child {
-	margin-top: 0;
-}
-
-/* Removes bottom margin when only one item exists in markdown cell */
-.monaco-workbench .notebookOverlay .cell.markdown div *:only-child,
-.monaco-workbench .notebookOverlay .cell.markdown div *:last-child {
-	margin-bottom: 0;
-	padding-bottom: 0;
-}
-
-/* makes all markdown cells consistent */
-.monaco-workbench .notebookOverlay .cell.markdown div {
-	min-height: 24px;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown table {
-	border-collapse: collapse;
-	border-spacing: 0;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown table th,
-.monaco-workbench .notebookOverlay .cell.markdown table td {
-	border: 1px solid;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown table > thead > tr > th {
-	text-align: left;
-	border-bottom: 1px solid;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown table > thead > tr > th,
-.monaco-workbench .notebookOverlay .cell.markdown table > thead > tr > td,
-.monaco-workbench .notebookOverlay .cell.markdown table > tbody > tr > th,
-.monaco-workbench .notebookOverlay .cell.markdown table > tbody > tr > td {
-	padding: 5px 10px;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown table > tbody > tr + tr > td {
-	border-top: 1px solid;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown blockquote {
-	margin: 0 7px 0 5px;
-	padding: 0 16px 0 10px;
-	border-left-width: 5px;
-	border-left-style: solid;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown code,
-.monaco-workbench .notebookOverlay .cell.markdown .code {
-	font-family: var(--monaco-monospace-font);
-	font-size: 1em;
-	line-height: 1.357em;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown .code {
-	white-space: pre-wrap;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown .latex-block {
-	display: block;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown .latex {
-	vertical-align: middle;
-	display: inline-block;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown .latex img,
-.monaco-workbench .notebookOverlay .cell.markdown .latex-block img {
-	filter: brightness(0) invert(0)
-}
-
-.monaco-workbench.vs-dark .notebookOverlay .cell.markdown .latex img,
-.monaco-workbench.vs-dark .notebookOverlay .cell.markdown .latex-block img {
-	filter: brightness(0) invert(1)
-}
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator {
 	height: 20px;
@@ -837,11 +834,11 @@
 
 	position: absolute;
 	top: 10px;
-	left: 8px;
+	left: 6px;
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	z-index: 26;
+	z-index: var(--z-index-notebook-folding-indicator);
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container .webview-backed-markdown-cell .notebook-folding-indicator {
@@ -851,52 +848,26 @@
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
 	visibility: visible;
 	height: 16px;
-	padding: 4px;
+	padding: 4px 4px 4px 4px;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container .notebook-folded-hint {
+	position: absolute;
+	font-size: var(--notebook-cell-output-font-size);
+	font-family: var(--monaco-monospace-font);
+	font-style: italic;
+	opacity: 0.7;
+	user-select: none;
 }
 
 /** Theming */
-
-/* .monaco-workbench .notebookOverlay .cell.markdown pre {
-	background-color: rgba(220, 220, 220, 0.4);
-}
-
-.monaco-workbench.vs-dark .monaco-workbench .notebookOverlay .cell.markdown pre {
-	background-color: rgba(10, 10, 10, 0.4);
-}
-
-.monaco-workbench.hc-black .monaco-workbench .notebookOverlay .cell.markdown pre {
-	background-color: rgb(0, 0, 0);
-}
-
-.monaco-workbench.hc-black .monaco-workbench .notebookOverlay .cell.markdown h1 {
-	border-color: rgb(0, 0, 0);
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown table > thead > tr > th {
-	border-color: rgba(0, 0, 0, 0.18);
-}
-
-.monaco-workbench.vs-dark .monaco-workbench .notebookOverlay .cell.markdown table > thead > tr > th {
-	border-color: rgba(255, 255, 255, 0.18);
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown h1,
-.monaco-workbench .notebookOverlay .cell.markdown hr,
-.monaco-workbench .notebookOverlay .cell.markdown table > tbody > tr > td {
-	border-color: rgba(0, 0, 0, 0.18);
-}
-
-.monaco-workbench.vs-dark .monaco-workbench .notebookOverlay .cell.markdown h1,
-.monaco-workbench.vs-dark .monaco-workbench .notebookOverlay .cell.markdown hr,
-.monaco-workbench.vs-dark .monaco-workbench .notebookOverlay .cell.markdown table > tbody > tr > td {
-	border-color: rgba(255, 255, 255, 0.18);
-} */
 
 .monaco-action-bar .action-item.verticalSeparator {
 	width: 1px !important;
 	height: 16px !important;
 	margin: 5px 4px !important;
-	cursor: none;
+	cursor: default;
+	min-width: 1px !important;
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-decoration {
@@ -906,24 +877,46 @@
 }
 
 .output-show-more {
-	padding: 8px 0;
+	padding: 8px 0 0 0;
+	font-style: italic;
 }
 
 .cell-contributed-items.cell-contributed-items-left {
 	margin-left: 4px;
 }
 
+.cell-contributed-items.cell-contributed-items-right {
+	flex-direction: row-reverse;
+}
+
+.monaco-workbench .notebookOverlay .output .error .traceback::-webkit-scrollbar,
 .monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar {
 	width: 10px;               /* width of the entire scrollbar */
 	height: 10px;
 }
 
+.monaco-workbench .notebookOverlay .output .error .traceback::-webkit-scrollbar-thumb,
 .monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar-thumb {
 	height: 10px;
 	width: 10px;
 }
 
+.monaco-workbench .notebookOverlay .output .error .traceback,
 .monaco-workbench .notebookOverlay .output .output-plaintext {
-	margin: 4px 0;
 	overflow-x: auto;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .codicon:not(.suggest-icon) {
+	color: inherit;
+}
+
+/* high contrast border for multi-select */
+.hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-focus-indicator-top:before { border-top-style: dotted; }
+.hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-focus-indicator-bottom:before { border-bottom-style: dotted; }
+.hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-left:before { border-left-style: dotted; }
+.hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-right:before  { border-right-style: dotted; }
+
+.monaco-workbench .notebookOverlay .cell-editor-container .monaco-editor .margin-view-overlays .codicon-folding-expanded,
+.monaco-workbench .notebookOverlay .cell-editor-container .monaco-editor .margin-view-overlays .codicon-folding-collapsed {
+	margin-left: 0;
 }

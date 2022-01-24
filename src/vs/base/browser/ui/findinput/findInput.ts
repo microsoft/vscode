@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./findInput';
-
-import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IMessage as InputBoxMessage, IInputValidator, IInputBoxStyles, HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Event, Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { CaseSensitiveCheckbox, WholeWordsCheckbox, RegexCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
-import { Color } from 'vs/base/common/color';
 import { ICheckboxStyles } from 'vs/base/browser/ui/checkbox/checkbox';
+import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { CaseSensitiveCheckbox, RegexCheckbox, WholeWordsCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
+import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { Color } from 'vs/base/common/color';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import 'vs/css!./findInput';
+import * as nls from 'vs/nls';
+
 
 export interface IFindInputOptions extends IFindInputStyles {
 	readonly placeholder?: string;
@@ -31,6 +31,7 @@ export interface IFindInputOptions extends IFindInputStyles {
 	readonly appendWholeWordsLabel?: string;
 	readonly appendRegexLabel?: string;
 	readonly history?: string[];
+	readonly showHistoryHint?: () => boolean;
 }
 
 export interface IFindInputStyles extends IInputBoxStyles {
@@ -50,25 +51,27 @@ export class FindInput extends Widget {
 	private validation?: IInputValidator;
 	private label: string;
 	private fixFocusOnOptionClickEnabled = true;
+	private imeSessionInProgress = false;
 
-	private inputActiveOptionBorder?: Color;
-	private inputActiveOptionForeground?: Color;
-	private inputActiveOptionBackground?: Color;
-	private inputBackground?: Color;
-	private inputForeground?: Color;
-	private inputBorder?: Color;
+	protected inputActiveOptionBorder?: Color;
+	protected inputActiveOptionForeground?: Color;
+	protected inputActiveOptionBackground?: Color;
+	protected inputBackground?: Color;
+	protected inputForeground?: Color;
+	protected inputBorder?: Color;
 
-	private inputValidationInfoBorder?: Color;
-	private inputValidationInfoBackground?: Color;
-	private inputValidationInfoForeground?: Color;
-	private inputValidationWarningBorder?: Color;
-	private inputValidationWarningBackground?: Color;
-	private inputValidationWarningForeground?: Color;
-	private inputValidationErrorBorder?: Color;
-	private inputValidationErrorBackground?: Color;
-	private inputValidationErrorForeground?: Color;
+	protected inputValidationInfoBorder?: Color;
+	protected inputValidationInfoBackground?: Color;
+	protected inputValidationInfoForeground?: Color;
+	protected inputValidationWarningBorder?: Color;
+	protected inputValidationWarningBackground?: Color;
+	protected inputValidationWarningForeground?: Color;
+	protected inputValidationErrorBorder?: Color;
+	protected inputValidationErrorBackground?: Color;
+	protected inputValidationErrorForeground?: Color;
 
-	private regex: RegexCheckbox;
+	protected controls: HTMLDivElement;
+	protected regex: RegexCheckbox;
 	private wholeWords: WholeWordsCheckbox;
 	private caseSensitive: CaseSensitiveCheckbox;
 	public domNode: HTMLElement;
@@ -149,6 +152,7 @@ export class FindInput extends Widget {
 			inputValidationErrorForeground: this.inputValidationErrorForeground,
 			inputValidationErrorBorder: this.inputValidationErrorBorder,
 			history,
+			showHistoryHint: options.showHistoryHint,
 			flexibleHeight,
 			flexibleWidth,
 			flexibleMaxHeight
@@ -239,23 +243,35 @@ export class FindInput extends Widget {
 		});
 
 
-		let controls = document.createElement('div');
-		controls.className = 'controls';
-		controls.style.display = this._showOptionButtons ? 'block' : 'none';
-		controls.appendChild(this.caseSensitive.domNode);
-		controls.appendChild(this.wholeWords.domNode);
-		controls.appendChild(this.regex.domNode);
+		this.controls = document.createElement('div');
+		this.controls.className = 'controls';
+		this.controls.style.display = this._showOptionButtons ? 'block' : 'none';
+		this.controls.appendChild(this.caseSensitive.domNode);
+		this.controls.appendChild(this.wholeWords.domNode);
+		this.controls.appendChild(this.regex.domNode);
 
-		this.domNode.appendChild(controls);
+		this.domNode.appendChild(this.controls);
 
 		if (parent) {
 			parent.appendChild(this.domNode);
 		}
 
+		this._register(dom.addDisposableListener(this.inputBox.inputElement, 'compositionstart', (e: CompositionEvent) => {
+			this.imeSessionInProgress = true;
+		}));
+		this._register(dom.addDisposableListener(this.inputBox.inputElement, 'compositionend', (e: CompositionEvent) => {
+			this.imeSessionInProgress = false;
+			this._onInput.fire();
+		}));
+
 		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
 		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire());
 		this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e));
+	}
+
+	public get isImeSessionInProgress(): boolean {
+		return this.imeSessionInProgress;
 	}
 
 	public get onDidChange(): Event<string> {

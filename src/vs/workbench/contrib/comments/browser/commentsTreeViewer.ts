@@ -121,28 +121,34 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
 		templateData.userName.textContent = node.element.comment.userName;
 		templateData.commentText.innerText = '';
-		const disposables = new DisposableStore();
-		templateData.disposables.push(disposables);
-		const renderedComment = renderMarkdown(node.element.comment.body, {
-			inline: true,
-			actionHandler: {
-				callback: (content) => {
-					this.openerService.open(content).catch(onUnexpectedError);
-				},
-				disposeables: disposables
+		if (typeof node.element.comment.body === 'string') {
+			templateData.commentText.innerText = node.element.comment.body;
+		} else {
+			const commentBody = node.element.comment.body;
+			const disposables = new DisposableStore();
+			templateData.disposables.push(disposables);
+			const renderedComment = renderMarkdown(commentBody, {
+				inline: true,
+				actionHandler: {
+					callback: (content) => {
+						this.openerService.open(content, { allowCommands: commentBody.isTrusted }).catch(onUnexpectedError);
+					},
+					disposables: disposables
+				}
+			});
+			templateData.disposables.push(renderedComment);
+
+			const images = renderedComment.element.getElementsByTagName('img');
+			for (let i = 0; i < images.length; i++) {
+				const image = images[i];
+				const textDescription = dom.$('');
+				textDescription.textContent = image.alt ? nls.localize('imageWithLabel', "Image: {0}", image.alt) : nls.localize('image', "Image");
+				image.parentNode!.replaceChild(textDescription, image);
 			}
-		});
 
-		const images = renderedComment.getElementsByTagName('img');
-		for (let i = 0; i < images.length; i++) {
-			const image = images[i];
-			const textDescription = dom.$('');
-			textDescription.textContent = image.alt ? nls.localize('imageWithLabel', "Image: {0}", image.alt) : nls.localize('image', "Image");
-			image.parentNode!.replaceChild(textDescription, image);
+			templateData.commentText.appendChild(renderedComment.element);
+			templateData.commentText.title = renderedComment.element.textContent ?? '';
 		}
-
-		templateData.commentText.appendChild(renderedComment);
-		templateData.commentText.title = renderedComment.textContent ?? '';
 	}
 
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {

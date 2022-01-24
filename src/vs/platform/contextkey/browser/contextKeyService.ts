@@ -5,14 +5,13 @@
 
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { distinct } from 'vs/base/common/objects';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, SET_CONTEXT_COMMAND_ID, ContextKeyExpression, RawContextKey, ContextKeyInfo } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { ContextKeyExpression, ContextKeyInfo, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, RawContextKey, SET_CONTEXT_COMMAND_ID } from 'vs/platform/contextkey/common/contextkey';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
@@ -75,19 +74,19 @@ class NullContext extends Context {
 		super(-1, null);
 	}
 
-	public setValue(key: string, value: any): boolean {
+	public override setValue(key: string, value: any): boolean {
 		return false;
 	}
 
-	public removeValue(key: string): boolean {
+	public override removeValue(key: string): boolean {
 		return false;
 	}
 
-	public getValue<T>(key: string): T | undefined {
+	public override getValue<T>(key: string): T | undefined {
 		return undefined;
 	}
 
-	collectAllValues(): { [key: string]: any; } {
+	override collectAllValues(): { [key: string]: any; } {
 		return Object.create(null);
 	}
 }
@@ -137,7 +136,7 @@ class ConfigAwareContextValuesContainer extends Context {
 		this._listener.dispose();
 	}
 
-	getValue(key: string): any {
+	override getValue(key: string): any {
 
 		if (key.indexOf(ConfigAwareContextValuesContainer._keyPrefix) !== 0) {
 			return super.getValue(key);
@@ -168,15 +167,15 @@ class ConfigAwareContextValuesContainer extends Context {
 		return value;
 	}
 
-	setValue(key: string, value: any): boolean {
+	override setValue(key: string, value: any): boolean {
 		return super.setValue(key, value);
 	}
 
-	removeValue(key: string): boolean {
+	override removeValue(key: string): boolean {
 		return super.removeValue(key);
 	}
 
-	collectAllValues(): { [key: string]: any; } {
+	override collectAllValues(): { [key: string]: any; } {
 		const result: { [key: string]: any } = Object.create(null);
 		this._values.forEach((value, index) => result[index] = value);
 		return { ...result, ...super.collectAllValues() };
@@ -300,7 +299,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 			throw new Error(`AbstractContextKeyService has been disposed`);
 		}
 		const context = this.getContextValuesContainer(this._myContextId);
-		const result = KeybindingResolver.contextMatchesRules(context, rules);
+		const result = (rules ? rules.evaluate(context) : true);
 		// console.group(rules.serialize() + ' -> ' + result);
 		// rules.keys().forEach(key => { console.log(key, ctx[key]); });
 		// console.groupEnd();
@@ -536,7 +535,7 @@ class OverlayContextKeyService implements IContextKeyService {
 
 	contextMatchesRules(rules: ContextKeyExpression | undefined): boolean {
 		const context = this.getContextValuesContainer(this.contextId);
-		const result = KeybindingResolver.contextMatchesRules(context, rules);
+		const result = (rules ? rules.evaluate(context) : true);
 		return result;
 	}
 

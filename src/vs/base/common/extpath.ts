@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows } from 'vs/base/common/platform';
-import { startsWithIgnoreCase, equalsIgnoreCase, rtrim } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { sep, posix, isAbsolute, join, normalize } from 'vs/base/common/path';
+import { isAbsolute, join, normalize, posix, sep } from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
+import { equalsIgnoreCase, rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { isNumber } from 'vs/base/common/types';
 
 export function isPathSeparator(code: number) {
@@ -20,6 +20,23 @@ export function isPathSeparator(code: number) {
  */
 export function toSlashes(osPath: string) {
 	return osPath.replace(/[\\/]/g, posix.sep);
+}
+
+/**
+ * Takes a Windows OS path (using backward or forward slashes) and turns it into a posix path:
+ * - turns backward slashes into forward slashes
+ * - makes it absolute if it starts with a drive letter
+ * This should only be done for OS paths from Windows (or user provided paths potentially from Windows).
+ * Using it on a Linux or MaxOS path might change it.
+ */
+export function toPosixPath(osPath: string) {
+	if (osPath.indexOf('/') === -1) {
+		osPath = toSlashes(osPath);
+	}
+	if (/^[a-zA-Z]:(\/|$)/.test(osPath)) { // starts with a drive letter
+		osPath = '/' + osPath;
+	}
+	return osPath;
 }
 
 /**
@@ -116,10 +133,13 @@ export function isUNC(path: string): boolean {
 	if (code !== CharCode.Backslash) {
 		return false;
 	}
+
 	code = path.charCodeAt(1);
+
 	if (code !== CharCode.Backslash) {
 		return false;
 	}
+
 	let pos = 2;
 	const start = pos;
 	for (; pos < path.length; pos++) {
@@ -128,13 +148,17 @@ export function isUNC(path: string): boolean {
 			break;
 		}
 	}
+
 	if (start === pos) {
 		return false;
 	}
+
 	code = path.charCodeAt(pos + 1);
+
 	if (isNaN(code) || code === CharCode.Backslash) {
 		return false;
 	}
+
 	return true;
 }
 
@@ -177,6 +201,11 @@ export function isValidBasename(name: string | null | undefined, isWindowsOS: bo
 	return true;
 }
 
+/**
+ * @deprecated please use `IUriIdentityService.extUri.isEqual` instead. If you are
+ * in a context without services, consider to pass down the `extUri` from the outside
+ * or use `extUriBiasedIgnorePathCase` if you know what you are doing.
+ */
 export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boolean {
 	const identityEquals = (pathA === pathB);
 	if (!ignoreCase || identityEquals) {
@@ -190,6 +219,11 @@ export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boo
 	return equalsIgnoreCase(pathA, pathB);
 }
 
+/**
+ * @deprecated please use `IUriIdentityService.extUri.isEqualOrParent` instead. If
+ * you are in a context without services, consider to pass down the `extUri` from the
+ * outside, or use `extUriBiasedIgnorePathCase` if you know what you are doing.
+ */
 export function isEqualOrParent(base: string, parentCandidate: string, ignoreCase?: boolean, separator = sep): boolean {
 	if (base === parentCandidate) {
 		return true;
@@ -283,8 +317,9 @@ export function isRootOrDriveLetter(path: string): boolean {
 	return pathNormalized === posix.sep;
 }
 
-export function hasDriveLetter(path: string): boolean {
-	if (isWindows) {
+export function hasDriveLetter(path: string, continueAsWindows?: boolean): boolean {
+	const isWindowsPath: boolean = ((continueAsWindows !== undefined) ? continueAsWindows : isWindows);
+	if (isWindowsPath) {
 		return isWindowsDriveLetter(path.charCodeAt(0)) && path.charCodeAt(1) === CharCode.Colon;
 	}
 
@@ -325,7 +360,7 @@ export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn
 	let line: number | undefined = undefined;
 	let column: number | undefined = undefined;
 
-	segments.forEach(segment => {
+	for (const segment of segments) {
 		const segmentAsNumber = Number(segment);
 		if (!isNumber(segmentAsNumber)) {
 			path = !!path ? [path, segment].join(':') : segment; // a colon can well be part of a path (e.g. C:\...)
@@ -334,7 +369,7 @@ export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn
 		} else if (column === undefined) {
 			column = segmentAsNumber;
 		}
-	});
+	}
 
 	if (!path) {
 		throw new Error('Format for `--goto` should be: `FILE:LINE(:COLUMN)`');
@@ -345,4 +380,26 @@ export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn
 		line: line !== undefined ? line : undefined,
 		column: column !== undefined ? column : line !== undefined ? 1 : undefined // if we have a line, make sure column is also set
 	};
+}
+
+const pathChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
+export function randomPath(parent?: string, prefix?: string, randomLength = 8): string {
+	let suffix = '';
+	for (let i = 0; i < randomLength; i++) {
+		suffix += pathChars.charAt(Math.floor(Math.random() * pathChars.length));
+	}
+
+	let randomFileName: string;
+	if (prefix) {
+		randomFileName = `${prefix}-${suffix}`;
+	} else {
+		randomFileName = suffix;
+	}
+
+	if (parent) {
+		return join(parent, randomFileName);
+	}
+
+	return randomFileName;
 }

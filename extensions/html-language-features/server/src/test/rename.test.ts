@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { WorkspaceEdit, TextDocument, getLanguageModes, ClientCapabilities } from '../modes/languageModes';
-import { getNodeFSRequestService } from '../node/nodeFs';
+import { getNodeFileFS } from '../node/nodeFs';
 
 
 async function testRename(value: string, newName: string, expectedDocContent: string): Promise<void> {
@@ -17,7 +17,7 @@ async function testRename(value: string, newName: string, expectedDocContent: st
 		settings: {},
 		folders: [{ name: 'foo', uri: 'test://foo' }]
 	};
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
+	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
 	const javascriptMode = languageModes.getMode('javascript')
 	const position = document.positionAt(offset);
 
@@ -34,7 +34,7 @@ async function testRename(value: string, newName: string, expectedDocContent: st
 		}
 
 		const newDocContent = TextDocument.applyEdits(document, edits);
-		assert.equal(newDocContent, expectedDocContent, `Expected: ${expectedDocContent}\nActual: ${newDocContent}`);
+		assert.strictEqual(newDocContent, expectedDocContent, `Expected: ${expectedDocContent}\nActual: ${newDocContent}`);
 	} else {
 		assert.fail('should have javascriptMode but no')
 	}
@@ -49,7 +49,7 @@ async function testNoRename(value: string, newName: string): Promise<void> {
 		settings: {},
 		folders: [{ name: 'foo', uri: 'test://foo' }]
 	};
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
+	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
 	const javascriptMode = languageModes.getMode('javascript')
 	const position = document.positionAt(offset);
 

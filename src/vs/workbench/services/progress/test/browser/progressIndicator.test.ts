@@ -4,17 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IAction } from 'vs/base/common/actions';
 import { IEditorControl } from 'vs/workbench/common/editor';
-import { CompositeScope, CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IViewlet } from 'vs/workbench/common/viewlet';
-import { TestViewletService, TestPanelService, TestViewsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { CompositeProgressScope, CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
+import { TestSideBarPart, TestViewsService, TestPaneCompositeService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
-import { IView, IViewPaneContainer, IViewsService } from 'vs/workbench/common/views';
+import { IView, IViewPaneContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 
-class TestViewlet implements IViewlet {
+class TestViewlet implements IPaneComposite {
 
 	constructor(private id: string) { }
 
@@ -24,26 +21,12 @@ class TestViewlet implements IViewlet {
 	hasFocus() { return false; }
 	getId(): string { return this.id; }
 	getTitle(): string { return this.id; }
-	getActions(): IAction[] { return []; }
-	getSecondaryActions(): IAction[] { return []; }
-	getContextMenuActions(): IAction[] { return []; }
 	getControl(): IEditorControl { return null!; }
 	focus(): void { }
 	getOptimalWidth(): number { return 10; }
 	openView<T extends IView>(id: string, focus?: boolean): T | undefined { return undefined; }
 	getViewPaneContainer(): IViewPaneContainer { return null!; }
 	saveState(): void { }
-}
-
-class TestCompositeScope extends CompositeScope {
-	isActive: boolean = false;
-
-	constructor(viewletService: IViewletService, panelService: IPanelService, viewsService: IViewsService, scopeId: string) {
-		super(viewletService, panelService, viewsService, scopeId);
-	}
-
-	onScopeActivated() { this.isActive = true; }
-	onScopeDeactivated() { this.isActive = false; }
 }
 
 class TestProgressBar {
@@ -104,17 +87,16 @@ class TestProgressBar {
 suite('Progress Indicator', () => {
 
 	test('CompositeScope', () => {
-		let viewletService = new TestViewletService();
-		let panelService = new TestPanelService();
+		let paneCompositeService = new TestPaneCompositeService();
 		let viewsService = new TestViewsService();
-		let service = new TestCompositeScope(viewletService, panelService, viewsService, 'test.scopeId');
+		let service = new CompositeProgressScope(paneCompositeService, viewsService, 'test.scopeId', false);
 		const testViewlet = new TestViewlet('test.scopeId');
 
 		assert(!service.isActive);
-		viewletService.onDidViewletOpenEmitter.fire(testViewlet);
+		(paneCompositeService.getPartByLocation(ViewContainerLocation.Sidebar) as TestSideBarPart).onDidViewletOpenEmitter.fire(testViewlet);
 		assert(service.isActive);
 
-		viewletService.onDidViewletCloseEmitter.fire(testViewlet);
+		(paneCompositeService.getPartByLocation(ViewContainerLocation.Sidebar) as TestSideBarPart).onDidViewletCloseEmitter.fire(testViewlet);
 		assert(!service.isActive);
 
 		viewsService.onDidChangeViewVisibilityEmitter.fire({ id: 'test.scopeId', visible: true });
@@ -126,10 +108,9 @@ suite('Progress Indicator', () => {
 
 	test('CompositeProgressIndicator', async () => {
 		let testProgressBar = new TestProgressBar();
-		let viewletService = new TestViewletService();
-		let panelService = new TestPanelService();
+		let paneCompositeService = new TestPaneCompositeService();
 		let viewsService = new TestViewsService();
-		let service = new CompositeProgressIndicator((<any>testProgressBar), 'test.scopeId', true, viewletService, panelService, viewsService);
+		let service = new CompositeProgressIndicator((<any>testProgressBar), 'test.scopeId', true, paneCompositeService, viewsService);
 
 		// Active: Show (Infinite)
 		let fn = service.show(true);
@@ -150,19 +131,19 @@ suite('Progress Indicator', () => {
 
 		// Inactive: Show (Infinite)
 		const testViewlet = new TestViewlet('test.scopeId');
-		viewletService.onDidViewletCloseEmitter.fire(testViewlet);
+		(paneCompositeService.getPartByLocation(ViewContainerLocation.Sidebar) as TestSideBarPart).onDidViewletCloseEmitter.fire(testViewlet);
 		service.show(true);
 		assert.strictEqual(false, !!testProgressBar.fInfinite);
-		viewletService.onDidViewletOpenEmitter.fire(testViewlet);
+		(paneCompositeService.getPartByLocation(ViewContainerLocation.Sidebar) as TestSideBarPart).onDidViewletOpenEmitter.fire(testViewlet);
 		assert.strictEqual(true, testProgressBar.fInfinite);
 
 		// Inactive: Show (Total / Worked)
-		viewletService.onDidViewletCloseEmitter.fire(testViewlet);
+		(paneCompositeService.getPartByLocation(ViewContainerLocation.Sidebar) as TestSideBarPart).onDidViewletCloseEmitter.fire(testViewlet);
 		fn = service.show(100);
 		fn.total(80);
 		fn.worked(20);
 		assert.strictEqual(false, !!testProgressBar.fTotal);
-		viewletService.onDidViewletOpenEmitter.fire(testViewlet);
+		(paneCompositeService.getPartByLocation(ViewContainerLocation.Sidebar) as TestSideBarPart).onDidViewletOpenEmitter.fire(testViewlet);
 		assert.strictEqual(20, testProgressBar.fWorked);
 		assert.strictEqual(80, testProgressBar.fTotal);
 
@@ -170,11 +151,11 @@ suite('Progress Indicator', () => {
 		let p = Promise.resolve(null);
 		await service.showWhile(p);
 		assert.strictEqual(true, testProgressBar.fDone);
-		viewletService.onDidViewletCloseEmitter.fire(testViewlet);
+		(paneCompositeService.getPartByLocation(ViewContainerLocation.Sidebar) as TestSideBarPart).onDidViewletCloseEmitter.fire(testViewlet);
 		p = Promise.resolve(null);
 		await service.showWhile(p);
 		assert.strictEqual(true, testProgressBar.fDone);
-		viewletService.onDidViewletOpenEmitter.fire(testViewlet);
+		(paneCompositeService.getPartByLocation(ViewContainerLocation.Sidebar) as TestSideBarPart).onDidViewletOpenEmitter.fire(testViewlet);
 		assert.strictEqual(true, testProgressBar.fDone);
 
 		// Visible view: Show (Infinite)

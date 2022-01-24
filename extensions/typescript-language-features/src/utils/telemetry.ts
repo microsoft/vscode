@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import VsCodeTelemetryReporter from 'vscode-extension-telemetry';
+import VsCodeTelemetryReporter from '@vscode/extension-telemetry';
 import { memoize } from './memoize';
 
 interface PackageInfo {
@@ -14,7 +14,7 @@ interface PackageInfo {
 }
 
 export interface TelemetryProperties {
-	readonly [prop: string]: string | number | undefined;
+	readonly [prop: string]: string | number | boolean | undefined;
 }
 
 export interface TelemetryReporter {

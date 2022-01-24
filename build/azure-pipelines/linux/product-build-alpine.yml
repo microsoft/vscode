@@ -1,17 +1,14 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "12.18.3"
-
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.x"
+      versionSpec: "14.x"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+      SecretsFilter: "github-distro-mixin-password"
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -30,7 +27,7 @@ steps:
       azureSubscriptionEndpoint: "vscode-builds-subscription"
       azureContainerRegistry: vscodehub.azurecr.io
       command: "Run an image"
-      imageName: "vscode-linux-build-agent:alpine"
+      imageName: "vscode-linux-build-agent:alpine-$(VSCODE_ARCH)"
       containerCommand: uname
 
   - script: |
@@ -57,7 +54,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'nodeModules | $(Agent.OS) | .build/yarnlockhash'
+      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -72,6 +69,7 @@ steps:
       set -e
       npx https://aka.ms/enablesecurefeed standAlone
     timeoutInMinutes: 5
+    retryCountOnTaskFailure: 3
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
     displayName: Switch to Terrapin packages
 
@@ -88,6 +86,7 @@ steps:
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -102,34 +101,87 @@ steps:
   - script: |
       set -e
       node build/azure-pipelines/mixin
+      node build/azure-pipelines/mixin --server
     displayName: Mix in quality
+
+  - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+    displayName: "Register Docker QEMU"
+    condition: eq(variables['VSCODE_ARCH'], 'arm64')
 
   - script: |
       set -e
-      docker run -e VSCODE_QUALITY -v $(pwd):/root/vscode -v ~/.netrc:/root/.netrc vscodehub.azurecr.io/vscode-linux-build-agent:alpine /root/vscode/build/azure-pipelines/linux/alpine/install-dependencies.sh
+      docker run -e VSCODE_QUALITY -v $(pwd):/root/vscode -v ~/.netrc:/root/.netrc vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH) /root/vscode/build/azure-pipelines/linux/alpine/install-dependencies.sh
     displayName: Prebuild
 
   - script: |
       set -e
-      yarn gulp vscode-reh-linux-alpine-min-ci
-      yarn gulp vscode-reh-web-linux-alpine-min-ci
+
+      case $VSCODE_ARCH in
+        x64)
+          reh='vscode-reh-linux-alpine-min-ci'
+          rehweb='vscode-reh-web-linux-alpine-min-ci'
+          ;;
+        arm64)
+          reh='vscode-reh-alpine-arm64-min-ci'
+          rehweb='vscode-reh-web-alpine-arm64-min-ci'
+          ;;
+      esac
+
+      yarn gulp $reh
+      yarn gulp $rehweb
     displayName: Build
 
   - script: |
       set -e
-      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-      AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      ./build/azure-pipelines/linux/alpine/publish.sh
-    displayName: Publish
+      REPO="$(pwd)"
+      ROOT="$REPO/.."
+
+      case $VSCODE_ARCH in
+        x64)
+          PLATFORM_LINUX='linux-alpine'
+          ;;
+        arm64)
+          PLATFORM_LINUX='alpine-arm64'
+          ;;
+      esac
+
+      # Publish Remote Extension Host
+      LEGACY_SERVER_BUILD_NAME="vscode-reh-$PLATFORM_LINUX"
+      SERVER_BUILD_NAME="vscode-server-$PLATFORM_LINUX"
+      SERVER_TARBALL_FILENAME="vscode-server-$PLATFORM_LINUX.tar.gz"
+      SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
+
+      rm -rf $ROOT/vscode-server-*.tar.*
+      (cd $ROOT && mv $LEGACY_SERVER_BUILD_NAME $SERVER_BUILD_NAME && tar --owner=0 --group=0 -czf $SERVER_TARBALL_PATH $SERVER_BUILD_NAME)
+
+      # Publish Remote Extension Host (Web)
+      LEGACY_SERVER_BUILD_NAME="vscode-reh-web-$PLATFORM_LINUX"
+      SERVER_BUILD_NAME="vscode-server-$PLATFORM_LINUX-web"
+      SERVER_TARBALL_FILENAME="vscode-server-$PLATFORM_LINUX-web.tar.gz"
+      SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
+
+      rm -rf $ROOT/vscode-server-*-web.tar.*
+      (cd $ROOT && mv $LEGACY_SERVER_BUILD_NAME $SERVER_BUILD_NAME && tar --owner=0 --group=0 -czf $SERVER_TARBALL_PATH $SERVER_BUILD_NAME)
+    displayName: Prepare for publish
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine.tar.gz
-    artifact: vscode-server-linux-alpine
+  - publish: $(Agent.BuildDirectory)/vscode-server-alpine-$(VSCODE_ARCH).tar.gz
+    artifact: vscode_server_alpine_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'x64'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-alpine-$(VSCODE_ARCH)-web.tar.gz
+    artifact: vscode_web_alpine_$(VSCODE_ARCH)_archive-unsigned
+    displayName: Publish web server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'x64'))
+
+  # Legacy x64 artifact name
+  - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine.tar.gz
+    artifact: vscode_server_linux_alpine_archive-unsigned
+    displayName: Publish x64 server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine-web.tar.gz
-    artifact: vscode-server-linux-alpine-web
-    displayName: Publish web server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+    artifact: vscode_web_linux_alpine_archive-unsigned
+    displayName: Publish x64 web server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))

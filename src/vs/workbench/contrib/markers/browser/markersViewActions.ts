@@ -19,7 +19,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { badgeBackground, badgeForeground, contrastBorder, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { ContextScopedHistoryInputBox } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { Marker } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -29,6 +29,8 @@ import { BaseActionViewItem, ActionViewItem } from 'vs/base/browser/ui/actionbar
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
 
 export interface IMarkersFiltersChangeEvent {
 	filterText?: boolean;
@@ -166,7 +168,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 		);
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		this.updateChecked();
 	}
@@ -227,7 +229,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 		];
 	}
 
-	updateChecked(): void {
+	override updateChecked(): void {
 		this.element!.classList.toggle('checked', this._action.checked);
 	}
 
@@ -245,6 +247,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	private focusContextKey: IContextKey<boolean>;
 	private readonly filtersAction: IAction;
 	private actionbar: ActionBar | null = null;
+	private keybindingService;
 
 	constructor(
 		action: IAction,
@@ -252,9 +255,11 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(null, action);
+		this.keybindingService = keybindingService;
 		this.focusContextKey = Constants.MarkerViewFilterFocusContextKey.bindTo(contextKeyService);
 		this.delayedFilterUpdate = new Delayer<void>(400);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
@@ -265,7 +270,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this._register(markersView.filters.onDidChange(e => this.onDidFiltersChange(e)));
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		this.container = container;
 		this.container.classList.add('markers-panel-action-filter-container');
 
@@ -278,23 +283,23 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this.adjustInputBox();
 	}
 
-	focus(): void {
+	override focus(): void {
 		if (this.filterInputBox) {
 			this.filterInputBox.focus();
 		}
 	}
 
-	blur(): void {
+	override blur(): void {
 		if (this.filterInputBox) {
 			this.filterInputBox.blur();
 		}
 	}
 
-	setFocusable(): void {
+	override setFocusable(): void {
 		// noop input elements are focusable by default
 	}
 
-	get trapsArrowNavigation(): boolean {
+	override get trapsArrowNavigation(): boolean {
 		return true;
 	}
 
@@ -319,7 +324,8 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this.filterInputBox = this._register(this.instantiationService.createInstance(ContextScopedHistoryInputBox, container, this.contextViewService, {
 			placeholder: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER,
 			ariaLabel: Messages.MARKERS_PANEL_FILTER_ARIA_LABEL,
-			history: this.markersView.filters.filterHistory
+			history: this.markersView.filters.filterHistory,
+			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService)
 		}));
 		this._register(attachInputBoxStyler(this.filterInputBox, this.themeService));
 		this.filterInputBox.value = this.markersView.filters.filterText;
@@ -427,7 +433,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	protected updateClass(): void {
+	protected override updateClass(): void {
 		if (this.element && this.container) {
 			this.element.className = this.class;
 			this.container.classList.toggle('grow', this.element.classList.contains('grow'));
@@ -474,7 +480,7 @@ export class QuickFixAction extends Action {
 		super(QuickFixAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX, QuickFixAction.CLASS, false);
 	}
 
-	run(): Promise<void> {
+	override run(): Promise<void> {
 		this._onShowQuickFixes.fire();
 		return Promise.resolve();
 	}
@@ -488,7 +494,7 @@ export class QuickFixActionViewItem extends ActionViewItem {
 		super(null, action, { icon: true, label: false });
 	}
 
-	public onClick(event: DOM.EventLike): void {
+	public override onClick(event: DOM.EventLike): void {
 		DOM.EventHelper.stop(event, true);
 		this.showQuickFixes();
 	}

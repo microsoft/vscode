@@ -13,5 +13,15 @@ namespace SampleNamespace
                 System.Console.WriteLine("Circumference = {0:N2}", circumference);
             }
         }
+
+        public void TestMethod()
+        {
+            ListField = new List<int>();
+
+            List<int> localVar;
+            localVar = new List<int>();
+
+            List<int> localVar2 = new List<int>();
+        }
     }
 }

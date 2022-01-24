@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command } from 'vs/editor/common/modes';
+import { Command } from 'vs/editor/common/languages';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -37,13 +37,17 @@ export namespace Extensions {
 
 export const enum ViewContainerLocation {
 	Sidebar,
-	Panel
+	Panel,
+	AuxiliaryBar
 }
+
+export const ViewContainerLocations = [ViewContainerLocation.Sidebar, ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar];
 
 export function ViewContainerLocationToString(viewContainerLocation: ViewContainerLocation) {
 	switch (viewContainerLocation) {
 		case ViewContainerLocation.Sidebar: return 'sidebar';
 		case ViewContainerLocation.Panel: return 'panel';
+		case ViewContainerLocation.AuxiliaryBar: return 'auxiliarybar';
 	}
 }
 
@@ -58,7 +62,6 @@ type OpenCommandActionDescriptor = {
 /**
  * View Container Contexts
  */
-export function getEnabledViewContainerContextKey(viewContainerId: string): string { return `viewContainer.${viewContainerId}.enabled`; }
 
 export interface IViewContainerDescriptor {
 
@@ -293,6 +296,18 @@ export interface IViewDescriptor {
 
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor
 }
+
+export interface ICustomTreeViewDescriptor extends ITreeViewDescriptor {
+	readonly extensionId: ExtensionIdentifier;
+	readonly originalContainerId: string;
+}
+
+export interface ICustomWebviewViewDescriptor extends IViewDescriptor {
+	readonly extensionId: ExtensionIdentifier;
+	readonly originalContainerId: string;
+}
+
+export type ICustomViewDescriptor = ICustomTreeViewDescriptor | ICustomWebviewViewDescriptor;
 
 export interface IViewDescriptorRef {
 	viewDescriptor: IViewDescriptor;
@@ -577,12 +592,6 @@ export interface IViewsService {
 	getViewProgressIndicator(id: string): IProgressIndicator | undefined;
 }
 
-/**
- * View Contexts
- */
-export const FocusedViewContext = new RawContextKey<string>('focusedView', '', localize('focusedView', "The identifier of the view that has keyboard focus"));
-export function getVisbileViewContextKey(viewId: string): string { return `view.${viewId}.visible`; }
-
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
 
 export enum ViewVisibilityState {
@@ -626,9 +635,17 @@ export interface IViewDescriptorService {
 
 // Custom views
 
+export interface ITreeDataTransferItem {
+	asString(): Thenable<string>;
+}
+
+export type ITreeDataTransfer = Map<string, ITreeDataTransferItem>;
+
 export interface ITreeView extends IDisposable {
 
 	dataProvider: ITreeViewDataProvider | undefined;
+
+	dragAndDropController?: ITreeViewDragAndDropController;
 
 	showCollapseAllAction: boolean;
 
@@ -657,6 +674,8 @@ export interface ITreeView extends IDisposable {
 	readonly onDidChangeDescription: Event<string | undefined>;
 
 	readonly onDidChangeWelcomeState: Event<void>;
+
+	readonly container: any | undefined;
 
 	refresh(treeItems?: ITreeItem[]): Promise<void>;
 
@@ -809,8 +828,13 @@ export class ResolvableTreeItem implements ITreeItem {
 export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
 	onDidChangeEmpty?: Event<void>;
-	getChildren(element?: ITreeItem): Promise<ITreeItem[]>;
+	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
+}
 
+export interface ITreeViewDragAndDropController {
+	readonly supportedMimeTypes: string[];
+	handleDrag(sourceTreeItemHandles: string[], operationUuid: string): Promise<ITreeDataTransfer | undefined>;
+	handleDrop(elements: ITreeDataTransfer, target: ITreeItem, operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 }
 
 export interface IEditableData {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -13,11 +13,20 @@ export interface IHoverDelegateTarget extends IDisposable {
 }
 
 export interface IHoverDelegateOptions {
-	text: IMarkdownString | string;
+	content: IMarkdownString | string | HTMLElement;
 	target: IHoverDelegateTarget | HTMLElement;
-	anchorPosition?: AnchorPosition;
+	hoverPosition?: HoverPosition;
+	showPointer?: boolean;
+	skipFadeInAnimation?: boolean;
 }
 
 export interface IHoverDelegate {
-	showHover(options: IHoverDelegateOptions): IDisposable | undefined;
+	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined;
+	onDidHideHover?: () => void;
+	delay: number;
+	placement?: 'mouse' | 'element';
+}
+
+export interface IHoverWidget extends IDisposable {
+	readonly isDisposed: boolean;
 }

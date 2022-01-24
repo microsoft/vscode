@@ -8,13 +8,14 @@ import { illegalArgument, readonly } from 'vs/base/common/errors';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
-import { ISingleEditOperation } from 'vs/editor/common/model';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Lazy } from 'vs/base/common/lazy';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class TextEditorDecorationType {
 
@@ -22,9 +23,9 @@ export class TextEditorDecorationType {
 
 	readonly value: vscode.TextEditorDecorationType;
 
-	constructor(proxy: MainThreadTextEditorsShape, options: vscode.DecorationRenderOptions) {
+	constructor(proxy: MainThreadTextEditorsShape, extension: IExtensionDescription, options: vscode.DecorationRenderOptions) {
 		const key = TextEditorDecorationType._Keys.nextId();
-		proxy.$registerTextEditorDecorationType(key, TypeConverters.DecorationRenderOptions.from(options));
+		proxy.$registerTextEditorDecorationType(extension.identifier, key, TypeConverters.DecorationRenderOptions.from(options));
 		this.value = Object.freeze({
 			key,
 			dispose() {
@@ -225,7 +226,7 @@ export class ExtHostTextEditorOptions {
 			// reflect the new tabSize value immediately
 			this._tabSize = tabSize;
 		}
-		this._warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError('setTabSize', this._proxy.$trySetOptions(this._id, {
 			tabSize: tabSize
 		}));
 	}
@@ -249,7 +250,7 @@ export class ExtHostTextEditorOptions {
 			// reflect the new insertSpaces value immediately
 			this._insertSpaces = insertSpaces;
 		}
-		this._warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError('setInsertSpaces', this._proxy.$trySetOptions(this._id, {
 			insertSpaces: insertSpaces
 		}));
 	}
@@ -262,7 +263,7 @@ export class ExtHostTextEditorOptions {
 			return;
 		}
 		this._cursorStyle = value;
-		this._warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError('setCursorStyle', this._proxy.$trySetOptions(this._id, {
 			cursorStyle: value
 		}));
 	}
@@ -275,7 +276,7 @@ export class ExtHostTextEditorOptions {
 			return;
 		}
 		this._lineNumbers = value;
-		this._warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError('setLineNumbers', this._proxy.$trySetOptions(this._id, {
 			lineNumbers: TypeConverters.TextEditorLineNumbersStyle.from(value)
 		}));
 	}
@@ -340,12 +341,15 @@ export class ExtHostTextEditorOptions {
 		}
 
 		if (hasUpdate) {
-			this._warnOnError(this._proxy.$trySetOptions(this._id, bulkConfigurationUpdate));
+			this._warnOnError('setOptions', this._proxy.$trySetOptions(this._id, bulkConfigurationUpdate));
 		}
 	}
 
-	private _warnOnError(promise: Promise<any>): void {
-		promise.catch(err => this._logService.warn(err));
+	private _warnOnError(action: string, promise: Promise<any>): void {
+		promise.catch(err => {
+			this._logService.warn(`ExtHostTextEditorOptions '${action}' failed:'`);
+			this._logService.warn(err);
+		});
 	}
 }
 

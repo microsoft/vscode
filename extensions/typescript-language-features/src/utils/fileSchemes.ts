@@ -10,6 +10,9 @@ export const git = 'git';
 export const vsls = 'vsls';
 export const walkThroughSnippet = 'walkThroughSnippet';
 export const vscodeNotebookCell = 'vscode-notebook-cell';
+export const memFs = 'memfs';
+export const vscodeVfs = 'vscode-vfs';
+export const officeScript = 'office-script';
 
 export const semanticSupportedSchemes = [
 	file,

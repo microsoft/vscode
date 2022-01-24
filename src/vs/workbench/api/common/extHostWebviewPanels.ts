@@ -9,15 +9,15 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { serializeWebviewOptions, ExtHostWebview, ExtHostWebviews, toExtensionData } from 'vs/workbench/api/common/extHostWebview';
+import { serializeWebviewOptions, ExtHostWebview, ExtHostWebviews, toExtensionData, shouldSerializeBuffersForPostMessage } from 'vs/workbench/api/common/extHostWebview';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { EditorGroupColumn } from 'vs/workbench/common/editor';
+import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import type * as vscode from 'vscode';
 import * as extHostProtocol from './extHost.protocol';
 import * as extHostTypes from './extHostTypes';
 
 
-type IconPath = URI | { light: URI, dark: URI };
+type IconPath = URI | { readonly light: URI, readonly dark: URI };
 
 class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 
@@ -60,7 +60,7 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 		this.#webview = webview;
 	}
 
-	public dispose() {
+	public override dispose() {
 		if (this.#isDisposed) {
 			return;
 		}
@@ -151,7 +151,7 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 	public reveal(viewColumn?: vscode.ViewColumn, preserveFocus?: boolean): void {
 		this.assertNotDisposed();
 		this.#proxy.$reveal(this.#handle, {
-			viewColumn: viewColumn ? typeConverters.ViewColumn.from(viewColumn) : undefined,
+			viewColumn: typeof viewColumn === 'undefined' ? undefined : typeConverters.ViewColumn.from(viewColumn),
 			preserveFocus: !!preserveFocus
 		});
 	}
@@ -199,11 +199,13 @@ export class ExtHostWebviewPanels implements extHostProtocol.ExtHostWebviewPanel
 			preserveFocus: typeof showOptions === 'object' && !!showOptions.preserveFocus
 		};
 
+		const serializeBuffersForPostMessage = shouldSerializeBuffersForPostMessage(extension);
 		const handle = ExtHostWebviewPanels.newHandle();
 		this._proxy.$createWebviewPanel(toExtensionData(extension), handle, viewType, {
 			title,
 			panelOptions: serializeWebviewPanelOptions(options),
 			webviewOptions: serializeWebviewOptions(extension, this.workspace, options),
+			serializeBuffersForPostMessage,
 		}, webviewShowOptions);
 
 		const webview = this.webviews.createNewWebview(handle, options, extension);
@@ -263,7 +265,9 @@ export class ExtHostWebviewPanels implements extHostProtocol.ExtHostWebviewPanel
 		}
 
 		this._serializers.set(viewType, { serializer, extension });
-		this._proxy.$registerSerializer(viewType);
+		this._proxy.$registerSerializer(viewType, {
+			serializeBuffersForPostMessage: shouldSerializeBuffersForPostMessage(extension)
+		});
 
 		return new extHostTypes.Disposable(() => {
 			this._serializers.delete(viewType);
@@ -277,7 +281,7 @@ export class ExtHostWebviewPanels implements extHostProtocol.ExtHostWebviewPanel
 		initData: {
 			title: string;
 			state: any;
-			webviewOptions: extHostProtocol.IWebviewOptions;
+			webviewOptions: extHostProtocol.IWebviewContentOptions;
 			panelOptions: extHostProtocol.IWebviewPanelOptions;
 		},
 		position: EditorGroupColumn

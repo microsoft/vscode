@@ -8,16 +8,10 @@ import 'mocha';
 import * as vscode from 'vscode';
 import LinkProvider from '../features/documentLinkProvider';
 import { InMemoryDocument } from './inMemoryDocument';
+import { noopToken } from './util';
 
 
 const testFile = vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'x.md');
-
-const noopToken = new class implements vscode.CancellationToken {
-	private _onCancellationRequestedEmitter = new vscode.EventEmitter<void>();
-	public onCancellationRequested = this._onCancellationRequestedEmitter.event;
-
-	get isCancellationRequested() { return false; }
-};
 
 function getLinksForFile(fileContents: string) {
 	const doc = new InMemoryDocument(testFile, fileContents);
@@ -139,10 +133,21 @@ suite('markdown.DocumentLinkProvider', () => {
 		}
 	});
 
-	// #107471
-	test('Should not consider link references starting with ^ character valid', () => {
+	test('Should not consider link references starting with ^ character valid (#107471)', () => {
 		const links = getLinksForFile('[^reference]: https://example.com');
 		assert.strictEqual(links.length, 0);
+	});
+
+	test('Should find definitions links with spaces in angle brackets (#136073)', () => {
+		const links = getLinksForFile([
+			'[a]: <b c>',
+			'[b]: <cd>',
+		].join('\n'));
+		assert.strictEqual(links.length, 2);
+
+		const [link1, link2] = links;
+		assertRangeEqual(link1.range, new vscode.Range(0, 6, 0, 9));
+		assertRangeEqual(link2.range, new vscode.Range(1, 6, 1, 8));
 	});
 });
 

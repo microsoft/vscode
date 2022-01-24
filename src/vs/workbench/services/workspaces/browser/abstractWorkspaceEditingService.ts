@@ -13,8 +13,8 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { distinct } from 'vs/base/common/arrays';
-import { isEqual, isEqualAuthority } from 'vs/base/common/resources';
+import { distinct, firstOrDefault } from 'vs/base/common/arrays';
+import { basename, isEqual, isEqualAuthority } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -25,9 +25,8 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Schemas } from 'vs/base/common/network';
 import { SaveReason } from 'vs/workbench/common/editor';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-
-const UNTITLED_WORKSPACE_FILENAME = `workspace.${WORKSPACE_EXTENSION}`;
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -46,15 +45,21 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IDialogService protected readonly dialogService: IDialogService,
 		@IHostService protected readonly hostService: IHostService,
-		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) { }
 
 	async pickNewWorkspacePath(): Promise<URI | undefined> {
+		const availableFileSystems = [Schemas.file];
+		if (this.environmentService.remoteAuthority) {
+			availableFileSystems.unshift(Schemas.vscodeRemote);
+		}
 		let workspacePath = await this.fileDialogService.showSaveDialog({
 			saveLabel: mnemonicButtonLabel(localize('save', "Save")),
 			title: localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultUri: await this.fileDialogService.defaultWorkspacePath(undefined, UNTITLED_WORKSPACE_FILENAME)
+			defaultUri: await this.fileDialogService.defaultWorkspacePath(undefined, this.getNewWorkspaceName()),
+			availableFileSystems
 		});
 
 		if (!workspacePath) {
@@ -68,6 +73,27 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		}
 
 		return workspacePath;
+	}
+
+	private getNewWorkspaceName(): string {
+		switch (this.contextService.getWorkbenchState()) {
+			case WorkbenchState.FOLDER: {
+				const folder = firstOrDefault(this.contextService.getWorkspace().folders);
+				if (folder) {
+					return `${basename(folder.uri)}.${WORKSPACE_EXTENSION}`;
+				}
+				break;
+			}
+			case WorkbenchState.WORKSPACE: {
+				const configPathURI = this.getCurrentWorkspaceIdentifier()?.configPath;
+				if (configPathURI && !isUntitledWorkspace(configPathURI, this.environmentService)) {
+					return basename(configPathURI);
+				}
+				break;
+			}
+		}
+
+		return `workspace.${WORKSPACE_EXTENSION}`;
 	}
 
 	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
@@ -136,7 +162,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		const remoteAuthority = this.environmentService.remoteAuthority;
 		if (remoteAuthority) {
 			// https://github.com/microsoft/vscode/issues/94191
-			foldersToAdd = foldersToAdd.filter(f => f.uri.scheme !== Schemas.file && (f.uri.scheme !== Schemas.vscodeRemote || isEqualAuthority(f.uri.authority, remoteAuthority)));
+			foldersToAdd = foldersToAdd.filter(folder => folder.uri.scheme !== Schemas.file && (folder.uri.scheme !== Schemas.vscodeRemote || isEqualAuthority(folder.uri.authority, remoteAuthority)));
 		}
 
 		// If we are in no-workspace or single-folder workspace, adding folders has to
@@ -254,6 +280,9 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		const raw = await this.fileService.readFile(configPathURI);
 		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value.toString(), configPathURI, isFromUntitledWorkspace, targetConfigPathURI, this.uriIdentityService.extUri);
 		await this.textFileService.create([{ resource: targetConfigPathURI, value: newRawWorkspaceContents, options: { overwrite: true } }]);
+
+		// Set trust for the workspace file
+		await this.trustWorkspaceConfiguration(targetConfigPathURI);
 	}
 
 	protected async saveWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
@@ -297,7 +326,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 	}
 
 	private onWorkspaceConfigurationFileDirtyError(): void {
-		const message = localize('errorWorkspaceConfigurationFileDirty', "Unable to write into workspace configuration file because the file is dirty. Please save it and try again.");
+		const message = localize('errorWorkspaceConfigurationFileDirty', "Unable to write into workspace configuration file because the file has unsaved changes. Please save it and try again.");
 		this.askToOpenWorkspaceConfigurationFile(message);
 	}
 
@@ -312,7 +341,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 	abstract enterWorkspace(path: URI): Promise<void>;
 
-	protected async doEnterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> {
+	protected async doEnterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		if (!!this.environmentService.extensionTestsLocationURI) {
 			throw new Error('Entering a new workspace is not possible in tests.');
 		}
@@ -352,6 +381,12 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		}
 
 		return this.jsonEditingService.write(toWorkspace.configPath, [{ path: ['settings'], value: targetWorkspaceConfiguration }], true);
+	}
+
+	private async trustWorkspaceConfiguration(configPathURI: URI): Promise<void> {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+			await this.workspaceTrustManagementService.setUrisTrust([configPathURI], true);
+		}
 	}
 
 	protected getCurrentWorkspaceIdentifier(): IWorkspaceIdentifier | undefined {

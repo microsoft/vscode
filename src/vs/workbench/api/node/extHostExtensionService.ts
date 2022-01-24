@@ -16,14 +16,32 @@ import { Schemas } from 'vs/base/common/network';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
+import { realpathSync } from 'vs/base/node/extpath';
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
 
 	protected _installInterceptor(): void {
 		const that = this;
 		const node_module = <any>require.__$__nodeRequire('module');
-		const original = node_module._load;
+		const originalLoad = node_module._load;
 		node_module._load = function load(request: string, parent: { filename: string; }, isMain: boolean) {
+			request = applyAlternatives(request);
+			if (!that._factories.has(request)) {
+				return originalLoad.apply(this, arguments);
+			}
+			return that._factories.get(request)!.load(
+				request,
+				URI.file(realpathSync(parent.filename)),
+				request => originalLoad.apply(this, [request, parent, isMain])
+			);
+		};
+
+		const originalLookup = node_module._resolveLookupPaths;
+		node_module._resolveLookupPaths = (request: string, parent: unknown) => {
+			return originalLookup.call(this, applyAlternatives(request), parent);
+		};
+
+		const applyAlternatives = (request: string) => {
 			for (let alternativeModuleName of that._alternatives) {
 				let alternative = alternativeModuleName(request);
 				if (alternative) {
@@ -31,14 +49,7 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 					break;
 				}
 			}
-			if (!that._factories.has(request)) {
-				return original.apply(this, arguments);
-			}
-			return that._factories.get(request)!.load(
-				request,
-				URI.file(parent.filename),
-				request => original.apply(this, [request, parent, isMain])
-			);
+			return request;
 		};
 	}
 }
@@ -93,7 +104,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		}
 		let r: T | null = null;
 		activationTimesBuilder.codeLoadingStart();
-		this._logService.info(`ExtensionService#loadCommonJSModule ${module.toString(true)}`);
+		this._logService.trace(`ExtensionService#loadCommonJSModule ${module.toString(true)}`);
 		this._logService.flush();
 		try {
 			if (extensionId) {

@@ -8,8 +8,9 @@ import { Logger } from '../logger';
 import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable, disposeAll } from '../util/dispose';
+import { isMarkdownFile } from '../util/file';
 import { TopmostLineMonitor } from '../util/topmostLineMonitor';
-import { DynamicMarkdownPreview, ManagedMarkdownPreview, StartingScrollFragment, StaticMarkdownPreview } from './preview';
+import { DynamicMarkdownPreview, ManagedMarkdownPreview, scrollEditorToLine, StartingScrollFragment, StaticMarkdownPreview } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider } from './previewContentProvider';
 
@@ -23,7 +24,7 @@ class PreviewStore<T extends ManagedMarkdownPreview> extends Disposable {
 
 	private readonly _previews = new Set<T>();
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 		for (const preview of this._previews) {
 			preview.dispose();
@@ -64,8 +65,6 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 
 	private _activePreview: ManagedMarkdownPreview | undefined = undefined;
 
-	private readonly customEditorViewType = 'vscode.markdown.preview.editor';
-
 	public constructor(
 		private readonly _contentProvider: MarkdownContentProvider,
 		private readonly _logger: Logger,
@@ -74,7 +73,19 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	) {
 		super();
 		this._register(vscode.window.registerWebviewPanelSerializer(DynamicMarkdownPreview.viewType, this));
-		this._register(vscode.window.registerCustomEditorProvider(this.customEditorViewType, this));
+		this._register(vscode.window.registerCustomEditorProvider(StaticMarkdownPreview.customEditorViewType, this, {
+			webviewOptions: { enableFindWidget: true }
+		}));
+
+		this._register(vscode.window.onDidChangeActiveTextEditor(textEditor => {
+			// When at a markdown file, apply existing scroll settings
+			if (textEditor?.document && isMarkdownFile(textEditor.document)) {
+				const line = this._topmostLineMonitor.getPreviousStaticEditorLineByUri(textEditor.document.uri);
+				if (typeof line === 'number') {
+					scrollEditorToLine(line, textEditor);
+				}
+			}
+		}));
 	}
 
 	public refresh() {
@@ -160,14 +171,18 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		document: vscode.TextDocument,
 		webview: vscode.WebviewPanel
 	): Promise<void> {
+		const lineNumber = this._topmostLineMonitor.getPreviousTextEditorLineByUri(document.uri);
 		const preview = StaticMarkdownPreview.revive(
 			document.uri,
 			webview,
 			this._contentProvider,
 			this._previewConfigurations,
+			this._topmostLineMonitor,
 			this._logger,
 			this._contributions,
-			this._engine);
+			this._engine,
+			lineNumber
+		);
 		this.registerStaticPreview(preview);
 	}
 
@@ -175,11 +190,14 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		resource: vscode.Uri,
 		previewSettings: DynamicPreviewSettings
 	): DynamicMarkdownPreview {
+		const activeTextEditorURI = vscode.window.activeTextEditor?.document.uri;
+		const scrollLine = (activeTextEditorURI?.toString() === resource.toString()) ? vscode.window.activeTextEditor?.visibleRanges[0].start.line : undefined;
 		const preview = DynamicMarkdownPreview.create(
 			{
 				resource,
 				resourceColumn: previewSettings.resourceColumn,
 				locked: previewSettings.locked,
+				line: scrollLine,
 			},
 			previewSettings.previewColumn,
 			this._contentProvider,

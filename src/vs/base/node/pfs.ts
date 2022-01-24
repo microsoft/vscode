@@ -5,29 +5,14 @@
 
 import * as fs from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'vs/base/common/path';
+import { promisify } from 'util';
 import { ResourceQueue } from 'vs/base/common/async';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { isEqualOrParent, isRootOrDriveLetter } from 'vs/base/common/extpath';
-import { generateUuid } from 'vs/base/common/uuid';
+import { isEqualOrParent, isRootOrDriveLetter, randomPath } from 'vs/base/common/extpath';
 import { normalizeNFC } from 'vs/base/common/normalization';
+import { join } from 'vs/base/common/path';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-
-//#region Constants
-
-// See https://github.com/microsoft/vscode/issues/30180
-const WIN32_MAX_FILE_SIZE = 300 * 1024 * 1024; // 300 MB
-const GENERAL_MAX_FILE_SIZE = 16 * 1024 * 1024 * 1024; // 16 GB
-
-// See https://github.com/v8/v8/blob/5918a23a3d571b9625e5cce246bdd5b46ff7cd8b/src/heap/heap.cc#L149
-const WIN32_MAX_HEAP_SIZE = 700 * 1024 * 1024; // 700 MB
-const GENERAL_MAX_HEAP_SIZE = 700 * 2 * 1024 * 1024; // 1400 MB
-
-export const MAX_FILE_SIZE = process.arch === 'ia32' ? WIN32_MAX_FILE_SIZE : GENERAL_MAX_FILE_SIZE;
-export const MAX_HEAP_SIZE = process.arch === 'ia32' ? WIN32_MAX_HEAP_SIZE : GENERAL_MAX_HEAP_SIZE;
-
-//#endregion
 
 //#region rimraf
 
@@ -47,13 +32,13 @@ export enum RimRafMode {
 }
 
 /**
- * Allows to delete the provied path (either file or folder) recursively
+ * Allows to delete the provided path (either file or folder) recursively
  * with the options:
  * - `UNLINK`: direct removal from disk
  * - `MOVE`: faster variant that first moves the target to temp dir and then
  *           deletes it in the background without waiting for that to finish.
  */
-export async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
+async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
 	if (isRootOrDriveLetter(path)) {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
@@ -69,8 +54,16 @@ export async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<vo
 
 async function rimrafMove(path: string): Promise<void> {
 	try {
-		const pathInTemp = join(tmpdir(), generateUuid());
+		const pathInTemp = randomPath(tmpdir());
 		try {
+			// Intentionally using `fs.promises` here to skip
+			// the patched graceful-fs method that can result
+			// in very long running `rename` calls when the
+			// folder is locked by a file watcher. We do not
+			// really want to slow down this operation more
+			// than necessary and we have a fallback to delete
+			// via unlink.
+			// https://github.com/microsoft/vscode/issues/139908
 			await fs.promises.rename(path, pathInTemp);
 		} catch (error) {
 			return rimrafUnlink(path); // if rename fails, delete without tmp dir
@@ -86,7 +79,7 @@ async function rimrafMove(path: string): Promise<void> {
 }
 
 async function rimrafUnlink(path: string): Promise<void> {
-	return fs.promises.rmdir(path, { recursive: true, maxRetries: 3 });
+	return Promises.rmdir(path, { recursive: true, maxRetries: 3 });
 }
 
 export function rimrafSync(path: string): void {
@@ -114,15 +107,15 @@ export interface IDirent {
  * for converting from macOS NFD unicon form to NFC
  * (https://github.com/nodejs/node/issues/2165)
  */
-export async function readdir(path: string): Promise<string[]>;
-export async function readdir(path: string, options: { withFileTypes: true }): Promise<IDirent[]>;
-export async function readdir(path: string, options?: { withFileTypes: true }): Promise<(string | IDirent)[]> {
-	return handleDirectoryChildren(await (options ? safeReaddirWithFileTypes(path) : fs.promises.readdir(path)));
+async function readdir(path: string): Promise<string[]>;
+async function readdir(path: string, options: { withFileTypes: true }): Promise<IDirent[]>;
+async function readdir(path: string, options?: { withFileTypes: true }): Promise<(string | IDirent)[]> {
+	return handleDirectoryChildren(await (options ? safeReaddirWithFileTypes(path) : promisify(fs.readdir)(path)));
 }
 
 async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
 	try {
-		return await fs.promises.readdir(path, { withFileTypes: true });
+		return await promisify(fs.readdir)(path, { withFileTypes: true });
 	} catch (error) {
 		console.warn('[node.js fs] readdir with filetypes failed with error: ', error);
 	}
@@ -141,7 +134,7 @@ async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
 		let isSymbolicLink = false;
 
 		try {
-			const lstat = await fs.promises.lstat(join(path, child));
+			const lstat = await Promises.lstat(join(path, child));
 
 			isFile = lstat.isFile();
 			isDirectory = lstat.isDirectory();
@@ -190,10 +183,10 @@ function handleDirectoryChildren(children: (string | IDirent)[]): (string | IDir
 }
 
 /**
- * A convinience method to read all children of a path that
+ * A convenience method to read all children of a path that
  * are directories.
  */
-export async function readDirsInDir(dirPath: string): Promise<string[]> {
+async function readDirsInDir(dirPath: string): Promise<string[]> {
 	const children = await readdir(dirPath);
 	const directories: string[] = [];
 
@@ -266,7 +259,7 @@ export namespace SymlinkSupport {
 		// First stat the link
 		let lstats: fs.Stats | undefined;
 		try {
-			lstats = await fs.promises.lstat(path);
+			lstats = await Promises.lstat(path);
 
 			// Return early if the stat is not a symbolic link at all
 			if (!lstats.isSymbolicLink()) {
@@ -279,12 +272,12 @@ export namespace SymlinkSupport {
 		// If the stat is a symbolic link or failed to stat, use fs.stat()
 		// which for symbolic links will stat the target they point to
 		try {
-			const stats = await fs.promises.stat(path);
+			const stats = await Promises.stat(path);
 
 			return { stat: stats, symbolicLink: lstats?.isSymbolicLink() ? { dangling: false } : undefined };
 		} catch (error) {
 
-			// If the link points to a non-existing file we still want
+			// If the link points to a nonexistent file we still want
 			// to return it as result while setting dangling: true flag
 			if (error.code === 'ENOENT' && lstats) {
 				return { stat: lstats, symbolicLink: { dangling: true } };
@@ -294,12 +287,12 @@ export namespace SymlinkSupport {
 			// are not supported (https://github.com/nodejs/node/issues/36790)
 			if (isWindows && error.code === 'EACCES') {
 				try {
-					const stats = await fs.promises.stat(await fs.promises.readlink(path));
+					const stats = await Promises.stat(await Promises.readlink(path));
 
 					return { stat: stats, symbolicLink: { dangling: false } };
 				} catch (error) {
 
-					// If the link points to a non-existing file we still want
+					// If the link points to a nonexistent file we still want
 					// to return it as result while setting dangling: true flag
 					if (error.code === 'ENOENT' && lstats) {
 						return { stat: lstats, symbolicLink: { dangling: true } };
@@ -318,7 +311,7 @@ export namespace SymlinkSupport {
 	 * for symlinks.
 	 *
 	 * Note: this will return `false` for a symlink that exists on
-	 * disk but is dangling (pointing to a non-existing path).
+	 * disk but is dangling (pointing to a nonexistent path).
 	 *
 	 * Use `exists` if you only care about the path existing on disk
 	 * or not without support for symbolic links.
@@ -340,7 +333,7 @@ export namespace SymlinkSupport {
 	 * symlinks.
 	 *
 	 * Note: this will return `false` for a symlink that exists on
-	 * disk but is dangling (pointing to a non-existing path).
+	 * disk but is dangling (pointing to a nonexistent path).
 	 *
 	 * Use `exists` if you only care about the path existing on disk
 	 * or not without support for symbolic links.
@@ -362,7 +355,7 @@ export namespace SymlinkSupport {
 
 //#region Write File
 
-// According to node.js docs (https://nodejs.org/docs/v6.5.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
+// According to node.js docs (https://nodejs.org/docs/v14.16.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
 // it is not safe to call writeFile() on the same path multiple times without waiting for the callback to return.
 // Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
 const writeQueues = new ResourceQueue();
@@ -374,11 +367,11 @@ const writeQueues = new ResourceQueue();
  *
  * In addition, multiple writes to the same path are queued.
  */
-export function writeFile(path: string, data: string, options?: IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: Buffer, options?: IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: Uint8Array, options?: IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void> {
+function writeFile(path: string, data: string, options?: IWriteFileOptions): Promise<void>;
+function writeFile(path: string, data: Buffer, options?: IWriteFileOptions): Promise<void>;
+function writeFile(path: string, data: Uint8Array, options?: IWriteFileOptions): Promise<void>;
+function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void>;
+function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void> {
 	return writeQueues.queueFor(URI.file(path), extUriBiasedIgnorePathCase).queue(() => {
 		const ensuredOptions = ensureWriteOptions(options);
 
@@ -386,7 +379,7 @@ export function writeFile(path: string, data: string | Buffer | Uint8Array, opti
 	});
 }
 
-export interface IWriteFileOptions {
+interface IWriteFileOptions {
 	mode?: number;
 	flag?: string;
 }
@@ -421,6 +414,7 @@ function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, o
 			}
 
 			// Flush contents (not metadata) of the file to disk
+			// https://github.com/microsoft/vscode/issues/9589
 			fs.fdatasync(fd, (syncError: Error | null) => {
 
 				// In some exotic setups it is well possible that node fails to sync
@@ -458,7 +452,7 @@ export function writeFileSync(path: string, data: string | Buffer, options?: IWr
 
 		// Flush contents (not metadata) of the file to disk
 		try {
-			fs.fdatasyncSync(fd);
+			fs.fdatasyncSync(fd); // https://github.com/microsoft/vscode/issues/9589
 		} catch (syncError) {
 			console.warn('[node.js fs] fdatasyncSync is now disabled for this session because it failed: ', syncError);
 			canFlush = false;
@@ -488,7 +482,7 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
  * - updates the `mtime` of the `source` after the operation
  * - allows to move across multiple disks
  */
-export async function move(source: string, target: string): Promise<void> {
+async function move(source: string, target: string): Promise<void> {
 	if (source === target) {
 		return;  // simulate node.js behaviour here and do a no-op if paths match
 	}
@@ -503,24 +497,19 @@ export async function move(source: string, target: string): Promise<void> {
 	// as well because conceptually it is a change of a similar category.
 	async function updateMtime(path: string): Promise<void> {
 		try {
-			const stat = await fs.promises.lstat(path);
+			const stat = await Promises.lstat(path);
 			if (stat.isDirectory() || stat.isSymbolicLink()) {
 				return; // only for files
 			}
 
-			const fh = await fs.promises.open(path, 'a');
-			try {
-				await fh.utimes(stat.atime, new Date());
-			} finally {
-				await fh.close();
-			}
+			await Promises.utimes(path, stat.atime, new Date());
 		} catch (error) {
 			// Ignore any error
 		}
 	}
 
 	try {
-		await fs.promises.rename(source, target);
+		await Promises.rename(source, target);
 		await updateMtime(target);
 	} catch (error) {
 
@@ -555,7 +544,7 @@ interface ICopyPayload {
  * links should be handled when encountered. Set to
  * `false` to not preserve them and `true` otherwise.
  */
-export async function copy(source: string, target: string, options: { preserveSymlinks: boolean }): Promise<void> {
+async function copy(source: string, target: string, options: { preserveSymlinks: boolean }): Promise<void> {
 	return doCopy(source, target, { root: { source, target }, options, handledSourcePaths: new Set<string>() });
 }
 
@@ -609,7 +598,7 @@ async function doCopy(source: string, target: string, payload: ICopyPayload): Pr
 async function doCopyDirectory(source: string, target: string, mode: number, payload: ICopyPayload): Promise<void> {
 
 	// Create folder
-	await fs.promises.mkdir(target, { recursive: true, mode });
+	await Promises.mkdir(target, { recursive: true, mode });
 
 	// Copy each file recursively
 	const files = await readdir(source);
@@ -621,16 +610,16 @@ async function doCopyDirectory(source: string, target: string, mode: number, pay
 async function doCopyFile(source: string, target: string, mode: number): Promise<void> {
 
 	// Copy file
-	await fs.promises.copyFile(source, target);
+	await Promises.copyFile(source, target);
 
 	// restore mode (https://github.com/nodejs/node/issues/1104)
-	await fs.promises.chmod(target, mode);
+	await Promises.chmod(target, mode);
 }
 
 async function doCopySymlink(source: string, target: string, payload: ICopyPayload): Promise<void> {
 
 	// Figure out link target
-	let linkTarget = await fs.promises.readlink(source);
+	let linkTarget = await Promises.readlink(source);
 
 	// Special case: the symlink points to a target that is
 	// actually within the path that is being copied. In that
@@ -641,21 +630,126 @@ async function doCopySymlink(source: string, target: string, payload: ICopyPaylo
 	}
 
 	// Create symlink
-	await fs.promises.symlink(linkTarget, target);
+	await Promises.symlink(linkTarget, target);
 }
 
 //#endregion
 
-//#region Async FS Methods
+//#region Promise based fs methods
 
-export async function exists(path: string): Promise<boolean> {
-	try {
-		await fs.promises.access(path);
+/**
+ * Prefer this helper class over the `fs.promises` API to
+ * enable `graceful-fs` to function properly. Given issue
+ * https://github.com/isaacs/node-graceful-fs/issues/160 it
+ * is evident that the module only takes care of the non-promise
+ * based fs methods.
+ *
+ * Another reason is `realpath` being entirely different in
+ * the promise based implementation compared to the other
+ * one (https://github.com/microsoft/vscode/issues/118562)
+ *
+ * Note: using getters for a reason, since `graceful-fs`
+ * patching might kick in later after modules have been
+ * loaded we need to defer access to fs methods.
+ * (https://github.com/microsoft/vscode/issues/124176)
+ */
+export const Promises = new class {
 
-		return true;
-	} catch {
-		return false;
+	//#region Implemented by node.js
+
+	get access() { return promisify(fs.access); }
+
+	get stat() { return promisify(fs.stat); }
+	get lstat() { return promisify(fs.lstat); }
+	get utimes() { return promisify(fs.utimes); }
+
+	get read() {
+
+		// Not using `promisify` here for a reason: the return
+		// type is not an object as indicated by TypeScript but
+		// just the bytes read, so we create our own wrapper.
+
+		return (fd: number, buffer: Uint8Array, offset: number, length: number, position: number | null) => {
+			return new Promise<{ bytesRead: number, buffer: Uint8Array }>((resolve, reject) => {
+				fs.read(fd, buffer, offset, length, position, (err, bytesRead, buffer) => {
+					if (err) {
+						return reject(err);
+					}
+
+					return resolve({ bytesRead, buffer });
+				});
+			});
+		};
 	}
-}
+	get readFile() { return promisify(fs.readFile); }
+
+	get write() {
+
+		// Not using `promisify` here for a reason: the return
+		// type is not an object as indicated by TypeScript but
+		// just the bytes written, so we create our own wrapper.
+
+		return (fd: number, buffer: Uint8Array, offset: number | undefined | null, length: number | undefined | null, position: number | undefined | null) => {
+			return new Promise<{ bytesWritten: number, buffer: Uint8Array }>((resolve, reject) => {
+				fs.write(fd, buffer, offset, length, position, (err, bytesWritten, buffer) => {
+					if (err) {
+						return reject(err);
+					}
+
+					return resolve({ bytesWritten, buffer });
+				});
+			});
+		};
+	}
+
+	get appendFile() { return promisify(fs.appendFile); }
+
+	get fdatasync() { return promisify(fs.fdatasync); }
+	get truncate() { return promisify(fs.truncate); }
+
+	get rename() { return promisify(fs.rename); }
+	get copyFile() { return promisify(fs.copyFile); }
+
+	get open() { return promisify(fs.open); }
+	get close() { return promisify(fs.close); }
+
+	get symlink() { return promisify(fs.symlink); }
+	get readlink() { return promisify(fs.readlink); }
+
+	get chmod() { return promisify(fs.chmod); }
+
+	get mkdir() { return promisify(fs.mkdir); }
+
+	get unlink() { return promisify(fs.unlink); }
+	get rmdir() { return promisify(fs.rmdir); }
+
+	get realpath() { return promisify(fs.realpath); }
+
+	//#endregion
+
+	//#region Implemented by us
+
+	async exists(path: string): Promise<boolean> {
+		try {
+			await Promises.access(path);
+
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	get readdir() { return readdir; }
+	get readDirsInDir() { return readDirsInDir; }
+
+	get writeFile() { return writeFile; }
+
+	get rm() { return rimraf; }
+
+	get move() { return move; }
+	get copy() { return copy; }
+
+	//#endregion
+};
 
 //#endregion

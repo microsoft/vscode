@@ -10,20 +10,20 @@ import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findIn
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon } from 'vs/editor/contrib/find/findWidget';
+import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon } from 'vs/editor/contrib/find/browser/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ContextScopedFindInput } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { ContextScopedFindInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
-const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous match");
-const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next match");
+const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
+const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 
 export abstract class SimpleFindWidget extends Widget {
@@ -43,7 +43,8 @@ export abstract class SimpleFindWidget extends Widget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		private readonly _state: FindReplaceState = new FindReplaceState(),
-		showOptionButtons?: boolean
+		showOptionButtons?: boolean,
+		checkImeCompletionState?: boolean
 	) {
 		super();
 
@@ -68,11 +69,14 @@ export abstract class SimpleFindWidget extends Widget {
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
-		this.oninput(this._findInput.domNode, (e) => {
-			this.foundMatch = this.onInputChanged();
-			this.updateButtons(this.foundMatch);
-			this._delayedUpdateHistory();
-		});
+		this._register(this._findInput.onInput((e) => {
+			if (!checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
+				this.foundMatch = this._onInputChanged();
+				this.updateButtons(this.foundMatch);
+				this.focusFindBox();
+				this._delayedUpdateHistory();
+			}
+		}));
 
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
@@ -138,25 +142,25 @@ export abstract class SimpleFindWidget extends Widget {
 		});
 
 		this._focusTracker = this._register(dom.trackFocus(this._innerDomNode));
-		this._register(this._focusTracker.onDidFocus(this.onFocusTrackerFocus.bind(this)));
-		this._register(this._focusTracker.onDidBlur(this.onFocusTrackerBlur.bind(this)));
+		this._register(this._focusTracker.onDidFocus(this._onFocusTrackerFocus.bind(this)));
+		this._register(this._focusTracker.onDidBlur(this._onFocusTrackerBlur.bind(this)));
 
 		this._findInputFocusTracker = this._register(dom.trackFocus(this._findInput.domNode));
-		this._register(this._findInputFocusTracker.onDidFocus(this.onFindInputFocusTrackerFocus.bind(this)));
-		this._register(this._findInputFocusTracker.onDidBlur(this.onFindInputFocusTrackerBlur.bind(this)));
+		this._register(this._findInputFocusTracker.onDidFocus(this._onFindInputFocusTrackerFocus.bind(this)));
+		this._register(this._findInputFocusTracker.onDidBlur(this._onFindInputFocusTrackerBlur.bind(this)));
 
 		this._register(dom.addDisposableListener(this._innerDomNode, 'click', (event) => {
 			event.stopPropagation();
 		}));
 	}
 
-	protected abstract onInputChanged(): boolean;
+	protected abstract _onInputChanged(): boolean;
 	protected abstract find(previous: boolean): void;
 	protected abstract findFirst(): void;
-	protected abstract onFocusTrackerFocus(): void;
-	protected abstract onFocusTrackerBlur(): void;
-	protected abstract onFindInputFocusTrackerFocus(): void;
-	protected abstract onFindInputFocusTrackerBlur(): void;
+	protected abstract _onFocusTrackerFocus(): void;
+	protected abstract _onFocusTrackerBlur(): void;
+	protected abstract _onFindInputFocusTrackerFocus(): void;
+	protected abstract _onFindInputFocusTrackerBlur(): void;
 
 	protected get inputValue() {
 		return this._findInput.getValue();
@@ -187,7 +191,7 @@ export abstract class SimpleFindWidget extends Widget {
 		this._findInput.style(inputStyles);
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 
 		if (this._domNode && this._domNode.parentElement) {
@@ -269,6 +273,13 @@ export abstract class SimpleFindWidget extends Widget {
 		const hasInput = this.inputValue.length > 0;
 		this.prevBtn.setEnabled(this._isVisible && hasInput && foundMatch);
 		this.nextBtn.setEnabled(this._isVisible && hasInput && foundMatch);
+	}
+
+	protected focusFindBox() {
+		// Focus back onto the find box, which
+		// requires focusing onto the next button first
+		this.nextBtn.focus();
+		this._findInput.inputBox.focus();
 	}
 }
 

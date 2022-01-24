@@ -65,6 +65,7 @@ update-mime-database /usr/share/mime &> /dev/null || :
 
 %files
 %defattr(-,root,root)
+%attr(4755, root, root) /usr/share/@@NAME@@/chrome-sandbox
 
 /usr/share/@@NAME@@/
 /usr/share/applications/@@NAME@@.desktop

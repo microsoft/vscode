@@ -31,19 +31,22 @@ export class ExtHostMessageService {
 	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | vscode.MessageItem | string | undefined, rest: Array<vscode.MessageItem | string>): Promise<string | vscode.MessageItem | undefined>;
 	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string | vscode.MessageItem | undefined, rest: Array<string | vscode.MessageItem>): Promise<string | vscode.MessageItem | undefined> {
 
-		const options: MainThreadMessageOptions = { extension };
+		const options: MainThreadMessageOptions = {
+			source: { identifier: extension.identifier, label: extension.displayName || extension.name }
+		};
 		let items: (string | vscode.MessageItem)[];
 
 		if (typeof optionsOrFirstItem === 'string' || isMessageItem(optionsOrFirstItem)) {
 			items = [optionsOrFirstItem, ...rest];
 		} else {
-			options.modal = optionsOrFirstItem && optionsOrFirstItem.modal;
-			options.useCustom = optionsOrFirstItem && optionsOrFirstItem.useCustom;
+			options.modal = optionsOrFirstItem?.modal;
+			options.useCustom = optionsOrFirstItem?.useCustom;
+			options.detail = optionsOrFirstItem?.detail;
 			items = rest;
 		}
 
 		if (options.useCustom) {
-			checkProposedApiEnabled(extension);
+			checkProposedApiEnabled(extension, 'resolvers');
 		}
 
 		const commands: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];

@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import { setImmediate } from '../utils/async';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
@@ -32,22 +33,17 @@ export class TypeScriptVersionManager extends Disposable {
 		this._currentVersion = this.versionProvider.defaultVersion;
 
 		if (this.useWorkspaceTsdkSetting) {
-			if (this.isWorkspaceTrusted) {
+			if (vscode.workspace.isTrusted) {
 				const localVersion = this.versionProvider.localVersion;
 				if (localVersion) {
 					this._currentVersion = localVersion;
 				}
 			} else {
-				setImmediate(() => {
-					vscode.workspace.requireWorkspaceTrust({ modal: false })
-						.then(trustState => {
-							if (trustState === vscode.WorkspaceTrustState.Trusted && this.versionProvider.localVersion) {
-								this.updateActiveVersion(this.versionProvider.localVersion);
-							} else {
-								this.updateActiveVersion(this.versionProvider.defaultVersion);
-							}
-						});
-				});
+				this._disposables.push(vscode.workspace.onDidGrantWorkspaceTrust(() => {
+					if (this.versionProvider.localVersion) {
+						this.updateActiveVersion(this.versionProvider.localVersion);
+					}
+				}));
 			}
 		}
 
@@ -86,6 +82,11 @@ export class TypeScriptVersionManager extends Disposable {
 		const selected = await vscode.window.showQuickPick<QuickPickItem>([
 			this.getBundledPickItem(),
 			...this.getLocalPickItems(),
+			{
+				kind: vscode.QuickPickItemKind.Separator,
+				label: '',
+				run: () => { /* noop */ },
+			},
 			LearnMorePickItem,
 		], {
 			placeHolder: localize(
@@ -99,7 +100,7 @@ export class TypeScriptVersionManager extends Disposable {
 	private getBundledPickItem(): QuickPickItem {
 		const bundledVersion = this.versionProvider.defaultVersion;
 		return {
-			label: (!this.useWorkspaceTsdkSetting || !this.isWorkspaceTrusted
+			label: (!this.useWorkspaceTsdkSetting || !vscode.workspace.isTrusted
 				? '• '
 				: '') + localize('useVSCodeVersionOption', "Use VS Code's Version"),
 			description: bundledVersion.displayName,
@@ -114,14 +115,14 @@ export class TypeScriptVersionManager extends Disposable {
 	private getLocalPickItems(): QuickPickItem[] {
 		return this.versionProvider.localVersions.map(version => {
 			return {
-				label: (this.useWorkspaceTsdkSetting && this.isWorkspaceTrusted && this.currentVersion.eq(version)
+				label: (this.useWorkspaceTsdkSetting && vscode.workspace.isTrusted && this.currentVersion.eq(version)
 					? '• '
 					: '') + localize('useWorkspaceVersionOption', "Use Workspace Version"),
 				description: version.displayName,
 				detail: version.pathLabel,
 				run: async () => {
-					const trustState = await vscode.workspace.requireWorkspaceTrust();
-					if (trustState === vscode.WorkspaceTrustState.Trusted) {
+					const trusted = await vscode.workspace.requestWorkspaceTrust();
+					if (trusted) {
 						await this.workspaceState.update(useWorkspaceTsdkStorageKey, true);
 						const tsConfig = vscode.workspace.getConfiguration('typescript');
 						await tsConfig.update('tsdk', version.pathLabel, false);
@@ -165,10 +166,6 @@ export class TypeScriptVersionManager extends Disposable {
 		}
 	}
 
-	private get isWorkspaceTrusted(): boolean {
-		return vscode.workspace.trustState === vscode.WorkspaceTrustState.Trusted;
-	}
-
 	private get useWorkspaceTsdkSetting(): boolean {
 		return this.workspaceState.get<boolean>(useWorkspaceTsdkStorageKey, false);
 	}
@@ -188,7 +185,7 @@ export class TypeScriptVersionManager extends Disposable {
 }
 
 const LearnMorePickItem: QuickPickItem = {
-	label: localize('learnMore', 'Learn more about managing TypeScript versions'),
+	label: localize('learnMore', "Learn more about managing TypeScript versions"),
 	description: '',
 	run: () => {
 		vscode.env.openExternal(vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));

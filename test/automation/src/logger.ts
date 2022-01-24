@@ -40,3 +40,26 @@ export class MultiLogger implements Logger {
 		}
 	}
 }
+
+export async function measureAndLog<T>(promise: Promise<T>, name: string, logger: Logger): Promise<T> {
+	const now = Date.now();
+
+	logger.log(`Starting operation '${name}...`);
+
+	let res: T | undefined = undefined;
+	let e: unknown;
+	try {
+		res = await promise;
+	} catch (error) {
+		e = error;
+	}
+
+	if (e) {
+		logger.log(`Finished operation '${name}' with error ${e} after ${Date.now() - now}ms`);
+		throw e;
+	}
+
+	logger.log(`Finished operation '${name}' successfully after ${Date.now() - now}ms`);
+
+	return res as unknown as T;
+}

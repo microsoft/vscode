@@ -16,10 +16,22 @@ const WEB_ROOT = '${workspaceFolder}';
 
 interface ServerReadyAction {
 	pattern: string;
-	action?: 'openExternally' | 'debugWithChrome' | 'startDebugging';
+	action?: 'openExternally' | 'debugWithChrome' | 'debugWithEdge' | 'startDebugging';
 	uriFormat?: string;
 	webRoot?: string;
 	name?: string;
+}
+
+class Trigger {
+	private _fired = false;
+
+	public get hasFired() {
+		return this._fired;
+	}
+
+	public fire() {
+		this._fired = true;
+	}
 }
 
 class ServerReadyDetector extends vscode.Disposable {
@@ -27,7 +39,7 @@ class ServerReadyDetector extends vscode.Disposable {
 	private static detectors = new Map<vscode.DebugSession, ServerReadyDetector>();
 	private static terminalDataListener: vscode.Disposable | undefined;
 
-	private hasFired = false;
+	private trigger: Trigger;
 	private shellPid?: number;
 	private regexp: RegExp;
 	private disposables: vscode.Disposable[] = [];
@@ -85,6 +97,13 @@ class ServerReadyDetector extends vscode.Disposable {
 	private constructor(private session: vscode.DebugSession) {
 		super(() => this.internalDispose());
 
+		// Re-used the triggered of the parent session, if one exists
+		if (session.parentSession) {
+			this.trigger = ServerReadyDetector.start(session.parentSession)?.trigger ?? new Trigger();
+		} else {
+			this.trigger = new Trigger();
+		}
+
 		this.regexp = new RegExp(session.configuration.serverReadyAction.pattern || PATTERN, 'i');
 	}
 
@@ -94,11 +113,11 @@ class ServerReadyDetector extends vscode.Disposable {
 	}
 
 	detectPattern(s: string): boolean {
-		if (!this.hasFired) {
+		if (!this.trigger.hasFired) {
 			const matches = this.regexp.exec(s);
 			if (matches && matches.length >= 1) {
 				this.openExternalWithString(this.session, matches.length > 1 ? matches[1] : '');
-				this.hasFired = true;
+				this.trigger.fire();
 				this.internalDispose();
 				return true;
 			}
@@ -147,13 +166,11 @@ class ServerReadyDetector extends vscode.Disposable {
 				break;
 
 			case 'debugWithChrome':
-				vscode.debug.startDebugging(session.workspaceFolder, {
-					type: 'pwa-chrome',
-					name: 'Chrome Debug',
-					request: 'launch',
-					url: uri,
-					webRoot: args.webRoot || WEB_ROOT
-				});
+				this.debugWithBrowser('pwa-chrome', session, uri);
+				break;
+
+			case 'debugWithEdge':
+				this.debugWithBrowser('pwa-msedge', session, uri);
 				break;
 
 			case 'startDebugging':
@@ -164,6 +181,16 @@ class ServerReadyDetector extends vscode.Disposable {
 				// not supported
 				break;
 		}
+	}
+
+	private debugWithBrowser(type: string, session: vscode.DebugSession, uri: string) {
+		return vscode.debug.startDebugging(session.workspaceFolder, {
+			type,
+			name: 'Browser Debug',
+			request: 'launch',
+			url: uri,
+			webRoot: session.configuration.serverReadyAction.webRoot || WEB_ROOT
+		});
 	}
 }
 

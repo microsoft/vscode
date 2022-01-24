@@ -2,18 +2,26 @@
 
 This is an icon theme that uses the icons from [`seti-ui`](https://github.com/jesseweed/seti-ui).
 
+## Previewing icons
+
+There is a [`./icons/preview.html`](./icons/preview.html) file that can be opened to see all of the icons included in the theme.
+To view this, it needs to be hosted by a web server. The easiest way is to open the file with the `Open with Live Server` command from the [Live Server extension](https://marketplace.visualstudio.com/items?itemName=ritwickdey.LiveServer).
+
+
 ## Updating icons
 
-There is script that can be used to update icons, [./build/update-icon-theme.js](build/update-icon-theme.js).
+- Make a PR against https://github.com/jesseweed/seti-ui` with your icon changes.
+- Once accepted there, ping us or make a PR yourself that updates the theme and font here
 
-To run this script, run `npm run update` from the `theme-seti` directory.
+To adopt the latest changes from https://github.com/jesseweed/seti-ui:
 
-This can be run in one of two ways: looking at a local copy of `seti-ui` for icons, or getting them straight from GitHub.
+- have the main branches of `https://github.com/jesseweed/seti-ui` and `https://github.com/microsoft/vscode` cloned in the same parent folder
+- in the `seti-ui` folder, run `npm install` and `npm run prepublishOnly`. This will generate updated icons and fonts.
+- in the `vscode/extensions/theme-seti` folder run  `npm run update`. This will launch the [icon theme update script](build/update-icon-theme.js) that updates the theme as well as the font based on content in `seti-ui`.
+- to test the icon theme, look at the icon preview as described above.
+- when done, create a PR with the changes in https://github.com/microsoft/vscode.
+Add a screenshot of the preview page to accompany it.
 
-If you want to run it from a local copy of `seti-ui`, first clone [`seti-ui`](https://github.com/jesseweed/seti-ui) to the folder next to your `vscode` repo (from the `theme-seti` directory, `../../`).
-Then, inside the `set-ui` directory, run `npm install` followed by `npm run prepublishOnly`. This will generate updated icons.
-
-If you want to download the icons straight from GitHub, change the `FROM_DISK` variable to `false` inside of `update-icon-theme.js`.
 
 ### Languages not shipped with `vscode`
 
@@ -23,10 +31,3 @@ These should match [the file mapping in `seti-ui`](https://github.com/jesseweed/
 
 Please try and keep this list in alphabetical order! Thank you.
 
-## Previewing icons
-
-There is a [`./icons/preview.html`](./icons/preview.html) file that can be opened to see all of the icons included in the theme.
-Note that to view this, it needs to be hosted by a web server.
-
-When updating icons, it is always a good idea to make sure that they work properly by looking at this page.
-When submitting a PR that updates these icons, a screenshot of the preview page should accompany it.

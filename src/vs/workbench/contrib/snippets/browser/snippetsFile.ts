@@ -7,8 +7,8 @@ import { parse as jsonParse, getNodeType } from 'vs/base/common/json';
 import { forEach } from 'vs/base/common/collections';
 import { localize } from 'vs/nls';
 import { extname, basename } from 'vs/base/common/path';
-import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/snippetParser';
-import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/snippetVariables';
+import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/browser/snippetVariables';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -111,6 +111,10 @@ export class Snippet {
 		if (a.snippetSource < b.snippetSource) {
 			return -1;
 		} else if (a.snippetSource > b.snippetSource) {
+			return 1;
+		} else if (a.source < b.source) {
+			return -1;
+		} else if (a.source > b.source) {
 			return 1;
 		} else if (a.name > b.name) {
 			return 1;

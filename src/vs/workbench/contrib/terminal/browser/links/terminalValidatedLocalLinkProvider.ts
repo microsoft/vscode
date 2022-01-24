@@ -9,33 +9,34 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { TerminalLink, OPEN_FILE_LABEL, FOLDER_IN_WORKSPACE_LABEL, FOLDER_NOT_IN_WORKSPACE_LABEL } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
 // '":; are allowed in paths but they are often separators so ignore them
-// Also disallow \\ to prevent a catastropic backtracking case #24798
-const excludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]\'":;\\\\]';
+// Also disallow \\ to prevent a catastropic backtracking case #24795
+const excludedPathCharactersClause = '[^\\0\\s!`&*()\\[\\]\'":;\\\\]';
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
 export const unixLocalLinkClause = '((' + pathPrefix + '|(' + excludedPathCharactersClause + ')+)?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + ')+)+)';
 
 export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
 const winPathPrefix = '(' + winDrivePrefix + '|\\.\\.?|\\~)';
 const winPathSeparatorClause = '(\\\\|\\/)';
-const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]\'":;]';
+const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;]';
 /** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
 export const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharactersClause + ')+)?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)';
 
 /** As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
 replacing space with nonBreakningSpace or space ASCII code - 32. */
 export const lineAndColumnClause = [
-	'((\\S*)", line ((\\d+)( column (\\d+))?))', // "(file path)", line 45 [see #40468]
-	'((\\S*)",((\\d+)(:(\\d+))?))', // "(file path)",45 [see #78205]
+	'((\\S*)[\'"], line ((\\d+)( column (\\d+))?))', // "(file path)", line 45 [see #40468]
+	'((\\S*)[\'"],((\\d+)(:(\\d+))?))', // "(file path)",45 [see #78205]
 	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
 	'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
 	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,\\s?(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18), (file path)(45, 18), (file path) (45, 18), also with []
@@ -50,15 +51,19 @@ export const unixLineAndColumnMatchIndex = 11;
 export const lineAndColumnClauseGroupCount = 6;
 
 const MAX_LENGTH = 2000;
+const cachedValidatedLinks = new Map<string, { uri: URI, link: string, isDirectory: boolean } | null>();
 
 export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider {
+	private _cacheTilTimeout = 0;
+	protected _enableCaching = true;
+	static id: string = 'TerminalValidatedLocalLinkProvider';
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _processOperatingSystem: OperatingSystem,
 		private readonly _activateFileCallback: (event: MouseEvent | undefined, link: string) => void,
 		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
-		private readonly _validationCallback: (link: string, callback: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => void,
+		private readonly _validationCallback: (link: string[], callback: (result: { uri: URI, link: string, isDirectory: boolean } | undefined) => void) => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -72,7 +77,12 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 		const result: TerminalLink[] = [];
 		let startLine = y - 1;
 		let endLine = startLine;
-
+		if (this._enableCaching) {
+			if (this._cacheTilTimeout) {
+				window.clearTimeout(this._cacheTilTimeout);
+			}
+			this._cacheTilTimeout = window.setTimeout(() => cachedValidatedLinks.clear(), 10000);
+		}
 		const lines: IBufferLine[] = [
 			this._xterm.buffer.active.getLine(startLine)!
 		];
@@ -137,26 +147,40 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 				endLineNumber: 1
 			}, startLine);
 
-			const validatedLink = await new Promise<TerminalLink | undefined>(r => {
-				this._validationCallback(link, (result) => {
-					if (result) {
-						const label = result.isDirectory
-							? (this._isDirectoryInsideWorkspace(result.uri) ? FOLDER_IN_WORKSPACE_LABEL : FOLDER_NOT_IN_WORKSPACE_LABEL)
-							: OPEN_FILE_LABEL;
-						const activateCallback = this._wrapLinkHandler((event: MouseEvent | undefined, text: string) => {
-							if (result.isDirectory) {
-								this._handleLocalFolderLink(result.uri);
-							} else {
-								this._activateFileCallback(event, text);
-							}
-						});
-						r(this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label));
+			let linkStat = cachedValidatedLinks.get(link);
+
+			// The link is cached as doesn't exist
+			if (linkStat === null) {
+				continue;
+			}
+
+			// The link isn't cached
+			if (linkStat === undefined) {
+				linkStat = await new Promise<{ uri: URI, link: string, isDirectory: boolean } | undefined>(r => {
+					const linkCandidates = [link];
+					if (link.match(/^(\.\.[\/\\])+/)) {
+						linkCandidates.push(link.replace(/^(\.\.[\/\\])+/, ''));
+					}
+					this._validationCallback(linkCandidates, (result) => r(result));
+				});
+				if (this._enableCaching) {
+					cachedValidatedLinks.set(link, withUndefinedAsNull(linkStat));
+				}
+			}
+
+			// Create the link if validated
+			if (linkStat) {
+				const label = linkStat.isDirectory
+					? (this._isDirectoryInsideWorkspace(linkStat.uri) ? FOLDER_IN_WORKSPACE_LABEL : FOLDER_NOT_IN_WORKSPACE_LABEL)
+					: OPEN_FILE_LABEL;
+				const activateCallback = this._wrapLinkHandler((event: MouseEvent | undefined, text: string) => {
+					if (linkStat!.isDirectory) {
+						this._handleLocalFolderLink(linkStat!.uri);
 					} else {
-						r(undefined);
+						this._activateFileCallback(event, text);
 					}
 				});
-			});
-			if (validatedLink) {
+				const validatedLink = this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, linkStat.link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label);
 				result.push(validatedLink);
 			}
 		}

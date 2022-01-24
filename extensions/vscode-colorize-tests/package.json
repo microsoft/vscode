@@ -9,10 +9,10 @@
     "onLanguage:json"
   ],
   "main": "./out/colorizerTestMain",
-  "enableProposedApi": true,
   "engines": {
     "vscode": "*"
   },
+  "icon": "media/icon.png",
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-colorize-tests ./tsconfig.json"
   },
@@ -20,7 +20,7 @@
     "jsonc-parser": "2.2.1"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9"
+    "@types/node": "14.x"
   },
   "contributes": {
     "semanticTokenTypes": [

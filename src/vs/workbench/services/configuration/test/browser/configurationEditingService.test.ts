@@ -14,7 +14,7 @@ import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationEditingService, ConfigurationEditingErrorCode, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
-import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH, USER_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
+import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH, USER_STANDALONE_CONFIGURATIONS, IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -30,18 +30,24 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
-import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
+import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentService';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { getSingleFolderWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+
+export class ConfigurationCache implements IConfigurationCache {
+	needsCaching(resource: URI): boolean { return false; }
+	async read(): Promise<string> { return ''; }
+	async write(): Promise<void> { }
+	async remove(): Promise<void> { }
+}
 
 suite('ConfigurationEditingService', () => {
 
@@ -110,7 +116,7 @@ suite('ConfigurationEditingService', () => {
 			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'unknown.key', value: 'value' });
 			assert.fail('Should fail with ERROR_UNKNOWN_KEY');
 		} catch (error) {
-			assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY);
+			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY);
 		}
 	});
 
@@ -120,7 +126,7 @@ suite('ConfigurationEditingService', () => {
 			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'configurationEditing.service.testSetting', value: 'value' });
 			assert.fail('Should fail with ERROR_NO_WORKSPACE_OPENED');
 		} catch (error) {
-			assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED);
+			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED);
 		}
 	});
 
@@ -130,7 +136,7 @@ suite('ConfigurationEditingService', () => {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
 			assert.fail('Should fail with ERROR_INVALID_CONFIGURATION');
 		} catch (error) {
-			assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION);
+			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION);
 		}
 	});
 
@@ -141,7 +147,7 @@ suite('ConfigurationEditingService', () => {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.configurationEditing.service.testSetting', value: 'value' });
 			assert.fail('Should fail with ERROR_INVALID_CONFIGURATION');
 		} catch (error) {
-			assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION);
+			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION);
 		}
 	});
 
@@ -151,25 +157,20 @@ suite('ConfigurationEditingService', () => {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
 			assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
 		} catch (error) {
-			assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
+			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
 		}
-	});
-
-	test('dirty error is not thrown if not asked to save', async () => {
-		instantiationService.stub(ITextFileService, 'isDirty', true);
-		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotSave: true });
 	});
 
 	test('do not notify error', async () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		const target = sinon.stub();
-		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, notify: null!, error: null!, info: null!, warn: null!, status: null!, setFilter: null! });
+		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, onDidAddNotification: undefined!, onDidRemoveNotification: undefined!, notify: null!, error: null!, info: null!, warn: null!, status: null!, setFilter: null! });
 		try {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 			assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
 		} catch (error) {
-			assert.equal(false, target.calledOnce);
-			assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
+			assert.strictEqual(false, target.calledOnce);
+			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
 		}
 	});
 
@@ -177,7 +178,7 @@ suite('ConfigurationEditingService', () => {
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
 		const contents = await fileService.readFile(environmentService.settingsResource);
 		const parsed = json.parse(contents.value.toString());
-		assert.equal(parsed['configurationEditing.service.testSetting'], 'value');
+		assert.strictEqual(parsed['configurationEditing.service.testSetting'], 'value');
 	});
 
 	test('write one setting - existing file', async () => {
@@ -186,8 +187,8 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(environmentService.settingsResource);
 		const parsed = json.parse(contents.value.toString());
-		assert.equal(parsed['configurationEditing.service.testSetting'], 'value');
-		assert.equal(parsed['my.super.setting'], 'my.super.value');
+		assert.strictEqual(parsed['configurationEditing.service.testSetting'], 'value');
+		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
 	});
 
 	test('remove an existing setting - existing file', async () => {
@@ -196,8 +197,8 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(environmentService.settingsResource);
 		const parsed = json.parse(contents.value.toString());
-		assert.deepEqual(Object.keys(parsed), ['my.super.setting']);
-		assert.equal(parsed['my.super.setting'], 'my.super.value');
+		assert.deepStrictEqual(Object.keys(parsed), ['my.super.setting']);
+		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
 	});
 
 	test('remove non existing setting - existing file', async () => {
@@ -206,8 +207,8 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(environmentService.settingsResource);
 		const parsed = json.parse(contents.value.toString());
-		assert.deepEqual(Object.keys(parsed), ['my.super.setting']);
-		assert.equal(parsed['my.super.setting'], 'my.super.value');
+		assert.deepStrictEqual(Object.keys(parsed), ['my.super.setting']);
+		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
 	});
 
 	test('write overridable settings to user settings', async () => {
@@ -217,7 +218,7 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(environmentService.settingsResource);
 		const parsed = json.parse(contents.value.toString());
-		assert.deepEqual(parsed[key], value);
+		assert.deepStrictEqual(parsed[key], value);
 	});
 
 	test('write overridable settings to workspace settings', async () => {
@@ -227,7 +228,7 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(joinPath(workspaceService.getWorkspace().folders[0].uri, FOLDER_SETTINGS_PATH));
 		const parsed = json.parse(contents.value.toString());
-		assert.deepEqual(parsed[key], value);
+		assert.deepStrictEqual(parsed[key], value);
 	});
 
 	test('write overridable settings to workspace folder settings', async () => {
@@ -238,7 +239,7 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(folderSettingsFile);
 		const parsed = json.parse(contents.value.toString());
-		assert.deepEqual(parsed[key], value);
+		assert.deepStrictEqual(parsed[key], value);
 	});
 
 	test('write workspace standalone setting - empty file', async () => {
@@ -247,7 +248,7 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(target);
 		const parsed = json.parse(contents.value.toString());
-		assert.equal(parsed['service.testSetting'], 'value');
+		assert.strictEqual(parsed['service.testSetting'], 'value');
 	});
 
 	test('write user standalone setting - empty file', async () => {
@@ -256,7 +257,7 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(target);
 		const parsed = json.parse(contents.value.toString());
-		assert.equal(parsed['service.testSetting'], 'value');
+		assert.strictEqual(parsed['service.testSetting'], 'value');
 	});
 
 	test('write workspace standalone setting - existing file', async () => {
@@ -267,8 +268,8 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(target);
 		const parsed = json.parse(contents.value.toString());
-		assert.equal(parsed['service.testSetting'], 'value');
-		assert.equal(parsed['my.super.setting'], 'my.super.value');
+		assert.strictEqual(parsed['service.testSetting'], 'value');
+		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
 	});
 
 	test('write user standalone setting - existing file', async () => {
@@ -279,8 +280,8 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(target);
 		const parsed = json.parse(contents.value.toString());
-		assert.equal(parsed['service.testSetting'], 'value');
-		assert.equal(parsed['my.super.setting'], 'my.super.value');
+		assert.strictEqual(parsed['service.testSetting'], 'value');
+		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
 	});
 
 	test('write workspace standalone setting - empty file - full JSON', async () => {
@@ -289,8 +290,8 @@ suite('ConfigurationEditingService', () => {
 		const target = joinPath(workspaceService.getWorkspace().folders[0].uri, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
 		const contents = await fileService.readFile(target);
 		const parsed = json.parse(contents.value.toString());
-		assert.equal(parsed['version'], '1.0.0');
-		assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
+		assert.strictEqual(parsed['version'], '1.0.0');
+		assert.strictEqual(parsed['tasks'][0]['taskName'], 'myTask');
 	});
 
 	test('write user standalone setting - empty file - full JSON', async () => {
@@ -299,8 +300,8 @@ suite('ConfigurationEditingService', () => {
 		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
 		const contents = await fileService.readFile(target);
 		const parsed = json.parse(contents.value.toString());
-		assert.equal(parsed['version'], '1.0.0');
-		assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
+		assert.strictEqual(parsed['version'], '1.0.0');
+		assert.strictEqual(parsed['tasks'][0]['taskName'], 'myTask');
 	});
 
 	test('write workspace standalone setting - existing file - full JSON', async () => {
@@ -311,8 +312,8 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(target);
 		const parsed = json.parse(contents.value.toString());
-		assert.equal(parsed['version'], '1.0.0');
-		assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
+		assert.strictEqual(parsed['version'], '1.0.0');
+		assert.strictEqual(parsed['tasks'][0]['taskName'], 'myTask');
 	});
 
 	test('write user standalone setting - existing file - full JSON', async () => {
@@ -323,8 +324,8 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(target);
 		const parsed = json.parse(contents.value.toString());
-		assert.equal(parsed['version'], '1.0.0');
-		assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
+		assert.strictEqual(parsed['version'], '1.0.0');
+		assert.strictEqual(parsed['tasks'][0]['taskName'], 'myTask');
 	});
 
 	test('write workspace standalone setting - existing file with JSON errors - full JSON', async () => {
@@ -335,8 +336,8 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(target);
 		const parsed = json.parse(contents.value.toString());
-		assert.equal(parsed['version'], '1.0.0');
-		assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
+		assert.strictEqual(parsed['version'], '1.0.0');
+		assert.strictEqual(parsed['tasks'][0]['taskName'], 'myTask');
 	});
 
 	test('write user standalone setting - existing file with JSON errors - full JSON', async () => {
@@ -347,8 +348,8 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(target);
 		const parsed = json.parse(contents.value.toString());
-		assert.equal(parsed['version'], '1.0.0');
-		assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
+		assert.strictEqual(parsed['version'], '1.0.0');
+		assert.strictEqual(parsed['tasks'][0]['taskName'], 'myTask');
 	});
 
 	test('write workspace standalone setting should replace complete file', async () => {
@@ -369,7 +370,7 @@ suite('ConfigurationEditingService', () => {
 
 		const actual = await fileService.readFile(target);
 		const expected = JSON.stringify({ 'version': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] }, null, '\t');
-		assert.equal(actual.value.toString(), expected);
+		assert.strictEqual(actual.value.toString(), expected);
 	});
 
 	test('write user standalone setting should replace complete file', async () => {
@@ -390,6 +391,6 @@ suite('ConfigurationEditingService', () => {
 
 		const actual = await fileService.readFile(target);
 		const expected = JSON.stringify({ 'version': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] }, null, '\t');
-		assert.equal(actual.value.toString(), expected);
+		assert.strictEqual(actual.value.toString(), expected);
 	});
 });

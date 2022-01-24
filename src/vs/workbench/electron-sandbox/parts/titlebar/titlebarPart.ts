@@ -25,9 +25,9 @@ import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class TitlebarPart extends BrowserTitleBarPart {
-	private windowControls: HTMLElement | undefined;
 	private maxRestoreControl: HTMLElement | undefined;
 	private dragRegion: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
@@ -41,16 +41,19 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		return 22;
 	}
 
-	get minimumHeight(): number { return isMacintosh ? this.getMacTitlebarSize() / getZoomFactor() : super.minimumHeight; }
-	get maximumHeight(): number { return this.minimumHeight; }
+	override get minimumHeight(): number { return isMacintosh ? this.getMacTitlebarSize() / getZoomFactor() : super.minimumHeight; }
+	override get maximumHeight(): number { return this.minimumHeight; }
+
+	protected override readonly environmentService: INativeWorkbenchEnvironmentService;
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
-		@INativeWorkbenchEnvironmentService protected readonly environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
 		@ILabelService labelService: ILabelService,
 		@IStorageService storageService: IStorageService,
@@ -61,7 +64,9 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@IProductService productService: IProductService,
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
-		super(contextMenuService, configurationService, editorService, environmentService, contextService, instantiationService, themeService, labelService, storageService, layoutService, menuService, contextKeyService, hostService, productService);
+		super(contextMenuService, configurationService, editorService, environmentService, contextService, instantiationService, keybindingService, themeService, labelService, storageService, layoutService, menuService, contextKeyService, hostService, productService);
+
+		this.environmentService = environmentService;
 	}
 
 	private onUpdateAppIconDragBehavior(): void {
@@ -105,7 +110,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 	}
 
-	protected onMenubarVisibilityChanged(visible: boolean): void {
+	protected override onMenubarVisibilityChanged(visible: boolean): void {
 		// Hide title when toggling menu bar
 		if ((isWindows || isLinux) && this.currentMenubarVisibility === 'toggle' && visible) {
 			// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
@@ -118,7 +123,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		super.onMenubarVisibilityChanged(visible);
 	}
 
-	protected onConfigurationChanged(event: IConfigurationChangeEvent): void {
+	protected override onConfigurationChanged(event: IConfigurationChangeEvent): void {
 		super.onConfigurationChanged(event);
 
 		if (event.affectsConfiguration('window.doubleClickIconToClose')) {
@@ -128,7 +133,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 	}
 
-	protected adjustTitleMarginToCenter(): void {
+	protected override adjustTitleMarginToCenter(): void {
 		if (this.customMenubar && this.menubar) {
 			const leftMarker = (this.appIcon ? this.appIcon.clientWidth : 0) + this.menubar.clientWidth + 10;
 			const rightMarker = this.element.clientWidth - (this.windowControls ? this.windowControls.clientWidth : 0) - 10;
@@ -147,9 +152,10 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		this.title.style.position = 'absolute';
 		this.title.style.left = '50%';
 		this.title.style.transform = 'translate(-50%, 0)';
+		this.title.style.maxWidth = `calc(100vw - ${2 * ((this.windowControls?.clientWidth || 70) + 10)}px)`;
 	}
 
-	protected installMenubar(): void {
+	protected override installMenubar(): void {
 		super.installMenubar();
 
 		if (this.menubar) {
@@ -161,7 +167,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 	}
 
-	createContentArea(parent: HTMLElement): HTMLElement {
+	override createContentArea(parent: HTMLElement): HTMLElement {
 		const ret = super.createContentArea(parent);
 
 		// Native menu controller
@@ -182,9 +188,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		this.dragRegion = prepend(this.element, $('div.titlebar-drag-region'));
 
 		// Window Controls (Native Windows/Linux)
-		if (!isMacintosh) {
-			this.windowControls = append(this.element, $('div.window-controls-container'));
-
+		if (!isMacintosh && this.windowControls) {
 			// Minimize
 			const minimizeIcon = append(this.windowControls, $('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
@@ -218,32 +222,32 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		return ret;
 	}
 
-	updateLayout(dimension: Dimension): void {
+	override updateLayout(dimension: Dimension): void {
 		this.lastLayoutDimensions = dimension;
 
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if (isMacintosh || this.currentMenubarVisibility === 'hidden') {
-				this.title.style.zoom = `${1 / getZoomFactor()}`;
+				(this.title.style as any).zoom = `${1 / getZoomFactor()}`;
 				if (isWindows || isLinux) {
 					if (this.appIcon) {
-						this.appIcon.style.zoom = `${1 / getZoomFactor()}`;
-					}
-
-					if (this.windowControls) {
-						this.windowControls.style.zoom = `${1 / getZoomFactor()}`;
+						(this.appIcon.style as any).zoom = `${1 / getZoomFactor()}`;
 					}
 				}
+
+				if (this.windowControls) {
+					(this.windowControls.style as any).zoom = `${1 / getZoomFactor()}`;
+				}
 			} else {
-				this.title.style.zoom = '';
+				(this.title.style as any).zoom = '';
 				if (isWindows || isLinux) {
 					if (this.appIcon) {
-						this.appIcon.style.zoom = '';
+						(this.appIcon.style as any).zoom = '';
 					}
+				}
 
-					if (this.windowControls) {
-						this.windowControls.style.zoom = '';
-					}
+				if (this.windowControls) {
+					(this.windowControls.style as any).zoom = '';
 				}
 			}
 

@@ -27,10 +27,10 @@ export default class FileConfigurationManager extends Disposable {
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
-		onCaseInsenitiveFileSystem: boolean
+		onCaseInsensitiveFileSystem: boolean
 	) {
 		super();
-		this.formatOptions = new ResourceMap(undefined, { onCaseInsenitiveFileSystem });
+		this.formatOptions = new ResourceMap(undefined, { onCaseInsensitiveFileSystem });
 		vscode.workspace.onDidCloseTextDocument(textDocument => {
 			// When a document gets closed delete the cached formatting options.
 			// This is necessary since the tsserver now closed a project when its
@@ -177,12 +177,19 @@ export default class FileConfigurationManager extends Disposable {
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
+			jsxAttributeCompletionStyle: getJsxAttributeCompletionStyle(preferencesConfig),
 			allowTextChangesInNewFiles: document.uri.scheme === fileSchemes.file,
 			providePrefixAndSuffixTextForRename: preferencesConfig.get<boolean>('renameShorthandProperties', true) === false ? false : preferencesConfig.get<boolean>('useAliasesForRenames', true),
 			allowRenameOfImportPath: true,
 			includeAutomaticOptionalChainCompletions: config.get<boolean>('suggest.includeAutomaticOptionalChainCompletions', true),
 			provideRefactorNotApplicableReason: true,
 			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
+			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
+			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
+			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
+			allowIncompleteCompletions: true,
+			displayPartsForJSDoc: true,
+			...getInlayHintsPreferences(config),
 		};
 
 		return preferences;
@@ -194,6 +201,36 @@ export default class FileConfigurationManager extends Disposable {
 			case 'double': return 'double';
 			default: return this.client.apiVersion.gte(API.v333) ? 'auto' : undefined;
 		}
+	}
+}
+
+export class InlayHintSettingNames {
+	static readonly parameterNamesSuppressWhenArgumentMatchesName = 'inlayHints.parameterNames.suppressWhenArgumentMatchesName';
+	static readonly parameterNamesEnabled = 'inlayHints.parameterTypes.enabled';
+	static readonly variableTypesEnabled = 'inlayHints.variableTypes.enabled';
+	static readonly propertyDeclarationTypesEnabled = 'inlayHints.propertyDeclarationTypes.enabled';
+	static readonly functionLikeReturnTypesEnabled = 'inlayHints.functionLikeReturnTypes.enabled';
+	static readonly enumMemberValuesEnabled = 'inlayHints.enumMemberValues.enabled';
+}
+
+export function getInlayHintsPreferences(config: vscode.WorkspaceConfiguration) {
+	return {
+		includeInlayParameterNameHints: getInlayParameterNameHintsPreference(config),
+		includeInlayParameterNameHintsWhenArgumentMatchesName: !config.get<boolean>(InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName, true),
+		includeInlayFunctionParameterTypeHints: config.get<boolean>(InlayHintSettingNames.parameterNamesEnabled, false),
+		includeInlayVariableTypeHints: config.get<boolean>(InlayHintSettingNames.variableTypesEnabled, false),
+		includeInlayPropertyDeclarationTypeHints: config.get<boolean>(InlayHintSettingNames.propertyDeclarationTypesEnabled, false),
+		includeInlayFunctionLikeReturnTypeHints: config.get<boolean>(InlayHintSettingNames.functionLikeReturnTypesEnabled, false),
+		includeInlayEnumMemberValueHints: config.get<boolean>(InlayHintSettingNames.enumMemberValuesEnabled, false),
+	} as const;
+}
+
+function getInlayParameterNameHintsPreference(config: vscode.WorkspaceConfiguration) {
+	switch (config.get<string>('inlayHints.parameterNames.enabled')) {
+		case 'none': return 'none';
+		case 'literals': return 'literals';
+		case 'all': return 'all';
+		default: return undefined;
 	}
 }
 
@@ -211,6 +248,14 @@ function getImportModuleSpecifierEndingPreference(config: vscode.WorkspaceConfig
 		case 'minimal': return 'minimal';
 		case 'index': return 'index';
 		case 'js': return 'js';
+		default: return 'auto';
+	}
+}
+
+function getJsxAttributeCompletionStyle(config: vscode.WorkspaceConfiguration) {
+	switch (config.get<string>('jsxAttributeCompletionStyle')) {
+		case 'braces': return 'braces';
+		case 'none': return 'none';
 		default: return 'auto';
 	}
 }

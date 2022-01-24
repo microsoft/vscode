@@ -10,19 +10,10 @@ import * as nls from 'vs/nls';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
-import { CustomEditorDescriptor, CustomEditorInfo, CustomEditorPriority } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CustomEditorDescriptor, CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { customEditorsExtensionPoint, ICustomEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/common/extensionPoint';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-
-export const defaultCustomEditor = new CustomEditorInfo({
-	id: 'default',
-	displayName: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
-	providerDisplayName: nls.localize('builtinProviderDisplayName', "Built-in"),
-	selector: [
-		{ filenamePattern: '*' }
-	],
-	priority: CustomEditorPriority.default,
-});
 
 export class ContributedCustomEditors extends Disposable {
 
@@ -77,9 +68,7 @@ export class ContributedCustomEditors extends Disposable {
 	}
 
 	public get(viewType: string): CustomEditorInfo | undefined {
-		return viewType === defaultCustomEditor.id
-			? defaultCustomEditor
-			: this._editors.get(viewType);
+		return this._editors.get(viewType);
 	}
 
 	public getContributedEditors(resource: URI): readonly CustomEditorInfo[] {
@@ -88,7 +77,7 @@ export class ContributedCustomEditors extends Disposable {
 	}
 
 	private add(info: CustomEditorInfo): void {
-		if (info.id === defaultCustomEditor.id || this._editors.has(info.id)) {
+		if (this._editors.has(info.id)) {
 			console.error(`Custom editor with id '${info.id}' already registered`);
 			return;
 		}
@@ -99,17 +88,17 @@ export class ContributedCustomEditors extends Disposable {
 function getPriorityFromContribution(
 	contribution: ICustomEditorsExtensionPoint,
 	extension: IExtensionDescription,
-): CustomEditorPriority {
+): RegisteredEditorPriority {
 	switch (contribution.priority) {
-		case CustomEditorPriority.default:
-		case CustomEditorPriority.option:
+		case RegisteredEditorPriority.default:
+		case RegisteredEditorPriority.option:
 			return contribution.priority;
 
-		case CustomEditorPriority.builtin:
+		case RegisteredEditorPriority.builtin:
 			// Builtin is only valid for builtin extensions
-			return extension.isBuiltin ? CustomEditorPriority.builtin : CustomEditorPriority.default;
+			return extension.isBuiltin ? RegisteredEditorPriority.builtin : RegisteredEditorPriority.default;
 
 		default:
-			return CustomEditorPriority.default;
+			return RegisteredEditorPriority.default;
 	}
 }

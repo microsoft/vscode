@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { MessageBoxOptions, MessageBoxReturnValue, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, dialog, FileFilter, BrowserWindow } from 'electron';
+import { BrowserWindow, dialog, FileFilter, MessageBoxOptions, MessageBoxReturnValue, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron';
 import { Queue } from 'vs/base/common/async';
-import { IStateService } from 'vs/platform/state/node/state';
-import { isMacintosh } from 'vs/base/common/platform';
-import { dirname } from 'vs/base/common/path';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { exists } from 'vs/base/node/pfs';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
+import { hash } from 'vs/base/common/hash';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { hash } from 'vs/base/common/hash';
+import { normalizeNFC } from 'vs/base/common/normalization';
+import { dirname } from 'vs/base/common/path';
+import { isMacintosh } from 'vs/base/common/platform';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { Promises } from 'vs/base/node/pfs';
+import { localize } from 'vs/nls';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
 
 export const IDialogMainService = createDecorator<IDialogMainService>('dialogMainService');
 
@@ -55,7 +56,8 @@ export class DialogMainService implements IDialogMainService {
 	private readonly noWindowDialogueQueue = new Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>();
 
 	constructor(
-		@IStateService private readonly stateService: IStateService
+		@IStateMainService private readonly stateMainService: IStateMainService,
+		@ILogService private readonly logService: ILogService
 	) {
 	}
 
@@ -72,7 +74,7 @@ export class DialogMainService implements IDialogMainService {
 	}
 
 	pickWorkspace(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
-		const title = localize('openWorkspaceTitle', "Open Workspace");
+		const title = localize('openWorkspaceTitle', "Open Workspace from File");
 		const buttonLabel = mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open"));
 		const filters = WORKSPACE_FILTER;
 
@@ -89,8 +91,7 @@ export class DialogMainService implements IDialogMainService {
 		};
 
 		// Ensure defaultPath
-		dialogOptions.defaultPath = options.defaultPath || this.stateService.getItem<string>(DialogMainService.workingDirPickerStorageKey);
-
+		dialogOptions.defaultPath = options.defaultPath || this.stateMainService.getItem<string>(DialogMainService.workingDirPickerStorageKey);
 
 		// Ensure properties
 		if (typeof options.pickFiles === 'boolean' || typeof options.pickFolders === 'boolean') {
@@ -116,7 +117,7 @@ export class DialogMainService implements IDialogMainService {
 		if (result && result.filePaths && result.filePaths.length > 0) {
 
 			// Remember path in storage for next time
-			this.stateService.setItem(DialogMainService.workingDirPickerStorageKey, dirname(result.filePaths[0]));
+			this.stateMainService.setItem(DialogMainService.workingDirPickerStorageKey, dirname(result.filePaths[0]));
 
 			return result.filePaths;
 		}
@@ -156,7 +157,9 @@ export class DialogMainService implements IDialogMainService {
 		// prevent duplicates of the same dialog queueing at the same time
 		const fileDialogLock = this.acquireFileDialogLock(options, window);
 		if (!fileDialogLock) {
-			throw new Error('A file save dialog is already or will be showing for the window with the same configuration');
+			this.logService.error('[DialogMainService]: file save dialog is already or will be showing for the window with the same configuration');
+
+			return { canceled: true };
 		}
 
 		try {
@@ -195,7 +198,7 @@ export class DialogMainService implements IDialogMainService {
 
 		// Ensure the path exists (if provided)
 		if (options.defaultPath) {
-			const pathExists = await exists(options.defaultPath);
+			const pathExists = await Promises.exists(options.defaultPath);
 			if (!pathExists) {
 				options.defaultPath = undefined;
 			}
@@ -204,7 +207,9 @@ export class DialogMainService implements IDialogMainService {
 		// prevent duplicates of the same dialog queueing at the same time
 		const fileDialogLock = this.acquireFileDialogLock(options, window);
 		if (!fileDialogLock) {
-			throw new Error('A file open dialog is already or will be showing for the window with the same configuration');
+			this.logService.error('[DialogMainService]: file open dialog is already or will be showing for the window with the same configuration');
+
+			return { canceled: true, filePaths: [] };
 		}
 
 		try {
@@ -240,6 +245,8 @@ export class DialogMainService implements IDialogMainService {
 		// we figure this out by `hashing` the configuration
 		// options for the dialog to prevent duplicates
 
+		this.logService.trace('[DialogMainService]: request to acquire file dialog lock', options);
+
 		let windowFileDialogLocks = this.windowFileDialogLocks.get(window.id);
 		if (!windowFileDialogLocks) {
 			windowFileDialogLocks = new Set();
@@ -251,9 +258,13 @@ export class DialogMainService implements IDialogMainService {
 			return undefined; // prevent duplicates, return
 		}
 
+		this.logService.trace('[DialogMainService]: new file dialog lock created', options);
+
 		windowFileDialogLocks.add(optionsHash);
 
 		return toDisposable(() => {
+			this.logService.trace('[DialogMainService]: file dialog lock disposed', options);
+
 			windowFileDialogLocks?.delete(optionsHash);
 
 			// if the window has no more dialog locks, delete it from the set of locks

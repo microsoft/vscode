@@ -129,8 +129,13 @@
 
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-status span,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-status span {
-	margin: 0 8px;
+	margin: 0 0 0 8px;
 	line-height: 21px;
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-status span.property-description,
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-status span.property-description {
+	font-style: italic;
 }
 
 .notebook-text-diff-editor {
@@ -152,7 +157,7 @@
 	position: absolute;
 	right: 16px;
 	top: 16px;
-	margin: 4px 2px;
+	margin: 1px 2px;
 }
 
 .monaco-workbench .notebook-text-diff-editor .cell-body {
@@ -196,26 +201,26 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-left {
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-left {
 	top: 0;
 	position: absolute;
 	left: 0;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-right {
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-right {
 	position: absolute;
 	top: 0;
 	left: 50%;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-left,
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-right {
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-left,
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-right {
 	width: 50%;
 	display: inline-block;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-left div.foreground,
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-right div.foreground {
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-left div.foreground,
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-right div.foreground {
 	width: 100%;
 }
 
@@ -270,4 +275,17 @@
 
 .monaco-workbench .notebook-text-diff-editor .output-view-container pre {
 	margin: 4px 0;
+}
+
+.monaco-workbench .notebook-text-diff-edito .monaco-list:focus-within .monaco-list-row.focused .codicon,
+.monaco-workbench .notebook-text-diff-editor .monaco-list:focus-within .monaco-list-row.selected .codicon {
+	color: inherit;
+}
+
+/* Diff decorations */
+
+.notebook-text-diff-editor .cell-body .codicon-diff-remove,
+.notebook-text-diff-editor .cell-body .codicon-diff-insert {
+	left: 4px !important;
+	width: 15px !important;
 }

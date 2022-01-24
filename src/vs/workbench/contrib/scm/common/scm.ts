@@ -7,10 +7,12 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Command } from 'vs/editor/common/modes';
+import { Command } from 'vs/editor/common/languages';
 import { ISequence } from 'vs/base/common/sequence';
 import { IAction } from 'vs/base/common/actions';
 import { IMenu } from 'vs/platform/actions/common/actions';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
@@ -23,8 +25,8 @@ export interface IBaselineResourceProvider {
 export const ISCMService = createDecorator<ISCMService>('scm');
 
 export interface ISCMResourceDecorations {
-	icon?: URI;
-	iconDark?: URI;
+	icon?: URI | ThemeIcon;
+	iconDark?: URI | ThemeIcon;
 	tooltip?: string;
 	strikeThrough?: boolean;
 	faded?: boolean;
@@ -63,6 +65,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChangeCommitTemplate: Event<string>;
 	readonly onDidChangeStatusBarCommands?: Event<Command[]>;
 	readonly acceptInputCommand?: Command;
+	readonly actionButton?: ISCMActionButtonDescriptor;
 	readonly statusBarCommands?: Command[];
 	readonly onDidChange: Event<void>;
 
@@ -76,7 +79,7 @@ export const enum InputValidationType {
 }
 
 export interface IInputValidation {
-	message: string;
+	message: string | IMarkdownString;
 	type: InputValidationType;
 }
 
@@ -94,6 +97,17 @@ export interface ISCMInputChangeEvent {
 	readonly reason?: SCMInputChangeReason;
 }
 
+export interface ISCMActionButtonDescriptor {
+	command: Command;
+	description?: string
+}
+
+export interface ISCMActionButton {
+	readonly type: 'actionButton';
+	readonly repository: ISCMRepository;
+	readonly button?: ISCMActionButtonDescriptor;
+}
+
 export interface ISCMInput {
 	readonly repository: ISCMRepository;
 
@@ -109,6 +123,12 @@ export interface ISCMInput {
 
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
+
+	setFocus(): void;
+	readonly onDidChangeFocus: Event<void>;
+
+	showValidationMessage(message: string | IMarkdownString, type: InputValidationType): void;
+	readonly onDidChangeValidationMessage: Event<IInputValidation>;
 
 	showNextHistoryValue(): void;
 	showPreviousHistoryValue(): void;

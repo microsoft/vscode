@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 
 export class ResolvedKeybindingItem {
-	_resolvedKeybindingItemBrand: void;
+	_resolvedKeybindingItemBrand: void = undefined;
 
 	public readonly resolvedKeybinding: ResolvedKeybinding | undefined;
 	public readonly keypressParts: string[];

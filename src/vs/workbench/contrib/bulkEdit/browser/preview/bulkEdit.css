@@ -3,8 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench .bulk-edit-panel .highlight.insert {
+	background-color: var(--vscode-diffEditor-insertedTextBackground);
+}
+
 .monaco-workbench .bulk-edit-panel .highlight.remove {
 	text-decoration: line-through;
+	background-color: var(--vscode-diffEditor-removedTextBackground);
 }
 
 .monaco-workbench .bulk-edit-panel .message {

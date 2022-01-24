@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { ColorId, FontStyle, IState, LanguageIdentifier, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
-import { tokenizeLineToHTML, tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { ViewLineToken, ViewLineTokens } from 'vs/editor/test/common/core/viewLineToken';
+import { EncodedTokenizationResult, ColorId, FontStyle, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
+import { tokenizeLineToHTML, _tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
+import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
+import { TestLineToken, TestLineTokens } from 'vs/editor/test/common/core/testLineToken';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
@@ -18,9 +18,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 	test('TextToHtmlTokenizer 1', () => {
 		let mode = new Mode();
-		let support = TokenizationRegistry.get(mode.getId())!;
+		let support = TokenizationRegistry.get(mode.languageId)!;
 
-		let actual = tokenizeToString('.abc..def...gh', support);
+		let actual = _tokenizeToString('.abc..def...gh', new LanguageIdCodec(), support);
 		let expected = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },
@@ -38,9 +38,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 	test('TextToHtmlTokenizer 2', () => {
 		let mode = new Mode();
-		let support = TokenizationRegistry.get(mode.getId())!;
+		let support = TokenizationRegistry.get(mode.languageId)!;
 
-		let actual = tokenizeToString('.abc..def...gh\n.abc..def...gh', support);
+		let actual = _tokenizeToString('.abc..def...gh\n.abc..def...gh', new LanguageIdCodec(), support);
 		let expected1 = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },
@@ -68,33 +68,33 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 	test('tokenizeLineToHTML', () => {
 		const text = 'Ciao hello world!';
-		const lineTokens = new ViewLineTokens([
-			new ViewLineToken(
+		const lineTokens = new TestLineTokens([
+			new TestLineToken(
 				4,
 				(
 					(3 << MetadataConsts.FOREGROUND_OFFSET)
 					| ((FontStyle.Bold | FontStyle.Italic) << MetadataConsts.FONT_STYLE_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				5,
 				(
 					(1 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				10,
 				(
 					(4 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				11,
 				(
 					(1 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				17,
 				(
 					(5 << MetadataConsts.FOREGROUND_OFFSET)
@@ -109,9 +109,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			[
 				'<div>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
-				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #000000;"> </span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #000000;"> </span>',
 				'<span style="color: #0000ff;text-decoration: underline;">world!</span>',
 				'</div>'
 			].join('')
@@ -122,9 +122,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			[
 				'<div>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
-				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #000000;"> </span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #000000;"> </span>',
 				'<span style="color: #0000ff;text-decoration: underline;">w</span>',
 				'</div>'
 			].join('')
@@ -135,9 +135,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			[
 				'<div>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
-				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #000000;"> </span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #000000;"> </span>',
 				'</div>'
 			].join('')
 		);
@@ -147,9 +147,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			[
 				'<div>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">iao</span>',
-				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #000000;"> </span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #000000;"> </span>',
 				'</div>'
 			].join('')
 		);
@@ -160,7 +160,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 				'<div>',
 				'<span style="color: #000000;">&#160;</span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #000000;"> </span>',
 				'</div>'
 			].join('')
 		);
@@ -170,7 +170,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			[
 				'<div>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #000000;"> </span>',
 				'</div>'
 			].join('')
 		);
@@ -195,39 +195,39 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 	});
 	test('tokenizeLineToHTML handle spaces #35954', () => {
 		const text = '  Ciao   hello world!';
-		const lineTokens = new ViewLineTokens([
-			new ViewLineToken(
+		const lineTokens = new TestLineTokens([
+			new TestLineToken(
 				2,
 				(
 					(1 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				6,
 				(
 					(3 << MetadataConsts.FOREGROUND_OFFSET)
 					| ((FontStyle.Bold | FontStyle.Italic) << MetadataConsts.FONT_STYLE_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				9,
 				(
 					(1 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				14,
 				(
 					(4 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				15,
 				(
 					(1 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				21,
 				(
 					(5 << MetadataConsts.FOREGROUND_OFFSET)
@@ -241,11 +241,11 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 21, 4, true),
 			[
 				'<div>',
-				'<span style="color: #000000;">&#160;&#160;</span>',
+				'<span style="color: #000000;">&#160; </span>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
-				'<span style="color: #000000;">&#160;&#160;&#160;</span>',
+				'<span style="color: #000000;"> &#160; </span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #000000;"> </span>',
 				'<span style="color: #0000ff;text-decoration: underline;">world!</span>',
 				'</div>'
 			].join('')
@@ -255,11 +255,11 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 17, 4, true),
 			[
 				'<div>',
-				'<span style="color: #000000;">&#160;&#160;</span>',
+				'<span style="color: #000000;">&#160; </span>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
-				'<span style="color: #000000;">&#160;&#160;&#160;</span>',
+				'<span style="color: #000000;"> &#160; </span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #000000;"> </span>',
 				'<span style="color: #0000ff;text-decoration: underline;">wo</span>',
 				'</div>'
 			].join('')
@@ -269,7 +269,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 3, 4, true),
 			[
 				'<div>',
-				'<span style="color: #000000;">&#160;&#160;</span>',
+				'<span style="color: #000000;">&#160; </span>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">C</span>',
 				'</div>'
 			].join('')
@@ -280,14 +280,14 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 class Mode extends MockMode {
 
-	private static readonly _id = new LanguageIdentifier('textToHtmlTokenizerMode', 3);
+	private static readonly _id = 'textToHtmlTokenizerMode';
 
 	constructor() {
 		super(Mode._id);
-		this._register(TokenizationRegistry.register(this.getId(), {
+		this._register(TokenizationRegistry.register(this.languageId, {
 			getInitialState: (): IState => null!,
 			tokenize: undefined!,
-			tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
+			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
 				let tokensArr: number[] = [];
 				let prevColor: ColorId = -1;
 				for (let i = 0; i < line.length; i++) {
@@ -305,7 +305,7 @@ class Mode extends MockMode {
 				for (let i = 0; i < tokens.length; i++) {
 					tokens[i] = tokensArr[i];
 				}
-				return new TokenizationResult2(tokens, null!);
+				return new EncodedTokenizationResult(tokens, null!);
 			}
 		}));
 	}

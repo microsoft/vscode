@@ -4,11 +4,11 @@
 	"files.exclude": {
 		".git": true,
 		".build": true,
+		".profile-oss": true,
 		"**/.DS_Store": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
-		},
-		"src/vs/server": false
+		}
 	},
 	"files.associations": {
 		"cglicenses.json": "jsonc"
@@ -26,8 +26,7 @@
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true,
 		"src/vs/base/test/node/uri.test.data.txt": true,
-		"src/vs/workbench/test/browser/api/extHostDocumentData.test.perf-data.ts": true,
-		"src/vs/server": false
+		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true
 	},
 	"lcov.path": [
 		"./.build/coverage/lcov.info",
@@ -74,16 +73,36 @@
 	"gulp.autoDetect": "off",
 	"files.insertFinalNewline": true,
 	"[plaintext]": {
-		"files.insertFinalNewline": false,
+		"files.insertFinalNewline": false
 	},
 	"[typescript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features",
-		"editor.formatOnSave": true,
+		"editor.formatOnSave": true
 	},
 	"[javascript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features",
-		"editor.formatOnSave": true,
+		"editor.formatOnSave": true
 	},
 	"typescript.tsc.autoDetect": "off",
-	"notebook.experimental.useMarkdownRenderer": true,
+	"editor.inlayHints.enabled": true,
+	"typescript.inlayHints.enumMemberValues.enabled": true,
+	"typescript.inlayHints.functionLikeReturnTypes.enabled": true,
+	"typescript.inlayHints.parameterTypes.enabled": true,
+	"typescript.inlayHints.propertyDeclarationTypes.enabled": true,
+	"typescript.inlayHints.variableTypes.enabled": true,
+	"testing.autoRun.mode": "rerun",
+	"conventionalCommits.scopes": [
+		"tree",
+		"scm",
+		"grid",
+		"splitview",
+		"table",
+		"list",
+		"git",
+		"sash"
+	],
+	"explorer.experimental.fileNesting.patterns": {
+		"*.js": "$(capture).*.js",
+		"bootstrap.js": "bootstrap-*.js"
+	}
 }

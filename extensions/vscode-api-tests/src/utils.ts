@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as assert from 'assert';
+import { EOL } from 'os';
+import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { TestFS } from './memfs';
-import * as assert from 'assert';
 
 export function rndName() {
-	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
+	return crypto.randomBytes(8).toString('hex');
 }
 
 export const testFs = new TestFS('fake-fs', true);
@@ -122,7 +124,7 @@ export function assertNoRpcFromEntry(entry: [obj: any, name: string]) {
 	assert.strictEqual(proxyPaths.length, 0, proxyPaths.join('\n')); // happens...
 }
 
-export async function asPromise<T>(event: vscode.Event<T>, timeout = 5000): Promise<T> {
+export async function asPromise<T>(event: vscode.Event<T>, timeout = vscode.env.uiKind === vscode.UIKind.Desktop ? 5000 : 15000): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 
 		const handle = setTimeout(() => {
@@ -136,4 +138,48 @@ export async function asPromise<T>(event: vscode.Event<T>, timeout = 5000): Prom
 			resolve(e);
 		});
 	});
+}
+
+export function testRepeat(n: number, description: string, callback: (this: any) => any): void {
+	for (let i = 0; i < n; i++) {
+		test(`${description} (iteration ${i})`, callback);
+	}
+}
+
+export function suiteRepeat(n: number, description: string, callback: (this: any) => any): void {
+	for (let i = 0; i < n; i++) {
+		suite(`${description} (iteration ${i})`, callback);
+	}
+}
+
+export async function poll<T>(
+	fn: () => Thenable<T>,
+	acceptFn: (result: T) => boolean,
+	timeoutMessage: string,
+	retryCount: number = 200,
+	retryInterval: number = 100 // millis
+): Promise<T> {
+	let trial = 1;
+	let lastError: string = '';
+
+	while (true) {
+		if (trial > retryCount) {
+			throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.\r${lastError}`);
+		}
+
+		let result;
+		try {
+			result = await fn();
+			if (acceptFn(result)) {
+				return result;
+			} else {
+				lastError = 'Did not pass accept function';
+			}
+		} catch (e: any) {
+			lastError = Array.isArray(e.stack) ? e.stack.join(EOL) : e.stack;
+		}
+
+		await new Promise(resolve => setTimeout(resolve, retryInterval));
+		trial++;
+	}
 }

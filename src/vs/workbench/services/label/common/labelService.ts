@@ -21,6 +21,7 @@ import { match } from 'vs/base/common/glob';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -83,6 +84,10 @@ class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 	constructor(@ILabelService labelService: ILabelService) {
 		resourceLabelFormattersExtPoint.setHandler((extensions, delta) => {
 			delta.added.forEach(added => added.value.forEach(formatter => {
+				if (!isProposedApiEnabled(added.description, 'contribLabelFormatterWorkspaceTooltip') && formatter.formatting.workspaceTooltip) {
+					// workspaceTooltip is only proposed
+					formatter.formatting.workspaceTooltip = undefined;
+				}
 				this.formattersDisposables.set(formatter, labelService.registerFormatter(formatter));
 			}));
 			delta.removed.forEach(removed => removed.value.forEach(formatter => {
@@ -99,7 +104,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private formatters: ResourceLabelFormatter[] = [];
 
-	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>());
+	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400 }));
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
 
 	constructor(
@@ -132,8 +137,22 @@ export class LabelService extends Disposable implements ILabelService {
 		return bestResult ? bestResult.formatting : undefined;
 	}
 
-	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean } = {}): string {
-		return this.doGetUriLabel(resource, this.findFormatting(resource), options);
+	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean, separator?: '/' | '\\' } = {}): string {
+		let formatting = this.findFormatting(resource);
+		if (formatting && options.separator) {
+			// mixin separator if defined from the outside
+			formatting = { ...formatting, separator: options.separator };
+		}
+
+		const label = this.doGetUriLabel(resource, formatting, options);
+
+		// Without formatting we still need to support the separator
+		// as provided in options (https://github.com/microsoft/vscode/issues/130019)
+		if (!formatting && options.separator) {
+			return label.replace(sepRegexp, options.separator);
+		}
+
+		return label;
 	}
 
 	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean } = {}): string {
@@ -247,6 +266,11 @@ export class LabelService extends Disposable implements ILabelService {
 	getHostLabel(scheme: string, authority?: string): string {
 		const formatter = this.findFormatting(URI.from({ scheme, authority }));
 		return formatter?.workspaceSuffix || '';
+	}
+
+	getHostTooltip(scheme: string, authority?: string): string | undefined {
+		const formatter = this.findFormatting(URI.from({ scheme, authority }));
+		return formatter?.workspaceTooltip;
 	}
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {

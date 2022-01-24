@@ -67,6 +67,7 @@ export class BreadcrumbsModel {
 		if (editor) {
 			this._bindToEditor(editor);
 			this._disposables.add(_outlineService.onDidChange(() => this._bindToEditor(editor)));
+			this._disposables.add(editor.onDidChangeControl(() => this._bindToEditor(editor)));
 		}
 		this._onDidUpdate.fire(this);
 	}

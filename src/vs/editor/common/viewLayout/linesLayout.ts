@@ -248,7 +248,7 @@ export class LinesLayout {
 		}
 
 		const applyRemoveAndChange = (whitespaces: EditorWhitespace[]): EditorWhitespace[] => {
-			let result: EditorWhitespace[] = [];
+			const result: EditorWhitespace[] = [];
 			for (const whitespace of whitespaces) {
 				if (toRemove.has(whitespace.id)) {
 					continue;
@@ -850,7 +850,7 @@ export class LinesLayout {
 			return [];
 		}
 
-		let result: IViewWhitespaceViewportData[] = [];
+		const result: IViewWhitespaceViewportData[] = [];
 		for (let i = startIndex; i <= endIndex; i++) {
 			const top = this.getVerticalOffsetForWhitespaceIndex(i);
 			const height = this.getHeightForWhitespaceIndex(i);

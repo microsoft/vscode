@@ -17,8 +17,7 @@ for (let i = 0; i < 256; i++) {
 	_hex.push(i.toString(16).padStart(2, '0'));
 }
 
-// todo@jrieken
-// 1. node nodejs use`crypto#randomBytes`, see: https://nodejs.org/docs/latest/api/crypto.html#crypto_crypto_randombytes_size_callback
+// todo@jrieken - with node@15 crypto#getRandomBytes is available everywhere, https://developer.mozilla.org/en-US/docs/Web/API/Crypto/getRandomValues#browser_compatibility
 let _fillRandomValues: (bucket: Uint8Array) => Uint8Array;
 
 declare const crypto: undefined | { getRandomValues(data: Uint8Array): Uint8Array };

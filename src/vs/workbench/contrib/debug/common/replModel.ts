@@ -131,14 +131,14 @@ export class ReplEvaluationResult extends ExpressionContainer implements IReplEl
 		super(undefined, undefined, 0, generateUuid());
 	}
 
-	async evaluateExpression(expression: string, session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<boolean> {
+	override async evaluateExpression(expression: string, session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<boolean> {
 		const result = await super.evaluateExpression(expression, session, stackFrame, context);
 		this._available = result;
 
 		return result;
 	}
 
-	toString(): string {
+	override toString(): string {
 		return `${this.value}`;
 	}
 }
@@ -233,7 +233,7 @@ export class ReplModel {
 			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
 			this.removeReplExpressions();
 			this.appendToRepl(session, nls.localize('consoleCleared', "Console was cleared"), severity.Ignore);
-			data = data.substr(data.lastIndexOf(clearAnsiSequence) + clearAnsiSequence.length);
+			data = data.substring(data.lastIndexOf(clearAnsiSequence) + clearAnsiSequence.length);
 		}
 
 		if (typeof data === 'string') {
@@ -306,7 +306,7 @@ export class ReplModel {
 		// add output for each argument logged
 		let simpleVals: any[] = [];
 		for (let i = 0; i < args.length; i++) {
-			let a = args[i];
+			const a = args[i];
 
 			// undefined gets printed as 'undefined'
 			if (typeof a === 'undefined') {

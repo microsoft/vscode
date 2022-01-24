@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { Event } from 'vs/base/common/event';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { Event } from 'vs/base/common/event';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 
 export interface Sender {
 	send(channel: string, msg: unknown): void;

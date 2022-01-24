@@ -5,21 +5,36 @@
 
 import { getCSSLanguageService } from 'vscode-css-languageservice';
 import {
-	ClientCapabilities, DocumentContext, getLanguageService as getHTMLLanguageService, IHTMLDataProvider, SelectionRange,
-	CompletionItem, CompletionList, Definition, Diagnostic, DocumentHighlight, DocumentLink, FoldingRange, FormattingOptions,
-	Hover, Location, Position, Range, SignatureHelp, SymbolInformation, TextDocument, TextEdit,
-	Color, ColorInformation, ColorPresentation, WorkspaceEdit
+	DocumentContext, getLanguageService as getHTMLLanguageService, IHTMLDataProvider, ClientCapabilities
 } from 'vscode-html-languageservice';
-import { WorkspaceFolder } from 'vscode-languageserver';
+import {
+	SelectionRange,
+	CompletionItem, CompletionList, Definition, Diagnostic, DocumentHighlight, DocumentLink, FoldingRange, FormattingOptions,
+	Hover, Location, Position, Range, SignatureHelp, SymbolInformation, TextEdit,
+	Color, ColorInformation, ColorPresentation, WorkspaceEdit,
+	WorkspaceFolder
+} from 'vscode-languageserver';
+import { TextDocument } from 'vscode-languageserver-textdocument';
+
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
 import { getCSSMode } from './cssMode';
 import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
 import { getHTMLMode } from './htmlMode';
 import { getJavaScriptMode } from './javascriptMode';
-import { RequestService } from '../requests';
+import { FileSystemProvider } from '../requests';
 
-export * from 'vscode-html-languageservice';
-export { WorkspaceFolder } from 'vscode-languageserver';
+export {
+	WorkspaceFolder, CompletionItem, CompletionList, CompletionItemKind, Definition, Diagnostic, DocumentHighlight, DocumentHighlightKind,
+	DocumentLink, FoldingRange, FoldingRangeKind, FormattingOptions,
+	Hover, Location, Position, Range, SignatureHelp, SymbolInformation, SymbolKind, TextEdit,
+	Color, ColorInformation, ColorPresentation, WorkspaceEdit,
+	SignatureInformation, ParameterInformation, DiagnosticSeverity,
+	SelectionRange, TextDocumentIdentifier
+} from 'vscode-languageserver';
+
+export { ClientCapabilities, DocumentContext, LanguageService, HTMLDocument, HTMLFormatConfiguration, TokenType } from 'vscode-html-languageservice';
+
+export { TextDocument } from 'vscode-languageserver-textdocument';
 
 export interface Settings {
 	css?: any;
@@ -57,7 +72,7 @@ export interface LanguageMode {
 	format?: (document: TextDocument, range: Range, options: FormattingOptions, settings?: Settings) => Promise<TextEdit[]>;
 	findDocumentColors?: (document: TextDocument) => Promise<ColorInformation[]>;
 	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => Promise<ColorPresentation[]>;
-	doAutoClose?: (document: TextDocument, position: Position) => Promise<string | null>;
+	doAutoInsert?: (document: TextDocument, position: Position, kind: 'autoClose' | 'autoQuote') => Promise<string | null>;
 	findMatchingTagPosition?: (document: TextDocument, position: Position) => Promise<Position | null>;
 	getFoldingRanges?: (document: TextDocument) => Promise<FoldingRange[]>;
 	onDocumentRemoved(document: TextDocument): void;
@@ -82,7 +97,7 @@ export interface LanguageModeRange extends Range {
 	attributeValue?: boolean;
 }
 
-export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace, clientCapabilities: ClientCapabilities, requestService: RequestService): LanguageModes {
+export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace, clientCapabilities: ClientCapabilities, requestService: FileSystemProvider): LanguageModes {
 	const htmlLanguageService = getHTMLLanguageService({ clientCapabilities, fileSystemProvider: requestService });
 	const cssLanguageService = getCSSLanguageService({ clientCapabilities, fileSystemProvider: requestService });
 

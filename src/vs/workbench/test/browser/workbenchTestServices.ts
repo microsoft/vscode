@@ -3,31 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
+import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorInput, EditorOptions, EditorsOrder, IFileEditorInput, IEditorInputFactoryRegistry, IEditorInputFactory, Extensions as EditorExtensions, ISaveOptions, IMoveResult, ITextEditorPane, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, SideBySideEditorInput } from 'vs/workbench/common/editor';
-import { IEditorOpeningEvent, EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, EditorExtensions as Extensions, EditorInputCapabilities, IUntypedEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IActiveEditorChangeEvent } from 'vs/workbench/common/editor';
+import { EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchLayoutService, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, PanelAlignment, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorOptions, IResourceEditorInput, IEditorModel, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceEditorInput, IEditorModel, IResourceEditorInputIdentifier, ITextResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { FileOperationEvent, IFileService, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions } from 'vs/platform/files/common/files';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IResourceEncoding, ITextFileService, IReadTextFileOptions, ITextFileStreamContent, IWriteTextFileOptions } from 'vs/workbench/services/textfile/common/textfiles';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { FileOperationEvent, IFileService, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent } from 'vs/platform/files/common/files';
+import { IModelService } from 'vs/editor/common/services/model';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { ModelService } from 'vs/editor/common/services/modelService';
+import { IResourceEncoding, ITextFileService, IReadTextFileOptions, ITextFileStreamContent, IWriteTextFileOptions, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -36,54 +37,50 @@ import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, ITextSnapshot } from 'vs/editor/common/model';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { IDialogService, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/common/decorations';
 import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, IOpenEditorOverrideHandler, ISaveEditorsOptions, IRevertAllEditorsOptions, IResourceEditorInputType, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IEditorReplacement, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, PreferredGroup, IEditorsChangeEvent } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/browser/editor';
-import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
+import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { Dimension, IDimension } from 'vs/base/browser/dom';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ViewletDescriptor, Viewlet } from 'vs/workbench/browser/viewlet';
-import { IViewlet } from 'vs/workbench/common/viewlet';
+import { PaneComposite, PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProcessEnvironment, isLinux, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { Part } from 'vs/workbench/browser/part';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IPanel } from 'vs/workbench/common/panel';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
-import { bufferToStream, VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
+import { bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/browserTextFileService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Direction } from 'vs/base/browser/ui/grid/grid';
-import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
+import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, Progress, IProgressDialogOptions, IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -97,15 +94,15 @@ import { CodeEditorService } from 'vs/workbench/services/editor/browser/codeEdit
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor, IEditor } from 'vs/editor/common/editorCommon';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
-import { TestWorkingCopyService, TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
@@ -113,48 +110,83 @@ import { EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfil
 import { UTF16le, UTF16be, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { Iterable } from 'vs/base/common/iterator';
-import { InMemoryBackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
-import { hash } from 'vs/base/common/hash';
-import { BrowserBackupFileService } from 'vs/workbench/services/backup/browser/backupFileService';
+import { InMemoryWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
+import { BrowserWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/browser/workingCopyBackupService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
-import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
-import { TestWorkspaceTrustService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { ILocalTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
-import { ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IEnterWorkspaceResult, IFolderBackupInfo, IRecent, IRecentlyOpened, IWorkspaceBackupInfo, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalProfile, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { ICreateTerminalOptions, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { assertIsDefined, isArray } from 'vs/base/common/types';
+import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalBackend, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
+import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IWorkingCopyEditorService, WorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
+import { BrowserElevatedFileService } from 'vs/workbench/services/files/browser/elevatedFileService';
+import { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
+import { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
+import { ResourceMap } from 'vs/base/common/map';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { ITextEditorService, TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
+import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
+import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { env } from 'vs/base/common/process';
+import { isValidBasename } from 'vs/base/common/extpath';
+import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
-	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined);
+	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerFileEditorInputFactory({
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerFileEditorFactory({
 
-	createFileEditorInput: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, instantiationService): IFileEditorInput => {
-		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode);
+	typeId: FILE_EDITOR_INPUT_ID,
+
+	createFileEditor: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredLanguageId, preferredContents, instantiationService): IFileEditorInput => {
+		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredLanguageId, preferredContents);
 	},
 
-	isFileEditorInput: (obj): obj is IFileEditorInput => {
+	isFileEditor: (obj): obj is IFileEditorInput => {
 		return obj instanceof FileEditorInput;
 	}
 });
 
 export class TestTextResourceEditor extends TextResourceEditor {
 
-	protected createEditorControl(parent: HTMLElement, configuration: any): IEditor {
+	protected override createEditorControl(parent: HTMLElement, configuration: any): IEditor {
 		return this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
 	}
 }
 
 export class TestTextFileEditor extends TextFileEditor {
 
-	protected createEditorControl(parent: HTMLElement, configuration: any): IEditor {
+	lastSetOptions: ITextEditorOptions | undefined = undefined;
+
+	override setOptions(options: ITextEditorOptions | undefined): void {
+		this.lastSetOptions = options;
+
+		super.setOptions(options);
+	}
+
+	protected override createEditorControl(parent: HTMLElement, configuration: any): IEditor {
 		return this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
 	}
 }
@@ -169,12 +201,14 @@ export function workbenchInstantiationService(
 		pathService?: (instantiationService: IInstantiationService) => IPathService,
 		editorService?: (instantiationService: IInstantiationService) => IEditorService,
 		contextKeyService?: (instantiationService: IInstantiationService) => IContextKeyService,
+		textEditorService?: (instantiationService: IInstantiationService) => ITextEditorService
 	},
 	disposables: DisposableStore = new DisposableStore()
 ): ITestInstantiationService {
 	const instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 
-	instantiationService.stub(IWorkingCopyService, disposables.add(new TestWorkingCopyService()));
+	instantiationService.stub(IEditorWorkerService, new TestEditorWorkerService());
+	instantiationService.stub(IWorkingCopyService, disposables.add(new WorkingCopyService()));
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
 	const contextKeyService = overrides?.contextKeyService ? overrides.contextKeyService(instantiationService) : instantiationService.createInstance(MockContextKeyService);
@@ -182,9 +216,15 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IProgressService, new TestProgressService());
 	const workspaceContextService = new TestContextService(TestWorkspace);
 	instantiationService.stub(IWorkspaceContextService, workspaceContextService);
-	const configService = new TestConfigurationService();
+	const configService = new TestConfigurationService({
+		files: {
+			participants: {
+				timeout: 60000
+			}
+		}
+	});
 	instantiationService.stub(IConfigurationService, configService);
-	instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(contextKeyService, configService)));
+	instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(contextKeyService, configService, workspaceContextService)));
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledTextEditorService, disposables.add(instantiationService.createInstance(UntitledTextEditorService)));
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
@@ -195,17 +235,19 @@ export function workbenchInstantiationService(
 	const accessibilityService = new TestAccessibilityService();
 	instantiationService.stub(IAccessibilityService, accessibilityService);
 	instantiationService.stub(IFileDialogService, instantiationService.createInstance(TestFileDialogService));
-	instantiationService.stub(IModeService, disposables.add(instantiationService.createInstance(ModeServiceImpl)));
+	instantiationService.stub(ILanguageService, disposables.add(instantiationService.createInstance(LanguageService)));
+	instantiationService.stub(ILanguageFeatureDebounceService, instantiationService.createInstance(LanguageFeatureDebounceService));
 	instantiationService.stub(IHistoryService, new TestHistoryService());
 	instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(configService));
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 	const themeService = new TestThemeService();
 	instantiationService.stub(IThemeService, themeService);
-	instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelServiceImpl)));
+	instantiationService.stub(ILanguageConfigurationService, new TestLanguageConfigurationService());
+	instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
 	const fileService = new TestFileService();
 	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
-	instantiationService.stub(IBackupFileService, new TestBackupFileService());
+	instantiationService.stub(IWorkingCopyBackupService, new TestWorkingCopyBackupService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(INotificationService, new TestNotificationService());
 	instantiationService.stub(IUntitledTextEditorService, disposables.add(instantiationService.createInstance(UntitledTextEditorService)));
@@ -224,14 +266,18 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ILabelService, <ILabelService>disposables.add(instantiationService.createInstance(LabelService)));
 	const editorService = overrides?.editorService ? overrides.editorService(instantiationService) : new TestEditorService(editorGroupService);
 	instantiationService.stub(IEditorService, editorService);
+	instantiationService.stub(IWorkingCopyEditorService, disposables.add(instantiationService.createInstance(WorkingCopyEditorService)));
+	instantiationService.stub(IEditorResolverService, disposables.add(instantiationService.createInstance(EditorResolverService)));
+	const textEditorService = overrides?.textEditorService ? overrides.textEditorService(instantiationService) : instantiationService.createInstance(TextEditorService);
+	instantiationService.stub(ITextEditorService, textEditorService);
 	instantiationService.stub(ICodeEditorService, disposables.add(new CodeEditorService(editorService, themeService, configService)));
-	instantiationService.stub(IViewletService, new TestViewletService());
+	instantiationService.stub(IPaneCompositePartService, new TestPaneCompositeService());
 	instantiationService.stub(IListService, new TestListService());
 	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
-	instantiationService.stub(IWorkspaceTrustService, new TestWorkspaceTrustService());
+	instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
-	instantiationService.stub(ILocalTerminalService, new TestLocalTerminalService());
+	instantiationService.stub(IElevatedFileService, new BrowserElevatedFileService());
 
 	return instantiationService;
 }
@@ -240,22 +286,37 @@ export class TestServiceAccessor {
 	constructor(
 		@ILifecycleService public lifecycleService: TestLifecycleService,
 		@ITextFileService public textFileService: TestTextFileService,
+		@ITextEditorService public textEditorService: ITextEditorService,
 		@IWorkingCopyFileService public workingCopyFileService: IWorkingCopyFileService,
 		@IFilesConfigurationService public filesConfigurationService: TestFilesConfigurationService,
 		@IWorkspaceContextService public contextService: TestContextService,
-		@IModelService public modelService: ModelServiceImpl,
+		@IModelService public modelService: ModelService,
 		@IFileService public fileService: TestFileService,
 		@IFileDialogService public fileDialogService: TestFileDialogService,
+		@IDialogService public dialogService: TestDialogService,
 		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
 		@IEditorService public editorService: TestEditorService,
+		@IWorkbenchEnvironmentService public environmentService: IWorkbenchEnvironmentService,
+		@IPathService public pathService: IPathService,
 		@IEditorGroupsService public editorGroupService: IEditorGroupsService,
-		@IModeService public modeService: IModeService,
+		@IEditorResolverService public editorResolverService: IEditorResolverService,
+		@ILanguageService public languageService: ILanguageService,
 		@ITextModelService public textModelResolverService: ITextModelService,
 		@IUntitledTextEditorService public untitledTextEditorService: UntitledTextEditorService,
 		@IConfigurationService public testConfigurationService: TestConfigurationService,
-		@IBackupFileService public backupFileService: TestBackupFileService,
+		@IWorkingCopyBackupService public workingCopyBackupService: TestWorkingCopyBackupService,
 		@IHostService public hostService: TestHostService,
-		@IQuickInputService public quickInputService: IQuickInputService
+		@IQuickInputService public quickInputService: IQuickInputService,
+		@ILabelService public labelService: ILabelService,
+		@ILogService public logService: ILogService,
+		@IUriIdentityService public uriIdentityService: IUriIdentityService,
+		@IInstantiationService public instantitionService: IInstantiationService,
+		@INotificationService public notificationService: INotificationService,
+		@IWorkingCopyEditorService public workingCopyEditorService: IWorkingCopyEditorService,
+		@IInstantiationService public instantiationService: IInstantiationService,
+		@IElevatedFileService public elevatedFileService: IElevatedFileService,
+		@IWorkspaceTrustRequestService public workspaceTrustRequestService: TestWorkspaceTrustRequestService,
+		@IDecorationsService public decorationsService: IDecorationsService
 	) { }
 }
 
@@ -264,7 +325,7 @@ export class TestTextFileService extends BrowserTextFileService {
 	private writeError: FileOperationError | undefined = undefined;
 
 	constructor(
-		@IFileService protected fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -280,8 +341,10 @@ export class TestTextFileService extends BrowserTextFileService {
 		@IPathService pathService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IModeService modeService: IModeService,
-		@ILogService logService: ILogService
+		@ILanguageService languageService: ILanguageService,
+		@ILogService logService: ILogService,
+		@IElevatedFileService elevatedFileService: IElevatedFileService,
+		@IDecorationsService decorationsService: IDecorationsService
 	) {
 		super(
 			fileService,
@@ -299,8 +362,10 @@ export class TestTextFileService extends BrowserTextFileService {
 			pathService,
 			workingCopyFileService,
 			uriIdentityService,
-			modeService,
-			logService
+			languageService,
+			elevatedFileService,
+			logService,
+			decorationsService
 		);
 	}
 
@@ -308,7 +373,7 @@ export class TestTextFileService extends BrowserTextFileService {
 		this.readStreamError = error;
 	}
 
-	async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
+	override async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 		if (this.readStreamError) {
 			const error = this.readStreamError;
 			this.readStreamError = undefined;
@@ -325,7 +390,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			etag: content.etag,
 			encoding: 'utf8',
 			value: await createTextBufferFactoryFromStream(content.value),
-			size: 10
+			size: 10,
+			readonly: false
 		};
 	}
 
@@ -333,7 +399,7 @@ export class TestTextFileService extends BrowserTextFileService {
 		this.writeError = error;
 	}
 
-	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
+	override async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
 		if (this.writeError) {
 			const error = this.writeError;
 			this.writeError = undefined;
@@ -348,7 +414,7 @@ export class TestTextFileService extends BrowserTextFileService {
 export class TestBrowserTextFileServiceWithEncodingOverrides extends BrowserTextFileService {
 
 	private _testEncoding: TestEncodingOracle | undefined;
-	get encoding(): TestEncodingOracle {
+	override get encoding(): TestEncodingOracle {
 		if (!this._testEncoding) {
 			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
 		}
@@ -359,7 +425,7 @@ export class TestBrowserTextFileServiceWithEncodingOverrides extends BrowserText
 
 export class TestEncodingOracle extends EncodingOracle {
 
-	protected get encodingOverrides(): IEncodingOverride[] {
+	protected override get encodingOverrides(): IEncodingOverride[] {
 		return [
 			{ extension: 'utf16le', encoding: UTF16le },
 			{ extension: 'utf16be', encoding: UTF16be },
@@ -367,7 +433,7 @@ export class TestEncodingOracle extends EncodingOracle {
 		];
 	}
 
-	protected set encodingOverrides(overrides: IEncodingOverride[]) { }
+	protected override set encodingOverrides(overrides: IEncodingOverride[]) { }
 }
 
 class TestEnvironmentServiceWithArgs extends BrowserWorkbenchEnvironmentService {
@@ -376,31 +442,19 @@ class TestEnvironmentServiceWithArgs extends BrowserWorkbenchEnvironmentService 
 
 export const TestProductService = { _serviceBrand: undefined, ...product };
 
-export const TestEnvironmentService = new TestEnvironmentServiceWithArgs(Object.create(null), TestProductService);
+export const TestEnvironmentService = new TestEnvironmentServiceWithArgs('', undefined!, Object.create(null), TestProductService);
 
 export class TestProgressService implements IProgressService {
 
 	declare readonly _serviceBrand: undefined;
 
 	withProgress(
-		options: IProgressOptions | IProgressWindowOptions | IProgressNotificationOptions | IProgressCompositeOptions,
+		options: IProgressOptions | IProgressDialogOptions | IProgressWindowOptions | IProgressNotificationOptions | IProgressCompositeOptions,
 		task: (progress: IProgress<IProgressStep>) => Promise<any>,
 		onDidCancel?: ((choice?: number | undefined) => void) | undefined
 	): Promise<any> {
 		return task(Progress.None);
 	}
-}
-
-export class TestAccessibilityService implements IAccessibilityService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onDidChangeScreenReaderOptimized = Event.None;
-
-	isScreenReaderOptimized(): boolean { return false; }
-	alwaysUnderlineAccessKeys(): Promise<boolean> { return Promise.resolve(false); }
-	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void { }
-	getAccessibilitySupport(): AccessibilitySupport { return AccessibilitySupport.Unknown; }
 }
 
 export class TestDecorationsService implements IDecorationsService {
@@ -436,10 +490,10 @@ export class TestHistoryService implements IHistoryService {
 	forward(): void { }
 	back(): void { }
 	last(): void { }
-	removeFromHistory(_input: IEditorInput | IResourceEditorInput): void { }
+	removeFromHistory(_input: EditorInput | IResourceEditorInput): void { }
 	clear(): void { }
 	clearRecentlyOpened(): void { }
-	getHistory(): ReadonlyArray<IEditorInput | IResourceEditorInput> { return []; }
+	getHistory(): readonly (EditorInput | IResourceEditorInput)[] { return []; }
 	openNextRecentlyUsedEditor(group?: GroupIdentifier): void { }
 	openPreviouslyUsedEditor(group?: GroupIdentifier): void { }
 	getLastActiveWorkspaceRoot(_schemeFilter: string): URI | undefined { return this.root; }
@@ -483,19 +537,22 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	dimension: IDimension = { width: 800, height: 600 };
 
+	hasContainer = true;
 	container: HTMLElement = window.document.body;
 
 	onDidChangeZenMode: Event<boolean> = Event.None;
 	onDidChangeCenteredLayout: Event<boolean> = Event.None;
 	onDidChangeFullscreen: Event<boolean> = Event.None;
 	onDidChangeWindowMaximized: Event<boolean> = Event.None;
-	onDidChangePanelPosition: Event<string> = Event.None;
+	onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
 	onDidChangePartVisibility: Event<void> = Event.None;
 	onDidLayout = Event.None;
 	onDidChangeNotificationsVisibility = Event.None;
 
 	layout(): void { }
 	isRestored(): boolean { return true; }
+	whenReady: Promise<void> = Promise.resolve(undefined);
+	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasFocus(_part: Parts): boolean { return false; }
 	focusPart(_part: Parts): void { }
 	hasWindowBorder(): boolean { return false; }
@@ -508,9 +565,12 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isStatusBarHidden(): boolean { return false; }
 	isActivityBarHidden(): boolean { return false; }
 	setActivityBarHidden(_hidden: boolean): void { }
+	setBannerHidden(_hidden: boolean): void { }
 	isSideBarHidden(): boolean { return false; }
 	async setEditorHidden(_hidden: boolean): Promise<void> { }
 	async setSideBarHidden(_hidden: boolean): Promise<void> { }
+	async setAuxiliaryBarHidden(_hidden: boolean): Promise<void> { }
+	async setPartHidden(_hidden: boolean, part: Parts): Promise<void> { }
 	isPanelHidden(): boolean { return false; }
 	async setPanelHidden(_hidden: boolean): Promise<void> { }
 	toggleMaximizedPanel(): void { }
@@ -518,8 +578,9 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	toggleMenuBar(): void { }
 	getSideBarPosition() { return 0; }
-	getPanelPosition() { return 0; }
+	getPanelAlignment(): PanelAlignment { return 'center'; }
 	async setPanelPosition(_position: PartPosition): Promise<void> { }
+	async setPanelAlignment(_alignment: PanelAlignment): Promise<void> { }
 	addClass(_clazz: string): void { }
 	removeClass(_clazz: string): void { }
 	getMaximumEditorDimensions(): Dimension { throw new Error('not implemented'); }
@@ -534,50 +595,120 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	focus() { }
 }
 
-let activeViewlet: Viewlet = {} as any;
+let activeViewlet: PaneComposite = {} as any;
 
-export class TestViewletService implements IViewletService {
+export class TestPaneCompositeService extends Disposable implements IPaneCompositePartService {
 	declare readonly _serviceBrand: undefined;
 
-	onDidViewletRegisterEmitter = new Emitter<ViewletDescriptor>();
-	onDidViewletDeregisterEmitter = new Emitter<ViewletDescriptor>();
-	onDidViewletOpenEmitter = new Emitter<IViewlet>();
-	onDidViewletCloseEmitter = new Emitter<IViewlet>();
+	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation; }>;
+	onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation; }>;
 
-	onDidViewletRegister = this.onDidViewletRegisterEmitter.event;
-	onDidViewletDeregister = this.onDidViewletDeregisterEmitter.event;
-	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
-	onDidViewletClose = this.onDidViewletCloseEmitter.event;
+	private parts = new Map<ViewContainerLocation, IPaneCompositePart>();
 
-	openViewlet(id: string, focus?: boolean): Promise<IViewlet | undefined> { return Promise.resolve(undefined); }
-	getViewlets(): ViewletDescriptor[] { return []; }
-	getAllViewlets(): ViewletDescriptor[] { return []; }
-	getActiveViewlet(): IViewlet { return activeViewlet; }
-	getDefaultViewletId(): string { return 'workbench.view.explorer'; }
-	getViewlet(id: string): ViewletDescriptor | undefined { return undefined; }
-	getProgressIndicator(id: string) { return undefined; }
-	hideActiveViewlet(): void { }
-	getLastActiveViewletId(): string { return undefined!; }
-	dispose() { }
+	constructor() {
+		super();
+
+		this.parts.set(ViewContainerLocation.Panel, new TestPanelPart());
+		this.parts.set(ViewContainerLocation.Sidebar, new TestSideBarPart());
+
+		this.onDidPaneCompositeOpen = Event.any(...([ViewContainerLocation.Panel, ViewContainerLocation.Sidebar].map(loc => Event.map(this.parts.get(loc)!.onDidPaneCompositeOpen, composite => { return { composite, viewContainerLocation: loc }; }))));
+		this.onDidPaneCompositeClose = Event.any(...([ViewContainerLocation.Panel, ViewContainerLocation.Sidebar].map(loc => Event.map(this.parts.get(loc)!.onDidPaneCompositeClose, composite => { return { composite, viewContainerLocation: loc }; }))));
+	}
+
+	openPaneComposite(id: string | undefined, viewContainerLocation: ViewContainerLocation, focus?: boolean): Promise<IPaneComposite | undefined> {
+		return this.getPartByLocation(viewContainerLocation).openPaneComposite(id, focus);
+	}
+	getActivePaneComposite(viewContainerLocation: ViewContainerLocation): IPaneComposite | undefined {
+		return this.getPartByLocation(viewContainerLocation).getActivePaneComposite();
+	}
+	getPaneComposite(id: string, viewContainerLocation: ViewContainerLocation): PaneCompositeDescriptor | undefined {
+		return this.getPartByLocation(viewContainerLocation).getPaneComposite(id);
+	}
+	getPaneComposites(viewContainerLocation: ViewContainerLocation): PaneCompositeDescriptor[] {
+		return this.getPartByLocation(viewContainerLocation).getPaneComposites();
+	}
+	getProgressIndicator(id: string, viewContainerLocation: ViewContainerLocation): IProgressIndicator | undefined {
+		return this.getPartByLocation(viewContainerLocation).getProgressIndicator(id);
+	}
+	hideActivePaneComposite(viewContainerLocation: ViewContainerLocation): void {
+		this.getPartByLocation(viewContainerLocation).hideActivePaneComposite();
+	}
+	getLastActivePaneCompositeId(viewContainerLocation: ViewContainerLocation): string {
+		return this.getPartByLocation(viewContainerLocation).getLastActivePaneCompositeId();
+	}
+
+	getPinnedPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
+		throw new Error('Method not implemented.');
+	}
+
+	getVisiblePaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
+		throw new Error('Method not implemented.');
+	}
+
+	showActivity(id: string, viewContainerLocation: ViewContainerLocation, badge: IBadge, clazz?: string, priority?: number): IDisposable {
+		throw new Error('Method not implemented.');
+	}
+
+	getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
+		return assertIsDefined(this.parts.get(viewContainerLocation));
+	}
 }
 
-export class TestPanelService implements IPanelService {
+export class TestSideBarPart implements IPaneCompositePart {
 	declare readonly _serviceBrand: undefined;
 
-	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean; }>().event;
-	onDidPanelClose = new Emitter<IPanel>().event;
+	onDidViewletRegisterEmitter = new Emitter<PaneCompositeDescriptor>();
+	onDidViewletDeregisterEmitter = new Emitter<PaneCompositeDescriptor>();
+	onDidViewletOpenEmitter = new Emitter<IPaneComposite>();
+	onDidViewletCloseEmitter = new Emitter<IPaneComposite>();
 
-	async openPanel(id?: string, focus?: boolean): Promise<undefined> { return undefined; }
-	getPanel(id: string): any { return activeViewlet; }
-	getPanels() { return []; }
-	getPinnedPanels() { return []; }
-	getActivePanel(): IPanel { return activeViewlet; }
+	element: HTMLElement = undefined!;
+	minimumWidth = 0;
+	maximumWidth = 0;
+	minimumHeight = 0;
+	maximumHeight = 0;
+	onDidChange = Event.None;
+	onDidPaneCompositeOpen = this.onDidViewletOpenEmitter.event;
+	onDidPaneCompositeClose = this.onDidViewletCloseEmitter.event;
+
+	openPaneComposite(id: string, focus?: boolean): Promise<IPaneComposite | undefined> { return Promise.resolve(undefined); }
+	getPaneComposites(): PaneCompositeDescriptor[] { return []; }
+	getAllViewlets(): PaneCompositeDescriptor[] { return []; }
+	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
+	getDefaultViewletId(): string { return 'workbench.view.explorer'; }
+	getPaneComposite(id: string): PaneCompositeDescriptor | undefined { return undefined; }
+	getProgressIndicator(id: string) { return undefined; }
+	hideActivePaneComposite(): void { }
+	getLastActivePaneCompositeId(): string { return undefined!; }
+	dispose() { }
+	layout(width: number, height: number, top: number, left: number): void { }
+}
+
+export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelectorPart {
+	declare readonly _serviceBrand: undefined;
+
+	element: HTMLElement = undefined!;
+	minimumWidth = 0;
+	maximumWidth = 0;
+	minimumHeight = 0;
+	maximumHeight = 0;
+	onDidChange = Event.None;
+	onDidPaneCompositeOpen = new Emitter<IPaneComposite>().event;
+	onDidPaneCompositeClose = new Emitter<IPaneComposite>().event;
+
+	async openPaneComposite(id?: string, focus?: boolean): Promise<undefined> { return undefined; }
+	getPaneComposite(id: string): any { return activeViewlet; }
+	getPaneComposites() { return []; }
+	getPinnedPaneCompositeIds() { return []; }
+	getVisiblePaneCompositeIds() { return []; }
+	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable { throw new Error('Method not implemented.'); }
 	getProgressIndicator(id: string) { return null!; }
-	hideActivePanel(): void { }
-	getLastActivePanelId(): string { return undefined!; }
+	hideActivePaneComposite(): void { }
+	getLastActivePaneCompositeId(): string { return undefined!; }
+	layout(width: number, height: number, top: number, left: number): void { }
 }
 
 export class TestViewsService implements IViewsService {
@@ -613,19 +744,23 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
 	onDidChangeGroupIndex: Event<IEditorGroup> = Event.None;
+	onDidChangeGroupLocked: Event<IEditorGroup> = Event.None;
 	onDidLayout: Event<IDimension> = Event.None;
 	onDidChangeEditorPartOptions = Event.None;
 
 	orientation = GroupOrientation.HORIZONTAL;
+	isReady = true;
+	whenReady: Promise<void> = Promise.resolve(undefined);
 	whenRestored: Promise<void> = Promise.resolve(undefined);
-	willRestoreEditors = false;
+	hasRestorableState = false;
 
 	contentDimension = { width: 800, height: 600 };
 
 	get activeGroup(): IEditorGroup { return this.groups[0]; }
+	get sideGroup(): IEditorGroup { return this.groups[0]; }
 	get count(): number { return this.groups.length; }
 
-	getGroups(_order?: GroupsOrder): ReadonlyArray<IEditorGroup> { return this.groups; }
+	getGroups(_order?: GroupsOrder): readonly IEditorGroup[] { return this.groups; }
 	getGroup(identifier: number): IEditorGroup | undefined { return this.groups.find(group => group.id === identifier); }
 	getLabel(_identifier: number): string { return 'Group 1'; }
 	findGroup(_scope: IFindGroupScope, _source?: number | IEditorGroup, _wrap?: boolean): IEditorGroup { throw new Error('not implemented'); }
@@ -640,6 +775,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	removeGroup(_group: number | IEditorGroup): void { }
 	moveGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup { throw new Error('not implemented'); }
 	mergeGroup(_group: number | IEditorGroup, _target: number | IEditorGroup, _options?: IMergeGroupOptions): IEditorGroup { throw new Error('not implemented'); }
+	mergeAllGroups(): IEditorGroup { throw new Error('not implemented'); }
 	copyGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup { throw new Error('not implemented'); }
 	centerLayout(active: boolean): void { }
 	isLayoutCentered(): boolean { return false; }
@@ -652,15 +788,15 @@ export class TestEditorGroupView implements IEditorGroupView {
 
 	constructor(public id: number) { }
 
-	get group(): EditorGroup { throw new Error('not implemented'); }
 	activeEditorPane!: IVisibleEditorPane;
-	activeEditor!: IEditorInput;
-	previewEditor!: IEditorInput;
+	activeEditor!: EditorInput;
+	previewEditor!: EditorInput;
 	count!: number;
 	stickyCount!: number;
 	disposed!: boolean;
-	editors: ReadonlyArray<IEditorInput> = [];
+	editors: readonly EditorInput[] = [];
 	label!: string;
+	isLocked!: boolean;
 	ariaLabel!: string;
 	index!: number;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
@@ -676,32 +812,38 @@ export class TestEditorGroupView implements IEditorGroupView {
 	isMinimized = false;
 
 	onWillDispose: Event<void> = Event.None;
-	onDidGroupChange: Event<IGroupChangeEvent> = Event.None;
+	onDidModelChange: Event<IGroupModelChangeEvent> = Event.None;
 	onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
-	onWillOpenEditor: Event<IEditorOpeningEvent> = Event.None;
-	onDidOpenEditorFail: Event<IEditorInput> = Event.None;
+	onDidOpenEditorFail: Event<EditorInput> = Event.None;
 	onDidFocus: Event<void> = Event.None;
 	onDidChange: Event<{ width: number; height: number; }> = Event.None;
+	onWillMoveEditor: Event<IEditorWillMoveEvent> = Event.None;
+	onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
+	onDidActiveEditorChange: Event<IActiveEditorChangeEvent> = Event.None;
 
-	getEditors(_order?: EditorsOrder): ReadonlyArray<IEditorInput> { return []; }
-	getEditorByIndex(_index: number): IEditorInput { throw new Error('not implemented'); }
-	getIndexOfEditor(_editor: IEditorInput): number { return -1; }
-	openEditor(_editor: IEditorInput, _options?: IEditorOptions): Promise<IEditorPane> { throw new Error('not implemented'); }
-	openEditors(_editors: IEditorInputWithOptions[]): Promise<IEditorPane> { throw new Error('not implemented'); }
-	isOpened(_editor: IEditorInput | IResourceEditorInput): boolean { return false; }
-	isPinned(_editor: IEditorInput): boolean { return false; }
-	isSticky(_editor: IEditorInput): boolean { return false; }
-	isActive(_editor: IEditorInput): boolean { return false; }
-	moveEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: IMoveEditorOptions): void { }
-	copyEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: ICopyEditorOptions): void { }
-	async closeEditor(_editor?: IEditorInput, options?: ICloseEditorOptions): Promise<void> { }
-	async closeEditors(_editors: IEditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> { }
+	getEditors(_order?: EditorsOrder): readonly EditorInput[] { return []; }
+	findEditors(_resource: URI): readonly EditorInput[] { return []; }
+	getEditorByIndex(_index: number): EditorInput { throw new Error('not implemented'); }
+	getIndexOfEditor(_editor: EditorInput): number { return -1; }
+	openEditor(_editor: EditorInput, _options?: IEditorOptions): Promise<IEditorPane> { throw new Error('not implemented'); }
+	openEditors(_editors: EditorInputWithOptions[]): Promise<IEditorPane> { throw new Error('not implemented'); }
+	isPinned(_editor: EditorInput): boolean { return false; }
+	isSticky(_editor: EditorInput): boolean { return false; }
+	isActive(_editor: EditorInput | IUntypedEditorInput): boolean { return false; }
+	contains(candidate: EditorInput | IUntypedEditorInput): boolean { return false; }
+	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
+	moveEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
+	copyEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
+	copyEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
+	async closeEditor(_editor?: EditorInput, options?: ICloseEditorOptions): Promise<boolean> { return true; }
+	async closeEditors(_editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> { }
 	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void> { }
 	async replaceEditors(_editors: IEditorReplacement[]): Promise<void> { }
-	pinEditor(_editor?: IEditorInput): void { }
-	stickEditor(editor?: IEditorInput | undefined): void { }
-	unstickEditor(editor?: IEditorInput | undefined): void { }
+	pinEditor(_editor?: EditorInput): void { }
+	stickEditor(editor?: EditorInput | undefined): void { }
+	unstickEditor(editor?: EditorInput | undefined): void { }
+	lock(locked: boolean): void { }
 	focus(): void { }
 	get scopedContextKeyService(): IContextKeyService { throw new Error('not implemented'); }
 	setActive(_isActive: boolean): void { }
@@ -740,6 +882,7 @@ export class TestEditorService implements EditorServiceImpl {
 
 	onDidActiveEditorChange: Event<void> = Event.None;
 	onDidVisibleEditorsChange: Event<void> = Event.None;
+	onDidEditorsChange: Event<IEditorsChangeEvent[]> = Event.None;
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
 	onDidMostRecentlyActiveEditorsChange: Event<void> = Event.None;
@@ -749,31 +892,29 @@ export class TestEditorService implements EditorServiceImpl {
 	public set activeTextEditorControl(value: ICodeEditor | IDiffEditor | undefined) { this._activeTextEditorControl = value; }
 
 	activeEditorPane: IVisibleEditorPane | undefined;
-	activeTextEditorMode: string | undefined;
+	activeTextEditorLanguageId: string | undefined;
 
-	private _activeEditor: IEditorInput | undefined;
-	public get activeEditor(): IEditorInput | undefined { return this._activeEditor; }
-	public set activeEditor(value: IEditorInput | undefined) { this._activeEditor = value; }
+	private _activeEditor: EditorInput | undefined;
+	public get activeEditor(): EditorInput | undefined { return this._activeEditor; }
+	public set activeEditor(value: EditorInput | undefined) { this._activeEditor = value; }
 
-	editors: ReadonlyArray<IEditorInput> = [];
-	mostRecentlyActiveEditors: ReadonlyArray<IEditorIdentifier> = [];
-	visibleEditorPanes: ReadonlyArray<IVisibleEditorPane> = [];
+	editors: readonly EditorInput[] = [];
+	mostRecentlyActiveEditors: readonly IEditorIdentifier[] = [];
+	visibleEditorPanes: readonly IVisibleEditorPane[] = [];
 	visibleTextEditorControls = [];
-	visibleEditors: ReadonlyArray<IEditorInput> = [];
+	visibleEditors: readonly EditorInput[] = [];
 	count = this.editors.length;
 
 	constructor(private editorGroupService?: IEditorGroupsService) { }
 	getEditors() { return []; }
-	findEditors() { return []; }
-	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] { return []; }
-	overrideOpenEditor(_handler: IOpenEditorOverrideHandler): IDisposable { return toDisposable(() => undefined); }
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
-	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextEditorPane | undefined>;
-	openEditor(editor: IResourceDiffEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditorPane | undefined>;
-	async openEditor(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | ITextEditorOptions | IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined> {
+	findEditors() { return [] as any; }
+	openEditor(editor: EditorInput, options?: IEditorOptions, group?: PreferredGroup): Promise<IEditorPane | undefined>;
+	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
+	openEditor(editor: IResourceDiffEditorInput, group?: PreferredGroup): Promise<ITextDiffEditorPane | undefined>;
+	async openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | PreferredGroup, group?: PreferredGroup): Promise<IEditorPane | undefined> {
 		throw new Error('not implemented');
 	}
-	doResolveEditorOpenRequest(editor: IEditorInput | IResourceEditorInputType): [IEditorGroup, EditorInput, EditorOptions | undefined] | undefined {
+	doResolveEditorOpenRequest(editor: EditorInput | IUntypedEditorInput): [IEditorGroup, EditorInput, IEditorOptions | undefined] | undefined {
 		if (!this.editorGroupService) {
 			return undefined;
 		}
@@ -781,14 +922,13 @@ export class TestEditorService implements EditorServiceImpl {
 		return [this.editorGroupService.activeGroup, editor as EditorInput, undefined];
 	}
 	openEditors(_editors: any, _group?: any): Promise<IEditorPane[]> { throw new Error('not implemented'); }
-	isOpen(_editor: IEditorInput | IResourceEditorInput): boolean { return false; }
+	isOpened(_editor: IResourceEditorInputIdentifier): boolean { return false; }
+	isVisible(_editor: EditorInput): boolean { return false; }
 	replaceEditors(_editors: any, _group: any) { return Promise.resolve(undefined); }
-	createEditorInput(_input: IResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput): EditorInput { throw new Error('not implemented'); }
 	save(editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	saveAll(options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	revert(editors: IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
-	whenClosed(editors: IResourceEditorInput[], options?: { waitForSaved: boolean; }): Promise<void> { throw new Error('Method not implemented.'); }
 }
 
 export class TestFileService implements IFileService {
@@ -796,24 +936,31 @@ export class TestFileService implements IFileService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidFilesChange = new Emitter<FileChangesEvent>();
+	get onDidFilesChange(): Event<FileChangesEvent> { return this._onDidFilesChange.event; }
+	fireFileChanges(event: FileChangesEvent): void { this._onDidFilesChange.fire(event); }
+
 	private readonly _onDidRunOperation = new Emitter<FileOperationEvent>();
+	get onDidRunOperation(): Event<FileOperationEvent> { return this._onDidRunOperation.event; }
+	fireAfterOperation(event: FileOperationEvent): void { this._onDidRunOperation.fire(event); }
+
+	private readonly _onDidChangeFileSystemProviderCapabilities = new Emitter<IFileSystemProviderCapabilitiesChangeEvent>();
+	get onDidChangeFileSystemProviderCapabilities(): Event<IFileSystemProviderCapabilitiesChangeEvent> { return this._onDidChangeFileSystemProviderCapabilities.event; }
+	fireFileSystemProviderCapabilitiesChangeEvent(event: IFileSystemProviderCapabilitiesChangeEvent): void { this._onDidChangeFileSystemProviderCapabilities.fire(event); }
 
 	readonly onWillActivateFileSystemProvider = Event.None;
-	readonly onDidChangeFileSystemProviderCapabilities = Event.None;
-	readonly onError: Event<Error> = Event.None;
+	readonly onDidWatchError = Event.None;
 
 	private content = 'Hello Html';
 	private lastReadFileUri!: URI;
 
+	readonly = false;
+
 	setContent(content: string): void { this.content = content; }
 	getContent(): string { return this.content; }
 	getLastReadFileUri(): URI { return this.lastReadFileUri; }
-	get onDidFilesChange(): Event<FileChangesEvent> { return this._onDidFilesChange.event; }
-	fireFileChanges(event: FileChangesEvent): void { this._onDidFilesChange.fire(event); }
-	get onDidRunOperation(): Event<FileOperationEvent> { return this._onDidRunOperation.event; }
-	fireAfterOperation(event: FileOperationEvent): void { this._onDidRunOperation.fire(event); }
-	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
+
 	resolve(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
 	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
 		return Promise.resolve({
 			resource,
@@ -824,6 +971,7 @@ export class TestFileService implements IFileService {
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,
+			readonly: this.readonly,
 			name: basename(resource)
 		});
 	}
@@ -834,9 +982,17 @@ export class TestFileService implements IFileService {
 		return stats.map(stat => ({ stat, success: true }));
 	}
 
-	async exists(_resource: URI): Promise<boolean> { return true; }
+	readonly notExistsSet = new ResourceMap<boolean>();
+
+	async exists(_resource: URI): Promise<boolean> { return !this.notExistsSet.has(_resource); }
+
+	readShouldThrowError: Error | undefined = undefined;
 
 	readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
+		if (this.readShouldThrowError) {
+			throw this.readShouldThrowError;
+		}
+
 		this.lastReadFileUri = resource;
 
 		return Promise.resolve({
@@ -847,11 +1003,16 @@ export class TestFileService implements IFileService {
 			mtime: Date.now(),
 			ctime: Date.now(),
 			name: basename(resource),
+			readonly: this.readonly,
 			size: 1
 		});
 	}
 
 	readFileStream(resource: URI, options?: IReadFileStreamOptions | undefined): Promise<IFileStreamContent> {
+		if (this.readShouldThrowError) {
+			throw this.readShouldThrowError;
+		}
+
 		this.lastReadFileUri = resource;
 
 		return Promise.resolve({
@@ -862,6 +1023,7 @@ export class TestFileService implements IFileService {
 			mtime: Date.now(),
 			ctime: Date.now(),
 			size: 1,
+			readonly: this.readonly,
 			name: basename(resource)
 		});
 	}
@@ -884,6 +1046,7 @@ export class TestFileService implements IFileService {
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,
+			readonly: this.readonly,
 			name: basename(resource)
 		});
 	}
@@ -903,8 +1066,13 @@ export class TestFileService implements IFileService {
 		return toDisposable(() => this.providers.delete(scheme));
 	}
 
-	activateProvider(_scheme: string): Promise<void> { throw new Error('not implemented'); }
-	canHandleResource(resource: URI): boolean { return resource.scheme === Schemas.file || this.providers.has(resource.scheme); }
+	getProvider(scheme: string) {
+		return this.providers.get(scheme);
+	}
+
+	async activateProvider(_scheme: string): Promise<void> { return; }
+	async canHandleResource(resource: URI): Promise<boolean> { return this.hasProvider(resource); }
+	hasProvider(resource: URI): boolean { return resource.scheme === Schemas.file || this.providers.has(resource.scheme); }
 	listCapabilities() {
 		return [
 			{ scheme: Schemas.file, capabilities: FileSystemProviderCapabilities.FileOpenReadWriteClose },
@@ -916,7 +1084,9 @@ export class TestFileService implements IFileService {
 			return true;
 		}
 
-		return false;
+		const provider = this.getProvider(resource.scheme);
+
+		return !!(provider && (provider.capabilities & capability));
 	}
 
 	async del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean; }): Promise<void> { }
@@ -937,28 +1107,45 @@ export class TestFileService implements IFileService {
 	async canDelete(resource: URI, options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined; } | undefined): Promise<Error | true> { return true; }
 }
 
-export class TestBackupFileService extends InMemoryBackupFileService {
+export class TestWorkingCopyBackupService extends InMemoryWorkingCopyBackupService {
+
+	readonly resolved: Set<IWorkingCopyIdentifier> = new Set();
 
 	constructor() {
-		super(resource => String(hash(resource.path)));
+		super();
 	}
 
 	parseBackupContent(textBufferFactory: ITextBufferFactory): string {
 		const textBuffer = textBufferFactory.create(DefaultEndOfLine.LF).textBuffer;
 		const lineCount = textBuffer.getLineCount();
 		const range = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
+
 		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
+	}
+
+	override async resolve<T extends IWorkingCopyBackupMeta>(identifier: IWorkingCopyIdentifier): Promise<IResolvedWorkingCopyBackup<T> | undefined> {
+		this.resolved.add(identifier);
+
+		return super.resolve(identifier);
 	}
 }
 
-export class InMemoryTestBackupFileService extends BrowserBackupFileService {
+export function toUntypedWorkingCopyId(resource: URI): IWorkingCopyIdentifier {
+	return toTypedWorkingCopyId(resource, '');
+}
 
-	readonly fileService: IFileService;
+export function toTypedWorkingCopyId(resource: URI, typeId = 'testBackupTypeId'): IWorkingCopyIdentifier {
+	return { typeId, resource };
+}
+
+export class InMemoryTestWorkingCopyBackupService extends BrowserWorkingCopyBackupService {
+
+	override readonly fileService: IFileService;
 
 	private backupResourceJoiners: Function[];
 	private discardBackupJoiners: Function[];
 
-	discardedBackups: URI[];
+	discardedBackups: IWorkingCopyIdentifier[];
 
 	constructor() {
 		const environmentService = TestEnvironmentService;
@@ -983,25 +1170,25 @@ export class InMemoryTestBackupFileService extends BrowserBackupFileService {
 		return new Promise(resolve => this.discardBackupJoiners.push(resolve));
 	}
 
-	async backup(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
-		await super.backup(resource, content, versionId, meta, token);
+	override async backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
+		await super.backup(identifier, content, versionId, meta, token);
 
 		while (this.backupResourceJoiners.length) {
 			this.backupResourceJoiners.pop()!();
 		}
 	}
 
-	async discardBackup(resource: URI): Promise<void> {
-		await super.discardBackup(resource);
-		this.discardedBackups.push(resource);
+	override async discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
+		await super.discardBackup(identifier);
+		this.discardedBackups.push(identifier);
 
 		while (this.discardBackupJoiners.length) {
 			this.discardBackupJoiners.pop()!();
 		}
 	}
 
-	async getBackupContents(resource: URI): Promise<string> {
-		const backupResource = this.toBackupResource(resource);
+	async getBackupContents(identifier: IWorkingCopyIdentifier): Promise<string> {
+		const backupResource = this.toBackupResource(identifier);
 
 		const fileContents = await this.fileService.readFile(backupResource);
 
@@ -1016,14 +1203,17 @@ export class TestLifecycleService implements ILifecycleService {
 	phase!: LifecyclePhase;
 	startupKind!: StartupKind;
 
-	private readonly _onBeforeShutdown = new Emitter<BeforeShutdownEvent>();
-	get onBeforeShutdown(): Event<BeforeShutdownEvent> { return this._onBeforeShutdown.event; }
+	private readonly _onBeforeShutdown = new Emitter<InternalBeforeShutdownEvent>();
+	get onBeforeShutdown(): Event<InternalBeforeShutdownEvent> { return this._onBeforeShutdown.event; }
+
+	private readonly _onBeforeShutdownError = new Emitter<BeforeShutdownErrorEvent>();
+	get onBeforeShutdownError(): Event<BeforeShutdownErrorEvent> { return this._onBeforeShutdownError.event; }
 
 	private readonly _onWillShutdown = new Emitter<WillShutdownEvent>();
 	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
 
-	private readonly _onShutdown = new Emitter<void>();
-	get onShutdown(): Event<void> { return this._onShutdown.event; }
+	private readonly _onDidShutdown = new Emitter<void>();
+	get onDidShutdown(): Event<void> { return this._onDidShutdown.event; }
 
 	async when(): Promise<void> { }
 
@@ -1040,10 +1230,38 @@ export class TestLifecycleService implements ILifecycleService {
 		});
 	}
 
-	fireWillShutdown(event: BeforeShutdownEvent): void { this._onBeforeShutdown.fire(event); }
+	fireBeforeShutdown(event: InternalBeforeShutdownEvent): void { this._onBeforeShutdown.fire(event); }
 
-	shutdown(): void {
+	fireWillShutdown(event: WillShutdownEvent): void { this._onWillShutdown.fire(event); }
+
+	async shutdown(): Promise<void> {
 		this.fireShutdown();
+	}
+}
+
+export class TestBeforeShutdownEvent implements InternalBeforeShutdownEvent {
+
+	value: boolean | Promise<boolean> | undefined;
+	finalValue: (() => boolean | Promise<boolean>) | undefined;
+	reason = ShutdownReason.CLOSE;
+
+	veto(value: boolean | Promise<boolean>): void {
+		this.value = value;
+	}
+
+	finalVeto(vetoFn: () => boolean | Promise<boolean>): void {
+		this.value = vetoFn();
+		this.finalValue = vetoFn;
+	}
+}
+
+export class TestWillShutdownEvent implements WillShutdownEvent {
+
+	value: Promise<void>[] = [];
+	reason = ShutdownReason.CLOSE;
+
+	join(promise: Promise<void>, id: string): void {
+		this.value.push(promise);
 	}
 }
 
@@ -1070,46 +1288,45 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 
 export class RemoteFileSystemProvider implements IFileSystemProvider {
 
-	constructor(private readonly diskFileSystemProvider: IFileSystemProvider, private readonly remoteAuthority: string) { }
+	constructor(private readonly wrappedFsp: IFileSystemProvider, private readonly remoteAuthority: string) { }
 
-	readonly capabilities: FileSystemProviderCapabilities = this.diskFileSystemProvider.capabilities;
-	readonly onDidChangeCapabilities: Event<void> = this.diskFileSystemProvider.onDidChangeCapabilities;
+	readonly capabilities: FileSystemProviderCapabilities = this.wrappedFsp.capabilities;
+	readonly onDidChangeCapabilities: Event<void> = this.wrappedFsp.onDidChangeCapabilities;
 
-	readonly onDidChangeFile: Event<readonly IFileChange[]> = Event.map(this.diskFileSystemProvider.onDidChangeFile, changes => changes.map((c): IFileChange => {
+	readonly onDidChangeFile: Event<readonly IFileChange[]> = Event.map(this.wrappedFsp.onDidChangeFile, changes => changes.map((c): IFileChange => {
 		return {
 			type: c.type,
 			resource: c.resource.with({ scheme: Schemas.vscodeRemote, authority: this.remoteAuthority }),
 		};
 	}));
-	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.diskFileSystemProvider.watch(this.toFileResource(resource), opts); }
+	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.wrappedFsp.watch(this.toFileResource(resource), opts); }
 
-	stat(resource: URI): Promise<IStat> { return this.diskFileSystemProvider.stat(this.toFileResource(resource)); }
-	mkdir(resource: URI): Promise<void> { return this.diskFileSystemProvider.mkdir(this.toFileResource(resource)); }
-	readdir(resource: URI): Promise<[string, FileType][]> { return this.diskFileSystemProvider.readdir(this.toFileResource(resource)); }
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> { return this.diskFileSystemProvider.delete(this.toFileResource(resource), opts); }
+	stat(resource: URI): Promise<IStat> { return this.wrappedFsp.stat(this.toFileResource(resource)); }
+	mkdir(resource: URI): Promise<void> { return this.wrappedFsp.mkdir(this.toFileResource(resource)); }
+	readdir(resource: URI): Promise<[string, FileType][]> { return this.wrappedFsp.readdir(this.toFileResource(resource)); }
+	delete(resource: URI, opts: FileDeleteOptions): Promise<void> { return this.wrappedFsp.delete(this.toFileResource(resource), opts); }
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return this.diskFileSystemProvider.rename(this.toFileResource(from), this.toFileResource(to), opts); }
-	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return this.diskFileSystemProvider.copy!(this.toFileResource(from), this.toFileResource(to), opts); }
+	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return this.wrappedFsp.rename(this.toFileResource(from), this.toFileResource(to), opts); }
+	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return this.wrappedFsp.copy!(this.toFileResource(from), this.toFileResource(to), opts); }
 
-	readFile(resource: URI): Promise<Uint8Array> { return this.diskFileSystemProvider.readFile!(this.toFileResource(resource)); }
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { return this.diskFileSystemProvider.writeFile!(this.toFileResource(resource), content, opts); }
+	readFile(resource: URI): Promise<Uint8Array> { return this.wrappedFsp.readFile!(this.toFileResource(resource)); }
+	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { return this.wrappedFsp.writeFile!(this.toFileResource(resource), content, opts); }
 
-	open(resource: URI, opts: FileOpenOptions): Promise<number> { return this.diskFileSystemProvider.open!(this.toFileResource(resource), opts); }
-	close(fd: number): Promise<void> { return this.diskFileSystemProvider.close!(fd); }
-	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return this.diskFileSystemProvider.read!(fd, pos, data, offset, length); }
-	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return this.diskFileSystemProvider.write!(fd, pos, data, offset, length); }
+	open(resource: URI, opts: FileOpenOptions): Promise<number> { return this.wrappedFsp.open!(this.toFileResource(resource), opts); }
+	close(fd: number): Promise<void> { return this.wrappedFsp.close!(fd); }
+	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return this.wrappedFsp.read!(fd, pos, data, offset, length); }
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return this.wrappedFsp.write!(fd, pos, data, offset, length); }
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> { return this.diskFileSystemProvider.readFileStream!(this.toFileResource(resource), opts, token); }
+	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> { return this.wrappedFsp.readFileStream!(this.toFileResource(resource), opts, token); }
 
 	private toFileResource(resource: URI): URI { return resource.with({ scheme: Schemas.file, authority: '' }); }
 }
 
 export class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider implements IFileSystemProviderWithFileReadStreamCapability {
-	readonly capabilities: FileSystemProviderCapabilities =
+	override readonly capabilities: FileSystemProviderCapabilities =
 		FileSystemProviderCapabilities.FileReadWrite
 		| FileSystemProviderCapabilities.PathCaseSensitive
 		| FileSystemProviderCapabilities.FileReadStream;
-
 
 	readFileStream(resource: URI): ReadableStreamEvents<Uint8Array> {
 		const BUFFER_SIZE = 64 * 1024;
@@ -1171,35 +1388,50 @@ export class TestHostService implements IHostService {
 
 export class TestFilesConfigurationService extends FilesConfigurationService {
 
-	onFilesConfigurationChange(configuration: any): void {
+	override onFilesConfigurationChange(configuration: any): void {
 		super.onFilesConfigurationChange(configuration);
 	}
 }
 
 export class TestReadonlyTextFileEditorModel extends TextFileEditorModel {
 
-	isReadonly(): boolean {
+	override isReadonly(): boolean {
 		return true;
 	}
 }
 
 export class TestEditorInput extends EditorInput {
 
-	constructor(public resource: URI, private typeId: string) {
+	constructor(public resource: URI, private readonly _typeId: string) {
 		super();
 	}
 
-	getTypeId(): string {
-		return this.typeId;
+	override get typeId(): string {
+		return this._typeId;
 	}
 
-	resolve(): Promise<IEditorModel | null> {
+	override get editorId(): string {
+		return this._typeId;
+	}
+
+	override resolve(): Promise<IEditorModel | null> {
 		return Promise.resolve(null);
 	}
 }
 
-export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInput>[], factoryInputId?: string): IDisposable {
-	class TestEditor extends EditorPane {
+export abstract class TestEditorWithOptions extends EditorPane {
+
+	lastSetOptions: ITextEditorOptions | undefined = undefined;
+
+	override setOptions(options: ITextEditorOptions | undefined): void {
+		this.lastSetOptions = options;
+
+		super.setOptions(options);
+	}
+}
+
+export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInput>[], serializerInputId?: string): IDisposable {
+	class TestEditor extends TestEditorWithOptions {
 
 		private _scopedContextKeyService: IContextKeyService;
 
@@ -1208,32 +1440,32 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 			this._scopedContextKeyService = new MockContextKeyService();
 		}
 
-		async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 			super.setInput(input, options, context, token);
 
 			await input.resolve();
 		}
 
-		getId(): string { return id; }
+		override getId(): string { return id; }
 		layout(): void { }
 		createEditor(): void { }
 
-		get scopedContextKeyService() {
+		override get scopedContextKeyService() {
 			return this._scopedContextKeyService;
 		}
 	}
 
 	const disposables = new DisposableStore();
 
-	disposables.add(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(EditorDescriptor.create(TestEditor, id, 'Test Editor Control'), inputs));
+	disposables.add(Registry.as<IEditorPaneRegistry>(Extensions.EditorPane).registerEditorPane(EditorPaneDescriptor.create(TestEditor, id, 'Test Editor Control'), inputs));
 
-	if (factoryInputId) {
+	if (serializerInputId) {
 
 		interface ISerializedTestInput {
 			resource: string;
 		}
 
-		class EditorsObserverTestEditorInputFactory implements IEditorInputFactory {
+		class EditorsObserverTestEditorInputSerializer implements IEditorSerializer {
 
 			canSerialize(editorInput: EditorInput): boolean {
 				return true;
@@ -1251,11 +1483,11 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 			deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 				let testInput: ISerializedTestInput = JSON.parse(serializedEditorInput);
 
-				return new TestFileEditorInput(URI.parse(testInput.resource), factoryInputId!);
+				return new TestFileEditorInput(URI.parse(testInput.resource), serializerInputId!);
 			}
 		}
 
-		disposables.add(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory(factoryInputId, EditorsObserverTestEditorInputFactory));
+		disposables.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(serializerInputId, EditorsObserverTestEditorInputSerializer));
 	}
 
 	return disposables;
@@ -1264,13 +1496,13 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 export function registerTestFileEditor(): IDisposable {
 	const disposables = new DisposableStore();
 
-	disposables.add(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
-		EditorDescriptor.create(
+	disposables.add(Registry.as<IEditorPaneRegistry>(Extensions.EditorPane).registerEditorPane(
+		EditorPaneDescriptor.create(
 			TestTextFileEditor,
 			TestTextFileEditor.ID,
 			'Text File Editor'
 		),
-		[new SyncDescriptor<EditorInput>(FileEditorInput)]
+		[new SyncDescriptor(FileEditorInput)]
 	));
 
 	return disposables;
@@ -1279,15 +1511,15 @@ export function registerTestFileEditor(): IDisposable {
 export function registerTestResourceEditor(): IDisposable {
 	const disposables = new DisposableStore();
 
-	disposables.add(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
-		EditorDescriptor.create(
+	disposables.add(Registry.as<IEditorPaneRegistry>(Extensions.EditorPane).registerEditorPane(
+		EditorPaneDescriptor.create(
 			TestTextResourceEditor,
 			TestTextResourceEditor.ID,
 			'Text Editor'
 		),
 		[
-			new SyncDescriptor<EditorInput>(UntitledTextEditorInput),
-			new SyncDescriptor<EditorInput>(ResourceEditorInput)
+			new SyncDescriptor(UntitledTextEditorInput),
+			new SyncDescriptor(TextResourceEditorInput)
 		]
 	));
 
@@ -1297,8 +1529,8 @@ export function registerTestResourceEditor(): IDisposable {
 export function registerTestSideBySideEditor(): IDisposable {
 	const disposables = new DisposableStore();
 
-	disposables.add(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
-		EditorDescriptor.create(
+	disposables.add(Registry.as<IEditorPaneRegistry>(Extensions.EditorPane).registerEditorPane(
+		EditorPaneDescriptor.create(
 			SideBySideEditor,
 			SideBySideEditor.ID,
 			'Text Editor'
@@ -1322,62 +1554,92 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	dirty = false;
 	private fails = false;
 
+	disableToUntyped = false;
+
 	constructor(
 		public resource: URI,
-		private typeId: string
+		private _typeId: string
 	) {
 		super();
 	}
 
-	getTypeId() { return this.typeId; }
-	resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
-	matches(other: EditorInput): boolean { return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.getTypeId() === this.typeId); }
+	override get typeId() { return this._typeId; }
+	override get editorId() { return this._typeId; }
+
+	private _capabilities: EditorInputCapabilities = EditorInputCapabilities.None;
+	override get capabilities(): EditorInputCapabilities { return this._capabilities; }
+	override set capabilities(capabilities: EditorInputCapabilities) {
+		if (this._capabilities !== capabilities) {
+			this._capabilities = capabilities;
+			this._onDidChangeCapabilities.fire();
+		}
+	}
+
+	override resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
+	override matches(other: EditorInput | IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput): boolean {
+		if (super.matches(other)) {
+			return true;
+		}
+		if (other instanceof EditorInput) {
+			return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.typeId === this.typeId);
+		}
+		return isEqual(this.resource, other.resource) && this.editorId === other.options?.override;
+	}
 	setPreferredResource(resource: URI): void { }
-	setEncoding(encoding: string) { }
+	async setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }
 	setPreferredName(name: string): void { }
 	setPreferredDescription(description: string): void { }
 	setPreferredEncoding(encoding: string) { }
-	setMode(mode: string) { }
-	setPreferredMode(mode: string) { }
+	setPreferredContents(contents: string): void { }
+	setLanguageId(languageId: string) { }
+	setPreferredLanguageId(languageId: string) { }
 	setForceOpenAsBinary(): void { }
 	setFailToOpen(): void {
 		this.fails = true;
 	}
-	async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
 		this.gotSaved = true;
 		this.dirty = false;
 		return this;
 	}
-	async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
 		this.gotSavedAs = true;
 		return this;
 	}
-	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		this.gotReverted = true;
 		this.gotSaved = false;
 		this.gotSavedAs = false;
 		this.dirty = false;
 	}
+	override toUntyped(): IUntypedEditorInput | undefined {
+		if (this.disableToUntyped) {
+			return undefined;
+		}
+		return { resource: this.resource };
+	}
 	setDirty(): void { this.dirty = true; }
-	isDirty(): boolean {
+	override isDirty(): boolean {
 		return this.dirty;
 	}
-	isReadonly(): boolean {
-		return false;
-	}
 	isResolved(): boolean { return false; }
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.gotDisposed = true;
 	}
 	movedEditor: IMoveResult | undefined = undefined;
-	rename(): IMoveResult | undefined { return this.movedEditor; }
+	override async rename(): Promise<IMoveResult | undefined> { return this.movedEditor; }
+}
+
+export class TestSingletonFileEditorInput extends TestFileEditorInput {
+
+	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Singleton; }
 }
 
 export class TestEditorPart extends EditorPart {
 
-	saveState(): void {
+	override saveState(): void {
 		return super.saveState();
 	}
 
@@ -1394,10 +1656,12 @@ export class TestEditorPart extends EditorPart {
 	}
 }
 
-export function createEditorPart(instantiationService: IInstantiationService, disposables: DisposableStore): TestEditorPart {
+export async function createEditorPart(instantiationService: IInstantiationService, disposables: DisposableStore): Promise<TestEditorPart> {
 	const part = disposables.add(instantiationService.createInstance(TestEditorPart));
 	part.create(document.createElement('div'));
-	part.layout(1080, 800);
+	part.layout(1080, 800, 0, 0);
+
+	await part.whenReady;
 
 	return part;
 }
@@ -1418,6 +1682,16 @@ export class TestPathService implements IPathService {
 
 	constructor(private readonly fallbackUserHome: URI = URI.from({ scheme: Schemas.vscodeRemote, path: '/' })) { }
 
+	hasValidBasename(resource: URI, basename?: string): Promise<boolean>;
+	hasValidBasename(resource: URI, os: OperatingSystem, basename?: string): boolean;
+	hasValidBasename(resource: URI, arg2?: string | OperatingSystem, name?: string): boolean | Promise<boolean> {
+		if (typeof arg2 === 'string' || typeof arg2 === 'undefined') {
+			return isValidBasename(arg2 ?? basename(resource));
+		}
+
+		return isValidBasename(name ?? basename(resource));
+	}
+
 	get path() { return Promise.resolve(isWindows ? win32 : posix); }
 
 	async userHome() { return this.fallbackUserHome; }
@@ -1432,13 +1706,23 @@ export class TestPathService implements IPathService {
 
 export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
 
-	add(resource: URI, model: TextFileEditorModel): void {
+	override add(resource: URI, model: TextFileEditorModel): void {
 		return super.add(resource, model);
 	}
 
-	remove(resource: URI): void {
+	override remove(resource: URI): void {
 		return super.remove(resource);
 	}
+}
+
+interface ITestTextFileEditorModel extends ITextFileEditorModel {
+	readonly lastResolvedFileStat: IFileStatWithMetadata | undefined;
+}
+
+export function getLastResolvedFileStat(model: unknown): IFileStatWithMetadata | undefined {
+	const candidate = model as ITestTextFileEditorModel | undefined;
+
+	return candidate?.lastResolvedFileStat;
 }
 
 export class TestWorkspacesService implements IWorkspacesService {
@@ -1452,67 +1736,202 @@ export class TestWorkspacesService implements IWorkspacesService {
 	async removeRecentlyOpened(workspaces: URI[]): Promise<void> { }
 	async clearRecentlyOpened(): Promise<void> { }
 	async getRecentlyOpened(): Promise<IRecentlyOpened> { return { files: [], workspaces: [] }; }
-	async getDirtyWorkspaces(): Promise<(URI | IWorkspaceIdentifier)[]> { return []; }
-	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> { throw new Error('Method not implemented.'); }
+	async getDirtyWorkspaces(): Promise<(IFolderBackupInfo | IWorkspaceBackupInfo)[]> { return []; }
+	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> { throw new Error('Method not implemented.'); }
 	async getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier> { throw new Error('Method not implemented.'); }
 }
 
 export class TestTerminalInstanceService implements ITerminalInstanceService {
+	onDidCreateInstance = Event.None;
 	declare readonly _serviceBrand: undefined;
 
-	async getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }> {
-		return {
-			shell: 'bash',
-			args: undefined
-		};
-	}
-	async getMainProcessParentEnv(): Promise<IProcessEnvironment> {
-		return {};
-	}
-
-	async getXtermConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
-	async getXtermSearchConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
-	async getXtermUnicode11Constructor(): Promise<any> { throw new Error('Method not implemented.'); }
-	async getXtermWebglConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
-	createWindowsShellHelper(shellProcessId: number, xterm: any): any { throw new Error('Method not implemented.'); }
+	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig { throw new Error('Method not implemented.'); }
+	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, remoteAuthority: string | undefined): Promise<string> { throw new Error('Method not implemented.'); }
+	createInstance(options: ICreateTerminalOptions, target?: TerminalLocation): ITerminalInstance { throw new Error('Method not implemented.'); }
+	getBackend(remoteAuthority?: string): ITerminalBackend | undefined { throw new Error('Method not implemented.'); }
 }
 
-export class TestLocalTerminalService implements ILocalTerminalService {
+export class TestTerminalEditorService implements ITerminalEditorService {
+	_serviceBrand: undefined;
+	activeInstance: ITerminalInstance | undefined;
+	instances: readonly ITerminalInstance[] = [];
+	onDidDisposeInstance = Event.None;
+	onDidFocusInstance = Event.None;
+	onDidChangeInstanceCapability = Event.None;
+	onDidChangeActiveInstance = Event.None;
+	onDidChangeInstances = Event.None;
+	openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void> { throw new Error('Method not implemented.'); }
+	detachActiveEditorInstance(): ITerminalInstance { throw new Error('Method not implemented.'); }
+	detachInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance { throw new Error('Method not implemented.'); }
+	revealActiveEditor(preserveFocus?: boolean): void { throw new Error('Method not implemented.'); }
+	resolveResource(instance: ITerminalInstance | URI): URI { throw new Error('Method not implemented.'); }
+	reviveInput(deserializedInput: DeserializedTerminalEditorInput): TerminalEditorInput { throw new Error('Method not implemented.'); }
+	getInputFromResource(resource: URI): TerminalEditorInput { throw new Error('Method not implemented.'); }
+	setActiveInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined { throw new Error('Method not implemented.'); }
+	focusFindWidget(): void { throw new Error('Method not implemented.'); }
+	hideFindWidget(): void { throw new Error('Method not implemented.'); }
+	getFindState(): FindReplaceState { throw new Error('Method not implemented.'); }
+	findNext(): void { throw new Error('Method not implemented.'); }
+	findPrevious(): void { throw new Error('Method not implemented.'); }
+}
+
+export class TestTerminalGroupService implements ITerminalGroupService {
+	_serviceBrand: undefined;
+	activeInstance: ITerminalInstance | undefined;
+	instances: readonly ITerminalInstance[] = [];
+	groups: readonly ITerminalGroup[] = [];
+	activeGroup: ITerminalGroup | undefined;
+	activeGroupIndex: number = 0;
+	onDidChangeActiveGroup = Event.None;
+	onDidDisposeGroup = Event.None;
+	onDidChangeGroups = Event.None;
+	onDidChangePanelOrientation = Event.None;
+	onDidDisposeInstance = Event.None;
+	onDidFocusInstance = Event.None;
+	onDidChangeInstanceCapability = Event.None;
+	onDidChangeActiveInstance = Event.None;
+	onDidChangeInstances = Event.None;
+	createGroup(instance?: any): ITerminalGroup { throw new Error('Method not implemented.'); }
+	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined { throw new Error('Method not implemented.'); }
+	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	moveGroupToEnd(source: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void { throw new Error('Method not implemented.'); }
+	unsplitInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	joinInstances(instances: ITerminalInstance[]): void { throw new Error('Method not implemented.'); }
+	instanceIsSplit(instance: ITerminalInstance): boolean { throw new Error('Method not implemented.'); }
+	getGroupLabels(): string[] { throw new Error('Method not implemented.'); }
+	setActiveGroupByIndex(index: number): void { throw new Error('Method not implemented.'); }
+	setActiveGroupToNext(): void { throw new Error('Method not implemented.'); }
+	setActiveGroupToPrevious(): void { throw new Error('Method not implemented.'); }
+	setActiveInstanceByIndex(terminalIndex: number): void { throw new Error('Method not implemented.'); }
+	setContainer(container: HTMLElement): void { throw new Error('Method not implemented.'); }
+	showPanel(focus?: boolean): Promise<void> { throw new Error('Method not implemented.'); }
+	hidePanel(): void { throw new Error('Method not implemented.'); }
+	focusTabs(): void { throw new Error('Method not implemented.'); }
+	showTabs(): void { throw new Error('Method not implemented.'); }
+	setActiveInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined { throw new Error('Method not implemented.'); }
+	focusFindWidget(): void { throw new Error('Method not implemented.'); }
+	hideFindWidget(): void { throw new Error('Method not implemented.'); }
+	getFindState(): FindReplaceState { throw new Error('Method not implemented.'); }
+	findNext(): void { throw new Error('Method not implemented.'); }
+	findPrevious(): void { throw new Error('Method not implemented.'); }
+}
+
+export class TestTerminalProfileService implements ITerminalProfileService {
+	_serviceBrand: undefined;
+	availableProfiles: ITerminalProfile[] = [];
+	contributedProfiles: IExtensionTerminalProfile[] = [];
+	profilesReady: Promise<void> = Promise.resolve();
+	onDidChangeAvailableProfiles = Event.None;
+	getPlatformKey(): Promise<string> { throw new Error('Method not implemented.'); }
+	refreshAvailableProfiles(): void { throw new Error('Method not implemented.'); }
+	getDefaultProfileName(): string | undefined { throw new Error('Method not implemented.'); }
+	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined> { throw new Error('Method not implemented.'); }
+	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void> { throw new Error('Method not implemented.'); }
+	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined { throw new Error('Method not implemented.'); }
+	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable { throw new Error('Method not implemented.'); }
+}
+
+export class TestTerminalProfileResolverService implements ITerminalProfileResolverService {
+	_serviceBrand: undefined;
+	defaultProfileName = '';
+	resolveIcon(shellLaunchConfig: IShellLaunchConfig): void { }
+	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> { }
+	async getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> { return { path: '/default', profileName: 'Default', isDefault: true }; }
+	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> { return '/default'; }
+	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> { return []; }
+	async getEnvironment(): Promise<IProcessEnvironment> { return env; }
+	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined { return undefined; }
+	getSafeConfigValueFullKey(key: string): unknown | undefined { return undefined; }
+	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<string | ITerminalProfile> { throw new Error('Method not implemented.'); }
+}
+
+export class TestQuickInputService implements IQuickInputService {
+
 	declare readonly _serviceBrand: undefined;
 
-	onPtyHostExit = Event.None;
-	onPtyHostUnresponsive = Event.None;
-	onPtyHostResponsive = Event.None;
-	onPtyHostRestart = Event.None;
+	readonly onShow = Event.None;
+	readonly onHide = Event.None;
 
-	async createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
-		return new TestTerminalChildProcess(shouldPersist);
+	readonly quickAccess = undefined!;
+	backButton!: IQuickInputButton;
+
+	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
+	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
+	async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
+		if (isArray(picks)) {
+			return <any>{ label: 'selectedPick', description: 'pick description', value: 'selectedPick' };
+		} else {
+			return undefined;
+		}
 	}
 
-	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> { throw new Error('Method not implemented.'); }
-	setTerminalLayoutInfo(argsOrLayout?: ISetTerminalLayoutInfoArgs | ITerminalsLayoutInfoById): void { throw new Error('Method not implemented.'); }
-	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> { throw new Error('Method not implemented.'); }
+	async input(options?: IInputOptions, token?: CancellationToken): Promise<string> { return options ? 'resolved' + options.prompt : 'resolved'; }
+
+	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> { throw new Error('not implemented.'); }
+	createInputBox(): IInputBox { throw new Error('not implemented.'); }
+	focus(): void { throw new Error('not implemented.'); }
+	toggle(): void { throw new Error('not implemented.'); }
+	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void { throw new Error('not implemented.'); }
+	accept(): Promise<void> { throw new Error('not implemented.'); }
+	back(): Promise<void> { throw new Error('not implemented.'); }
+	cancel(): Promise<void> { throw new Error('not implemented.'); }
 }
 
-class TestTerminalChildProcess implements ITerminalChildProcess {
-	id: number = 0;
+export class TestEditorWorkerService implements IEditorWorkerService {
 
-	constructor(
-		readonly shouldPersist: boolean
-	) {
+	declare readonly _serviceBrand: undefined;
+
+	canComputeUnicodeHighlights(uri: URI): boolean { return false; }
+	async computedUnicodeHighlights(uri: URI): Promise<IUnicodeHighlightsResult> { return { ranges: [], hasMore: false, ambiguousCharacterCount: 0, invisibleCharacterCount: 0, nonBasicAsciiCharacterCount: 0 }; }
+	async computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> { return null; }
+	canComputeDirtyDiff(original: URI, modified: URI): boolean { return false; }
+	async computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> { return null; }
+	async computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined> { return undefined; }
+	canComputeWordRanges(resource: URI): boolean { return false; }
+	async computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[]; } | null> { return null; }
+	canNavigateValueSet(resource: URI): boolean { return false; }
+	async navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null> { return null; }
+}
+
+export class TestClipboardService implements IClipboardService {
+
+	_serviceBrand: undefined;
+
+	private text: string | undefined = undefined;
+
+	async writeText(text: string, type?: string): Promise<void> {
+		this.text = text;
 	}
 
-	onProcessData = Event.None;
-	onProcessExit = Event.None;
-	onProcessReady = Event.None;
-	onProcessTitleChanged = Event.None;
-	onProcessShellTypeChanged = Event.None;
-	async start(): Promise<undefined> { return undefined; }
-	shutdown(immediate: boolean): void { }
-	input(data: string): void { }
-	resize(cols: number, rows: number): void { }
-	acknowledgeDataEvent(charCount: number): void { }
-	async getInitialCwd(): Promise<string> { return ''; }
-	async getCwd(): Promise<string> { return ''; }
-	async getLatency(): Promise<number> { return 0; }
+	async readText(type?: string): Promise<string> {
+		return this.text ?? '';
+	}
+
+	private findText: string | undefined = undefined;
+
+	async readFindText(): Promise<string> {
+		return this.findText ?? '';
+	}
+
+	async writeFindText(text: string): Promise<void> {
+		this.findText = text;
+	}
+
+	private resources: URI[] | undefined = undefined;
+
+	async writeResources(resources: URI[]): Promise<void> {
+		this.resources = resources;
+	}
+
+	async readResources(): Promise<URI[]> {
+		return this.resources ?? [];
+	}
+
+	async hasResources(): Promise<boolean> {
+		return Array.isArray(this.resources) && this.resources.length > 0;
+	}
 }

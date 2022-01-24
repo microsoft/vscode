@@ -101,6 +101,23 @@ export class Range {
 	}
 
 	/**
+	 * Test if `position` is in `range`. If the position is at the edges, will return false.
+	 * @internal
+	 */
+	public static strictContainsPosition(range: IRange, position: IPosition): boolean {
+		if (position.lineNumber < range.startLineNumber || position.lineNumber > range.endLineNumber) {
+			return false;
+		}
+		if (position.lineNumber === range.startLineNumber && position.column <= range.startColumn) {
+			return false;
+		}
+		if (position.lineNumber === range.endLineNumber && position.column >= range.endColumn) {
+			return false;
+		}
+		return true;
+	}
+
+	/**
 	 * Test if range is in this range. If the range is equal to this range, will return true.
 	 */
 	public containsRange(range: IRange): boolean {
@@ -134,7 +151,7 @@ export class Range {
 	}
 
 	/**
-	 * Test if `otherRange` is strinctly in `range` (must start after, and end before). If the ranges are equal, will return false.
+	 * Test if `otherRange` is strictly in `range` (must start after, and end before). If the ranges are equal, will return false.
 	 */
 	public static strictContainsRange(range: IRange, otherRange: IRange): boolean {
 		if (otherRange.startLineNumber < range.startLineNumber || otherRange.endLineNumber < range.startLineNumber) {

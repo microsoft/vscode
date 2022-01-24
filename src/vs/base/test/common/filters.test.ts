@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, createMatches, anyScore } from 'vs/base/common/filters';
+import { anyScore, createMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesCamelCase, matchesContiguousSubString, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -28,22 +28,22 @@ suite('Filters', () => {
 		counters = [0, 0];
 		filter = or(newFilter(0, false), newFilter(1, false));
 		filterNotOk(filter, 'anything', 'anything');
-		assert.deepEqual(counters, [1, 1]);
+		assert.deepStrictEqual(counters, [1, 1]);
 
 		counters = [0, 0];
 		filter = or(newFilter(0, true), newFilter(1, false));
 		filterOk(filter, 'anything', 'anything');
-		assert.deepEqual(counters, [1, 0]);
+		assert.deepStrictEqual(counters, [1, 0]);
 
 		counters = [0, 0];
 		filter = or(newFilter(0, true), newFilter(1, true));
 		filterOk(filter, 'anything', 'anything');
-		assert.deepEqual(counters, [1, 0]);
+		assert.deepStrictEqual(counters, [1, 0]);
 
 		counters = [0, 0];
 		filter = or(newFilter(0, false), newFilter(1, true));
 		filterOk(filter, 'anything', 'anything');
-		assert.deepEqual(counters, [1, 1]);
+		assert.deepStrictEqual(counters, [1, 1]);
 	});
 
 	test('PrefixFilter - case sensitive', function () {
@@ -200,8 +200,11 @@ suite('Filters', () => {
 
 		filterOk(matchesWords, 'öäk', 'Öhm: Älles Klar', [{ start: 0, end: 1 }, { start: 5, end: 6 }, { start: 11, end: 12 }]);
 
+		// Handles issue #123915
+		filterOk(matchesWords, 'C++', 'C/C++: command', [{ start: 2, end: 5 }]);
+
 		// assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
-		// assert.deepEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
+		// assert.deepStrictEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
 
 		filterOk(matchesWords, 'bar', 'foo-bar');
 		filterOk(matchesWords, 'bar test', 'foo-bar test');
@@ -215,7 +218,6 @@ suite('Filters', () => {
 
 		filterOk(matchesWords, 'foo bar', 'foo-bar');
 		filterOk(matchesWords, 'foo bar', '123 foo-bar 456');
-		filterOk(matchesWords, 'foo+bar', 'foo-bar');
 		filterOk(matchesWords, 'foo-bar', 'foo bar');
 		filterOk(matchesWords, 'foo:bar', 'foo:bar');
 	});
@@ -476,9 +478,9 @@ suite('Filters', () => {
 		// assertTopScore(fuzzyScore, 'Editor.r', 0, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
 
 		assertTopScore(fuzzyScore, '-mo', 1, '-ms-ime-mode', '-moz-columns');
-		// // dupe, issue #14861
+		// dupe, issue #14861
 		assertTopScore(fuzzyScore, 'convertModelPosition', 0, 'convertModelPositionToViewPosition', 'convertViewToModelPosition');
-		// // dupe, issue #14942
+		// dupe, issue #14942
 		assertTopScore(fuzzyScore, 'is', 0, 'isValidViewletId', 'import statement');
 
 		assertTopScore(fuzzyScore, 'title', 1, 'files.trimTrailingWhitespace', 'window.title');

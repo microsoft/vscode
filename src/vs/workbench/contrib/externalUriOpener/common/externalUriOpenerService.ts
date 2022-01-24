@@ -10,7 +10,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -108,7 +108,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		await Promise.all(Array.from(allOpeners.values()).map(async opener => {
 			let priority: modes.ExternalUriOpenerPriority;
 			try {
-				priority = await opener.canOpen(targetUri, token);
+				priority = await opener.canOpen(ctx.sourceUri, token);
 			} catch (e) {
 				this.logService.error(e);
 				return;
@@ -230,7 +230,8 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		if (typeof picked.opener === 'undefined') {
 			return false; // Fallback to default opener
 		} else if (picked.opener === 'configureDefault') {
-			await this.preferencesService.openGlobalSettings(true, {
+			await this.preferencesService.openUserSettings({
+				jsonEditor: true,
 				revealSetting: { key: externalUriOpenersSettingId, edit: true }
 			});
 			return true;

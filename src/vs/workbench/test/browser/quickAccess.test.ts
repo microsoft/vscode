@@ -16,6 +16,7 @@ import { PickerQuickAccessProvider, FastAndSlowPicks } from 'vs/platform/quickin
 
 suite('QuickAccess', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
@@ -90,8 +91,13 @@ suite('QuickAccess', () => {
 	const providerDescriptor3 = { ctor: TestProvider3, prefix: 'changed', helpEntries: [] };
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test('registry', () => {
@@ -207,7 +213,7 @@ suite('QuickAccess', () => {
 			super('fast');
 		}
 
-		protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<IQuickPickItem> {
+		protected _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<IQuickPickItem> {
 			fastProviderCalled = true;
 
 			return [{ label: 'Fast Pick' }];
@@ -220,7 +226,7 @@ suite('QuickAccess', () => {
 			super('slow');
 		}
 
-		protected async getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IQuickPickItem>> {
+		protected async _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IQuickPickItem>> {
 			slowProviderCalled = true;
 
 			await timeout(1);
@@ -239,7 +245,7 @@ suite('QuickAccess', () => {
 			super('bothFastAndSlow');
 		}
 
-		protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicks<IQuickPickItem> {
+		protected _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicks<IQuickPickItem> {
 			fastAndSlowProviderCalled = true;
 
 			return {
@@ -261,7 +267,7 @@ suite('QuickAccess', () => {
 	const slowProviderDescriptor = { ctor: SlowTestQuickPickProvider, prefix: 'slow', helpEntries: [] };
 	const fastAndSlowProviderDescriptor = { ctor: FastAndSlowTestQuickPickProvider, prefix: 'bothFastAndSlow', helpEntries: [] };
 
-	test('quick pick access', async () => {
+	test('quick pick access - show()', async () => {
 		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
 		const restore = (registry as QuickAccessRegistry).clear();
 
@@ -306,6 +312,23 @@ suite('QuickAccess', () => {
 		await timeout(2);
 		assert.strictEqual(slowProviderCanceled, true);
 		assert.strictEqual(fastAndSlowProviderCanceled, true);
+
+		disposables.dispose();
+
+		restore();
+	});
+
+	test('quick pick access - pick()', async () => {
+		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
+		const restore = (registry as QuickAccessRegistry).clear();
+
+		const disposables = new DisposableStore();
+
+		disposables.add(registry.registerQuickAccessProvider(fastProviderDescriptor));
+
+		const result = accessor.quickInputService.quickAccess.pick('fast');
+		assert.strictEqual(fastProviderCalled, true);
+		assert.ok(result instanceof Promise);
 
 		disposables.dispose();
 

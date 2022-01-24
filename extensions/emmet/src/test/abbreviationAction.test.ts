@@ -5,7 +5,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { Selection, workspace, CancellationTokenSource, CompletionTriggerKind, ConfigurationTarget } from 'vscode';
+import { Selection, workspace, CancellationTokenSource, CompletionTriggerKind, ConfigurationTarget, CompletionContext } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { expandEmmetAbbreviation } from '../abbreviationActions';
 import { DefaultCompletionItemProvider } from '../defaultCompletionProvider';
@@ -41,13 +41,15 @@ const htmlContents = `
 </body>
 `;
 
+const invokeCompletionContext: CompletionContext = {
+	triggerKind: CompletionTriggerKind.Invoke,
+	triggerCharacter: undefined,
+};
+
 suite('Tests for Expand Abbreviations (HTML)', () => {
 	const oldValueForExcludeLanguages = workspace.getConfiguration('emmet').inspect('excludeLanguages');
 	const oldValueForInlcudeLanguages = workspace.getConfiguration('emmet').inspect('includeLanguages');
-	teardown(() => {
-		// close all editors
-		return closeAllEditors;
-	});
+	teardown(closeAllEditors);
 
 	test('Expand snippets (HTML)', () => {
 		return testExpandAbbreviation('html', new Selection(3, 23, 3, 23), 'img', '<img src=\"\" alt=\"\">');
@@ -70,7 +72,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor('img', 'html', async (editor, _doc) => {
 			editor.selection = new Selection(0, 3, 0, 3);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			if (!completionPromise) {
 				assert.strictEqual(!completionPromise, false, `Got unexpected undefined instead of a completion promise`);
 				return Promise.resolve();
@@ -170,7 +172,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', (editor, _doc) => {
 			editor.selection = new Selection(2, 4, 2, 4);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			assert.strictEqual(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
@@ -189,7 +191,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', (editor, _doc) => {
 			editor.selection = new Selection(9, 8, 9, 8);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			assert.strictEqual(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
@@ -210,7 +212,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(fileContents, 'html', (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			assert.strictEqual(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
@@ -236,7 +238,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(13, 16, 13, 19);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			if (!completionPromise) {
 				assert.strictEqual(1, 2, `Problem with expanding m10`);
 				return Promise.resolve();
@@ -285,7 +287,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor('<div style="m10" class="hello"></div>', 'html', async (editor, _doc) => {
 			editor.selection = new Selection(0, 15, 0, 15);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			if (!completionPromise) {
 				assert.strictEqual(1, 2, `Problem with expanding m10`);
 				return Promise.resolve();
@@ -324,7 +326,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(21, 12, 21, 12);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			if (!completionPromise) {
 				assert.strictEqual(1, 2, `Problem with expanding span.hello`);
 				return Promise.resolve();
@@ -355,7 +357,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', (editor, _doc) => {
 			editor.selection = new Selection(24, 12, 24, 12);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			assert.strictEqual(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
@@ -382,7 +384,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		await withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(24, 10, 24, 10);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			if (!completionPromise) {
 				assert.strictEqual(1, 2, `Problem with expanding span.bye`);
 				return Promise.resolve();
@@ -442,7 +444,7 @@ suite('Tests for jsx, xml and xsl', () => {
 		return withRandomFileEditor('img', 'javascriptreact', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			await expandEmmetAbbreviation({ language: 'javascriptreact' });
-			assert.strictEqual(editor.document.getText(), '<img src="" alt=""/>');
+			assert.strictEqual(editor.document.getText(), '<img src="" alt="" />');
 			return Promise.resolve();
 		});
 	});
@@ -452,7 +454,7 @@ suite('Tests for jsx, xml and xsl', () => {
 		return withRandomFileEditor('img', 'javascriptreact', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			await expandEmmetAbbreviation({ language: 'javascriptreact' });
-			assert.strictEqual(editor.document.getText(), '<img src=\'\' alt=\'\'/>');
+			assert.strictEqual(editor.document.getText(), '<img src=\'\' alt=\'\' />');
 			return workspace.getConfiguration('emmet').update('syntaxProfiles', oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
 		});
 	});
@@ -522,7 +524,7 @@ function testHtmlCompletionProvider(selection: Selection, abbreviation: string, 
 	return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 		editor.selection = selection;
 		const cancelSrc = new CancellationTokenSource();
-		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 		if (!completionPromise) {
 			if (!shouldFail) {
 				assert.strictEqual(1, 2, `Problem with expanding ${abbreviation} to ${expandedText}`);
@@ -548,7 +550,7 @@ function testNoCompletion(syntax: string, fileContents: string, selection: Selec
 	return withRandomFileEditor(fileContents, syntax, (editor, _doc) => {
 		editor.selection = selection;
 		const cancelSrc = new CancellationTokenSource();
-		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 		assert.strictEqual(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 		return Promise.resolve();
 	});

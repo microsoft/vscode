@@ -3,14 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, ConfigurationModelParser, Configuration, mergeChanges, AllKeysConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
+import { join } from 'vs/base/common/path';
+import { URI } from 'vs/base/common/uri';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { AllKeysConfigurationChangeEvent, Configuration, ConfigurationChangeEvent, ConfigurationModel, ConfigurationModelParser, DefaultConfigurationModel, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { URI } from 'vs/base/common/uri';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { join } from 'vs/base/common/path';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+
+suite('ConfigurationModelParser', () => {
+
+	test('parse configuration model with single override identifier', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ '[x]': { 'a': 1 } }));
+
+		assert.deepStrictEqual(JSON.stringify(testObject.configurationModel.overrides), JSON.stringify([{ identifiers: ['x'], keys: ['a'], contents: { 'a': 1 } }]));
+	});
+
+	test('parse configuration model with multiple override identifiers', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ '[x][y]': { 'a': 1 } }));
+
+		assert.deepStrictEqual(JSON.stringify(testObject.configurationModel.overrides), JSON.stringify([{ identifiers: ['x', 'y'], keys: ['a'], contents: { 'a': 1 } }]));
+	});
+
+	test('parse configuration model with multiple duplicate override identifiers', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ '[x][y][x][z]': { 'a': 1 } }));
+
+		assert.deepStrictEqual(JSON.stringify(testObject.configurationModel.overrides), JSON.stringify([{ identifiers: ['x', 'y', 'z'], keys: ['a'], contents: { 'a': 1 } }]));
+	});
+
+
+});
 
 suite('ConfigurationModel', () => {
 
@@ -19,8 +48,8 @@ suite('ConfigurationModel', () => {
 
 		testObject.setValue('f', 1);
 
-		assert.deepEqual(testObject.contents, { 'a': { 'b': 1 }, 'f': 1 });
-		assert.deepEqual(testObject.keys, ['a.b', 'f']);
+		assert.deepStrictEqual(testObject.contents, { 'a': { 'b': 1 }, 'f': 1 });
+		assert.deepStrictEqual(testObject.keys, ['a.b', 'f']);
 	});
 
 	test('setValue for a key that has no sections and defined', () => {
@@ -28,8 +57,8 @@ suite('ConfigurationModel', () => {
 
 		testObject.setValue('f', 3);
 
-		assert.deepEqual(testObject.contents, { 'a': { 'b': 1 }, 'f': 3 });
-		assert.deepEqual(testObject.keys, ['a.b', 'f']);
+		assert.deepStrictEqual(testObject.contents, { 'a': { 'b': 1 }, 'f': 3 });
+		assert.deepStrictEqual(testObject.keys, ['a.b', 'f']);
 	});
 
 	test('setValue for a key that has sections and not defined', () => {
@@ -37,8 +66,13 @@ suite('ConfigurationModel', () => {
 
 		testObject.setValue('b.c', 1);
 
-		assert.deepEqual(testObject.contents, { 'a': { 'b': 1 }, 'b': { 'c': 1 }, 'f': 1 });
-		assert.deepEqual(testObject.keys, ['a.b', 'f', 'b.c']);
+		const expected: any = {};
+		expected['a'] = { 'b': 1 };
+		expected['f'] = 1;
+		expected['b'] = Object.create(null);
+		expected['b']['c'] = 1;
+		assert.deepStrictEqual(testObject.contents, expected);
+		assert.deepStrictEqual(testObject.keys, ['a.b', 'f', 'b.c']);
 	});
 
 	test('setValue for a key that has sections and defined', () => {
@@ -46,8 +80,8 @@ suite('ConfigurationModel', () => {
 
 		testObject.setValue('b.c', 3);
 
-		assert.deepEqual(testObject.contents, { 'a': { 'b': 1 }, 'b': { 'c': 3 }, 'f': 1 });
-		assert.deepEqual(testObject.keys, ['a.b', 'b.c', 'f']);
+		assert.deepStrictEqual(testObject.contents, { 'a': { 'b': 1 }, 'b': { 'c': 3 }, 'f': 1 });
+		assert.deepStrictEqual(testObject.keys, ['a.b', 'b.c', 'f']);
 	});
 
 	test('setValue for a key that has sections and sub section not defined', () => {
@@ -55,8 +89,8 @@ suite('ConfigurationModel', () => {
 
 		testObject.setValue('a.c', 1);
 
-		assert.deepEqual(testObject.contents, { 'a': { 'b': 1, 'c': 1 }, 'f': 1 });
-		assert.deepEqual(testObject.keys, ['a.b', 'f', 'a.c']);
+		assert.deepStrictEqual(testObject.contents, { 'a': { 'b': 1, 'c': 1 }, 'f': 1 });
+		assert.deepStrictEqual(testObject.keys, ['a.b', 'f', 'a.c']);
 	});
 
 	test('setValue for a key that has sections and sub section defined', () => {
@@ -64,8 +98,8 @@ suite('ConfigurationModel', () => {
 
 		testObject.setValue('a.c', 3);
 
-		assert.deepEqual(testObject.contents, { 'a': { 'b': 1, 'c': 3 }, 'f': 1 });
-		assert.deepEqual(testObject.keys, ['a.b', 'a.c', 'f']);
+		assert.deepStrictEqual(testObject.contents, { 'a': { 'b': 1, 'c': 3 }, 'f': 1 });
+		assert.deepStrictEqual(testObject.keys, ['a.b', 'a.c', 'f']);
 	});
 
 	test('setValue for a key that has sections and last section is added', () => {
@@ -73,8 +107,8 @@ suite('ConfigurationModel', () => {
 
 		testObject.setValue('a.b.c', 1);
 
-		assert.deepEqual(testObject.contents, { 'a': { 'b': { 'c': 1 } }, 'f': 1 });
-		assert.deepEqual(testObject.keys, ['a.b.c', 'f']);
+		assert.deepStrictEqual(testObject.contents, { 'a': { 'b': { 'c': 1 } }, 'f': 1 });
+		assert.deepStrictEqual(testObject.keys, ['a.b.c', 'f']);
 	});
 
 	test('removeValue: remove a non existing key', () => {
@@ -82,8 +116,8 @@ suite('ConfigurationModel', () => {
 
 		testObject.removeValue('a.b.c');
 
-		assert.deepEqual(testObject.contents, { 'a': { 'b': 2 } });
-		assert.deepEqual(testObject.keys, ['a.b']);
+		assert.deepStrictEqual(testObject.contents, { 'a': { 'b': 2 } });
+		assert.deepStrictEqual(testObject.keys, ['a.b']);
 	});
 
 	test('removeValue: remove a single segmented key', () => {
@@ -91,8 +125,8 @@ suite('ConfigurationModel', () => {
 
 		testObject.removeValue('a');
 
-		assert.deepEqual(testObject.contents, {});
-		assert.deepEqual(testObject.keys, []);
+		assert.deepStrictEqual(testObject.contents, {});
+		assert.deepStrictEqual(testObject.keys, []);
 	});
 
 	test('removeValue: remove a multi segmented key', () => {
@@ -100,8 +134,8 @@ suite('ConfigurationModel', () => {
 
 		testObject.removeValue('a.b');
 
-		assert.deepEqual(testObject.contents, {});
-		assert.deepEqual(testObject.keys, []);
+		assert.deepStrictEqual(testObject.contents, {});
+		assert.deepStrictEqual(testObject.keys, []);
 	});
 
 	test('get overriding configuration model for an existing identifier', () => {
@@ -109,7 +143,7 @@ suite('ConfigurationModel', () => {
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],
 			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]);
 
-		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1 });
+		assert.deepStrictEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1 });
 	});
 
 	test('get overriding configuration model for an identifier that does not exist', () => {
@@ -117,7 +151,7 @@ suite('ConfigurationModel', () => {
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],
 			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]);
 
-		assert.deepEqual(testObject.override('xyz').contents, { 'a': { 'b': 1 }, 'f': 1 });
+		assert.deepStrictEqual(testObject.override('xyz').contents, { 'a': { 'b': 1 }, 'f': 1 });
 	});
 
 	test('get overriding configuration when one of the keys does not exist in base', () => {
@@ -125,7 +159,7 @@ suite('ConfigurationModel', () => {
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],
 			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'g': 1 }, keys: ['a', 'g'] }]);
 
-		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1, 'g': 1 });
+		assert.deepStrictEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1, 'g': 1 });
 	});
 
 	test('get overriding configuration when one of the key in base is not of object type', () => {
@@ -133,7 +167,7 @@ suite('ConfigurationModel', () => {
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],
 			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'f': { 'g': 1 } }, keys: ['a', 'f'] }]);
 
-		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': { 'g': 1 } });
+		assert.deepStrictEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': { 'g': 1 } });
 	});
 
 	test('get overriding configuration when one of the key in overriding contents is not of object type', () => {
@@ -141,7 +175,7 @@ suite('ConfigurationModel', () => {
 			{ 'a': { 'b': 1 }, 'f': { 'g': 1 } }, [],
 			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'f': 1 }, keys: ['a', 'f'] }]);
 
-		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1 });
+		assert.deepStrictEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1 });
 	});
 
 	test('get overriding configuration if the value of overriding identifier is not object', () => {
@@ -149,7 +183,7 @@ suite('ConfigurationModel', () => {
 			{ 'a': { 'b': 1 }, 'f': { 'g': 1 } }, [],
 			[{ identifiers: ['c'], contents: 'abc', keys: [] }]);
 
-		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1 }, 'f': { 'g': 1 } });
+		assert.deepStrictEqual(testObject.override('c').contents, { 'a': { 'b': 1 }, 'f': { 'g': 1 } });
 	});
 
 	test('get overriding configuration if the value of overriding identifier is an empty object', () => {
@@ -157,7 +191,7 @@ suite('ConfigurationModel', () => {
 			{ 'a': { 'b': 1 }, 'f': { 'g': 1 } }, [],
 			[{ identifiers: ['c'], contents: {}, keys: [] }]);
 
-		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1 }, 'f': { 'g': 1 } });
+		assert.deepStrictEqual(testObject.override('c').contents, { 'a': { 'b': 1 }, 'f': { 'g': 1 } });
 	});
 
 	test('simple merge', () => {
@@ -165,8 +199,8 @@ suite('ConfigurationModel', () => {
 		let add = new ConfigurationModel({ 'a': 3, 'c': 4 }, ['a', 'c']);
 		let result = base.merge(add);
 
-		assert.deepEqual(result.contents, { 'a': 3, 'b': 2, 'c': 4 });
-		assert.deepEqual(result.keys, ['a', 'b', 'c']);
+		assert.deepStrictEqual(result.contents, { 'a': 3, 'b': 2, 'c': 4 });
+		assert.deepStrictEqual(result.keys, ['a', 'b', 'c']);
 	});
 
 	test('recursive merge', () => {
@@ -174,9 +208,9 @@ suite('ConfigurationModel', () => {
 		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b']);
 		let result = base.merge(add);
 
-		assert.deepEqual(result.contents, { 'a': { 'b': 2 } });
-		assert.deepEqual(result.getValue('a'), { 'b': 2 });
-		assert.deepEqual(result.keys, ['a.b']);
+		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 } });
+		assert.deepStrictEqual(result.getValue('a'), { 'b': 2 });
+		assert.deepStrictEqual(result.keys, ['a.b']);
 	});
 
 	test('simple merge overrides', () => {
@@ -184,10 +218,10 @@ suite('ConfigurationModel', () => {
 		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'b': 2 }, keys: ['b'] }]);
 		let result = base.merge(add);
 
-		assert.deepEqual(result.contents, { 'a': { 'b': 2 } });
-		assert.deepEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': 2, 'b': 2 }, keys: ['a'] }]);
-		assert.deepEqual(result.override('c').contents, { 'a': 2, 'b': 2 });
-		assert.deepEqual(result.keys, ['a.b']);
+		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 } });
+		assert.deepStrictEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': 2, 'b': 2 }, keys: ['a', 'b'] }]);
+		assert.deepStrictEqual(result.override('c').contents, { 'a': 2, 'b': 2 });
+		assert.deepStrictEqual(result.keys, ['a.b']);
 	});
 
 	test('recursive merge overrides', () => {
@@ -195,10 +229,10 @@ suite('ConfigurationModel', () => {
 		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } }, keys: ['a'] }]);
 		let result = base.merge(add);
 
-		assert.deepEqual(result.contents, { 'a': { 'b': 2 }, 'f': 1 });
-		assert.deepEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } }, keys: ['a'] }]);
-		assert.deepEqual(result.override('c').contents, { 'a': { 'b': 2, 'd': 1, 'e': 2 }, 'f': 1 });
-		assert.deepEqual(result.keys, ['a.b', 'f']);
+		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 }, 'f': 1 });
+		assert.deepStrictEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } }, keys: ['a'] }]);
+		assert.deepStrictEqual(result.override('c').contents, { 'a': { 'b': 2, 'd': 1, 'e': 2 }, 'f': 1 });
+		assert.deepStrictEqual(result.keys, ['a.b', 'f']);
 	});
 
 	test('merge overrides when frozen', () => {
@@ -206,30 +240,69 @@ suite('ConfigurationModel', () => {
 		let model2 = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } }, keys: ['a'] }]).freeze();
 		let result = new ConfigurationModel().merge(model1, model2);
 
-		assert.deepEqual(result.contents, { 'a': { 'b': 2 }, 'f': 1 });
-		assert.deepEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } }, keys: ['a'] }]);
-		assert.deepEqual(result.override('c').contents, { 'a': { 'b': 2, 'd': 1, 'e': 2 }, 'f': 1 });
-		assert.deepEqual(result.keys, ['a.b', 'f']);
+		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 }, 'f': 1 });
+		assert.deepStrictEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } }, keys: ['a'] }]);
+		assert.deepStrictEqual(result.override('c').contents, { 'a': { 'b': 2, 'd': 1, 'e': 2 }, 'f': 1 });
+		assert.deepStrictEqual(result.keys, ['a.b', 'f']);
 	});
 
 	test('Test contents while getting an existing property', () => {
 		let testObject = new ConfigurationModel({ 'a': 1 });
-		assert.deepEqual(testObject.getValue('a'), 1);
+		assert.deepStrictEqual(testObject.getValue('a'), 1);
 
 		testObject = new ConfigurationModel({ 'a': { 'b': 1 } });
-		assert.deepEqual(testObject.getValue('a'), { 'b': 1 });
+		assert.deepStrictEqual(testObject.getValue('a'), { 'b': 1 });
 	});
 
 	test('Test contents are undefined for non existing properties', () => {
 		const testObject = new ConfigurationModel({ awesome: true });
 
-		assert.deepEqual(testObject.getValue('unknownproperty'), undefined);
+		assert.deepStrictEqual(testObject.getValue('unknownproperty'), undefined);
 	});
 
 	test('Test override gives all content merged with overrides', () => {
 		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, [], [{ identifiers: ['b'], contents: { 'a': 2 }, keys: ['a'] }]);
 
-		assert.deepEqual(testObject.override('b').contents, { 'a': 2, 'c': 1 });
+		assert.deepStrictEqual(testObject.override('b').contents, { 'a': 2, 'c': 1 });
+	});
+
+	test('Test override when an override has multiple identifiers', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [{ identifiers: ['x', 'y'], contents: { 'a': 2 }, keys: ['a'] }]);
+
+		let actual = testObject.override('x');
+		assert.deepStrictEqual(actual.contents, { 'a': 2, 'c': 1 });
+		assert.deepStrictEqual(actual.keys, ['a', 'c']);
+		assert.deepStrictEqual(testObject.getKeysForOverrideIdentifier('x'), ['a']);
+
+		actual = testObject.override('y');
+		assert.deepStrictEqual(actual.contents, { 'a': 2, 'c': 1 });
+		assert.deepStrictEqual(actual.keys, ['a', 'c']);
+		assert.deepStrictEqual(testObject.getKeysForOverrideIdentifier('y'), ['a']);
+	});
+
+	test('Test override when an identifier is defined in multiple overrides', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [{ identifiers: ['x'], contents: { 'a': 3, 'b': 1 }, keys: ['a', 'b'] }, { identifiers: ['x', 'y'], contents: { 'a': 2 }, keys: ['a'] }]);
+
+		const actual = testObject.override('x');
+		assert.deepStrictEqual(actual.contents, { 'a': 3, 'c': 1, 'b': 1 });
+		assert.deepStrictEqual(actual.keys, ['a', 'c']);
+
+		assert.deepStrictEqual(testObject.getKeysForOverrideIdentifier('x'), ['a', 'b']);
+	});
+
+	test('Test merge when configuration models have multiple identifiers', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [{ identifiers: ['y'], contents: { 'c': 1 }, keys: ['c'] }, { identifiers: ['x', 'y'], contents: { 'a': 2 }, keys: ['a'] }]);
+		const target = new ConfigurationModel({ 'a': 2, 'b': 1 }, ['a', 'b'], [{ identifiers: ['x'], contents: { 'a': 3, 'b': 2 }, keys: ['a', 'b'] }, { identifiers: ['x', 'y'], contents: { 'b': 3 }, keys: ['b'] }]);
+
+		const actual = testObject.merge(target);
+
+		assert.deepStrictEqual(actual.contents, { 'a': 2, 'c': 1, 'b': 1 });
+		assert.deepStrictEqual(actual.keys, ['a', 'c', 'b']);
+		assert.deepStrictEqual(actual.overrides, [
+			{ identifiers: ['y'], contents: { 'c': 1 }, keys: ['c'] },
+			{ identifiers: ['x', 'y'], contents: { 'a': 2, 'b': 3 }, keys: ['a', 'b'] },
+			{ identifiers: ['x'], contents: { 'a': 3, 'b': 2 }, keys: ['a', 'b'] },
+		]);
 	});
 });
 
@@ -237,96 +310,106 @@ suite('CustomConfigurationModel', () => {
 
 	test('simple merge using models', () => {
 		let base = new ConfigurationModelParser('base');
-		base.parseContent(JSON.stringify({ 'a': 1, 'b': 2 }));
+		base.parse(JSON.stringify({ 'a': 1, 'b': 2 }));
 
 		let add = new ConfigurationModelParser('add');
-		add.parseContent(JSON.stringify({ 'a': 3, 'c': 4 }));
+		add.parse(JSON.stringify({ 'a': 3, 'c': 4 }));
 
 		let result = base.configurationModel.merge(add.configurationModel);
-		assert.deepEqual(result.contents, { 'a': 3, 'b': 2, 'c': 4 });
+		assert.deepStrictEqual(result.contents, { 'a': 3, 'b': 2, 'c': 4 });
 	});
 
 	test('simple merge with an undefined contents', () => {
 		let base = new ConfigurationModelParser('base');
-		base.parseContent(JSON.stringify({ 'a': 1, 'b': 2 }));
+		base.parse(JSON.stringify({ 'a': 1, 'b': 2 }));
 		let add = new ConfigurationModelParser('add');
 		let result = base.configurationModel.merge(add.configurationModel);
-		assert.deepEqual(result.contents, { 'a': 1, 'b': 2 });
+		assert.deepStrictEqual(result.contents, { 'a': 1, 'b': 2 });
 
 		base = new ConfigurationModelParser('base');
 		add = new ConfigurationModelParser('add');
-		add.parseContent(JSON.stringify({ 'a': 1, 'b': 2 }));
+		add.parse(JSON.stringify({ 'a': 1, 'b': 2 }));
 		result = base.configurationModel.merge(add.configurationModel);
-		assert.deepEqual(result.contents, { 'a': 1, 'b': 2 });
+		assert.deepStrictEqual(result.contents, { 'a': 1, 'b': 2 });
 
 		base = new ConfigurationModelParser('base');
 		add = new ConfigurationModelParser('add');
 		result = base.configurationModel.merge(add.configurationModel);
-		assert.deepEqual(result.contents, {});
+		assert.deepStrictEqual(result.contents, {});
 	});
 
 	test('Recursive merge using config models', () => {
 		let base = new ConfigurationModelParser('base');
-		base.parseContent(JSON.stringify({ 'a': { 'b': 1 } }));
+		base.parse(JSON.stringify({ 'a': { 'b': 1 } }));
 		let add = new ConfigurationModelParser('add');
-		add.parseContent(JSON.stringify({ 'a': { 'b': 2 } }));
+		add.parse(JSON.stringify({ 'a': { 'b': 2 } }));
 		let result = base.configurationModel.merge(add.configurationModel);
-		assert.deepEqual(result.contents, { 'a': { 'b': 2 } });
+		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 } });
 	});
 
 	test('Test contents while getting an existing property', () => {
 		let testObject = new ConfigurationModelParser('test');
-		testObject.parseContent(JSON.stringify({ 'a': 1 }));
-		assert.deepEqual(testObject.configurationModel.getValue('a'), 1);
+		testObject.parse(JSON.stringify({ 'a': 1 }));
+		assert.deepStrictEqual(testObject.configurationModel.getValue('a'), 1);
 
-		testObject.parseContent(JSON.stringify({ 'a': { 'b': 1 } }));
-		assert.deepEqual(testObject.configurationModel.getValue('a'), { 'b': 1 });
+		testObject.parse(JSON.stringify({ 'a': { 'b': 1 } }));
+		assert.deepStrictEqual(testObject.configurationModel.getValue('a'), { 'b': 1 });
 	});
 
 	test('Test contents are undefined for non existing properties', () => {
 		const testObject = new ConfigurationModelParser('test');
-		testObject.parseContent(JSON.stringify({
+		testObject.parse(JSON.stringify({
 			awesome: true
 		}));
 
-		assert.deepEqual(testObject.configurationModel.getValue('unknownproperty'), undefined);
+		assert.deepStrictEqual(testObject.configurationModel.getValue('unknownproperty'), undefined);
 	});
 
 	test('Test contents are undefined for undefined config', () => {
 		const testObject = new ConfigurationModelParser('test');
 
-		assert.deepEqual(testObject.configurationModel.getValue('unknownproperty'), undefined);
+		assert.deepStrictEqual(testObject.configurationModel.getValue('unknownproperty'), undefined);
 	});
 
 	test('Test configWithOverrides gives all content merged with overrides', () => {
 		const testObject = new ConfigurationModelParser('test');
-		testObject.parseContent(JSON.stringify({ 'a': 1, 'c': 1, '[b]': { 'a': 2 } }));
+		testObject.parse(JSON.stringify({ 'a': 1, 'c': 1, '[b]': { 'a': 2 } }));
 
-		assert.deepEqual(testObject.configurationModel.override('b').contents, { 'a': 2, 'c': 1, '[b]': { 'a': 2 } });
+		assert.deepStrictEqual(testObject.configurationModel.override('b').contents, { 'a': 2, 'c': 1, '[b]': { 'a': 2 } });
 	});
 
 	test('Test configWithOverrides gives empty contents', () => {
 		const testObject = new ConfigurationModelParser('test');
 
-		assert.deepEqual(testObject.configurationModel.override('b').contents, {});
+		assert.deepStrictEqual(testObject.configurationModel.override('b').contents, {});
 	});
 
 	test('Test update with empty data', () => {
 		const testObject = new ConfigurationModelParser('test');
-		testObject.parseContent('');
+		testObject.parse('');
 
-		assert.deepEqual(testObject.configurationModel.contents, {});
-		assert.deepEqual(testObject.configurationModel.keys, []);
+		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
+		assert.deepStrictEqual(testObject.configurationModel.keys, []);
 
-		testObject.parseContent(null!);
+		testObject.parse(null!);
 
-		assert.deepEqual(testObject.configurationModel.contents, {});
-		assert.deepEqual(testObject.configurationModel.keys, []);
+		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
+		assert.deepStrictEqual(testObject.configurationModel.keys, []);
 
-		testObject.parseContent(undefined!);
+		testObject.parse(undefined!);
 
-		assert.deepEqual(testObject.configurationModel.contents, {});
-		assert.deepEqual(testObject.configurationModel.keys, []);
+		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
+		assert.deepStrictEqual(testObject.configurationModel.keys, []);
+	});
+
+	test('Test empty property is not ignored', () => {
+		const testObject = new ConfigurationModelParser('test');
+		testObject.parse(JSON.stringify({ '': 1 }));
+
+		// deepStrictEqual seems to ignore empty properties, fall back
+		// to comparing the output of JSON.stringify
+		assert.strictEqual(JSON.stringify(testObject.configurationModel.contents), JSON.stringify({ '': 1 }));
+		assert.deepStrictEqual(testObject.configurationModel.keys, ['']);
 	});
 
 	test('Test registering the same property again', () => {
@@ -356,7 +439,44 @@ suite('CustomConfigurationModel', () => {
 				}
 			}
 		});
-		assert.equal(true, new DefaultConfigurationModel().getValue('a'));
+		assert.strictEqual(true, new DefaultConfigurationModel().getValue('a'));
+	});
+});
+
+suite('CustomConfigurationModel', () => {
+
+	test('Default configuration model uses overrides', () => {
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+			'id': 'a',
+			'order': 1,
+			'title': 'a',
+			'type': 'object',
+			'properties': {
+				'a': {
+					'description': 'a',
+					'type': 'boolean',
+					'default': false,
+				}
+			}
+		});
+		assert.strictEqual(true, new DefaultConfigurationModel().getValue('a'));
+	});
+
+	test('Default configuration model uses overrides', () => {
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+			'id': 'a',
+			'order': 1,
+			'title': 'a',
+			'type': 'object',
+			'properties': {
+				'a': {
+					'description': 'a',
+					'type': 'boolean',
+					'default': false,
+				}
+			}
+		});
+		assert.strictEqual(false, new DefaultConfigurationModel({ a: false }).getValue('a'));
 	});
 });
 
@@ -370,28 +490,28 @@ suite('Configuration', () => {
 
 		const { overrideIdentifiers } = testObject.inspect('a', {}, undefined);
 
-		assert.deepEqual(overrideIdentifiers, ['l1', 'l3', 'l4']);
+		assert.deepStrictEqual(overrideIdentifiers, ['l1', 'l3', 'l4']);
 	});
 
 	test('Test update value', () => {
 		const parser = new ConfigurationModelParser('test');
-		parser.parseContent(JSON.stringify({ 'a': 1 }));
+		parser.parse(JSON.stringify({ 'a': 1 }));
 		const testObject: Configuration = new Configuration(parser.configurationModel, new ConfigurationModel());
 
 		testObject.updateValue('a', 2);
 
-		assert.equal(testObject.getValue('a', {}, undefined), 2);
+		assert.strictEqual(testObject.getValue('a', {}, undefined), 2);
 	});
 
 	test('Test update value after inspect', () => {
 		const parser = new ConfigurationModelParser('test');
-		parser.parseContent(JSON.stringify({ 'a': 1 }));
+		parser.parse(JSON.stringify({ 'a': 1 }));
 		const testObject: Configuration = new Configuration(parser.configurationModel, new ConfigurationModel());
 
 		testObject.inspect('a', {}, undefined);
 		testObject.updateValue('a', 2);
 
-		assert.equal(testObject.getValue('a', {}, undefined), 2);
+		assert.strictEqual(testObject.getValue('a', {}, undefined), 2);
 	});
 
 	test('Test compare and update default configuration', () => {
@@ -407,7 +527,7 @@ suite('Configuration', () => {
 			}
 		}), ['editor.lineNumbers', '[markdown]']);
 
-		assert.deepEqual(actual, { keys: ['editor.lineNumbers', '[markdown]'], overrides: [['markdown', ['editor.wordWrap']]] });
+		assert.deepStrictEqual(actual, { keys: ['editor.lineNumbers', '[markdown]'], overrides: [['markdown', ['editor.wordWrap']]] });
 
 	});
 
@@ -430,7 +550,7 @@ suite('Configuration', () => {
 			}
 		}));
 
-		assert.deepEqual(actual, { keys: ['window.zoomLevel', 'editor.lineNumbers', '[typescript]', 'editor.fontSize'], overrides: [['typescript', ['editor.insertSpaces', 'editor.wordWrap']]] });
+		assert.deepStrictEqual(actual, { keys: ['window.zoomLevel', 'editor.lineNumbers', '[typescript]', 'editor.fontSize'], overrides: [['typescript', ['editor.insertSpaces', 'editor.wordWrap']]] });
 
 	});
 
@@ -453,7 +573,7 @@ suite('Configuration', () => {
 			}
 		}));
 
-		assert.deepEqual(actual, { keys: ['window.zoomLevel', 'editor.lineNumbers', '[typescript]', 'editor.fontSize'], overrides: [['typescript', ['editor.insertSpaces', 'editor.wordWrap']]] });
+		assert.deepStrictEqual(actual, { keys: ['window.zoomLevel', 'editor.lineNumbers', '[typescript]', 'editor.fontSize'], overrides: [['typescript', ['editor.insertSpaces', 'editor.wordWrap']]] });
 
 	});
 
@@ -476,7 +596,7 @@ suite('Configuration', () => {
 			}
 		}));
 
-		assert.deepEqual(actual, { keys: ['window.zoomLevel', 'editor.lineNumbers', '[typescript]', 'editor.fontSize'], overrides: [['typescript', ['editor.insertSpaces', 'editor.wordWrap']]] });
+		assert.deepStrictEqual(actual, { keys: ['window.zoomLevel', 'editor.lineNumbers', '[typescript]', 'editor.fontSize'], overrides: [['typescript', ['editor.insertSpaces', 'editor.wordWrap']]] });
 
 	});
 
@@ -492,13 +612,13 @@ suite('Configuration', () => {
 
 		const actual = testObject.compareAndDeleteFolderConfiguration(URI.file('file1'));
 
-		assert.deepEqual(actual, { keys: ['editor.lineNumbers', 'editor.fontSize', '[typescript]'], overrides: [['typescript', ['editor.wordWrap']]] });
+		assert.deepStrictEqual(actual, { keys: ['editor.lineNumbers', 'editor.fontSize', '[typescript]'], overrides: [['typescript', ['editor.wordWrap']]] });
 
 	});
 
 	function parseConfigurationModel(content: any): ConfigurationModel {
 		const parser = new ConfigurationModelParser('test');
-		parser.parseContent(JSON.stringify(content));
+		parser.parse(JSON.stringify(content));
 		return parser.configurationModel;
 	}
 
@@ -515,7 +635,7 @@ suite('ConfigurationChangeEvent', () => {
 		}));
 		let testObject = new ConfigurationChangeEvent(change, undefined, configuration);
 
-		assert.deepEqual(testObject.affectedKeys, ['window.zoomLevel', 'workbench.editor.enablePreview', 'files.autoSave']);
+		assert.deepStrictEqual(testObject.affectedKeys, ['window.zoomLevel', 'workbench.editor.enablePreview', 'files.autoSave']);
 
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
 		assert.ok(testObject.affectsConfiguration('window'));
@@ -547,7 +667,7 @@ suite('ConfigurationChangeEvent', () => {
 		}));
 		let testObject = new ConfigurationChangeEvent(change, { data }, configuration);
 
-		assert.deepEqual(testObject.affectedKeys, ['window.zoomLevel', 'workbench.editor.enablePreview']);
+		assert.deepStrictEqual(testObject.affectedKeys, ['window.zoomLevel', 'workbench.editor.enablePreview']);
 
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
 		assert.ok(testObject.affectsConfiguration('window'));
@@ -567,11 +687,14 @@ suite('ConfigurationChangeEvent', () => {
 			'files.autoSave': 'off',
 			'[markdown]': {
 				'editor.wordWrap': 'off'
+			},
+			'[typescript][jsonc]': {
+				'editor.lineNumbers': 'off'
 			}
 		}));
 		let testObject = new ConfigurationChangeEvent(change, undefined, configuration);
 
-		assert.deepEqual(testObject.affectedKeys, ['files.autoSave', '[markdown]', 'editor.wordWrap']);
+		assert.deepStrictEqual(testObject.affectedKeys, ['files.autoSave', '[markdown]', '[typescript][jsonc]', 'editor.wordWrap', 'editor.lineNumbers']);
 
 		assert.ok(testObject.affectsConfiguration('files'));
 		assert.ok(testObject.affectsConfiguration('files.autoSave'));
@@ -583,8 +706,16 @@ suite('ConfigurationChangeEvent', () => {
 
 		assert.ok(testObject.affectsConfiguration('editor'));
 		assert.ok(testObject.affectsConfiguration('editor.wordWrap'));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers'));
 		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'jsonc' }));
+		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'typescript' }));
 		assert.ok(testObject.affectsConfiguration('editor.wordWrap', { overrideIdentifier: 'markdown' }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { overrideIdentifier: 'jsonc' }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { overrideIdentifier: 'typescript' }));
+		assert.ok(!testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'typescript' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'jsonc' }));
 		assert.ok(!testObject.affectsConfiguration('editor', { overrideIdentifier: 'json' }));
 		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'markdown' }));
 
@@ -600,6 +731,10 @@ suite('ConfigurationChangeEvent', () => {
 				'editor.fontSize': 12,
 				'editor.wordWrap': 'off'
 			},
+			'[css][scss]': {
+				'editor.lineNumbers': 'off',
+				'css.lint.emptyRules': 'error'
+			},
 			'files.autoSave': 'off',
 		}));
 		const data = configuration.toData();
@@ -609,11 +744,15 @@ suite('ConfigurationChangeEvent', () => {
 				'editor.fontSize': 13,
 				'editor.wordWrap': 'off'
 			},
+			'[css][scss]': {
+				'editor.lineNumbers': 'relative',
+				'css.lint.emptyRules': 'error'
+			},
 			'window.zoomLevel': 1,
 		}));
 		let testObject = new ConfigurationChangeEvent(change, { data }, configuration);
 
-		assert.deepEqual(testObject.affectedKeys, ['window.zoomLevel', '[markdown]', 'workbench.editor.enablePreview', 'editor.fontSize']);
+		assert.deepStrictEqual(testObject.affectedKeys, ['window.zoomLevel', '[markdown]', '[css][scss]', 'workbench.editor.enablePreview', 'editor.fontSize', 'editor.lineNumbers']);
 
 		assert.ok(!testObject.affectsConfiguration('files'));
 
@@ -622,10 +761,18 @@ suite('ConfigurationChangeEvent', () => {
 		assert.ok(!testObject.affectsConfiguration('[markdown].editor.fontSize'));
 		assert.ok(!testObject.affectsConfiguration('[markdown].editor.wordWrap'));
 		assert.ok(!testObject.affectsConfiguration('[markdown].workbench'));
+		assert.ok(testObject.affectsConfiguration('[css][scss]'));
 
 		assert.ok(testObject.affectsConfiguration('editor'));
 		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'css' }));
+		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'scss' }));
 		assert.ok(testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'markdown' }));
+		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'css' }));
+		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'scss' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'scss' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'css' }));
+		assert.ok(!testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'markdown' }));
 		assert.ok(!testObject.affectsConfiguration('editor.wordWrap'));
 		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { overrideIdentifier: 'markdown' }));
 		assert.ok(!testObject.affectsConfiguration('editor', { overrideIdentifier: 'json' }));
@@ -657,7 +804,7 @@ suite('ConfigurationChangeEvent', () => {
 		);
 		let testObject = new ConfigurationChangeEvent(change, { data, workspace }, configuration, workspace);
 
-		assert.deepEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
+		assert.deepStrictEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
 
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('folder1') }));
@@ -755,7 +902,7 @@ suite('ConfigurationChangeEvent', () => {
 		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: URI.file('file1') }), new WorkspaceFolder({ index: 1, name: 'b', uri: URI.file('file2') }), new WorkspaceFolder({ index: 2, name: 'c', uri: URI.file('folder3') })]);
 		const testObject = new ConfigurationChangeEvent(change, { data, workspace }, configuration, workspace);
 
-		assert.deepEqual(testObject.affectedKeys, ['editor.lineNumbers', '[markdown]', '[json]', 'window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows', 'editor.wordWrap']);
+		assert.deepStrictEqual(testObject.affectedKeys, ['editor.lineNumbers', '[markdown]', '[json]', 'window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows', 'editor.wordWrap']);
 
 		assert.ok(testObject.affectsConfiguration('window.title'));
 		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file1') }));
@@ -841,7 +988,7 @@ suite('ConfigurationChangeEvent', () => {
 		}));
 		let testObject = new ConfigurationChangeEvent(change, undefined, configuration);
 
-		assert.deepEqual(testObject.affectedKeys, ['launch', 'launch.version', 'tasks']);
+		assert.deepStrictEqual(testObject.affectedKeys, ['launch', 'launch.version', 'tasks']);
 		assert.ok(testObject.affectsConfiguration('launch'));
 		assert.ok(testObject.affectsConfiguration('launch.version'));
 		assert.ok(testObject.affectsConfiguration('tasks'));
@@ -870,7 +1017,7 @@ suite('AllKeysConfigurationChangeEvent', () => {
 		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: URI.file('file1') }), new WorkspaceFolder({ index: 1, name: 'b', uri: URI.file('file2') }), new WorkspaceFolder({ index: 2, name: 'c', uri: URI.file('folder3') })]);
 		let testObject = new AllKeysConfigurationChangeEvent(configuration, workspace, ConfigurationTarget.USER, null);
 
-		assert.deepEqual(testObject.affectedKeys, ['editor.lineNumbers', '[markdown]', '[json]', 'window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
+		assert.deepStrictEqual(testObject.affectedKeys, ['editor.lineNumbers', '[markdown]', '[json]', 'window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
 
 		assert.ok(testObject.affectsConfiguration('window.title'));
 		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file1') }));
@@ -946,6 +1093,6 @@ suite('AllKeysConfigurationChangeEvent', () => {
 
 function toConfigurationModel(obj: any): ConfigurationModel {
 	const parser = new ConfigurationModelParser('test');
-	parser.parseContent(JSON.stringify(obj));
+	parser.parse(JSON.stringify(obj));
 	return parser.configurationModel;
 }

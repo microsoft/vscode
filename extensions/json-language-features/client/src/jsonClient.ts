@@ -6,8 +6,10 @@ import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
+export type JSONLanguageStatus = { schemas: string[] };
+
 import {
-	workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration,
+	workspace, window, languages, commands, ExtensionContext, extensions, Uri,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken,
 	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString,
 } from 'vscode';
@@ -18,19 +20,24 @@ import {
 } from 'vscode-languageclient';
 
 import { hash } from './utils/hash';
-import { RequestService, joinPath } from './requests';
+import { createLanguageStatusItem } from './languageStatus';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
 }
 
 namespace SchemaContentChangeNotification {
-	export const type: NotificationType<string> = new NotificationType('json/schemaContent');
+	export const type: NotificationType<string | string[]> = new NotificationType('json/schemaContent');
 }
 
 namespace ForceValidateRequest {
 	export const type: RequestType<string, Diagnostic[], any> = new RequestType('json/validate');
 }
+
+namespace LanguageStatusRequest {
+	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
+}
+
 
 export interface ISchemaAssociations {
 	[pattern: string]: string[];
@@ -88,9 +95,16 @@ export interface TelemetryReporter {
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => CommonLanguageClient;
 
 export interface Runtime {
-	http: RequestService;
+	schemaRequests: SchemaRequestService;
 	telemetry?: TelemetryReporter
 }
+
+export interface SchemaRequestService {
+	getContent(uri: string): Promise<string>;
+	clearCache?(): Promise<string[]>;
+}
+
+export const languageServerDescription = localize('jsonserver.name', 'JSON Language Server');
 
 export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
 
@@ -98,20 +112,25 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 
 	let rangeFormatting: Disposable | undefined = undefined;
 
-
 	const documentSelector = ['json', 'jsonc'];
 
-	const schemaResolutionErrorStatusBarItem = window.createStatusBarItem({
-		id: 'status.json.resolveError',
-		name: localize('json.resolveError', "JSON: Schema Resolution Error"),
-		alignment: StatusBarAlignment.Right,
-		priority: 0,
-	});
+	const schemaResolutionErrorStatusBarItem = window.createStatusBarItem('status.json.resolveError', StatusBarAlignment.Right, 0);
+	schemaResolutionErrorStatusBarItem.name = localize('json.resolveError', "JSON: Schema Resolution Error");
 	schemaResolutionErrorStatusBarItem.text = '$(alert)';
 	toDispose.push(schemaResolutionErrorStatusBarItem);
 
 	const fileSchemaErrors = new Map<string, string>();
 	let schemaDownloadEnabled = true;
+
+	let isClientReady = false;
+
+	commands.registerCommand('json.clearCache', async () => {
+		if (isClientReady && runtime.schemaRequests.clearCache) {
+			const cachedSchemas = await runtime.schemaRequests.clearCache();
+			await client.sendNotification(SchemaContentChangeNotification.type, cachedSchemas);
+		}
+		window.showInformationMessage(localize('json.clearCache.completed', "JSON schema cache cleared."));
+	});
 
 	// Options to control the language client
 	const clientOptions: LanguageClientOptions = {
@@ -194,12 +213,14 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 	};
 
 	// Create the language client and start the client.
-	const client = newLanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), clientOptions);
+	const client = newLanguageClient('json', languageServerDescription, clientOptions);
 	client.registerProposedFeatures();
 
 	const disposable = client.start();
 	toDispose.push(disposable);
 	client.onReady().then(() => {
+		isClientReady = true;
+
 		const schemaDocuments: { [uri: string]: boolean } = {};
 
 		// handle content request
@@ -224,7 +245,9 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 					 */
 					runtime.telemetry.sendTelemetryEvent('json.schema', { schemaURL: uriPath });
 				}
-				return runtime.http.getContent(uriPath);
+				return runtime.schemaRequests.getContent(uriPath).catch(e => {
+					return Promise.reject(new ResponseError(4, e.toString()));
+				});
 			} else {
 				return Promise.reject(new ResponseError(1, localize('schemaDownloadDisabled', 'Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload)));
 			}
@@ -237,7 +260,6 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			}
 			return false;
 		};
-
 		const handleActiveEditorChange = (activeEditor?: TextEditor) => {
 			if (!activeEditor) {
 				return;
@@ -317,6 +339,8 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			}
 		});
 
+		toDispose.push(createLanguageStatusItem(documentSelector, (uri: string) => client.sendRequest(LanguageStatusRequest.type, uri)));
+
 		function updateFormatterRegistration() {
 			const formatEnabled = workspace.getConfiguration().get(SettingIds.enableFormatter);
 			if (!formatEnabled && rangeFormatting) {
@@ -362,17 +386,6 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		}
 
 	});
-
-	const languageConfiguration: LanguageConfiguration = {
-		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/,
-		indentationRules: {
-			increaseIndentPattern: /({+(?=([^"]*"[^"]*")*[^"}]*$))|(\[+(?=([^"]*"[^"]*")*[^"\]]*$))/,
-			decreaseIndentPattern: /^\s*[}\]],?\s*$/
-		}
-	};
-	languages.setLanguageConfiguration('json', languageConfiguration);
-	languages.setLanguageConfiguration('jsonc', languageConfiguration);
-
 }
 
 function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[] {
@@ -390,7 +403,7 @@ function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[]
 					if (Array.isArray(fileMatch) && typeof url === 'string') {
 						let uri: string = url;
 						if (uri[0] === '.' && uri[1] === '/') {
-							uri = joinPath(extension.extensionUri, uri).toString();
+							uri = Uri.joinPath(extension.extensionUri, uri).toString();
 						}
 						fileMatch = fileMatch.map(fm => {
 							if (fm[0] === '%') {
@@ -511,7 +524,7 @@ function getSchemaId(schema: JSONSchemaSettings, folderUri?: Uri): string | unde
 			url = schema.schema.id || `vscode://schemas/custom/${encodeURIComponent(hash(schema.schema).toString(16))}`;
 		}
 	} else if (folderUri && (url[0] === '.' || url[0] === '/')) {
-		url = joinPath(folderUri, url).toString();
+		url = Uri.joinPath(folderUri, url).toString();
 	}
 	return url;
 }

@@ -70,7 +70,7 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
 		dom.append(container, $('span.arrow' + ThemeIcon.asCSSSelector(debugConsoleEvaluationInput)));
 		const input = dom.append(container, $('.expression'));
-		const label = new HighlightedLabel(input, false);
+		const label = new HighlightedLabel(input);
 		return { label };
 	}
 
@@ -260,7 +260,7 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 
 		const expression = dom.append(container, $('.output.expression'));
 		const name = dom.append(expression, $('span.name'));
-		const label = new HighlightedLabel(name, false);
+		const label = new HighlightedLabel(name);
 		const value = dom.append(expression, $('span.value'));
 
 		return { container, expression, name, label, value };
@@ -294,7 +294,7 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 		super();
 	}
 
-	getHeight(element: IReplElement): number {
+	override getHeight(element: IReplElement): number {
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 
 		if (!config.console.wordWrap) {
@@ -313,8 +313,8 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 		// Calculate a rough overestimation for the height
 		// For every 70 characters increase the number of lines needed beyond the first
 		if (hasValue(element) && !(element instanceof Variable)) {
-			let value = element.value;
-			let valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 70));
+			const value = element.value;
+			const valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 70));
 
 			return valueRows * rowHeight;
 		}
@@ -394,7 +394,7 @@ export class ReplAccessibilityProvider implements IListAccessibilityProvider<IRe
 		}
 		if (element instanceof SimpleReplElement || element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
 			return element.value + (element instanceof SimpleReplElement && element.count > 1 ? localize({ key: 'occurred', comment: ['Front will the value of the debug console element. Placeholder will be replaced by a number which represents occurrance count.'] },
-				", occured {0} times", element.count) : '');
+				", occurred {0} times", element.count) : '');
 		}
 		if (element instanceof RawObjectReplElement) {
 			return localize('replRawObjectAriaLabel', "Debug console variable {0}, value {1}", element.name, element.value);

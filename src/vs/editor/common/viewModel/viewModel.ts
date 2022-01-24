@@ -5,145 +5,20 @@
 
 import { IScrollPosition, Scrollable } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
+import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from 'vs/editor/common/cursor/cursorCommon';
+import { CursorChangeReason } from 'vs/editor/common/cursor/cursorEvents';
+import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions, ITextModel } from 'vs/editor/common/model';
-import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { EndOfLinePreference, IModelDecorationOptions, ITextModel, PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from 'vs/editor/common/textModelGuides';
+import { EditorTheme } from 'vs/editor/common/viewModel/viewContext';
+import { VerticalRevealType } from 'vs/editor/common/viewModel/viewEvents';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
-import { EditorTheme } from 'vs/editor/common/view/viewContext';
-import { ICursorSimpleModel, PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { ILineBreaksComputer, InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-
-export interface IViewWhitespaceViewportData {
-	readonly id: string;
-	readonly afterLineNumber: number;
-	readonly verticalOffset: number;
-	readonly height: number;
-}
-
-export class Viewport {
-	readonly _viewportBrand: void;
-
-	readonly top: number;
-	readonly left: number;
-	readonly width: number;
-	readonly height: number;
-
-	constructor(top: number, left: number, width: number, height: number) {
-		this.top = top | 0;
-		this.left = left | 0;
-		this.width = width | 0;
-		this.height = height | 0;
-	}
-}
-
-export interface IViewLayout {
-
-	getScrollable(): Scrollable;
-
-	getScrollWidth(): number;
-	getScrollHeight(): number;
-
-	getCurrentScrollLeft(): number;
-	getCurrentScrollTop(): number;
-	getCurrentViewport(): Viewport;
-
-	getFutureViewport(): Viewport;
-
-	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
-
-	getLinesViewportData(): IPartialViewLinesViewportData;
-	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
-	getWhitespaces(): IEditorWhitespace[];
-
-	isAfterLines(verticalOffset: number): boolean;
-	isInTopPadding(verticalOffset: number): boolean;
-	isInBottomPadding(verticalOffset: number): boolean;
-	getLineNumberAtVerticalOffset(verticalOffset: number): number;
-	getVerticalOffsetForLineNumber(lineNumber: number): number;
-	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
-
-	/**
-	 * Get the layout information for whitespaces currently in the viewport
-	 */
-	getWhitespaceViewportData(): IViewWhitespaceViewportData[];
-}
-
-export interface ICoordinatesConverter {
-	// View -> Model conversion and related methods
-	convertViewPositionToModelPosition(viewPosition: Position): Position;
-	convertViewRangeToModelRange(viewRange: Range): Range;
-	validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position;
-	validateViewRange(viewRange: Range, expectedModelRange: Range): Range;
-
-	// Model -> View conversion and related methods
-	convertModelPositionToViewPosition(modelPosition: Position): Position;
-	convertModelRangeToViewRange(modelRange: Range): Range;
-	modelPositionIsVisible(modelPosition: Position): boolean;
-	getModelLineViewLineCount(modelLineNumber: number): number;
-}
-
-export class OutputPosition {
-	outputLineIndex: number;
-	outputOffset: number;
-
-	constructor(outputLineIndex: number, outputOffset: number) {
-		this.outputLineIndex = outputLineIndex;
-		this.outputOffset = outputOffset;
-	}
-}
-
-export class LineBreakData {
-	constructor(
-		public breakOffsets: number[],
-		public breakOffsetsVisibleColumn: number[],
-		public wrappedTextIndentLength: number
-	) { }
-
-	public static getInputOffsetOfOutputPosition(breakOffsets: number[], outputLineIndex: number, outputOffset: number): number {
-		if (outputLineIndex === 0) {
-			return outputOffset;
-		} else {
-			return breakOffsets[outputLineIndex - 1] + outputOffset;
-		}
-	}
-
-	public static getOutputPositionOfInputOffset(breakOffsets: number[], inputOffset: number): OutputPosition {
-		let low = 0;
-		let high = breakOffsets.length - 1;
-		let mid = 0;
-		let midStart = 0;
-
-		while (low <= high) {
-			mid = low + ((high - low) / 2) | 0;
-
-			const midStop = breakOffsets[mid];
-			midStart = mid > 0 ? breakOffsets[mid - 1] : 0;
-
-			if (inputOffset < midStart) {
-				high = mid - 1;
-			} else if (inputOffset >= midStop) {
-				low = mid + 1;
-			} else {
-				break;
-			}
-		}
-
-		return new OutputPosition(mid, inputOffset - midStart);
-	}
-}
-
-export interface ILineBreaksComputer {
-	/**
-	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
-	 */
-	addRequest(lineText: string, previousLineBreakData: LineBreakData | null): void;
-	finalize(): (LineBreakData | null)[];
-}
 
 export interface IViewModel extends ICursorSimpleModel {
 
@@ -181,14 +56,17 @@ export interface IViewModel extends ICursorSimpleModel {
 	getLineLength(lineNumber: number): number;
 	getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
 	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
+	getBracketGuidesInRangeByLine(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, options: BracketGuideOptions): IndentGuide[][];
 	getLineMinColumn(lineNumber: number): number;
 	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-	getAllOverviewRulerDecorations(theme: EditorTheme): IOverviewRulerDecorations;
+	getAllOverviewRulerDecorations(theme: EditorTheme): OverviewRulerDecorationsGroup[];
 	invalidateOverviewRulerColorCache(): void;
 	invalidateMinimapColorCache(): void;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
+
+	getInjectedTextAt(viewPosition: Position): InjectedText | null;
 
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(modelPosition: IPosition): Position;
@@ -211,12 +89,13 @@ export interface IViewModel extends ICursorSimpleModel {
 	getPrimaryCursorState(): CursorState;
 	getLastAddedCursorIndex(): number;
 	getCursorStates(): CursorState[];
-	setCursorStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
+	setCursorStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): boolean;
 	getCursorColumnSelectData(): IColumnSelectData;
+	getCursorAutoClosedCharacters(): Range[];
 	setCursorColumnSelectData(columnSelectData: IColumnSelectData): void;
 	getPrevEditOperationType(): EditOperationType;
 	setPrevEditOperationType(type: EditOperationType): void;
-	revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean): void;
+	revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean, minimalReveal?: boolean): void;
 	revealTopMostCursor(source: string | null | undefined): void;
 	revealBottomMostCursor(source: string | null | undefined): void;
 	revealRange(source: string | null | undefined, revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
@@ -233,6 +112,79 @@ export interface IViewModel extends ICursorSimpleModel {
 	//#endregion
 }
 
+export interface IViewLayout {
+
+	getScrollable(): Scrollable;
+
+	getScrollWidth(): number;
+	getScrollHeight(): number;
+
+	getCurrentScrollLeft(): number;
+	getCurrentScrollTop(): number;
+	getCurrentViewport(): Viewport;
+
+	getFutureViewport(): Viewport;
+
+	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
+
+	getLinesViewportData(): IPartialViewLinesViewportData;
+	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
+	getWhitespaces(): IEditorWhitespace[];
+
+	isAfterLines(verticalOffset: number): boolean;
+	isInTopPadding(verticalOffset: number): boolean;
+	isInBottomPadding(verticalOffset: number): boolean;
+	getLineNumberAtVerticalOffset(verticalOffset: number): number;
+	getVerticalOffsetForLineNumber(lineNumber: number): number;
+	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
+
+	/**
+	 * Get the layout information for whitespaces currently in the viewport
+	 */
+	getWhitespaceViewportData(): IViewWhitespaceViewportData[];
+}
+
+export interface IViewWhitespaceViewportData {
+	readonly id: string;
+	readonly afterLineNumber: number;
+	readonly verticalOffset: number;
+	readonly height: number;
+}
+
+export class Viewport {
+	readonly _viewportBrand: void = undefined;
+
+	readonly top: number;
+	readonly left: number;
+	readonly width: number;
+	readonly height: number;
+
+	constructor(top: number, left: number, width: number, height: number) {
+		this.top = top | 0;
+		this.left = left | 0;
+		this.width = width | 0;
+		this.height = height | 0;
+	}
+}
+
+export interface ICoordinatesConverter {
+	// View -> Model conversion and related methods
+	convertViewPositionToModelPosition(viewPosition: Position): Position;
+	convertViewRangeToModelRange(viewRange: Range): Range;
+	validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position;
+	validateViewRange(viewRange: Range, expectedModelRange: Range): Range;
+
+	// Model -> View conversion and related methods
+	convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity): Position;
+	/**
+	 * @param affinity Only has an effect if the range is empty.
+	*/
+	convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range;
+	modelPositionIsVisible(modelPosition: Position): boolean;
+	getModelLineViewLineCount(modelLineNumber: number): number;
+	getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number;
+}
+
 export class MinimapLinesRenderingData {
 	public readonly tabSize: number;
 	public readonly data: Array<ViewLineData | null>;
@@ -247,7 +199,7 @@ export class MinimapLinesRenderingData {
 }
 
 export class ViewLineData {
-	_viewLineDataBrand: void;
+	_viewLineDataBrand: void = undefined;
 
 	/**
 	 * The content at this view line.
@@ -274,13 +226,19 @@ export class ViewLineData {
 	 */
 	public readonly tokens: IViewLineTokens;
 
+	/**
+	 * Additional inline decorations for this line.
+	*/
+	public readonly inlineDecorations: readonly SingleLineInlineDecoration[] | null;
+
 	constructor(
 		content: string,
 		continuesWithWrappedLine: boolean,
 		minColumn: number,
 		maxColumn: number,
 		startVisibleColumn: number,
-		tokens: IViewLineTokens
+		tokens: IViewLineTokens,
+		inlineDecorations: readonly SingleLineInlineDecoration[] | null
 	) {
 		this.content = content;
 		this.continuesWithWrappedLine = continuesWithWrappedLine;
@@ -288,6 +246,7 @@ export class ViewLineData {
 		this.maxColumn = maxColumn;
 		this.startVisibleColumn = startVisibleColumn;
 		this.tokens = tokens;
+		this.inlineDecorations = inlineDecorations;
 	}
 }
 
@@ -343,7 +302,7 @@ export class ViewLineRenderingData {
 		tokens: IViewLineTokens,
 		inlineDecorations: InlineDecoration[],
 		tabSize: number,
-		startVisibleColumn: number
+		startVisibleColumn: number,
 	) {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
@@ -390,8 +349,26 @@ export class InlineDecoration {
 	}
 }
 
+export class SingleLineInlineDecoration {
+	constructor(
+		public readonly startOffset: number,
+		public readonly endOffset: number,
+		public readonly inlineClassName: string,
+		public readonly inlineClassNameAffectsLetterSpacing: boolean
+	) {
+	}
+
+	toInlineDecoration(lineNumber: number): InlineDecoration {
+		return new InlineDecoration(
+			new Range(lineNumber, this.startOffset + 1, lineNumber, this.endOffset + 1),
+			this.inlineClassName,
+			this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular
+		);
+	}
+}
+
 export class ViewModelDecoration {
-	_viewModelDecorationBrand: void;
+	_viewModelDecorationBrand: void = undefined;
 
 	public readonly range: Range;
 	public readonly options: IModelDecorationOptions;
@@ -402,12 +379,30 @@ export class ViewModelDecoration {
 	}
 }
 
-/**
- * Decorations are encoded in a number array using the following scheme:
- *  - 3*i = lane
- *  - 3*i+1 = startLineNumber
- *  - 3*i+2 = endLineNumber
- */
-export interface IOverviewRulerDecorations {
-	[color: string]: number[];
+export class OverviewRulerDecorationsGroup {
+
+	constructor(
+		public readonly color: string,
+		public readonly zIndex: number,
+		/**
+		 * Decorations are encoded in a number array using the following scheme:
+		 *  - 3*i = lane
+		 *  - 3*i+1 = startLineNumber
+		 *  - 3*i+2 = endLineNumber
+		 */
+		public readonly data: number[]
+	) { }
+
+	public static cmp(a: OverviewRulerDecorationsGroup, b: OverviewRulerDecorationsGroup): number {
+		if (a.zIndex === b.zIndex) {
+			if (a.color < b.color) {
+				return -1;
+			}
+			if (a.color > b.color) {
+				return 1;
+			}
+			return 0;
+		}
+		return a.zIndex - b.zIndex;
+	}
 }

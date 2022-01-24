@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
-import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOptions, IColorScheme } from 'vs/platform/windows/common/windows';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
+import { MessageBoxOptions, MessageBoxReturnValue, MouseInputEvent, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPartsSplash, IWindowOpenable } from 'vs/platform/windows/common/windows';
 
 export interface ICPUProperties {
 	model: string;
@@ -72,6 +72,8 @@ export interface ICommonNativeHostService {
 
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
+	saveWindowSplash(splash: IPartsSplash): Promise<void>;
+
 	/**
 	 * Make the window focused.
 	 *
@@ -97,14 +99,16 @@ export interface ICommonNativeHostService {
 	setRepresentedFilename(path: string): Promise<void>;
 	setDocumentEdited(edited: boolean): Promise<void>;
 	openExternal(url: string): Promise<boolean>;
-	moveItemToTrash(fullPath: string, deleteOnFail?: boolean): Promise<boolean>;
+	moveItemToTrash(fullPath: string): Promise<void>;
 
 	isAdmin(): Promise<boolean>;
-	writeElevated(source: URI, target: URI, options?: { overwriteReadonly?: boolean }): Promise<void>;
+	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;
 
 	getOSProperties(): Promise<IOSProperties>;
 	getOSStatistics(): Promise<IOSStatistics>;
 	getOSVirtualMachineHint(): Promise<number>;
+
+	getOSColorScheme(): Promise<IColorScheme>;
 
 	// Process
 	killProcess(pid: number, code: string): Promise<void>;
@@ -127,6 +131,10 @@ export interface ICommonNativeHostService {
 	toggleWindowTabsBar(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 
+	// macOS Shell command
+	installShellCommand(): Promise<void>;
+	uninstallShellCommand(): Promise<void>;
+
 	// Lifecycle
 	notifyReady(): Promise<void>
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
@@ -147,11 +155,4 @@ export interface ICommonNativeHostService {
 
 	// Registry (windows only)
 	windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined>;
-
-	// Credentials
-	getPassword(service: string, account: string): Promise<string | null>;
-	setPassword(service: string, account: string, password: string): Promise<void>;
-	deletePassword(service: string, account: string): Promise<boolean>;
-	findPassword(service: string): Promise<string | null>;
-	findCredentials(service: string): Promise<Array<{ account: string, password: string }>>
 }

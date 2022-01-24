@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { hasWorkspaceFileExtension, toWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, ISerializedWorkspaceIdentifier, reviveIdentifier, ISerializedSingleFolderWorkspaceIdentifier, IEmptyWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension, IEmptyWorkspaceIdentifier, ISerializedSingleFolderWorkspaceIdentifier, ISerializedWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, reviveIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 suite('Workspaces', () => {
 

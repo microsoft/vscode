@@ -3,29 +3,46 @@
   "description": "%description%",
   "displayName": "%displayName%",
   "version": "1.0.0",
-  "icon": "icon.png",
   "author": "vscode",
   "publisher": "vscode",
   "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
-  "enableProposedApi": true,
-  "requiresWorkspaceTrust": "onDemand",
+  "enabledApiProposals": [
+    "inlayHints",
+    "languageStatus",
+    "resolvers",
+    "workspaceTrust"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": {
+      "supported": "limited",
+      "description": "%virtualWorkspaces%"
+    },
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%workspaceTrust%",
+      "restrictedConfigurations": [
+        "typescript.tsdk",
+        "typescript.tsserver.pluginPaths",
+        "typescript.npm"
+      ]
+    }
+  },
   "engines": {
     "vscode": "^1.30.0"
   },
+  "icon": "media/icon.png",
   "categories": [
     "Programming Languages"
   ],
   "dependencies": {
     "jsonc-parser": "^2.2.1",
     "semver": "5.5.1",
-    "typescript-vscode-sh-plugin": "^0.6.14",
-    "vscode-extension-telemetry": "0.1.1",
-    "vscode-nls": "^4.1.1"
+    "@vscode/extension-telemetry": "0.4.6",
+    "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9",
-    "@types/rimraf": "^2.0.4",
+    "@types/node": "14.x",
     "@types/semver": "^5.5.0"
   },
   "scripts": {
@@ -45,10 +62,11 @@
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
-    "onCommand:workbench.action.tasks.runTask",
+    "onCommand:typescript.tsserverRequest",
     "onCommand:_typescript.configurePlugin",
     "onCommand:_typescript.learnMoreAboutRefactorings",
     "onCommand:typescript.fileReferences",
+    "onTaskType:typescript",
     "onLanguage:jsonc"
   ],
   "main": "./out/extension",
@@ -126,18 +144,14 @@
       "order": 20,
       "properties": {
         "typescript.tsdk": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null,
+          "type": "string",
           "markdownDescription": "%typescript.tsdk.desc%",
           "scope": "window"
         },
         "typescript.disableAutomaticTypeAcquisition": {
           "type": "boolean",
           "default": false,
-          "description": "%typescript.disableAutomaticTypeAcquisition%",
+          "markdownDescription": "%typescript.disableAutomaticTypeAcquisition%",
           "scope": "window",
           "tags": [
             "usesOnlineServices"
@@ -150,18 +164,14 @@
           "scope": "window"
         },
         "typescript.npm": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null,
-          "description": "%typescript.npm%",
+          "type": "string",
+          "markdownDescription": "%typescript.npm%",
           "scope": "machine"
         },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.check.npmIsInstalled%",
+          "markdownDescription": "%typescript.check.npmIsInstalled%",
           "scope": "window"
         },
         "javascript.referencesCodeLens.enabled": {
@@ -255,6 +265,128 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.parameterNames.enabled": {
+          "type": "string",
+          "enum": [
+            "none",
+            "literals",
+            "all"
+          ],
+          "enumDescriptions": [
+            "%inlayHints.parameterNames.none%",
+            "%inlayHints.parameterNames.literals%",
+            "%inlayHints.parameterNames.all%"
+          ],
+          "default": "none",
+          "markdownDescription": "%configuration.inlayHints.parameterNames.enabled%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.parameterTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.variableTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.propertyDeclarationTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.functionLikeReturnTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
+          "scope": "resource"
+        },
+        "typescript.inlayHints.enumMemberValues.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.parameterNames.enabled": {
+          "type": "string",
+          "enum": [
+            "none",
+            "literals",
+            "all"
+          ],
+          "enumDescriptions": [
+            "%inlayHints.parameterNames.none%",
+            "%inlayHints.parameterNames.literals%",
+            "%inlayHints.parameterNames.all%"
+          ],
+          "default": "none",
+          "markdownDescription": "%configuration.inlayHints.parameterNames.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.parameterTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.variableTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.propertyDeclarationTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.functionLikeReturnTypes.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.enumMemberValues.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
+          "scope": "resource"
+        },
+        "javascript.suggest.includeCompletionsForImportStatements": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeCompletionsForImportStatements%",
+          "scope": "resource"
+        },
+        "typescript.suggest.includeCompletionsForImportStatements": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeCompletionsForImportStatements%",
+          "scope": "resource"
+        },
+        "typescript.suggest.includeCompletionsWithSnippetText": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeCompletionsWithSnippetText%",
           "scope": "resource"
         },
         "typescript.reportStyleChecksAsWarnings": {
@@ -616,10 +748,7 @@
           "scope": "resource"
         },
         "typescript.locale": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": "string",
           "enum": [
             "de",
             "es",
@@ -630,10 +759,8 @@
             "ko",
             "ru",
             "zh-CN",
-            "zh-TW",
-            null
+            "zh-TW"
           ],
-          "default": null,
           "markdownDescription": "%typescript.locale%",
           "scope": "window"
         },
@@ -743,6 +870,38 @@
           "description": "%typescript.preferences.importModuleSpecifierEnding%",
           "scope": "resource"
         },
+        "javascript.preferences.jsxAttributeCompletionStyle": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "braces",
+            "none"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.jsxAttributeCompletionStyle.auto%",
+            "%typescript.preferences.jsxAttributeCompletionStyle.braces%",
+            "%typescript.preferences.jsxAttributeCompletionStyle.none%"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.jsxAttributeCompletionStyle%",
+          "scope": "resource"
+        },
+        "typescript.preferences.jsxAttributeCompletionStyle": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "braces",
+            "none"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.jsxAttributeCompletionStyle.auto%",
+            "%typescript.preferences.jsxAttributeCompletionStyle.braces%",
+            "%typescript.preferences.jsxAttributeCompletionStyle.none%"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.jsxAttributeCompletionStyle%",
+          "scope": "resource"
+        },
         "typescript.preferences.includePackageJsonAutoImports": {
           "type": "string",
           "enum": [
@@ -849,7 +1008,24 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.tsserver.useSeparateSyntaxServer%",
+          "markdownDeprecationMessage": "%configuration.tsserver.useSeparateSyntaxServer.deprecation%",
           "scope": "window"
+        },
+        "typescript.tsserver.useSyntaxServer": {
+          "type": "string",
+          "scope": "window",
+          "description": "%configuration.tsserver.useSyntaxServer%",
+          "default": "auto",
+          "enum": [
+            "always",
+            "never",
+            "auto"
+          ],
+          "enumDescriptions": [
+            "%configuration.tsserver.useSyntaxServer.always%",
+            "%configuration.tsserver.useSyntaxServer.never%",
+            "%configuration.tsserver.useSyntaxServer.auto%"
+          ]
         },
         "typescript.tsserver.maxTsServerMemory": {
           "type": "number",
@@ -939,6 +1115,18 @@
           "default": "allOpenProjects",
           "markdownDescription": "%typescript.workspaceSymbols.scope%",
           "scope": "window"
+        },
+        "javascript.suggest.classMemberSnippets.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.classMemberSnippets.enabled%",
+          "scope": "resource"
+        },
+        "typescript.suggest.classMemberSnippets.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.classMemberSnippets.enabled%",
+          "scope": "resource"
         }
       }
     },
@@ -1038,19 +1226,23 @@
       "explorer/context": [
         {
           "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == javascript"
+          "when": "tsSupportsFileReferences && resourceLangId == typescript",
+          "group": "4_search"
         },
         {
           "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == javascriptreact"
+          "when": "tsSupportsFileReferences && resourceLangId == typescriptreact",
+          "group": "4_search"
         },
         {
           "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == typescript"
+          "when": "tsSupportsFileReferences && resourceLangId == javascript",
+          "group": "4_search"
         },
         {
           "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == typescriptreact"
+          "when": "tsSupportsFileReferences && resourceLangId == javascriptreact",
+          "group": "4_search"
         }
       ],
       "editor/title/context": [
@@ -1094,7 +1286,8 @@
           "option": {
             "type": "string"
           }
-        }
+        },
+        "when": "shellExecutionSupported"
       }
     ],
     "problemPatterns": [
@@ -1136,10 +1329,10 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": {
-            "regexp": "^\\s*(?:message TS6032:|\\[?\\D*\\d{1,2}[:.]\\d{1,2}[:.]\\d{1,2}\\D*(├\\D*\\d{1,2}\\D+┤)?(?:\\]| -)) File change detected\\. Starting incremental compilation\\.\\.\\."
+            "regexp": "^\\s*(?:message TS6032:|\\[?\\D*.{1,2}[:.].{1,2}[:.].{1,2}\\D*(├\\D*\\d{1,2}\\D+┤)?(?:\\]| -)) File change detected\\. Starting incremental compilation\\.\\.\\."
           },
           "endsPattern": {
-            "regexp": "^\\s*(?:message TS6042:|\\[?\\D*\\d{1,2}[:.]\\d{1,2}[:.]\\d{1,2}\\D*(├\\D*\\d{1,2}\\D+┤)?(?:\\]| -)) (?:Compilation complete\\.|Found \\d+ errors?\\.) Watching for file changes\\."
+            "regexp": "^\\s*(?:message TS6042:|\\[?\\D*.{1,2}[:.].{1,2}[:.].{1,2}\\D*(├\\D*\\d{1,2}\\D+┤)?(?:\\]| -)) (?:Compilation complete\\.|Found \\d+ errors?\\.) Watching for file changes\\."
           }
         }
       }
@@ -1207,12 +1400,6 @@
             "title": "%codeActions.source.organizeImports.title%"
           }
         ]
-      }
-    ],
-    "typescriptServerPlugins": [
-      {
-        "name": "typescript-vscode-sh-plugin",
-        "enableForWorkspaceTypeScriptVersions": true
       }
     ]
   },

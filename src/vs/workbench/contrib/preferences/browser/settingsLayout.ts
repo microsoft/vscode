@@ -7,6 +7,7 @@ import { localize } from 'vs/nls';
 export interface ITOCEntry<T> {
 	id: string;
 	label: string;
+	order?: number;
 	children?: ITOCEntry<T>[];
 	settings?: Array<T>;
 }
@@ -190,7 +191,12 @@ export const tocData: ITOCEntry<string> = {
 				{
 					id: 'features/notebook',
 					label: localize('notebook', 'Notebook'),
-					settings: ['notebook.*']
+					settings: ['notebook.*', 'interactiveWindow.*']
+				},
+				{
+					id: 'features/audioCues',
+					label: localize('audioCues', 'Audio Cues'),
+					settings: ['audioCues.*']
 				}
 			]
 		},
@@ -222,6 +228,17 @@ export const tocData: ITOCEntry<string> = {
 					id: 'application/settingsSync',
 					label: localize('settingsSync', "Settings Sync"),
 					settings: ['settingsSync.*']
+				}
+			]
+		},
+		{
+			id: 'security',
+			label: localize('security', "Security"),
+			children: [
+				{
+					id: 'security/workspace',
+					label: localize('workspace', "Workspace"),
+					settings: ['security.workspace.*']
 				}
 			]
 		}

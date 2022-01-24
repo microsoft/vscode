@@ -164,7 +164,7 @@ class BaseTreeItem {
 			return child.getChildren();
 		}
 		const array: BaseTreeItem[] = [];
-		for (let child of this._children.values()) {
+		for (const child of this._children.values()) {
 			array.push(child);
 		}
 		return array.sort((a, b) => this.compare(a, b));
@@ -185,7 +185,7 @@ class BaseTreeItem {
 		if (this._source && this._parent && this._parent._source) {
 			return this._source.raw.path || this._source.raw.name;
 		}
-		let label = this.getLabel(false);
+		const label = this.getLabel(false);
 		const parent = this.getParent();
 		if (parent) {
 			const hover = parent.getHoverLabel();
@@ -271,23 +271,23 @@ class SessionTreeItem extends BaseTreeItem {
 		this._session = session;
 	}
 
-	getInternalId(): string {
+	override getInternalId(): string {
 		return this._session.getId();
 	}
 
-	getSession(): IDebugSession {
+	override getSession(): IDebugSession {
 		return this._session;
 	}
 
-	getHoverLabel(): string | undefined {
+	override getHoverLabel(): string | undefined {
 		return undefined;
 	}
 
-	hasChildren(): boolean {
+	override hasChildren(): boolean {
 		return true;
 	}
 
-	protected compare(a: BaseTreeItem, b: BaseTreeItem): number {
+	protected override compare(a: BaseTreeItem, b: BaseTreeItem): number {
 		const acat = this.category(a);
 		const bcat = this.category(b);
 		if (acat !== bcat) {
@@ -339,7 +339,7 @@ class SessionTreeItem extends BaseTreeItem {
 				folder = this.rootProvider ? this.rootProvider.getWorkspaceFolder(resource) : null;
 				if (folder) {
 					// strip off the root folder path
-					path = normalize(ltrim(resource.path.substr(folder.uri.path.length), posix.sep));
+					path = normalize(ltrim(resource.path.substring(folder.uri.path.length), posix.sep));
 					const hasMultipleRoots = this.rootProvider.getWorkspace().folders.length > 1;
 					if (hasMultipleRoots) {
 						path = posix.sep + path;
@@ -426,7 +426,7 @@ export class LoadedScriptsView extends ViewPane {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IDebugService private readonly debugService: IDebugService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -439,7 +439,7 @@ export class LoadedScriptsView extends ViewPane {
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
-	renderBody(container: HTMLElement): void {
+	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.element.classList.add('debug-pane');
@@ -523,12 +523,14 @@ export class LoadedScriptsView extends ViewPane {
 		};
 
 		const addSourcePathsToSession = async (session: IDebugSession) => {
-			const sessionNode = root.add(session);
-			const paths = await session.getLoadedSources();
-			for (const path of paths) {
-				await sessionNode.addPath(path);
+			if (session.capabilities.supportsLoadedSourcesRequest) {
+				const sessionNode = root.add(session);
+				const paths = await session.getLoadedSources();
+				for (const path of paths) {
+					await sessionNode.addPath(path);
+				}
+				scheduleRefreshOnVisible();
 			}
-			scheduleRefreshOnVisible();
 		};
 
 		const registerSessionListeners = (session: IDebugSession) => {
@@ -614,12 +616,12 @@ export class LoadedScriptsView extends ViewPane {
 		this.debugService.getModel().getSessions().forEach(session => addSourcePathsToSession(session));
 	}
 
-	layoutBody(height: number, width: number): void {
+	override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		dispose(this.tree);
 		dispose(this.treeLabels);
 		super.dispose();

@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
 import { memoize } from 'vs/base/common/decorators';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { join } from 'vs/base/common/path';
+import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
-import product from 'vs/platform/product/common/product';
+import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IEnvironmentMainService = refineServiceDecorator<IEnvironmentService, IEnvironmentMainService>(IEnvironmentService);
 
@@ -26,17 +25,18 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 	backupHome: string;
 	backupWorkspacesPath: string;
 
-	// --- V8 script cache path
-	nodeCachedDataDir?: string;
+	// --- V8 code caching
+	codeCachePath: string | undefined;
+	useCodeCache: boolean;
 
 	// --- IPC
 	mainIPCHandle: string;
+	mainLockfile: string;
 
 	// --- config
 	sandbox: boolean;
 	driverVerbose: boolean;
 	disableUpdates: boolean;
-	disableKeytar: boolean;
 }
 
 export class EnvironmentMainService extends NativeEnvironmentService implements IEnvironmentMainService {
@@ -51,20 +51,26 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 	get backupWorkspacesPath(): string { return join(this.backupHome, 'workspaces.json'); }
 
 	@memoize
-	get mainIPCHandle(): string { return createStaticIPCHandle(this.userDataPath, 'main', product.version); }
+	get mainIPCHandle(): string { return createStaticIPCHandle(this.userDataPath, 'main', this.productService.version); }
 
 	@memoize
-	get sandbox(): boolean { return !!this._args['__sandbox']; }
+	get mainLockfile(): string { return join(this.userDataPath, 'code.lock'); }
 
 	@memoize
-	get driverVerbose(): boolean { return !!this._args['driver-verbose']; }
+	get sandbox(): boolean { return !!this.args['__sandbox']; }
 
 	@memoize
-	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
+	get driverVerbose(): boolean { return !!this.args['driver-verbose']; }
 
 	@memoize
-	get disableKeytar(): boolean { return !!this._args['disable-keytar']; }
+	get disableUpdates(): boolean { return !!this.args['disable-updates']; }
 
 	@memoize
-	get nodeCachedDataDir(): string | undefined { return process.env['VSCODE_NODE_CACHED_DATA_DIR'] || undefined; }
+	get disableKeytar(): boolean { return !!this.args['disable-keytar']; }
+
+	@memoize
+	get codeCachePath(): string | undefined { return process.env['VSCODE_CODE_CACHE_PATH'] || undefined; }
+
+	@memoize
+	get useCodeCache(): boolean { return !!this.codeCachePath; }
 }

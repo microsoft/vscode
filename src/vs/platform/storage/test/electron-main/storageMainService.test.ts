@@ -4,25 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { notStrictEqual, strictEqual } from 'assert';
+import { Promises } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { generateUuid } from 'vs/base/common/uuid';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { ILifecycleMainService, LifecycleMainPhase, ShutdownEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from 'vs/platform/storage/electron-main/storageMain';
-import { generateUuid } from 'vs/base/common/uuid';
+import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
-import { ILifecycleMainService, LifecycleMainPhase, ShutdownEvent, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { Emitter, Event } from 'vs/base/common/event';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { Promises } from 'vs/base/common/async';
+import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from 'vs/platform/storage/electron-main/storageMain';
+import { StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { currentSessionDateStorageKey, firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { ICodeWindow, UnloadReason } from 'vs/platform/windows/electron-main/windows';
 
 suite('StorageMainService', function () {
 
+	const productService: IProductService = { _serviceBrand: undefined, ...product };
+
 	class TestStorageMainService extends StorageMainService {
 
-		protected getStorageOptions(): IStorageMainOptions {
+		protected override getStorageOptions(): IStorageMainOptions {
 			return {
 				useInMemoryStorage: true
 			};
@@ -62,8 +66,8 @@ suite('StorageMainService', function () {
 		registerWindow(window: ICodeWindow): void { }
 		async reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void> { }
 		async unload(window: ICodeWindow, reason: UnloadReason): Promise<boolean> { return true; }
-		relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; }): void { }
-		async quit(fromUpdate?: boolean): Promise<boolean> { return true; }
+		async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; }): Promise<void> { }
+		async quit(willRestart?: boolean): Promise<boolean> { return true; }
 		async kill(code?: number): Promise<void> { }
 		async when(phase: LifecycleMainPhase): Promise<void> { }
 	}
@@ -73,9 +77,7 @@ suite('StorageMainService', function () {
 		// Telemetry: added after init
 		if (isGlobal) {
 			strictEqual(storage.items.size, 0);
-			strictEqual(storage.get(instanceStorageKey), undefined);
 			await storage.init();
-			strictEqual(typeof storage.get(instanceStorageKey), 'string');
 			strictEqual(typeof storage.get(firstSessionDateStorageKey), 'string');
 			strictEqual(typeof storage.get(currentSessionDateStorageKey), 'string');
 		} else {
@@ -122,14 +124,14 @@ suite('StorageMainService', function () {
 	}
 
 	test('basics (global)', function () {
-		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS)), new StorageTestLifecycleMainService());
+		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), new StorageTestLifecycleMainService());
 
 		return testStorage(storageMainService.globalStorage, true);
 	});
 
 	test('basics (workspace)', function () {
 		const workspace = { id: generateUuid() };
-		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS)), new StorageTestLifecycleMainService());
+		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), new StorageTestLifecycleMainService());
 
 		return testStorage(storageMainService.workspaceStorage(workspace), false);
 	});
@@ -137,7 +139,7 @@ suite('StorageMainService', function () {
 	test('storage closed onWillShutdown', async function () {
 		const lifecycleMainService = new StorageTestLifecycleMainService();
 		const workspace = { id: generateUuid() };
-		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS)), lifecycleMainService);
+		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), lifecycleMainService);
 
 		let workspaceStorage = storageMainService.workspaceStorage(workspace);
 		let didCloseWorkspaceStorage = false;
@@ -168,7 +170,7 @@ suite('StorageMainService', function () {
 	});
 
 	test('storage closed before init works', async function () {
-		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS)), new StorageTestLifecycleMainService());
+		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), new StorageTestLifecycleMainService());
 		const workspace = { id: generateUuid() };
 
 		let workspaceStorage = storageMainService.workspaceStorage(workspace);
@@ -191,7 +193,7 @@ suite('StorageMainService', function () {
 	});
 
 	test('storage closed before init awaits works', async function () {
-		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS)), new StorageTestLifecycleMainService());
+		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), new StorageTestLifecycleMainService());
 		const workspace = { id: generateUuid() };
 
 		let workspaceStorage = storageMainService.workspaceStorage(workspace);

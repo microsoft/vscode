@@ -6,7 +6,7 @@
 import {
 	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
 	TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem, window, Position, ExtensionContext, env,
-	ShellQuotedString, ShellQuoting, commands, Location
+	ShellQuotedString, ShellQuoting, commands, Location, CancellationTokenSource
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -132,11 +132,11 @@ export async function getPackageManager(extensionContext: ExtensionContext, fold
 	let packageManagerName = workspace.getConfiguration('npm', folder).get<string>('packageManager', 'npm');
 
 	if (packageManagerName === 'auto') {
-		const { name, multiplePMDetected } = await findPreferredPM(folder.fsPath);
+		const { name, multipleLockFilesDetected: multiplePMDetected } = await findPreferredPM(folder.fsPath);
 		packageManagerName = name;
 		const neverShowWarning = 'npm.multiplePMWarning.neverShow';
 		if (showWarning && multiplePMDetected && !extensionContext.globalState.get<boolean>(neverShowWarning)) {
-			const multiplePMWarning = localize('npm.multiplePMWarning', 'Using {0} as the preferred package manager. Found multiple lockfiles for {1}.', packageManagerName, folder.fsPath);
+			const multiplePMWarning = localize('npm.multiplePMWarning', 'Using {0} as the preferred package manager. Found multiple lockfiles for {1}.  To resolve this issue, delete the lockfiles that don\'t match your preferred package manager or change the setting "npm.packageManager" to a value other than "auto".', packageManagerName, folder.fsPath);
 			const neverShowAgain = localize('npm.multiplePMWarning.doNotShow', "Do not show again");
 			const learnMore = localize('npm.multiplePMWarning.learnMore', "Learn more");
 			window.showInformationMessage(multiplePMWarning, learnMore, neverShowAgain).then(result => {
@@ -365,8 +365,28 @@ export function getPackageJsonUriFromTask(task: Task): Uri | null {
 }
 
 export async function hasPackageJson(): Promise<boolean> {
-	const files = await workspace.findFiles('**/package.json', undefined, 1);
-	return files.length > 0;
+	const token = new CancellationTokenSource();
+	// Search for files for max 1 second.
+	const timeout = setTimeout(() => token.cancel(), 1000);
+	const files = await workspace.findFiles('**/package.json', undefined, 1, token.token);
+	clearTimeout(timeout);
+	return files.length > 0 || await hasRootPackageJson();
+}
+
+async function hasRootPackageJson(): Promise<boolean> {
+	let folders = workspace.workspaceFolders;
+	if (!folders) {
+		return false;
+	}
+	for (const folder of folders) {
+		if (folder.uri.scheme === 'file') {
+			let packageJson = path.join(folder.uri.fsPath, 'package.json');
+			if (await exists(packageJson)) {
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 async function exists(file: string): Promise<boolean> {

@@ -18,7 +18,7 @@ import { toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { ContextScopedHistoryInputBox } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -64,7 +64,7 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 
 		const text = element.toString(true);
 
-		for (let { type, query } of this._parsedQueries) {
+		for (const { type, query } of this._parsedQueries) {
 			if (type === 'exclude' && ReplFilter.matchQuery(query, text)) {
 				// If exclude query matches, ignore all other queries and hide
 				return false;
@@ -138,6 +138,7 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 		private placeholder: string,
 		private filters: ReplFilterState,
 		private history: string[],
+		private showHistoryHint: () => boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService private readonly contextViewService: IContextViewService) {
@@ -146,7 +147,7 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		this.container = container;
 		this.container.classList.add('repl-panel-filter-container');
 
@@ -157,19 +158,19 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 		this.updateClass();
 	}
 
-	focus(): void {
+	override focus(): void {
 		if (this.filterInputBox) {
 			this.filterInputBox.focus();
 		}
 	}
 
-	blur(): void {
+	override blur(): void {
 		if (this.filterInputBox) {
 			this.filterInputBox.blur();
 		}
 	}
 
-	setFocusable(): void {
+	override setFocusable(): void {
 		// noop input elements are focusable by default
 	}
 
@@ -177,7 +178,7 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 		return this.filterInputBox.getHistory();
 	}
 
-	get trapsArrowNavigation(): boolean {
+	override get trapsArrowNavigation(): boolean {
 		return true;
 	}
 
@@ -188,7 +189,8 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 	private createInput(container: HTMLElement): void {
 		this.filterInputBox = this._register(this.instantiationService.createInstance(ContextScopedHistoryInputBox, container, this.contextViewService, {
 			placeholder: this.placeholder,
-			history: this.history
+			history: this.history,
+			showHistoryHint: this.showHistoryHint
 		}));
 		this._register(attachInputBoxStyler(this.filterInputBox, this.themeService));
 		this.filterInputBox.value = this.filters.filterText;

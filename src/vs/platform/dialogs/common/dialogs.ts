@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
+import { Codicon } from 'vs/base/common/codicons';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { basename } from 'vs/base/common/resources';
+import Severity from 'vs/base/common/severity';
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface FileFilter {
@@ -29,12 +32,13 @@ export interface IConfirmDialogArgs {
 export interface IShowDialogArgs {
 	severity: Severity;
 	message: string;
-	buttons: string[];
+	buttons?: string[];
 	options?: IDialogOptions;
 }
 
 export interface IInputDialogArgs extends IShowDialogArgs {
-	inputs: IInput[],
+	buttons: string[];
+	inputs: IInput[];
 }
 
 export interface IDialog {
@@ -100,9 +104,11 @@ export interface IPickAndOpenOptions {
 	defaultUri?: URI;
 	telemetryExtraData?: ITelemetryData;
 	availableFileSystems?: string[];
+	remoteAuthority?: string | null;
 }
 
 export interface ISaveDialogOptions {
+
 	/**
 	 * A human-readable string for the dialog title
 	 */
@@ -132,6 +138,7 @@ export interface ISaveDialogOptions {
 }
 
 export interface IOpenDialogOptions {
+
 	/**
 	 * A human-readable string for the dialog title
 	 */
@@ -177,11 +184,24 @@ export interface IOpenDialogOptions {
 
 export const IDialogService = createDecorator<IDialogService>('dialogService');
 
+export interface ICustomDialogOptions {
+	buttonDetails?: string[];
+	markdownDetails?: ICustomDialogMarkdown[];
+	classes?: string[];
+	icon?: Codicon;
+	disableCloseAction?: boolean;
+}
+
+export interface ICustomDialogMarkdown {
+	markdown: IMarkdownString,
+	classes?: string[]
+}
+
 export interface IDialogOptions {
 	cancelId?: number;
 	detail?: string;
 	checkbox?: ICheckbox;
-	useCustom?: boolean;
+	custom?: boolean | ICustomDialogOptions;
 }
 
 export interface IInput {
@@ -194,6 +214,7 @@ export interface IInput {
  * A handler to bring up modal dialogs.
  */
 export interface IDialogHandler {
+
 	/**
 	 * Ask the user for confirmation with a modal dialog.
 	 */
@@ -206,7 +227,7 @@ export interface IDialogHandler {
 	 * then a promise with index of `cancelId` option is returned. If there is no such
 	 * option then promise with index `0` is returned.
 	 */
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult>;
+	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
 
 	/**
 	 * Present a modal dialog to the user asking for input.
@@ -235,6 +256,16 @@ export interface IDialogService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * An event that fires when a dialog is about to show.
+	 */
+	onWillShowDialog: Event<void>;
+
+	/**
+	 * An event that fires when a dialog did show (closed).
+	 */
+	onDidShowDialog: Event<void>;
+
+	/**
 	 * Ask the user for confirmation with a modal dialog.
 	 */
 	confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
@@ -246,7 +277,7 @@ export interface IDialogService {
 	 * then a promise with index of `cancelId` option is returned. If there is no such
 	 * option then promise with index `0` is returned.
 	 */
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult>;
+	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
 
 	/**
 	 * Present a modal dialog to the user asking for input.

@@ -3,91 +3,93 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IDefaultShellAndArgsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
-import type { Terminal as XTermTerminal } from 'xterm';
-import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
-import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
-import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { Emitter, Event } from 'vs/base/common/event';
+import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ITerminalsLayoutInfoById, ITerminalsLayoutInfo, ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
-import { IGetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-
-let Terminal: typeof XTermTerminal;
-let SearchAddon: typeof XTermSearchAddon;
-let Unicode11Addon: typeof XTermUnicode11Addon;
-let WebglAddon: typeof XTermWebglAddon;
+import { IShellLaunchConfig, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
+import { ITerminalBackend, ITerminalBackendRegistry, TerminalExtensions } from 'vs/workbench/contrib/terminal/common/terminal';
+import { URI } from 'vs/base/common/uri';
+import { Emitter, Event } from 'vs/base/common/event';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
-	public _serviceBrand: undefined;
+	declare _serviceBrand: undefined;
+	private _terminalFocusContextKey: IContextKey<boolean>;
+	private _terminalHasFixedWidth: IContextKey<boolean>;
+	private _terminalShellTypeContextKey: IContextKey<string>;
+	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
+	private _configHelper: TerminalConfigHelper;
 
-	readonly onPtyHostExit = Event.None;
-	readonly onPtyHostUnresponsive = Event.None;
-	readonly onPtyHostResponsive = Event.None;
-	readonly onPtyHostRestart = Event.None;
-	private readonly _onRequestDefaultShellAndArgs = this._register(new Emitter<IDefaultShellAndArgsRequest>());
-	readonly onRequestDefaultShellAndArgs = this._onRequestDefaultShellAndArgs.event;
+	private readonly _onDidCreateInstance = new Emitter<ITerminalInstance>();
+	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
 
-	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
-		if (!Terminal) {
-			Terminal = (await import('xterm')).Terminal;
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+	) {
+		super();
+		this._terminalFocusContextKey = TerminalContextKeys.focus.bindTo(this._contextKeyService);
+		this._terminalHasFixedWidth = TerminalContextKeys.terminalHasFixedWidth.bindTo(this._contextKeyService);
+		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
+		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(this._contextKeyService);
+		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
+	}
+
+	createInstance(profile: ITerminalProfile, target?: TerminalLocation, resource?: URI): ITerminalInstance;
+	createInstance(shellLaunchConfig: IShellLaunchConfig, target?: TerminalLocation, resource?: URI): ITerminalInstance;
+	createInstance(config: IShellLaunchConfig | ITerminalProfile, target?: TerminalLocation, resource?: URI): ITerminalInstance {
+		const shellLaunchConfig = this.convertProfileToShellLaunchConfig(config);
+		const instance = this._instantiationService.createInstance(TerminalInstance,
+			this._terminalFocusContextKey,
+			this._terminalHasFixedWidth,
+			this._terminalShellTypeContextKey,
+			this._terminalAltBufferActiveContextKey,
+			this._configHelper,
+			shellLaunchConfig,
+			resource
+		);
+		instance.target = target;
+		this._onDidCreateInstance.fire(instance);
+		return instance;
+	}
+
+	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
+		// Profile was provided
+		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
+			const profile = shellLaunchConfigOrProfile;
+			if (!profile.path) {
+				return shellLaunchConfigOrProfile;
+			}
+			return {
+				executable: profile.path,
+				args: profile.args,
+				env: profile.env,
+				icon: profile.icon,
+				color: profile.color,
+				name: profile.overrideName ? profile.profileName : undefined,
+				cwd
+			};
 		}
-		return Terminal;
-	}
 
-	public async getXtermSearchConstructor(): Promise<typeof XTermSearchAddon> {
-		if (!SearchAddon) {
-			SearchAddon = (await import('xterm-addon-search')).SearchAddon;
+		// A shell launch config was provided
+		if (shellLaunchConfigOrProfile) {
+			if (cwd) {
+				shellLaunchConfigOrProfile.cwd = cwd;
+			}
+			return shellLaunchConfigOrProfile;
 		}
-		return SearchAddon;
-	}
 
-	public async getXtermUnicode11Constructor(): Promise<typeof XTermUnicode11Addon> {
-		if (!Unicode11Addon) {
-			Unicode11Addon = (await import('xterm-addon-unicode11')).Unicode11Addon;
-		}
-		return Unicode11Addon;
-	}
-
-	public async getXtermWebglConstructor(): Promise<typeof XTermWebglAddon> {
-		if (!WebglAddon) {
-			WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
-		}
-		return WebglAddon;
-	}
-
-	public createTerminalProcess(): Promise<ITerminalChildProcess> {
-		throw new Error('Not implemented');
-	}
-
-	public getDefaultShellAndArgs(useAutomationShell: boolean,): Promise<{ shell: string, args: string[] | string | undefined }> {
-		return new Promise(r => this._onRequestDefaultShellAndArgs.fire({
-			useAutomationShell,
-			callback: (shell, args) => r({ shell, args })
-		}));
-	}
-
-	public async getMainProcessParentEnv(): Promise<IProcessEnvironment> {
+		// Return empty shell launch config
 		return {};
 	}
 
-	getWorkspaceId(): string {
-		return '';
-	}
-	setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById, id?: string): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	getTerminalLayoutInfo(args?: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
-		throw new Error('Method not implemented.');
-	}
-	getTerminalLayouts(): Map<string, ITerminalsLayoutInfo> {
-		return new Map<string, ITerminalsLayoutInfo>();
-	}
-	attachToProcess(id: number): Promise<ITerminalChildProcess> {
-		throw new Error('Method not implemented.');
+	getBackend(remoteAuthority?: string): ITerminalBackend | undefined {
+		return Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(remoteAuthority);
 	}
 }
 

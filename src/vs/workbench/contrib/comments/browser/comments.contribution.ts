@@ -23,7 +23,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'comments.openPanel': {
 			enum: ['neverOpen', 'openOnSessionStart', 'openOnSessionStartWithComments'],
 			default: 'openOnSessionStartWithComments',
-			description: nls.localize('openComments', "Controls when the comments panel should open.")
+			description: nls.localize('openComments', "Controls when the comments panel should open."),
+			restricted: false
+		},
+		'comments.useRelativeTime': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('useRelativeTime', "Determines if relative time will be used in comment timestamps (ex. '1 day ago').")
+
 		}
 	}
 });

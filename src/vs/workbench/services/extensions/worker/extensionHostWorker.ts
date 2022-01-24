@@ -16,10 +16,14 @@ import * as performance from 'vs/base/common/performance';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/worker/extHost.worker.services';
+import { FileAccess } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 
 //#region --- Define, capture, and override some globals
 
 declare function postMessage(data: any, transferables?: Transferable[]): void;
+
+declare type _Fetch = typeof fetch;
 
 declare namespace self {
 	let close: any;
@@ -29,6 +33,9 @@ declare namespace self {
 	let dispatchEvent: any;
 	let indexedDB: { open: any, [k: string]: any };
 	let caches: { open: any, [k: string]: any };
+	let importScripts: any;
+	let fetch: _Fetch;
+	let XMLHttpRequest: any;
 }
 
 const nativeClose = self.close.bind(self);
@@ -36,6 +43,29 @@ self.close = () => console.trace(`'close' has been blocked`);
 
 const nativePostMessage = postMessage.bind(self);
 self.postMessage = () => console.trace(`'postMessage' has been blocked`);
+
+const nativeFetch = fetch.bind(self);
+self.fetch = function (input, init) {
+	if (input instanceof Request) {
+		// Request object - massage not supported
+		return nativeFetch(input, init);
+	}
+	if (/^file:/i.test(String(input))) {
+		input = FileAccess.asBrowserUri(URI.parse(String(input))).toString(true);
+	}
+	return nativeFetch(input, init);
+};
+
+self.XMLHttpRequest = class extends XMLHttpRequest {
+	override open(method: string, url: string | URL, async?: boolean, username?: string | null, password?: string | null): void {
+		if (/^file:/i.test(url.toString())) {
+			url = FileAccess.asBrowserUri(URI.parse(url.toString())).toString(true);
+		}
+		return super.open(method, url, async ?? true, username, password);
+	}
+};
+
+self.importScripts = () => { throw new Error(`'importScripts' has been blocked`); };
 
 // const nativeAddEventListener = addEventListener.bind(self);
 self.addEventListener = () => console.trace(`'addEventListener' has been blocked`);
@@ -50,17 +80,52 @@ self.addEventListener = () => console.trace(`'addEventListener' has been blocked
 (<any>self)['webkitResolveLocalFileSystemURL'] = undefined;
 
 if ((<any>self).Worker) {
-	const ttPolicy = (<any>self).trustedTypes?.createPolicy('extensionHostWorker', { createScriptURL: (value: string) => value });
 
 	// make sure new Worker(...) always uses blob: (to maintain current origin)
 	const _Worker = (<any>self).Worker;
 	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
-		const js = `importScripts('${stringUrl}');`;
+		if (/^file:/i.test(stringUrl.toString())) {
+			stringUrl = FileAccess.asBrowserUri(URI.parse(stringUrl.toString())).toString(true);
+		}
+
+		// IMPORTANT: bootstrapFn is stringified and injected as worker blob-url. Because of that it CANNOT
+		// have dependencies on other functions or variables. Only constant values are supported. Due to
+		// that logic of FileAccess.asBrowserUri had to be copied, see `asWorkerBrowserUrl` (below).
+		const bootstrapFnSource = (function bootstrapFn(workerUrl: string) {
+			function asWorkerBrowserUrl(url: string | URL | TrustedScriptURL): any {
+				if (typeof url === 'string' || url instanceof URL) {
+					return String(url).replace(/^file:\/\//i, 'vscode-file://vscode-app');
+				}
+				return url;
+			}
+
+			const nativeFetch = fetch.bind(self);
+			self.fetch = function (input, init) {
+				if (input instanceof Request) {
+					// Request object - massage not supported
+					return nativeFetch(input, init);
+				}
+				return nativeFetch(asWorkerBrowserUrl(input), init);
+			};
+			self.XMLHttpRequest = class extends XMLHttpRequest {
+				override open(method: string, url: string | URL, async?: boolean, username?: string | null, password?: string | null): void {
+					return super.open(method, asWorkerBrowserUrl(url), async ?? true, username, password);
+				}
+			};
+			const nativeImportScripts = importScripts.bind(self);
+			self.importScripts = (...urls: string[]) => {
+				nativeImportScripts(...urls.map(asWorkerBrowserUrl));
+			};
+
+			nativeImportScripts(workerUrl);
+		}).toString();
+
+		const js = `(${bootstrapFnSource}('${stringUrl}'))`;
 		options = options || {};
 		options.name = options.name || path.basename(stringUrl.toString());
 		const blob = new Blob([js], { type: 'application/javascript' });
 		const blobUrl = URL.createObjectURL(blob);
-		return new _Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) : blobUrl, options);
+		return new _Worker(blobUrl, options);
 	};
 
 } else {
@@ -75,6 +140,7 @@ if ((<any>self).Worker) {
 
 const hostUtil = new class implements IHostUtils {
 	declare readonly _serviceBrand: undefined;
+	public readonly pid = undefined;
 	exit(_code?: number | undefined): void {
 		nativeClose();
 	}
@@ -150,18 +216,24 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 
 let onTerminate = (reason: string) => nativeClose();
 
-(function create(): void {
-	const res = new ExtensionWorker();
+export function create(): { onmessage: (message: any) => void } {
 	performance.mark(`code/extHost/willConnectToRenderer`);
-	connectToRenderer(res.protocol).then(data => {
-		performance.mark(`code/extHost/didWaitForInitData`);
-		const extHostMain = new ExtensionHostMain(
-			data.protocol,
-			data.initData,
-			hostUtil,
-			null,
-		);
+	const res = new ExtensionWorker();
 
-		onTerminate = (reason: string) => extHostMain.terminate(reason);
-	});
-})();
+	return {
+		onmessage(messagePorts: ReadonlyMap<string, MessagePort>) {
+			connectToRenderer(res.protocol).then(data => {
+				performance.mark(`code/extHost/didWaitForInitData`);
+				const extHostMain = new ExtensionHostMain(
+					data.protocol,
+					data.initData,
+					hostUtil,
+					null,
+					messagePorts
+				);
+
+				onTerminate = (reason: string) => extHostMain.terminate(reason);
+			});
+		}
+	};
+}

@@ -37,6 +37,6 @@ if (ShowCurrentReleaseNotesAction.AVAILABE) {
 			id: ShowCurrentReleaseNotesAction.ID,
 			title: localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")
 		},
-		order: 4
+		order: 5
 	});
 }

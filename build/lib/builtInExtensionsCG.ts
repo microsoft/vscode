@@ -13,8 +13,8 @@ import { IExtensionDefinition } from './builtInExtensions';
 const root = path.dirname(path.dirname(__dirname));
 const rootCG = path.join(root, 'extensionsCG');
 const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
-const builtInExtensions = <IExtensionDefinition[]>productjson.builtInExtensions;
-const webBuiltInExtensions = <IExtensionDefinition[]>productjson.webBuiltInExtensions;
+const builtInExtensions = <IExtensionDefinition[]>productjson.builtInExtensions || [];
+const webBuiltInExtensions = <IExtensionDefinition[]>productjson.webBuiltInExtensions || [];
 const token = process.env['VSCODE_MIXIN_PASSWORD'] || process.env['GITHUB_TOKEN'] || undefined;
 
 const contentBasePath = 'raw.githubusercontent.com';

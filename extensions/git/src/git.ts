@@ -9,9 +9,9 @@ import * as os from 'os';
 import * as cp from 'child_process';
 import * as which from 'which';
 import { EventEmitter } from 'events';
-import * as iconv from 'iconv-lite-umd';
+import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
-import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
+import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows } from './util';
 import { CancellationToken, Progress, Uri } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
@@ -20,7 +20,6 @@ import { StringDecoder } from 'string_decoder';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
-const isWindows = process.platform === 'win32';
 
 export interface IGit {
 	path: string;
@@ -63,9 +62,11 @@ function parseVersion(raw: string): string {
 	return raw.replace(/^git version /, '');
 }
 
-function findSpecificGit(path: string, onLookup: (path: string) => void): Promise<IGit> {
+function findSpecificGit(path: string, onValidate: (path: string) => boolean): Promise<IGit> {
 	return new Promise<IGit>((c, e) => {
-		onLookup(path);
+		if (!onValidate(path)) {
+			return e('git not found');
+		}
 
 		const buffers: Buffer[] = [];
 		const child = cp.spawn(path, ['--version']);
@@ -75,17 +76,19 @@ function findSpecificGit(path: string, onLookup: (path: string) => void): Promis
 	});
 }
 
-function findGitDarwin(onLookup: (path: string) => void): Promise<IGit> {
+function findGitDarwin(onValidate: (path: string) => boolean): Promise<IGit> {
 	return new Promise<IGit>((c, e) => {
 		cp.exec('which git', (err, gitPathBuffer) => {
 			if (err) {
 				return e('git not found');
 			}
 
-			const path = gitPathBuffer.toString().replace(/^\s+|\s+$/g, '');
+			const path = gitPathBuffer.toString().trim();
 
 			function getVersion(path: string) {
-				onLookup(path);
+				if (!onValidate(path)) {
+					return e('git not found');
+				}
 
 				// make sure git executes
 				cp.exec('git --version', (err, stdout) => {
@@ -117,33 +120,31 @@ function findGitDarwin(onLookup: (path: string) => void): Promise<IGit> {
 	});
 }
 
-function findSystemGitWin32(base: string, onLookup: (path: string) => void): Promise<IGit> {
+function findSystemGitWin32(base: string, onValidate: (path: string) => boolean): Promise<IGit> {
 	if (!base) {
 		return Promise.reject<IGit>('Not found');
 	}
 
-	return findSpecificGit(path.join(base, 'Git', 'cmd', 'git.exe'), onLookup);
+	return findSpecificGit(path.join(base, 'Git', 'cmd', 'git.exe'), onValidate);
 }
 
-function findGitWin32InPath(onLookup: (path: string) => void): Promise<IGit> {
+function findGitWin32InPath(onValidate: (path: string) => boolean): Promise<IGit> {
 	const whichPromise = new Promise<string>((c, e) => which('git.exe', (err, path) => err ? e(err) : c(path)));
-	return whichPromise.then(path => findSpecificGit(path, onLookup));
+	return whichPromise.then(path => findSpecificGit(path, onValidate));
 }
 
-function findGitWin32(onLookup: (path: string) => void): Promise<IGit> {
-	return findSystemGitWin32(process.env['ProgramW6432'] as string, onLookup)
-		.then(undefined, () => findSystemGitWin32(process.env['ProgramFiles(x86)'] as string, onLookup))
-		.then(undefined, () => findSystemGitWin32(process.env['ProgramFiles'] as string, onLookup))
-		.then(undefined, () => findSystemGitWin32(path.join(process.env['LocalAppData'] as string, 'Programs'), onLookup))
-		.then(undefined, () => findGitWin32InPath(onLookup));
+function findGitWin32(onValidate: (path: string) => boolean): Promise<IGit> {
+	return findSystemGitWin32(process.env['ProgramW6432'] as string, onValidate)
+		.then(undefined, () => findSystemGitWin32(process.env['ProgramFiles(x86)'] as string, onValidate))
+		.then(undefined, () => findSystemGitWin32(process.env['ProgramFiles'] as string, onValidate))
+		.then(undefined, () => findSystemGitWin32(path.join(process.env['LocalAppData'] as string, 'Programs'), onValidate))
+		.then(undefined, () => findGitWin32InPath(onValidate));
 }
 
-export async function findGit(hint: string | string[] | undefined, onLookup: (path: string) => void): Promise<IGit> {
-	const hints = Array.isArray(hint) ? hint : hint ? [hint] : [];
-
+export async function findGit(hints: string[], onValidate: (path: string) => boolean): Promise<IGit> {
 	for (const hint of hints) {
 		try {
-			return await findSpecificGit(hint, onLookup);
+			return await findSpecificGit(hint, onValidate);
 		} catch {
 			// noop
 		}
@@ -151,9 +152,9 @@ export async function findGit(hint: string | string[] | undefined, onLookup: (pa
 
 	try {
 		switch (process.platform) {
-			case 'darwin': return await findGitDarwin(onLookup);
-			case 'win32': return await findGitWin32(onLookup);
-			default: return await findSpecificGit('git', onLookup);
+			case 'darwin': return await findGitDarwin(onValidate);
+			case 'win32': return await findGitWin32(onValidate);
+			default: return await findSpecificGit('git', onValidate);
 		}
 	} catch {
 		// noop
@@ -377,6 +378,10 @@ export class Git {
 		this.env = options.env || {};
 	}
 
+	compareGitVersionTo(version: string): -1 | 0 | 1 {
+		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
+	}
+
 	open(repository: string, dotGit: string): Repository {
 		return new Repository(this, repository, dotGit);
 	}
@@ -525,10 +530,15 @@ export class Git {
 			child.stdin!.end(options.input, 'utf8');
 		}
 
+		const startTime = Date.now();
 		const bufferResult = await exec(child, options.cancellationToken);
 
-		if (options.log !== false && bufferResult.stderr.length > 0) {
-			this.log(`${bufferResult.stderr}\n`);
+		if (options.log !== false) {
+			this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]\n`);
+
+			if (bufferResult.stderr.length > 0) {
+				this.log(`${bufferResult.stderr}\n`);
+			}
 		}
 
 		let encoding = options.encoding || 'utf8';
@@ -577,10 +587,6 @@ export class Git {
 
 		if (options.cwd) {
 			options.cwd = sanitizePath(options.cwd);
-		}
-
-		if (options.log !== false) {
-			this.log(`> git ${args.join(' ')}\n`);
 		}
 
 		return cp.spawn(this.path, args, options);
@@ -1189,7 +1195,7 @@ export class Repository {
 					break;
 
 				// Rename contains two paths, the second one is what the file is renamed/copied to.
-				case 'R':
+				case 'R': {
 					if (index >= entries.length) {
 						break;
 					}
@@ -1208,7 +1214,7 @@ export class Repository {
 					});
 
 					continue;
-
+				}
 				default:
 					// Unknown status
 					break entriesLoop;
@@ -1638,7 +1644,7 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
 			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
-			} else if (/Pull is not possible because you have unmerged files|Cannot pull with rebase: You have unstaged changes|Your local changes to the following files would be overwritten|Please, commit your changes before you can merge/i.test(err.stderr)) {
+			} else if (/Pull(?:ing)? is not possible because you have unmerged files|Cannot pull with rebase: You have unstaged changes|Your local changes to the following files would be overwritten|Please, commit your changes before you can merge/i.test(err.stderr)) {
 				err.stderr = err.stderr.replace(/Cannot pull with rebase: You have unstaged changes/i, 'Cannot pull with rebase, you have unstaged changes');
 				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
 			} else if (/cannot lock ref|unable to update local ref/i.test(err.stderr || '')) {
@@ -1787,10 +1793,13 @@ export class Repository {
 	}
 
 	async dropStash(index?: number): Promise<void> {
-		const args = ['stash', 'drop'];
+		const args = ['stash'];
 
 		if (typeof index === 'number') {
+			args.push('drop');
 			args.push(`stash@{${index}}`);
+		} else {
+			args.push('clear');
 		}
 
 		try {
@@ -1804,8 +1813,8 @@ export class Repository {
 		}
 	}
 
-	getStatus(opts?: { limit?: number, ignoreSubmodules?: boolean }): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
-		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
+	getStatus(opts?: { limit?: number, ignoreSubmodules?: boolean }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean; }> {
+		return new Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean; }>((c, e) => {
 			const parser = new GitStatusParser();
 			const env = { GIT_OPTIONAL_LOCKS: '0' };
 			const args = ['status', '-z', '-u'];
@@ -1829,19 +1838,19 @@ export class Repository {
 					}));
 				}
 
-				c({ status: parser.status, didHitLimit: false });
+				c({ status: parser.status, statusLength: parser.status.length, didHitLimit: false });
 			};
 
-			const limit = opts?.limit ?? 5000;
+			const limit = opts?.limit ?? 10000;
 			const onStdoutData = (raw: string) => {
 				parser.update(raw);
 
-				if (parser.status.length > limit) {
+				if (limit !== 0 && parser.status.length > limit) {
 					child.removeListener('exit', onExit);
 					child.stdout!.removeListener('data', onStdoutData);
 					child.kill();
 
-					c({ status: parser.status.slice(0, limit), didHitLimit: true });
+					c({ status: parser.status.slice(0, limit), statusLength: parser.status.length, didHitLimit: true });
 				}
 			};
 
@@ -1977,7 +1986,16 @@ export class Repository {
 			return this.getHEAD();
 		}
 
-		const args = ['for-each-ref', '--format=%(refname)%00%(upstream:short)%00%(upstream:track)%00%(objectname)'];
+		const args = ['for-each-ref'];
+
+		let supportsAheadBehind = true;
+		if (this._git.compareGitVersionTo('1.9.0') === -1) {
+			args.push('--format=%(refname)%00%(upstream:short)%00%(objectname)');
+			supportsAheadBehind = false;
+		} else {
+			args.push('--format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)');
+		}
+
 		if (/^refs\/(head|remotes)\//i.test(name)) {
 			args.push(name);
 		} else {
@@ -1986,7 +2004,7 @@ export class Repository {
 
 		const result = await this.exec(args);
 		const branches: Branch[] = result.stdout.trim().split('\n').map<Branch | undefined>(line => {
-			let [branchName, upstream, status, ref] = line.trim().split('\0');
+			let [branchName, upstream, ref, status] = line.trim().split('\0');
 
 			if (branchName.startsWith('refs/heads/')) {
 				branchName = branchName.substring(11);
@@ -2026,7 +2044,19 @@ export class Repository {
 		}).filter((b?: Branch): b is Branch => !!b);
 
 		if (branches.length) {
-			return branches[0];
+			const [branch] = branches;
+
+			if (!supportsAheadBehind && branch.upstream) {
+				try {
+					const result = await this.exec(['rev-list', '--left-right', '--count', `${branch.name}...${branch.upstream.remote}/${branch.upstream.name}`]);
+					const [ahead, behind] = result.stdout.trim().split('\t');
+
+					(branch as any).ahead = Number(ahead) || 0;
+					(branch as any).behind = Number(behind) || 0;
+				} catch { }
+			}
+
+			return branch;
 		}
 
 		return Promise.reject<Branch>(new Error('No such branch'));

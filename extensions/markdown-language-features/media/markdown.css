@@ -55,8 +55,8 @@ body.showEditorSelection .code-line {
 	position: relative;
 }
 
-body.showEditorSelection .code-active-line:before,
-body.showEditorSelection .code-line:hover:before {
+body.showEditorSelection :not(tr).code-active-line:before,
+body.showEditorSelection :not(tr).code-line:hover:before {
 	content: "";
 	display: block;
 	position: absolute;
@@ -106,6 +106,13 @@ body.showEditorSelection li.code-line:hover:before {
 	border-left: none;
 }
 
+ul ul,
+ul ol,
+ol ul,
+ol ol {
+	margin-bottom: 0;
+}
+
 img {
 	max-width: 100%;
 	max-height: 100%;
@@ -152,6 +159,7 @@ h1 {
 
 table {
 	border-collapse: collapse;
+	margin-bottom: 0.7em;
 }
 
 th {

@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, LogLevel, AbstractLogger, ILoggerService, ILogger } from 'vs/platform/log/common/log';
-import { URI } from 'vs/base/common/uri';
-import { ByteSize, FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { Queue } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { dirname, joinPath, basename } from 'vs/base/common/resources';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { basename, dirname, joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { ByteSize, FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
+import { AbstractLogger, AbstractLoggerService, format, ILogger, ILoggerOptions, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 const MAX_FILE_SIZE = 5 * ByteSize.MB;
 
@@ -25,6 +24,7 @@ export class FileLogger extends AbstractLogger implements ILogger {
 		private readonly name: string,
 		private readonly resource: URI,
 		level: LogLevel,
+		private readonly donotUseFormatters: boolean,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super();
@@ -35,25 +35,25 @@ export class FileLogger extends AbstractLogger implements ILogger {
 
 	trace(): void {
 		if (this.getLevel() <= LogLevel.Trace) {
-			this._log(LogLevel.Trace, this.format(arguments));
+			this._log(LogLevel.Trace, format(arguments));
 		}
 	}
 
 	debug(): void {
 		if (this.getLevel() <= LogLevel.Debug) {
-			this._log(LogLevel.Debug, this.format(arguments));
+			this._log(LogLevel.Debug, format(arguments));
 		}
 	}
 
 	info(): void {
 		if (this.getLevel() <= LogLevel.Info) {
-			this._log(LogLevel.Info, this.format(arguments));
+			this._log(LogLevel.Info, format(arguments));
 		}
 	}
 
 	warn(): void {
 		if (this.getLevel() <= LogLevel.Warning) {
-			this._log(LogLevel.Warning, this.format(arguments));
+			this._log(LogLevel.Warning, format(arguments));
 		}
 	}
 
@@ -64,24 +64,20 @@ export class FileLogger extends AbstractLogger implements ILogger {
 			if (arg instanceof Error) {
 				const array = Array.prototype.slice.call(arguments) as any[];
 				array[0] = arg.stack;
-				this._log(LogLevel.Error, this.format(array));
+				this._log(LogLevel.Error, format(array));
 			} else {
-				this._log(LogLevel.Error, this.format(arguments));
+				this._log(LogLevel.Error, format(arguments));
 			}
 		}
 	}
 
 	critical(): void {
 		if (this.getLevel() <= LogLevel.Critical) {
-			this._log(LogLevel.Critical, this.format(arguments));
+			this._log(LogLevel.Critical, format(arguments));
 		}
 	}
 
 	flush(): void {
-	}
-
-	log(level: LogLevel, args: any[]): void {
-		this._log(level, this.format(args));
 	}
 
 	private async initialize(): Promise<void> {
@@ -102,7 +98,11 @@ export class FileLogger extends AbstractLogger implements ILogger {
 				await this.fileService.writeFile(this.getBackupResource(), VSBuffer.fromString(content));
 				content = '';
 			}
-			content += `[${this.getCurrentTimestamp()}] [${this.name}] [${this.stringifyLogLevel(level)}] ${message}\n`;
+			if (this.donotUseFormatters) {
+				content += message;
+			} else {
+				content += `[${this.getCurrentTimestamp()}] [${this.name}] [${this.stringifyLogLevel(level)}] ${message}\n`;
+			}
 			await this.fileService.writeFile(this.resource, VSBuffer.fromString(content));
 		});
 	}
@@ -140,53 +140,21 @@ export class FileLogger extends AbstractLogger implements ILogger {
 		return '';
 	}
 
-	private format(args: any): string {
-		let result = '';
-
-		for (let i = 0; i < args.length; i++) {
-			let a = args[i];
-
-			if (typeof a === 'object') {
-				try {
-					a = JSON.stringify(a);
-				} catch (e) { }
-			}
-
-			result += (i > 0 ? ' ' : '') + a;
-		}
-
-		return result;
-	}
 }
 
-export class FileLoggerService extends Disposable implements ILoggerService {
-
-	declare readonly _serviceBrand: undefined;
-
-	private readonly loggers = new Map<string, ILogger>();
+export class FileLoggerService extends AbstractLoggerService implements ILoggerService {
 
 	constructor(
-		@ILogService private logService: ILogService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IFileService private fileService: IFileService,
+		@ILogService logService: ILogService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IFileService private readonly fileService: IFileService,
 	) {
-		super();
-		this._register(logService.onDidChangeLogLevel(level => this.loggers.forEach(logger => logger.setLevel(level))));
+		super(logService.getLevel(), logService.onDidChangeLogLevel);
 	}
 
-	createLogger(resource: URI): ILogger {
-		let logger = this.loggers.get(resource.toString());
-		if (!logger) {
-			logger = new BufferLogService(this.logService.getLevel());
-			this.loggers.set(resource.toString(), logger);
-			whenProviderRegistered(resource, this.fileService).then(() => (<BufferLogService>logger).logger = this.instantiationService.createInstance(FileLogger, basename(resource), resource, this.logService.getLevel()));
-		}
+	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
+		const logger = new BufferLogService(logLevel);
+		whenProviderRegistered(resource, this.fileService).then(() => (<BufferLogService>logger).logger = this.instantiationService.createInstance(FileLogger, options?.name || basename(resource), resource, logger.getLevel(), !!options?.donotUseFormatters));
 		return logger;
-	}
-
-	dispose(): void {
-		this.loggers.forEach(logger => logger.dispose());
-		this.loggers.clear();
-		super.dispose();
 	}
 }

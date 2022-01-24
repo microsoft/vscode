@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { PickerQuickAccessProvider, IPickerQuickAccessItem, IPickerQuickAccessProviderOptions } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { or, matchesPrefix, matchesWords, matchesContiguousSubString } from 'vs/base/common/filters';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { isCancellationError } from 'vs/base/common/errors';
+import { matchesContiguousSubString, matchesPrefix, matchesWords, or } from 'vs/base/common/filters';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import Severity from 'vs/base/common/severity';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { localize } from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
+import { IPickerQuickAccessItem, IPickerQuickAccessProviderOptions, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
 	commandId: string;
@@ -39,18 +40,22 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 	private readonly commandsHistory = this._register(this.instantiationService.createInstance(CommandsHistory));
 
+	protected override readonly options: ICommandsQuickAccessOptions;
+
 	constructor(
-		protected options: ICommandsQuickAccessOptions,
+		options: ICommandsQuickAccessOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@INotificationService private readonly notificationService: INotificationService
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(AbstractCommandsQuickAccessProvider.PREFIX, options);
+
+		this.options = options;
 	}
 
-	protected async getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick | IQuickPickSeparator>> {
+	protected async _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick | IQuickPickSeparator>> {
 
 		// Ask subclass for all command picks
 		const allCommandPicks = await this.getCommandPicks(disposables, token);
@@ -157,8 +162,8 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 					try {
 						await this.commandService.executeCommand(commandPick.commandId);
 					} catch (error) {
-						if (!isPromiseCanceledError(error)) {
-							this.notificationService.error(localize('canNotRun', "Command '{0}' resulted in an error ({1})", commandPick.label, toErrorMessage(error)));
+						if (!isCancellationError(error)) {
+							this.dialogService.show(Severity.Error, localize('canNotRun', "Command '{0}' resulted in an error ({1})", commandPick.label, toErrorMessage(error)));
 						}
 					}
 				}
@@ -176,7 +181,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 interface ISerializedCommandHistory {
 	usesLRU?: boolean;
-	entries: { key: string; value: number }[];
+	entries: { key: string; value: number; }[];
 }
 
 interface ICommandsQuickAccessConfiguration {
@@ -184,7 +189,7 @@ interface ICommandsQuickAccessConfiguration {
 		commandPalette: {
 			history: number;
 			preserveInput: boolean;
-		}
+		};
 	};
 }
 
@@ -239,7 +244,7 @@ export class CommandsHistory extends Disposable {
 
 		const cache = CommandsHistory.cache = new LRUCache<string, number>(this.configuredCommandsHistoryLength, 1);
 		if (serializedCache) {
-			let entries: { key: string; value: number }[];
+			let entries: { key: string; value: number; }[];
 			if (serializedCache.usesLRU) {
 				entries = serializedCache.entries;
 			} else {
@@ -296,4 +301,3 @@ export class CommandsHistory extends Disposable {
 		CommandsHistory.saveState(storageService);
 	}
 }
-

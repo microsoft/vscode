@@ -10,6 +10,6 @@ import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetry
 const appender = new AppInsightsAppender(process.argv[2], JSON.parse(process.argv[3]), process.argv[4]);
 process.once('exit', () => appender.flush());
 
-const channel = new TelemetryAppenderChannel(appender);
+const channel = new TelemetryAppenderChannel([appender]);
 const server = new Server('telemetry');
 server.registerChannel('telemetryAppender', channel);

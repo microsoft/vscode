@@ -6,10 +6,10 @@
 import * as assert from 'assert';
 import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
-import { restoreWindowsState, getWindowsStateStoreData, IWindowsState, IWindowState } from 'vs/platform/windows/electron-main/windowsStateHandler';
-import { IWindowState as IWindowUIState, WindowMode } from 'vs/platform/windows/electron-main/windows';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
+import { IWindowState as IWindowUIState, WindowMode } from 'vs/platform/windows/electron-main/windows';
+import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState } from 'vs/platform/windows/electron-main/windowsStateHandler';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 suite('Windows State Storing', () => {
 

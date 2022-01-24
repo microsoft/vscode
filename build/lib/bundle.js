@@ -14,6 +14,9 @@ const vm = require("vm");
 function bundle(entryPoints, config, callback) {
     const entryPointsMap = {};
     entryPoints.forEach((module) => {
+        if (entryPointsMap[module.name]) {
+            throw new Error(`Cannot have two entry points with the same name '${module.name}'`);
+        }
         entryPointsMap[module.name] = module;
     });
     const allMentionedModulesMap = {};

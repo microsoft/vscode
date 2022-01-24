@@ -284,7 +284,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<TsCodeAction[] | undefined> {
-		if (!this.shouldTrigger(context)) {
+		if (!this.shouldTrigger(context, rangeOrSelection)) {
 			return undefined;
 		}
 		if (!this.client.toOpenedFilePath(document)) {
@@ -310,10 +310,12 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		}
 
 		const actions = this.convertApplicableRefactors(response.body, document, rangeOrSelection).filter(action => {
-			// Don't show 'infer return type' refactoring unless it has been explicitly requested
-			// https://github.com/microsoft/TypeScript/issues/42993
-			if (!context.only && action.kind?.value === 'refactor.rewrite.function.returnType') {
-				return false;
+			if (this.client.apiVersion.lt(API.v430)) {
+				// Don't show 'infer return type' refactoring unless it has been explicitly requested
+				// https://github.com/microsoft/TypeScript/issues/42993
+				if (!context.only && action.kind?.value === 'refactor.rewrite.function.returnType') {
+					return false;
+				}
 			}
 			return true;
 		});
@@ -335,7 +337,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 	}
 
 	private toTsTriggerReason(context: vscode.CodeActionContext): Proto.RefactorTriggerReason | undefined {
-		if (context.triggerKind === vscode.CodeActionTriggerKind.Manual) {
+		if (context.triggerKind === vscode.CodeActionTriggerKind.Invoke) {
 			return 'invoked';
 		}
 		return undefined;
@@ -384,12 +386,14 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		return codeAction;
 	}
 
-	private shouldTrigger(context: vscode.CodeActionContext) {
+	private shouldTrigger(context: vscode.CodeActionContext, rangeOrSelection: vscode.Range | vscode.Selection) {
 		if (context.only && !vscode.CodeActionKind.Refactor.contains(context.only)) {
 			return false;
 		}
-
-		return context.triggerKind === vscode.CodeActionTriggerKind.Manual;
+		if (context.triggerKind === vscode.CodeActionTriggerKind.Invoke) {
+			return true;
+		}
+		return rangeOrSelection instanceof vscode.Selection;
 	}
 
 	private static getKind(refactor: Proto.RefactorActionInfo) {

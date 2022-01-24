@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { compressConsecutiveTextChanges, TextChange } from 'vs/editor/common/model/textChange';
+import { compressConsecutiveTextChanges, TextChange } from 'vs/editor/common/core/textChange';
 
 const GENERATE_TESTS = false;
 
@@ -118,6 +118,19 @@ suite('TextChangeCompressor', () => {
 			]
 		);
 	});
+
+	// test('issue #118041', () => {
+	// 	assertCompression(
+	// 		'﻿',
+	// 		[
+	// 			{ offset: 0, length: 1, text: '' },
+	// 		],
+	// 		[
+	// 			{ offset: 1, length: 0, text: 'Z' },
+	// 			{ offset: 3, length: 3, text: 'Y' },
+	// 		]
+	// 	);
+	// })
 
 	test('gen1', () => {
 		assertCompression(
@@ -266,4 +279,17 @@ suite('TextChangeCompressor', () => {
 			}
 		}
 	}
+});
+
+suite('TextChange', () => {
+
+	test('issue #118041: unicode character undo bug', () => {
+		const textChange = new TextChange(428, '﻿', 428, '');
+		const buff = new Uint8Array(textChange.writeSize());
+		textChange.write(buff, 0);
+		const actual: TextChange[] = [];
+		TextChange.read(buff, 0, actual);
+		assert.deepStrictEqual(actual[0], textChange);
+	});
+
 });

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { hash, StringSHA1 } from 'vs/base/common/hash';
 import { sha1Hex } from 'vs/base/browser/hash';
+import { hash, StringSHA1 } from 'vs/base/common/hash';
 
 suite('Hash', () => {
 	test('string', () => {

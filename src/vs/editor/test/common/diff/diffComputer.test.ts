@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
-import { IChange, ICharChange, ILineChange } from 'vs/editor/common/editorCommon';
+import { DiffComputer, IChange, ICharChange, ILineChange } from 'vs/editor/common/diff/diffComputer';
 
 function extractCharChangeRepresentation(change: ICharChange, expectedChange: ICharChange | null): ICharChange {
 	let hasOriginal = expectedChange && expectedChange.originalStartLineNumber > 0;
@@ -882,6 +881,87 @@ suite('Editor Diff - DiffComputer', () => {
 			),
 			createLineChange(
 				3, 0, 3, 6
+			)
+		];
+		assertDiff(original, modified, expected, false, false, false);
+	});
+
+	test('issue #119051: gives preference to fewer diff hunks', () => {
+		const original = [
+			'1',
+			'',
+			'',
+			'2',
+			'',
+		];
+		const modified = [
+			'1',
+			'',
+			'1.5',
+			'',
+			'',
+			'2',
+			'',
+			'3',
+			'',
+		];
+		const expected = [
+			createLineChange(
+				2, 0, 3, 4
+			),
+			createLineChange(
+				5, 0, 8, 9
+			)
+		];
+		assertDiff(original, modified, expected, false, false, false);
+	});
+
+	test('issue #121436: Diff chunk contains an unchanged line part 1', () => {
+		const original = [
+			'if (cond) {',
+			'    cmd',
+			'}',
+		];
+		const modified = [
+			'if (cond) {',
+			'    if (other_cond) {',
+			'        cmd',
+			'    }',
+			'}',
+		];
+		const expected = [
+			createLineChange(
+				1, 0, 2, 2
+			),
+			createLineChange(
+				2, 0, 4, 4
+			)
+		];
+		assertDiff(original, modified, expected, false, false, true);
+	});
+
+	test('issue #121436: Diff chunk contains an unchanged line part 2', () => {
+		const original = [
+			'if (cond) {',
+			'    cmd',
+			'}',
+		];
+		const modified = [
+			'if (cond) {',
+			'    if (other_cond) {',
+			'        cmd',
+			'    }',
+			'}',
+		];
+		const expected = [
+			createLineChange(
+				1, 0, 2, 2
+			),
+			createLineChange(
+				2, 2, 3, 3
+			),
+			createLineChange(
+				2, 0, 4, 4
 			)
 		];
 		assertDiff(original, modified, expected, false, false, false);

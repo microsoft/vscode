@@ -8,7 +8,7 @@
   "engines": {
     "vscode": "^1.41.0"
   },
-  "enableProposedApi": true,
+  "icon": "images/icon.png",
   "categories": [
     "Other"
   ],
@@ -16,9 +16,15 @@
     "*"
   ],
   "extensionDependencies": [
-    "vscode.git"
+    "vscode.git-base"
   ],
   "main": "./out/extension.js",
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "commands": [
       {
@@ -26,6 +32,14 @@
         "title": "Publish to GitHub"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "github.publish",
+          "when": "git-base.gitEnabled"
+        }
+      ]
+    },
     "configuration": [
       {
         "title": "GitHub",
@@ -50,6 +64,9 @@
         "contents": "%welcome.publishWorkspaceFolder%",
         "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0"
       }
+    ],
+    "markdown.previewStyles": [
+      "./markdown.css"
     ]
   },
   "scripts": {
@@ -63,7 +80,7 @@
     "vscode-nls": "^4.1.2"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9"
+    "@types/node": "14.x"
   },
   "repository": {
     "type": "git",

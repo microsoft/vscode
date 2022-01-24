@@ -5,9 +5,9 @@
 
 import 'mocha';
 import * as vscode from 'vscode';
-import { disposeAll } from '../../utils/dispose';
 import { acceptFirstSuggestion, typeCommitCharacter } from '../../test/suggestTestHelpers';
 import { assertEditorContents, Config, createTestEditor, enumerateConfig, joinLines, updateConfig, VsCodeConfiguration } from '../../test/testUtils';
+import { disposeAll } from '../../utils/dispose';
 
 const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 
@@ -98,7 +98,7 @@ suite.skip('TypeScript Completions', () => {
 		});
 	});
 
-	test('Should insert backets when completing dot properties with spaces in name', async () => {
+	test('Should insert brackets when completing dot properties with spaces in name', async () => {
 		await enumerateConfig(testDocumentUri, Config.insertMode, insertModes, async config => {
 			const editor = await createTestEditor(testDocumentUri,
 				'const x = { "hello world": 1 };',

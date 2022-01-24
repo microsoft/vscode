@@ -58,14 +58,9 @@ export interface ITextEditorModel extends IEditorModel {
 	isReadonly(): boolean;
 
 	/**
-	 * Figure out if this model is resolved or not.
+	 * The language id of the text model if known.
 	 */
-	isResolved(): this is IResolvedTextEditorModel;
-
-	/**
-	 * The mode id of the text model if known.
-	 */
-	getMode(): string | undefined;
+	getLanguageId(): string | undefined;
 }
 
 export interface IResolvedTextEditorModel extends ITextEditorModel {

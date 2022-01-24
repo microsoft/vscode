@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { parseKeyboardLayoutDescription, areKeyboardLayoutsEqual, getKeyboardLayoutId, IKeyboardLayoutService, IKeyboardLayoutInfo } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -32,6 +32,8 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 	) {
 		super();
 
+		const name = nls.localize('status.workbench.keyboardLayout', "Keyboard Layout");
+
 		let layout = this.keyboardLayoutService.getCurrentKeyboardLayout();
 		if (layout) {
 			let layoutInfo = parseKeyboardLayoutDescription(layout);
@@ -39,23 +41,24 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 
 			this.pickerElement.value = this.statusbarService.addEntry(
 				{
+					name,
 					text,
 					ariaLabel: text,
 					command: KEYBOARD_LAYOUT_OPEN_PICKER
 				},
 				'status.workbench.keyboardLayout',
-				nls.localize('status.workbench.keyboardLayout', "Keyboard Layout"),
 				StatusbarAlignment.RIGHT
 			);
 		}
 
-		this._register(keyboardLayoutService.onDidChangeKeyboardLayout(() => {
+		this._register(this.keyboardLayoutService.onDidChangeKeyboardLayout(() => {
 			let layout = this.keyboardLayoutService.getCurrentKeyboardLayout();
 			let layoutInfo = parseKeyboardLayoutDescription(layout);
 
 			if (this.pickerElement.value) {
 				const text = nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label);
 				this.pickerElement.value.update({
+					name,
 					text,
 					ariaLabel: text,
 					command: KEYBOARD_LAYOUT_OPEN_PICKER
@@ -64,12 +67,12 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 				const text = nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label);
 				this.pickerElement.value = this.statusbarService.addEntry(
 					{
+						name,
 						text,
 						ariaLabel: text,
 						command: KEYBOARD_LAYOUT_OPEN_PICKER
 					},
 					'status.workbench.keyboardLayout',
-					nls.localize('status.workbench.keyboardLayout', "Keyboard Layout"),
 					StatusbarAlignment.RIGHT
 				);
 			}
@@ -82,6 +85,12 @@ workbenchContributionsRegistry.registerWorkbenchContribution(KeyboardLayoutPicke
 
 interface LayoutQuickPickItem extends IQuickPickItem {
 	layout: IKeyboardLayoutInfo;
+}
+
+interface IUnknownLayout {
+	text?: string;
+	lang?: string;
+	layout?: string;
 }
 
 export class KeyboardLayoutPickerAction extends Action {
@@ -109,7 +118,7 @@ export class KeyboardLayoutPickerAction extends Action {
 		super(actionId, actionLabel, undefined, true);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		let layouts = this.keyboardLayoutService.getAllKeyboardLayouts();
 		let currentLayout = this.keyboardLayoutService.getCurrentKeyboardLayout();
 		let layoutConfig = this.configurationService.getValue('keyboard.layout');
@@ -121,7 +130,7 @@ export class KeyboardLayoutPickerAction extends Action {
 			return {
 				layout: layout,
 				label: [layoutInfo.label, (layout && layout.isUserKeyboardLayout) ? '(User configured layout)' : ''].join(' '),
-				id: (<any>layout).text || (<any>layout).lang || (<any>layout).layout,
+				id: (layout as IUnknownLayout).text || (layout as IUnknownLayout).lang || (layout as IUnknownLayout).layout,
 				description: layoutInfo.description + (picked ? ' (Current layout)' : ''),
 				picked: !isAutoDetect && areKeyboardLayoutsEqual(currentLayout, layout)
 			};
@@ -169,7 +178,7 @@ export class KeyboardLayoutPickerAction extends Action {
 				}
 				return this.editorService.openEditor({
 					resource: stat.resource,
-					mode: 'jsonc',
+					languageId: 'jsonc',
 					options: { pinned: true }
 				});
 			}, (error) => {

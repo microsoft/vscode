@@ -11,7 +11,7 @@ import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService
 import API from '../utils/api';
 import { Delayer } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
-import { conditionalRegistration, requireSomeCapability, requireMinVersion } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
 import * as fileSchemes from '../utils/fileSchemes';
 import { doesResourceLookLikeATypeScriptFile } from '../utils/languageDescription';
@@ -222,10 +222,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		}
 
 		if (await isDirectory(resource)) {
-			const files = await vscode.workspace.findFiles({
-				base: resource.fsPath,
-				pattern: '**/*.{ts,tsx,js,jsx}',
-			}, '**/node_modules/**', 1);
+			const files = await vscode.workspace.findFiles(new vscode.RelativePattern(resource, '**/*.{ts,tsx,js,jsx}'), '**/node_modules/**', 1);
 			return files[0];
 		}
 

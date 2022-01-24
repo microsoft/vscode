@@ -1,17 +1,14 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "12.x"
-
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.x"
+      versionSpec: "14.x"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+      SecretsFilter: "github-distro-mixin-password"
 
   - script: |
       set -e
@@ -38,7 +35,7 @@ steps:
   # using `genericNodeModules` instead of `nodeModules` here to avoid sharing the cache with builds running inside containers
   - task: Cache@2
     inputs:
-      key: 'genericNodeModules | $(Agent.OS) | .build/yarnlockhash'
+      key: "genericNodeModules | $(Agent.OS) | .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -53,6 +50,7 @@ steps:
       set -e
       npx https://aka.ms/enablesecurefeed standAlone
     timeoutInMinutes: 5
+    retryCountOnTaskFailure: 3
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
     displayName: Switch to Terrapin packages
 
@@ -76,6 +74,7 @@ steps:
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -100,7 +99,28 @@ steps:
 
   - script: |
       set -e
-      AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
+      yarn --cwd test/smoke compile
+      yarn --cwd test/integration/browser compile
+    displayName: Compile test suites
+    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      scriptType: pscore
+      scriptLocation: inlineScript
+      addSpnToEnvironment: true
+      inlineScript: |
+        Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
+        Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
+        Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
+
+  - script: |
+      set -e
+      AZURE_STORAGE_ACCOUNT="ticino" \
+      AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+      AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+      AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
         node build/azure-pipelines/upload-sourcemaps
     displayName: Upload sourcemaps
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
@@ -113,23 +133,7 @@ steps:
 
   - script: |
       set -e
-      AZURE_WEBVIEW_STORAGE_ACCESS_KEY="$(vscode-webview-storage-key)" \
-      ./build/azure-pipelines/common/publish-webview.sh
-    displayName: Publish Webview
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  - script: |
-      set -e
-      VERSION=`node -p "require(\"./package.json\").version"`
-      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-        node build/azure-pipelines/common/createBuild.js $VERSION
-    displayName: Create build
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  # we gotta tarball everything in order to preserve file permissions
-  - script: |
-      set -e
-      tar -czf $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-*
+      tar -cz --ignore-failed-read -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
     displayName: Compress compilation artifact
 
   - task: PublishPipelineArtifact@1

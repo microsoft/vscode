@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
@@ -76,9 +76,9 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 				try {
 					await this.proxy.$openUri(id, { resolvedUri: uri, sourceUri: ctx.sourceUri }, token);
 				} catch (e) {
-					if (!isPromiseCanceledError(e)) {
-						const openDefaultAction = new Action('default', localize('openerFailedUseDefault', "Open using default opener"), undefined, undefined, () => {
-							return this.openerService.open(uri, {
+					if (!isCancellationError(e)) {
+						const openDefaultAction = new Action('default', localize('openerFailedUseDefault', "Open using default opener"), undefined, undefined, async () => {
+							await this.openerService.open(uri, {
 								allowTunneling: false,
 								allowContributedOpeners: defaultExternalUriOpenerId,
 							});
@@ -128,7 +128,7 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 		this._contributedExternalUriOpenersStore.delete(id);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this._registeredOpeners.clear();
 	}

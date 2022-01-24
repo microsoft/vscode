@@ -8,6 +8,9 @@ import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, Not
 import { Action } from 'vs/base/common/actions';
 import { INotification, Severity, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { createErrorWithActions } from 'vs/base/common/errors';
+import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { timeout } from 'vs/base/common/async';
 
 suite('Notifications', () => {
 
@@ -35,6 +38,12 @@ suite('Notifications', () => {
 		assert.strictEqual(item1.equals(item3), false);
 		assert.strictEqual(item1.equals(item4), false);
 		assert.strictEqual(item1.equals(item5), false);
+
+		let itemId1 = NotificationViewItem.create({ id: 'same', message: 'Info Message', severity: Severity.Info })!;
+		let itemId2 = NotificationViewItem.create({ id: 'same', message: 'Error Message', severity: Severity.Error })!;
+
+		assert.strictEqual(itemId1.equals(itemId2), true);
+		assert.strictEqual(itemId1.equals(item3), false);
 
 		// Progress
 		assert.strictEqual(item1.hasProgress, false);
@@ -135,6 +144,23 @@ suite('Notifications', () => {
 		assert.strictEqual(item11.silent, true);
 	});
 
+	test('Items - does not fire changed when message did not change (content, severity)', async () => {
+		const item1 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' })!;
+
+		let fired = false;
+		item1.onDidChangeContent(() => {
+			fired = true;
+		});
+
+		item1.updateMessage('Error Message');
+		await timeout(0);
+		assert.ok(!fired, 'Expected onDidChangeContent to not be fired');
+
+		item1.updateSeverity(Severity.Error);
+		await timeout(0);
+		assert.ok(!fired, 'Expected onDidChangeContent to not be fired');
+	});
+
 	test('Model', () => {
 		const model = new NotificationsModel();
 
@@ -159,11 +185,11 @@ suite('Notifications', () => {
 		assert.strictEqual(lastNotificationEvent.index, 0);
 		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.ADD);
 
-		item1Handle.updateMessage('Error Message');
+		item1Handle.updateMessage('Different Error Message');
 		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.CHANGE);
 		assert.strictEqual(lastNotificationEvent.detail, NotificationViewItemContentChangeKind.MESSAGE);
 
-		item1Handle.updateSeverity(Severity.Error);
+		item1Handle.updateSeverity(Severity.Warning);
 		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.CHANGE);
 		assert.strictEqual(lastNotificationEvent.detail, NotificationViewItemContentChangeKind.SEVERITY);
 
@@ -197,8 +223,8 @@ suite('Notifications', () => {
 		item1Handle.close();
 		assert.strictEqual(called, 1);
 		assert.strictEqual(model.notifications.length, 2);
-		assert.strictEqual(lastNotificationEvent.item.severity, item1.severity);
-		assert.strictEqual(lastNotificationEvent.item.message.linkedText.toString(), item1.message);
+		assert.strictEqual(lastNotificationEvent.item.severity, Severity.Warning);
+		assert.strictEqual(lastNotificationEvent.item.message.linkedText.toString(), 'Different Error Message');
 		assert.strictEqual(lastNotificationEvent.index, 2);
 		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.REMOVE);
 
@@ -240,5 +266,42 @@ suite('Notifications', () => {
 
 		disposable3.dispose();
 		assert.ok(!model.statusMessage);
+	});
+
+	test('Service', async () => {
+		const service = new NotificationService(new TestStorageService());
+
+		let addNotificationCount = 0;
+		let notification!: INotification;
+		service.onDidAddNotification(n => {
+			addNotificationCount++;
+			notification = n;
+		});
+		service.info('hello there');
+		assert.strictEqual(addNotificationCount, 1);
+		assert.strictEqual(notification.message, 'hello there');
+		assert.strictEqual(notification.silent, false);
+		assert.strictEqual(notification.source, undefined);
+
+		let notificationHandle = service.notify({ message: 'important message', severity: Severity.Warning });
+		assert.strictEqual(addNotificationCount, 2);
+		assert.strictEqual(notification.message, 'important message');
+		assert.strictEqual(notification.severity, Severity.Warning);
+
+		let removeNotificationCount = 0;
+		service.onDidRemoveNotification(n => {
+			removeNotificationCount++;
+			notification = n;
+		});
+		notificationHandle.close();
+		assert.strictEqual(removeNotificationCount, 1);
+		assert.strictEqual(notification.message, 'important message');
+
+		notificationHandle = service.notify({ silent: true, message: 'test', severity: Severity.Ignore });
+		assert.strictEqual(addNotificationCount, 3);
+		assert.strictEqual(notification.message, 'test');
+		assert.strictEqual(notification.silent, true);
+		notificationHandle.close();
+		assert.strictEqual(removeNotificationCount, 2);
 	});
 });

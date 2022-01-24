@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
 
 export class ViewEventHandler extends Disposable {
 
@@ -95,7 +95,7 @@ export class ViewEventHandler extends Disposable {
 		let shouldRender = false;
 
 		for (let i = 0, len = events.length; i < len; i++) {
-			let e = events[i];
+			const e = events[i];
 
 			switch (e.type) {
 
