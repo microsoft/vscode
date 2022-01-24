@@ -93,7 +93,7 @@ suite('TelemetryService', () => {
 		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService());
 
 		return service.publicLog('testPrivateEvent').then(() => {
-			assert.strictEqual(testAppender.getEventsCount(), 3);
+			assert.strictEqual(testAppender.getEventsCount(), 2);
 
 			service.dispose();
 			assert.strictEqual(!testAppender.isDisposed, true);
@@ -106,11 +106,10 @@ suite('TelemetryService', () => {
 		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService());
 
 		return service.publicLog('testEvent').then(_ => {
-			assert.strictEqual(testAppender.getEventsCount(), 3);
+			assert.strictEqual(testAppender.getEventsCount(), 2);
 			assert.strictEqual(testAppender.events[0].eventName, 'optInStatus');
 			assert.strictEqual(testAppender.events[1].eventName, 'testEvent');
 			assert.notStrictEqual(testAppender.events[1].data, null);
-			assert.strictEqual(testAppender.events[2].eventName, 'machineIdFallback');
 
 			service.dispose();
 		});
@@ -128,7 +127,7 @@ suite('TelemetryService', () => {
 				'value': 0
 			}
 		}).then(() => {
-			assert.strictEqual(testAppender.getEventsCount(), 3);
+			assert.strictEqual(testAppender.getEventsCount(), 2);
 			assert.strictEqual(testAppender.events[0].eventName, 'optInStatus');
 			assert.strictEqual(testAppender.events[1].eventName, 'testEvent');
 			assert.notStrictEqual(testAppender.events[1].data, null);
@@ -202,7 +201,7 @@ suite('TelemetryService', () => {
 		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService());
 
 		return service.publicLog('testEvent').then(() => {
-			assert.strictEqual(testAppender.getEventsCount(), 3);
+			assert.strictEqual(testAppender.getEventsCount(), 2);
 			assert.strictEqual(testAppender.events[0].eventName, 'optInStatus');
 			assert.strictEqual(testAppender.events[1].eventName, 'testEvent');
 
@@ -266,7 +265,7 @@ suite('TelemetryService', () => {
 			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 			await service.join();
 
-			assert.strictEqual(testAppender.getEventsCount(), 3);
+			assert.strictEqual(testAppender.getEventsCount(), 2);
 			assert.strictEqual(testAppender.events[0].eventName, 'optInStatus');
 			assert.strictEqual(testAppender.events[1].eventName, 'UnhandledError');
 			assert.strictEqual(testAppender.events[1].data.msg, 'This is a test.');
@@ -323,7 +322,7 @@ suite('TelemetryService', () => {
 		assert.strictEqual(errorStub.alwaysCalledWithExactly('Error Message', 'file.js', 2, 42, testError), true);
 		assert.strictEqual(errorStub.callCount, 1);
 
-		assert.strictEqual(testAppender.getEventsCount(), 3);
+		assert.strictEqual(testAppender.getEventsCount(), 2);
 		assert.strictEqual(testAppender.events[0].eventName, 'optInStatus');
 		assert.strictEqual(testAppender.events[1].eventName, 'UnhandledError');
 		assert.strictEqual(testAppender.events[1].data.msg, 'Error Message');
@@ -782,7 +781,7 @@ suite('TelemetryService', () => {
 		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService());
 
 		return service.publicLog('testEvent').then(() => {
-			assert.strictEqual(testAppender.getEventsCount(), 3);
+			assert.strictEqual(testAppender.getEventsCount(), 2);
 			service.dispose();
 		});
 	}));
