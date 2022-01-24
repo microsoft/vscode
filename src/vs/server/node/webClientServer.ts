@@ -75,9 +75,9 @@ export class WebClientServer {
 
 	constructor(
 		private readonly _connectionToken: ServerConnectionToken,
-		private readonly _environmentService: IServerEnvironmentService,
-		private readonly _logService: ILogService,
-		private readonly _productService: IProductService
+		@IServerEnvironmentService private readonly _environmentService: IServerEnvironmentService,
+		@ILogService private readonly _logService: ILogService,
+		@IProductService private readonly _productService: IProductService
 	) { }
 
 	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
