@@ -224,8 +224,8 @@ export class OpenerService implements IOpenerService {
 			// open the url-string AS IS
 			href = resource;
 		} else {
-			// open URI using the toString(noEncode)+encodeURI-trick
-			href = encodeURI(externalUri.toString(true));
+			// open URI via "new URL(...).href encoding"
+			href = new URL(externalUri.toString(true)).href;
 		}
 
 		if (options?.allowContributedOpeners) {
