@@ -289,9 +289,9 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 			// TODO@bpasero remove me in Feb
 			const legacyMain = es.merge(
-				gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.js').pipe(rename('out/vs/workbench/workbench.web.api.js')),
+				gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.js').pipe(rename('out/vs/workbench/workbench.web.api.js')).pipe(replace('workbench.web.main', 'workbench.web.api')),
 				gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.css').pipe(rename('out/vs/workbench/workbench.web.api.css')),
-				gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.nls.js').pipe(rename('out/vs/workbench/workbench.web.api.nls.js')),
+				gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.nls.js').pipe(rename('out/vs/workbench/workbench.web.api.nls.js')).pipe(replace('workbench.web.main', 'workbench.web.api')),
 			);
 
 			all = es.merge(

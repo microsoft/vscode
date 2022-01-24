@@ -17,7 +17,7 @@ const filter = require('gulp-filter');
 const _ = require('underscore');
 const { getProductionDependencies } = require('./lib/dependencies');
 const vfs = require('vinyl-fs');
-const fs = require('fs');
+const replace = require('gulp-replace');
 const packageJson = require('../package.json');
 const { compileBuildTask } = require('./gulpfile.compile');
 const extensions = require('./lib/extensions');
@@ -169,9 +169,9 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 		// TODO@bpasero remove me in Feb
 		const legacyMain = es.merge(
-			gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.js').pipe(rename('out/vs/workbench/workbench.web.api.js')),
+			gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.js').pipe(rename('out/vs/workbench/workbench.web.api.js')).pipe(replace('workbench.web.main', 'workbench.web.api')),
 			gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.css').pipe(rename('out/vs/workbench/workbench.web.api.css')),
-			gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.nls.js').pipe(rename('out/vs/workbench/workbench.web.api.nls.js')),
+			gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.nls.js').pipe(rename('out/vs/workbench/workbench.web.api.nls.js')).pipe(replace('workbench.web.main', 'workbench.web.api'))
 		);
 
 		let all = es.merge(
