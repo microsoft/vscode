@@ -10,7 +10,7 @@ import { Length, lengthAdd, lengthGetColumnCountIfZeroLineCount, lengthZero } fr
 import { parseDocument } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/parser';
 import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet';
 import { ITokenizerSource, TextBufferTokenizer } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer';
-import { IViewLineTokens } from 'vs/editor/common/model/tokens/lineTokens';
+import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 
 export function fixBracketsInLine(tokens: IViewLineTokens, languageConfigurationService: ILanguageConfigurationService): string {
 	const denseKeyProvider = new DenseKeyProvider<string>();
