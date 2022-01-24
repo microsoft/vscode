@@ -9,8 +9,9 @@ import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { InlineCompletionTriggerKind } from 'vs/editor/common/languages';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
-import { InlineCompletionsModel, LiveInlineCompletions, SynchronizedInlineCompletionsCache } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
+import { InlineCompletionsModel, SynchronizedInlineCompletionsCache, TrackedInlineCompletions } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetPreviewModel';
 import { createDisposableRef } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -68,7 +69,7 @@ export abstract class DelegatingModel extends Disposable implements GhostTextWid
 export class GhostTextModel extends DelegatingModel implements GhostTextWidgetModel {
 	public readonly sharedCache = this._register(new SharedInlineCompletionCache());
 	public readonly suggestWidgetAdapterModel = this._register(new SuggestWidgetPreviewModel(this.editor, this.sharedCache));
-	public readonly inlineCompletionsModel = this._register(new InlineCompletionsModel(this.editor, this.sharedCache, this.commandService));
+	public readonly inlineCompletionsModel = this._register(new InlineCompletionsModel(this.editor, this.sharedCache, this.commandService, this.languageConfigurationService));
 
 	public get activeInlineCompletionsModel(): InlineCompletionsModel | undefined {
 		if (this.targetModel === this.inlineCompletionsModel) {
@@ -79,7 +80,8 @@ export class GhostTextModel extends DelegatingModel implements GhostTextWidgetMo
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
 
@@ -143,7 +145,7 @@ export class SharedInlineCompletionCache extends Disposable {
 	}
 
 	public setValue(editor: IActiveCodeEditor,
-		completionsSource: LiveInlineCompletions,
+		completionsSource: TrackedInlineCompletions,
 		triggerKind: InlineCompletionTriggerKind
 	) {
 		this.cache.value = new SynchronizedInlineCompletionsCache(

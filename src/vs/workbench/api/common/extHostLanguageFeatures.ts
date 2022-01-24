@@ -1083,6 +1083,7 @@ class InlineCompletionAdapter {
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					command,
 					idx: idx,
+					completeBracketPairs: item.completeBracketPairs
 				});
 			}),
 		};
