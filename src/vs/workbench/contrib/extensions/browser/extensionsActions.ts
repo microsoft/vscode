@@ -1114,6 +1114,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super(InstallAnotherVersionAction.ID, InstallAnotherVersionAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
 		this.update();
@@ -1128,7 +1129,24 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 		if (!this.enabled) {
 			return;
 		}
-		const pick = await this.quickInputService.pick(this.getVersionEntries(),
+		const targetPlatform = await this.extension!.server!.extensionManagementService.getTargetPlatform();
+		const allVersions = await this.extensionGalleryService.getAllCompatibleVersions(this.extension!.gallery!, this.extension!.local!.isPreReleaseVersion, targetPlatform);
+		if (!allVersions.length) {
+			await this.dialogService.show(Severity.Info, localize('no versions', "This extension has no other versions."));
+			return;
+		}
+
+		const picks = allVersions.map((v, i) => {
+			return {
+				id: v.version,
+				label: v.version,
+				description: `${fromNow(new Date(Date.parse(v.date)), true)}${v.version === this.extension!.version ? ` (${localize('current', "current")})` : ''}`,
+				latest: i === 0,
+				ariaLabel: v.version,
+				isPreReleaseVersion: v.isPreReleaseVersion
+			};
+		});
+		const pick = await this.quickInputService.pick(picks,
 			{
 				placeHolder: this.extension!.local!.isPreReleaseVersion ? localize('selectPreReleaseVersion', "Select Pre-Release Version to Install") : localize('selectVersion', "Select Version to Install"),
 				matchOnDetail: true
@@ -1150,20 +1168,6 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 		return null;
 	}
 
-	private async getVersionEntries(): Promise<(IQuickPickItem & { latest: boolean, id: string, isPreReleaseVersion: boolean; })[]> {
-		const targetPlatform = await this.extension!.server!.extensionManagementService.getTargetPlatform();
-		const allVersions = await this.extensionGalleryService.getAllCompatibleVersions(this.extension!.gallery!, this.extension!.local!.isPreReleaseVersion, targetPlatform);
-		return allVersions.map((v, i) => {
-			return {
-				id: v.version,
-				label: v.version,
-				description: `${fromNow(new Date(Date.parse(v.date)), true)}${v.version === this.extension!.version ? ` (${localize('current', "current")})` : ''}`,
-				latest: i === 0,
-				ariaLabel: v.version,
-				isPreReleaseVersion: v.isPreReleaseVersion
-			};
-		});
-	}
 }
 
 export class EnableForWorkspaceAction extends ExtensionAction {
