@@ -15,6 +15,8 @@ export interface IViewLineTokens {
 	getPresentation(tokenIndex: number): ITokenPresentation;
 	findTokenIndexAtOffset(offset: number): number;
 	getLineContent(): string;
+	getMetadata(tokenIndex: number): number;
+	getLanguageId(tokenIndex: number): string;
 }
 
 export class LineTokens implements IViewLineTokens {
@@ -251,6 +253,14 @@ class SliceLineTokens implements IViewLineTokens {
 			}
 			this._tokensCount++;
 		}
+	}
+
+	public getMetadata(tokenIndex: number): number {
+		return this._source.getMetadata(this._firstTokenIndex + tokenIndex);
+	}
+
+	public getLanguageId(tokenIndex: number): string {
+		return this._source.getLanguageId(this._firstTokenIndex + tokenIndex);
 	}
 
 	public getLineContent(): string {
