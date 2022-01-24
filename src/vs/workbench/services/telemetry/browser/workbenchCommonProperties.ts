@@ -11,6 +11,19 @@ import { mixin } from 'vs/base/common/objects';
 import { firstSessionDateStorageKey, lastSessionDateStorageKey, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { Gesture } from 'vs/base/browser/touch';
 
+/**
+ * General function to help reduce the individuality of user agents
+ * @param userAgent userAgent from browser window
+ * @returns A simplified user agent with less detail
+ */
+function cleanUserAgent(userAgent: string): string {
+	// Regex to match AppleWebKit/<number>+ as we don't care about renderer
+	let cleanedAgent = userAgent.replace(/AppleWebKit\/((\d|\.| )+)/, '');
+	// Convert any number in the form 1.2.3.4 to 1.2
+	cleanedAgent = cleanedAgent.replace(/((\d+\.\d+)\.\d+\.\d+)/g, '$2');
+	return cleanedAgent;
+}
+
 export async function resolveWorkbenchCommonProperties(
 	storageService: IStorageService,
 	commit: string | undefined,
@@ -55,7 +68,7 @@ export async function resolveWorkbenchCommonProperties(
 	// __GDPR__COMMON__ "common.product" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.product'] = productIdentifier ?? 'web';
 	// __GDPR__COMMON__ "common.userAgent" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.userAgent'] = Platform.userAgent;
+	result['common.userAgent'] = Platform.userAgent ? cleanUserAgent(Platform.userAgent) : undefined;
 	// __GDPR__COMMON__ "common.isTouchDevice" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.isTouchDevice'] = String(Gesture.isTouchDevice());
 
