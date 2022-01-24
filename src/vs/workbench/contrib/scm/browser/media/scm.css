@@ -208,6 +208,7 @@
 	flex-direction: row;
 	flex-wrap: wrap;
 	height: 30px;
+	padding: 0 4px;
 	overflow: hidden;
 }
 
@@ -224,6 +225,7 @@
 .scm-view .button-container > .monaco-description-button > .monaco-button-label,
 .scm-view .button-container > .monaco-description-button > .monaco-button-description {
 	font-style: inherit;
+	padding: 4px 0;
 }
 
 .scm-view .button-container .codicon.codicon-cloud-upload,
