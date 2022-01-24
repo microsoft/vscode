@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as cookie from 'cookie';
 import * as fs from 'fs';
+import * as http from 'http';
+import * as url from 'url';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 
@@ -105,4 +108,15 @@ export function parseServerConnectionToken(args: ServerParsedArgs): ServerConnec
 	}
 
 	return new MandatoryServerConnectionToken(generateUuid());
+}
+
+export function requestHasValidConnectionToken(connectionToken: ServerConnectionToken, req: http.IncomingMessage, parsedUrl: url.UrlWithParsedQuery) {
+	// First check if there is a valid `tkn` query parameter
+	if (connectionToken.validate(parsedUrl.query['tkn'])) {
+		return true;
+	}
+
+	// Otherwise, check if there is a valid `vscode-tkn` cookie
+	const cookies = cookie.parse(req.headers.cookie || '');
+	return connectionToken.validate(cookies['vscode-tkn']);
 }

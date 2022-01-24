@@ -110,11 +110,6 @@ export class WebClientServer {
 		}
 	}
 
-	private _hasCorrectTokenCookie(req: http.IncomingMessage): boolean {
-		const cookies = cookie.parse(req.headers.cookie || '');
-		return this._connectionToken.validate(cookies['vscode-tkn']);
-	}
-
 	/**
 	 * Handle HTTP requests for /static/*
 	 */
@@ -141,12 +136,18 @@ export class WebClientServer {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		const queryTkn = parsedUrl.query['tkn'];
-		if (typeof queryTkn === 'string') {
-			// tkn came in via a query string
-			// => set a cookie and redirect to url without tkn
+		if (typeof parsedUrl.query['tkn'] === 'string') {
+			// We got a connection token as a query parameter.
+			// We want to have a clean URL, so we strip it
 			const responseHeaders: Record<string, string> = Object.create(null);
-			responseHeaders['Set-Cookie'] = cookie.serialize('vscode-tkn', queryTkn, { sameSite: 'strict', maxAge: 60 * 60 * 24 * 7 /* 1 week */ });
+			responseHeaders['Set-Cookie'] = cookie.serialize(
+				'vscode-tkn',
+				parsedUrl.query['tkn'],
+				{
+					sameSite: 'strict',
+					maxAge: 60 * 60 * 24 * 7 /* 1 week */
+				}
+			);
 
 			const newQuery = Object.create(null);
 			for (let key in parsedUrl.query) {
@@ -159,10 +160,6 @@ export class WebClientServer {
 
 			res.writeHead(302, responseHeaders);
 			return res.end();
-		}
-
-		if (this._environmentService.isBuilt && !this._hasCorrectTokenCookie(req)) {
-			return serveError(req, res, 403, `Forbidden.`);
 		}
 
 		const remoteAuthority = req.headers.host;

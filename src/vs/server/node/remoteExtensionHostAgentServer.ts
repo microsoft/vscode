@@ -30,14 +30,12 @@ import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAg
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionHostConnection } from 'vs/server/node/extensionHostConnection';
 import { ManagementConnection } from 'vs/server/node/remoteExtensionManagement';
-import { parseServerConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
+import { parseServerConnectionToken, requestHasValidConnectionToken as httpRequestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
 import { IServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 import { setupServerServices, SocketServer } from 'vs/server/node/serverServices';
 import { serveError, serveFile, WebClientServer } from 'vs/server/node/webClientServer';
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
-
-export type ServerListenOptions = { host?: string; port?: number; socketPath?: string };
 
 declare module vsda {
 	// the signer is a native module that for historical reasons uses a lower case class name
@@ -114,13 +112,14 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			return res.end('OK');
 		}
 
+		if (!httpRequestHasValidConnectionToken(this._connectionToken, req, parsedUrl)) {
+			// invalid connection token
+			return serveError(req, res, 403, `Forbidden.`);
+		}
+
 		if (pathname === '/vscode-remote-resource') {
 			// Handle HTTP requests for resources rendered in the rich client (images, fonts, etc.)
 			// These resources could be files shipped with extensions or even workspace files.
-			if (!this._connectionToken.validate(parsedUrl.query['tkn'])) {
-				return serveError(req, res, 403, `Forbidden.`);
-			}
-
 			const desiredPath = parsedUrl.query['path'];
 			if (typeof desiredPath !== 'string') {
 				return serveError(req, res, 400, `Bad request.`);
