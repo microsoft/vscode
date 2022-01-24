@@ -29,6 +29,14 @@ steps:
 
   - script: |
       set -e
+      npx https://aka.ms/enablesecurefeed standAlone
+    timeoutInMinutes: 5
+    retryCountOnTaskFailure: 3
+    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
+    displayName: Switch to Terrapin packages
+
+  - script: |
+      set -e
       for i in {1..3}; do # try 3 times, for Terrapin
         yarn --cwd build --frozen-lockfile && break
         if [ $i -eq 3 ]; then
