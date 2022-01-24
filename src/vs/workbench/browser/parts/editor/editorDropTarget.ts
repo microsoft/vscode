@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editordroptarget';
-import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType, CodeDataTransfers, extractFilesDropData, DraggedExtensionTreeItemsIdentifier } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType, CodeDataTransfers, extractFilesDropData, DraggedTreeItemsIdentifier } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
 import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState } from 'vs/workbench/browser/parts/editor/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
@@ -42,7 +42,7 @@ class DropOverlay extends Themable {
 
 	private readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 	private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
-	private readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedExtensionTreeItemsIdentifier>();
+	private readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedTreeItemsIdentifier>();
 
 	constructor(
 		private accessor: IEditorGroupsAccessor,
@@ -297,8 +297,8 @@ class DropOverlay extends Themable {
 		}
 
 		// Check for tree items
-		else if (this.treeItemsTransfer.hasData(DraggedExtensionTreeItemsIdentifier.prototype)) {
-			const data = this.treeItemsTransfer.getData(DraggedExtensionTreeItemsIdentifier.prototype);
+		else if (this.treeItemsTransfer.hasData(DraggedTreeItemsIdentifier.prototype)) {
+			const data = this.treeItemsTransfer.getData(DraggedTreeItemsIdentifier.prototype);
 			if (Array.isArray(data)) {
 				const treeData = Promise.all(
 					data.map(id => this.treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier)));
@@ -311,7 +311,7 @@ class DropOverlay extends Themable {
 					});
 				});
 			}
-			this.treeItemsTransfer.clearData(DraggedExtensionTreeItemsIdentifier.prototype);
+			this.treeItemsTransfer.clearData(DraggedTreeItemsIdentifier.prototype);
 		}
 
 		// Web: check for file transfer

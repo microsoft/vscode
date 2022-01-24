@@ -48,7 +48,7 @@ export class DraggedEditorGroupIdentifier {
 	constructor(readonly identifier: GroupIdentifier) { }
 }
 
-export class DraggedExtensionTreeItemsIdentifier {
+export class DraggedTreeItemsIdentifier {
 
 	constructor(readonly identifier: string) { }
 }
