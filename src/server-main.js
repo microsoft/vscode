@@ -247,7 +247,7 @@ async function findFreePort(host, start, end) {
 	return undefined;
 }
 
-/** @returns { Promise<typeof import('./vs/server/node/remoteExtensionHostAgent')> } */
+/** @returns { Promise<typeof import('./vs/server/node/server.main')> } */
 function loadCode() {
 	return new Promise((resolve, reject) => {
 		const path = require('path');
@@ -260,7 +260,7 @@ function loadCode() {
 		} else {
 			delete process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'];
 		}
-		require('./bootstrap-amd').load('vs/server/node/remoteExtensionHostAgent', resolve, reject);
+		require('./bootstrap-amd').load('vs/server/node/server.main', resolve, reject);
 	});
 }
 

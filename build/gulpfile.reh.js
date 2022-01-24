@@ -91,7 +91,7 @@ const serverWithWebResources = [
 
 const serverEntryPoints = [
 	{
-		name: 'vs/server/node/remoteExtensionHostAgent',
+		name: 'vs/server/node/server.main',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
