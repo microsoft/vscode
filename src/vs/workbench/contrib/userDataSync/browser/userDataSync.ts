@@ -76,6 +76,7 @@ const configureSyncCommand = { id: CONFIGURE_SYNC_COMMAND_ID, title: localize('c
 const resolveSettingsConflictsCommand = { id: 'workbench.userDataSync.actions.resolveSettingsConflicts', title: localize('showConflicts', "{0}: Show Settings Conflicts", SYNC_TITLE) };
 const resolveKeybindingsConflictsCommand = { id: 'workbench.userDataSync.actions.resolveKeybindingsConflicts', title: localize('showKeybindingsConflicts', "{0}: Show Keybindings Conflicts", SYNC_TITLE) };
 const resolveSnippetsConflictsCommand = { id: 'workbench.userDataSync.actions.resolveSnippetsConflicts', title: localize('showSnippetsConflicts', "{0}: Show User Snippets Conflicts", SYNC_TITLE) };
+const resolveTasksConflictsCommand = { id: 'workbench.userDataSync.actions.resolveTasksConflicts', title: localize('showTasksConflicts', "{0}: Show User Tasks Conflicts", SYNC_TITLE) };
 const syncNowCommand = {
 	id: 'workbench.userDataSync.actions.syncNow',
 	title: localize('sync now', "{0}: Sync Now", SYNC_TITLE),
@@ -327,7 +328,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 				break;
 			case UserDataSyncErrorCode.TooLarge:
-				if (error.resource === SyncResource.Keybindings || error.resource === SyncResource.Settings) {
+				if (error.resource === SyncResource.Keybindings || error.resource === SyncResource.Settings || error.resource === SyncResource.Tasks) {
 					this.disableSync(error.resource);
 					const sourceArea = getSyncAreaLabel(error.resource);
 					this.handleTooLargeError(error.resource, localize('too large', "Disabled syncing {0} because size of the {1} file to sync is larger than {2}. Please open the file and reduce the size and enable sync", sourceArea.toLowerCase(), sourceArea.toLowerCase(), '100kb'), error);
@@ -429,7 +430,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (this.invalidContentErrorDisposables.has(source)) {
 			return;
 		}
-		if (source !== SyncResource.Settings && source !== SyncResource.Keybindings) {
+		if (source !== SyncResource.Settings && source !== SyncResource.Keybindings && source !== SyncResource.Tasks) {
 			return;
 		}
 		if (!this.hostService.hasFocus) {
@@ -537,7 +538,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			if (e instanceof UserDataSyncError) {
 				switch (e.code) {
 					case UserDataSyncErrorCode.TooLarge:
-						if (e.resource === SyncResource.Keybindings || e.resource === SyncResource.Settings) {
+						if (e.resource === SyncResource.Keybindings || e.resource === SyncResource.Settings || e.resource === SyncResource.Tasks) {
 							this.handleTooLargeError(e.resource, localize('too large while starting sync', "Settings sync cannot be turned on because size of the {0} file to sync is larger than {1}. Please open the file and reduce the size and turn on sync", getSyncAreaLabel(e.resource).toLowerCase(), '100kb'), e);
 							return;
 						}
@@ -627,6 +628,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			id: SyncResource.Snippets,
 			label: getSyncAreaLabel(SyncResource.Snippets)
 		}, {
+			id: SyncResource.Tasks,
+			label: getSyncAreaLabel(SyncResource.Tasks)
+		}, {
 			id: SyncResource.Extensions,
 			label: getSyncAreaLabel(SyncResource.Extensions)
 		}, {
@@ -692,6 +696,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			case SyncResource.Settings: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Settings, false);
 			case SyncResource.Keybindings: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Keybindings, false);
 			case SyncResource.Snippets: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Snippets, false);
+			case SyncResource.Tasks: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Tasks, false);
 			case SyncResource.Extensions: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Extensions, false);
 			case SyncResource.GlobalState: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.GlobalState, false);
 		}
@@ -794,6 +799,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.registerShowSettingsConflictsAction();
 		this.registerShowKeybindingsConflictsAction();
 		this.registerShowSnippetsConflictsAction();
+		this.registerShowTasksConflictsAction();
 
 		this.registerEnableSyncViewsAction();
 		this.registerManageSyncAction();
@@ -979,6 +985,33 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		});
 	}
 
+	private registerShowTasksConflictsAction(): void {
+		const resolveTasksConflictsWhenContext = ContextKeyExpr.regex(CONTEXT_CONFLICTS_SOURCES.keys()[0], /.*tasks.*/i);
+		CommandsRegistry.registerCommand(resolveTasksConflictsCommand.id, () => this.handleSyncResourceConflicts(SyncResource.Tasks));
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			group: '5_sync',
+			command: {
+				id: resolveTasksConflictsCommand.id,
+				title: localize('resolveTasksConflicts_global', "{0}: Show User Tasks Conflicts (1)", SYNC_TITLE),
+			},
+			when: resolveTasksConflictsWhenContext,
+			order: 2
+		});
+		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+			group: '5_sync',
+			command: {
+				id: resolveKeybindingsConflictsCommand.id,
+				title: localize('resolveTasksConflicts_global', "{0}: Show User Tasks Conflicts (1)", SYNC_TITLE),
+			},
+			when: resolveTasksConflictsWhenContext,
+			order: 2
+		});
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: resolveTasksConflictsCommand,
+			when: resolveTasksConflictsWhenContext,
+		});
+	}
+
 	private _snippetsConflictsActionsDisposable: DisposableStore = new DisposableStore();
 	private registerShowSnippetsConflictsAction(): void {
 		this._snippetsConflictsActionsDisposable.clear();
@@ -1057,6 +1090,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 									break;
 								case SyncResource.Snippets:
 									items.push({ id: resolveSnippetsConflictsCommand.id, label: resolveSnippetsConflictsCommand.title });
+									break;
+								case SyncResource.Tasks:
+									items.push({ id: resolveTasksConflictsCommand.id, label: resolveTasksConflictsCommand.title });
 									break;
 							}
 						}

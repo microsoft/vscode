@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, Delayer, disposableTimeout, timeout } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, disposableTimeout, ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toLocalISOString } from 'vs/base/common/date';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -42,7 +42,8 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	private readonly autoSync = this._register(new MutableDisposable<AutoSync>());
 	private successiveFailures: number = 0;
 	private lastSyncTriggerTime: number | undefined = undefined;
-	private readonly syncTriggerDelayer: Delayer<void>;
+	private readonly syncTriggerDelayer: ThrottledDelayer<void>;
+	private suspendUntilRestart: boolean = false;
 
 	private readonly _onError: Emitter<UserDataSyncError> = this._register(new Emitter<UserDataSyncError>());
 	readonly onError: Event<UserDataSyncError> = this._onError.event;
@@ -85,7 +86,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
-		this.syncTriggerDelayer = this._register(new Delayer<void>(0));
+		this.syncTriggerDelayer = this._register(new ThrottledDelayer<void>(this.getSyncTriggerDelayTime()));
 
 		this.lastSyncUrl = this.syncUrl;
 		this.syncUrl = userDataSyncStoreManagementService.userDataSyncStore?.url;
@@ -119,7 +120,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 
 			this._register(userDataSyncAccountService.onDidChangeAccount(() => this.updateAutoSync()));
 			this._register(userDataSyncStoreService.onDidChangeDonotMakeRequestsUntil(() => this.updateAutoSync()));
-			this._register(Event.debounce<string, string[]>(userDataSyncService.onDidChangeLocal, (last, source) => last ? [...last, source] : [source], 1000)(sources => this.triggerSync(sources, false, false)));
+			this._register(userDataSyncService.onDidChangeLocal(source => this.triggerSync([source], false, false)));
 			this._register(Event.filter(this.userDataSyncEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerSync(['resourceEnablement'], false, false)));
 			this._register(this.userDataSyncStoreManagementService.onDidChangeUserDataSyncStore(() => this.triggerSync(['userDataSyncStoreChanged'], false, false)));
 		}
@@ -164,6 +165,9 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		}
 		if (this.userDataSyncStoreService.donotMakeRequestsUntil) {
 			return { enabled: false, message: `Auto Sync: Suspended until ${toLocalISOString(this.userDataSyncStoreService.donotMakeRequestsUntil)} because server is not accepting requests until then.` };
+		}
+		if (this.suspendUntilRestart) {
+			return { enabled: false, message: 'Auto Sync: Suspended until restart.' };
 		}
 		return { enabled: true };
 	}
@@ -243,8 +247,15 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 			this.logService.info('Auto Sync: Turned off sync because sync is turned off in the cloud');
 		}
 
-		// Exceeded Rate Limit
-		else if (userDataSyncError.code === UserDataSyncErrorCode.LocalTooManyRequests || userDataSyncError.code === UserDataSyncErrorCode.TooManyRequests) {
+		// Exceeded Rate Limit on Client
+		else if (userDataSyncError.code === UserDataSyncErrorCode.LocalTooManyRequests) {
+			this.suspendUntilRestart = true;
+			this.logService.info('Auto Sync: Suspended sync because of making too many requests to server');
+			this.updateAutoSync();
+		}
+
+		// Exceeded Rate Limit on Server
+		else if (userDataSyncError.code === UserDataSyncErrorCode.TooManyRequests) {
 			await this.turnOff(false, true /* force soft turnoff on error */,
 				true /* do not disable machine because disabling a machine makes request to server and can fail with TooManyRequests */);
 			this.disableMachineEventually();
@@ -351,7 +362,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	}
 
 	protected getSyncTriggerDelayTime(): number {
-		return 1000; /* Debounce for a second if there are no failures */
+		return 2000; /* Debounce for 2 seconds if there are no failures */
 	}
 
 }

@@ -5,16 +5,16 @@
 
 import { IScrollPosition, Scrollable } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
-import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { IViewLineTokens } from 'vs/editor/common/model/tokens/lineTokens';
+import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from 'vs/editor/common/cursor/cursorCommon';
+import { CursorChangeReason } from 'vs/editor/common/cursor/cursorEvents';
+import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IModelDecorationOptions, ITextModel, PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from 'vs/editor/common/model/guidesTextModelPart';
-import { EditorTheme } from 'vs/editor/common/view/viewContext';
-import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
+import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from 'vs/editor/common/textModelGuides';
+import { EditorTheme } from 'vs/editor/common/viewModel/viewContext';
+import { VerticalRevealType } from 'vs/editor/common/viewModel/viewEvents';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { ILineBreaksComputer, InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';

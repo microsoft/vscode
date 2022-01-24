@@ -346,21 +346,6 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 	}
 };
 
-export class ExecuteCommandAction extends Action {
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private readonly _commandService: ICommandService) {
-
-		super(id, label);
-	}
-
-	override run(...args: any[]): Promise<void> {
-		return this._commandService.executeCommand(this.id, ...args);
-	}
-}
-
 export class SubmenuItemAction extends SubmenuAction {
 
 	constructor(

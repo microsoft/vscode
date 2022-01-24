@@ -4,14 +4,14 @@
   "license": "MIT",
   "main": "./src/main.js",
   "scripts": {
-    "compile": "yarn --cwd ../automation compile && tsc",
+    "compile": "yarn --cwd ../automation compile && node ../../node_modules/typescript/bin/tsc",
     "watch-automation": "yarn --cwd ../automation watch",
-    "watch-smoke": "tsc --watch --preserveWatchOutput",
+    "watch-smoke": "node ../../node_modules/typescript/bin/tsc --watch --preserveWatchOutput",
     "watch": "npm-run-all -lp watch-automation watch-smoke",
     "mocha": "node ../node_modules/mocha/bin/mocha"
   },
   "dependencies": {
-    "@vscode/test-electron": "^2.1.0",
+    "@vscode/test-electron": "2.1.0-beta.0",
     "mkdirp": "^1.0.4",
     "ncp": "^2.0.0",
     "node-fetch": "^2.6.1",

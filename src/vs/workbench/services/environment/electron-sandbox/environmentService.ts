@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConfiguration, IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IWorkbenchConfiguration } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { INativeWindowConfiguration, IOSConfiguration } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -22,7 +23,7 @@ export interface INativeWorkbenchConfiguration extends IWorkbenchConfiguration, 
  * A subclass of the `IWorkbenchEnvironmentService` to be used only in native
  * environments (Windows, Linux, macOS) but not e.g. web.
  */
-export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmentService, INativeEnvironmentService {
+export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnvironmentService, INativeEnvironmentService {
 
 	readonly machineId: string;
 

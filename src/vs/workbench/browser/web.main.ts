@@ -9,7 +9,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ILogService, ConsoleLogger, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationLogger } from 'vs/platform/log/browser/log';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { BrowserWorkbenchEnvironmentService, IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { RemoteFileSystemProviderClient } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -32,7 +32,7 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { ConfigurationCache } from 'vs/workbench/services/configuration/common/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
-import type { IWorkbenchConstructionOptions, IWorkspace, IWorkbench } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, IWorkbench } from 'vs/workbench/browser/web.api';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
@@ -68,9 +68,9 @@ import { mixin, safeStringify } from 'vs/base/common/objects';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { BrowserCredentialsService } from 'vs/workbench/services/credentials/browser/credentialsService';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 
-class BrowserMain extends Disposable {
+export class BrowserMain extends Disposable {
 
 	private readonly onWillShutdownDisposables = this._register(new DisposableStore());
 
@@ -152,7 +152,7 @@ class BrowserMain extends Disposable {
 		//
 		// NOTE: Please do NOT register services here. Use `registerSingleton()`
 		//       from `workbench.common.main.ts` if the service is shared between
-		//       desktop and web or `workbench.web.main.ts` if the service
+		//       desktop and web or `workbench.web.api.ts` if the service
 		//       is web only.
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -166,8 +166,8 @@ class BrowserMain extends Disposable {
 
 		// Environment
 		const logsPath = URI.file(toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')).with({ scheme: 'vscode-log' });
-		const environmentService = new BrowserWorkbenchEnvironmentService({ workspaceId: payload.id, logsPath, ...this.configuration }, productService);
-		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
+		const environmentService = new BrowserWorkbenchEnvironmentService(payload.id, logsPath, this.configuration, productService);
+		serviceCollection.set(IBrowserWorkbenchEnvironmentService, environmentService);
 
 		// Log
 		const logService = new BufferLogService(getLogLevel(environmentService));
@@ -187,7 +187,7 @@ class BrowserMain extends Disposable {
 		//
 		// NOTE: Please do NOT register services here. Use `registerSingleton()`
 		//       from `workbench.common.main.ts` if the service is shared between
-		//       desktop and web or `workbench.web.main.ts` if the service
+		//       desktop and web or `workbench.web.api.ts` if the service
 		//       is web only.
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -233,7 +233,7 @@ class BrowserMain extends Disposable {
 		//
 		// NOTE: Please do NOT register services here. Use `registerSingleton()`
 		//       from `workbench.common.main.ts` if the service is shared between
-		//       desktop and web or `workbench.web.main.ts` if the service
+		//       desktop and web or `workbench.web.api.ts` if the service
 		//       is web only.
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -263,16 +263,13 @@ class BrowserMain extends Disposable {
 		//
 		// NOTE: Please do NOT register services here. Use `registerSingleton()`
 		//       from `workbench.common.main.ts` if the service is shared between
-		//       desktop and web or `workbench.web.main.ts` if the service
+		//       desktop and web or `workbench.web.api.ts` if the service
 		//       is web only.
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Credentials Service
-		const credentialsService = environmentService.remoteAuthority
-			// If we have a remote authority, we can use the CredentialsService on the remote side
-			? ProxyChannel.toService<ICredentialsService>(remoteAgentService.getConnection()!.getChannel('credentials'))
-			: new BrowserCredentialsService(environmentService);
+		const credentialsService = new BrowserCredentialsService(environmentService, remoteAgentService, productService);
 		serviceCollection.set(ICredentialsService, credentialsService);
 
 		// Userdata Initialize Service
@@ -375,7 +372,7 @@ class BrowserMain extends Disposable {
 						if (storageService instanceof BrowserStorageService) {
 							await storageService.clear();
 						}
-						if (credentialsService.clear) {
+						if (typeof credentialsService.clear === 'function') {
 							await credentialsService.clear();
 						}
 					} catch (error) {
@@ -441,10 +438,4 @@ class BrowserMain extends Disposable {
 
 		return { id: 'empty-window' };
 	}
-}
-
-export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<IWorkbench> {
-	const workbench = new BrowserMain(domElement, options);
-
-	return workbench.open();
 }

@@ -17,7 +17,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ITerminalBackend, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalCapability, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -46,6 +46,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
+import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 const $ = DOM.$;
 
@@ -108,6 +109,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		const instanceDisposables: IDisposable[] = [
 			this._terminalGroupService.onDidChangeInstances(() => this.refresh()),
 			this._terminalGroupService.onDidChangeGroups(() => this.refresh()),
+			this._terminalGroupService.onDidChangeInstanceCapability(() => this.refresh()),
 			this._terminalService.onDidChangeInstanceTitle(() => this.refresh()),
 			this._terminalService.onDidChangeInstanceIcon(() => this.refresh()),
 			this._terminalService.onDidChangeInstancePrimaryStatus(() => this.refresh()),
@@ -306,11 +308,17 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}
 
 		let shellIntegrationString = '';
-		const capabilities = instance.xterm?.shellIntegration.capabilities.items;
-		if (capabilities) {
-			shellIntegrationString += `\n\n---\n\n$(plug) ${localize('shellIntegration.enabled', "Shell integration is enabled")}`;
-			for (const capability of capabilities) {
-				shellIntegrationString += `\n- ${this._getShellIntegrationCapabilityName(capability)}`;
+		const shellIntegrationCapabilities: TerminalCapability[] = [];
+		if (instance.capabilities.has(TerminalCapability.CommandDetection)) {
+			shellIntegrationCapabilities.push(TerminalCapability.CommandDetection);
+		}
+		if (instance.capabilities.has(TerminalCapability.CwdDetection)) {
+			shellIntegrationCapabilities.push(TerminalCapability.CwdDetection);
+		}
+		if (shellIntegrationCapabilities.length > 0) {
+			shellIntegrationString += `\n\n---\n\n ${localize('shellIntegration.enabled', "Shell integration is enabled")}`;
+			for (const capability of shellIntegrationCapabilities) {
+				shellIntegrationString += `\n- ${this._getCapabilityName(capability)}`;
 			}
 		}
 
@@ -506,7 +514,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		this._listService.lastFocusedList?.focusNext();
 	}
 
-	private _getShellIntegrationCapabilityName(capability: TerminalCapability): string | undefined {
+	private _getCapabilityName(capability: TerminalCapability): string | undefined {
 		switch (capability) {
 			case TerminalCapability.CwdDetection:
 			case TerminalCapability.NaiveCwdDetection:

@@ -21,7 +21,6 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { NullCommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -55,7 +54,7 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOp
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestClipboardService, TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 export class TestCell extends NotebookCellTextModel {
@@ -172,7 +171,7 @@ export function setupInstantiationService(disposables = new DisposableStore()) {
 	instantiationService.stub(IListService, instantiationService.createInstance(ListService));
 	instantiationService.stub(ILayoutService, new TestLayoutService());
 	instantiationService.stub(ILogService, new NullLogService());
-	instantiationService.stub(IClipboardService, instantiationService.createInstance(BrowserClipboardService));
+	instantiationService.stub(IClipboardService, TestClipboardService);
 	instantiationService.stub(IStorageService, new TestStorageService());
 	instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(true));
 	instantiationService.stub(INotebookExecutionStateService, new TestNotebookExecutionStateService());

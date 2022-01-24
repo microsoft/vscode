@@ -5,17 +5,16 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
-import { ILanguageIdCodec, IState, ITokenizationSupport, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
+import { EncodedTokenizationResult, ILanguageIdCodec, IState, ITokenizationSupport, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
 import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullMode';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { countEOL } from 'vs/editor/common/model/pieceTreeTextBuffer/eolCounter';
-import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/model/tokens/contiguousMultilineTokensBuilder';
+import { countEOL } from 'vs/editor/common/core/eolCounter';
+import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
 import { setTimeout0 } from 'vs/base/common/platform';
 

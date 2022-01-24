@@ -110,7 +110,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			throw new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"));
 		}
 
-		const galleryExtension = await this.findGalleryExtension(extension);
+		const targetPlatform = await this.getTargetPlatform();
+		const [galleryExtension] = await this.galleryService.getExtensions([{ ...extension.identifier, preRelease: extension.preRelease }], { targetPlatform, compatible: true }, CancellationToken.None);
 		if (!galleryExtension) {
 			throw new Error(nls.localize('Not a Marketplace extension', "Only Marketplace Extensions can be reinstalled"));
 		}
@@ -321,10 +322,10 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			if (dependenciesAndPackExtensions.length) {
 				// filter out installed and known extensions
 				const identifiers = [...knownIdentifiers, ...allDependenciesAndPacks.map(r => r.gallery.identifier)];
-				const names = dependenciesAndPackExtensions.filter(id => identifiers.every(galleryIdentifier => !areSameExtensions(galleryIdentifier, { id })));
-				if (names.length) {
-					const galleryResult = await this.galleryService.query({ names, pageSize: dependenciesAndPackExtensions.length }, CancellationToken.None);
-					for (const galleryExtension of galleryResult.firstPage) {
+				const ids = dependenciesAndPackExtensions.filter(id => identifiers.every(galleryIdentifier => !areSameExtensions(galleryIdentifier, { id })));
+				if (ids.length) {
+					const galleryExtensions = await this.galleryService.getExtensions(ids.map(id => ({ id, preRelease: installPreRelease })), CancellationToken.None);
+					for (const galleryExtension of galleryExtensions) {
 						if (identifiers.find(identifier => areSameExtensions(identifier, galleryExtension.identifier))) {
 							continue;
 						}
@@ -341,7 +342,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 							}
 						}
 						allDependenciesAndPacks.push({ gallery: compatible.extension, manifest: compatible.manifest });
-						await collectDependenciesAndPackExtensionsToInstall(compatible.extension.identifier, manifest);
+						await collectDependenciesAndPackExtensionsToInstall(compatible.extension.identifier, compatible.manifest);
 					}
 				}
 			}
@@ -564,24 +565,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 	private getDependents(extension: ILocalExtension, installed: ILocalExtension[]): ILocalExtension[] {
 		return installed.filter(e => e.manifest.extensionDependencies && e.manifest.extensionDependencies.some(id => areSameExtensions({ id }, extension.identifier)));
-	}
-
-	private async findGalleryExtension(local: ILocalExtension): Promise<IGalleryExtension> {
-		if (local.identifier.uuid) {
-			const galleryExtension = await this.findGalleryExtensionById(local.identifier.uuid);
-			return galleryExtension ? galleryExtension : this.findGalleryExtensionByName(local.identifier.id);
-		}
-		return this.findGalleryExtensionByName(local.identifier.id);
-	}
-
-	private async findGalleryExtensionById(uuid: string): Promise<IGalleryExtension> {
-		const galleryResult = await this.galleryService.query({ ids: [uuid], pageSize: 1 }, CancellationToken.None);
-		return galleryResult.firstPage[0];
-	}
-
-	private async findGalleryExtensionByName(name: string): Promise<IGalleryExtension> {
-		const galleryResult = await this.galleryService.query({ names: [name], pageSize: 1 }, CancellationToken.None);
-		return galleryResult.firstPage[0];
 	}
 
 	private async updateControlCache(): Promise<IExtensionsControlManifest> {

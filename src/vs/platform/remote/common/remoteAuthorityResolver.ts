@@ -6,7 +6,6 @@
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TunnelPrivacy } from 'vs/platform/remote/common/tunnel';
 
 export const IRemoteAuthorityResolverService = createDecorator<IRemoteAuthorityResolverService>('remoteAuthorityResolverService');
 
@@ -28,6 +27,11 @@ export interface TunnelDescription {
 	localAddress: { port: number, host: string } | string;
 	privacy?: string;
 	protocol?: string;
+}
+export interface TunnelPrivacy {
+	themeIcon: string;
+	id: string;
+	label: string;
 }
 export interface TunnelInformation {
 	environmentTunnels?: TunnelDescription[];

@@ -120,7 +120,8 @@ class RemoteExtensionsInitializer extends AbstractExtensionsInitializer {
 			this.logService.trace('No new remote extensions to install.');
 			return;
 		}
-		const extensionsToInstall = await this.extensionGalleryService.getExtensions(newExtensions, CancellationToken.None);
+		const targetPlatform = await this.extensionManagementService.getTargetPlatform();
+		const extensionsToInstall = await this.extensionGalleryService.getExtensions(newExtensions, { targetPlatform, compatible: true }, CancellationToken.None);
 		if (extensionsToInstall.length) {
 			await Promise.allSettled(extensionsToInstall.map(async e => {
 				const manifest = await this.extensionGalleryService.getManifest(e, CancellationToken.None);

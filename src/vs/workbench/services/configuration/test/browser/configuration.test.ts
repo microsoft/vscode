@@ -49,7 +49,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('configuration default overrides are read from environment', async () => {
-		const environmentService = new BrowserWorkbenchEnvironmentService({ logsPath: joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'logs'), workspaceId: '', configurationDefaults: { 'test.configurationDefaultsOverride': 'envOverrideValue' } }, TestProductService);
+		const environmentService = new BrowserWorkbenchEnvironmentService('', joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'logs'), { configurationDefaults: { 'test.configurationDefaultsOverride': 'envOverrideValue' } }, TestProductService);
 		const testObject = new DefaultConfiguration(configurationCache, environmentService);
 		assert.deepStrictEqual(testObject.configurationModel.getValue('test.configurationDefaultsOverride'), 'envOverrideValue');
 	});
@@ -88,7 +88,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('configuration default overrides read from cache override environment', async () => {
-		const environmentService = new BrowserWorkbenchEnvironmentService({ logsPath: joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'logs'), workspaceId: '', configurationDefaults: { 'test.configurationDefaultsOverride': 'envOverrideValue' } }, TestProductService);
+		const environmentService = new BrowserWorkbenchEnvironmentService('', joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'logs'), { configurationDefaults: { 'test.configurationDefaultsOverride': 'envOverrideValue' } }, TestProductService);
 		window.localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
 		await configurationCache.write(cacheKey, JSON.stringify({ 'test.configurationDefaultsOverride': 'overrideValue' }));
 		const testObject = new DefaultConfiguration(configurationCache, environmentService);

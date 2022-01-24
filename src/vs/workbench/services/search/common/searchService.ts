@@ -34,6 +34,8 @@ export class SearchService extends Disposable implements ISearchService {
 	private deferredFileSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
 	private deferredTextSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
 
+	private loggedSchemesMissingProviders = new Set<string>();
+
 	constructor(
 		@IModelService private readonly modelService: IModelService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -202,6 +204,12 @@ export class SearchService extends Disposable implements ISearchService {
 		const searchPs: Promise<ISearchComplete>[] = [];
 
 		const fqs = this.groupFolderQueriesByScheme(query);
+		const someSchemeHasProvider = [...fqs.keys()].some(scheme => {
+			return query.type === QueryType.File ?
+				this.fileSearchProviders.has(scheme) :
+				this.textSearchProviders.has(scheme);
+		});
+
 		await Promise.all([...fqs.keys()].map(async scheme => {
 			const schemeFQs = fqs.get(scheme)!;
 			let provider = query.type === QueryType.File ?
@@ -209,8 +217,19 @@ export class SearchService extends Disposable implements ISearchService {
 				this.textSearchProviders.get(scheme);
 
 			if (!provider) {
-				console.warn(`No search provider registered for scheme: ${scheme}, waiting`);
-				provider = await this.waitForProvider(query.type, scheme);
+				if (someSchemeHasProvider) {
+					if (!this.loggedSchemesMissingProviders.has(scheme)) {
+						this.logService.warn(`No search provider registered for scheme: ${scheme}. Another scheme has a provider, not waiting for ${scheme}`);
+						this.loggedSchemesMissingProviders.add(scheme);
+					}
+					return;
+				} else {
+					if (!this.loggedSchemesMissingProviders.has(scheme)) {
+						this.logService.warn(`No search provider registered for scheme: ${scheme}, waiting`);
+						this.loggedSchemesMissingProviders.add(scheme);
+					}
+					provider = await this.waitForProvider(query.type, scheme);
+				}
 			}
 
 			const oneSchemeQuery: ISearchQuery = {

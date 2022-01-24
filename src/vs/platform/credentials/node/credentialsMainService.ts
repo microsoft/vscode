@@ -3,23 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICredentialsChangeEvent, ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ICredentialsChangeEvent, ICredentialsMainService, InMemoryCredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isWindows } from 'vs/base/common/platform';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-
-export const ICredentialsMainService = createDecorator<ICredentialsMainService>('credentialsMainService');
-
-export interface ICredentialsMainService extends ICredentialsService { }
+import { IProductService } from 'vs/platform/product/common/productService';
 
 interface ChunkedPassword {
 	content: string;
 	hasNextChunk: boolean;
 }
+
+type KeytarModule = typeof import('keytar');
 
 export class CredentialsMainService extends Disposable implements ICredentialsMainService {
 
@@ -30,14 +27,20 @@ export class CredentialsMainService extends Disposable implements ICredentialsMa
 	private _onDidChangePassword: Emitter<ICredentialsChangeEvent> = this._register(new Emitter());
 	readonly onDidChangePassword = this._onDidChangePassword.event;
 
+	private _keytarCache: KeytarModule | undefined;
+
+	// If the credentials service is running on the server, we add a suffix -server to differentiate from the location that the
+	// client would store the credentials.
+	public async getSecretStoragePrefix() { return `${this.productService.urlProtocol}${this.isRunningOnServer ? '-server' : ''}`; }
+
 	constructor(
+		private isRunningOnServer: boolean,
 		@ILogService private readonly logService: ILogService,
-		@INativeEnvironmentService private readonly environmentMainService: INativeEnvironmentService
+		@INativeEnvironmentService private readonly environmentMainService: INativeEnvironmentService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 	}
-
-	//#region Credentials
 
 	async getPassword(service: string, account: string): Promise<string | null> {
 		const keytar = await this.withKeytar();
@@ -140,19 +143,36 @@ export class CredentialsMainService extends Disposable implements ICredentialsMa
 		return keytar.findCredentials(service);
 	}
 
-	private async withKeytar(): Promise<typeof import('keytar')> {
-		if (this.environmentMainService.disableKeytar) {
-			throw new Error('keytar has been disabled via --disable-keytar option');
+	private async withKeytar(): Promise<KeytarModule> {
+		if (this._keytarCache) {
+			return this._keytarCache;
 		}
 
-		return await import('keytar');
+		if (this.environmentMainService.disableKeytar) {
+			this.logService.info('Keytar is disabled. Using in-memory credential store instead.');
+			this._keytarCache = new InMemoryCredentialsProvider();
+			return this._keytarCache;
+		}
+
+		try {
+			this._keytarCache = await import('keytar');
+			// Try using keytar to see if it throws or not.
+			await this._keytarCache.findCredentials('test-keytar-loads');
+		} catch (e) {
+			this.logService.warn(`Switching to using in-memory credential store instead because Keytar failed to load: ${e.message}`);
+			this._keytarCache = new InMemoryCredentialsProvider();
+		}
+		return this._keytarCache;
 	}
 
-	//#endregion
+	public clear(): Promise<void> {
+		if (this._keytarCache instanceof InMemoryCredentialsProvider) {
+			return this._keytarCache.clear();
+		}
 
-	// This class doesn't implement the clear() function because we don't know
-	// what services have stored credentials. For reference, a "service" is an extension.
-	// TODO: should we clear credentials for the built-in auth extensions?
+		// We don't know how to properly clear Keytar because we don't know
+		// what services have stored credentials. For reference, a "service" is an extension.
+		// TODO: should we clear credentials for the built-in auth extensions?
+		return Promise.resolve();
+	}
 }
-
-registerSingleton(ICredentialsService, CredentialsMainService, true);

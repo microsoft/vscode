@@ -244,9 +244,6 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		preserveFocus: boolean
 	): void {
 		const topLevelEditor = this.findTopLevelEditorForWebview(webview);
-		if (this._editorService.activeEditor === topLevelEditor) {
-			return;
-		}
 
 		this._editorService.openEditor(topLevelEditor, {
 			preserveFocus,

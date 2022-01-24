@@ -112,7 +112,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			}
 		}));
 
-		await this.promptWorkspaceRecommendations();
+		this.promptWorkspaceRecommendations();
 	}
 
 	private isEnabled(): boolean {

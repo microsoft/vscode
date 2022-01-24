@@ -7,19 +7,21 @@ import { Event } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { OverviewRulerPosition, ConfigurationChangedEvent, EditorLayoutInfo, IComputedEditorOptions, EditorOption, FindComputedEditorOptionValueById, IEditorOptions, IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursor/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer, IWordAtPosition } from 'vs/editor/common/model';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
+import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer } from 'vs/editor/common/model';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/textModelEvents';
+import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IDiffComputationResult } from 'vs/editor/common/services/editorWorker';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { IDimension } from 'vs/editor/common/core/dimension';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -164,7 +166,7 @@ export interface IContentWidget {
 	 * the content widget. If a dimension is returned the editor will
 	 * attempt to use it.
 	 */
-	beforeRender?(): editorCommon.IDimension | null;
+	beforeRender?(): IDimension | null;
 	/**
 	 * Optional function that is invoked after rendering the content
 	 * widget. Is being invoked with the selected position preference
@@ -435,23 +437,11 @@ export interface IEditorAriaOptions {
 	role?: string;
 }
 
-export interface IEditorConstructionOptions extends IEditorOptions {
-	/**
-	 * The initial editor dimension (to avoid measuring the container).
-	 */
-	dimension?: editorCommon.IDimension;
-	/**
-	 * Place overflow widgets inside an external DOM node.
-	 * Defaults to an internal DOM node.
-	 */
-	overflowWidgetsDomNode?: HTMLElement;
-}
-
 export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 	/**
 	 * The initial editor dimension (to avoid measuring the container).
 	 */
-	dimension?: editorCommon.IDimension;
+	dimension?: IDimension;
 
 	/**
 	 * Place overflow widgets inside an external DOM node.
@@ -1129,7 +1119,7 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	/**
 	 * Get the computed diff information.
 	 */
-	getLineChanges(): editorCommon.ILineChange[] | null;
+	getLineChanges(): ILineChange[] | null;
 
 	/**
 	 * Get the computed diff information.

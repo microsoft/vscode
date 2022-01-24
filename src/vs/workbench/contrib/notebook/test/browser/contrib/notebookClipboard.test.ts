@@ -6,13 +6,13 @@
 import * as assert from 'assert';
 import { mock } from 'vs/base/test/common/mock';
 import { NotebookClipboardContribution, runCopyCells, runCutCells } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
-import { CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NOTEBOOK_EDITOR_ID, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IActiveNotebookEditor, INotebookEditor, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
+import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
 suite('Notebook Clipboard', () => {
@@ -204,7 +204,7 @@ suite('Notebook Clipboard', () => {
 			});
 	});
 
-	test.skip('cut cell from ui still works if the target cell is not part of a selection', async () => {  // TODO@rebornix https://github.com/microsoft/vscode/issues/140397
+	test('cut cell from ui still works if the target cell is not part of a selection', async () => {
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
@@ -245,7 +245,7 @@ suite('Notebook Clipboard', () => {
 			});
 	});
 
-	test.skip('cut focus cell still works if the focus is not part of any selection', async () => { // TODO@rebornix https://github.com/microsoft/vscode/issues/140397
+	test('cut focus cell still works if the focus is not part of any selection', async () => {
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
@@ -269,7 +269,7 @@ suite('Notebook Clipboard', () => {
 			});
 	});
 
-	test.skip('cut focus cell still works if the focus is not part of any selection 2', async () => { // TODO@rebornix https://github.com/microsoft/vscode/issues/140397
+	test('cut focus cell still works if the focus is not part of any selection 2', async () => {
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markup, [], {}],

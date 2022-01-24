@@ -14,8 +14,8 @@ import { raceTimeout } from 'vs/base/common/async';
 import { FileAccess } from 'vs/base/common/network';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { FoldingController } from 'vs/editor/contrib/folding/folding';
-import { FoldingModel } from 'vs/editor/contrib/folding/foldingModel';
+import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
+import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
 
 export class AudioCueContribution extends DisposableStore implements IWorkbenchContribution {
 	private audioCuesEnabled = false;
@@ -133,7 +133,7 @@ export class AudioCueContribution extends DisposableStore implements IWorkbenchC
 							hadMarker = hasMarker;
 
 							const regionAtLine = foldingModel?.getRegionAtLine(lineNumber);
-							const hasFolding = regionAtLine?.startLineNumber === lineNumber;
+							const hasFolding = !regionAtLine ? false : regionAtLine.isCollapsed && regionAtLine.startLineNumber === lineNumber;
 							if (hasFolding && !hadFoldedArea) {
 								this.handleFoldedAreasOnLine();
 							}

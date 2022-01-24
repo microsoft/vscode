@@ -19,7 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IKeyMods, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
+import { getSelectionSearchString } from 'vs/editor/contrib/find/browser/findController';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { prepareQuery, IPreparedQuery, scoreFuzzy2, pieceToQuery } from 'vs/base/common/fuzzyScorer';
 import { IMatch } from 'vs/base/common/filters';

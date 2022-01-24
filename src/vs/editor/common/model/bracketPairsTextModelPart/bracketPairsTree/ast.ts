@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
+import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { ITextModel } from 'vs/editor/common/model';
 import { Length, lengthAdd, lengthGetLineCount, lengthHash, lengthToObj, lengthZero } from './length';
 import { SmallImmutableSet } from './smallImmutableSet';

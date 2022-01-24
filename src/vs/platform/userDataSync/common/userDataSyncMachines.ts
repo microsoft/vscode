@@ -12,7 +12,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
+import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 
@@ -41,7 +41,7 @@ export interface IUserDataSyncMachinesService {
 	addCurrentMachine(manifest?: IUserDataManifest): Promise<void>;
 	removeCurrentMachine(manifest?: IUserDataManifest): Promise<void>;
 	renameMachine(machineId: string, name: string): Promise<void>;
-	setEnablement(machineId: string, enabled: boolean): Promise<void>;
+	setEnablements(enbalements: [string, boolean][]): Promise<void>;
 }
 
 const currentMachineNameKey = 'sync.currentMachineName';
@@ -137,13 +137,15 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 		}
 	}
 
-	async setEnablement(machineId: string, enabled: boolean): Promise<void> {
+	async setEnablements(enablements: [string, boolean][]): Promise<void> {
 		const machineData = await this.readMachinesData();
-		const machine = machineData.machines.find(({ id }) => id === machineId);
-		if (machine) {
-			machine.disabled = enabled ? undefined : true;
-			await this.writeMachinesData(machineData);
+		for (const [machineId, enabled] of enablements) {
+			const machine = machineData.machines.find(machine => machine.id === machineId);
+			if (machine) {
+				machine.disabled = enabled ? undefined : true;
+			}
 		}
+		await this.writeMachinesData(machineData);
 	}
 
 	private computeCurrentMachineName(machines: IMachineData[]): string {

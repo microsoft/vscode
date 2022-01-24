@@ -49,7 +49,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
+import { isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
@@ -340,8 +340,8 @@ export class ExtensionsListView extends ViewPane {
 			return this.getPagedModel(this.sortExtensions(result, options));
 		}
 
-		return this.extensionsWorkbenchService.queryGallery({ names: ids, source: 'queryById' }, token)
-			.then(pager => this.getPagedModel(pager));
+		return this.extensionsWorkbenchService.getExtensions(ids.map(id => ({ id })), { source: 'queryById' }, token)
+			.then(extension => this.getPagedModel(extension));
 	}
 
 	private async queryLocal(query: Query, options: IQueryOptions): Promise<IQueryResult> {
@@ -738,14 +738,14 @@ export class ExtensionsListView extends ViewPane {
 
 	private async getCuratedModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/curated:/g, '').trim();
-		const names = await this.experimentService.getCuratedExtensionsList(value);
-		if (Array.isArray(names) && names.length) {
-			options.source = `curated:${value}`;
-			options.names = names;
-			options.pageSize = names.length;
-			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
-			this.sortFirstPage(pager, names);
-			return this.getPagedModel(pager || []);
+		let ids = await this.experimentService.getCuratedExtensionsList(value);
+		if (Array.isArray(ids) && ids.length) {
+			ids = ids.map(id => id.toLowerCase());
+			const extensions = await this.extensionsWorkbenchService.getExtensions(ids.map(id => ({ id })), { source: `curated:${value}` }, token);
+			// Sorts the firstPage of the pager in the same order as given array of extension ids
+			extensions.sort((a, b) =>
+				ids.indexOf(a.identifier.id.toLowerCase()) < ids.indexOf(b.identifier.id.toLowerCase()) ? -1 : 1);
+			return this.getPagedModel(extensions);
 		}
 		return new PagedModel([]);
 	}
@@ -801,16 +801,16 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	protected async getInstallableRecommendations(recommendations: string[], options: IQueryOptions, token: CancellationToken): Promise<IExtension[]> {
-		const extensions: IExtension[] = [];
+		const result: IExtension[] = [];
 		if (recommendations.length) {
-			const pager = await this.extensionsWorkbenchService.queryGallery({ ...options, names: recommendations, pageSize: recommendations.length }, token);
-			for (const extension of pager.firstPage) {
+			const extensions = await this.extensionsWorkbenchService.getExtensions(recommendations.map(id => ({ id })), { source: options.source }, token);
+			for (const extension of extensions) {
 				if (extension.gallery && (await this.extensionManagementService.canInstall(extension.gallery))) {
-					extensions.push(extension);
+					result.push(extension);
 				}
 			}
 		}
-		return extensions;
+		return result;
 	}
 
 	protected async getWorkspaceRecommendations(): Promise<string[]> {
@@ -904,14 +904,6 @@ export class ExtensionsListView extends ViewPane {
 			.filter(extension => extension.identifier.id.toLowerCase().indexOf(value) > -1);
 		const result = coalesce(recommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
 		return new PagedModel(this.sortExtensions(result, options));
-	}
-
-	// Sorts the firstPage of the pager in the same order as given array of extension ids
-	private sortFirstPage(pager: IPager<IExtension>, ids: string[]) {
-		ids = ids.map(x => x.toLowerCase());
-		pager.firstPage.sort((a, b) => {
-			return ids.indexOf(a.identifier.id.toLowerCase()) < ids.indexOf(b.identifier.id.toLowerCase()) ? -1 : 1;
-		});
 	}
 
 	private setModel(model: IPagedModel<IExtension>, error?: any) {

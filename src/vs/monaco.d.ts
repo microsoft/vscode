@@ -1352,6 +1352,44 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * A single edit operation, that acts as a simple replace.
+	 * i.e. Replace text at `range` with `text` in model.
+	 */
+	export interface ISingleEditOperation {
+		/**
+		 * The range to replace. This can be empty to emulate a simple insert.
+		 */
+		range: IRange;
+		/**
+		 * The text to replace with. This can be null to emulate a simple delete.
+		 */
+		text: string | null;
+		/**
+		 * This indicates that this operation has "insert" semantics.
+		 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
+		 */
+		forceMoveMarkers?: boolean;
+	}
+
+	/**
+	 * Word inside a model.
+	 */
+	export interface IWordAtPosition {
+		/**
+		 * The word.
+		 */
+		readonly word: string;
+		/**
+		 * The column where the word starts.
+		 */
+		readonly startColumn: number;
+		/**
+		 * The column where the word ends.
+		 */
+		readonly endColumn: number;
+	}
+
+	/**
 	 * Vertical Lane in the overview ruler of the editor.
 	 */
 	export enum OverviewRulerLane {
@@ -1557,24 +1595,6 @@ declare namespace monaco.editor {
 	}
 
 	/**
-	 * Word inside a model.
-	 */
-	export interface IWordAtPosition {
-		/**
-		 * The word.
-		 */
-		readonly word: string;
-		/**
-		 * The column where the word starts.
-		 */
-		readonly startColumn: number;
-		/**
-		 * The column where the word ends.
-		 */
-		readonly endColumn: number;
-	}
-
-	/**
 	 * End of line character preference.
 	 */
 	export enum EndOfLinePreference {
@@ -1618,26 +1638,6 @@ declare namespace monaco.editor {
 		 * Use carriage return and line feed (\r\n) as the end of line character.
 		 */
 		CRLF = 1
-	}
-
-	/**
-	 * A single edit operation, that acts as a simple replace.
-	 * i.e. Replace text at `range` with `text` in model.
-	 */
-	export interface ISingleEditOperation {
-		/**
-		 * The range to replace. This can be empty to emulate a simple insert.
-		 */
-		range: IRange;
-		/**
-		 * The text to replace with. This can be null to emulate a simple delete.
-		 */
-		text: string | null;
-		/**
-		 * This indicates that this operation has "insert" semantics.
-		 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
-		 */
-		forceMoveMarkers?: boolean;
 	}
 
 	/**
@@ -2090,6 +2090,37 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * A change
+	 */
+	export interface IChange {
+		readonly originalStartLineNumber: number;
+		readonly originalEndLineNumber: number;
+		readonly modifiedStartLineNumber: number;
+		readonly modifiedEndLineNumber: number;
+	}
+
+	/**
+	 * A character level change.
+	 */
+	export interface ICharChange extends IChange {
+		readonly originalStartColumn: number;
+		readonly originalEndColumn: number;
+		readonly modifiedStartColumn: number;
+		readonly modifiedEndColumn: number;
+	}
+
+	/**
+	 * A line change
+	 */
+	export interface ILineChange extends IChange {
+		readonly charChanges: ICharChange[] | undefined;
+	}
+	export interface IDimension {
+		width: number;
+		height: number;
+	}
+
+	/**
 	 * A builder and helper for edit operations for a command.
 	 */
 	export interface IEditOperationBuilder {
@@ -2179,38 +2210,6 @@ declare namespace monaco.editor {
 		 * The `uri` of the new model or null.
 		 */
 		readonly newModelUrl: Uri | null;
-	}
-
-	export interface IDimension {
-		width: number;
-		height: number;
-	}
-
-	/**
-	 * A change
-	 */
-	export interface IChange {
-		readonly originalStartLineNumber: number;
-		readonly originalEndLineNumber: number;
-		readonly modifiedStartLineNumber: number;
-		readonly modifiedEndLineNumber: number;
-	}
-
-	/**
-	 * A character level change.
-	 */
-	export interface ICharChange extends IChange {
-		readonly originalStartColumn: number;
-		readonly originalEndColumn: number;
-		readonly modifiedStartColumn: number;
-		readonly modifiedEndColumn: number;
-	}
-
-	/**
-	 * A line change
-	 */
-	export interface ILineChange extends IChange {
-		readonly charChanges: ICharChange[] | undefined;
 	}
 
 	export interface IContentSizeChangedEvent {
@@ -4437,6 +4436,18 @@ declare namespace monaco.editor {
 
 	export type FindComputedEditorOptionValueById<T extends EditorOption> = NonNullable<ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>>;
 
+	export interface IEditorConstructionOptions extends IEditorOptions {
+		/**
+		 * The initial editor dimension (to avoid measuring the container).
+		 */
+		dimension?: IDimension;
+		/**
+		 * Place overflow widgets inside an external DOM node.
+		 * Defaults to an internal DOM node.
+		 */
+		overflowWidgetsDomNode?: HTMLElement;
+	}
+
 	/**
 	 * A view zone is a full horizontal rectangle that 'pushes' text down.
 	 * The editor reserves space for view zones when rendering.
@@ -4835,18 +4846,6 @@ declare namespace monaco.editor {
 	export interface IPasteEvent {
 		readonly range: Range;
 		readonly languageId: string | null;
-	}
-
-	export interface IEditorConstructionOptions extends IEditorOptions {
-		/**
-		 * The initial editor dimension (to avoid measuring the container).
-		 */
-		dimension?: IDimension;
-		/**
-		 * Place overflow widgets inside an external DOM node.
-		 * Defaults to an internal DOM node.
-		 */
-		overflowWidgetsDomNode?: HTMLElement;
 	}
 
 	export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {

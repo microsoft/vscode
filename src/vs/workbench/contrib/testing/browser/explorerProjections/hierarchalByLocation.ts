@@ -15,6 +15,7 @@ import { IActionableTestTreeElement, ITestTreeProjection, TestExplorerTreeElemen
 import { NodeChangeList, NodeRenderDirective, NodeRenderFn, peersHaveChildren } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { IComputedStateAndDurationAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
@@ -83,7 +84,8 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		}));
 
 		// when test states change, reflect in the tree
-		this._register(results.onTestChanged(({ item: result }) => {
+		this._register(results.onTestChanged(ev => {
+			let result = ev.item;
 			if (result.ownComputedState === TestResultState.Unset) {
 				const fallback = results.getStateById(result.item.extId);
 				if (fallback) {
@@ -96,14 +98,18 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 				return;
 			}
 
-			item.retired = result.retired;
-			item.ownState = result.ownComputedState;
-			item.ownDuration = result.ownDuration;
+			// Skip refreshing the duration if we can trivially tell it didn't change.
+			const refreshDuration = ev.reason === TestResultItemChangeReason.OwnStateChange && ev.previousOwnDuration !== result.ownDuration;
 			// For items without children, always use the computed state. They are
 			// either leaves (for which it's fine) or nodes where we haven't expanded
 			// children and should trust whatever the result service gives us.
 			const explicitComputed = item.children.size ? undefined : result.computedState;
-			refreshComputedState(computedStateAccessor, item, explicitComputed).forEach(this.addUpdated);
+
+			item.retired = result.retired;
+			item.ownState = result.ownComputedState;
+			item.ownDuration = result.ownDuration;
+
+			refreshComputedState(computedStateAccessor, item, explicitComputed, refreshDuration).forEach(this.addUpdated);
 			this.addUpdated(item);
 			this.updateEmitter.fire();
 		}));
@@ -237,7 +243,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 			collapsible: node.test.expand !== TestItemExpandState.NotExpandable,
 			collapsed: this.lastState.expanded[node.treeId] !== undefined
 				? !this.lastState.expanded[node.treeId]
-				: node.test.expand === TestItemExpandState.Expandable ? true : undefined,
+				: node.depth > 0,
 			children: recurse(node.children),
 		};
 	};
@@ -247,7 +253,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		parent?.children.delete(treeElement);
 		items.delete(treeElement.test.item.extId);
 		if (parent instanceof ByLocationTestItemElement) {
-			refreshComputedState(computedStateAccessor, parent).forEach(this.addUpdated);
+			refreshComputedState(computedStateAccessor, parent, undefined, !!treeElement.duration).forEach(this.addUpdated);
 		}
 
 		return treeElement.children;
@@ -268,7 +274,8 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 			treeElement.retired = prevState.retired;
 			treeElement.ownState = prevState.computedState;
 			treeElement.ownDuration = prevState.ownDuration;
-			refreshComputedState(computedStateAccessor, treeElement).forEach(this.addUpdated);
+
+			refreshComputedState(computedStateAccessor, treeElement, undefined, !!treeElement.ownDuration).forEach(this.addUpdated);
 		}
 	}
 }

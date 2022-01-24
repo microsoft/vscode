@@ -9,4 +9,4 @@ esac
 
 ROOT="$(dirname "$0")"
 
-"$ROOT/node" ${INSPECT:-} "$ROOT/out/vs/server/main.js" --compatibility=1.63 "$@"
+"$ROOT/node" ${INSPECT:-} "$ROOT/out/server-main.js" --compatibility=1.63 "$@"
