@@ -13,7 +13,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { DefaultEndOfLine, ITextModel } from 'vs/editor/common/model';
 import { createTextBuffer } from 'vs/editor/common/model/textModel';
-import { ModelSemanticColoring, ModelService } from 'vs/editor/common/services/modelService';
+import { ModelService } from 'vs/editor/common/services/modelService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -33,6 +33,8 @@ import { ILanguageService } from 'vs/editor/common/services/language';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { getDocumentSemanticTokens, isSemanticTokens } from 'vs/editor/common/services/getSemanticTokens';
+import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 
 const GENERATE_TESTS = false;
 
@@ -47,14 +49,16 @@ suite('ModelService', () => {
 		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
 
 		const dialogService = new TestDialogService();
+		const logService = new NullLogService();
 		modelService = disposables.add(new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
 			new TestThemeService(),
-			new NullLogService(),
+			logService,
 			new UndoRedoService(dialogService, new TestNotificationService()),
 			disposables.add(new LanguageService()),
-			new TestLanguageConfigurationService()
+			new TestLanguageConfigurationService(),
+			new LanguageFeatureDebounceService(logService)
 		));
 	});
 
@@ -409,158 +413,160 @@ suite('ModelService', () => {
 suite('ModelSemanticColoring', () => {
 
 	const disposables = new DisposableStore();
-	const ORIGINAL_FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY = ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY;
 	let modelService: IModelService;
 	let languageService: ILanguageService;
 
 	setup(() => {
-		ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY = 0;
-
 		const configService = new TestConfigurationService({ editor: { semanticHighlighting: true } });
 		const themeService = new TestThemeService();
 		themeService.setTheme(new TestColorTheme({}, ColorScheme.DARK, true));
+		const logService = new NullLogService();
 		modelService = disposables.add(new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
 			themeService,
-			new NullLogService(),
+			logService,
 			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
 			disposables.add(new LanguageService()),
-			new TestLanguageConfigurationService()
+			new TestLanguageConfigurationService(),
+			new LanguageFeatureDebounceService(logService)
 		));
 		languageService = disposables.add(new LanguageService(false));
 	});
 
 	teardown(() => {
 		disposables.clear();
-		ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY = ORIGINAL_FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY;
 	});
 
 	test('DocumentSemanticTokens should be fetched when the result is empty if there are pending changes', async () => {
+		await runWithFakedTimers({}, async () => {
 
-		disposables.add(ModesRegistry.registerLanguage({ id: 'testMode' }));
+			disposables.add(ModesRegistry.registerLanguage({ id: 'testMode' }));
 
-		const inFirstCall = new Barrier();
-		const delayFirstResult = new Barrier();
-		const secondResultProvided = new Barrier();
-		let callCount = 0;
+			const inFirstCall = new Barrier();
+			const delayFirstResult = new Barrier();
+			const secondResultProvided = new Barrier();
+			let callCount = 0;
 
-		disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode', new class implements DocumentSemanticTokensProvider {
-			getLegend(): SemanticTokensLegend {
-				return { tokenTypes: ['class'], tokenModifiers: [] };
-			}
-			async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
-				callCount++;
-				if (callCount === 1) {
-					assert.ok('called once');
-					inFirstCall.open();
-					await delayFirstResult.wait();
-					await timeout(0); // wait for the simple scheduler to fire to check that we do actually get rescheduled
-					return null;
+			disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode', new class implements DocumentSemanticTokensProvider {
+				getLegend(): SemanticTokensLegend {
+					return { tokenTypes: ['class'], tokenModifiers: [] };
 				}
-				if (callCount === 2) {
-					assert.ok('called twice');
-					secondResultProvided.open();
-					return null;
+				async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
+					callCount++;
+					if (callCount === 1) {
+						assert.ok('called once');
+						inFirstCall.open();
+						await delayFirstResult.wait();
+						await timeout(0); // wait for the simple scheduler to fire to check that we do actually get rescheduled
+						return null;
+					}
+					if (callCount === 2) {
+						assert.ok('called twice');
+						secondResultProvided.open();
+						return null;
+					}
+					assert.fail('Unexpected call');
 				}
-				assert.fail('Unexpected call');
-			}
-			releaseDocumentSemanticTokens(resultId: string | undefined): void {
-			}
-		}));
+				releaseDocumentSemanticTokens(resultId: string | undefined): void {
+				}
+			}));
 
-		const textModel = disposables.add(modelService.createModel('Hello world', languageService.createById('testMode')));
+			const textModel = disposables.add(modelService.createModel('Hello world', languageService.createById('testMode')));
 
-		// wait for the provider to be called
-		await inFirstCall.wait();
+			// wait for the provider to be called
+			await inFirstCall.wait();
 
-		// the provider is now in the provide call
-		// change the text buffer while the provider is running
-		textModel.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'x' }]);
+			// the provider is now in the provide call
+			// change the text buffer while the provider is running
+			textModel.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'x' }]);
 
-		// let the provider finish its first result
-		delayFirstResult.open();
+			// let the provider finish its first result
+			delayFirstResult.open();
 
-		// we need to check that the provider is called again, even if it returns null
-		await secondResultProvided.wait();
+			// we need to check that the provider is called again, even if it returns null
+			await secondResultProvided.wait();
 
-		// assert that it got called twice
-		assert.strictEqual(callCount, 2);
+			// assert that it got called twice
+			assert.strictEqual(callCount, 2);
+		});
 	});
 
 	test('DocumentSemanticTokens should be pick the token provider with actual items', async () => {
+		await runWithFakedTimers({}, async () => {
 
-		let callCount = 0;
-		disposables.add(ModesRegistry.registerLanguage({ id: 'testMode2' }));
-		disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode2', new class implements DocumentSemanticTokensProvider {
-			getLegend(): SemanticTokensLegend {
-				return { tokenTypes: ['class1'], tokenModifiers: [] };
-			}
-			async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
-				callCount++;
-				// For a secondary request return a different value
-				if (lastResultId) {
+			let callCount = 0;
+			disposables.add(ModesRegistry.registerLanguage({ id: 'testMode2' }));
+			disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode2', new class implements DocumentSemanticTokensProvider {
+				getLegend(): SemanticTokensLegend {
+					return { tokenTypes: ['class1'], tokenModifiers: [] };
+				}
+				async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
+					callCount++;
+					// For a secondary request return a different value
+					if (lastResultId) {
+						return {
+							data: new Uint32Array([2, 1, 1, 1, 1, 0, 2, 1, 1, 1])
+						};
+					}
 					return {
-						data: new Uint32Array([2, 1, 1, 1, 1, 0, 2, 1, 1, 1])
+						resultId: '1',
+						data: new Uint32Array([0, 1, 1, 1, 1, 0, 2, 1, 1, 1])
 					};
 				}
-				return {
-					resultId: '1',
-					data: new Uint32Array([0, 1, 1, 1, 1, 0, 2, 1, 1, 1])
-				};
-			}
-			releaseDocumentSemanticTokens(resultId: string | undefined): void {
-			}
-		}));
-		disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode2', new class implements DocumentSemanticTokensProvider {
-			getLegend(): SemanticTokensLegend {
-				return { tokenTypes: ['class2'], tokenModifiers: [] };
-			}
-			async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
-				callCount++;
-				return null;
-			}
-			releaseDocumentSemanticTokens(resultId: string | undefined): void {
-			}
-		}));
+				releaseDocumentSemanticTokens(resultId: string | undefined): void {
+				}
+			}));
+			disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode2', new class implements DocumentSemanticTokensProvider {
+				getLegend(): SemanticTokensLegend {
+					return { tokenTypes: ['class2'], tokenModifiers: [] };
+				}
+				async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
+					callCount++;
+					return null;
+				}
+				releaseDocumentSemanticTokens(resultId: string | undefined): void {
+				}
+			}));
 
-		function toArr(arr: Uint32Array): number[] {
-			const result: number[] = [];
-			for (let i = 0; i < arr.length; i++) {
-				result[i] = arr[i];
+			function toArr(arr: Uint32Array): number[] {
+				const result: number[] = [];
+				for (let i = 0; i < arr.length; i++) {
+					result[i] = arr[i];
+				}
+				return result;
 			}
-			return result;
-		}
 
-		const textModel = modelService.createModel('Hello world 2', languageService.createById('testMode2'));
-		try {
-			let result = await getDocumentSemanticTokens(textModel, null, null, CancellationToken.None);
-			assert.ok(result, `We should have tokens (1)`);
-			assert.ok(result.tokens, `Tokens are found from multiple providers (1)`);
-			assert.ok(isSemanticTokens(result.tokens), `Tokens are full (1)`);
-			assert.ok(result.tokens.resultId, `Token result id found from multiple providers (1)`);
-			assert.deepStrictEqual(toArr(result.tokens.data), [0, 1, 1, 1, 1, 0, 2, 1, 1, 1], `Token data returned for multiple providers (1)`);
-			assert.deepStrictEqual(callCount, 2, `Called both token providers (1)`);
-			assert.deepStrictEqual(result.provider.getLegend(), { tokenTypes: ['class1'], tokenModifiers: [] }, `Legend matches the tokens (1)`);
+			const textModel = modelService.createModel('Hello world 2', languageService.createById('testMode2'));
+			try {
+				let result = await getDocumentSemanticTokens(textModel, null, null, CancellationToken.None);
+				assert.ok(result, `We should have tokens (1)`);
+				assert.ok(result.tokens, `Tokens are found from multiple providers (1)`);
+				assert.ok(isSemanticTokens(result.tokens), `Tokens are full (1)`);
+				assert.ok(result.tokens.resultId, `Token result id found from multiple providers (1)`);
+				assert.deepStrictEqual(toArr(result.tokens.data), [0, 1, 1, 1, 1, 0, 2, 1, 1, 1], `Token data returned for multiple providers (1)`);
+				assert.deepStrictEqual(callCount, 2, `Called both token providers (1)`);
+				assert.deepStrictEqual(result.provider.getLegend(), { tokenTypes: ['class1'], tokenModifiers: [] }, `Legend matches the tokens (1)`);
 
-			// Make a second request. Make sure we get the secondary value
-			result = await getDocumentSemanticTokens(textModel, result.provider, result.tokens.resultId, CancellationToken.None);
-			assert.ok(result, `We should have tokens (2)`);
-			assert.ok(result.tokens, `Tokens are found from multiple providers (2)`);
-			assert.ok(isSemanticTokens(result.tokens), `Tokens are full (2)`);
-			assert.ok(!result.tokens.resultId, `Token result id found from multiple providers (2)`);
-			assert.deepStrictEqual(toArr(result.tokens.data), [2, 1, 1, 1, 1, 0, 2, 1, 1, 1], `Token data returned for multiple providers (2)`);
-			assert.deepStrictEqual(callCount, 4, `Called both token providers (2)`);
-			assert.deepStrictEqual(result.provider.getLegend(), { tokenTypes: ['class1'], tokenModifiers: [] }, `Legend matches the tokens (2)`);
-		} finally {
-			disposables.clear();
+				// Make a second request. Make sure we get the secondary value
+				result = await getDocumentSemanticTokens(textModel, result.provider, result.tokens.resultId, CancellationToken.None);
+				assert.ok(result, `We should have tokens (2)`);
+				assert.ok(result.tokens, `Tokens are found from multiple providers (2)`);
+				assert.ok(isSemanticTokens(result.tokens), `Tokens are full (2)`);
+				assert.ok(!result.tokens.resultId, `Token result id found from multiple providers (2)`);
+				assert.deepStrictEqual(toArr(result.tokens.data), [2, 1, 1, 1, 1, 0, 2, 1, 1, 1], `Token data returned for multiple providers (2)`);
+				assert.deepStrictEqual(callCount, 4, `Called both token providers (2)`);
+				assert.deepStrictEqual(result.provider.getLegend(), { tokenTypes: ['class1'], tokenModifiers: [] }, `Legend matches the tokens (2)`);
+			} finally {
+				disposables.clear();
 
-			// Wait for scheduler to finish
-			await timeout(0);
+				// Wait for scheduler to finish
+				await timeout(0);
 
-			// Now dispose the text model
-			textModel.dispose();
-		}
+				// Now dispose the text model
+				textModel.dispose();
+			}
+		});
 	});
 });
 
