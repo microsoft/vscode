@@ -1105,6 +1105,14 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 		quickPick.hideInput = true;
 		quickPick.title = localize('layoutOptionsQuickPickTitle', "Layout Options");
 
+		quickPick.buttons = [
+			{
+				alwaysVisible: true,
+				iconClass: Codicon.close.classNames,
+				tooltip: localize('close', "Close")
+			}
+		];
+
 		const disposables = new DisposableStore();
 		let selectedItem: CustomizeLayoutItem | undefined = undefined;
 		disposables.add(contextKeyService.onDidChangeContext(changeEvent => {
@@ -1130,6 +1138,11 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				selectedItem = event.item as CustomizeLayoutItem;
 				commandService.executeCommand(selectedItem.id);
 			}
+		});
+
+		// Only one button, close
+		quickPick.onDidTriggerButton(() => {
+			quickPick.hide();
 		});
 
 		quickPick.onDispose(() => disposables.dispose());
