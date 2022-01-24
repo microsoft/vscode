@@ -15,7 +15,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
 import { extname, dirname, join, normalize } from 'vs/base/common/path';
-import { FileAccess } from 'vs/base/common/network';
+import { FileAccess, connectionTokenCookieName, connectionTokenQueryName } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
@@ -136,13 +136,14 @@ export class WebClientServer {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		if (typeof parsedUrl.query['tkn'] === 'string') {
+		const queryConnectionToken = parsedUrl.query[connectionTokenQueryName];
+		if (typeof queryConnectionToken === 'string') {
 			// We got a connection token as a query parameter.
 			// We want to have a clean URL, so we strip it
 			const responseHeaders: Record<string, string> = Object.create(null);
 			responseHeaders['Set-Cookie'] = cookie.serialize(
-				'vscode-tkn',
-				parsedUrl.query['tkn'],
+				connectionTokenCookieName,
+				queryConnectionToken,
 				{
 					sameSite: 'strict',
 					maxAge: 60 * 60 * 24 * 7 /* 1 week */
@@ -151,7 +152,7 @@ export class WebClientServer {
 
 			const newQuery = Object.create(null);
 			for (let key in parsedUrl.query) {
-				if (key !== 'tkn') {
+				if (key !== connectionTokenQueryName) {
 					newQuery[key] = parsedUrl.query[key];
 				}
 			}
@@ -214,7 +215,7 @@ export class WebClientServer {
 			// and we want to set it prolong it to ensure that this
 			// client is valid for another 1 week at least
 			headers['Set-Cookie'] = cookie.serialize(
-				'vscode-tkn',
+				connectionTokenCookieName,
 				this._connectionToken.value,
 				{
 					sameSite: 'strict',

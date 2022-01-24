@@ -13,7 +13,7 @@ import { LoaderStats } from 'vs/base/common/amd';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { FileAccess, Schemas } from 'vs/base/common/network';
+import { connectionTokenQueryName, FileAccess, Schemas } from 'vs/base/common/network';
 import { dirname, join } from 'vs/base/common/path';
 import * as perf from 'vs/base/common/performance';
 import * as platform from 'vs/base/common/platform';
@@ -688,7 +688,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 
 	if (hasWebClient && address && typeof address !== 'string') {
 		// ships the web ui!
-		const queryPart = (connectionToken.type !== ServerConnectionTokenType.None ? `?tkn=${connectionToken.value}` : '');
+		const queryPart = (connectionToken.type !== ServerConnectionTokenType.None ? `?${connectionTokenQueryName}=${connectionToken.value}` : '');
 		console.log(`Web UI available at http://localhost${address.port === 80 ? '' : `:${address.port}`}/${queryPart}`);
 	}
 

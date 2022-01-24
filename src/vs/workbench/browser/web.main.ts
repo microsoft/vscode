@@ -21,7 +21,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
-import { Schemas } from 'vs/base/common/network';
+import { Schemas, connectionTokenCookieName } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -174,7 +174,7 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(ILogService, logService);
 
 		// Remote
-		const connectionToken = environmentService.options.connectionToken || getCookieValue('vscode-tkn');
+		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(connectionToken, this.configuration.resourceUriProvider);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
