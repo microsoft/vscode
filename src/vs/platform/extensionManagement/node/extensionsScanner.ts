@@ -5,6 +5,7 @@
 
 import { flatten } from 'vs/base/common/arrays';
 import { Limiter, Promises, Queue } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -26,7 +27,7 @@ import { ExtensionType, IExtensionIdentifier, IExtensionManifest, UNDEFINED_PUBL
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { CancellationToken } from 'vscode';
+
 
 export type ILocalExtensionManifest = IExtensionManifest & { __metadata?: Metadata };
 type IRelaxedLocalExtension = Omit<ILocalExtension, 'isBuiltin'> & { isBuiltin: boolean };
