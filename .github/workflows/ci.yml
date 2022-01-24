@@ -136,11 +136,10 @@ jobs:
           path: ${{ steps.yarnCacheDirPath.outputs.dir }}
           key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
           restore-keys: ${{ runner.os }}-yarnCacheDir-
-      - name: Compile build tools
+      - name: Install build dependencies
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: |
-          yarn --cwd build
-          yarn --cwd build compile
+          yarn --cwd build --frozen-lockfile
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
