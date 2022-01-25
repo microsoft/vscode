@@ -320,7 +320,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 						// is a vscode-remote resource as simplified URL.
 						workspace = { workspaceUri: URI.from({ scheme: Schemas.vscodeRemote, path: value, authority: config.remoteAuthority }) };
 					} else {
-						workspace = { folderUri: URI.parse(value) };
+						workspace = { workspaceUri: URI.parse(value) };
 					}
 					foundWorkspace = true;
 					break;
