@@ -68,7 +68,7 @@ import { GettingStartedIndexList } from './gettingStartedList';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
-import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
+import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
 import { AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';

@@ -6,7 +6,7 @@
 import { Command } from 'vs/editor/common/languages';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -62,7 +62,6 @@ type OpenCommandActionDescriptor = {
 /**
  * View Container Contexts
  */
-export function getEnabledViewContainerContextKey(viewContainerId: string): string { return `viewContainer.${viewContainerId}.enabled`; }
 
 export interface IViewContainerDescriptor {
 
@@ -592,12 +591,6 @@ export interface IViewsService {
 	getViewWithId<T extends IView>(id: string): T | null;
 	getViewProgressIndicator(id: string): IProgressIndicator | undefined;
 }
-
-/**
- * View Contexts
- */
-export const FocusedViewContext = new RawContextKey<string>('focusedView', '', localize('focusedView', "The identifier of the view that has keyboard focus"));
-export function getVisbileViewContextKey(viewId: string): string { return `view.${viewId}.visible`; }
 
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
 

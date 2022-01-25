@@ -142,7 +142,6 @@ export class CellTitleToolbarPart extends CellPart {
 		this.updateContext(<INotebookCellActionContext>{
 			ui: true,
 			cell: element,
-			cellTemplate: templateData,
 			notebookEditor: this._notebookEditor,
 			$mid: MarshalledId.NotebookCellActionContext
 		});

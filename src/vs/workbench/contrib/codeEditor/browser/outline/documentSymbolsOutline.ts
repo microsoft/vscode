@@ -212,6 +212,10 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		return !this._outlineModel || TreeElement.empty(this._outlineModel);
 	}
 
+	get uri() {
+		return this._outlineModel?.uri;
+	}
+
 	async reveal(entry: DocumentSymbolItem, options: IEditorOptions, sideBySide: boolean): Promise<void> {
 		const model = OutlineModel.get(entry);
 		if (!model || !(entry instanceof OutlineElement)) {

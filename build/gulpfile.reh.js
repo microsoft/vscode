@@ -91,15 +91,15 @@ const serverWithWebResources = [
 
 const serverEntryPoints = [
 	{
-		name: 'vs/server/node/remoteExtensionHostAgent',
+		name: 'vs/server/node/server.main',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
-		name: 'vs/server/node/remoteCli',
+		name: 'vs/server/node/server.cli',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
-		name: 'vs/server/node/remoteExtensionHostProcess',
+		name: 'vs/workbench/services/extensions/node/extensionHostProcess',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
@@ -329,13 +329,17 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 					.pipe(replace('@@APPNAME@@', product.applicationName))
 					.pipe(rename(`bin/helpers/browser.sh`))
 					.pipe(util.setExecutableBit()),
-				gulp.src('resources/server/bin/server-old.sh', { base: '.' })
-					.pipe(rename(`server.sh`))
-					.pipe(util.setExecutableBit()),
 				gulp.src('resources/server/bin/code-server.sh', { base: '.' })
 					.pipe(rename(`bin/${product.serverApplicationName}`))
 					.pipe(util.setExecutableBit())
 			);
+			if (type !== 'reh-web') {
+				result = es.merge(result,
+					gulp.src('resources/server/bin/server-old.sh', { base: '.' })
+						.pipe(rename(`server.sh`))
+						.pipe(util.setExecutableBit()),
+				);
+			}
 		}
 
 		return result.pipe(vfs.dest(destination));

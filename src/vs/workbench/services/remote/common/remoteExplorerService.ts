@@ -120,7 +120,7 @@ export function makeAddress(host: string, port: number): string {
 }
 
 export function parseAddress(address: string): { host: string, port: number } | undefined {
-	const matches = address.match(/^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\:|localhost:|[a-zA-Z\-]+:)?([0-9]+)$/);
+	const matches = address.match(/^([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*:)?([0-9]+)$/);
 	if (!matches) {
 		return undefined;
 	}

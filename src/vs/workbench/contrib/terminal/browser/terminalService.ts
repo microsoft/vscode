@@ -22,7 +22,7 @@ import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
+import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
 import { ICreateTerminalOptions, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';

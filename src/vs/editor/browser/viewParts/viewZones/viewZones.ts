@@ -187,7 +187,7 @@ export class ViewZones extends ViewPart {
 			});
 		}
 
-		const viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition);
+		const viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition, zone.afterColumnAffinity);
 		const isVisible = this._context.model.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
 		return {
 			isInHiddenArea: !isVisible,

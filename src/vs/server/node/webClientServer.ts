@@ -15,7 +15,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
 import { extname, dirname, join, normalize } from 'vs/base/common/path';
-import { FileAccess } from 'vs/base/common/network';
+import { FileAccess, connectionTokenCookieName, connectionTokenQueryName } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
@@ -75,9 +75,9 @@ export class WebClientServer {
 
 	constructor(
 		private readonly _connectionToken: ServerConnectionToken,
-		private readonly _environmentService: IServerEnvironmentService,
-		private readonly _logService: ILogService,
-		private readonly _productService: IProductService
+		@IServerEnvironmentService private readonly _environmentService: IServerEnvironmentService,
+		@ILogService private readonly _logService: ILogService,
+		@IProductService private readonly _productService: IProductService
 	) { }
 
 	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
@@ -110,11 +110,6 @@ export class WebClientServer {
 		}
 	}
 
-	private _hasCorrectTokenCookie(req: http.IncomingMessage): boolean {
-		const cookies = cookie.parse(req.headers.cookie || '');
-		return this._connectionToken.validate(cookies['vscode-tkn']);
-	}
-
 	/**
 	 * Handle HTTP requests for /static/*
 	 */
@@ -141,16 +136,23 @@ export class WebClientServer {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		const queryTkn = parsedUrl.query['tkn'];
-		if (typeof queryTkn === 'string') {
-			// tkn came in via a query string
-			// => set a cookie and redirect to url without tkn
+		const queryConnectionToken = parsedUrl.query[connectionTokenQueryName];
+		if (typeof queryConnectionToken === 'string') {
+			// We got a connection token as a query parameter.
+			// We want to have a clean URL, so we strip it
 			const responseHeaders: Record<string, string> = Object.create(null);
-			responseHeaders['Set-Cookie'] = cookie.serialize('vscode-tkn', queryTkn, { sameSite: 'strict', maxAge: 60 * 60 * 24 * 7 /* 1 week */ });
+			responseHeaders['Set-Cookie'] = cookie.serialize(
+				connectionTokenCookieName,
+				queryConnectionToken,
+				{
+					sameSite: 'strict',
+					maxAge: 60 * 60 * 24 * 7 /* 1 week */
+				}
+			);
 
 			const newQuery = Object.create(null);
 			for (let key in parsedUrl.query) {
-				if (key !== 'tkn') {
+				if (key !== connectionTokenQueryName) {
 					newQuery[key] = parsedUrl.query[key];
 				}
 			}
@@ -159,10 +161,6 @@ export class WebClientServer {
 
 			res.writeHead(302, responseHeaders);
 			return res.end();
-		}
-
-		if (this._environmentService.isBuilt && !this._hasCorrectTokenCookie(req)) {
-			return serveError(req, res, 403, `Forbidden.`);
 		}
 
 		const remoteAuthority = req.headers.host;
@@ -217,7 +215,7 @@ export class WebClientServer {
 			// and we want to set it prolong it to ensure that this
 			// client is valid for another 1 week at least
 			headers['Set-Cookie'] = cookie.serialize(
-				'vscode-tkn',
+				connectionTokenCookieName,
 				this._connectionToken.value,
 				{
 					sameSite: 'strict',

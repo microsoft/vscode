@@ -55,7 +55,6 @@ export class RunToolbar extends CellPart {
 		this.toolbar.context = <INotebookCellActionContext>{
 			ui: true,
 			cell: element,
-			cellTemplate: templateData,
 			notebookEditor: this.notebookEditor,
 			$mid: MarshalledId.NotebookCellActionContext
 		};

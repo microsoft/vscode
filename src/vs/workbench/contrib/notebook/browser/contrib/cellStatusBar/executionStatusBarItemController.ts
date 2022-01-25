@@ -9,11 +9,10 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/notebookVisibleCellObserver';
-import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
@@ -35,7 +34,7 @@ export class NotebookStatusBarController extends Disposable {
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		private readonly _itemFactory: (vm: NotebookViewModel, cell: CellViewModel) => IDisposable,
+		private readonly _itemFactory: (vm: INotebookViewModel, cell: ICellViewModel) => IDisposable,
 	) {
 		super();
 		this._observer = this._register(new NotebookVisibleCellObserver(this._notebookEditor));
@@ -97,7 +96,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 	private _currentExecutingStateTimer: IDisposable | undefined;
 
 	constructor(
-		private readonly _notebookViewModel: NotebookViewModel,
+		private readonly _notebookViewModel: INotebookViewModel,
 		private readonly _cell: ICellViewModel,
 		@INotebookExecutionStateService private readonly _executionStateService: INotebookExecutionStateService
 	) {
@@ -211,7 +210,7 @@ class TimerCellStatusBarItem extends Disposable {
 	private _scheduler: RunOnceScheduler;
 
 	constructor(
-		private readonly _notebookViewModel: NotebookViewModel,
+		private readonly _notebookViewModel: INotebookViewModel,
 		private readonly _cell: ICellViewModel,
 		@INotebookExecutionStateService private readonly _executionStateService: INotebookExecutionStateService
 	) {

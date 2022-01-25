@@ -21,7 +21,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
-import { Schemas } from 'vs/base/common/network';
+import { Schemas, connectionTokenCookieName } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -152,7 +152,7 @@ export class BrowserMain extends Disposable {
 		//
 		// NOTE: Please do NOT register services here. Use `registerSingleton()`
 		//       from `workbench.common.main.ts` if the service is shared between
-		//       desktop and web or `workbench.web.api.ts` if the service
+		//       desktop and web or `workbench.web.main.ts` if the service
 		//       is web only.
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -174,7 +174,7 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(ILogService, logService);
 
 		// Remote
-		const connectionToken = environmentService.options.connectionToken || getCookieValue('vscode-tkn');
+		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(connectionToken, this.configuration.resourceUriProvider);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
@@ -187,7 +187,7 @@ export class BrowserMain extends Disposable {
 		//
 		// NOTE: Please do NOT register services here. Use `registerSingleton()`
 		//       from `workbench.common.main.ts` if the service is shared between
-		//       desktop and web or `workbench.web.api.ts` if the service
+		//       desktop and web or `workbench.web.main.ts` if the service
 		//       is web only.
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -233,7 +233,7 @@ export class BrowserMain extends Disposable {
 		//
 		// NOTE: Please do NOT register services here. Use `registerSingleton()`
 		//       from `workbench.common.main.ts` if the service is shared between
-		//       desktop and web or `workbench.web.api.ts` if the service
+		//       desktop and web or `workbench.web.main.ts` if the service
 		//       is web only.
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -263,7 +263,7 @@ export class BrowserMain extends Disposable {
 		//
 		// NOTE: Please do NOT register services here. Use `registerSingleton()`
 		//       from `workbench.common.main.ts` if the service is shared between
-		//       desktop and web or `workbench.web.api.ts` if the service
+		//       desktop and web or `workbench.web.main.ts` if the service
 		//       is web only.
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

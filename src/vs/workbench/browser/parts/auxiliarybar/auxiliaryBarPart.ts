@@ -16,7 +16,7 @@ import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platf
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Extensions as PaneCompositeExtensions } from 'vs/workbench/browser/panecomposite';
 import { BasePanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
-import { ActiveAuxiliaryContext, AuxiliaryBarFocusContext } from 'vs/workbench/common/auxiliarybar';
+import { ActiveAuxiliaryContext, AuxiliaryBarFocusContext } from 'vs/workbench/common/contextkeys';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, SIDE_BAR_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';

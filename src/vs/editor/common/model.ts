@@ -939,6 +939,11 @@ export interface ITextModel {
 	getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType;
 
 	/**
+	 * @internal
+	*/
+	tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null;
+
+	/**
 	 * Get the word under or besides `position`.
 	 * @param position The position to look for a word.
 	 * @return The word under or besides `position`. Might be null.
@@ -1268,9 +1273,6 @@ export interface ITextModel {
 	readonly guides: IGuidesTextModelPart;
 }
 
-/**
- * @internal
- */
 export const enum PositionAffinity {
 	/**
 	 * Prefers the left most position.

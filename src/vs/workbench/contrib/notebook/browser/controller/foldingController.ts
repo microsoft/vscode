@@ -20,6 +20,7 @@ import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser
 import { localize } from 'vs/nls';
 import { FoldingRegion } from 'vs/editor/contrib/folding/browser/foldingRanges';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 
 export class FoldingController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.findController';
@@ -102,7 +103,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 			return;
 		}
 
-		const vm = this._notebookEditor._getViewModel();
+		const vm = this._notebookEditor._getViewModel() as NotebookViewModel;
 
 		vm.updateFoldingRanges(this._foldingModel.regions);
 		const hiddenRanges = vm.getHiddenRanges();
@@ -118,7 +119,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 			return;
 		}
 
-		const viewModel = this._notebookEditor._getViewModel();
+		const viewModel = this._notebookEditor._getViewModel() as NotebookViewModel;
 		const target = e.event.target as HTMLElement;
 
 		if (target.classList.contains('codicon-notebook-collapsed') || target.classList.contains('codicon-notebook-expanded')) {

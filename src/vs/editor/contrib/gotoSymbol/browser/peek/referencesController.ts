@@ -21,7 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
+import { IListService, WorkbenchListFocusContextKey, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementCanExpand } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { OneReference, ReferencesModel } from '../referencesModel';
@@ -380,7 +380,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyCode.Enter,
 		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow]
 	},
-	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey),
+	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey, WorkbenchTreeElementCanCollapse.negate(), WorkbenchTreeElementCanExpand.negate()),
 	handler(accessor: ServicesAccessor) {
 		const listService = accessor.get(IListService);
 		const focus = <any[]>listService.lastFocusedList?.getFocus();
@@ -397,7 +397,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: {
 		primary: KeyMod.WinCtrl | KeyCode.Enter
 	},
-	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey),
+	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey, WorkbenchTreeElementCanCollapse.negate(), WorkbenchTreeElementCanExpand.negate()),
 	handler(accessor: ServicesAccessor) {
 		const listService = accessor.get(IListService);
 		const focus = <any[]>listService.lastFocusedList?.getFocus();

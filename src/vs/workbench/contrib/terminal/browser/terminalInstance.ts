@@ -355,7 +355,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(this._contextKeyService);
 
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
-		this._register(this.capabilities.onDidAddCapability(e => this._logService.debug('terminalInstance added capability', e)));
+		this._register(this.capabilities.onDidAddCapability(e => {
+			this._logService.debug('terminalInstance added capability', e);
+			if (e === TerminalCapability.CwdDetection) {
+				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(async (e) => {
+					this._cwd = e;
+					await this.refreshTabLabels(this.title, TitleEventSource.Api);
+				});
+			}
+		}));
 		this._register(this.capabilities.onDidRemoveCapability(e => this._logService.debug('terminalInstance removed capability', e)));
 
 		// Resolve just the icon ahead of time so that it shows up immediately in the tabs. This is
@@ -384,6 +392,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xtermReadyPromise.then(async () => {
 			// Wait for a period to allow a container to be ready
 			await this._containerReadyBarrier.wait();
+			if (this._configHelper.config.enableShellIntegration && !this.shellLaunchConfig.executable) {
+				const os = await this._getBackendOS();
+				this.shellLaunchConfig.executable = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os })).path;
+			}
 			await this._createProcess();
 
 			// Re-establish the title after reconnect
@@ -1297,6 +1309,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			os = remoteEnv.os;
 		}
 		return os === OperatingSystem.Windows;
+	}
+
+	private async _getBackendOS(): Promise<OperatingSystem> {
+		let os = OS;
+		if (!!this.remoteAuthority) {
+			const remoteEnv = await this._remoteAgentService.getEnvironment();
+			if (!remoteEnv) {
+				throw new Error(`Failed to get remote environment for remote authority "${this.remoteAuthority}"`);
+			}
+			os = remoteEnv.os;
+		}
+		return os;
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {

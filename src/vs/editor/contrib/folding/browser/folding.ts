@@ -37,6 +37,8 @@ import { FoldingRegion, FoldingRegions } from './foldingRanges';
 import { ID_SYNTAX_PROVIDER, SyntaxRangeProvider } from './syntaxRangeProvider';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import Severity from 'vs/base/common/severity';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 
 const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
@@ -85,6 +87,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 	private foldingModelPromise: Promise<FoldingModel | null> | null;
 	private updateScheduler: Delayer<FoldingModel | null> | null;
+	private readonly updateDebounceInfo: IFeatureDebounceInformation;
 
 	private foldingEnabled: IContextKey<boolean>;
 	private cursorChangedScheduler: RunOnceScheduler | null;
@@ -97,6 +100,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 		@INotificationService notificationService: INotificationService,
+		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService
 	) {
 		super();
 		this.editor = editor;
@@ -108,6 +112,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this._currentModelHasFoldedImports = false;
 		this._foldingImportsByDefault = options.get(EditorOption.foldingImportsByDefault);
 		this._maxFoldingRegions = options.get(EditorOption.foldingMaximumRegions);
+		this.updateDebounceInfo = languageFeatureDebounceService.for(FoldingRangeProviderRegistry, 'Folding', { min: 200 });
 
 		this.foldingModel = null;
 		this.hiddenRangeModel = null;
@@ -243,7 +248,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.localToDispose.add(this.hiddenRangeModel);
 		this.localToDispose.add(this.hiddenRangeModel.onDidChange(hr => this.onHiddenRangesChanges(hr)));
 
-		this.updateScheduler = new Delayer<FoldingModel>(200);
+		this.updateScheduler = new Delayer<FoldingModel>(this.updateDebounceInfo.get(model));
 
 		this.cursorChangedScheduler = new RunOnceScheduler(() => this.revealCursor(), 200);
 		this.localToDispose.add(this.cursorChangedScheduler);
@@ -328,6 +333,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				if (!foldingModel) { // null if editor has been disposed, or folding turned off
 					return null;
 				}
+				const sw = new StopWatch(true);
 				const provider = this.getRangeProvider(foldingModel.textModel);
 				let foldingRegionPromise = this.foldingRegionPromise = createCancelablePromise(token => provider.compute(token, this._notifyTooManyRegions));
 				return foldingRegionPromise.then(foldingRanges => {
@@ -349,6 +355,12 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 						if (scrollState) {
 							scrollState.restore(this.editor);
+						}
+
+						// update debounce info
+						const newValue = this.updateDebounceInfo.update(foldingModel.textModel, sw.elapsed());
+						if (this.updateScheduler) {
+							this.updateScheduler.defaultDelay = newValue;
 						}
 					}
 					return foldingModel;

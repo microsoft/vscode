@@ -8,7 +8,7 @@ import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore, IReference } from 'vs/base/common/lifecycle';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import * as marked from 'vs/base/common/marked/marked';
+import { marked } from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { requireToContent } from 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughContentProvider';

@@ -2139,6 +2139,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._tokenization.getTokenTypeIfInsertingCharacter(position, character);
 	}
 
+	tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null {
+		const validatedPosition = this.validatePosition(position);
+		return this._tokenization.tokenizeLineWithEdit(validatedPosition, length, newText);
+	}
+
 	private getLanguageConfiguration(languageId: string): ResolvedLanguageConfiguration {
 		return this._languageConfigurationService.getLanguageConfiguration(languageId);
 	}

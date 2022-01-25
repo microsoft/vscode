@@ -1309,7 +1309,7 @@ configurationRegistry.registerConfiguration({
 		[treeIndentKey]: {
 			type: 'number',
 			default: 8,
-			minimum: 0,
+			minimum: 4,
 			maximum: 40,
 			description: localize('tree indent setting', "Controls tree indentation in pixels.")
 		},

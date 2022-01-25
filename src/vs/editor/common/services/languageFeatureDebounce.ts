@@ -19,7 +19,7 @@ export interface ILanguageFeatureDebounceService {
 
 	readonly _serviceBrand: undefined;
 
-	for(feature: LanguageFeatureRegistry<object>, debugName: string, config?: { min?: number, salt?: string }): IFeatureDebounceInformation;
+	for(feature: LanguageFeatureRegistry<object>, debugName: string, config?: { min?: number, max?: number, salt?: string }): IFeatureDebounceInformation;
 }
 
 export interface IFeatureDebounceInformation {
@@ -51,7 +51,7 @@ class FeatureDebounceInformation implements IFeatureDebounceInformation {
 		private readonly _registry: LanguageFeatureRegistry<object>,
 		private readonly _default: number,
 		private readonly _min: number,
-		private readonly _max: number = Number.MAX_SAFE_INTEGER,
+		private readonly _max: number,
 	) { }
 
 	private _key(model: ITextModel): string {
@@ -103,8 +103,9 @@ export class LanguageFeatureDebounceService implements ILanguageFeatureDebounceS
 
 	}
 
-	for(feature: LanguageFeatureRegistry<object>, name: string, config?: { min?: number, key?: string }): IFeatureDebounceInformation {
+	for(feature: LanguageFeatureRegistry<object>, name: string, config?: { min?: number, max?: number, key?: string }): IFeatureDebounceInformation {
 		const min = config?.min ?? 50;
+		const max = config?.max ?? min ** 2;
 		const extra = config?.key ?? undefined;
 		const key = `${IdentityHash.of(feature)},${min}${extra ? ',' + extra : ''}`;
 		let info = this._data.get(key);
@@ -114,7 +115,8 @@ export class LanguageFeatureDebounceService implements ILanguageFeatureDebounceS
 				name,
 				feature,
 				(this._overallAverage() | 0) || (min * 1.5), // default is overall default or derived from min-value
-				min
+				min,
+				max
 			);
 			this._data.set(key, info);
 		}

@@ -6,7 +6,6 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -14,8 +13,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { Change, IRemoteUserData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { AbstractFileSynchroniser, AbstractInitializer, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { Change, IRemoteUserData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface ITasksSyncContent {
 	tasks: string;
@@ -35,7 +34,7 @@ export function getTasksContentFromSyncContent(syncContent: string, logService: 
 	}
 }
 
-export class TasksSynchroniser extends AbstractJsonFileSynchroniser implements IUserDataSynchroniser {
+export class TasksSynchroniser extends AbstractFileSynchroniser implements IUserDataSynchroniser {
 
 	protected readonly version: number = 1;
 	private readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'tasks.json');
@@ -52,11 +51,10 @@ export class TasksSynchroniser extends AbstractJsonFileSynchroniser implements I
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStorageService storageService: IStorageService,
-		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(environmentService.settingsResource), 'tasks.json'), SyncResource.Tasks, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService, uriIdentityService);
+		super(uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(environmentService.settingsResource), 'tasks.json'), SyncResource.Tasks, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
 	}
 
 	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, userDataSyncConfiguration: IUserDataSyncConfiguration): Promise<ITasksResourcePreview[]> {
@@ -76,10 +74,6 @@ export class TasksSynchroniser extends AbstractJsonFileSynchroniser implements I
 
 		if (remoteContent) {
 			const localContent = fileContent ? fileContent.value.toString() : null;
-			if (localContent !== null && this.hasErrors(localContent)) {
-				throw new UserDataSyncError(localize('errorInvalidTasks', "Unable to sync tasks because the content in the file is not valid. Please open the file and correct it."), UserDataSyncErrorCode.LocalInvalidContent, this.resource);
-			}
-
 			if (!lastSyncContent // First time sync
 				|| lastSyncContent !== localContent // Local has forwarded
 				|| lastSyncContent !== remoteContent // Remote has forwarded
@@ -186,14 +180,6 @@ export class TasksSynchroniser extends AbstractJsonFileSynchroniser implements I
 
 		if (localChange === Change.None && remoteChange === Change.None) {
 			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing tasks.`);
-		}
-
-		if (content !== null) {
-			content = content.trim();
-			content = content || '{}';
-			if (this.hasErrors(content)) {
-				throw new UserDataSyncError(localize('errorInvalidTasks', "Unable to sync tasks because the content in the file is not valid. Please open the file and correct it."), UserDataSyncErrorCode.LocalInvalidContent, this.resource);
-			}
 		}
 
 		if (localChange !== Change.None) {

@@ -67,15 +67,6 @@ export class TelemetryService implements ITelemetryService {
 			optIn: boolean;
 		};
 		this.publicLog2<OptInEvent, OptInClassification>('optInStatus', { optIn: this._telemetryLevel === TelemetryLevel.USAGE });
-
-		this._commonProperties.then(values => {
-			const isHashedId = /^[a-f0-9]+$/i.test(values['common.machineId']);
-
-			type MachineIdFallbackClassification = {
-				usingFallbackGuid: { classification: 'SystemMetaData', purpose: 'BusinessInsight', isMeasurement: true };
-			};
-			this.publicLog2<{ usingFallbackGuid: boolean }, MachineIdFallbackClassification>('machineIdFallback', { usingFallbackGuid: !isHashedId });
-		});
 	}
 
 	setExperimentProperty(name: string, value: string): void {

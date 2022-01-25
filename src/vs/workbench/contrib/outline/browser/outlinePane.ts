@@ -35,7 +35,6 @@ import { EditorResourceAccessor, IEditorPane } from 'vs/workbench/common/editor'
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { URI } from 'vs/base/common/uri';
 import { AbstractTreeViewState, IAbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
 
 const _ctxFollowsCursor = new RawContextKey('outlineFollowsCursor', false);
@@ -181,11 +180,11 @@ export class OutlinePane extends ViewPane {
 		this._message.innerText = message;
 	}
 
-	private _captureViewState(resource: URI | undefined): boolean {
-		if (resource && this._tree) {
-			const oldOutline = this._tree?.getInput();
-			if (oldOutline) {
-				this._treeStates.set(`${oldOutline.outlineKind}/${resource}`, this._tree!.getViewState());
+	private _captureViewState(): boolean {
+		if (this._tree) {
+			const oldOutline = this._tree.getInput();
+			if (oldOutline && oldOutline.uri) {
+				this._treeStates.set(`${oldOutline.outlineKind}/${oldOutline.uri}`, this._tree.getViewState());
 				return true;
 			}
 		}
@@ -209,7 +208,7 @@ export class OutlinePane extends ViewPane {
 
 		// persist state
 		const resource = EditorResourceAccessor.getOriginalUri(pane?.input);
-		const didCapture = this._captureViewState(resource);
+		const didCapture = this._captureViewState();
 
 		this._editorControlDisposables.clear();
 
@@ -270,7 +269,7 @@ export class OutlinePane extends ViewPane {
 			if (newOutline.isEmpty) {
 				// no more elements
 				this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(resource)));
-				this._captureViewState(resource);
+				this._captureViewState();
 				tree.setInput(undefined);
 
 			} else if (!tree.getInput()) {

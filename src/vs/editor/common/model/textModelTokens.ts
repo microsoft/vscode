@@ -372,6 +372,38 @@ export class TextModelTokenization extends Disposable {
 		return lineTokens.getStandardTokenType(tokenIndex);
 	}
 
+	public tokenizeLineWithEdit(position: Position, length: number, newText: string): LineTokens | null {
+		const lineNumber = position.lineNumber;
+		const column = position.column;
+
+		if (!this._tokenizationSupport) {
+			return null;
+		}
+
+		this.forceTokenization(lineNumber);
+		const lineStartState = this._tokenizationStateStore.getBeginState(lineNumber - 1);
+		if (!lineStartState) {
+			return null;
+		}
+
+		const curLineContent = this._textModel.getLineContent(lineNumber);
+		const newLineContent = curLineContent.substring(0, column - 1)
+			+ newText + curLineContent.substring(column - 1 + length);
+
+		const languageId = this._textModel.getLanguageIdAtPosition(lineNumber, 0);
+		const result = safeTokenize(
+			this._languageIdCodec,
+			languageId,
+			this._tokenizationSupport,
+			newLineContent,
+			true,
+			lineStartState
+		);
+
+		const lineTokens = new LineTokens(result.tokens, newLineContent, this._languageIdCodec);
+		return lineTokens;
+	}
+
 	public isCheapToTokenize(lineNumber: number): boolean {
 		if (!this._tokenizationSupport) {
 			return true;

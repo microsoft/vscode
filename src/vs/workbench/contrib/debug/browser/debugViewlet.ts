@@ -27,7 +27,7 @@ import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActio
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
 import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
+import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { FOCUS_SESSION_ID, SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, DEBUG_START_LABEL, DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';

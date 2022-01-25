@@ -293,18 +293,24 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 			const workspaceFolder = vscode.workspace.getWorkspaceFolder(docUri);
 			if (workspaceFolder) {
 				return vscode.Uri.joinPath(workspaceFolder.uri, ref);
+			} else {
+				return this.resolvePath(docUri, ref.slice(1));
 			}
 		}
 
+		return this.resolvePath(docUri, ref);
+	}
+
+	private resolvePath(root: vscode.Uri, ref: string): vscode.Uri | undefined {
 		try {
-			if (docUri.scheme === 'file') {
-				return vscode.Uri.file(resolve(dirname(docUri.fsPath), ref));
+			if (root.scheme === 'file') {
+				return vscode.Uri.file(resolve(dirname(root.fsPath), ref));
 			} else {
-				return docUri.with({
-					path: resolve(dirname(docUri.path), ref),
+				return root.with({
+					path: resolve(dirname(root.path), ref),
 				});
 			}
-		} catch (e) {
+		} catch {
 			return undefined;
 		}
 	}

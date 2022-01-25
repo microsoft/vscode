@@ -21,7 +21,6 @@ import { flatten } from 'vs/base/common/arrays';
 import { TypeConstraint } from 'vs/base/common/types';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { MarshalledId } from 'vs/base/common/marshalling';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 
 // Kernel Command
 export const SELECT_KERNEL_ID = '_notebook.selectKernel';
@@ -49,7 +48,6 @@ export const enum CellOverflowToolbarGroups {
 }
 
 export interface INotebookActionContext {
-	readonly cellTemplate?: BaseCellRenderTemplate;
 	readonly cell?: ICellViewModel;
 	readonly notebookEditor: IActiveNotebookEditor;
 	readonly ui?: boolean;

@@ -107,6 +107,13 @@ export class TestLineTokens implements IViewLineTokens {
 		throw new Error('Not implemented');
 	}
 
+	public getMetadata(tokenIndex: number): number {
+		throw new Error('Method not implemented.');
+	}
+
+	public getLanguageId(tokenIndex: number): string {
+		throw new Error('Method not implemented.');
+	}
 }
 
 export class TestLineTokenFactory {

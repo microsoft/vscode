@@ -543,7 +543,6 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			this.searchWidget.inputBox.addToHistory();
 			this.getMemento(StorageScope.GLOBAL, StorageTarget.USER)['searchHistory'] = this.searchWidget.inputBox.getHistory();
 			this.saveState();
-			this.reportFilteringUsed(this.searchWidget.getValue());
 		});
 	}
 
@@ -773,32 +772,6 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			id: KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE,
 			run: () => this.copyKeybindingCommandTitle(keybinding)
 		};
-	}
-
-	private reportFilteringUsed(filter: string): void {
-		if (filter) {
-			const data = {
-				filter,
-				emptyFilters: this.getLatestEmptyFiltersForTelemetry()
-			};
-			this.latestEmptyFilters = [];
-			/* __GDPR__
-				"keybindings.filter" : {
-					"filter": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-					"emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('keybindings.filter', data);
-		}
-	}
-
-	/**
-	 * Put a rough limit on the size of the telemetry data, since otherwise it could be an unbounded large amount
-	 * of data. 8192 is the max size of a property value. This is rough since that probably includes ""s, etc.
-	 */
-	private getLatestEmptyFiltersForTelemetry(): string[] {
-		let cumulativeSize = 0;
-		return this.latestEmptyFilters.filter(filterText => (cumulativeSize += filterText.length) <= 8192);
 	}
 
 	private reportKeybindingAction(action: string, command: string): void {

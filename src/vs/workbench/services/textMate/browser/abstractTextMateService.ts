@@ -152,28 +152,10 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 			}
 		});
 
+		this._updateTheme(this._grammarFactory, this._themeService.getColorTheme(), true);
 		this._register(this._themeService.onDidColorThemeChange(() => {
-			if (this._grammarFactory) {
-				this._updateTheme(this._grammarFactory, this._themeService.getColorTheme(), false);
-			}
+			this._updateTheme(this._grammarFactory, this._themeService.getColorTheme(), false);
 		}));
-
-		// Generate some color map until the grammar registry is loaded
-		let colorTheme = this._themeService.getColorTheme();
-		let defaultForeground: Color = Color.transparent;
-		let defaultBackground: Color = Color.transparent;
-		for (let i = 0, len = colorTheme.tokenColors.length; i < len; i++) {
-			let rule = colorTheme.tokenColors[i];
-			if (!rule.scope && rule.settings) {
-				if (rule.settings.foreground) {
-					defaultForeground = Color.fromHex(rule.settings.foreground);
-				}
-				if (rule.settings.background) {
-					defaultBackground = Color.fromHex(rule.settings.background);
-				}
-			}
-		}
-		TokenizationRegistry.setColorMap([null!, defaultForeground, defaultBackground]);
 
 		this._languageService.onDidEncounterLanguage((languageId) => {
 			this._createdModes.push(languageId);
@@ -298,7 +280,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		return result;
 	}
 
-	private _updateTheme(grammarFactory: TMGrammarFactory, colorTheme: IWorkbenchColorTheme, forceUpdate: boolean): void {
+	private _updateTheme(grammarFactory: TMGrammarFactory | null, colorTheme: IWorkbenchColorTheme, forceUpdate: boolean): void {
 		if (!forceUpdate && this._currentTheme && this._currentTokenColorMap && AbstractTextMateService.equalsTokenRules(this._currentTheme.settings, colorTheme.tokenColors) && equalArray(this._currentTokenColorMap, colorTheme.tokenColorMap)) {
 			return;
 		}
@@ -307,8 +289,8 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		this._doUpdateTheme(grammarFactory, this._currentTheme, this._currentTokenColorMap);
 	}
 
-	protected _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme, tokenColorMap: string[]): void {
-		grammarFactory.setTheme(theme, tokenColorMap);
+	protected _doUpdateTheme(grammarFactory: TMGrammarFactory | null, theme: IRawTheme, tokenColorMap: string[]): void {
+		grammarFactory?.setTheme(theme, tokenColorMap);
 		let colorMap = AbstractTextMateService._toColorMap(tokenColorMap);
 		let cssRules = generateTokensCSSForColorMap(colorMap);
 		this._styleElement.textContent = cssRules;

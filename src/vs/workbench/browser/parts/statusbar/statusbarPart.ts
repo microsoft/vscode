@@ -30,9 +30,10 @@ import { hash } from 'vs/base/common/hash';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { CONTEXT_STATUS_BAR_FOCUSED, HideStatusbarEntryAction, ToggleStatusbarEntryVisibilityAction } from 'vs/workbench/browser/parts/statusbar/statusbarActions';
+import { HideStatusbarEntryAction, ToggleStatusbarEntryVisibilityAction } from 'vs/workbench/browser/parts/statusbar/statusbarActions';
 import { IStatusbarEntryPriority, IStatusbarEntryLocation, IStatusbarViewModelEntry, StatusbarViewModel, isStatusbarEntryLocation } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
 import { StatusbarEntryItem } from 'vs/workbench/browser/parts/statusbar/statusbarItem';
+import { StatusBarFocused } from 'vs/workbench/common/contextkeys';
 
 interface IPendingStatusbarEntry {
 	readonly id: string;
@@ -285,7 +286,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		// Track focus within container
 		const scopedContextKeyService = this.contextKeyService.createScoped(this.element);
-		CONTEXT_STATUS_BAR_FOCUSED.bindTo(scopedContextKeyService).set(true);
+		StatusBarFocused.bindTo(scopedContextKeyService).set(true);
 
 		// Left items container
 		this.leftItemsContainer = document.createElement('div');

@@ -52,7 +52,7 @@ import { DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { URI } from 'vs/base/common/uri';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { VirtualWorkspaceContext, WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
+import { VirtualWorkspaceContext, WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { installLocalInRemoteIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';

@@ -16,7 +16,6 @@ import { toBase64UrlEncoding } from './utils';
 import fetch, { Response } from 'node-fetch';
 import { sha256 } from './env/node/sha256';
 import * as nls from 'vscode-nls';
-import { MicrosoftAuthenticationSession } from './microsoft-authentication';
 
 const localize = nls.loadMessageBundle();
 
@@ -272,7 +271,7 @@ export class AzureActiveDirectoryService {
 	 * Return a session object without checking for expiry and potentially refreshing.
 	 * @param token The token information.
 	 */
-	private convertToSessionSync(token: IToken): MicrosoftAuthenticationSession {
+	private convertToSessionSync(token: IToken): vscode.AuthenticationSession {
 		return {
 			id: token.sessionId,
 			accessToken: token.accessToken!,
@@ -282,7 +281,7 @@ export class AzureActiveDirectoryService {
 		};
 	}
 
-	private async convertToSession(token: IToken): Promise<MicrosoftAuthenticationSession> {
+	private async convertToSession(token: IToken): Promise<vscode.AuthenticationSession> {
 		const resolvedTokens = await this.resolveAccessAndIdTokens(token);
 		return {
 			id: token.sessionId,

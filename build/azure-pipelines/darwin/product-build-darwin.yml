@@ -71,6 +71,7 @@ steps:
       set -e
       npx https://aka.ms/enablesecurefeed standAlone
     timeoutInMinutes: 5
+    retryCountOnTaskFailure: 3
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
     displayName: Switch to Terrapin packages
 
@@ -174,14 +175,14 @@ steps:
       set -e
       ./scripts/test.sh --build --tfs "Unit Tests"
     displayName: Run unit tests (Electron)
-    timeoutInMinutes: 7
+    timeoutInMinutes: 15
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
       yarn test-node --build
     displayName: Run unit tests (node.js)
-    timeoutInMinutes: 7
+    timeoutInMinutes: 15
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -202,7 +203,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
       ./scripts/test-integration.sh --build --tfs "Integration Tests"
     displayName: Run integration tests (Electron)
-    timeoutInMinutes: 10
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -210,7 +211,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
       ./scripts/test-web-integration.sh --browser webkit
     displayName: Run integration tests (Browser, Webkit)
-    timeoutInMinutes: 10
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -221,7 +222,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
       ./scripts/test-remote-integration.sh
     displayName: Run integration tests (Remote)
-    timeoutInMinutes: 10
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |

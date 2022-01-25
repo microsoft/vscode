@@ -233,7 +233,6 @@ export class ExtensionEditor extends EditorPane {
 	private readonly contentDisposables = this._register(new DisposableStore());
 	private readonly transientDisposables = this._register(new DisposableStore());
 	private activeElement: IActiveElement | null = null;
-	private editorLoadComplete: boolean = false;
 	private dimension: Dimension | undefined;
 
 	private showPreReleaseVersionContextKey: IContextKey<boolean> | undefined;
@@ -489,7 +488,6 @@ export class ExtensionEditor extends EditorPane {
 
 	private async render(extension: IExtension, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
 		this.activeElement = null;
-		this.editorLoadComplete = false;
 		this.transientDisposables.clear();
 
 		const token = this.transientDisposables.add(new CancellationTokenSource()).token;
@@ -567,7 +565,6 @@ export class ExtensionEditor extends EditorPane {
 		*/
 		this.telemetryService.publicLog('extensionGallery:openExtension', { ...extension.telemetryData, ...recommendationsData });
 
-		this.editorLoadComplete = true;
 	}
 
 	private renderNavbar(extension: IExtension, manifest: IExtensionManifest | null, template: IExtensionEditorTemplate, preserveFocus: boolean): void {
@@ -705,18 +702,6 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	private onNavbarChange(extension: IExtension, { id, focus }: { id: string | null, focus: boolean; }, template: IExtensionEditorTemplate): void {
-		if (this.editorLoadComplete) {
-			/* __GDPR__
-				"extensionEditor:navbarChange" : {
-					"navItem": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"${include}": [
-						"${GalleryExtensionTelemetryData}"
-					]
-				}
-			*/
-			this.telemetryService.publicLog('extensionEditor:navbarChange', { ...extension.telemetryData, navItem: id });
-		}
-
 		this.contentDisposables.clear();
 		template.content.innerText = '';
 		this.activeElement = null;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Disposable, EventEmitter } from 'vscode';
-import { dirname, sep } from 'path';
+import { dirname, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import * as byline from 'byline';
@@ -287,6 +287,16 @@ export function detectUnicodeEncoding(buffer: Buffer): Encoding | null {
 	return null;
 }
 
+function normalizePath(path: string): string {
+	// Windows & Mac are currently being handled
+	// as case insensitive file systems in VS Code.
+	if (isWindows || isMacintosh) {
+		return path.toLowerCase();
+	}
+
+	return path;
+}
+
 export function isDescendant(parent: string, descendant: string): boolean {
 	if (parent === descendant) {
 		return true;
@@ -296,25 +306,26 @@ export function isDescendant(parent: string, descendant: string): boolean {
 		parent += sep;
 	}
 
-	// Windows & Mac are currently being handled
-	// as case insensitive file systems in VS Code.
-	if (isWindows || isMacintosh) {
-		parent = parent.toLowerCase();
-		descendant = descendant.toLowerCase();
-	}
-
-	return descendant.startsWith(parent);
+	return normalizePath(descendant).startsWith(normalizePath(parent));
 }
 
 export function pathEquals(a: string, b: string): boolean {
-	// Windows & Mac are currently being handled
-	// as case insensitive file systems in VS Code.
-	if (isWindows || isMacintosh) {
-		a = a.toLowerCase();
-		b = b.toLowerCase();
+	return normalizePath(a) === normalizePath(b);
+}
+
+/**
+ * Given the `repository.root` compute the relative path while trying to preserve
+ * the casing of the resource URI. The `repository.root` segment of the path can
+ * have a casing mismatch if the folder/workspace is being opened with incorrect
+ * casing.
+ */
+export function relativePath(from: string, to: string): string {
+	if (isDescendant(from, to) && from.length < to.length) {
+		return to.substring(from.length + 1);
 	}
 
-	return a === b;
+	// Fallback to `path.relative`
+	return relative(from, to);
 }
 
 export function* splitInChunks(array: string[], maxChunkLength: number): IterableIterator<string[]> {
