@@ -243,10 +243,16 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						os: this.os
 					});
 					try {
-						const os = await this.getBackendOS();
-						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, os);
-						shellLaunchConfig.args = shellIntegration.args;
+						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, this.os);
 						this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
+						if (this.shellIntegrationAttempted) {
+							shellLaunchConfig.args = shellIntegration.args;
+							// resolve the injected arguments
+							await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
+								remoteAuthority: this.remoteAuthority,
+								os: this.os
+							});
+						}
 						newProcess = await backend.createProcess(
 							shellLaunchConfig,
 							'', // TODO: Fix cwd
@@ -421,14 +427,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
-		const os = await this.getBackendOS();
-		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, os);
+		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, OS);
 		if (shellIntegration.enableShellIntegration) {
 			shellLaunchConfig.args = shellIntegration.args;
 			// resolve the injected arguments
 			await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
 				remoteAuthority: undefined,
-				os
+				os: OS
 			});
 		}
 		this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
