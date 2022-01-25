@@ -310,8 +310,8 @@ jobs:
       - name: Editor Distro & ESM Bundle
         run: yarn gulp editor-esm-bundle
 
-      - name: Download Playwright
-        run: yarn playwright-install
+      - name: Install Playwright
+        run: npx playwright install
 
       - name: Editor ESM sources check
         working-directory: ./test/monaco
