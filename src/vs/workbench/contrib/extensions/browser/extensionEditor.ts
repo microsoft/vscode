@@ -987,6 +987,16 @@ export class ExtensionEditor extends EditorPane {
 		}
 	}
 
+	// Formats ISO date time to YY-MM-DD hh:mm:ss
+	private renderTime(lastUpdated: number): string {
+		const date = new Date(lastUpdated);
+
+		let newDate = date.toISOString().split('T')[0]; // YYYY-MM-DD
+		newDate = newDate + ', ' + date.toISOString().split('T')[1].split('.')[0]; // HH:mm:ss
+
+		return newDate;
+	}
+
 	private renderMoreInfo(container: HTMLElement, extension: IExtension): void {
 		const gallery = extension.gallery;
 		const moreInfoContainer = append(container, $('.more-info-container'));
@@ -996,11 +1006,11 @@ export class ExtensionEditor extends EditorPane {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('release date', "Released on")),
-					$('div', undefined, new Date(gallery.releaseDate).toLocaleString(undefined, { hour12: false }))
+					$('div', undefined, this.renderTime(gallery.lastUpdated))
 				),
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('last updated', "Last updated")),
-					$('div', undefined, new Date(gallery.lastUpdated).toLocaleString(undefined, { hour12: false }))
+					$('div', undefined, this.renderTime(gallery.lastUpdated))
 				)
 			);
 		}
