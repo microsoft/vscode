@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const util = require('../../../build/lib/util');
-const playwright = require('playwright');
+const playwright = require('@playwright/test');
 const yaserver = require('yaserver');
 const http = require('http');
 
