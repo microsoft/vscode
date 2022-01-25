@@ -32,6 +32,7 @@ import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/te
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -61,6 +62,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
+		const logService = new NullLogService();
 		modelService = new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
@@ -68,7 +70,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 			new NullLogService(),
 			undoRedoService,
 			disposables.add(new LanguageService()),
-			new TestLanguageConfigurationService()
+			new TestLanguageConfigurationService(),
+			new LanguageFeatureDebounceService(logService)
 		);
 		codeEditorService = new TestCodeEditorService(themeService);
 		textFileService = new class extends mock<ITextFileService>() {

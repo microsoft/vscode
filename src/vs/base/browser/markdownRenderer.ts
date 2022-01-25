@@ -17,7 +17,7 @@ import { IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from '
 import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import * as marked from 'vs/base/common/marked/marked';
+import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { cloneAndChange } from 'vs/base/common/objects';
@@ -123,6 +123,10 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		return '<img ' + attributes.join(' ') + '>';
 	};
 	renderer.link = (href, title, text): string => {
+		if (typeof href !== 'string') {
+			return '';
+		}
+
 		// Remove markdown escapes. Workaround for https://github.com/chjj/marked/issues/829
 		if (href === text) { // raw link case
 			text = removeMarkdownEscapes(text);
@@ -134,7 +138,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 				href = resolvePath(options.baseUrl, href).toString();
 			}
 		}
-		title = removeMarkdownEscapes(title);
+		title = typeof title === 'string' ? removeMarkdownEscapes(title) : '';
 		href = removeMarkdownEscapes(href);
 		if (
 			!href
@@ -161,6 +165,10 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	if (options.codeBlockRenderer) {
 		renderer.code = (code, lang) => {
+			if (typeof lang !== 'string') {
+				return '';
+			}
+
 			const value = options.codeBlockRenderer!(lang, code);
 			// when code-block rendering is async we return sync
 			// but update the node with the real result later.

@@ -87,7 +87,18 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	get preferredWidth(): number | undefined {
-		return this.layoutService.dimension.width * 0.4;
+		const activeComposite = this.getActivePaneComposite();
+
+		if (!activeComposite) {
+			return;
+		}
+
+		const width = activeComposite.getOptimalWidth();
+		if (typeof width !== 'number') {
+			return;
+		}
+
+		return Math.max(width, 300);
 	}
 
 	//#endregion

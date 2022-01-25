@@ -3145,18 +3145,20 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		let entries = Promise.all(stats).then((stats) => {
 			return taskPromise.then((taskMap) => {
 				let entries: QuickPickInput<TaskQuickPickEntryType>[] = [];
-				let needsCreateOrOpen: boolean = true;
+				let configuredCount = 0;
 				let tasks = taskMap.all();
 				if (tasks.length > 0) {
 					tasks = tasks.sort((a, b) => a._label.localeCompare(b._label));
 					for (let task of tasks) {
 						entries.push({ label: task._label, task, description: this.getTaskDescription(task), detail: this.showDetail() ? task.configurationProperties.detail : undefined });
 						if (!ContributedTask.is(task)) {
-							needsCreateOrOpen = false;
+							configuredCount++;
 						}
 					}
 				}
-				if (needsCreateOrOpen || (taskMap.get(USER_TASKS_GROUP_KEY).length === tasks.length)) {
+				const needsCreateOrOpen = (configuredCount === 0);
+				// If the only configured tasks are user tasks, then we should also show the option to create from a template.
+				if (needsCreateOrOpen || (taskMap.get(USER_TASKS_GROUP_KEY).length === configuredCount)) {
 					let label = stats[0] !== undefined ? openLabel : createLabel;
 					if (entries.length) {
 						entries.push({ type: 'separator' });

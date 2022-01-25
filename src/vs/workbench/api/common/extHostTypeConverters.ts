@@ -7,7 +7,7 @@ import { asArray, coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import * as marked from 'vs/base/common/marked/marked';
+import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { isDefined, isEmptyObject, isNumber, isString, withNullAsUndefined } from 'vs/base/common/types';
@@ -339,7 +339,7 @@ export namespace MarkdownString {
 		};
 		const renderer = new marked.Renderer();
 		renderer.link = collectUri;
-		renderer.image = href => collectUri(htmlContent.parseHrefAndDimensions(href).href);
+		renderer.image = href => typeof href === 'string' ? collectUri(htmlContent.parseHrefAndDimensions(href).href) : '';
 
 		marked(res.value, { renderer });
 

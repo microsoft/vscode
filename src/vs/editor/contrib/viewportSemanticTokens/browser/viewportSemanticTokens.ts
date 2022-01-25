@@ -17,6 +17,8 @@ import { isSemanticColoringEnabled, SEMANTIC_HIGHLIGHTING_SETTING_ID } from 'vs/
 import { toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 class ViewportSemanticTokensContribution extends Disposable implements IEditorContribution {
 
@@ -27,6 +29,7 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 	}
 
 	private readonly _editor: ICodeEditor;
+	private readonly _debounceInformation: IFeatureDebounceInformation;
 	private readonly _tokenizeViewport: RunOnceScheduler;
 	private _outstandingRequests: CancelablePromise<any>[];
 
@@ -34,36 +37,43 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 		editor: ICodeEditor,
 		@IModelService private readonly _modelService: IModelService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService
 	) {
 		super();
 		this._editor = editor;
+		this._debounceInformation = languageFeatureDebounceService.for(DocumentRangeSemanticTokensProviderRegistry, 'DocumentRangeSemanticTokens', { min: 100, max: 500 });
 		this._tokenizeViewport = new RunOnceScheduler(() => this._tokenizeViewportNow(), 100);
 		this._outstandingRequests = [];
+		const scheduleTokenizeViewport = () => {
+			if (this._editor.hasModel()) {
+				this._tokenizeViewport.schedule(this._debounceInformation.get(this._editor.getModel()));
+			}
+		};
 		this._register(this._editor.onDidScrollChange(() => {
-			this._tokenizeViewport.schedule();
+			scheduleTokenizeViewport();
 		}));
 		this._register(this._editor.onDidChangeModel(() => {
 			this._cancelAll();
-			this._tokenizeViewport.schedule();
+			scheduleTokenizeViewport();
 		}));
 		this._register(this._editor.onDidChangeModelContent((e) => {
 			this._cancelAll();
-			this._tokenizeViewport.schedule();
+			scheduleTokenizeViewport();
 		}));
 		this._register(DocumentRangeSemanticTokensProviderRegistry.onDidChange(() => {
 			this._cancelAll();
-			this._tokenizeViewport.schedule();
+			scheduleTokenizeViewport();
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SEMANTIC_HIGHLIGHTING_SETTING_ID)) {
 				this._cancelAll();
-				this._tokenizeViewport.schedule();
+				scheduleTokenizeViewport();
 			}
 		}));
 		this._register(this._themeService.onDidColorThemeChange(() => {
 			this._cancelAll();
-			this._tokenizeViewport.schedule();
+			scheduleTokenizeViewport();
 		}));
 	}
 
@@ -111,7 +121,9 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 	private _requestRange(model: ITextModel, range: Range): CancelablePromise<any> {
 		const requestVersionId = model.getVersionId();
 		const request = createCancelablePromise(token => Promise.resolve(getDocumentRangeSemanticTokens(model, range, token)));
+		const sw = new StopWatch(false);
 		request.then((r) => {
+			this._debounceInformation.update(model, sw.elapsed());
 			if (!r || !r.tokens || model.isDisposed() || model.getVersionId() !== requestVersionId) {
 				return;
 			}

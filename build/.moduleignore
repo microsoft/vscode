@@ -21,6 +21,11 @@ fsevents/test/**
 @vscode/sqlite3/src/**
 !@vscode/sqlite3/build/Release/*.node
 
+@vscode/windows-registry/binding.gyp
+@vscode/windows-registry/src/**
+@vscode/windows-registry/build/**
+!@vscode/windows-registry/build/Release/*.node
+
 windows-mutex/binding.gyp
 windows-mutex/build/**
 windows-mutex/src/**

@@ -6,13 +6,15 @@
 declare module 'vscode' {
 	export interface TerminalOptions {
 		/**
-		 * Opt-out of the default terminal persistence on restart and reload
+		 * Opt-out of the default terminal persistence on restart and reload.
+		 * This will only take effect when `terminal.integrated.enablePersistentSessions` is enabled.
 		 */
 		disablePersistence?: boolean;
 	}
 	export interface ExtensionTerminalOptions {
 		/**
-		 * Opt-out of the default terminal persistence on restart and reload
+		 * Opt-out of the default terminal persistence on restart and reload.
+		 * This will only take effect when `terminal.integrated.enablePersistentSessions` is enabled.
 		 */
 		disablePersistence?: boolean;
 	}

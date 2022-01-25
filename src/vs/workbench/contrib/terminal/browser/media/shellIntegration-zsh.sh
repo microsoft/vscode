@@ -49,3 +49,4 @@ preexec() {
 }
 precmd_functions+=($precmd_functions precmd)
 preexec_functions+=($preexec_functions preexec)
+echo "\033[01;32mShell integration activated!\033[0m"

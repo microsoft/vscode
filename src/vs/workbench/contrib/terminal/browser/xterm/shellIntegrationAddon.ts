@@ -72,7 +72,9 @@ const enum VSCodeOscPt {
 	 * this sequence there's no need for the guessing based on the unreliable cursor positions that
 	 * would otherwise be required.
 	 */
-	CommandLine = 'A'
+	CommandLine = 'A',
+
+	Property = 'P'
 }
 
 export const enum ShellIntegrationInfo {
@@ -151,6 +153,14 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 					.replace(/<CL>/g, ';'));
 				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine);
 				return true;
+			}
+			case VSCodeOscPt.Property: {
+				const [key, value] = arg.split('=');
+				switch (key) {
+					case 'IsWindows': {
+						this._createOrGetCommandDetection(this._terminal).setIsWindowsPty(value === 'True' ? true : false);
+					}
+				}
 			}
 		}
 

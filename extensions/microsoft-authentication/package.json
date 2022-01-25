@@ -15,6 +15,9 @@
   "activationEvents": [
     "onAuthenticationRequest:microsoft"
   ],
+  "enabledApiProposals": [
+    "idToken"
+  ],
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {

@@ -48,4 +48,6 @@ function Global:PSConsoleHostReadLine {
     [Console]::Write("`e]133;C`u{7}")
 }
 
-Write-Output "`e]133;E`u{7}"
+# Set IsWindows property
+Write-Output "`e]633;P;IsWindows=$($IsWindows)`u{7}"
+Write-Host "Shell integration activated!" -ForegroundColor Green -NoNewline

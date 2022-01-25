@@ -226,7 +226,7 @@ export class TextMateService extends AbstractTextMateService {
 		}
 	}
 
-	protected override _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme, colorMap: string[]): void {
+	protected override _doUpdateTheme(grammarFactory: TMGrammarFactory | null, theme: IRawTheme, colorMap: string[]): void {
 		super._doUpdateTheme(grammarFactory, theme, colorMap);
 		if (this._currentTheme && this._currentTokenColorMap && this._workerProxy) {
 			this._workerProxy.acceptTheme(this._currentTheme, this._currentTokenColorMap);
