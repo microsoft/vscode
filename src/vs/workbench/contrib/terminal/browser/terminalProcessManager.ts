@@ -253,13 +253,19 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 								os: this.os
 							});
 						}
+						//TODO: fix
+						if (env?.['VSCODE_SHELL_LOGIN']) {
+							shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
+							shellLaunchConfig.env['VSCODE_SHELL_LOGIN'] = '1';
+						}
+
 						newProcess = await backend.createProcess(
 							shellLaunchConfig,
 							'', // TODO: Fix cwd
 							cols,
 							rows,
 							this._configHelper.config.unicodeVersion,
-							env,
+							env, // TODO:
 							true, // TODO: Fix enable
 							shouldPersist
 						);
