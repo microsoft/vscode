@@ -425,7 +425,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, isBackendWindows);
 		shellLaunchConfig.args = shellIntegration.args;
 		this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
-		this._logService.debug('integration', shellIntegration);
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
 		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, useConpty, shouldPersist);
