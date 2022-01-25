@@ -1,5 +1,5 @@
 
-if [ -z "$OS_IS_MAC" ]; then
+if [ -z "$VSCODE_SHELL_LOGIN" ]; then
     . ~/.bashrc
 else
     # Imitate -l because --init-file doesn't support it:
