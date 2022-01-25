@@ -63,26 +63,6 @@ export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInpu
 	isExternal?: boolean;
 }
 
-
-function createDraggedEditorInputFromRawResourcesData(rawResourcesData: string | undefined): IDraggedResourceEditorInput[] {
-	const editors: IDraggedResourceEditorInput[] = [];
-	if (rawResourcesData) {
-		const resourcesRaw: string[] = JSON.parse(rawResourcesData);
-		for (const resourceRaw of resourcesRaw) {
-			if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/microsoft/vscode/issues/124946
-				const resource = URI.parse(resourceRaw);
-				editors.push({
-					resource,
-					options: {
-						selection: selectionFragment(resource)
-					}
-				});
-			}
-		}
-	}
-	return editors;
-}
-
 export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEditorInput> {
 	const editors: IDraggedResourceEditorInput[] = [];
 	if (e.dataTransfer && e.dataTransfer.types.length > 0) {
@@ -147,12 +127,35 @@ export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEdit
 			}
 		}
 	}
+
+	return editors;
+}
+
+function createDraggedEditorInputFromRawResourcesData(rawResourcesData: string | undefined): IDraggedResourceEditorInput[] {
+	const editors: IDraggedResourceEditorInput[] = [];
+
+	if (rawResourcesData) {
+		const resourcesRaw: string[] = JSON.parse(rawResourcesData);
+		for (const resourceRaw of resourcesRaw) {
+			if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/microsoft/vscode/issues/124946
+				const resource = URI.parse(resourceRaw);
+				editors.push({
+					resource,
+					options: {
+						selection: selectionFragment(resource)
+					}
+				});
+			}
+		}
+	}
+
 	return editors;
 }
 
 export async function extractTreeDropData(dataTransfer: ITreeDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
 	const editors: IDraggedResourceEditorInput[] = [];
 	const resourcesKey = DataTransfers.RESOURCES.toLowerCase();
+
 	// Data Transfer: Resources
 	if (dataTransfer.has(resourcesKey)) {
 		try {
@@ -162,6 +165,7 @@ export async function extractTreeDropData(dataTransfer: ITreeDataTransfer): Prom
 			// Invalid transfer
 		}
 	}
+	
 	return editors;
 }
 

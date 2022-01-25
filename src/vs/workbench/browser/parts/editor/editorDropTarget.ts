@@ -206,32 +206,7 @@ class DropOverlay extends Themable {
 		return undefined;
 	}
 
-	private async handleTreeDrop(ensureTargetGroup: () => IEditorGroupView): Promise<void> {
-		const data = this.treeItemsTransfer.getData(DraggedTreeItemsIdentifier.prototype);
-		if (Array.isArray(data)) {
-			const editors: IUntypedEditorInput[] = [];
-			for (const id of data) {
-				const dataTransferItem = await this.treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier);
-				if (dataTransferItem) {
-					const extractedDropData = await extractTreeDropData(dataTransferItem);
-					editors.push(...extractedDropData.map(editor => {
-						return {
-							...editor,
-							resource: editor.resource,
-							options: {
-								...editor.options,
-								pinned: true,
-							}
-						};
-					}));
-				}
-			}
-			await this.editorService.openEditors(editors, ensureTargetGroup(), { validateTrust: true });
-		}
-		this.treeItemsTransfer.clearData(DraggedTreeItemsIdentifier.prototype);
-	}
-
-	private handleDrop(event: DragEvent, splitDirection?: GroupDirection): void {
+	private async handleDrop(event: DragEvent, splitDirection?: GroupDirection): Promise<void> {
 
 		// Determine target group
 		const ensureTargetGroup = () => {
@@ -323,7 +298,30 @@ class DropOverlay extends Themable {
 
 		// Check for tree items
 		else if (this.treeItemsTransfer.hasData(DraggedTreeItemsIdentifier.prototype)) {
-			this.handleTreeDrop(ensureTargetGroup);
+			const data = this.treeItemsTransfer.getData(DraggedTreeItemsIdentifier.prototype);
+			if (Array.isArray(data)) {
+				const editors: IUntypedEditorInput[] = [];
+				for (const id of data) {
+					const dataTransferItem = await this.treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier);
+					if (dataTransferItem) {
+						const extractedDropData = await extractTreeDropData(dataTransferItem);
+						editors.push(...extractedDropData.map(editor => {
+							return {
+								...editor,
+								resource: editor.resource,
+								options: {
+									...editor.options,
+									pinned: true
+								}
+							};
+						}));
+					}
+				}
+
+				this.editorService.openEditors(editors, ensureTargetGroup(), { validateTrust: true });
+			}
+
+			this.treeItemsTransfer.clearData(DraggedTreeItemsIdentifier.prototype);
 		}
 
 		// Web: check for file transfer
