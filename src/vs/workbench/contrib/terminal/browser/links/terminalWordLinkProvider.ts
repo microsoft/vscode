@@ -24,8 +24,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
-import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 const MAX_LENGTH = 2000;
 
@@ -156,8 +155,8 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			}
 		});
 		let matchLink = link;
-		if (this._capabilities.has(TerminalCapability.CwdDetection)) {
-			matchLink = this._updateLinkWithRelativeCwd(y, link, pathSeparator);
+		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
+			matchLink = this._updateLinkWithRelativeCwd(y, link, pathSeparator) || link;
 		}
 		const sanitizedLink = matchLink.replace(/:\d+(:\d+)?$/, '');
 		try {
@@ -192,9 +191,12 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	* For shells with the CwdDetection capability, the cwd relative to the line
 	* of the particular link is used to narrow down the result for an exact file match, if possible.
 	*/
-	private _updateLinkWithRelativeCwd(y: number, link: string, pathSeparator: string): string {
-		const cwd = this._xterm.commandTracker.getCwdForLine(y);
-		if (cwd && !link.includes(pathSeparator)) {
+	private _updateLinkWithRelativeCwd(y: number, link: string, pathSeparator: string): string | undefined {
+		const cwd = this._capabilities.get(TerminalCapability.CommandDetection)?.getCwdForLine(y);
+		if (!cwd) {
+			return undefined;
+		}
+		if (!link.includes(pathSeparator)) {
 			link = cwd + pathSeparator + link;
 		} else {
 			let commonDirs = 0;

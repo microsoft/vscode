@@ -12,15 +12,15 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/suggest';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Snippet } from './snippetsFile';
 import { SnippetCompletion } from './snippetCompletionProvider';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/contrib/editorState/browser/editorState';
 
 export class TabCompletionController implements IEditorContribution {
 

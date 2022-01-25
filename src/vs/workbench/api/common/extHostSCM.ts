@@ -506,18 +506,22 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	private _actionButtonDisposables = new MutableDisposable<DisposableStore>();
-	private _actionButton: vscode.Command | undefined;
-	get actionButton(): vscode.Command | undefined {
+	private _actionButton: vscode.SourceControlActionButton | undefined;
+	get actionButton(): vscode.SourceControlActionButton | undefined {
 		checkProposedApiEnabled(this._extension, 'scmActionButton');
 		return this._actionButton;
 	}
-	set actionButton(actionButton: vscode.Command | undefined) {
+	set actionButton(actionButton: vscode.SourceControlActionButton | undefined) {
 		checkProposedApiEnabled(this._extension, 'scmActionButton');
 		this._actionButtonDisposables.value = new DisposableStore();
 
 		this._actionButton = actionButton;
 
-		const internal = actionButton !== undefined ? this._commands.converter.toInternal(this._actionButton, this._actionButtonDisposables.value) : undefined;
+		const internal = actionButton !== undefined ?
+			{
+				command: this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables.value),
+				description: actionButton.description
+			} : undefined;
 		this.#proxy.$updateSourceControl(this.handle, { actionButton: internal ?? null });
 	}
 

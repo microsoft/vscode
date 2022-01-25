@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { NotSupportedError } from 'vs/base/common/errors';
-import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
-import { ITextModel } from 'vs/editor/common/model';
-import { SmallImmutableSet } from './smallImmutableSet';
 import { StandardTokenType, TokenMetadata } from 'vs/editor/common/languages';
+import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { BracketAstNode, TextAstNode } from './ast';
 import { BracketTokens, LanguageAgnosticBracketTokens } from './brackets';
-import { lengthGetColumnCountIfZeroLineCount, Length, lengthAdd, lengthDiff, lengthToObj, lengthZero, toLength } from './length';
+import { Length, lengthAdd, lengthDiff, lengthGetColumnCountIfZeroLineCount, lengthToObj, lengthZero, toLength } from './length';
+import { SmallImmutableSet } from './smallImmutableSet';
 
 export interface Tokenizer {
 	readonly offset: Length;
@@ -51,6 +50,13 @@ export class Token {
 	) { }
 }
 
+export interface ITokenizerSource {
+	getValue(): string;
+	getLineCount(): number;
+	getLineLength(lineNumber: number): number;
+	getLineTokens(lineNumber: number): IViewLineTokens;
+}
+
 export class TextBufferTokenizer implements Tokenizer {
 	private readonly textBufferLineCount: number;
 	private readonly textBufferLastLineLength: number;
@@ -58,7 +64,7 @@ export class TextBufferTokenizer implements Tokenizer {
 	private readonly reader = new NonPeekableTextBufferTokenizer(this.textModel, this.bracketTokens);
 
 	constructor(
-		private readonly textModel: ITextModel,
+		private readonly textModel: ITokenizerSource,
 		private readonly bracketTokens: LanguageAgnosticBracketTokens
 	) {
 		this.textBufferLineCount = textModel.getLineCount();
@@ -119,7 +125,7 @@ class NonPeekableTextBufferTokenizer {
 	private readonly textBufferLineCount: number;
 	private readonly textBufferLastLineLength: number;
 
-	constructor(private readonly textModel: ITextModel, private readonly bracketTokens: LanguageAgnosticBracketTokens) {
+	constructor(private readonly textModel: ITokenizerSource, private readonly bracketTokens: LanguageAgnosticBracketTokens) {
 		this.textBufferLineCount = textModel.getLineCount();
 		this.textBufferLastLineLength = textModel.getLineLength(this.textBufferLineCount);
 	}
@@ -127,7 +133,7 @@ class NonPeekableTextBufferTokenizer {
 	private lineIdx = 0;
 	private line: string | null = null;
 	private lineCharOffset = 0;
-	private lineTokens: LineTokens | null = null;
+	private lineTokens: IViewLineTokens | null = null;
 	private lineTokenOffset = 0;
 
 	public setPosition(lineIdx: number, column: number): void {

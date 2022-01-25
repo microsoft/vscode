@@ -103,13 +103,11 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	) {
 		super(SyncResource.Extensions, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
 		this._register(
-			Event.debounce(
-				Event.any<any>(
-					Event.filter(this.extensionManagementService.onDidInstallExtensions, (e => e.some(({ local }) => !!local))),
-					Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)),
-					this.extensionEnablementService.onDidChangeEnablement,
-					this.extensionStorageService.onDidChangeExtensionStorageToSync),
-				() => undefined, 500)(() => this.triggerLocalChange()));
+			Event.any<any>(
+				Event.filter(this.extensionManagementService.onDidInstallExtensions, (e => e.some(({ local }) => !!local))),
+				Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)),
+				this.extensionEnablementService.onDidChangeEnablement,
+				this.extensionStorageService.onDidChangeExtensionStorageToSync)(() => this.triggerLocalChange()));
 	}
 
 	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IExtensionResourcePreview[]> {
@@ -378,7 +376,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				}
 
 				// User Extension Sync: Install/Update, Enablement & State
-				const extension = (await this.extensionGalleryService.getExtensions([e.identifier], !!e.preRelease, CancellationToken.None))[0];
+				const extension = (await this.extensionGalleryService.getExtensions([{ ...e.identifier, preRelease: e.preRelease }], CancellationToken.None))[0];
 
 				/* Update extension state only if
 				 *	extension is installed and version is same as synced version or
@@ -499,7 +497,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 export interface IExtensionsInitializerPreviewResult {
 	readonly installedExtensions: ILocalExtension[];
 	readonly disabledExtensions: IExtensionIdentifier[];
-	readonly newExtensions: IExtensionIdentifier[];
+	readonly newExtensions: (IExtensionIdentifier & { preRelease: boolean })[];
 	readonly remoteExtensions: ISyncExtension[];
 }
 
@@ -522,7 +520,7 @@ export abstract class AbstractExtensionsInitializer extends AbstractInitializer 
 
 	protected generatePreview(remoteExtensions: ISyncExtension[], localExtensions: ILocalExtension[]): IExtensionsInitializerPreviewResult {
 		const installedExtensions: ILocalExtension[] = [];
-		const newExtensions: IExtensionIdentifier[] = [];
+		const newExtensions: (IExtensionIdentifier & { preRelease: boolean })[] = [];
 		const disabledExtensions: IExtensionIdentifier[] = [];
 		for (const extension of remoteExtensions) {
 			if (this.ignoredExtensionsManagementService.hasToNeverSyncExtension(extension.identifier.id)) {
@@ -537,7 +535,7 @@ export abstract class AbstractExtensionsInitializer extends AbstractInitializer 
 					disabledExtensions.push(extension.identifier);
 				}
 			} else if (extension.installed) {
-				newExtensions.push(extension.identifier);
+				newExtensions.push({ ...extension.identifier, preRelease: !!extension.preRelease });
 				if (extension.disabled) {
 					disabledExtensions.push(extension.identifier);
 				}

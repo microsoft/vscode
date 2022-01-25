@@ -23,7 +23,6 @@ import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ConsoleMainLogger, LogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { Uri } from 'vscode';
 
 flakySuite('BackupMainService', () => {
 
@@ -49,7 +48,7 @@ flakySuite('BackupMainService', () => {
 		};
 	}
 
-	function toFolderBackupInfo(uri: Uri, remoteAuthority?: string): IFolderBackupInfo {
+	function toFolderBackupInfo(uri: URI, remoteAuthority?: string): IFolderBackupInfo {
 		return { folderUri: uri, remoteAuthority };
 	}
 
@@ -622,7 +621,7 @@ flakySuite('BackupMainService', () => {
 
 	suite('getWorkspaceHash', () => {
 		(platform.isLinux ? test.skip : test)('should ignore case on Windows and Mac', () => {
-			const assertFolderHash = (uri1: Uri, uri2: Uri) => {
+			const assertFolderHash = (uri1: URI, uri2: URI) => {
 				assert.strictEqual(service.getFolderHash(toFolderBackupInfo(uri1)), service.getFolderHash(toFolderBackupInfo(uri2)));
 			};
 

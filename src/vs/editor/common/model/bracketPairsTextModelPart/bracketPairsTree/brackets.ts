@@ -41,19 +41,20 @@ export class BracketTokens {
 				TokenKind.ClosingBracket,
 				info.first,
 				info.openingBrackets,
-				BracketAstNode.create(length)
+				BracketAstNode.create(length, configuration.languageId, info.openingBrackets)
 			));
 		}
 
 		for (const openingText of openingBrackets) {
 			const length = toLength(0, openingText.length);
 			const openingTextId = getId(configuration.languageId, openingText);
+			const bracketIds = SmallImmutableSet.getEmpty().add(openingTextId, identityKeyProvider);
 			map.set(openingText, new Token(
 				length,
 				TokenKind.OpeningBracket,
 				openingTextId,
-				SmallImmutableSet.getEmpty().add(openingTextId, identityKeyProvider),
-				BracketAstNode.create(length)
+				bracketIds,
+				BracketAstNode.create(length, configuration.languageId, bracketIds)
 			));
 		}
 
@@ -92,6 +93,15 @@ export class BracketTokens {
 
 	getToken(value: string): Token | undefined {
 		return this.map.get(value);
+	}
+
+	findClosingTokenText(openingBracketIds: SmallImmutableSet<OpeningBracketId>): string | undefined {
+		for (const [closingText, info] of this.map) {
+			if (info.bracketIds.intersects(openingBracketIds)) {
+				return closingText;
+			}
+		}
+		return undefined;
 	}
 
 	get isEmpty(): boolean {

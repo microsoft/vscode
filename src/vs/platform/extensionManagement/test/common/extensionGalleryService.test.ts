@@ -12,7 +12,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IRawGalleryExtensionVersion, resolveMarketplaceHeaders, sortExtensionVersions } from 'vs/platform/extensionManagement/common/extensionGalleryService';
+import { IRawGalleryExtensionVersion, sortExtensionVersions } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -20,6 +20,7 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 

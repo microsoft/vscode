@@ -122,6 +122,8 @@ export interface IProductConfiguration {
 	readonly serverGreeting: string[];
 	readonly serverLicense?: string[];
 	readonly serverLicensePrompt?: string;
+	readonly serverApplicationName: string;
+	readonly serverDataFolderName?: string;
 
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;

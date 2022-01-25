@@ -13,7 +13,7 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions, CATEGORIES
 import { IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ActivePanelContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/panel';
+import { ActivePanelContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/contextkeys';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -112,7 +112,7 @@ function createPositionPanelActionConfig(id: string, alias: string, label: strin
 }
 
 function createAlignmentPanelActionConfig(id: string, alias: string, label: string, shortLabel: string, alignment: PanelAlignment): PanelActionConfig<PanelAlignment> {
-	return createPanelActionConfig<PanelAlignment>(id, alias, label, shortLabel, alignment, ContextKeyExpr.notEquals('config.workbench.experimental.panel.alignment', alignment));
+	return createPanelActionConfig<PanelAlignment>(id, alias, label, shortLabel, alignment, PanelAlignmentContext.notEqualsTo(alignment));
 }
 
 
@@ -124,10 +124,10 @@ export const PositionPanelActionConfigs: PanelActionConfig<Position>[] = [
 
 
 export const AlignPanelActionConfigs: PanelActionConfig<PanelAlignment>[] = [
-	createAlignmentPanelActionConfig(AlignPanelActionId.LEFT, 'View: Align Panel Left', localize('alignPanelLeft', 'Align Panel Left'), localize('alignPanelLeftShort', "Left"), 'left'),
-	createAlignmentPanelActionConfig(AlignPanelActionId.RIGHT, 'View: Align Panel Right', localize('alignPanelRight', 'Align Panel Right'), localize('alignPanelRightShort', "Right"), 'right'),
-	createAlignmentPanelActionConfig(AlignPanelActionId.CENTER, 'View: Center Panel', localize('alignPanelCenter', 'Center Panel'), localize('alignPanelCenterShort', "Center"), 'center'),
-	createAlignmentPanelActionConfig(AlignPanelActionId.JUSTIFY, 'View: Justify Panel', localize('alignPanelJustify', 'Justify Panel'), localize('alignPanelJustifyShort', "Justify"), 'justify'),
+	createAlignmentPanelActionConfig(AlignPanelActionId.LEFT, 'View: Set Panel Alignment to Left', localize('alignPanelLeft', 'Set Panel Alignment to Left'), localize('alignPanelLeftShort', "Left"), 'left'),
+	createAlignmentPanelActionConfig(AlignPanelActionId.RIGHT, 'View: Set Panel Alignment to Right', localize('alignPanelRight', 'Set Panel Alignment to Right'), localize('alignPanelRightShort', "Right"), 'right'),
+	createAlignmentPanelActionConfig(AlignPanelActionId.CENTER, 'View: Set Panel Alignment to Center', localize('alignPanelCenter', 'Set Panel Alignment to Center'), localize('alignPanelCenterShort', "Center"), 'center'),
+	createAlignmentPanelActionConfig(AlignPanelActionId.JUSTIFY, 'View: Set Panel Alignment to Justify', localize('alignPanelJustify', 'Set Panel Alignment to Justify'), localize('alignPanelJustifyShort', "Justify"), 'justify'),
 ];
 
 const alignmentByActionId = new Map(AlignPanelActionConfigs.map(config => [config.id, config.value]));
@@ -330,16 +330,26 @@ registerAction2(class extends Action2 {
 			category: CATEGORIES.View,
 			f1: true,
 			icon: maximizeIcon,
+			// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
+			precondition: PanelAlignmentContext.isEqualTo('center'),
 			toggled: { condition: PanelMaximizedContext, icon: restoreIcon, tooltip: localize('minimizePanel', "Restore Panel Size") },
 			menu: [{
 				id: MenuId.PanelTitle,
 				group: 'navigation',
-				order: 1
+				order: 1,
+				// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
+				when: PanelAlignmentContext.isEqualTo('center')
 			}]
 		});
 	}
 	run(accessor: ServicesAccessor) {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const notificationService = accessor.get(INotificationService);
+		if (layoutService.getPanelAlignment() !== 'center') {
+			notificationService.warn(localize('panelMaxNotSupported', "Maximizing the panel is only supported when it is center aligned."));
+			return;
+		}
+
 		if (!layoutService.isVisible(Parts.PANEL_PART)) {
 			layoutService.setPartHidden(false, Parts.PANEL_PART);
 			// If the panel is not already maximized, maximize it

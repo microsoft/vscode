@@ -5,13 +5,14 @@
 
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILocalization } from 'vs/platform/localizations/common/localizations';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 
 export const MANIFEST_CACHE_FOLDER = 'CachedExtensions';
 export const USER_MANIFEST_CACHE_FILE = 'user';
 export const BUILTIN_MANIFEST_CACHE_FILE = 'builtin';
+export const UNDEFINED_PUBLISHER = 'undefined_publisher';
 
 export interface ICommand {
 	command: string;
@@ -159,6 +160,19 @@ export interface INotebookRendererContribution {
 	readonly mimeTypes: string[];
 }
 
+export interface ITranslation {
+	id: string;
+	path: string;
+}
+
+export interface ILocalizationContribution {
+	languageId: string;
+	languageName?: string;
+	localizedLanguageName?: string;
+	translations: ITranslation[];
+	minimalTranslations?: { [key: string]: string };
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration | IConfiguration[];
@@ -175,7 +189,7 @@ export interface IExtensionContributions {
 	viewsContainers?: { [location: string]: IViewContainer[] };
 	views?: { [location: string]: IView[] };
 	colors?: IColor[];
-	localizations?: ILocalization[];
+	localizations?: ILocalizationContribution[];
 	readonly customEditors?: readonly IWebviewEditor[];
 	readonly codeActions?: readonly ICodeActionContribution[];
 	authentication?: IAuthenticationContribution[];
@@ -192,7 +206,6 @@ export interface IExtensionCapabilities {
 
 
 export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = ['ui', 'workspace', 'web'];
-export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
 export type LimitedWorkspaceSupportType = 'limited';
 export type ExtensionUntrustedWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;

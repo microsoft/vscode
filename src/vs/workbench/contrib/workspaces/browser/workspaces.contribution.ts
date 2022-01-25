@@ -17,7 +17,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
+import { isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspace';
 
 /**
  * A workbench contribution that will look for `.code-workspace` files in the root of the

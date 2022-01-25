@@ -1484,22 +1484,25 @@ declare module 'vscode' {
 	export class Disposable {
 
 		/**
-		 * Combine many disposable-likes into one. Use this method
-		 * when having objects with a dispose function which are not
-		 * instances of Disposable.
+		 * Combine many disposable-likes into one. You can use this method when having objects with
+		 * a dispose function which aren't instances of `Disposable`.
 		 *
-		 * @param disposableLikes Objects that have at least a `dispose`-function member.
+		 * @param disposableLikes Objects that have at least a `dispose`-function member. Note that asynchronous
+		 * dispose-functions aren't awaited.
 		 * @return Returns a new disposable which, upon dispose, will
 		 * dispose all provided disposables.
 		 */
 		static from(...disposableLikes: { dispose: () => any }[]): Disposable;
 
 		/**
-		 * Creates a new Disposable calling the provided function
+		 * Creates a new disposable that calls the provided function
 		 * on dispose.
+		 *
+		 * *Note* that an asynchronous function is not awaited.
+		 *
 		 * @param callOnDispose Function that disposes something.
 		 */
-		constructor(callOnDispose: Function);
+		constructor(callOnDispose: () => any);
 
 		/**
 		 * Dispose this object.
@@ -1636,6 +1639,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The kind of {@link QuickPickItem quick pick item}.
+	 */
+	export enum QuickPickItemKind {
+		/**
+		 * When a {@link QuickPickItem} has a kind of {@link Separator}, the item is just a visual separator and does not represent a real item.
+		 * The only property that applies is {@link label}. All other properties on {@link QuickPickItem} will be ignored and have no effect.
+		 */
+		Separator = -1,
+		/**
+		 * The default {@link QuickPickItem.kind} is an item that can be selected in the quick pick.
+		 */
+		Default = 0,
+	}
+
+	/**
 	 * Represents an item that can be selected from
 	 * a list of items.
 	 */
@@ -1648,14 +1666,24 @@ declare module 'vscode' {
 		label: string;
 
 		/**
+		 * The kind of QuickPickItem that will determine how this item is rendered in the quick pick. When not specified,
+		 * the default is {@link QuickPickItemKind.Default}.
+		 */
+		kind?: QuickPickItemKind;
+
+		/**
 		 * A human-readable string which is rendered less prominent in the same line. Supports rendering of
 		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
+		 *
+		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		description?: string;
 
 		/**
 		 * A human-readable string which is rendered less prominent in a separate line. Supports rendering of
 		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
+		 *
+		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		detail?: string;
 
@@ -1666,11 +1694,15 @@ declare module 'vscode' {
 		 * (*Note:* This is only honored when the picker allows multiple selections.)
 		 *
 		 * @see {@link QuickPickOptions.canPickMany}
+		 *
+		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		picked?: boolean;
 
 		/**
 		 * Always show this item.
+		 *
+		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		alwaysShow?: boolean;
 
@@ -1679,6 +1711,8 @@ declare module 'vscode' {
 		 * an {@link QuickPickItemButtonEvent} when clicked. Buttons are only rendered when using a quickpick
 		 * created by the {@link window.createQuickPick()} API. Buttons are not rendered when using
 		 * the {@link window.showQuickPick()} API.
+		 *
+		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		buttons?: readonly QuickInputButton[];
 	}
@@ -6274,6 +6308,8 @@ declare module 'vscode' {
 		/**
 		 * An array to which disposables can be added. When this
 		 * extension is deactivated the disposables will be disposed.
+		 *
+		 * *Note* that asynchronous dispose-functions aren't awaited.
 		 */
 		readonly subscriptions: { dispose(): any }[];
 
@@ -10986,8 +11022,26 @@ declare module 'vscode' {
 		 * *Note* that file changes for the path to be watched may not be delivered when the path itself
 		 * changes. For example, when watching a path `/Users/somename/Desktop` and the path itself is
 		 * being deleted, the watcher may not report an event and may not work anymore from that moment on.
+		 * The underlying behaviour depends on the path that is provided for watching:
+		 * * if the path is within any of the workspace folders, deletions are tracked and reported unless
+		 *   excluded via `files.watcherExclude` setting
+		 * * if the path is equal to any of the workspace folders, deletions are not tracked
+		 * * if the path is outside of any of the workspace folders, deletions are not tracked
+		 *
 		 * If you are interested in being notified when the watched path itself is being deleted, you have
-		 * to watch it's parent folder.
+		 * to watch it's parent folder. Make sure to use a simple `pattern` (such as putting the name of the
+		 * folder) to not accidentally watch all sibling folders recursively.
+		 *
+		 * *Note* that the file paths that are reported for having changed may have a different path casing
+		 * compared to the actual casing on disk on case-insensitive platforms (typically macOS and Windows
+		 * but not Linux). We allow a user to open a workspace folder with any desired path casing and try
+		 * to preserve that. This means:
+		 * * if the path is within any of the workspace folders, the path will match the casing of the
+		 *   workspace folder up to that portion of the path and match the casing on disk for children
+		 * * if the path is outside of any of the workspace folders, the casing will match the case of the
+		 *   path that was provided for watching
+		 * In the same way, symbolic links are preserved, i.e. the file event will report the path of the
+		 * symbolic link as it was provided for watching and not the target.
 		 *
 		 * ### Examples
 		 *

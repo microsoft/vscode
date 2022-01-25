@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLineSequence, FindMatch } from 'vs/editor/common/model';
+import { EndOfLineSequence, FindMatch, SearchData } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { SearchData, SearchParams, TextModelSearch, isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
+import { SearchParams, TextModelSearch, isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
+import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 // --------- Find

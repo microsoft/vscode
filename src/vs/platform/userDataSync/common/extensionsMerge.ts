@@ -93,9 +93,10 @@ export function merge(localExtensions: ISyncExtensionWithVersion[], remoteExtens
 				const mergedExtension = updatedInRemote ? remoteExtension : localExtension;
 				return {
 					...mergedExtension,
-					version: remoteExtension.version && semver.gt(remoteExtension.version, localExtension.version) ? localExtension.version : localExtension.version,
+					version: remoteExtension.version && (!localExtension.installed || semver.gt(remoteExtension.version, localExtension.version)) ? remoteExtension.version : localExtension.version,
 					state: mergeExtensionState(localExtension, remoteExtension, lastSyncExtensionsMap?.get(key)),
-					preRelease: isUndefined(mergedExtension.preRelease) /* from older client*/ ? localExtension.preRelease : mergedExtension.preRelease
+					preRelease: isUndefined(mergedExtension.preRelease) /* from older client*/ ? localExtension.preRelease
+						: (localExtension.installed ? mergedExtension.preRelease : remoteExtension.preRelease)
 				};
 
 			}
@@ -213,7 +214,7 @@ function compare(from: Map<string, ISyncExtension> | null, to: Map<string, ISync
 		const toExtension = to.get(key);
 		if (!toExtension
 			|| fromExtension.disabled !== toExtension.disabled
-			|| fromExtension.preRelease !== toExtension.preRelease
+			|| (fromExtension.installed && toExtension.installed && fromExtension.preRelease !== toExtension.preRelease)
 			|| !isSameExtensionState(fromExtension.state, toExtension.state)
 			|| (checkVersionProperty && fromExtension.version !== toExtension.version)
 			|| (checkInstalledProperty && fromExtension.installed !== toExtension.installed)

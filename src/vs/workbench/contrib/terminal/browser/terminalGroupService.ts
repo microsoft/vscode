@@ -8,7 +8,7 @@ import { timeout } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -51,6 +51,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	readonly onDidChangeActiveInstance = this._onDidChangeActiveInstance.event;
 	private readonly _onDidChangeInstances = new Emitter<void>();
 	readonly onDidChangeInstances = this._onDidChangeInstances.event;
+	private readonly _onDidChangeInstanceCapability = new Emitter<ITerminalInstance>();
+	readonly onDidChangeInstanceCapability = this._onDidChangeInstanceCapability.event;
 
 	private readonly _onDidChangePanelOrientation = new Emitter<Orientation>();
 	readonly onDidChangePanelOrientation = this._onDidChangePanelOrientation.event;
@@ -146,6 +148,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 				this._onDidChangeActiveInstance.fire(e);
 			}
 		}));
+		group.addDisposable(group.onDidChangeInstanceCapability(this._onDidChangeInstanceCapability.fire, this._onDidChangeInstanceCapability));
 		group.addDisposable(group.onInstancesChanged(this._onDidChangeInstances.fire, this._onDidChangeInstances));
 		group.addDisposable(group.onDisposed(this._onDidDisposeGroup.fire, this._onDidDisposeGroup));
 		if (group.terminalInstances.length > 0) {

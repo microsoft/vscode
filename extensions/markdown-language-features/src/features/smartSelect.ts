@@ -5,7 +5,7 @@
 import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider, TocEntry } from '../tableOfContentsProvider';
+import { TableOfContents, TocEntry } from '../tableOfContentsProvider';
 
 interface MarkdownItTokenWithMap extends Token {
 	map: [number, number];
@@ -53,24 +53,22 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 	}
 
 	private async getHeaderSelectionRange(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.SelectionRange | undefined> {
+		const toc = await TableOfContents.create(this.engine, document);
 
-		const tocProvider = new TableOfContentsProvider(this.engine, document);
-		const toc = await tocProvider.getToc();
-
-		const headerInfo = getHeadersForPosition(toc, position);
+		const headerInfo = getHeadersForPosition(toc.entries, position);
 
 		const headers = headerInfo.headers;
 
 		let currentRange: vscode.SelectionRange | undefined;
 
 		for (let i = 0; i < headers.length; i++) {
-			currentRange = createHeaderRange(headers[i], i === headers.length - 1, headerInfo.headerOnThisLine, currentRange, getFirstChildHeader(document, headers[i], toc));
+			currentRange = createHeaderRange(headers[i], i === headers.length - 1, headerInfo.headerOnThisLine, currentRange, getFirstChildHeader(document, headers[i], toc.entries));
 		}
 		return currentRange;
 	}
 }
 
-function getHeadersForPosition(toc: TocEntry[], position: vscode.Position): { headers: TocEntry[], headerOnThisLine: boolean } {
+function getHeadersForPosition(toc: readonly TocEntry[], position: vscode.Position): { headers: TocEntry[], headerOnThisLine: boolean } {
 	const enclosingHeaders = toc.filter(header => header.location.range.start.line <= position.line && header.location.range.end.line >= position.line);
 	const sortedHeaders = enclosingHeaders.sort((header1, header2) => (header1.line - position.line) - (header2.line - position.line));
 	const onThisLine = toc.find(header => header.line === position.line) !== undefined;
@@ -238,7 +236,7 @@ function isBlockElement(token: Token): boolean {
 	return !['list_item_close', 'paragraph_close', 'bullet_list_close', 'inline', 'heading_close', 'heading_open'].includes(token.type);
 }
 
-function getFirstChildHeader(document: vscode.TextDocument, header?: TocEntry, toc?: TocEntry[]): vscode.Position | undefined {
+function getFirstChildHeader(document: vscode.TextDocument, header?: TocEntry, toc?: readonly TocEntry[]): vscode.Position | undefined {
 	let childRange: vscode.Position | undefined;
 	if (header && toc) {
 		let children = toc.filter(t => header.location.range.contains(t.location.range) && t.location.range.start.line > header.location.range.start.line).sort((t1, t2) => t1.line - t2.line);

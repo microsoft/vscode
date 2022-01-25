@@ -149,20 +149,16 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	private async addAdditionalTransferItems(treeDataTransfer: ITreeDataTransfer, treeView: ExtHostTreeView<any>,
 		sourceTreeItemHandles: string[], operationUuid?: string): Promise<ITreeDataTransfer | undefined> {
 		const existingTransferOperation = this.treeDragAndDropService.removeDragOperationTransfer(operationUuid);
-		let additionalTransferItems: vscode.TreeDataTransfer | undefined;
 		if (existingTransferOperation) {
-			additionalTransferItems = await existingTransferOperation;
-		} else if (operationUuid && treeView.handleDrag) {
-			const willDropPromise = treeView.handleDrag(sourceTreeItemHandles);
-			this.treeDragAndDropService.addDragOperationTransfer(operationUuid, willDropPromise);
-			additionalTransferItems = await willDropPromise;
-		}
-		if (additionalTransferItems) {
-			additionalTransferItems.forEach((value, key) => {
+			(await existingTransferOperation)?.forEach((value, key) => {
 				if (value) {
 					treeDataTransfer.set(key, value);
 				}
 			});
+		} else if (operationUuid && treeView.handleDrag) {
+			const willDropPromise = treeView.handleDrag(sourceTreeItemHandles, treeDataTransfer);
+			this.treeDragAndDropService.addDragOperationTransfer(operationUuid, willDropPromise);
+			await willDropPromise;
 		}
 		return treeDataTransfer;
 	}
@@ -435,7 +431,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	async handleDrag(sourceTreeItemHandles: TreeItemHandle[]): Promise<vscode.TreeDataTransfer | undefined> {
+	async handleDrag(sourceTreeItemHandles: TreeItemHandle[], treeDataTransfer: ITreeDataTransfer): Promise<vscode.TreeDataTransfer | undefined> {
 		const extensionTreeItems: T[] = [];
 		for (const sourceHandle of sourceTreeItemHandles) {
 			const extensionItem = this.getExtensionElement(sourceHandle);
@@ -447,7 +443,8 @@ class ExtHostTreeView<T> extends Disposable {
 		if (!this.dndController?.handleDrag || (extensionTreeItems.length === 0)) {
 			return;
 		}
-		return this.dndController.handleDrag(extensionTreeItems);
+		await this.dndController.handleDrag(extensionTreeItems, treeDataTransfer);
+		return treeDataTransfer;
 	}
 
 	get hasHandleDrag(): boolean {

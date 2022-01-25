@@ -24,6 +24,7 @@ import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalS
 import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
+import { TasksSynchroniser } from 'vs/platform/userDataSync/common/tasksSync';
 import { ALL_SYNC_RESOURCES, Change, createSyncHeaders, IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncResourcePreview, ISyncTask, IUserDataManifest, IUserDataSyncConfiguration, IUserDataSyncEnablementService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreError, USER_DATA_SYNC_CONFIGURATION_SCOPE } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncErrorClassification = {
@@ -877,6 +878,7 @@ class Synchronizers extends Disposable {
 			case SyncResource.Settings: return this.instantiationService.createInstance(SettingsSynchroniser);
 			case SyncResource.Keybindings: return this.instantiationService.createInstance(KeybindingsSynchroniser);
 			case SyncResource.Snippets: return this.instantiationService.createInstance(SnippetsSynchroniser);
+			case SyncResource.Tasks: return this.instantiationService.createInstance(TasksSynchroniser);
 			case SyncResource.GlobalState: return this.instantiationService.createInstance(GlobalStateSynchroniser);
 			case SyncResource.Extensions: return this.instantiationService.createInstance(ExtensionsSynchroniser);
 		}
@@ -887,8 +889,9 @@ class Synchronizers extends Disposable {
 			case SyncResource.Settings: return 0;
 			case SyncResource.Keybindings: return 1;
 			case SyncResource.Snippets: return 2;
-			case SyncResource.GlobalState: return 3;
-			case SyncResource.Extensions: return 4;
+			case SyncResource.Tasks: return 3;
+			case SyncResource.GlobalState: return 4;
+			case SyncResource.Extensions: return 5;
 		}
 	}
 

@@ -6,9 +6,9 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, ITextSnapshot } from 'vs/editor/common/model';
+import { FindMatch, ITextSnapshot, SearchData } from 'vs/editor/common/model';
 import { NodeColor, SENTINEL, TreeNode, fixInsert, leftest, rbDelete, righttest, updateTreeMetadata } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
-import { SearchData, Searcher, createFindMatch, isValidMatch } from 'vs/editor/common/model/textModelSearch';
+import { Searcher, createFindMatch, isValidMatch } from 'vs/editor/common/model/textModelSearch';
 
 // const lfRegex = new RegExp(/\r\n|\r|\n/g);
 export const AverageBufferSize = 65535;

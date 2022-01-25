@@ -8,7 +8,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, PositionAffinity } from 'vs/editor/common/model';
 import { testViewModel } from 'vs/editor/test/browser/viewModel/testViewModel';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { ViewEvent } from 'vs/editor/common/view/viewEvents';
+import { ViewEvent } from 'vs/editor/common/viewModel/viewEvents';
 import { Position } from 'vs/editor/common/core/position';
 
 suite('ViewModel', () => {

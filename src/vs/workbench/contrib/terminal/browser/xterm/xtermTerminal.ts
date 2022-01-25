@@ -12,7 +12,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { TerminalCapability, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IShellIntegration, ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
 import { ICommandTracker, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -20,7 +20,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { CommandTrackerAddon, NaiveCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
+import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { localize } from 'vs/nls';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -28,9 +28,9 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
-import { ShellIntegrationAddon, ShellIntegrationInteraction } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
-import { CognisantCommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/cognisantCommandTrackerAddon';
+import { ShellIntegrationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -81,6 +81,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		cols: number,
 		rows: number,
 		location: TerminalLocation,
+		capabilities: ITerminalCapabilityStore,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -117,8 +118,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			fastScrollModifier: 'alt',
-			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
-			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
+			fastScrollSensitivity: config.fastScrollSensitivity,
+			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType),
 			wordSeparator: config.wordSeparators
 		}));
@@ -145,37 +146,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 		// Load addons
 		this._updateUnicodeVersion();
-		this._commandTrackerAddon = new NaiveCommandTrackerAddon();
+		this._commandTrackerAddon = new CommandTrackerAddon(capabilities);
 		this.raw.loadAddon(this._commandTrackerAddon);
-		this._shellIntegrationAddon = new ShellIntegrationAddon();
+		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon);
 		this.raw.loadAddon(this._shellIntegrationAddon);
-
-		// Hook up co-dependent addon events
-		this._shellIntegrationAddon.capabilities.onDidAddCapability(e => {
-			if (e === TerminalCapability.CommandDetection) {
-				this.upgradeCommandTracker();
-			}
-		});
-		this._shellIntegrationAddon.onIntegratedShellChange(e => {
-			if (e.type === ShellIntegrationInteraction.CommandFinished) {
-				// TODO: This should move into the new command tracker
-				if (this.raw.buffer.active.cursorX >= 2) {
-					this.raw.registerMarker(0);
-					this.commandTracker.clearMarker();
-				}
-			}
-			this._commandTrackerAddon.handleIntegratedShellChange(e);
-		});
-
-	}
-
-	upgradeCommandTracker(): void {
-		if (this._commandTrackerAddon instanceof CognisantCommandTrackerAddon) {
-			return;
-		}
-		this._commandTrackerAddon.dispose();
-		this._commandTrackerAddon = this._instantiationService.createInstance(CognisantCommandTrackerAddon);
-		this._commandTrackerAddon.activate(this.raw);
 	}
 
 	attachToElement(container: HTMLElement) {

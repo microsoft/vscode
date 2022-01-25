@@ -130,7 +130,7 @@ suite('vscode API - webview', () => {
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	test('webviews should preserve their context when they are moved between view columns', async () => {
+	test.skip('webviews should preserve their context when they are moved between view columns', async () => { // TODO@mjbvz https://github.com/microsoft/vscode/issues/141001
 		const doc = await vscode.workspace.openTextDocument(testDocument);
 		await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
 

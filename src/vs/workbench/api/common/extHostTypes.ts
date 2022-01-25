@@ -15,6 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRelativePatternDto } from 'vs/workbench/api/common/extHost.protocol';
 import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
@@ -1422,25 +1423,26 @@ export enum InlayHintKind {
 
 @es5ClassCompat
 export class InlayHintLabelPart {
+
 	label: string;
-	collapsible?: boolean;
-	action?: vscode.Command | Location; // invokes provider
+	tooltip?: string | vscode.MarkdownString;
+	location?: Location;
+	command?: vscode.Command;
+
 	constructor(label: string) {
 		this.label = label;
-	}
-	toString(): string {
-		return this.label;
 	}
 }
 
 @es5ClassCompat
 export class InlayHint implements vscode.InlayHint {
+
 	label: string | InlayHintLabelPart[];
 	tooltip?: string | vscode.MarkdownString;
 	position: Position;
 	kind?: vscode.InlayHintKind;
-	whitespaceBefore?: boolean;
-	whitespaceAfter?: boolean;
+	paddingLeft?: boolean;
+	paddingRight?: boolean;
 
 	constructor(label: string | InlayHintLabelPart[], position: Position, kind?: vscode.InlayHintKind) {
 		this.label = label;
@@ -2413,10 +2415,11 @@ export class RelativePattern implements IRelativePattern {
 		this.pattern = pattern;
 	}
 
-	toJSON(): IRelativePattern {
+	toJSON(): IRelativePatternDto {
 		return {
 			pattern: this.pattern,
-			base: this.base
+			base: this.base,
+			baseUri: this.baseUri.toJSON()
 		};
 	}
 }
@@ -2959,7 +2962,7 @@ export class QuickInputButtons {
 
 export enum QuickPickItemKind {
 	Separator = -1,
-	Default = 1,
+	Default = 0,
 }
 
 export enum ExtensionKind {

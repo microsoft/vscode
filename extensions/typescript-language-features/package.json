@@ -10,7 +10,6 @@
   "enabledApiProposals": [
     "inlayHints",
     "languageStatus",
-    "quickPickSeparators",
     "resolvers",
     "workspaceTrust"
   ],
@@ -39,7 +38,7 @@
   "dependencies": {
     "jsonc-parser": "^2.2.1",
     "semver": "5.5.1",
-    "vscode-extension-telemetry": "0.4.4",
+    "@vscode/extension-telemetry": "0.4.6",
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {

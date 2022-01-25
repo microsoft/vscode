@@ -25,7 +25,6 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
-import * as nls from 'vs/nls';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
@@ -620,22 +619,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 	}
 
 	override updateTooltip(): void {
-		let title: string | null = null;
-
-		if (this.getAction().tooltip) {
-			title = this.getAction().tooltip;
-
-		} else if (!this.options.label && this.getAction().label && this.options.icon) {
-			title = this.getAction().label;
-
-			if (this.options.keybinding) {
-				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
-			}
-		}
-
-		if (title && this.item) {
-			this.item.title = title;
-		}
+		// menus should function like native menus and they do not have tooltips
 	}
 
 	override updateClass(): void {

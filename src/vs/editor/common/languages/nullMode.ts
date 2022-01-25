@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Token, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
-import { ColorId, FontStyle, IState, LanguageId, MetadataConsts, StandardTokenType } from 'vs/editor/common/languages';
+import { Token, TokenizationResult, EncodedTokenizationResult, ColorId, FontStyle, IState, LanguageId, MetadataConsts, StandardTokenType } from 'vs/editor/common/languages';
 
 export const NullState: IState = new class implements IState {
 	public clone(): IState {

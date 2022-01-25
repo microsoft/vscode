@@ -24,8 +24,8 @@
 
 		<!-- Workbench Icon/Manifest/CSS -->
 		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
-		<link rel="manifest" href="/manifest.json">
-		<link data-name="vs/workbench/workbench.web.api" rel="stylesheet" href="./static/out/vs/workbench/workbench.web.api.css">
+		<link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
+		<link data-name="vs/workbench/workbench.web.main" rel="stylesheet" href="./static/out/vs/workbench/workbench.web.main.css">
 
 	</head>
 
@@ -53,7 +53,7 @@
 	<script>
 		performance.mark('code/willLoadWorkbenchMain');
 	</script>
-	<script src="./static/out/vs/workbench/workbench.web.api.nls.js"></script>
-	<script src="./static/out/vs/workbench/workbench.web.api.js"></script>
+	<script src="./static/out/vs/workbench/workbench.web.main.nls.js"></script>
+	<script src="./static/out/vs/workbench/workbench.web.main.js"></script>
 	<script src="./static/out/vs/code/browser/workbench/workbench.js"></script>
 </html>

@@ -9,7 +9,6 @@ import { TerminalLabelComputer, parseExitResult } from 'vs/workbench/contrib/ter
 import { IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { fixPath, getUri } from 'vs/workbench/contrib/search/test/browser/queryBuilder.test';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -18,6 +17,7 @@ import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/termina
 import { ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
 import { basename } from 'vs/base/common/path';
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
 	const capabilities = new TerminalCapabilityStore();

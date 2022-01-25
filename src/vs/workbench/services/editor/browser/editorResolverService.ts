@@ -149,8 +149,11 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			await this.extensionService.whenInstalledExtensionsRegistered();
 		}
 
+		// Undefined resource -> untilted. Other malformed URI's are unresolvable
 		if (resource === undefined) {
 			resource = URI.from({ scheme: Schemas.untitled });
+		} else if (resource.scheme === undefined || resource === null) {
+			return ResolvedStatus.NONE;
 		}
 
 		if (untypedEditor.options?.override === EditorResolution.DISABLED) {

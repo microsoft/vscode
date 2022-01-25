@@ -386,16 +386,16 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 	}
 
 	private async getInstallableExtensions(extensionIds: string[]): Promise<IExtension[]> {
-		const extensions: IExtension[] = [];
+		const result: IExtension[] = [];
 		if (extensionIds.length) {
-			const pager = await this.extensionsWorkbenchService.queryGallery({ names: extensionIds, pageSize: extensionIds.length, source: 'install-recommendations' }, CancellationToken.None);
-			for (const extension of pager.firstPage) {
+			const extensions = await this.extensionsWorkbenchService.getExtensions(extensionIds.map(id => ({ id })), { source: 'install-recommendations' }, CancellationToken.None);
+			for (const extension of extensions) {
 				if (extension.gallery && (await this.extensionManagementService.canInstall(extension.gallery))) {
-					extensions.push(extension);
+					result.push(extension);
 				}
 			}
 		}
-		return extensions;
+		return result;
 	}
 
 	private async runAction(action: IAction): Promise<void> {

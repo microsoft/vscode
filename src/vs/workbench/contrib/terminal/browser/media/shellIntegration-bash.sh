@@ -1,3 +1,19 @@
+
+if [ -z "$VSCODE_SHELL_LOGIN" ]; then
+    . ~/.bashrc
+else
+    # Imitate -l because --init-file doesn't support it:
+    # run the first of these files that exists
+    if [ -f "~/.bash_profile" ]; then
+        . ~/.bash_profile
+    elif [ -f "~/.bash_login" ]; then
+        . ~/.bash_login
+    elif [ -f "~/.profile" ]; then
+        . ~/.profile
+    fi
+    VSCODE_SHELL_LOGIN=""
+fi
+
 IN_COMMAND_EXECUTION="1"
 prompt_start() {
     printf "\033]133;A\007"
@@ -28,11 +44,6 @@ update_prompt() {
 
 precmd() {
     local STATUS="$?"
-    if [ -z "${IN_COMMAND_EXECUTION-}" ]; then
-        # if not in command execution
-        command_output_start
-    fi
-
     command_complete "$STATUS"
 
     # in command execution
@@ -43,11 +54,27 @@ precmd() {
 }
 preexec() {
     PS1="$PRIOR_PROMPT"
-    IN_COMMAND_EXECUTION="1"
-    command_output_start
+    if [ -z "${IN_COMMAND_EXECUTION-}" ]; then
+        IN_COMMAND_EXECUTION="1"
+        command_output_start
+    fi
 }
 
 update_prompt
-PROMPT_COMMAND=${PROMPT_COMMAND:+"$PROMPT_COMMAND; "}'precmd'
+export ORIGINAL_PROMPT_COMMAND=$PROMPT_COMMAND
+
+prompt_cmd() {
+    precmd
+}
+original_prompt_cmd() {
+    ${ORIGINAL_PROMPT_COMMAND}
+    prompt_cmd
+}
+if [ -n "$ORIGINAL_PROMPT_COMMAND" ]; then
+    export PROMPT_COMMAND=original_prompt_cmd
+else
+    export PROMPT_COMMAND=prompt_cmd
+fi
+
 trap 'preexec' DEBUG
-update_cwd
+echo -e "\033[01;32mShell integration activated!\033[0m"

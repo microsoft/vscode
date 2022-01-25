@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { getGalleryExtensionId, groupByExtension, ExtensionIdentifierWithVersion, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isValidExtensionVersion } from 'vs/platform/extensions/common/extensionValidator';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
 import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
 
 const MANIFEST_FILE = 'package.json';
@@ -333,7 +333,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 
 		// allow publisher to be undefined to make the initial extension authoring experience smoother
 		if (!extensionDescription.publisher) {
-			extensionDescription.publisher = 'undefined_publisher';
+			extensionDescription.publisher = UNDEFINED_PUBLISHER;
 		}
 
 		// id := `publisher.name`

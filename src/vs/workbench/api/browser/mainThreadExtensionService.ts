@@ -144,7 +144,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		const extName = extension.displayName || extension.name;
 		let dependencyExtension: IExtension | null = null;
 		try {
-			dependencyExtension = (await this._extensionsWorkbenchService.queryGallery({ names: [missingDependency] }, CancellationToken.None)).firstPage[0];
+			dependencyExtension = (await this._extensionsWorkbenchService.getExtensions([{ id: missingDependency }], CancellationToken.None))[0];
 		} catch (err) {
 		}
 		if (dependencyExtension) {

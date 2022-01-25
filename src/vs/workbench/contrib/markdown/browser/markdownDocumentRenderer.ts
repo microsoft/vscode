@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import * as marked from 'vs/base/common/marked/marked';
+import { marked } from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { ILanguageService } from 'vs/editor/common/services/language';

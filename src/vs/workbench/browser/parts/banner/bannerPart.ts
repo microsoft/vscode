@@ -19,15 +19,16 @@ import { Link } from 'vs/platform/opener/browser/link';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Emitter } from 'vs/base/common/event';
 import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND } from 'vs/workbench/common/theme';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
+import { BannerFocused } from 'vs/workbench/common/contextkeys';
 
 // Theme support
 
@@ -55,8 +56,6 @@ registerThemingParticipant((theme, collector) => {
 
 
 // Banner Part
-
-const CONTEXT_BANNER_FOCUSED = new RawContextKey<boolean>('bannerFocused', false, localize('bannerFocused', "Whether the banner has keyboard focus"));
 
 export class BannerPart extends Part implements IBannerService {
 
@@ -114,7 +113,7 @@ export class BannerPart extends Part implements IBannerService {
 
 		// Track focus
 		const scopedContextKeyService = this.contextKeyService.createScoped(this.element);
-		CONTEXT_BANNER_FOCUSED.bindTo(scopedContextKeyService).set(true);
+		BannerFocused.bindTo(scopedContextKeyService).set(true);
 
 		return this.element;
 	}
@@ -276,7 +275,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.banner.focusBanner',
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.Escape,
-	when: CONTEXT_BANNER_FOCUSED,
+	when: BannerFocused,
 	handler: (accessor: ServicesAccessor) => {
 		const bannerService = accessor.get(IBannerService);
 		bannerService.focus();
@@ -288,7 +287,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.RightArrow,
 	secondary: [KeyCode.DownArrow],
-	when: CONTEXT_BANNER_FOCUSED,
+	when: BannerFocused,
 	handler: (accessor: ServicesAccessor) => {
 		const bannerService = accessor.get(IBannerService);
 		bannerService.focusNextAction();
@@ -300,7 +299,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.LeftArrow,
 	secondary: [KeyCode.UpArrow],
-	when: CONTEXT_BANNER_FOCUSED,
+	when: BannerFocused,
 	handler: (accessor: ServicesAccessor) => {
 		const bannerService = accessor.get(IBannerService);
 		bannerService.focusPreviousAction();

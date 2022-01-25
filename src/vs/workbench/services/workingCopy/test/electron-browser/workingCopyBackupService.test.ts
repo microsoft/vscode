@@ -60,7 +60,7 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 
 		this.diskFileSystemProvider = new DiskFileSystemProvider(logService);
 		fileService.registerProvider(Schemas.file, this.diskFileSystemProvider);
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, this.diskFileSystemProvider, Schemas.userData, fileService, logService));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, this.diskFileSystemProvider, Schemas.userData, logService));
 
 		this.fileService = fileService;
 		this.backupResourceJoiners = [];

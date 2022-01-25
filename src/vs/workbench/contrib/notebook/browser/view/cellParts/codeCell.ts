@@ -10,7 +10,7 @@ import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IDimension } from 'vs/editor/common/editorCommon';
+import { IDimension } from 'vs/editor/common/core/dimension';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { ILanguageService } from 'vs/editor/common/services/language';
@@ -67,7 +67,7 @@ export class CodeCell extends Disposable {
 		this.registerMouseListener();
 
 		this._register(notebookExecutionStateService.onDidChangeCellExecution(e => {
-			if (e.affectsCell(this.viewCell.model)) {
+			if (e.affectsCell(this.viewCell.uri)) {
 				this.cellParts.forEach(cellPart => {
 					cellPart.updateForExecutionState(this.viewCell, e);
 				});

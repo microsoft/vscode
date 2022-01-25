@@ -75,6 +75,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 
 	constructor(
 		@IProgressService private readonly progressService: IProgressService,
+		@IConfigurationService private readonly configService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IFileService private readonly fileService: IFileService,
@@ -83,7 +84,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 	) { }
 
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
-		return Array.isArray(element) || element.isDirectory;
+		return Array.isArray(element) || element.hasChildren;
 	}
 
 	getChildren(element: ExplorerItem | ExplorerItem[]): Promise<ExplorerItem[]> {
@@ -106,7 +107,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 				if (element instanceof ExplorerItem && element.isRoot) {
 					if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 						// Single folder create a dummy explorer item to show error
-						const placeholder = new ExplorerItem(element.resource, this.fileService, undefined, false);
+						const placeholder = new ExplorerItem(element.resource, this.fileService, this.configService, undefined, undefined, false);
 						placeholder.isError = true;
 						return [placeholder];
 					} else {
@@ -723,6 +724,25 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 
 				if (statB.isDirectory && !statA.isDirectory) {
 					return -1;
+				}
+
+				break;
+
+			case 'foldersNestsFiles':
+				if (statA.isDirectory && !statB.isDirectory) {
+					return -1;
+				}
+
+				if (statB.isDirectory && !statA.isDirectory) {
+					return 1;
+				}
+
+				if (statA.hasNests && !statB.hasNests) {
+					return -1;
+				}
+
+				if (statB.hasNests && !statA.hasNests) {
+					return 1;
 				}
 
 				break;

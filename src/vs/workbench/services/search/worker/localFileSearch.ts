@@ -6,7 +6,7 @@
 import * as glob from 'vs/base/common/glob';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost, IWorkerFileSearchComplete, IWorkerTextSearchComplete } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
+import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost, ISearchWorkerFileSystemDirectoryHandle, ISearchWorkerFileSystemFileHandle, IWorkerFileSearchComplete, IWorkerTextSearchComplete, SearchWorkerFileSystemHandle } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
 import { ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, IPatternInfo, ITextQueryProps, } from 'vs/workbench/services/search/common/search';
 import * as extpath from 'vs/base/common/extpath';
 import * as paths from 'vs/base/common/path';
@@ -72,7 +72,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		return source;
 	}
 
-	async listDirectory(handle: FileSystemDirectoryHandle, query: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, queryId: number): Promise<IWorkerFileSearchComplete> {
+	async listDirectory(handle: ISearchWorkerFileSystemDirectoryHandle, query: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, queryId: number): Promise<IWorkerFileSearchComplete> {
 		const token = this.registerCancellationToken(queryId);
 		const entries: string[] = [];
 		let limitHit = false;
@@ -104,7 +104,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		};
 	}
 
-	async searchDirectory(handle: FileSystemDirectoryHandle, query: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, queryId: number): Promise<IWorkerTextSearchComplete> {
+	async searchDirectory(handle: ISearchWorkerFileSystemDirectoryHandle, query: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, queryId: number): Promise<IWorkerTextSearchComplete> {
 		return time('searchInFiles', async () => {
 			const token = this.registerCancellationToken(queryId);
 
@@ -168,7 +168,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 
 	}
 
-	private async walkFolderQuery(handle: FileSystemDirectoryHandle, queryProps: ICommonQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, onFile: (file: FileNode) => any, token: CancellationToken): Promise<void> {
+	private async walkFolderQuery(handle: ISearchWorkerFileSystemDirectoryHandle, queryProps: ICommonQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, onFile: (file: FileNode) => any, token: CancellationToken): Promise<void> {
 
 		const folderExcludes = glob.parse(folderQuery.excludePattern ?? {}, { trimForExclusions: true }) as glob.ParsedExpression;
 
@@ -188,7 +188,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 			return true;
 		};
 
-		const proccessFile = (file: FileSystemFileHandle, prior: string): FileNode => {
+		const proccessFile = (file: ISearchWorkerFileSystemFileHandle, prior: string): FileNode => {
 
 			const resolved: FileNode = {
 				type: 'file',
@@ -201,7 +201,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		};
 
 
-		const processDirectory = async (directory: FileSystemDirectoryHandle, prior: string, ignoreFile?: IgnoreFile): Promise<DirNode> => {
+		const processDirectory = async (directory: ISearchWorkerFileSystemDirectoryHandle, prior: string, ignoreFile?: IgnoreFile): Promise<DirNode> => {
 
 			if (!folderQuery.disregardIgnoreFiles) {
 				const ignoreFiles = await Promise.all([
@@ -221,7 +221,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 				const files: FileNode[] = [];
 				const dirs: Promise<DirNode>[] = [];
 
-				const entries: [string, FileSystemHandle][] = [];
+				const entries: [string, SearchWorkerFileSystemHandle][] = [];
 				const sibilings = new Set<string>();
 
 				for await (const entry of directory.entries()) {

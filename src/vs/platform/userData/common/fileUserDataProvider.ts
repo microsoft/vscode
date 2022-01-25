@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileWriteOptions, FileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileService, FileChangesEvent } from 'vs/platform/files/common/files';
+import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileWriteOptions, FileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
@@ -34,11 +34,10 @@ export class FileUserDataProvider extends Disposable implements
 		private readonly fileSystemScheme: string,
 		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability & (IFileSystemProviderWithFileReadStreamCapability | IFileSystemProviderWithFileAtomicReadCapability),
 		private readonly userDataScheme: string,
-		fileService: IFileService,
-		private readonly logService: ILogService
+		private readonly logService: ILogService,
 	) {
 		super();
-		this._register(fileService.onDidFilesChange(e => this.handleFileChanges(e)));
+		this._register(this.fileSystemProvider.onDidChangeFile(e => this.handleFileChanges(e)));
 	}
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
@@ -92,9 +91,9 @@ export class FileUserDataProvider extends Disposable implements
 		return this.fileSystemProvider.delete(this.toFileSystemResource(resource), opts);
 	}
 
-	private handleFileChanges(e: FileChangesEvent): void {
+	private handleFileChanges(changes: readonly IFileChange[]): void {
 		const userDataChanges: IFileChange[] = [];
-		for (const change of e.rawChanges) {
+		for (const change of changes) {
 			if (change.resource.scheme !== this.fileSystemScheme) {
 				continue; // only interested in file schemes
 			}

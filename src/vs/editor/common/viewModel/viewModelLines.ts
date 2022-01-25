@@ -10,13 +10,13 @@ import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide, IndentGuideHorizontalLine } from 'vs/editor/common/model/guidesTextModelPart';
+import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide, IndentGuideHorizontalLine } from 'vs/editor/common/textModelGuides';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { LineInjectedText } from 'vs/editor/common/textModelEvents';
+import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
 import { createModelLineProjection, IModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
 import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/modelLineProjectionData';
-import { ConstantTimePrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { ConstantTimePrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { ICoordinatesConverter, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IViewModelLines extends IDisposable {

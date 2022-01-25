@@ -40,9 +40,3 @@ export interface IModelService {
 
 	onModelLanguageChanged: Event<{ model: ITextModel; oldLanguageId: string; }>;
 }
-
-export function shouldSynchronizeModel(model: ITextModel): boolean {
-	return (
-		!model.isTooLargeForSyncing() && !model.isForSimpleWidget
-	);
-}
