@@ -243,8 +243,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						os: this.os
 					});
 					try {
-						const isBackendWindows = await this._backendIsWindows();
-						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, isBackendWindows);
+						const os = await this.getBackendOS();
+						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, os);
 						shellLaunchConfig.args = shellIntegration.args;
 						this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
 						newProcess = await backend.createProcess(
@@ -421,7 +421,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
-		const isBackendWindows = await this._backendIsWindows();
+		const isBackendWindows = await this.getBackendOS();
 		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, isBackendWindows);
 		shellLaunchConfig.args = shellIntegration.args;
 		this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
@@ -478,7 +478,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}));
 	}
 
-	private async _backendIsWindows(): Promise<boolean> {
+	async getBackendOS(): Promise<OperatingSystem> {
 		let os = OS;
 		if (!!this.remoteAuthority) {
 			const remoteEnv = await this._remoteAgentService.getEnvironment();
@@ -487,7 +487,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 			os = remoteEnv.os;
 		}
-		return os === OperatingSystem.Windows;
+		return os;
 	}
 
 	setDimensions(cols: number, rows: number): Promise<void>;

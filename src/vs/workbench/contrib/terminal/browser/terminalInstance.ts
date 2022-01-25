@@ -71,6 +71,7 @@ import { fromNow } from 'vs/base/common/date';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 const enum Constants {
 	/**
@@ -326,7 +327,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService
 	) {
 		super();
 
@@ -390,7 +392,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Wait for a period to allow a container to be ready
 			await this._containerReadyBarrier.wait();
 			if (this._configHelper.config.enableShellIntegration && !this.shellLaunchConfig.executable) {
-				const os = await this._getBackendOS();
+				const os = await this._processManager.getBackendOS();
 				this.shellLaunchConfig.executable = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os })).path;
 			}
 			await this._createProcess();
@@ -1291,30 +1293,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!hadIcon && this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
 			this._onIconChanged.fire(this);
 		}
-	}
-
-	private async _backendIsWindows(): Promise<boolean> {
-		let os = OS;
-		if (!!this.remoteAuthority) {
-			const remoteEnv = await this._remoteAgentService.getEnvironment();
-			if (!remoteEnv) {
-				throw new Error(`Failed to get remote environment for remote authority "${this.remoteAuthority}"`);
-			}
-			os = remoteEnv.os;
-		}
-		return os === OperatingSystem.Windows;
-	}
-
-	private async _getBackendOS(): Promise<OperatingSystem> {
-		let os = OS;
-		if (!!this.remoteAuthority) {
-			const remoteEnv = await this._remoteAgentService.getEnvironment();
-			if (!remoteEnv) {
-				throw new Error(`Failed to get remote environment for remote authority "${this.remoteAuthority}"`);
-			}
-			os = remoteEnv.os;
-		}
-		return os;
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {

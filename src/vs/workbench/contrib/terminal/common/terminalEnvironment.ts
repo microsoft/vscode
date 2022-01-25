@@ -419,7 +419,7 @@ shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-c', '"${execIns
 shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh']);
 const loginArgs = ['-login', '-l'];
 const pwshImpliedArgs = ['-nol', '-nologo'];
-export function injectShellIntegrationArgs(logService: ILogService, env: IProcessEnvironment, enableShellIntegration: boolean, shellLaunchConfig: IShellLaunchConfig, isBackendWindows?: boolean): { args: string | string[] | undefined, enableShellIntegration: boolean } {
+export function injectShellIntegrationArgs(logService: ILogService, env: IProcessEnvironment, enableShellIntegration: boolean, shellLaunchConfig: IShellLaunchConfig, os?: OperatingSystem): { args: string | string[] | undefined, enableShellIntegration: boolean } {
 	// Shell integration arg injection is disabled when:
 	// - The global setting is disabled
 	// - There is no executable (not sure what script to run)
@@ -431,7 +431,8 @@ export function injectShellIntegrationArgs(logService: ILogService, env: IProces
 	const originalArgs = shellLaunchConfig.args;
 	const shell = path.basename(shellLaunchConfig.executable);
 	let newArgs: string | string[] | undefined;
-	if (isBackendWindows) {
+
+	if (os === OperatingSystem.Windows) {
 		if (shell === 'pwsh.exe') {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwsh);
@@ -447,7 +448,7 @@ export function injectShellIntegrationArgs(logService: ILogService, env: IProces
 				if (!originalArgs || originalArgs.length === 0) {
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 				} else if (areZshBashLoginArgs(originalArgs)) {
-					env['VSCODE_SHELL_LOGIN'] = '1';
+					env['OS_IS_MAC'] = os === OperatingSystem.Macintosh ? '1' : '';
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 				}
 				break;
