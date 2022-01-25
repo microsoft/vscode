@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -33,6 +32,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	private _exitCode: number | undefined;
 	private _cwd: string | undefined;
 	private _currentCommand: ICurrentPartialCommand = {};
+	private _isWindowsPty: boolean = false;
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 
@@ -47,6 +47,10 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 	setCwd(value: string) {
 		this._cwd = value;
+	}
+
+	setIsWindowsPty(value: boolean) {
+		this._isWindowsPty = value;
 	}
 
 	getCwdForLine(line: number): string | undefined {
@@ -72,7 +76,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
 		// TODO: Make sure this only runs on Windows backends (not frontends)
-		if (!isWindows && this._currentCommand.commandStartMarker && this._currentCommand.commandExecutedMarker && this._currentCommand.commandStartX) {
+		if (!this._isWindowsPty && this._currentCommand.commandStartMarker && this._currentCommand.commandExecutedMarker && this._currentCommand.commandStartX) {
 			this._currentCommand.command = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line)?.translateToString(true, this._currentCommand.commandStartX);
 			let y = this._currentCommand.commandStartMarker.line + 1;
 			const commandExecutedLine = this._currentCommand.commandExecutedMarker.line;

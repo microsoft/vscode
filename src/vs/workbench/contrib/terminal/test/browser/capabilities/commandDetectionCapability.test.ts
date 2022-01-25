@@ -9,7 +9,6 @@ import { Terminal } from 'xterm';
 import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
-import { isWindows } from 'vs/base/common/platform';
 
 async function writeP(terminal: Terminal, data: string): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
@@ -78,7 +77,7 @@ suite('CommandDetectionCapability', () => {
 		assertCommands([]);
 	});
 
-	(isWindows ? test.skip : test)('should add commands for expected capability method calls', async () => {
+	test('should add commands for expected capability method calls', async () => {
 		await printStandardCommand('$ ', 'echo foo', 'foo', undefined, 0);
 		assertCommands([{
 			command: 'echo foo',
@@ -89,7 +88,7 @@ suite('CommandDetectionCapability', () => {
 	});
 
 	suite('cwd', () => {
-		(isWindows ? test.skip : test)('should add cwd to commands when it\'s set', async () => {
+		test('should add cwd to commands when it\'s set', async () => {
 			await printStandardCommand('$ ', 'echo foo', 'foo', '/home', 0);
 			await printStandardCommand('$ ', 'echo bar', 'bar', '/home/second', 0);
 			assertCommands([
@@ -97,7 +96,7 @@ suite('CommandDetectionCapability', () => {
 				{ command: 'echo bar', exitCode: 0, cwd: '/home/second', marker: { line: 2 } }
 			]);
 		});
-		(isWindows ? test.skip : test)('should add old cwd to commands if no cwd sequence is output', async () => {
+		test('should add old cwd to commands if no cwd sequence is output', async () => {
 			await printStandardCommand('$ ', 'echo foo', 'foo', '/home', 0);
 			await printStandardCommand('$ ', 'echo bar', 'bar', undefined, 0);
 			assertCommands([
@@ -105,7 +104,7 @@ suite('CommandDetectionCapability', () => {
 				{ command: 'echo bar', exitCode: 0, cwd: '/home', marker: { line: 2 } }
 			]);
 		});
-		(isWindows ? test.skip : test)('should use an undefined cwd if it\'s not set initially', async () => {
+		test('should use an undefined cwd if it\'s not set initially', async () => {
 			await printStandardCommand('$ ', 'echo foo', 'foo', undefined, 0);
 			await printStandardCommand('$ ', 'echo bar', 'bar', '/home', 0);
 			assertCommands([
