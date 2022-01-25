@@ -384,6 +384,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xtermReadyPromise.then(async () => {
 			// Wait for a period to allow a container to be ready
 			await this._containerReadyBarrier.wait();
+			if (this._configHelper.config.enableShellIntegration && !this.shellLaunchConfig.executable) {
+				const os = await this._getBackendOS();
+				this.shellLaunchConfig.executable = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os })).path;
+			}
 			await this._createProcess();
 
 			// Re-establish the title after reconnect
@@ -1297,6 +1301,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			os = remoteEnv.os;
 		}
 		return os === OperatingSystem.Windows;
+	}
+
+	private async _getBackendOS(): Promise<OperatingSystem> {
+		let os = OS;
+		if (!!this.remoteAuthority) {
+			const remoteEnv = await this._remoteAgentService.getEnvironment();
+			if (!remoteEnv) {
+				throw new Error(`Failed to get remote environment for remote authority "${this.remoteAuthority}"`);
+			}
+			os = remoteEnv.os;
+		}
+		return os;
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
