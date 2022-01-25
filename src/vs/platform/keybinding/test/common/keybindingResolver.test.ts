@@ -207,6 +207,20 @@ suite('KeybindingResolver', () => {
 		]);
 	});
 
+	test('issue #140884 Unable to reassign F1 as keybinding for Show All Commands', () => {
+		const defaults = [
+			kbItem(KeyCode.KeyA, 'command1', null, undefined, true),
+		];
+		const overrides = [
+			kbItem(KeyCode.KeyA, '-command1', null, undefined, false),
+			kbItem(KeyCode.KeyA, 'command1', null, undefined, false),
+		];
+		const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
+		assert.deepStrictEqual(actual, [
+			kbItem(KeyCode.KeyA, 'command1', null, undefined, false)
+		]);
+	});
+
 	test('contextIsEntirelyIncluded', () => {
 		const toContextKeyExpression = (expr: ContextKeyExpression | string | null) => {
 			if (typeof expr === 'string' || !expr) {

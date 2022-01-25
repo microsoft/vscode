@@ -87,14 +87,15 @@ export class KeybindingResolver {
 	 */
 	public static handleRemovals(rules: ResolvedKeybindingItem[]): ResolvedKeybindingItem[] {
 		// Do a first pass and construct a hash-map for removals
-		const removals = new Map<string, ResolvedKeybindingItem[]>();
-		for (const rule of rules) {
+		const removals = new Map<string, { maxIndex: number; rule: ResolvedKeybindingItem; }[]>();
+		for (let i = 0, len = rules.length; i < len; i++) {
+			const rule = rules[i];
 			if (rule.command && rule.command.charAt(0) === '-') {
 				const command = rule.command.substring(1);
 				if (!removals.has(command)) {
-					removals.set(command, [rule]);
+					removals.set(command, [{ maxIndex: i, rule }]);
 				} else {
-					removals.get(command)!.push(rule);
+					removals.get(command)!.push({ maxIndex: i, rule });
 				}
 			}
 		}
@@ -106,7 +107,9 @@ export class KeybindingResolver {
 
 		// Do a second pass and keep only non-removed keybindings
 		const result: ResolvedKeybindingItem[] = [];
-		for (const rule of rules) {
+		for (let i = 0, len = rules.length; i < len; i++) {
+			const rule = rules[i];
+
 			if (!rule.command || rule.command.length === 0) {
 				result.push(rule);
 				continue;
@@ -121,10 +124,15 @@ export class KeybindingResolver {
 			}
 			let isRemoved = false;
 			for (const commandRemoval of commandRemovals) {
+				if (i > commandRemoval.maxIndex) {
+					// this command removal is above this rule, so it cannot influence it
+					continue;
+				}
+				const removalRule = commandRemoval.rule;
 				// TODO@chords
-				const keypressFirstPart = commandRemoval.keypressParts[0];
-				const keypressChordPart = commandRemoval.keypressParts[1];
-				const when = commandRemoval.when;
+				const keypressFirstPart = removalRule.keypressParts[0];
+				const keypressChordPart = removalRule.keypressParts[1];
+				const when = removalRule.when;
 				if (this._isTargetedForRemoval(rule, keypressFirstPart, keypressChordPart, when)) {
 					isRemoved = true;
 					break;
