@@ -10,7 +10,7 @@ import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState } fr
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorIdentifier, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { GroupDirection, IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -206,6 +206,31 @@ class DropOverlay extends Themable {
 		return undefined;
 	}
 
+	private async handleTreeDrop(ensureTargetGroup: () => IEditorGroupView): Promise<void> {
+		const data = this.treeItemsTransfer.getData(DraggedTreeItemsIdentifier.prototype);
+		if (Array.isArray(data)) {
+			const editors: IUntypedEditorInput[] = [];
+			for (const id of data) {
+				const dataTransferItem = await this.treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier);
+				if (dataTransferItem) {
+					const extractedDropData = await extractTreeDropData(dataTransferItem);
+					editors.push(...extractedDropData.map(editor => {
+						return {
+							...editor,
+							resource: editor.resource,
+							options: {
+								...editor.options,
+								pinned: true,
+							}
+						};
+					}));
+				}
+			}
+			await this.editorService.openEditors(editors, ensureTargetGroup(), { validateTrust: true });
+		}
+		this.treeItemsTransfer.clearData(DraggedTreeItemsIdentifier.prototype);
+	}
+
 	private handleDrop(event: DragEvent, splitDirection?: GroupDirection): void {
 
 		// Determine target group
@@ -298,27 +323,7 @@ class DropOverlay extends Themable {
 
 		// Check for tree items
 		else if (this.treeItemsTransfer.hasData(DraggedTreeItemsIdentifier.prototype)) {
-			const data = this.treeItemsTransfer.getData(DraggedTreeItemsIdentifier.prototype);
-			if (Array.isArray(data)) {
-				const treeData = Promise.all(
-					data.map(id => this.treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier)));
-				treeData.then(dataTransferItems => {
-					return Promise.all(dataTransferItems.map(async (dataTransferItem) => {
-						if (dataTransferItem) {
-							const treeDropData = await extractTreeDropData(dataTransferItem);
-							await this.editorService.openEditors(treeDropData.map(editor => ({
-								...editor,
-								resource: editor.resource,
-								options: {
-									...editor.options,
-									pinned: true,
-								}
-							})), ensureTargetGroup(), { validateTrust: true });
-						}
-					}));
-				});
-			}
-			this.treeItemsTransfer.clearData(DraggedTreeItemsIdentifier.prototype);
+			this.handleTreeDrop(ensureTargetGroup);
 		}
 
 		// Web: check for file transfer
