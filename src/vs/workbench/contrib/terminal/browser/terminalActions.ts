@@ -1919,7 +1919,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.OpenDetectedLink,
-				title: { value: localize('workbench.action.terminal.openDetectedLink', "Open Detected Link"), original: 'Open Detected Link' },
+				title: { value: localize('workbench.action.terminal.openDetectedLink', "Open Detected Link..."), original: 'Open Detected Link...' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
