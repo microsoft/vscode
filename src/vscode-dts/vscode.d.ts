@@ -1675,7 +1675,7 @@ declare module 'vscode' {
 		 * A human-readable string which is rendered less prominent in the same line. Supports rendering of
 		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
 		 *
-		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
+		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		description?: string;
 
@@ -1683,7 +1683,7 @@ declare module 'vscode' {
 		 * A human-readable string which is rendered less prominent in a separate line. Supports rendering of
 		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
 		 *
-		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
+		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		detail?: string;
 
@@ -1695,14 +1695,14 @@ declare module 'vscode' {
 		 *
 		 * @see {@link QuickPickOptions.canPickMany}
 		 *
-		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
+		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		picked?: boolean;
 
 		/**
 		 * Always show this item.
 		 *
-		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
+		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		alwaysShow?: boolean;
 
@@ -1712,7 +1712,7 @@ declare module 'vscode' {
 		 * created by the {@link window.createQuickPick()} API. Buttons are not rendered when using
 		 * the {@link window.showQuickPick()} API.
 		 *
-		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
+		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		buttons?: readonly QuickInputButton[];
 	}
