@@ -289,6 +289,9 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: yarn --frozen-lockfile --network-timeout 180000
 
+      - name: Download Playwright
+        run: yarn playwright-install
+
       - name: Run Hygiene Checks
         run: yarn gulp hygiene
 
@@ -309,12 +312,6 @@ jobs:
 
       - name: Editor Distro & ESM Bundle
         run: yarn gulp editor-esm-bundle
-
-      - name: Install Playwright
-        run: npx playwright install
-
-      - name: Install OS Dependencies for Playwright
-        run: sudo npx playwright install-deps
 
       - name: Editor ESM sources check
         working-directory: ./test/monaco
