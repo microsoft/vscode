@@ -87,6 +87,16 @@ suite('CommandDetectionCapability', () => {
 		}]);
 	});
 
+	test('should trim the command when command executed appears on the following line', async () => {
+		await printStandardCommand('$ ', 'echo foo\r\n', 'foo', undefined, 0);
+		assertCommands([{
+			command: 'echo foo',
+			exitCode: 0,
+			cwd: undefined,
+			marker: { line: 0 }
+		}]);
+	});
+
 	suite('cwd', () => {
 		test('should add cwd to commands when it\'s set', async () => {
 			await printStandardCommand('$ ', 'echo foo', 'foo', '/home', 0);
