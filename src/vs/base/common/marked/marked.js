@@ -10,13 +10,13 @@
  */
 
 // ESM-uncomment-begin
- // let __marked_exports;
- // (function() {
- //   function define(factory) {
- //     __marked_exports = factory();
- //   }
- //   define.amd = true;
- // ESM-uncomment-end
+// let __marked_exports = {};
+// (function() {
+//   function define(deps, factory) {
+//     factory(__marked_exports);
+//   }
+//   define.amd = true;
+// ESM-uncomment-end
 
  (function (global, factory) {
   typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
@@ -2946,13 +2946,4 @@
 // ESM-uncomment-begin
 // })();
 // export var marked = (__marked_exports || exports);
-// export var Parser = (__marked_exports || exports).Parser;
-// export var parser = (__marked_exports || exports).parser;
-// export var Renderer = (__marked_exports || exports).Renderer;
-// export var TextRenderer = (__marked_exports || exports).TextRenderer;
-// export var Lexer = (__marked_exports || exports).Lexer;
-// export var lexer = (__marked_exports || exports).lexer;
-// export var Tokenizer = (__marked_exports || exports).Tokenizer;
-// export var Slugger = (__marked_exports || exports).Slugger;
-// export var parse = (__marked_exports || exports).parse;
 // ESM-uncomment-end
