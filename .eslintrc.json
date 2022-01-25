@@ -295,8 +295,7 @@
 					"vs/workbench/~",
 					"vs/workbench/services/*/~",
 					"assert",
-					{ "when": "test", "pattern": "vs/workbench/contrib/*/~" }, // TODO@layers
-					{ "when": "test", "pattern": "vs/workbench/workbench.desktop.main" } // TODO@layers
+					{ "when": "test", "pattern": "vs/workbench/contrib/*/~" } // TODO@layers
 				]
 			},
 			{
