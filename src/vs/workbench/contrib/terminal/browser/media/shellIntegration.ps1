@@ -50,4 +50,4 @@ function Global:PSConsoleHostReadLine {
 
 # Set IsWindows property
 Write-Output "`e]633;P;IsWindows=$($IsWindows)`u{7}"
-Write-Host "Shell integration activated!" -ForegroundColor Green -NoNewline
+Write-Host "`e[1mShell integration activated!" -ForegroundColor Green -NoNewline
