@@ -71,7 +71,6 @@ import { fromNow } from 'vs/base/common/date';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 const enum Constants {
 	/**
@@ -327,8 +326,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super();
 
