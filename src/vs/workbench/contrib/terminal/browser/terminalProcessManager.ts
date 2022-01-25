@@ -421,9 +421,16 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
-		const isBackendWindows = await this.getBackendOS();
-		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, isBackendWindows);
-		shellLaunchConfig.args = shellIntegration.args;
+		const os = await this.getBackendOS();
+		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, os);
+		if (shellIntegration.enableShellIntegration) {
+			shellLaunchConfig.args = shellIntegration.args;
+			// resolve the injected arguments
+			await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
+				remoteAuthority: undefined,
+				os
+			});
+		}
 		this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
