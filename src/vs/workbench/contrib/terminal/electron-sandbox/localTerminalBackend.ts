@@ -87,7 +87,11 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		// Listen for config changes
 		const initialConfig = configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 		for (const match of Object.keys(initialConfig.autoReplies)) {
-			this._localPtyService.installAutoReply(match, initialConfig.autoReplies[match]);
+			// Ensure the reply is value
+			const reply = initialConfig.autoReplies[match] as string | null;
+			if (reply) {
+				this._localPtyService.installAutoReply(match, reply);
+			}
 		}
 		// TODO: Could simplify update to a single call
 		this._register(configurationService.onDidChangeConfiguration(async e => {
@@ -95,7 +99,11 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 				this._localPtyService.uninstallAllAutoReplies();
 				const config = configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 				for (const match of Object.keys(config.autoReplies)) {
-					await this._localPtyService.installAutoReply(match, config.autoReplies[match]);
+					// Ensure the reply is value
+					const reply = config.autoReplies[match] as string | null;
+					if (reply) {
+						await this._localPtyService.installAutoReply(match, reply);
+					}
 				}
 			}
 		}));
