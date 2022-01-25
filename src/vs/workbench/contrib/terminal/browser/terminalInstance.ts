@@ -358,9 +358,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._register(this.capabilities.onDidAddCapability(e => {
 			this._logService.debug('terminalInstance added capability', e);
 			if (e === TerminalCapability.CwdDetection) {
-				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(async (e) => {
+				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd((e) => {
 					this._cwd = e;
-					await this.refreshTabLabels(this.title, TitleEventSource.Api);
+					this.refreshTabLabels(this.title, TitleEventSource.Api);
 				});
 			}
 		}));
