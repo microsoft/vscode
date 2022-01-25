@@ -280,7 +280,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 
 class WorkspaceProvider implements IWorkspaceProvider {
 
-	private static readonly LAST_WORKSPACE_STORAGE_KEY = 'workspace.lastOpened';
+	private static readonly LAST_WORKSPACE_STORAGE_KEY = 'workspaces.lastOpened';
 
 	private static QUERY_PARAM_EMPTY_WINDOW = 'ew';
 	private static QUERY_PARAM_FOLDER = 'folder';
@@ -300,7 +300,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 				// Folder
 				case WorkspaceProvider.QUERY_PARAM_FOLDER:
 					if (config.remoteAuthority) {
-						workspace = { folderUri: URI.from({ scheme: 'vscode-remote', path: value }) }; // support the nicer URI syntax for folders when connected to a remote
+						workspace = { folderUri: URI.from({ scheme: 'vscode-remote', path: value, authority: config.remoteAuthority }) }; // support the nicer URI syntax for folders when connected to a remote
 					} else {
 						workspace = { folderUri: URI.parse(value) };
 					}
@@ -310,7 +310,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 				// Workspace
 				case WorkspaceProvider.QUERY_PARAM_WORKSPACE:
 					if (config.remoteAuthority) {
-						workspace = { workspaceUri: URI.from({ scheme: 'vscode-remote', path: value }) }; // support the nicer URI syntax for workspaces when connected to a remote
+						workspace = { workspaceUri: URI.from({ scheme: 'vscode-remote', path: value, authority: config.remoteAuthority }) }; // support the nicer URI syntax for workspaces when connected to a remote
 					} else {
 						workspace = { folderUri: URI.parse(value) };
 					}
