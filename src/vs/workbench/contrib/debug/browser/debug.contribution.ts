@@ -532,6 +532,16 @@ configurationRegistry.registerConfiguration({
 			default: 'allEditorsInActiveGroup',
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
+		'debug.saveBeforeTest': {
+			description: nls.localize('debug.saveBeforeTest', "Save all dirty editors before running a test."),
+			enum: ['always', 'never'],
+			type: 'string',
+			enumDescriptions: [
+				nls.localize('debug.saveBeforeTest.always', 'Always saves all editors before testing.'),
+				nls.localize('debug.saveBeforeTest.never', 'Never saves editors before testing.')
+			],
+			default: 'always',
+		},
 		'debug.confirmOnExit': {
 			description: nls.localize('debug.confirmOnExit', "Controls whether to confirm when the window closes if there are active debug sessions."),
 			type: 'string',
