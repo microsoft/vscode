@@ -77,4 +77,4 @@ else
 fi
 
 trap 'preexec' DEBUG
-echo -e "\033[01;32mShell integration activated!\033[0m"
+echo -e "\033[1;32mShell integration activated!\033[0m"
