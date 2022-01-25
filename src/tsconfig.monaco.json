@@ -8,7 +8,7 @@
 		"moduleResolution": "classic",
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "es2020",
+		"target": "es6",
 		"sourceMap": false,
 		"declaration": true
 	},
