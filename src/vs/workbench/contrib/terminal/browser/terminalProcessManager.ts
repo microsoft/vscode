@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent, ITerminalProfileResolverService, ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent, ITerminalProfileResolverService, ITerminalBackend, ShellIntegrationExitCode } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -603,7 +603,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._setProcessState(ProcessState.KilledByProcess);
 		}
 
-		this._onProcessExit.fire(this.shellIntegrationAttempted ? 1337 : exitCode);
+		this._onProcessExit.fire(this.shellIntegrationAttempted ? ShellIntegrationExitCode : exitCode);
 	}
 
 	private _setProcessState(state: ProcessState) {

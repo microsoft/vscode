@@ -58,6 +58,12 @@ export interface ITerminalProfileResolverService {
 	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string>;
 }
 
+/*
+ * When there were shell integration args injected
+ * and createProcess returns an error, this exit code will be used.
+ */
+export const ShellIntegrationExitCode = 633;
+
 export interface IRegisterContributedProfileArgs {
 	extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions;
 }
