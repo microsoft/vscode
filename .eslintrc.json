@@ -92,6 +92,39 @@
 		],
 		"code-import-patterns": [
 			"warn",
+			{
+				// imports that are allowed in all files of layers:
+				// - browser
+				// - electron-sandbox
+				// - electron-browser
+				"when": "hasBrowser",
+				"allow": [
+					"vs/css!./**/*"
+				]
+			},
+			{
+				// imports that are allowed in all files of layers:
+				// - node
+				// - electron-browser
+				// - electron-main
+				"when": "hasNode",
+				"allow": [
+					"@microsoft/*",
+					"@vscode/*",
+					"@parcel/*",
+					"*"
+				]
+			},
+			{
+				// imports that are allowed in all /test/ files
+				"when": "test",
+				"allow": [
+					"assert",
+					"sinon",
+					"sinon-test"
+				]
+			},
+
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			// !!! Do not relax these rules !!!
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
