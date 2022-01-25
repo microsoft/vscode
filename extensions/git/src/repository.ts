@@ -1805,8 +1805,8 @@ export class Repository implements Disposable {
 		const ignoreUntrackedDirFiles = scopedConfig.get<boolean>('ignoreUntrackedDirFiles', false);
 
 		const limit = scopedConfig.get<number>('statusLimit', 10000);
-  
-    const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules });
+		
+		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, ignoreUntrackedDirFiles });
 
 		if (didHitLimit) {
 			/* __GDPR__
