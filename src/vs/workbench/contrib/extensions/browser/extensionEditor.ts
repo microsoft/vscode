@@ -1006,7 +1006,7 @@ export class ExtensionEditor extends EditorPane {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('release date', "Released on")),
-					$('div', undefined, this.renderTime(gallery.lastUpdated))
+					$('div', undefined, this.renderTime(gallery.releaseDate))
 				),
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('last updated', "Last updated")),
