@@ -6,7 +6,7 @@
 import { URI as Uri } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { addTerminalEnvironmentKeys, mergeEnvironments, getCwd, getDefaultShell, getLangEnvVariable, shouldSetLangEnvVariable, injectShellIntegrationArgs, shellIntegrationArgs, ShellIntegrationExecutable } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { IProcessEnvironment, isWindows, OS, Platform } from 'vs/base/common/platform';
+import { IProcessEnvironment, isWindows, OperatingSystem, OS, Platform } from 'vs/base/common/platform';
 import { deepStrictEqual, strictEqual } from 'assert';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { terminalProfileArgsMatch } from 'vs/platform/terminal/common/terminalProfiles';
@@ -270,7 +270,7 @@ suite('Workbench - TerminalEnvironment', () => {
 
 		suite('pwsh', () => {
 
-			const executable = OS ? 'pwsh.exe' : 'pwsh';
+			let executable = OS ? 'pwsh.exe' : 'pwsh';
 
 			suite('should override args', () => {
 				const expectedArgs = OS ? shellIntegrationArgs.get(ShellIntegrationExecutable.Pwsh) : shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwsh);
@@ -317,6 +317,22 @@ suite('Workbench - TerminalEnvironment', () => {
 						terminalProfileArgsMatch(args, expectedArgs);
 						strictEqual(enableShellIntegration, shellIntegrationEnabled);
 					});
+					test('regardless of executable case', () => {
+						executable = OS ? 'pwSh.exe' : 'PWsh';
+						let { args, enableShellIntegration } = injectShellIntegrationArgs(logService, env, shellIntegrationEnabled, { executable, args: '-NoLogo' }, OS);
+						terminalProfileArgsMatch(args, expectedArgs);
+						strictEqual(enableShellIntegration, shellIntegrationEnabled);
+						({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, env, shellIntegrationEnabled, { executable, args: '-NOLOGO' }, OS));
+						terminalProfileArgsMatch(args, expectedArgs);
+						strictEqual(enableShellIntegration, shellIntegrationEnabled);
+						({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, env, shellIntegrationEnabled, { executable, args: '-nol' }, OS));
+						terminalProfileArgsMatch(args, expectedArgs);
+						strictEqual(enableShellIntegration, shellIntegrationEnabled);
+						({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, env, shellIntegrationEnabled, { executable, args: '-Nol' }, OS));
+						terminalProfileArgsMatch(args, expectedArgs);
+						strictEqual(enableShellIntegration, shellIntegrationEnabled);
+						executable = OS ? 'pwsh.exe' : 'pwsh';
+					});
 				});
 			});
 			suite('should incorporate login arg', () => {
@@ -355,10 +371,10 @@ suite('Workbench - TerminalEnvironment', () => {
 			});
 		});
 
-		if (!OS) {
+		if (OS !== OperatingSystem.Windows) {
 			suite('zsh', () => {
 
-				const executable = 'zsh';
+				let executable = 'zsh';
 
 				suite('should override args', () => {
 					const expectedArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
@@ -388,6 +404,13 @@ suite('Workbench - TerminalEnvironment', () => {
 							terminalProfileArgsMatch(args, expectedArgs);
 							strictEqual(enableShellIntegration, shellIntegrationEnabled);
 						});
+						test('regardless of executable case', () => {
+							executable = 'ZSH';
+							let { args, enableShellIntegration } = injectShellIntegrationArgs(logService, env, shellIntegrationEnabled, { executable }, OS);
+							terminalProfileArgsMatch(args, expectedArgs);
+							strictEqual(enableShellIntegration, shellIntegrationEnabled);
+							executable = 'zsh';
+						});
 					});
 					suite('should not modify args', () => {
 						shellIntegrationEnabled = false;
@@ -413,7 +436,7 @@ suite('Workbench - TerminalEnvironment', () => {
 				});
 			});
 			suite('bash', () => {
-				const executable = 'bash';
+				let executable = 'bash';
 
 				suite('should override args', () => {
 					const expectedArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
@@ -428,6 +451,12 @@ suite('Workbench - TerminalEnvironment', () => {
 						terminalProfileArgsMatch(args, expectedArgs);
 						strictEqual(enableShellIntegration, shellIntegrationEnabled);
 						({ args, enableShellIntegration } = injectShellIntegrationArgs(logService, env, shellIntegrationEnabled, { executable, args: '' }, OS));
+						terminalProfileArgsMatch(args, expectedArgs);
+						strictEqual(enableShellIntegration, shellIntegrationEnabled);
+					});
+					test('regardless of executable case', () => {
+						executable = 'BasH';
+						let { args, enableShellIntegration } = injectShellIntegrationArgs(logService, env, shellIntegrationEnabled, { executable, args: [''] }, OS);
 						terminalProfileArgsMatch(args, expectedArgs);
 						strictEqual(enableShellIntegration, shellIntegrationEnabled);
 					});

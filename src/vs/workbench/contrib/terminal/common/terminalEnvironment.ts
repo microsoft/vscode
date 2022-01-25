@@ -429,7 +429,7 @@ export function injectShellIntegrationArgs(logService: ILogService, env: IProces
 	}
 
 	const originalArgs = shellLaunchConfig.args;
-	const shell = path.basename(shellLaunchConfig.executable);
+	const shell = path.basename(shellLaunchConfig.executable).toLowerCase();
 	let newArgs: string | string[] | undefined;
 
 	if (os === OperatingSystem.Windows) {
