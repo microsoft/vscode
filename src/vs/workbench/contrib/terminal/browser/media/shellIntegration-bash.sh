@@ -44,11 +44,6 @@ update_prompt() {
 
 precmd() {
     local STATUS="$?"
-    if [ -z "${IN_COMMAND_EXECUTION-}" ]; then
-        # if not in command execution
-        command_output_start
-    fi
-
     command_complete "$STATUS"
 
     # in command execution
@@ -59,15 +54,17 @@ precmd() {
 }
 preexec() {
     PS1="$PRIOR_PROMPT"
-    IN_COMMAND_EXECUTION="1"
-    command_output_start
+    if [ -z "${IN_COMMAND_EXECUTION-}" ]; then
+        IN_COMMAND_EXECUTION="1"
+        command_output_start
+    fi
 }
 
 update_prompt
 export ORIGINAL_PROMPT_COMMAND=$PROMPT_COMMAND
 
 prompt_cmd() {
-	precmd
+    precmd
 }
 original_prompt_cmd() {
     ${ORIGINAL_PROMPT_COMMAND}
