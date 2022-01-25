@@ -9,7 +9,7 @@ This project incorporates components from the projects listed below. The origina
 2.	atom/language-coffee-script version 0.49.3 (https://github.com/atom/language-coffee-script)
 3.	atom/language-css version 0.45.0 (https://github.com/atom/language-css)
 4.	atom/language-java version 0.32.1 (https://github.com/atom/language-java)
-5.	atom/language-sass version 0.62.1 (https://github.com/atom/language-sass)
+5.	atom/language-sass version 0.61.4 (https://github.com/atom/language-sass)
 6.	atom/language-shellscript version 0.26.0 (https://github.com/atom/language-shellscript)
 7.	atom/language-xml version 0.35.2 (https://github.com/atom/language-xml)
 8.	better-go-syntax version 1.0.0 (https://github.com/jeff-hykin/better-go-syntax/ )
@@ -32,46 +32,47 @@ This project incorporates components from the projects listed below. The origina
 25.	James-Yu/LaTeX-Workshop version 8.19.1 (https://github.com/James-Yu/LaTeX-Workshop)
 26.	jeff-hykin/cpp-textmate-grammar version 1.12.11 (https://github.com/jeff-hykin/cpp-textmate-grammar)
 27.	jeff-hykin/cpp-textmate-grammar version 1.15.6 (https://github.com/jeff-hykin/cpp-textmate-grammar)
-28.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
-29.	JuliaEditorSupport/atom-language-julia version 0.21.1 (https://github.com/JuliaEditorSupport/atom-language-julia)
-30.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
-31.	language-docker (https://github.com/moby/moby)
-32.	language-less version 0.34.2 (https://github.com/atom/language-less)
-33.	language-php version 0.47.0 (https://github.com/atom/language-php)
-34.	MagicStack/MagicPython version 1.1.1 (https://github.com/MagicStack/MagicPython)
-35.	marked version 3.0.2 (https://github.com/markedjs/marked)
-36.	mdn-data version 1.1.12 (https://github.com/mdn/data)
-37.	microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/microsoft/TypeScript-TmLanguage)
-38.	microsoft/vscode-JSON.tmLanguage (https://github.com/microsoft/vscode-JSON.tmLanguage)
-39.	microsoft/vscode-markdown-tm-grammar version 1.0.0 (https://github.com/microsoft/vscode-markdown-tm-grammar)
-40.	microsoft/vscode-mssql version 1.10.1 (https://github.com/microsoft/vscode-mssql)
-41.	mmims/language-batchfile version 0.7.6 (https://github.com/mmims/language-batchfile)
-42.	NVIDIA/cuda-cpp-grammar (https://github.com/NVIDIA/cuda-cpp-grammar)
-43.	PowerShell/EditorSyntax version 1.0.0 (https://github.com/PowerShell/EditorSyntax)
-44.	rust-syntax version 0.5.0 (https://github.com/dustypomerleau/rust-syntax)
-45.	semver version 5.5.0 (https://github.com/npm/node-semver)
-46.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
-47.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
-48.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
-49.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
-50.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
-51.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
-52.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
-53.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
-54.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
-55.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
-56.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
-57.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
-58.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
-59.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
-60.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
-61.	TypeScript-TmLanguage version 0.1.8 (https://github.com/microsoft/TypeScript-TmLanguage)
-62.	TypeScript-TmLanguage version 1.0.0 (https://github.com/microsoft/TypeScript-TmLanguage)
-63.	Unicode version 12.0.0 (https://home.unicode.org/)
-64.	vscode-codicons version 0.0.14 (https://github.com/microsoft/vscode-codicons)
-65.	vscode-logfile-highlighter version 2.11.0 (https://github.com/emilast/vscode-logfile-highlighter)
-66.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
-67.	Web Background Synchronization (https://github.com/WICG/background-sync)
+28.	jlelong/vscode-latex-basics version 1.1.0 (https://github.com/jlelong/vscode-latex-basics)
+29.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
+30.	JuliaEditorSupport/atom-language-julia version 0.21.2 (https://github.com/JuliaEditorSupport/atom-language-julia)
+31.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
+32.	language-docker (https://github.com/moby/moby)
+33.	language-less version 0.34.2 (https://github.com/atom/language-less)
+34.	language-php version 0.48.0 (https://github.com/atom/language-php)
+35.	MagicStack/MagicPython version 1.1.1 (https://github.com/MagicStack/MagicPython)
+36.	marked version 3.0.2 (https://github.com/markedjs/marked)
+37.	mdn-data version 1.1.12 (https://github.com/mdn/data)
+38.	microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/microsoft/TypeScript-TmLanguage)
+39.	microsoft/vscode-JSON.tmLanguage (https://github.com/microsoft/vscode-JSON.tmLanguage)
+40.	microsoft/vscode-markdown-tm-grammar version 1.0.0 (https://github.com/microsoft/vscode-markdown-tm-grammar)
+41.	microsoft/vscode-mssql version 1.10.1 (https://github.com/microsoft/vscode-mssql)
+42.	mmims/language-batchfile version 0.7.6 (https://github.com/mmims/language-batchfile)
+43.	NVIDIA/cuda-cpp-grammar (https://github.com/NVIDIA/cuda-cpp-grammar)
+44.	PowerShell/EditorSyntax version 1.0.0 (https://github.com/PowerShell/EditorSyntax)
+45.	rust-syntax version 0.5.0 (https://github.com/dustypomerleau/rust-syntax)
+46.	semver version 5.5.0 (https://github.com/npm/node-semver)
+47.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
+48.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
+49.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
+50.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
+51.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
+52.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
+53.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
+54.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
+55.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
+56.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
+57.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
+58.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
+59.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
+60.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
+61.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
+62.	TypeScript-TmLanguage version 0.1.8 (https://github.com/microsoft/TypeScript-TmLanguage)
+63.	TypeScript-TmLanguage version 1.0.0 (https://github.com/microsoft/TypeScript-TmLanguage)
+64.	Unicode version 12.0.0 (https://home.unicode.org/)
+65.	vscode-codicons version 0.0.14 (https://github.com/microsoft/vscode-codicons)
+66.	vscode-logfile-highlighter version 2.11.0 (https://github.com/emilast/vscode-logfile-highlighter)
+67.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
+68.	Web Background Synchronization (https://github.com/WICG/background-sync)
 
 
 %% atom/language-clojure NOTICES AND INFORMATION BEGIN HERE
@@ -1231,6 +1232,29 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 =========================================
 END OF jeff-hykin/cpp-textmate-grammar NOTICES AND INFORMATION
+
+%% jlelong/vscode-latex-basics NOTICES AND INFORMATION BEGIN HERE
+=========================================
+Copyright (c) vscode-latex-basics authors
+
+If not otherwise specified (see below), files in this repository fall under the MIT License
+
+
+The file syntaxes/LaTeX.tmLanguage.json is based on https://github.com/textmate/latex.tmbundle/blob/master/Syntaxes/LaTeX.plist
+but has been largely modified. The original file falls under the following license
+
+Permission to copy, use, modify, sell and distribute this
+software is granted. This software is provided "as is" without
+express or implied warranty, and with no claim as to its
+suitability for any purpose.
+
+The file syntaxes/markdown-latex-combined.tmLanguage.json is generated from the Markdown grammar
+included in VSCode and falls under the license described in markdown-latex-combined-license.txt.
+
+The file syntaxes/cpp-grammar-bailout.tmLanguage.json is generated from https://github.com/jeff-hykin/better-cpp-syntax
+and falls under the license described in cpp-bailout-license.txt.
+=========================================
+END OF jlelong/vscode-latex-basics NOTICES AND INFORMATION
 
 %% js-beautify NOTICES AND INFORMATION BEGIN HERE
 =========================================

@@ -103,7 +103,11 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		// Listen for config changes
 		const initialConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 		for (const match of Object.keys(initialConfig.autoReplies)) {
-			this._remoteTerminalChannel.installAutoReply(match, initialConfig.autoReplies[match]);
+			// Ensure the value is truthy
+			const reply = initialConfig.autoReplies[match];
+			if (reply) {
+				this._remoteTerminalChannel.installAutoReply(match, reply);
+			}
 		}
 		// TODO: Could simplify update to a single call
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {
@@ -111,7 +115,11 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 				this._remoteTerminalChannel.uninstallAllAutoReplies();
 				const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 				for (const match of Object.keys(config.autoReplies)) {
-					await this._remoteTerminalChannel.installAutoReply(match, config.autoReplies[match]);
+					// Ensure the value is truthy
+					const reply = config.autoReplies[match];
+					if (reply) {
+						await this._remoteTerminalChannel.installAutoReply(match, reply);
+					}
 				}
 			}
 		}));

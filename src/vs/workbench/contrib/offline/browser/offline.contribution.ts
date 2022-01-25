@@ -55,8 +55,8 @@ export class OfflineStatusBarController implements IWorkbenchContribution {
 				this.statusbarService.addEntry({
 					name: 'Offline Indicator',
 					text: '$(debug-disconnect) Offline',
-					ariaLabel: 'Network status is offline.',
-					tooltip: localize('offline', "Network status appears to be offline, certain features might be unavailable.")
+					ariaLabel: 'Network is offline.',
+					tooltip: localize('offline', "Network appears to be offline, certain features might be unavailable.")
 				}, 'offline', StatusbarAlignment.LEFT, 10000)
 			);
 		} else {
