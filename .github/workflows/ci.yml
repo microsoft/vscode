@@ -313,6 +313,9 @@ jobs:
       - name: Install Playwright
         run: npx playwright install
 
+      - name: Install OS Dependencies for Playwright
+        run: sudo npx playwright install-deps
+
       - name: Editor ESM sources check
         working-directory: ./test/monaco
         run: yarn run esm-check
