@@ -27,6 +27,7 @@ import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResu
 import { AmbiguousRunTestsRequest, IMainThreadTestController, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 
 export class TestService extends Disposable implements ITestService {
 	declare readonly _serviceBrand: undefined;
@@ -299,8 +300,8 @@ export class TestService extends Disposable implements ITestService {
 		if (req.isUiTriggered === false) {
 			return;
 		}
-		const saveBeforeTestConfig: string = configurationService.getValue('debug.saveBeforeTest');
-		if (saveBeforeTestConfig !== 'never') {
+		const saveBeforeTest: boolean = getTestingConfiguration(this.configurationService, TestingConfigKeys.SaveBeforeTest);
+		if (saveBeforeTest) {
 			await editorService.saveAll();
 		}
 		return;
