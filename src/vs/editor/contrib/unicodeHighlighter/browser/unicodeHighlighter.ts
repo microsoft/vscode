@@ -16,7 +16,7 @@ import { EditorAction, registerEditorAction, registerEditorContribution, Service
 import { InUntrustedWorkspace, inUntrustedWorkspace, EditorOption, InternalUnicodeHighlightOptions, unicodeHighlightConfigKeys } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecoration, IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecoration, IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { UnicodeHighlighterOptions, UnicodeHighlighterReason, UnicodeHighlighterReasonKind, UnicodeTextModelHighlighter } from 'vs/editor/common/languages/unicodeTextModelHighlighter';
 import { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
@@ -30,9 +30,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { minimapUnicodeHighlight, overviewRulerUnicodeHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export const warningIcon = registerIcon('extensions-warning-message', Codicon.warning, nls.localize('warningIcon', 'Icon shown with a warning message in the extensions editor.'));
@@ -552,14 +550,8 @@ class Decorations {
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				className: 'unicode-highlight',
 				showIfCollapsed: true,
-				overviewRuler: {
-					color: themeColorFromId(overviewRulerUnicodeHighlightForeground),
-					position: OverviewRulerLane.Center
-				},
-				minimap: {
-					color: themeColorFromId(minimapUnicodeHighlight),
-					position: MinimapPosition.Inline
-				},
+				overviewRuler: null,
+				minimap: null,
 				hideInCommentTokens: hideInComments,
 				hideInStringTokens: hideInStrings,
 			});
