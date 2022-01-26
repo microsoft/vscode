@@ -1924,7 +1924,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.openDetectedLink', "Open Detected Link..."), original: 'Open Detected Link...' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+				precondition: TerminalContextKeys.terminalHasBeenCreated,
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1939,7 +1939,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.openLastWebLink', "Open Last Web Link"), original: 'Open Last Web Link' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+				precondition: TerminalContextKeys.terminalHasBeenCreated,
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1954,7 +1954,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.openLastFileLink', "Open Last File Link"), original: 'Open Last File Link' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+				precondition: TerminalContextKeys.terminalHasBeenCreated,
 			});
 		}
 		run(accessor: ServicesAccessor) {
