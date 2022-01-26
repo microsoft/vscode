@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { CellFoldingState, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFoldingState, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
@@ -29,7 +29,7 @@ export class FoldedCellHint extends CellPart {
 			return;
 		}
 
-		if (element.isInputCollapsed) {
+		if (element.isInputCollapsed || element.getEditState() === CellEditState.Editing) {
 			DOM.hide(this._container);
 		} else if (element.foldingState === CellFoldingState.Collapsed) {
 			const idx = this._notebookEditor._getViewModel().getCellIndex(element);
@@ -37,8 +37,7 @@ export class FoldedCellHint extends CellPart {
 			DOM.reset(this._container, this.getHiddenCellsLabel(length));
 			DOM.show(this._container);
 
-			const { bottomToolbarGap } = this._notebookEditor.notebookOptions.computeBottomToolbarDimensions(element.viewType);
-			const foldHintTop = element.layoutInfo.totalHeight - bottomToolbarGap - element.layoutInfo.foldHintHeight;
+			const foldHintTop = element.layoutInfo.previewHeight;
 			this._container.style.top = `${foldHintTop}px`;
 		} else if (element.foldingState === CellFoldingState.Expanded) {
 			DOM.hide(this._container);
