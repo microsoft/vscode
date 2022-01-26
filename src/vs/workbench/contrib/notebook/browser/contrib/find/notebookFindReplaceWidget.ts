@@ -62,8 +62,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 			{
 				actionRunner,
 				classNames: action.class,
-				anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
-				menuAsChild: true
+				anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 			}
 		);
 	}
