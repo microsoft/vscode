@@ -240,6 +240,10 @@ class DocumentUnicodeHighlighter extends Disposable {
 	}
 
 	private _update(): void {
+		if (this._model.isDisposed()) {
+			return;
+		}
+
 		if (!this._model.mightContainNonBasicASCII()) {
 			this._decorationIds = new Set(this._editor.deltaDecorations(Array.from(this._decorationIds), []));
 			return;
@@ -249,6 +253,9 @@ class DocumentUnicodeHighlighter extends Disposable {
 		this._editorWorkerService
 			.computedUnicodeHighlights(this._model.uri, this._options)
 			.then((info) => {
+				if (this._model.isDisposed()) {
+					return;
+				}
 				if (this._model.getVersionId() !== modelVersionId) {
 					// model changed in the meantime
 					return;
@@ -333,6 +340,10 @@ class ViewportUnicodeHighlighter extends Disposable {
 	}
 
 	private _update(): void {
+		if (this._model.isDisposed()) {
+			return;
+		}
+
 		if (!this._model.mightContainNonBasicASCII()) {
 			this._decorationIds = new Set(this._editor.deltaDecorations(Array.from(this._decorationIds), []));
 			return;
