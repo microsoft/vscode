@@ -25,6 +25,9 @@ import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { AmbiguousRunTestsRequest, IMainThreadTestController, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 
 export class TestService extends Disposable implements ITestService {
 	declare readonly _serviceBrand: undefined;
@@ -81,8 +84,10 @@ export class TestService extends Disposable implements ITestService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService private readonly storage: IStorageService,
+		@IEditorService private readonly editorService: IEditorService,
 		@ITestProfileService private readonly testProfiles: ITestProfileService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITestResultService private readonly testResults: ITestResultService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
@@ -203,7 +208,7 @@ export class TestService extends Disposable implements ITestService {
 					this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', err.message));
 				})
 			);
-
+			await this.saveAllBeforeTest(req);
 			await Promise.all(requests);
 			return result;
 		} finally {
@@ -289,6 +294,17 @@ export class TestService extends Disposable implements ITestService {
 		disposable.add(controller.canRefresh.onDidChange(this.updateCanRefresh, this));
 
 		return disposable;
+	}
+
+	private async saveAllBeforeTest(req: ResolvedTestRunRequest, configurationService: IConfigurationService = this.configurationService, editorService: IEditorService = this.editorService): Promise<void> {
+		if (req.isUiTriggered === false) {
+			return;
+		}
+		const saveBeforeTest: boolean = getTestingConfiguration(this.configurationService, TestingConfigKeys.SaveBeforeTest);
+		if (saveBeforeTest) {
+			await editorService.saveAll();
+		}
+		return;
 	}
 
 	private updateCanRefresh() {

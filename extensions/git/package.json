@@ -2229,6 +2229,17 @@
           "description": "%config.experimental.installGuide%",
           "default": "default"
         },
+        "git.repositoryScanIgnoredFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "node_modules"
+          ],
+          "scope": "resource",
+          "markdownDescription": "%config.repositoryScanIgnoredFolders%"
+        },
         "git.repositoryScanMaxDepth": {
           "type": "number",
           "scope": "resource",

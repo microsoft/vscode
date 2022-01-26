@@ -177,8 +177,6 @@ suite('Notebook Find', () => {
 				}], true, undefined, () => undefined, undefined, true);
 				await found2;
 				assert.strictEqual(model.findMatches.length, 3);
-				assert.strictEqual(model.currentMatch, 3);
-				model.find(false);
 				assert.strictEqual(model.currentMatch, 0);
 				model.find(true);
 				assert.strictEqual(model.currentMatch, 3);
