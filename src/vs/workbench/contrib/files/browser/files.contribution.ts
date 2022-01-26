@@ -379,7 +379,7 @@ configurationRegistry.registerConfiguration({
 			'enumDescriptions': [
 				nls.localize('enableUndo.warn', 'Explorer will prompt before undoing all file and folder creation events.'),
 				nls.localize('enableUndo.allow', 'Explorer will undo file and folder creation events without prompting.'),
-				nls.localize('enableUndo.disable', 'Explorer does not participte in undo events.'),
+				nls.localize('enableUndo.disable', 'Undo will be disabled in the explorer.'),
 			],
 		},
 		'explorer.expandSingleFolderWorkspaces': {
