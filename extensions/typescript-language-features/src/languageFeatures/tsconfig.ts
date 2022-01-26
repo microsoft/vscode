@@ -114,6 +114,30 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 	}
 }
 
+const resolveNodeModulesPath = async (baseDirUri: vscode.Uri, pathCandidates: string[]): Promise<vscode.Uri | undefined> => {
+	let currentUri = baseDirUri;
+	while (true) {
+		const nodeModulesUri = vscode.Uri.joinPath(currentUri, 'node_modules');
+		let nodeModulesStat: vscode.FileStat | undefined;
+		try {
+			nodeModulesStat = await vscode.workspace.fs.stat(nodeModulesUri);
+		} catch (err) { }
+		if (nodeModulesStat && (nodeModulesStat.type & vscode.FileType.Directory)) {
+			for (const uriCandidate of pathCandidates.map((relativePath) => vscode.Uri.joinPath(nodeModulesUri, relativePath))) {
+				if (await exists(uriCandidate)) {
+					return uriCandidate;
+				}
+			}
+		}
+		// reached the root
+		if (posix.relative(currentUri.path, '/') === '') {
+			return;
+		}
+
+		currentUri = vscode.Uri.joinPath(currentUri, '..');
+	}
+};
+
 // Reference: https://github.com/microsoft/TypeScript/blob/febfd442cdba343771f478cf433b0892f213ad2f/src/compiler/commandLineParser.ts#L3005
 /**
  * @returns Returns undefined in case of lack of result while trying to resolve from node_modules
@@ -134,36 +158,11 @@ const getTsconfigPath = async (baseDirUri: vscode.Uri, extendsValue: string): Pr
 	}
 
 	// Otherwise resolve like a module
-	return resolveNodeModulesPath([
+	return resolveNodeModulesPath(baseDirUri, [
 		extendsValue,
 		`${extendsValue}.json`,
 		`${extendsValue}/tsconfig.json`,
 	]);
-
-	async function resolveNodeModulesPath(pathCandidates: string[]): Promise<vscode.Uri | undefined> {
-		let currentUri = baseDirUri;
-		while (true) {
-			const nodeModulesUri = vscode.Uri.joinPath(currentUri, 'node_modules');
-			let nodeModulesStat: vscode.FileStat | undefined;
-			try {
-				nodeModulesStat = await vscode.workspace.fs.stat(nodeModulesUri);
-			} catch (err) { }
-			if (nodeModulesStat && (nodeModulesStat.type & vscode.FileType.Directory)) {
-				for (const uriCandidate of pathCandidates.map((relativePath) => vscode.Uri.joinPath(nodeModulesUri, relativePath))) {
-					if (await exists(uriCandidate)) {
-						return uriCandidate;
-					}
-				}
-			}
-			// reached the root
-			if (posix.relative(currentUri.path, '/') === '') {
-				return;
-			}
-
-			currentUri = vscode.Uri.joinPath(currentUri, '..');
-		}
-
-	}
 };
 
 export function register() {
