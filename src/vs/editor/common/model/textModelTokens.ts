@@ -22,71 +22,83 @@ const enum Constants {
 	CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048
 }
 
-export class TokenizationStateStore {
-	private _beginState: (IState | null)[];
-	private _valid: boolean[];
-	private _len: number;
-	private _invalidLineStartIndex: number;
+/**
+ * An array that avoids being sparse by always
+ * filling up unused indices with a default value.
+ */
+class ContiguousGrowingArray<T> {
+
+	private _store: T[] = [];
 
 	constructor(
-		public readonly tokenizationSupport: ITokenizationSupport,
-		public readonly initialState: IState
-	) {
-		this._beginState = [];
-		this._valid = [];
-		this._len = 0;
-		this._invalidLineStartIndex = 0;
-		this._setBeginState(0, this.initialState);
+		private readonly _default: T
+	) { }
+
+	public get(index: number): T {
+		if (index < this._store.length) {
+			return this._store[index];
+		}
+		return this._default;
 	}
+
+	public set(index: number, value: T): void {
+		while (index >= this._store.length) {
+			this._store[this._store.length] = this._default;
+		}
+		this._store[index] = value;
+	}
+
+	public delete(deleteIndex: number, deleteCount: number): void {
+		if (deleteCount === 0 || deleteIndex >= this._store.length) {
+			return;
+		}
+		this._store.splice(deleteIndex, deleteCount);
+	}
+
+	public insert(insertIndex: number, insertCount: number): void {
+		if (insertCount === 0 || insertIndex >= this._store.length) {
+			return;
+		}
+		const arr: T[] = [];
+		for (let i = 0; i < insertCount; i++) {
+			arr[i] = this._default;
+		}
+		this._store = arrays.arrayInsert(this._store, insertIndex, arr);
+	}
+}
+
+export class TokenizationStateStore {
+
+	private _beginState = new ContiguousGrowingArray<IState | null>(null);
+	private _valid = new ContiguousGrowingArray<boolean>(false);
+	private _invalidLineStartIndex: number;
 
 	public get invalidLineStartIndex() {
 		return this._invalidLineStartIndex;
 	}
 
+	constructor(
+		public readonly tokenizationSupport: ITokenizationSupport,
+		public readonly initialState: IState
+	) {
+		this._invalidLineStartIndex = 0;
+		this._beginState.set(0, this.initialState);
+	}
+
 	private _invalidateLine(lineIndex: number): void {
-		if (lineIndex < this._len) {
-			this._valid[lineIndex] = false;
-		}
+		this._valid.set(lineIndex, false);
 
 		if (lineIndex < this._invalidLineStartIndex) {
 			this._invalidLineStartIndex = lineIndex;
 		}
 	}
 
-	private _isValid(lineIndex: number): boolean {
-		if (lineIndex < this._len) {
-			return this._valid[lineIndex];
-		}
-		return false;
-	}
-
 	public getBeginState(lineIndex: number): IState | null {
-		if (lineIndex < this._len) {
-			return this._beginState[lineIndex];
-		}
-		return null;
-	}
-
-	private _ensureLine(lineIndex: number): void {
-		while (lineIndex >= this._len) {
-			this._beginState[this._len] = null;
-			this._valid[this._len] = false;
-			this._len++;
-		}
-	}
-
-	private _setValid(lineIndex: number, valid: boolean): void {
-		this._ensureLine(lineIndex);
-		this._valid[lineIndex] = valid;
-	}
-
-	private _setBeginState(lineIndex: number, beginState: IState | null): void {
-		this._ensureLine(lineIndex);
-		this._beginState[lineIndex] = beginState;
+		return this._beginState.get(lineIndex);
 	}
 
 	public setEndState(linesLength: number, lineIndex: number, endState: IState): void {
-		this._setValid(lineIndex, true);
+		this._valid.set(lineIndex, true);
 		this._invalidLineStartIndex = lineIndex + 1;
 
 		// Check if this was the last line
@@ -95,9 +107,9 @@ export class TokenizationStateStore {
 		}
 
 		// Check if the end state has changed
-		const previousEndState = this.getBeginState(lineIndex + 1);
+		const previousEndState = this._beginState.get(lineIndex + 1);
 		if (previousEndState === null || !endState.equals(previousEndState)) {
-			this._setBeginState(lineIndex + 1, endState);
+			this._beginState.set(lineIndex + 1, endState);
 			this._invalidateLine(lineIndex + 1);
 			return;
 		}
@@ -105,7 +117,7 @@ export class TokenizationStateStore {
 		// Perhaps we can skip tokenizing some lines...
 		let i = lineIndex + 1;
 		while (i < linesLength) {
-			if (!this._isValid(i)) {
+			if (!this._valid.get(i)) {
 				break;
 			}
 			i++;
@@ -114,69 +126,19 @@ export class TokenizationStateStore {
 	}
 
 	public setFakeTokens(lineIndex: number): void {
-		this._setValid(lineIndex, false);
+		this._valid.set(lineIndex, false);
 	}
 
 	//#region Editing
 
 	public applyEdits(range: IRange, eolCount: number): void {
-		const deletingLinesCnt = range.endLineNumber - range.startLineNumber;
-		const insertingLinesCnt = eolCount;
-		const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
+		this._invalidateLine(range.startLineNumber - 1);
 
-		for (let j = editingLinesCnt; j >= 0; j--) {
-			this._invalidateLine(range.startLineNumber + j - 1);
-		}
+		this._beginState.delete(range.startLineNumber, range.endLineNumber - range.startLineNumber);
+		this._valid.delete(range.startLineNumber, range.endLineNumber - range.startLineNumber);
 
-		this._acceptDeleteRange(range);
-		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount);
-	}
-
-	private _acceptDeleteRange(range: IRange): void {
-
-		const firstLineIndex = range.startLineNumber - 1;
-		if (firstLineIndex >= this._len) {
-			return;
-		}
-
-		this._deleteLines(range.startLineNumber, range.endLineNumber - range.startLineNumber);
-	}
-
-	private _deleteLines(start: number, deleteCount: number): void {
-		if (deleteCount === 0) {
-			return;
-		}
-		if (start + deleteCount > this._len) {
-			deleteCount = this._len - start;
-		}
-		this._beginState.splice(start, deleteCount);
-		this._valid.splice(start, deleteCount);
-		this._len -= deleteCount;
-	}
-
-	private _acceptInsertText(position: Position, eolCount: number): void {
-
-		const lineIndex = position.lineNumber - 1;
-		if (lineIndex >= this._len) {
-			return;
-		}
-
-		this._insertLines(position.lineNumber, eolCount);
-	}
-
-	private _insertLines(insertIndex: number, insertCount: number): void {
-		if (insertCount === 0) {
-			return;
-		}
-		const beginState: (IState | null)[] = [];
-		const valid: boolean[] = [];
-		for (let i = 0; i < insertCount; i++) {
-			beginState[i] = null;
-			valid[i] = false;
-		}
-		this._beginState = arrays.arrayInsert(this._beginState, insertIndex, beginState);
-		this._valid = arrays.arrayInsert(this._valid, insertIndex, valid);
-		this._len += insertCount;
+		this._beginState.insert(range.startLineNumber, eolCount);
+		this._valid.insert(range.startLineNumber, eolCount);
 	}
 
 	//#endregion
