@@ -1486,6 +1486,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _onKey(key: string, ev: KeyboardEvent): void {
 		const event = new StandardKeyboardEvent(ev);
+
 		if (event.equals(KeyCode.Enter)) {
 			this._updateProcessCwd();
 		}
