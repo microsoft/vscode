@@ -159,6 +159,12 @@ class NotebookFindInput extends FindInput {
 				this._filtersAction.checked = false;
 			}
 		}));
+
+		this.inputBox.paddingRight = this.caseSensitive.width() + this.wholeWords.width() + this.regex.width() + this.getFilterWidth();
+	}
+
+	private getFilterWidth() {
+		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
 	private createFilters(container: HTMLElement): void {

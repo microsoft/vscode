@@ -72,8 +72,8 @@ export class FindInput extends Widget {
 
 	protected controls: HTMLDivElement;
 	protected regex: RegexCheckbox;
-	private wholeWords: WholeWordsCheckbox;
-	private caseSensitive: CaseSensitiveCheckbox;
+	protected wholeWords: WholeWordsCheckbox;
+	protected caseSensitive: CaseSensitiveCheckbox;
 	public domNode: HTMLElement;
 	public inputBox: HistoryInputBox;
 
