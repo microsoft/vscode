@@ -11003,9 +11003,8 @@ declare module 'vscode' {
 		 * will be reported).
 		 *
 		 * Providing a `string` as `globPattern` acts as convenience method for watching file events in
-		 * all opened workspace folders. This method should be used if you only care about file events
-		 * from the workspace and not from any other folder. It cannot be used to add more folders for
-		 * file watching.
+		 * all opened workspace folders. It cannot be used to add more folders for file watching, nor will
+		 * it report any file events from folders that are not part of the opened workspace folders.
 		 *
 		 * Optionally, flags to ignore certain kinds of events can be provided.
 		 *
