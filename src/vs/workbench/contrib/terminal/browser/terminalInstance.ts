@@ -177,6 +177,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _hasHadInput: boolean;
 
+	// Enables disposal of the xterm onKey
+	// event when the CwdDetection capability
+	// is added
+	private _xtermOnKey: IDisposable | undefined;
+
 	readonly statusList: ITerminalStatusList;
 	disableLayout: boolean = false;
 
@@ -357,6 +362,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (e === TerminalCapability.CwdDetection) {
 				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd((e) => {
 					this._cwd = e;
+					if (this._linkManager) {
+						this._linkManager.processCwd = this._cwd;
+					}
+					this._xtermOnKey?.dispose();
 					this.refreshTabLabels(this.title, TitleEventSource.Api);
 				});
 			}
@@ -612,7 +621,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			});
 		}, 1000);
-		xterm.raw.onKey(e => this._onKey(e.key, e.domEvent));
+		this._xtermOnKey = xterm.raw.onKey(e => this._onKey(e.key, e.domEvent));
 		xterm.raw.onSelectionChange(async () => this._onSelectionChange());
 		xterm.raw.buffer.onBufferChange(() => this._refreshAltBufferContextKey());
 
