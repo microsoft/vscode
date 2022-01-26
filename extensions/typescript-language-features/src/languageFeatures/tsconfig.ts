@@ -49,9 +49,11 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 			return undefined;
 		}
 
+		const extendsValue: string = extendsNode.value;
+		if (extendsValue.startsWith('/')) return undefined
 		const args: OpenExtendsLinkCommandArgs = {
 			resourceUri: document.uri,
-			extendsValue: extendsNode.value
+			extendsValue: extendsValue
 		};
 
 		return new vscode.DocumentLink(
