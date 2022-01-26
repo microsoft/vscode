@@ -67,39 +67,57 @@ class ContiguousGrowingArray<T> {
 	}
 }
 
+/**
+ * Stores the states at the start of each line and keeps track of which lines
+ * must be retokenized. Also uses state equality to quickly validate lines
+ * that don't need to be retokenized.
+ *
+ * For example, when typing on a line, the line gets marked as needing to be tokenized.
+ * Once the line is tokenized, the end state is checked for equality against the begin
+ * state of the next line. If the states are equal, tokenization doesn't need to run
+ * again over the rest of the file. If the states are not equal, the next line gets marked
+ * as needing to be tokenized.
+ */
 export class TokenizationStateStore {
 
-	private _beginState = new ContiguousGrowingArray<IState | null>(null);
-	private _valid = new ContiguousGrowingArray<boolean>(false);
-	private _invalidLineStartIndex: number;
+	/**
+	 * `lineBeginState[i]` contains the begin state used to tokenize line number `i + 1`.
+	 */
+	private readonly _lineBeginState = new ContiguousGrowingArray<IState | null>(null);
+	/**
+	 * `lineNeedsTokenization[i]` describes if line number `i + 1` needs to be tokenized.
+	 */
+	private readonly _lineNeedsTokenization = new ContiguousGrowingArray<boolean>(true);
+	/**
+	 * `invalidLineStartIndex` indicates that line number `invalidLineStartIndex + 1`
+	 *  is the first one that needs to be retokenized.
+	 */
+	private _firstLineNeedsTokenization: number;
 
 	public get invalidLineStartIndex() {
-		return this._invalidLineStartIndex;
+		return this._firstLineNeedsTokenization;
 	}
 
 	constructor(
 		public readonly tokenizationSupport: ITokenizationSupport,
 		public readonly initialState: IState
 	) {
-		this._invalidLineStartIndex = 0;
-		this._beginState.set(0, this.initialState);
+		this._firstLineNeedsTokenization = 0;
+		this._lineBeginState.set(0, this.initialState);
 	}
 
-	private _invalidateLine(lineIndex: number): void {
-		this._valid.set(lineIndex, false);
-
-		if (lineIndex < this._invalidLineStartIndex) {
-			this._invalidLineStartIndex = lineIndex;
-		}
+	public markMustBeTokenized(lineIndex: number): void {
+		this._lineNeedsTokenization.set(lineIndex, true);
+		this._firstLineNeedsTokenization = Math.min(this._firstLineNeedsTokenization, lineIndex);
 	}
 
 	public getBeginState(lineIndex: number): IState | null {
-		return this._beginState.get(lineIndex);
+		return this._lineBeginState.get(lineIndex);
 	}
 
 	public setEndState(linesLength: number, lineIndex: number, endState: IState): void {
-		this._valid.set(lineIndex, true);
-		this._invalidLineStartIndex = lineIndex + 1;
+		this._lineNeedsTokenization.set(lineIndex, false);
+		this._firstLineNeedsTokenization = lineIndex + 1;
 
 		// Check if this was the last line
 		if (lineIndex === linesLength - 1) {
@@ -107,38 +125,34 @@ export class TokenizationStateStore {
 		}
 
 		// Check if the end state has changed
-		const previousEndState = this._beginState.get(lineIndex + 1);
+		const previousEndState = this._lineBeginState.get(lineIndex + 1);
 		if (previousEndState === null || !endState.equals(previousEndState)) {
-			this._beginState.set(lineIndex + 1, endState);
-			this._invalidateLine(lineIndex + 1);
+			this._lineBeginState.set(lineIndex + 1, endState);
+			this.markMustBeTokenized(lineIndex + 1);
 			return;
 		}
 
 		// Perhaps we can skip tokenizing some lines...
 		let i = lineIndex + 1;
 		while (i < linesLength) {
-			if (!this._valid.get(i)) {
+			if (this._lineNeedsTokenization.get(i)) {
 				break;
 			}
 			i++;
 		}
-		this._invalidLineStartIndex = i;
-	}
-
-	public setFakeTokens(lineIndex: number): void {
-		this._valid.set(lineIndex, false);
+		this._firstLineNeedsTokenization = i;
 	}
 
 	//#region Editing
 
 	public applyEdits(range: IRange, eolCount: number): void {
-		this._invalidateLine(range.startLineNumber - 1);
+		this.markMustBeTokenized(range.startLineNumber - 1);
 
-		this._beginState.delete(range.startLineNumber, range.endLineNumber - range.startLineNumber);
-		this._valid.delete(range.startLineNumber, range.endLineNumber - range.startLineNumber);
+		this._lineBeginState.delete(range.startLineNumber, range.endLineNumber - range.startLineNumber);
+		this._lineNeedsTokenization.delete(range.startLineNumber, range.endLineNumber - range.startLineNumber);
 
-		this._beginState.insert(range.startLineNumber, eolCount);
-		this._valid.insert(range.startLineNumber, eolCount);
+		this._lineBeginState.insert(range.startLineNumber, eolCount);
+		this._lineNeedsTokenization.insert(range.startLineNumber, eolCount);
 	}
 
 	//#endregion
@@ -467,7 +481,7 @@ export class TextModelTokenization extends Disposable {
 			const text = this._textModel.getLineContent(lineNumber);
 			const r = safeTokenize(this._languageIdCodec, languageId, this._tokenizationStateStore.tokenizationSupport, text, true, state);
 			builder.add(lineNumber, r.tokens);
-			this._tokenizationStateStore.setFakeTokens(lineNumber - 1);
+			this._tokenizationStateStore.markMustBeTokenized(lineNumber - 1);
 			state = r.endState;
 		}
 	}
