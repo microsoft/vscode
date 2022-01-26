@@ -107,9 +107,9 @@ export class WebClientServer {
 				// callback support
 				return this._handleCallback(res);
 			}
-			if (/^\/extensionResource\//.test(pathname)) {
+			if (/^\/web-extension-resource\//.test(pathname)) {
 				// extension resource support
-				return this._handleExtensionResource(req, res, parsedUrl);
+				return this._handleWebExtensionResource(req, res, parsedUrl);
 			}
 
 			return serveError(req, res, 404, 'Not found.');
@@ -142,10 +142,10 @@ export class WebClientServer {
 	/**
 	 * Handle extension resources
 	 */
-	private async _handleExtensionResource(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
-		// Strip `/extensionResource/` from the path
+	private async _handleWebExtensionResource(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+		// Strip `/web-extension-resource/` from the path
 		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
-		const path = normalize(normalizedPathname.substr('/extensionResource/'.length));
+		const path = normalize(normalizedPathname.substr('/web-extension-resource/'.length));
 
 		const url = URI.parse(path).with({
 			scheme: this._productService.extensionsGallery?.resourceUrlTemplate ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate).scheme : 'https',
@@ -239,7 +239,7 @@ export class WebClientServer {
 						'resourceUrlTemplate': resourceUrlTemplate.with({
 							scheme: 'http',
 							authority: remoteAuthority,
-							path: `extensionResource/${resourceUrlTemplate.authority}${resourceUrlTemplate.path}`
+							path: `web-extension-resource/${resourceUrlTemplate.authority}${resourceUrlTemplate.path}`
 						}).toString(true)
 					} : undefined
 				}
