@@ -75,33 +75,6 @@ export class TokenizationStateStore {
 		}
 	}
 
-	private _deleteLines(start: number, deleteCount: number): void {
-		if (deleteCount === 0) {
-			return;
-		}
-		if (start + deleteCount > this._len) {
-			deleteCount = this._len - start;
-		}
-		this._beginState.splice(start, deleteCount);
-		this._valid.splice(start, deleteCount);
-		this._len -= deleteCount;
-	}
-
-	private _insertLines(insertIndex: number, insertCount: number): void {
-		if (insertCount === 0) {
-			return;
-		}
-		const beginState: (IState | null)[] = [];
-		const valid: boolean[] = [];
-		for (let i = 0; i < insertCount; i++) {
-			beginState[i] = null;
-			valid[i] = false;
-		}
-		this._beginState = arrays.arrayInsert(this._beginState, insertIndex, beginState);
-		this._valid = arrays.arrayInsert(this._valid, insertIndex, valid);
-		this._len += insertCount;
-	}
-
 	private _setValid(lineIndex: number, valid: boolean): void {
 		this._ensureLine(lineIndex);
 		this._valid[lineIndex] = valid;
@@ -169,6 +142,18 @@ export class TokenizationStateStore {
 		this._deleteLines(range.startLineNumber, range.endLineNumber - range.startLineNumber);
 	}
 
+	private _deleteLines(start: number, deleteCount: number): void {
+		if (deleteCount === 0) {
+			return;
+		}
+		if (start + deleteCount > this._len) {
+			deleteCount = this._len - start;
+		}
+		this._beginState.splice(start, deleteCount);
+		this._valid.splice(start, deleteCount);
+		this._len -= deleteCount;
+	}
+
 	private _acceptInsertText(position: Position, eolCount: number): void {
 
 		const lineIndex = position.lineNumber - 1;
@@ -177,6 +162,21 @@ export class TokenizationStateStore {
 		}
 
 		this._insertLines(position.lineNumber, eolCount);
+	}
+
+	private _insertLines(insertIndex: number, insertCount: number): void {
+		if (insertCount === 0) {
+			return;
+		}
+		const beginState: (IState | null)[] = [];
+		const valid: boolean[] = [];
+		for (let i = 0; i < insertCount; i++) {
+			beginState[i] = null;
+			valid[i] = false;
+		}
+		this._beginState = arrays.arrayInsert(this._beginState, insertIndex, beginState);
+		this._valid = arrays.arrayInsert(this._valid, insertIndex, valid);
+		this._len += insertCount;
 	}
 
 	//#endregion
