@@ -1532,6 +1532,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	@debounce(2000)
 	private async _updateProcessCwd(): Promise<string> {
+		if (this._isDisposed) {
+			return this.cwd || this._initialCwd || '';
+		}
 		// reset cwd if it has changed, so file based url paths can be resolved
 		const cwd = await this.refreshProperty(ProcessPropertyType.Cwd);
 		if (typeof cwd !== 'string') {
