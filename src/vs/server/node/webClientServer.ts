@@ -140,7 +140,7 @@ export class WebClientServer {
 	}
 
 	/**
-	 * Handle HTTP requests for /static/*
+	 * Handle extension resources
 	 */
 	private async _handleExtensionResource(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		// Strip `/extensionResource/` from the path
