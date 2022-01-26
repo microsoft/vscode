@@ -161,10 +161,11 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 }
 
 function getOutputForCommand(command: ICurrentPartialCommand, buffer: IBuffer): string | undefined {
-	const startLine = command.commandStartMarker!.line;
+	const startLine = command.commandExecutedMarker!.line;
 	const endLine = command.commandFinishedMarker!.line;
+
 	let output = '';
-	for (let i = startLine; i <= endLine; i++) {
+	for (let i = startLine; i < endLine; i++) {
 		output += buffer.getLine(i)?.translateToString() + '\n';
 	}
 	return output === '' ? undefined : output;
