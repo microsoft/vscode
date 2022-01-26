@@ -267,7 +267,10 @@ class DocumentUnicodeHighlighter extends Disposable {
 					// Don't show decoration if there are too many.
 					// In this case, a banner is shown.
 					for (const range of info.ranges) {
-						decorations.push({ range: range, options: Decorations.instance.getDecoration(!this._options.includeComments, !this._options.includeStrings) });
+						decorations.push({
+							range: range,
+							options: Decorations.instance.getDecorationFromOptions(this._options),
+						});
 					}
 				}
 				this._decorationIds = new Set(this._editor.deltaDecorations(
@@ -285,7 +288,7 @@ class DocumentUnicodeHighlighter extends Disposable {
 		const range = model.getDecorationRange(decorationId)!;
 		const decoration = {
 			range: range,
-			options: Decorations.instance.getDecoration(!this._options.includeComments, !this._options.includeStrings),
+			options: Decorations.instance.getDecorationFromOptions(this._options),
 			id: decorationId,
 			ownerId: 0,
 		};
@@ -373,7 +376,7 @@ class ViewportUnicodeHighlighter extends Disposable {
 			// Don't show decorations if there are too many.
 			// A banner will be shown instead.
 			for (const range of totalResult.ranges) {
-				decorations.push({ range, options: Decorations.instance.getDecoration(!this._options.includeComments, !this._options.includeStrings) });
+				decorations.push({ range, options: Decorations.instance.getDecorationFromOptions(this._options) });
 			}
 		}
 		this._updateState(totalResult);
@@ -390,7 +393,7 @@ class ViewportUnicodeHighlighter extends Disposable {
 		const text = model.getValueInRange(range);
 		const decoration = {
 			range: range,
-			options: Decorations.instance.getDecoration(!this._options.includeComments, !this._options.includeStrings),
+			options: Decorations.instance.getDecorationFromOptions(this._options),
 			id: decorationId,
 			ownerId: 0,
 		};
@@ -536,7 +539,11 @@ class Decorations {
 
 	private readonly map = new Map<string, ModelDecorationOptions>();
 
-	getDecoration(hideInComments: boolean, hideInStrings: boolean): ModelDecorationOptions {
+	getDecorationFromOptions(options: UnicodeHighlighterOptions): ModelDecorationOptions {
+		return this.getDecoration(!options.includeComments, !options.includeStrings);
+	}
+
+	private getDecoration(hideInComments: boolean, hideInStrings: boolean): ModelDecorationOptions {
 		const key = `${hideInComments}${hideInStrings}`;
 		let options = this.map.get(key);
 		if (!options) {
