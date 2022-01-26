@@ -99,10 +99,6 @@ export class WebClientServer {
 				// always serve static requests, even without a token
 				return this._handleStatic(req, res, parsedUrl);
 			}
-			if (/^\/extensionResource\//.test(pathname)) {
-				// always serve static requests, even without a token
-				return this._handleExtensionResource(req, res, parsedUrl);
-			}
 			if (pathname === '/') {
 				// the token handling is done inside the handler
 				return this._handleRoot(req, res, parsedUrl);
@@ -110,6 +106,10 @@ export class WebClientServer {
 			if (pathname === '/callback') {
 				// callback support
 				return this._handleCallback(res);
+			}
+			if (/^\/extensionResource\//.test(pathname)) {
+				// extension resource support
+				return this._handleExtensionResource(req, res, parsedUrl);
 			}
 
 			return serveError(req, res, 404, 'Not found.');
@@ -143,9 +143,15 @@ export class WebClientServer {
 	 * Handle HTTP requests for /static/*
 	 */
 	private async _handleExtensionResource(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+		// Strip `/extensionResource/` from the path
 		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
 		const path = normalize(normalizedPathname.substr('/extensionResource/'.length));
-		const url = URI.parse(path).with({ scheme: 'https', authority: path.substring(0, path.indexOf('/')), path: path.substring(path.indexOf('/') + 1) });
+
+		const url = URI.parse(path).with({
+			scheme: this._productService.extensionsGallery?.resourceUrlTemplate ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate).scheme : 'https',
+			authority: path.substring(0, path.indexOf('/')),
+			path: path.substring(path.indexOf('/') + 1)
+		}).toString(true);
 
 		const headers: IHeaders = {};
 		for (const header of req.rawHeaders) {
@@ -156,17 +162,11 @@ export class WebClientServer {
 
 		const context = await this._requestService.request({
 			type: 'GET',
-			url: url.toString(true),
+			url,
 			headers
 		}, CancellationToken.None);
 
-		if (context.res.statusCode && context.res.statusCode !== 200) {
-			this._logService.info(`Request to '${url.toString(true)}' failed with status code ${context.res.statusCode}`);
-			throw new Error(`Server returned ${context.res.statusCode}`);
-		}
-
-		const responseHeaders = context.res.headers;
-		res.writeHead(200, responseHeaders);
+		res.writeHead(context.res.statusCode || 500, context.res.headers);
 		const buffer = await streamToBuffer(context.stream);
 		return res.end(buffer.buffer);
 	}
@@ -234,7 +234,14 @@ export class WebClientServer {
 				developmentOptions: { enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined },
 				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 				productConfiguration: <Partial<IProductConfiguration>>{
-					extensionsGallery: resourceUrlTemplate ? { ...this._productService.extensionsGallery, 'resourceUrlTemplate': resourceUrlTemplate.with({ scheme: 'http', authority: remoteAuthority, path: `extensionResource/${resourceUrlTemplate.authority}${resourceUrlTemplate.path}` }).toString(true) } : undefined
+					extensionsGallery: resourceUrlTemplate ? {
+						...this._productService.extensionsGallery,
+						'resourceUrlTemplate': resourceUrlTemplate.with({
+							scheme: 'http',
+							authority: remoteAuthority,
+							path: `extensionResource/${resourceUrlTemplate.authority}${resourceUrlTemplate.path}`
+						}).toString(true)
+					} : undefined
 				}
 			})))
 			.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '');
