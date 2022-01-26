@@ -544,6 +544,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._domNode.classList.toggle('replaceToggled', this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 
+		this.foundMatch = this._state.matchesCount > 0;
+		this.updateButtons(this.foundMatch);
 	}
 
 	protected _updateMatchesCount(): void {
