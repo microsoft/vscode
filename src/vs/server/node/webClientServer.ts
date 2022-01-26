@@ -19,6 +19,12 @@ import { FileAccess, connectionTokenCookieName, connectionTokenQueryName } from 
 import { generateUuid } from 'vs/base/common/uuid';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { IHeaders } from 'vs/base/parts/request/common/request';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
+import { streamToBuffer } from 'vs/base/common/buffer';
+import { IProductConfiguration } from 'vs/base/common/product';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -77,7 +83,8 @@ export class WebClientServer {
 		private readonly _connectionToken: ServerConnectionToken,
 		@IServerEnvironmentService private readonly _environmentService: IServerEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
-		@IProductService private readonly _productService: IProductService
+		@IRequestService private readonly _requestService: IRequestService,
+		@IProductService private readonly _productService: IProductService,
 	) { }
 
 	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
@@ -91,6 +98,10 @@ export class WebClientServer {
 			if (/^\/static\//.test(pathname)) {
 				// always serve static requests, even without a token
 				return this._handleStatic(req, res, parsedUrl);
+			}
+			if (/^\/extensionResource\//.test(pathname)) {
+				// always serve static requests, even without a token
+				return this._handleExtensionResource(req, res, parsedUrl);
 			}
 			if (pathname === '/') {
 				// the token handling is done inside the handler
@@ -126,6 +137,38 @@ export class WebClientServer {
 		}
 
 		return serveFile(this._logService, req, res, filePath, headers);
+	}
+
+	/**
+	 * Handle HTTP requests for /static/*
+	 */
+	private async _handleExtensionResource(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
+		const path = normalize(normalizedPathname.substr('/extensionResource/'.length));
+		const url = URI.parse(path).with({ scheme: 'https', authority: path.substring(0, path.indexOf('/')), path: path.substring(path.indexOf('/') + 1) });
+
+		const headers: IHeaders = {};
+		for (const header of req.rawHeaders) {
+			if (req.headers[header]) {
+				headers[header] = req.headers[header]![0];
+			}
+		}
+
+		const context = await this._requestService.request({
+			type: 'GET',
+			url: url.toString(true),
+			headers
+		}, CancellationToken.None);
+
+		if (context.res.statusCode && context.res.statusCode !== 200) {
+			this._logService.info(`Request to '${url.toString(true)}' failed with status code ${context.res.statusCode}`);
+			throw new Error(`Server returned ${context.res.statusCode}`);
+		}
+
+		const responseHeaders = context.res.headers;
+		res.writeHead(200, responseHeaders);
+		const buffer = await streamToBuffer(context.stream);
+		return res.end(buffer.buffer);
 	}
 
 	/**
@@ -183,12 +226,16 @@ export class WebClientServer {
 			accessToken: this._environmentService.args['github-auth'],
 			scopes: [['user:email'], ['repo']]
 		} : undefined;
+		const resourceUrlTemplate = this._productService.extensionsGallery ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate) : undefined;
 		const data = (await util.promisify(fs.readFile)(filePath)).toString()
 			.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify({
 				remoteAuthority,
 				_wrapWebWorkerExtHostInIframe,
 				developmentOptions: { enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined },
 				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
+				productConfiguration: <Partial<IProductConfiguration>>{
+					extensionsGallery: resourceUrlTemplate ? { ...this._productService.extensionsGallery, 'resourceUrlTemplate': resourceUrlTemplate.with({ scheme: 'http', authority: remoteAuthority, path: `extensionResource/${resourceUrlTemplate.authority}${resourceUrlTemplate.path}` }).toString(true) } : undefined
+				}
 			})))
 			.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '');
 
