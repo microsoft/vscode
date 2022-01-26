@@ -94,7 +94,7 @@ export class LayoutStateModel extends Disposable {
 		private readonly contextService: IWorkspaceContextService,
 		private readonly container: HTMLElement) {
 		super();
-		this.configurationService.onDidChangeConfiguration(configurationChange => this.updateStateFromLegacySettings(configurationChange));
+		this._register(this.configurationService.onDidChangeConfiguration(configurationChange => this.updateStateFromLegacySettings(configurationChange)));
 	}
 
 	private updateStateFromLegacySettings(configurationChangeEvent: IConfigurationChangeEvent): void {
@@ -162,6 +162,23 @@ export class LayoutStateModel extends Disposable {
 				this.stateCache.set(stateKey.name, stateKey.defaultValue);
 			}
 		}
+
+		// Register for runtime key changes
+		this._register(this.storageService.onDidChangeValue(storageChangeEvent => {
+			let key: keyof typeof LayoutStateKeys;
+			for (key in LayoutStateKeys) {
+				const stateKey = LayoutStateKeys[key] as WorkbenchLayoutStateKey<StorageKeyType>;
+				if (stateKey instanceof RuntimeStateKey && stateKey.scope === StorageScope.GLOBAL && stateKey.target === StorageTarget.USER) {
+					if (`${LayoutStateModel.STORAGE_PREFIX}${stateKey.name}` === storageChangeEvent.key) {
+						const value = this.loadKeyFromStorage(stateKey) ?? stateKey.defaultValue;
+						if (this.stateCache.get(stateKey.name) !== value) {
+							this.stateCache.set(stateKey.name, value);
+							this._onDidChangeState.fire({ key: stateKey, value });
+						}
+					}
+				}
+			}
+		}));
 	}
 
 	save(workspace: boolean, global: boolean): void {

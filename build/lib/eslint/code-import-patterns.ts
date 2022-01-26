@@ -23,6 +23,17 @@ interface RawImportPatternsConfig {
 	restrictions: string | (string | ConditionalPattern)[];
 }
 
+interface LayerAllowRule {
+	when: 'hasBrowser' | 'hasNode' | 'test';
+	allow: string[];
+}
+
+type RawOption = RawImportPatternsConfig | LayerAllowRule;
+
+function isLayerAllowRule(option: RawOption): option is LayerAllowRule {
+	return !!((<LayerAllowRule>option).when && (<LayerAllowRule>option).allow);
+}
+
 interface ImportPatternsConfig {
 	target: string;
 	restrictions: string[];
@@ -41,7 +52,7 @@ export = new class implements eslint.Rule.RuleModule {
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		const options = <RawImportPatternsConfig[]>context.options;
+		const options = <RawOption[]>context.options;
 		const configs = this._processOptions(options);
 		const relativeFilename = getRelativeFilename(context);
 
@@ -59,9 +70,9 @@ export = new class implements eslint.Rule.RuleModule {
 		return {};
 	}
 
-	private _optionsCache = new WeakMap<RawImportPatternsConfig[], ImportPatternsConfig[]>();
+	private _optionsCache = new WeakMap<RawOption[], ImportPatternsConfig[]>();
 
-	private _processOptions(options: RawImportPatternsConfig[]): ImportPatternsConfig[] {
+	private _processOptions(options: RawOption[]): ImportPatternsConfig[] {
 		if (this._optionsCache.has(options)) {
 			return this._optionsCache.get(options)!;
 		}
@@ -89,6 +100,21 @@ export = new class implements eslint.Rule.RuleModule {
 			{ layer: 'electron-main', deps: orSegment(['common', 'node', 'electron-main']), isNode: true },
 		];
 
+		let browserAllow: string[] = [];
+		let nodeAllow: string[] = [];
+		let testAllow: string[] = [];
+		for (const option of options) {
+			if (isLayerAllowRule(option)) {
+				if (option.when === 'hasBrowser') {
+					browserAllow = option.allow.slice(0);
+				} else if (option.when === 'hasNode') {
+					nodeAllow = option.allow.slice(0);
+				} else if (option.when === 'test') {
+					testAllow = option.allow.slice(0);
+				}
+			}
+		}
+
 		function findLayer(layer: Layer): ILayerRule | null {
 			for (const layerRule of layerRules) {
 				if (layerRule.layer === layer) {
@@ -100,14 +126,14 @@ export = new class implements eslint.Rule.RuleModule {
 
 		function generateConfig(layerRule: ILayerRule, target: string, rawRestrictions: (string | ConditionalPattern)[]): [ImportPatternsConfig, ImportPatternsConfig] {
 			const restrictions: string[] = [];
-			const testRestrictions: string[] = ['assert', 'sinon', 'sinon-test'];
+			const testRestrictions: string[] = [...testAllow];
 
 			if (layerRule.isBrowser) {
-				restrictions.push('vs/css!./**/*');
+				restrictions.push(...browserAllow);
 			}
 
 			if (layerRule.isNode) {
-				restrictions.push('@microsoft/*', '@vscode/*', '@parcel/*', '*');
+				restrictions.push(...nodeAllow);
 			}
 
 			for (const rawRestriction of rawRestrictions) {
@@ -147,6 +173,9 @@ export = new class implements eslint.Rule.RuleModule {
 
 		const configs: ImportPatternsConfig[] = [];
 		for (const option of options) {
+			if (isLayerAllowRule(option)) {
+				continue;
+			}
 			const target = option.target;
 			const targetIsVS = /^src\/vs\//.test(target);
 			const restrictions = (typeof option.restrictions === 'string' ? [option.restrictions] : option.restrictions).slice(0);

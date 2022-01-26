@@ -7,7 +7,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostContext, IExtHostEditorTabsShape, IExtHostContext, MainContext, IEditorTabDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor, GroupModelChangeKind } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor, GroupModelChangeKind, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { isGroupEditorCloseEvent, isGroupEditorMoveEvent, isGroupEditorOpenEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -76,9 +76,10 @@ export class MainThreadEditorTabs {
 				secondary: { resource: URI.revive(tab.additionalResourcesAndViewIds[1].resource), options: { override: tab.additionalResourcesAndViewIds[1].viewId } }
 			};
 		} else {
+			// For now only text diff editor are supported
 			return {
-				modified: { resource: URI.revive(tab.resource), options: { override: tab.editorId } },
-				original: { resource: URI.revive(tab.additionalResourcesAndViewIds[1].resource), options: { override: tab.additionalResourcesAndViewIds[1].viewId } }
+				modified: { resource: URI.revive(tab.resource), options: { override: DEFAULT_EDITOR_ASSOCIATION.id } },
+				original: { resource: URI.revive(tab.additionalResourcesAndViewIds[1].resource), options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }
 			};
 		}
 	}
@@ -277,7 +278,8 @@ export class MainThreadEditorTabs {
 		if (!group) {
 			return;
 		}
-		const editor = group.editors.find(editor => editor.matches(this._tabToUntypedEditorInput(tab)));
+		const editorTab = this._tabToUntypedEditorInput(tab);
+		const editor = group.editors.find(editor => editor.matches(editorTab));
 		if (!editor) {
 			return;
 		}

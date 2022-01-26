@@ -253,6 +253,11 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 				if (isActive) {
 					this.compositeBar.activateComposite(panel.id);
+
+					// Only try to open the panel if it has been created and visible
+					if (!activePanel && this.element && this.layoutService.isVisible(this.partId)) {
+						this.doOpenPanel(panel.id);
+					}
 				}
 			}
 		}

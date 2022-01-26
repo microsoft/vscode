@@ -23,7 +23,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, ITerminalProfileResolverService, TerminalCommandId, ITerminalBackend, ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, ITerminalProfileResolverService, TerminalCommandId, ITerminalBackend, ITerminalCommand, ShellIntegrationExitCode } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -71,8 +71,6 @@ import { fromNow } from 'vs/base/common/date';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { injectShellIntegrationArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 
 const enum Constants {
 	/**
@@ -328,8 +326,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super();
 
@@ -358,9 +355,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._register(this.capabilities.onDidAddCapability(e => {
 			this._logService.debug('terminalInstance added capability', e);
 			if (e === TerminalCapability.CwdDetection) {
-				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(async (e) => {
+				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd((e) => {
 					this._cwd = e;
-					await this.refreshTabLabels(this.title, TitleEventSource.Api);
+					this.refreshTabLabels(this.title, TitleEventSource.Api);
 				});
 			}
 		}));
@@ -393,7 +390,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Wait for a period to allow a container to be ready
 			await this._containerReadyBarrier.wait();
 			if (this._configHelper.config.enableShellIntegration && !this.shellLaunchConfig.executable) {
-				const os = await this._getBackendOS();
+				const os = await this._processManager.getBackendOS();
 				this.shellLaunchConfig.executable = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os })).path;
 			}
 			await this._createProcess();
@@ -1282,13 +1279,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const hadIcon = !!this.shellLaunchConfig.icon;
-		const isBackendWindows = await this._backendIsWindows();
-		const shellIntegration = injectShellIntegrationArgs(this._logService, this._configHelper.config.enableShellIntegration, this.shellLaunchConfig, isBackendWindows);
-		this.shellLaunchConfig.args = shellIntegration.args;
-		const enableShellIntegration = shellIntegration.enableShellIntegration;
+
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
 			if (error) {
-				this._onProcessExit(error, enableShellIntegration);
+				this._onProcessExit(error, error.code === ShellIntegrationExitCode);
 			}
 		});
 		if (this.xterm?.shellIntegration) {
@@ -1297,30 +1291,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!hadIcon && this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
 			this._onIconChanged.fire(this);
 		}
-	}
-
-	private async _backendIsWindows(): Promise<boolean> {
-		let os = OS;
-		if (!!this.remoteAuthority) {
-			const remoteEnv = await this._remoteAgentService.getEnvironment();
-			if (!remoteEnv) {
-				throw new Error(`Failed to get remote environment for remote authority "${this.remoteAuthority}"`);
-			}
-			os = remoteEnv.os;
-		}
-		return os === OperatingSystem.Windows;
-	}
-
-	private async _getBackendOS(): Promise<OperatingSystem> {
-		let os = OS;
-		if (!!this.remoteAuthority) {
-			const remoteEnv = await this._remoteAgentService.getEnvironment();
-			if (!remoteEnv) {
-				throw new Error(`Failed to get remote environment for remote authority "${this.remoteAuthority}"`);
-			}
-			os = remoteEnv.os;
-		}
-		return os;
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
@@ -2279,7 +2249,9 @@ export class TerminalLabelComputer extends Disposable {
 		const detection = this._instance.capabilities.has(TerminalCapability.CwdDetection) || this._instance.capabilities.has(TerminalCapability.NaiveCwdDetection);
 		const zeroRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 0 && this.pathsEqual(templateProperties.cwd, this._instance.userHome || this._configHelper.config.cwd);
 		const singleRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 1 && this.pathsEqual(templateProperties.cwd, this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath);
-		templateProperties.cwdFolder = (!templateProperties.cwd || !detection || zeroRootWorkspace || singleRootWorkspace) ? '' : path.basename(templateProperties.cwd);
+		if (this._instance.cwd !== this._instance.initialCwd) {
+			templateProperties.cwdFolder = (!templateProperties.cwd || !detection || zeroRootWorkspace || singleRootWorkspace) ? '' : path.basename(templateProperties.cwd);
+		}
 
 		//Remove special characters that could mess with rendering
 		let label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null; }).replace(/[\n\r\t]/g, '').trim();

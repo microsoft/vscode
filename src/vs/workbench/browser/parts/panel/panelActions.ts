@@ -13,7 +13,7 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions, CATEGORIES
 import { IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ActivePanelContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/contextkeys';
+import { PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/contextkeys';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -148,7 +148,7 @@ PositionPanelActionConfigs.forEach(positionPanelAction => {
 			const notificationService = accessor.get(INotificationService);
 			const commandService = accessor.get(ICommandService);
 
-			notificationService.warn(localize('deprecatedPanelMoveMessage', "Moving the panel with this command has been deprecated in favor of \"Move Views From Panel To Side Panel\" and \"Move Views From Side Panel To Panel\" for similar functionality."));
+			notificationService.warn(localize('deprecatedPanelMoveMessage', "Moving the panel with this command has been deprecated in favor of the \"Move Views From Panel To Side Panel\" and \"Move Views From Side Panel To Panel\" commands."));
 			if (positionPanelAction.value === Position.BOTTOM) {
 				commandService.executeCommand('workbench.action.moveSidePanelToPanel');
 			} else {
@@ -393,7 +393,7 @@ MenuRegistry.appendMenuItems([
 			command: {
 				id: TogglePanelAction.ID,
 				title: localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
-				toggled: ActivePanelContext
+				toggled: PanelVisibleContext
 			},
 			order: 5
 		}
@@ -404,7 +404,7 @@ MenuRegistry.appendMenuItems([
 			command: {
 				id: TogglePanelAction.ID,
 				title: localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
-				toggled: ActivePanelContext
+				toggled: PanelVisibleContext
 			},
 			order: 4
 		}

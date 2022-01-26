@@ -1675,7 +1675,7 @@ declare module 'vscode' {
 		 * A human-readable string which is rendered less prominent in the same line. Supports rendering of
 		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
 		 *
-		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
+		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		description?: string;
 
@@ -1683,7 +1683,7 @@ declare module 'vscode' {
 		 * A human-readable string which is rendered less prominent in a separate line. Supports rendering of
 		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
 		 *
-		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
+		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		detail?: string;
 
@@ -1695,14 +1695,14 @@ declare module 'vscode' {
 		 *
 		 * @see {@link QuickPickOptions.canPickMany}
 		 *
-		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
+		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		picked?: boolean;
 
 		/**
 		 * Always show this item.
 		 *
-		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
+		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		alwaysShow?: boolean;
 
@@ -1712,7 +1712,7 @@ declare module 'vscode' {
 		 * created by the {@link window.createQuickPick()} API. Buttons are not rendered when using
 		 * the {@link window.showQuickPick()} API.
 		 *
-		 * Note: this property is ignored when {@link kind} is set to {@link QuickPickItemKind.Separator}
+		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		buttons?: readonly QuickInputButton[];
 	}
@@ -11003,9 +11003,8 @@ declare module 'vscode' {
 		 * will be reported).
 		 *
 		 * Providing a `string` as `globPattern` acts as convenience method for watching file events in
-		 * all opened workspace folders. This method should be used if you only care about file events
-		 * from the workspace and not from any other folder. It cannot be used to add more folders for
-		 * file watching.
+		 * all opened workspace folders. It cannot be used to add more folders for file watching, nor will
+		 * it report any file events from folders that are not part of the opened workspace folders.
 		 *
 		 * Optionally, flags to ignore certain kinds of events can be provided.
 		 *
