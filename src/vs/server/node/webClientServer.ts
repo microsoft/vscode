@@ -80,20 +80,22 @@ export class WebClientServer {
 		@IProductService private readonly _productService: IProductService
 	) { }
 
+	/**
+	 * Handle web resources (i.e. only needed by the web client).
+	 * **NOTE**: This method is only invoked when the server has web bits.
+	 * **NOTE**: This method is only invoked after the connection token has been validated.
+	 */
 	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		try {
 			const pathname = parsedUrl.pathname!;
 
 			if (pathname === '/favicon.ico' || pathname === '/manifest.json' || pathname === '/code-192.png' || pathname === '/code-512.png') {
-				// always serve icons/manifest, even without a token
 				return serveFile(this._logService, req, res, join(APP_ROOT, 'resources', 'server', pathname.substr(1)));
 			}
 			if (/^\/static\//.test(pathname)) {
-				// always serve static requests, even without a token
 				return this._handleStatic(req, res, parsedUrl);
 			}
 			if (pathname === '/') {
-				// the token handling is done inside the handler
 				return this._handleRoot(req, res, parsedUrl);
 			}
 			if (pathname === '/callback') {
