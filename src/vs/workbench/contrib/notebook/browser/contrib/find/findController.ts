@@ -88,7 +88,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			}
 
 			const matches = this._findModel.findMatches;
-			this._replaceAllBtn.setEnabled(matches.find(match => match.modelMatchCount < match.matches.length) == null);
+			this._replaceAllBtn.setEnabled(matches.find(match => match.modelMatchCount < match.matches.length) === null);
 
 			if (e.filters) {
 				this._findInput.updateFilterState((this._state.filters?.markupPreview ?? false) || (this._state.filters?.codeOutput ?? false));
