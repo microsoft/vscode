@@ -177,12 +177,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _hasHadInput: boolean;
 
-	/*
-	 * Captures the disposable for the
-	 * xterm onKey event that is registered
-	 * so that it can be disposed of when
-	 * the CwdDetection capability
-	 */
+	// Enables disposal of the xterm onKey
+	// event when the CwdDetection capability
+	// is added
 	private _xtermOnKey: IDisposable | undefined;
 
 	readonly statusList: ITerminalStatusList;
