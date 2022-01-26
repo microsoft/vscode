@@ -129,7 +129,7 @@ class TerminalOutputProvider implements ITextModelContentProvider {
 			return existing;
 		}
 
-		return this._modelService.createModel(resource.path, null, resource, false);
+		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
 }
 
@@ -786,9 +786,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const outputProvider = this._instantiationService.createInstance(TerminalOutputProvider);
 		const result = await this._quickInputService.pick(items.reverse(), {
 			onDidTriggerItemButton: (async e => {
-				const output = e.item.command?.getOutput();
-				if (output) {
-					const textContent = await outputProvider.provideTextContent(URI.from({ scheme: TerminalOutputProvider.scheme, path: output }));
+				const selectedCommand = e.item.command;
+				const output = selectedCommand?.getOutput();
+				if (output && selectedCommand?.command) {
+					const textContent = await outputProvider.provideTextContent(URI.from(
+						{
+							scheme: TerminalOutputProvider.scheme,
+							path: `${selectedCommand.command}... ${fromNow(selectedCommand.timestamp, true)}`,
+							fragment: output,
+							query: `terminal-output-${selectedCommand.timestamp}-${this.instanceId}`
+						}));
 					if (textContent) {
 						this._editorService.openEditor({
 							resource: textContent.uri
