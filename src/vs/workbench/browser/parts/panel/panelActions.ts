@@ -148,7 +148,7 @@ PositionPanelActionConfigs.forEach(positionPanelAction => {
 			const notificationService = accessor.get(INotificationService);
 			const commandService = accessor.get(ICommandService);
 
-			notificationService.warn(localize('deprecatedPanelMoveMessage', "Moving the panel with this command has been deprecated in favor of \"Move Views From Panel To Side Panel\" and \"Move Views From Side Panel To Panel\" for similar functionality."));
+			notificationService.warn(localize('deprecatedPanelMoveMessage', "Moving the panel with this command has been deprecated in favor of the \"Move Views From Panel To Side Panel\" and \"Move Views From Side Panel To Panel\" commands."));
 			if (positionPanelAction.value === Position.BOTTOM) {
 				commandService.executeCommand('workbench.action.moveSidePanelToPanel');
 			} else {
