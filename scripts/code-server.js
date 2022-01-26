@@ -61,12 +61,12 @@ function startServer() {
 
 	proc.stdout.on('data', data => {
 		// Log everything
-		console.log(data.toString());
+		process.stdout.write(data);
 	});
 
 	// Log errors
 	proc.stderr.on('data', data => {
-		console.error(data.toString());
+		process.stderr.write(data);
 	});
 
 	proc.on('exit', (code) => process.exit(code));
