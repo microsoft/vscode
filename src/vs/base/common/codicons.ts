@@ -539,6 +539,9 @@ export class Codicon implements CSSIcon {
 	public static readonly layoutSidebarLeft = new Codicon('layout-sidebar-left', { fontCharacter: '\\ebf3' });
 	public static readonly layoutSidebarRight = new Codicon('layout-sidebar-right', { fontCharacter: '\\ebf4' });
 	public static readonly layoutStatusbar = new Codicon('layout-statusbar', { fontCharacter: '\\ebf5' });
+	public static readonly layoutMenubar = new Codicon('layout-menubar', { fontCharacter: '\\ebf6' });
+	public static readonly layoutCentered = new Codicon('layout-centered', { fontCharacter: '\\ebf7' });
+	public static readonly target = new Codicon('target', { fontCharacter: '\\ebf8' });
 
 	// derived icons, that could become separate icons
 
