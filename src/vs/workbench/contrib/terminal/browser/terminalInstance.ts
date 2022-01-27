@@ -1314,8 +1314,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (!trusted) {
 				this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
 			}
-		} else if (this._cwd !== this._userHome) {
-			// something strange is going on if cwd is not userHome in an empty workspace
+		} else if (this._userHome && this._cwd !== this._userHome) {
+			// ensure that the process is launched in userHome for an empty workspace
+			this._shellLaunchConfig.cwd = this._userHome;
+		} else if (!this._userHome) {
 			this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
 		}
 
