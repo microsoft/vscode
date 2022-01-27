@@ -1546,6 +1546,7 @@ declare module 'vscode' {
 		/**
 		 * The event listeners can subscribe to.
 		 */
+		// eslint-disable-next-line vscode-dts-event-naming
 		event: Event<T>;
 
 		/**
@@ -2023,7 +2024,7 @@ declare module 'vscode' {
 		 * Otherwise, a uri or string should only be used if the pattern is for a file path outside the workspace.
 		 * @param pattern A file glob pattern like `*.{ts,js}` that will be matched on paths relative to the base.
 		 */
-		constructor(base: WorkspaceFolder | Uri | string, pattern: string)
+		constructor(base: WorkspaceFolder | Uri | string, pattern: string);
 	}
 
 	/**
