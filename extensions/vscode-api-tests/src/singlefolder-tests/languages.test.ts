@@ -96,7 +96,7 @@ suite('vscode API - languages', () => {
 		assert.ok(found);
 	});
 
-	test('link detector', async function () { // #140878
+	test('link detector', async function () {
 		const uri = await createRandomFile('class A { // http://a.com }', undefined, '.java');
 		const doc = await vscode.workspace.openTextDocument(uri);
 
