@@ -569,14 +569,15 @@ registerAction2(class extends Action2 {
 			viewId = focusedViewId;
 		}
 
-		viewId = await this.getView(quickInputService, viewDescriptorService, paneCompositePartService, viewId!);
+		try {
+			viewId = await this.getView(quickInputService, viewDescriptorService, paneCompositePartService, viewId!);
+			if (!viewId) {
+				return;
+			}
 
-		if (!viewId) {
-			return;
-		}
-
-		const moveFocusedViewAction = new MoveFocusedViewAction();
-		instantiationService.invokeFunction(accessor => moveFocusedViewAction.run(accessor, viewId));
+			const moveFocusedViewAction = new MoveFocusedViewAction();
+			instantiationService.invokeFunction(accessor => moveFocusedViewAction.run(accessor, viewId));
+		} catch { }
 	}
 
 	private getViewItems(viewDescriptorService: IViewDescriptorService, paneCompositePartService: IPaneCompositePartService): Array<IQuickPickItem | IQuickPickSeparator> {
@@ -618,6 +619,31 @@ registerAction2(class extends Action2 {
 						results.push({
 							type: 'separator',
 							label: localize('panelContainer', "Panel / {0}", containerModel.title)
+						});
+						hasAddedView = true;
+					}
+
+					results.push({
+						id: viewDescriptor.id,
+						label: viewDescriptor.name
+					});
+				}
+			});
+		});
+
+
+		const sidePanels = paneCompositePartService.getPinnedPaneCompositeIds(ViewContainerLocation.AuxiliaryBar);
+		sidePanels.forEach(panel => {
+			const container = viewDescriptorService.getViewContainerById(panel)!;
+			const containerModel = viewDescriptorService.getViewContainerModel(container);
+
+			let hasAddedView = false;
+			containerModel.visibleViewDescriptors.forEach(viewDescriptor => {
+				if (viewDescriptor.canMoveView) {
+					if (!hasAddedView) {
+						results.push({
+							type: 'separator',
+							label: localize('sidePanelContainer', "Side Panel / {0}", containerModel.title)
 						});
 						hasAddedView = true;
 					}
@@ -719,6 +745,13 @@ class MoveFocusedViewAction extends Action2 {
 			});
 		}
 
+		if (!(isViewSolo && currentLocation === ViewContainerLocation.AuxiliaryBar)) {
+			items.push({
+				id: '_.auxiliarybar.newcontainer',
+				label: localize('moveFocusedView.newContainerInSidePanel', "New Side Panel Entry")
+			});
+		}
+
 		items.push({
 			type: 'separator',
 			label: localize('sidebar', "Side Bar")
@@ -761,6 +794,27 @@ class MoveFocusedViewAction extends Action2 {
 				};
 			}));
 
+		items.push({
+			type: 'separator',
+			label: localize('sidePanel', "Side Panel")
+		});
+
+		const pinnedAuxPanels = paneCompositePartService.getPinnedPaneCompositeIds(ViewContainerLocation.AuxiliaryBar);
+		items.push(...pinnedAuxPanels
+			.filter(panel => {
+				if (panel === viewDescriptorService.getViewContainerByViewId(focusedViewId)!.id) {
+					return false;
+				}
+
+				return !viewDescriptorService.getViewContainerById(panel)!.rejectAddedViews;
+			})
+			.map(panel => {
+				return {
+					id: panel,
+					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!)!.title
+				};
+			}));
+
 		quickPick.items = items;
 
 		quickPick.onDidAccept(() => {
@@ -771,6 +825,9 @@ class MoveFocusedViewAction extends Action2 {
 				viewsService.openView(focusedViewId, true);
 			} else if (destination.id === '_.sidebar.newcontainer') {
 				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.Sidebar);
+				viewsService.openView(focusedViewId, true);
+			} else if (destination.id === '_.auxiliarybar.newcontainer') {
+				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.AuxiliaryBar);
 				viewsService.openView(focusedViewId, true);
 			} else if (destination.id) {
 				viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getViewContainerById(destination.id)!);
