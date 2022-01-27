@@ -80,13 +80,17 @@ const APP_ROOT = dirname(FileAccess.asFileUri('', require).fsPath);
 
 export class WebClientServer {
 
+	private readonly _webExtensionResourceUrlTemplate: URI | undefined;
+
 	constructor(
 		private readonly _connectionToken: ServerConnectionToken,
 		@IServerEnvironmentService private readonly _environmentService: IServerEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IRequestService private readonly _requestService: IRequestService,
 		@IProductService private readonly _productService: IProductService,
-	) { }
+	) {
+		this._webExtensionResourceUrlTemplate = this._productService.extensionsGallery?.resourceUrlTemplate ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate) : undefined;
+	}
 
 	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		try {
@@ -149,7 +153,7 @@ export class WebClientServer {
 	 * Handle extension resources
 	 */
 	private async _handleWebExtensionResource(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
-		if (!this._productService.extensionsGallery?.resourceUrlTemplate) {
+		if (!this._webExtensionResourceUrlTemplate) {
 			return serveError(req, res, 500, 'No extension gallery service configured.');
 		}
 
@@ -157,12 +161,12 @@ export class WebClientServer {
 		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
 		const path = normalize(normalizedPathname.substr('/web-extension-resource/'.length));
 		const uri = URI.parse(path).with({
-			scheme: this._productService.extensionsGallery?.resourceUrlTemplate ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate).scheme : 'https',
+			scheme: this._webExtensionResourceUrlTemplate.scheme,
 			authority: path.substring(0, path.indexOf('/')),
 			path: path.substring(path.indexOf('/') + 1)
 		});
 
-		if (this._getResourceURLTemplateAuthority(URI.parse(this._productService.extensionsGallery.resourceUrlTemplate)) !== this._getResourceURLTemplateAuthority(uri)) {
+		if (this._getResourceURLTemplateAuthority(this._webExtensionResourceUrlTemplate) !== this._getResourceURLTemplateAuthority(uri)) {
 			return serveError(req, res, 403, 'Request Forbidden');
 		}
 
@@ -266,7 +270,6 @@ export class WebClientServer {
 			accessToken: this._environmentService.args['github-auth'],
 			scopes: [['user:email'], ['repo']]
 		} : undefined;
-		const resourceUrlTemplate = this._productService.extensionsGallery ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate) : undefined;
 		const data = (await util.promisify(fs.readFile)(filePath)).toString()
 			.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify({
 				remoteAuthority,
@@ -274,12 +277,12 @@ export class WebClientServer {
 				developmentOptions: { enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined },
 				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 				productConfiguration: <Partial<IProductConfiguration>>{
-					extensionsGallery: resourceUrlTemplate ? {
+					extensionsGallery: this._webExtensionResourceUrlTemplate ? {
 						...this._productService.extensionsGallery,
-						'resourceUrlTemplate': resourceUrlTemplate.with({
+						'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({
 							scheme: 'http',
 							authority: remoteAuthority,
-							path: `web-extension-resource/${resourceUrlTemplate.authority}${resourceUrlTemplate.path}`
+							path: `web-extension-resource/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
 						}).toString(true)
 					} : undefined
 				}
