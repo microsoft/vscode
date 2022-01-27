@@ -286,6 +286,7 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 			if (runningExtension && !(runningExtension.activationEvents && runningExtension.activationEvents.some(activationEent => activationEent.startsWith('onLanguage')))) {
 				const action = await this.getThemeAction(extension);
 				if (action) {
+					action.extension = extension;
 					try {
 						return action.run({ showCurrentTheme: true, ignoreFocusLost: true });
 					} finally {
@@ -297,7 +298,7 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 
 	}
 
-	private async getThemeAction(extension: IExtension): Promise<IAction | undefined> {
+	private async getThemeAction(extension: IExtension): Promise<ExtensionAction | undefined> {
 		const colorThemes = await this.workbenchThemeService.getColorThemes();
 		if (colorThemes.some(theme => isThemeFromExtension(theme, extension))) {
 			return this.instantiationService.createInstance(SetColorThemeAction);
