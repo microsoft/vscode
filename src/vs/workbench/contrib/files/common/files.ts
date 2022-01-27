@@ -88,7 +88,8 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		autoReveal: boolean | 'focusNoScroll';
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
-		enableUndo: UndoEnablement;
+		enableUndo: boolean;
+		confirmUndo: UndoConfirmLevel;
 		expandSingleFolderWorkspaces: boolean;
 		sortOrder: SortOrder;
 		sortOrderLexicographicOptions: LexicographicOptions;
@@ -122,10 +123,10 @@ export const enum SortOrder {
 	FoldersNestsFiles = 'foldersNestsFiles',
 }
 
-export const enum UndoEnablement {
-	Warn = 'warn',
-	Allow = 'allow',
-	Disable = 'disable',
+export const enum UndoConfirmLevel {
+	Verbose = 'verbose',
+	Default = 'default',
+	Light = 'light',
 }
 
 export const enum LexicographicOptions {
