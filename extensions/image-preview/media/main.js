@@ -86,8 +86,8 @@
 			scale = 'fit';
 			image.classList.add('scale-to-fit');
 			image.classList.remove('pixelated');
-			image.style.minWidth = 'auto';
-			image.style.width = 'auto';
+			// @ts-ignore Non-standard CSS property
+			image.style.zoom = 'normal';
 			vscode.setState(undefined);
 		} else {
 			scale = clamp(newScale, MIN_SCALE, MAX_SCALE);
@@ -101,8 +101,8 @@
 			const dy = (window.scrollY + container.clientHeight / 2) / container.scrollHeight;
 
 			image.classList.remove('scale-to-fit');
-			image.style.minWidth = `${(image.naturalWidth * scale)}px`;
-			image.style.width = `${(image.naturalWidth * scale)}px`;
+			// @ts-ignore Non-standard CSS property
+			image.style.zoom = scale;
 
 			const newScrollX = container.scrollWidth * dx - container.clientWidth / 2;
 			const newScrollY = container.scrollHeight * dy - container.clientHeight / 2;
