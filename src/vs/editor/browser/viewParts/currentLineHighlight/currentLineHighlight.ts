@@ -155,6 +155,21 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 		return this._renderData[lineIndex];
 	}
 
+	protected _shouldRenderInMargin(): boolean {
+		return (
+			(this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all')
+			&& (!this._renderLineHighlightOnlyWhenFocus || this._focused)
+		);
+	}
+
+	protected _shouldRenderInContent(): boolean {
+		return (
+			(this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all')
+			&& this._selectionIsEmpty
+			&& (!this._renderLineHighlightOnlyWhenFocus || this._focused)
+		);
+	}
+
 	protected abstract _shouldRenderThis(): boolean;
 	protected abstract _shouldRenderOther(): boolean;
 	protected abstract _renderOne(ctx: RenderingContext): string;
@@ -167,40 +182,23 @@ export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
 		return `<div class="${className}" style="width:${Math.max(ctx.scrollWidth, this._contentWidth)}px; height:${this._lineHeight}px;"></div>`;
 	}
 	protected _shouldRenderThis(): boolean {
-		return (
-			(this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all')
-			&& this._selectionIsEmpty
-			&& (!this._renderLineHighlightOnlyWhenFocus || this._focused)
-		);
+		return this._shouldRenderInContent();
 	}
 	protected _shouldRenderOther(): boolean {
-		return (
-			(this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all')
-			&& (!this._renderLineHighlightOnlyWhenFocus || this._focused)
-		);
+		return this._shouldRenderInMargin();
 	}
 }
 
 export class CurrentLineMarginHighlightOverlay extends AbstractLineHighlightOverlay {
 	protected _renderOne(ctx: RenderingContext): string {
-		const className = 'current-line' + (this._shouldRenderMargin() ? ' current-line-margin' : '') + (this._shouldRenderOther() ? ' current-line-margin-both' : '');
+		const className = 'current-line' + (this._shouldRenderInMargin() ? ' current-line-margin' : '') + (this._shouldRenderOther() ? ' current-line-margin-both' : '');
 		return `<div class="${className}" style="width:${this._contentLeft}px; height:${this._lineHeight}px;"></div>`;
-	}
-	protected _shouldRenderMargin(): boolean {
-		return (
-			(this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all')
-			&& (!this._renderLineHighlightOnlyWhenFocus || this._focused)
-		);
 	}
 	protected _shouldRenderThis(): boolean {
 		return true;
 	}
 	protected _shouldRenderOther(): boolean {
-		return (
-			(this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all')
-			&& this._selectionIsEmpty
-			&& (!this._renderLineHighlightOnlyWhenFocus || this._focused)
-		);
+		return this._shouldRenderInContent();
 	}
 }
 
