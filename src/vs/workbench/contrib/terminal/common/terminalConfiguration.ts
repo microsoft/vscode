@@ -505,7 +505,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.AutoReplies]: {
-			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses. Note that the message includes escape sequences so the reply might not happen with styled text. Each reply can only happen once every second.\n\nTo unset a default key, set the value to null."),
+			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses.\n\nRemarks:\n\n- The message includes escape sequences so the reply might not happen with styled text.\n- Each reply can only happen once every second.\n- Use {0} in the reply to mean the enter key.\n- To unset a default key, set the value to null.", '`"\\r"`'),
 			type: 'object',
 			additionalProperties: {
 				oneOf: [{
