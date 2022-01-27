@@ -7,9 +7,8 @@ import { ipcMain, session } from 'electron';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { normalize } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
-import { extname } from 'vs/base/common/resources';
+import { extname, extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -119,7 +118,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 		// 3.) Strip anything from the URI that could result in
 		//     relative paths (such as "..") by using `normalize`
-		return URI.file(normalize(unnormalizedFileUri.fsPath));
+		return extUri.normalizePath(unnormalizedFileUri);
 	}
 
 	//#endregion
