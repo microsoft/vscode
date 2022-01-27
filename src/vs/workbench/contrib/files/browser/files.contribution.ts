@@ -10,7 +10,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IFileEditorInput, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID, BINARY_TEXT_FILE_MODE, UndoEnablement, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID, BINARY_TEXT_FILE_MODE, UndoConfirmLevel, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
@@ -372,14 +372,19 @@ configurationRegistry.registerConfiguration({
 			'default': true
 		},
 		'explorer.enableUndo': {
+			'type': 'boolean',
+			'description': nls.localize('enableUndo', "Controls whether the explorer should support undoing file and folder operations."),
+			'default': true
+		},
+		'explorer.confirmUndo': {
 			'type': 'string',
-			'enum': [UndoEnablement.Warn, UndoEnablement.Allow, UndoEnablement.Disable],
-			'description': nls.localize('confirmUndo', "Controls how the explorer participates in undoing file and folder edits."),
-			'default': UndoEnablement.Warn,
+			'enum': [UndoConfirmLevel.Verbose, UndoConfirmLevel.Default, UndoConfirmLevel.Light],
+			'description': nls.localize('confirmUndo', "Controls whether the explorer should ask for confirmation when undoing."),
+			'default': UndoConfirmLevel.Default,
 			'enumDescriptions': [
-				nls.localize('enableUndo.warn', 'Explorer will prompt before undoing all file and folder creation events.'),
-				nls.localize('enableUndo.allow', 'Explorer will undo file and folder creation events without prompting.'),
-				nls.localize('enableUndo.disable', 'Explorer does not participte in undo events.'),
+				nls.localize('enableUndo.verbose', 'Explorer will prompt before all undo operations.'),
+				nls.localize('enableUndo.default', 'Explorer will prompt before destructive undo operations.'),
+				nls.localize('enableUndo.light', 'Explorer will not prompt before undo operations when focused.'),
 			],
 		},
 		'explorer.expandSingleFolderWorkspaces': {
@@ -396,10 +401,10 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.mixed', 'Files and folders are sorted by their names. Files are interwoven with folders.'),
 				nls.localize('sortOrder.filesFirst', 'Files and folders are sorted by their names. Files are displayed before folders.'),
 				nls.localize('sortOrder.type', 'Files and folders are grouped by extension type then sorted by their names. Folders are displayed before files.'),
-				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before files.'),
+				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before  files.'),
 				nls.localize('sortOrder.foldersNestsFiles', 'Files and folders are sorted by their names. Folders are displayed before files. Files with nested children are displayed before other files.')
 			],
-			'description': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer.")
+			'description': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer. When `#explorer.experimental.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
 		},
 		'explorer.sortOrderLexicographicOptions': {
 			'type': 'string',
@@ -491,7 +496,7 @@ UndoCommand.addImplementation(110, 'explorer', (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const configurationService = accessor.get(IConfigurationService);
 
-	const explorerCanUndo = configurationService.getValue<IFilesConfiguration>().explorer.enableUndo !== UndoEnablement.Disable;
+	const explorerCanUndo = configurationService.getValue<IFilesConfiguration>().explorer.enableUndo;
 	if (explorerService.hasViewFocus() && undoRedoService.canUndo(UNDO_REDO_SOURCE) && explorerCanUndo) {
 		undoRedoService.undo(UNDO_REDO_SOURCE);
 		return true;
@@ -505,7 +510,7 @@ RedoCommand.addImplementation(110, 'explorer', (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const configurationService = accessor.get(IConfigurationService);
 
-	const explorerCanUndo = configurationService.getValue<IFilesConfiguration>().explorer.enableUndo !== UndoEnablement.Disable;
+	const explorerCanUndo = configurationService.getValue<IFilesConfiguration>().explorer.enableUndo;
 	if (explorerService.hasViewFocus() && undoRedoService.canRedo(UNDO_REDO_SOURCE) && explorerCanUndo) {
 		undoRedoService.redo(UNDO_REDO_SOURCE);
 		return true;

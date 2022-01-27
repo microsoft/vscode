@@ -20,17 +20,17 @@ export class InlayHintItem {
 	private _isResolved: boolean = false;
 	private _currentResolve?: Promise<void>;
 
-	constructor(readonly hint: InlayHint, readonly anchor: InlayHintAnchor, private readonly _provider: InlayHintsProvider) { }
+	constructor(readonly hint: InlayHint, readonly anchor: InlayHintAnchor, readonly provider: InlayHintsProvider) { }
 
 	with(delta: { anchor: InlayHintAnchor; }): InlayHintItem {
-		const result = new InlayHintItem(this.hint, delta.anchor, this._provider);
+		const result = new InlayHintItem(this.hint, delta.anchor, this.provider);
 		result._isResolved = this._isResolved;
 		result._currentResolve = this._currentResolve;
 		return result;
 	}
 
 	async resolve(token: CancellationToken): Promise<void> {
-		if (typeof this._provider.resolveInlayHint !== 'function') {
+		if (typeof this.provider.resolveInlayHint !== 'function') {
 			return;
 		}
 		if (this._currentResolve) {
@@ -51,7 +51,7 @@ export class InlayHintItem {
 
 	private async _doResolve(token: CancellationToken) {
 		try {
-			const newHint = await Promise.resolve(this._provider.resolveInlayHint!(this.hint, token));
+			const newHint = await Promise.resolve(this.provider.resolveInlayHint!(this.hint, token));
 			this.hint.tooltip = newHint?.tooltip ?? this.hint.tooltip;
 			this.hint.label = newHint?.label ?? this.hint.label;
 			this._isResolved = true;

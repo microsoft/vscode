@@ -21,6 +21,7 @@ import { CellProgressBar } from 'vs/workbench/contrib/notebook/browser/view/cell
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellStatusPart';
 import { BetweenCellToolbar, CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
 import { RunToolbar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellRunToolbar';
+import { FoldedCellHint } from 'vs/workbench/contrib/notebook/browser/view/cellParts/foldedCellHint';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
@@ -114,7 +115,7 @@ export interface BaseCellRenderTemplate {
 export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 	editorContainer: HTMLElement;
 	foldingIndicator: HTMLElement;
-	foldedContentHint: HTMLElement;
+	foldedCellHint: FoldedCellHint;
 	currentEditor?: ICodeEditor;
 }
 

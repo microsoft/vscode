@@ -25,6 +25,8 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext, IsFullscreenContext } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 // --- Close Side Bar
 
@@ -569,14 +571,15 @@ registerAction2(class extends Action2 {
 			viewId = focusedViewId;
 		}
 
-		viewId = await this.getView(quickInputService, viewDescriptorService, paneCompositePartService, viewId!);
+		try {
+			viewId = await this.getView(quickInputService, viewDescriptorService, paneCompositePartService, viewId!);
+			if (!viewId) {
+				return;
+			}
 
-		if (!viewId) {
-			return;
-		}
-
-		const moveFocusedViewAction = new MoveFocusedViewAction();
-		instantiationService.invokeFunction(accessor => moveFocusedViewAction.run(accessor, viewId));
+			const moveFocusedViewAction = new MoveFocusedViewAction();
+			instantiationService.invokeFunction(accessor => moveFocusedViewAction.run(accessor, viewId));
+		} catch { }
 	}
 
 	private getViewItems(viewDescriptorService: IViewDescriptorService, paneCompositePartService: IPaneCompositePartService): Array<IQuickPickItem | IQuickPickSeparator> {
@@ -618,6 +621,31 @@ registerAction2(class extends Action2 {
 						results.push({
 							type: 'separator',
 							label: localize('panelContainer', "Panel / {0}", containerModel.title)
+						});
+						hasAddedView = true;
+					}
+
+					results.push({
+						id: viewDescriptor.id,
+						label: viewDescriptor.name
+					});
+				}
+			});
+		});
+
+
+		const sidePanels = paneCompositePartService.getPinnedPaneCompositeIds(ViewContainerLocation.AuxiliaryBar);
+		sidePanels.forEach(panel => {
+			const container = viewDescriptorService.getViewContainerById(panel)!;
+			const containerModel = viewDescriptorService.getViewContainerModel(container);
+
+			let hasAddedView = false;
+			containerModel.visibleViewDescriptors.forEach(viewDescriptor => {
+				if (viewDescriptor.canMoveView) {
+					if (!hasAddedView) {
+						results.push({
+							type: 'separator',
+							label: localize('sidePanelContainer', "Side Panel / {0}", containerModel.title)
 						});
 						hasAddedView = true;
 					}
@@ -719,6 +747,13 @@ class MoveFocusedViewAction extends Action2 {
 			});
 		}
 
+		if (!(isViewSolo && currentLocation === ViewContainerLocation.AuxiliaryBar)) {
+			items.push({
+				id: '_.auxiliarybar.newcontainer',
+				label: localize('moveFocusedView.newContainerInSidePanel', "New Side Panel Entry")
+			});
+		}
+
 		items.push({
 			type: 'separator',
 			label: localize('sidebar', "Side Bar")
@@ -761,6 +796,27 @@ class MoveFocusedViewAction extends Action2 {
 				};
 			}));
 
+		items.push({
+			type: 'separator',
+			label: localize('sidePanel', "Side Panel")
+		});
+
+		const pinnedAuxPanels = paneCompositePartService.getPinnedPaneCompositeIds(ViewContainerLocation.AuxiliaryBar);
+		items.push(...pinnedAuxPanels
+			.filter(panel => {
+				if (panel === viewDescriptorService.getViewContainerByViewId(focusedViewId)!.id) {
+					return false;
+				}
+
+				return !viewDescriptorService.getViewContainerById(panel)!.rejectAddedViews;
+			})
+			.map(panel => {
+				return {
+					id: panel,
+					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!)!.title
+				};
+			}));
+
 		quickPick.items = items;
 
 		quickPick.onDidAccept(() => {
@@ -771,6 +827,9 @@ class MoveFocusedViewAction extends Action2 {
 				viewsService.openView(focusedViewId, true);
 			} else if (destination.id === '_.sidebar.newcontainer') {
 				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.Sidebar);
+				viewsService.openView(focusedViewId, true);
+			} else if (destination.id === '_.auxiliarybar.newcontainer') {
+				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.AuxiliaryBar);
 				viewsService.openView(focusedViewId, true);
 			} else if (destination.id) {
 				viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getViewContainerById(destination.id)!);
@@ -959,22 +1018,44 @@ registerAction2(DecreaseViewSizeAction);
 registerAction2(DecreaseViewWidthAction);
 registerAction2(DecreaseViewHeightAction);
 
+const menubarIcon = registerIcon('menu-bar', Codicon.menu, localize('menuBarIcon', "Represents the menu bar"));
+const activityBarLeftIcon = registerIcon('activity-bar-left', Codicon.layoutActivitybarLeft, localize('activityBarLeft', "Represents the activity bar in the left position"));
+const activityBarRightIcon = registerIcon('activity-bar-right', Codicon.layoutActivitybarRight, localize('activityBarRight', "Represents the activity bar in the right position"));
+const panelLeftIcon = registerIcon('panel-left', Codicon.layoutSidebarLeft, localize('panelLeft', "Represents the side bar or side panel in the left position"));
+const panelRightIcon = registerIcon('panel-right', Codicon.layoutSidebarRight, localize('panelRight', "Represents the side bar or side panel in the right position"));
+const panelIcon = registerIcon('panel-bottom', Codicon.layoutPanel, localize('panelBottom', "Represents the bottom panel"));
+const statusBarIcon = registerIcon('statusBar', Codicon.layoutStatusbar, localize('statusBarIcon', "Represents the status bar"));
+
+const panelAlignmentLeftIcon = registerIcon('panel-align-left', Codicon.layoutPanelLeft, localize('panelBottomLeft', "Represents the bottom panel alignment set to the left"));
+const panelAlignmentRightIcon = registerIcon('panel-align-right', Codicon.layoutPanelRight, localize('panelBottomRight', "Represents the bottom panel alignment set to the right"));
+const panelAlignmentCenterIcon = registerIcon('panel-align-center', Codicon.layoutPanelCenter, localize('panelBottomCenter', "Represents the bottom panel alignment set to the center"));
+const panelAlignmentJustifyIcon = registerIcon('panel-align-justify', Codicon.layoutPanelJustify, localize('panelBottomJustify', "Represents the bottom panel alignment set to justified"));
+
+type ContextualLayoutVisualIcon = { iconA: ThemeIcon, iconB: ThemeIcon, whenA: ContextKeyExpression };
+type LayoutVisualIcon = ThemeIcon | ContextualLayoutVisualIcon;
+
+function isContextualLayoutVisualIcon(icon: LayoutVisualIcon): icon is ContextualLayoutVisualIcon {
+	return (icon as ContextualLayoutVisualIcon).iconA !== undefined;
+}
+
 interface CustomizeLayoutItem {
 	id: string;
 	active: ContextKeyExpression;
 	label: string;
 	activeIcon: Codicon;
+	visualIcon?: LayoutVisualIcon;
 	activeAriaLabel: string;
 	inactiveIcon?: Codicon;
 	inactiveAriaLabel?: string;
 	useButtons: boolean;
 }
 
-const CreateToggleLayoutItem = (id: string, active: ContextKeyExpression, label: string): CustomizeLayoutItem => {
+const CreateToggleLayoutItem = (id: string, active: ContextKeyExpression, label: string, visualIcon?: LayoutVisualIcon): CustomizeLayoutItem => {
 	return {
 		id,
 		active,
 		label,
+		visualIcon,
 		activeIcon: Codicon.eye,
 		inactiveIcon: Codicon.eyeClosed,
 		activeAriaLabel: localize('visible', "Visible"),
@@ -983,11 +1064,12 @@ const CreateToggleLayoutItem = (id: string, active: ContextKeyExpression, label:
 	};
 };
 
-const CreateOptionLayoutItem = (id: string, active: ContextKeyExpression, label: string): CustomizeLayoutItem => {
+const CreateOptionLayoutItem = (id: string, active: ContextKeyExpression, label: string, visualIcon?: LayoutVisualIcon): CustomizeLayoutItem => {
 	return {
 		id,
 		active,
 		label,
+		visualIcon,
 		activeIcon: Codicon.check,
 		activeAriaLabel: localize('active', "Active"),
 		useButtons: false
@@ -997,27 +1079,27 @@ const CreateOptionLayoutItem = (id: string, active: ContextKeyExpression, label:
 const MenuBarToggledContext = ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact')) as ContextKeyExpression;
 const ToggleVisibilityActions: CustomizeLayoutItem[] = [];
 if (!isMacintosh || !isNative) {
-	ToggleVisibilityActions.push(CreateToggleLayoutItem('workbench.action.toggleMenuBar', MenuBarToggledContext, localize('menuBar', "Menu Bar")));
+	ToggleVisibilityActions.push(CreateToggleLayoutItem('workbench.action.toggleMenuBar', MenuBarToggledContext, localize('menuBar', "Menu Bar"), menubarIcon));
 }
 
 ToggleVisibilityActions.push(...[
-	CreateToggleLayoutItem(ToggleActivityBarVisibilityAction.ID, ContextKeyExpr.equals('config.workbench.activityBar.visible', true), localize('activityBar', "Activity Bar")),
-	CreateToggleLayoutItem(ToggleSidebarVisibilityAction.ID, SideBarVisibleContext, localize('sideBar', "Side Bar")),
-	CreateToggleLayoutItem(TogglePanelAction.ID, PanelVisibleContext, localize('panel', "Panel")),
-	CreateToggleLayoutItem(ToggleAuxiliaryBarAction.ID, AuxiliaryBarVisibleContext, localize('sidePanel', "Side Panel")),
-	CreateToggleLayoutItem(ToggleStatusbarVisibilityAction.ID, ContextKeyExpr.equals('config.workbench.statusBar.visible', true), localize('statusBar', "Status Bar")),
+	CreateToggleLayoutItem(ToggleActivityBarVisibilityAction.ID, ContextKeyExpr.equals('config.workbench.activityBar.visible', true), localize('activityBar', "Activity Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: activityBarLeftIcon, iconB: activityBarRightIcon }),
+	CreateToggleLayoutItem(ToggleSidebarVisibilityAction.ID, SideBarVisibleContext, localize('sideBar', "Side Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelLeftIcon, iconB: panelRightIcon }),
+	CreateToggleLayoutItem(TogglePanelAction.ID, PanelVisibleContext, localize('panel', "Panel"), panelIcon),
+	CreateToggleLayoutItem(ToggleAuxiliaryBarAction.ID, AuxiliaryBarVisibleContext, localize('sidePanel', "Side Panel"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelRightIcon, iconB: panelLeftIcon }),
+	CreateToggleLayoutItem(ToggleStatusbarVisibilityAction.ID, ContextKeyExpr.equals('config.workbench.statusBar.visible', true), localize('statusBar', "Status Bar"), statusBarIcon),
 ]);
 
 const MoveSideBarActions: CustomizeLayoutItem[] = [
-	CreateOptionLayoutItem(MoveSidebarLeftAction.ID, ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), localize('leftSideBar', "Left")),
-	CreateOptionLayoutItem(MoveSidebarRightAction.ID, ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), localize('rightSideBar', "Right")),
+	CreateOptionLayoutItem(MoveSidebarLeftAction.ID, ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), localize('leftSideBar', "Left"), panelLeftIcon),
+	CreateOptionLayoutItem(MoveSidebarRightAction.ID, ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), localize('rightSideBar', "Right"), panelRightIcon),
 ];
 
 const AlignPanelActions: CustomizeLayoutItem[] = [
-	CreateOptionLayoutItem('workbench.action.alignPanelLeft', PanelAlignmentContext.isEqualTo('left'), localize('leftPanel', "Left")),
-	CreateOptionLayoutItem('workbench.action.alignPanelRight', PanelAlignmentContext.isEqualTo('right'), localize('rightPanel', "Right")),
-	CreateOptionLayoutItem('workbench.action.alignPanelCenter', PanelAlignmentContext.isEqualTo('center'), localize('centerPanel', "Center")),
-	CreateOptionLayoutItem('workbench.action.alignPanelJustify', PanelAlignmentContext.isEqualTo('justify'), localize('justifyPanel', "Justify")),
+	CreateOptionLayoutItem('workbench.action.alignPanelLeft', PanelAlignmentContext.isEqualTo('left'), localize('leftPanel', "Left"), panelAlignmentLeftIcon),
+	CreateOptionLayoutItem('workbench.action.alignPanelRight', PanelAlignmentContext.isEqualTo('right'), localize('rightPanel', "Right"), panelAlignmentRightIcon),
+	CreateOptionLayoutItem('workbench.action.alignPanelCenter', PanelAlignmentContext.isEqualTo('center'), localize('centerPanel', "Center"), panelAlignmentCenterIcon),
+	CreateOptionLayoutItem('workbench.action.alignPanelJustify', PanelAlignmentContext.isEqualTo('justify'), localize('justifyPanel', "Justify"), panelAlignmentJustifyIcon),
 ];
 
 const MiscLayoutOptions: CustomizeLayoutItem[] = [
@@ -1051,11 +1133,21 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 	getItems(contextKeyService: IContextKeyService): (IQuickPickItem | IQuickPickSeparator)[] {
 		const toQuickPickItem = (item: CustomizeLayoutItem): IQuickPickItem => {
 			const toggled = item.active.evaluate(contextKeyService.getContext(null));
-			const label = item.useButtons ?
+			let label = item.useButtons ?
 				item.label :
 				item.label + (toggled && item.activeIcon ? ` $(${item.activeIcon.id})` : (!toggled && item.inactiveIcon ? ` $(${item.inactiveIcon.id})` : ''));
 			const ariaLabel =
 				item.label + (toggled && item.activeAriaLabel ? ` (${item.activeAriaLabel})` : (!toggled && item.inactiveAriaLabel ? ` (${item.inactiveAriaLabel})` : ''));
+
+			if (item.visualIcon) {
+				let icon = item.visualIcon;
+				if (isContextualLayoutVisualIcon(icon)) {
+					const useIconA = icon.whenA.evaluate(contextKeyService.getContext(null));
+					icon = useIconA ? icon.iconA : icon.iconB;
+				}
+
+				label = `$(${icon.id}) ${label}`;
+			}
 
 			return {
 				type: 'item',
@@ -1074,22 +1166,22 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 		return [
 			{
 				type: 'separator',
-				label: localize('toggleVisibility', "Toggle Visibility")
+				label: localize('toggleVisibility', "Visibility")
 			},
 			...ToggleVisibilityActions.map(toQuickPickItem),
 			{
 				type: 'separator',
-				label: localize('moveSideBar', "Move Side Bar")
+				label: localize('sideBarPosition', "Side Bar Position")
 			},
 			...MoveSideBarActions.map(toQuickPickItem),
 			{
 				type: 'separator',
-				label: localize('alignPanel', "Align Panel")
+				label: localize('panelAlignment', "Panel Alignment")
 			},
 			...AlignPanelActions.map(toQuickPickItem),
 			{
 				type: 'separator',
-				label: localize('layoutModes', "Layout Modes"),
+				label: localize('layoutModes', "Modes"),
 			},
 			...MiscLayoutOptions.map(toQuickPickItem),
 		];
@@ -1103,7 +1195,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 		quickPick.items = this.getItems(contextKeyService);
 		quickPick.ignoreFocusOut = true;
 		quickPick.hideInput = true;
-		quickPick.title = localize('layoutOptionsQuickPickTitle', "Layout Options");
+		quickPick.title = localize('customizeLayoutQuickPickTitle', "Customize Layout");
 
 		quickPick.buttons = [
 			{

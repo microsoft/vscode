@@ -147,6 +147,10 @@
 	align-items: center;
 }
 
+.monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.icon .badge {
+	margin-left: 0px;
+}
+
 .monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .badge .badge-content {
 	padding: 3px 5px;
 	border-radius: 11px;

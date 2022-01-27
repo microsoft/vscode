@@ -68,9 +68,11 @@ import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/work
 import { isFirefox } from 'vs/base/browser/browser';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 import { fromNow } from 'vs/base/common/date';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 
 const enum Constants {
 	/**
@@ -112,6 +114,24 @@ interface IGridDimensions {
 }
 
 const scrollbarHeight = 5;
+
+class TerminalOutputProvider implements ITextModelContentProvider {
+	static scheme = 'TERMINAL_OUTPUT';
+	constructor(
+		@ITextModelService textModelResolverService: ITextModelService,
+		@IModelService private readonly _modelService: IModelService
+	) {
+		textModelResolverService.registerTextModelContentProvider(TerminalOutputProvider.scheme, this);
+	}
+	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing && !existing.isDisposed()) {
+			return existing;
+		}
+
+		return this._modelService.createModel(resource.fragment, null, resource, false);
+	}
+}
 
 export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
@@ -176,6 +196,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _lastLayoutDimensions: dom.Dimension | undefined;
 
 	private _hasHadInput: boolean;
+
+	// Enables disposal of the xterm onKey
+	// event when the CwdDetection capability
+	// is added
+	private _xtermOnKey: IDisposable | undefined;
 
 	readonly statusList: ITerminalStatusList;
 	disableLayout: boolean = false;
@@ -325,8 +350,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@ICommandService private readonly _commandService: ICommandService
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService
 	) {
 		super();
 
@@ -357,6 +381,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (e === TerminalCapability.CwdDetection) {
 				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd((e) => {
 					this._cwd = e;
+					if (this._linkManager) {
+						this._linkManager.processCwd = this._cwd;
+					}
+					this._xtermOnKey?.dispose();
 					this.refreshTabLabels(this.title, TitleEventSource.Api);
 				});
 			}
@@ -612,7 +640,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			});
 		}, 1000);
-		xterm.raw.onKey(e => this._onKey(e.key, e.domEvent));
+		this._xtermOnKey = xterm.raw.onKey(e => this._onKey(e.key, e.domEvent));
 		xterm.raw.onSelectionChange(async () => this._onSelectionChange());
 		xterm.raw.buffer.onBufferChange(() => this._refreshAltBufferContextKey());
 
@@ -755,13 +783,24 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				items.push({ label });
 			}
 		}
+		const outputProvider = this._instantiationService.createInstance(TerminalOutputProvider);
 		const result = await this._quickInputService.pick(items.reverse(), {
 			onDidTriggerItemButton: (async e => {
-				const output = e.item.command?.getOutput();
-				if (output) {
-					await this._clipboardService.writeText(output);
-					await this._commandService.executeCommand('workbench.action.files.newUntitledFile');
-					await this._commandService.executeCommand('editor.action.clipboardPasteAction');
+				const selectedCommand = e.item.command;
+				const output = selectedCommand?.getOutput();
+				if (output && selectedCommand?.command) {
+					const textContent = await outputProvider.provideTextContent(URI.from(
+						{
+							scheme: TerminalOutputProvider.scheme,
+							path: `${selectedCommand.command}... ${fromNow(selectedCommand.timestamp, true)}`,
+							fragment: output,
+							query: `terminal-output-${selectedCommand.timestamp}-${this.instanceId}`
+						}));
+					if (textContent) {
+						this._editorService.openEditor({
+							resource: textContent.uri
+						});
+					}
 				}
 			})
 		});
@@ -1493,6 +1532,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	@debounce(2000)
 	private async _updateProcessCwd(): Promise<string> {
+		if (this._isDisposed) {
+			return this.cwd || this._initialCwd || '';
+		}
 		// reset cwd if it has changed, so file based url paths can be resolved
 		const cwd = await this.refreshProperty(ProcessPropertyType.Cwd);
 		if (typeof cwd !== 'string') {

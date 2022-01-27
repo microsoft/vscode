@@ -16,7 +16,7 @@ import { EditorAction, registerEditorAction, registerEditorContribution, Service
 import { InUntrustedWorkspace, inUntrustedWorkspace, EditorOption, InternalUnicodeHighlightOptions, unicodeHighlightConfigKeys } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecoration, IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecoration, IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { UnicodeHighlighterOptions, UnicodeHighlighterReason, UnicodeHighlighterReasonKind, UnicodeTextModelHighlighter } from 'vs/editor/common/languages/unicodeTextModelHighlighter';
 import { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
@@ -30,9 +30,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { minimapUnicodeHighlight, overviewRulerUnicodeHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export const warningIcon = registerIcon('extensions-warning-message', Codicon.warning, nls.localize('warningIcon', 'Icon shown with a warning message in the extensions editor.'));
@@ -240,6 +238,10 @@ class DocumentUnicodeHighlighter extends Disposable {
 	}
 
 	private _update(): void {
+		if (this._model.isDisposed()) {
+			return;
+		}
+
 		if (!this._model.mightContainNonBasicASCII()) {
 			this._decorationIds = new Set(this._editor.deltaDecorations(Array.from(this._decorationIds), []));
 			return;
@@ -249,6 +251,9 @@ class DocumentUnicodeHighlighter extends Disposable {
 		this._editorWorkerService
 			.computedUnicodeHighlights(this._model.uri, this._options)
 			.then((info) => {
+				if (this._model.isDisposed()) {
+					return;
+				}
 				if (this._model.getVersionId() !== modelVersionId) {
 					// model changed in the meantime
 					return;
@@ -260,7 +265,10 @@ class DocumentUnicodeHighlighter extends Disposable {
 					// Don't show decoration if there are too many.
 					// In this case, a banner is shown.
 					for (const range of info.ranges) {
-						decorations.push({ range: range, options: Decorations.instance.getDecoration(!this._options.includeComments, !this._options.includeStrings) });
+						decorations.push({
+							range: range,
+							options: Decorations.instance.getDecorationFromOptions(this._options),
+						});
 					}
 				}
 				this._decorationIds = new Set(this._editor.deltaDecorations(
@@ -278,7 +286,7 @@ class DocumentUnicodeHighlighter extends Disposable {
 		const range = model.getDecorationRange(decorationId)!;
 		const decoration = {
 			range: range,
-			options: Decorations.instance.getDecoration(!this._options.includeComments, !this._options.includeStrings),
+			options: Decorations.instance.getDecorationFromOptions(this._options),
 			id: decorationId,
 			ownerId: 0,
 		};
@@ -333,6 +341,10 @@ class ViewportUnicodeHighlighter extends Disposable {
 	}
 
 	private _update(): void {
+		if (this._model.isDisposed()) {
+			return;
+		}
+
 		if (!this._model.mightContainNonBasicASCII()) {
 			this._decorationIds = new Set(this._editor.deltaDecorations(Array.from(this._decorationIds), []));
 			return;
@@ -362,7 +374,7 @@ class ViewportUnicodeHighlighter extends Disposable {
 			// Don't show decorations if there are too many.
 			// A banner will be shown instead.
 			for (const range of totalResult.ranges) {
-				decorations.push({ range, options: Decorations.instance.getDecoration(!this._options.includeComments, !this._options.includeStrings) });
+				decorations.push({ range, options: Decorations.instance.getDecorationFromOptions(this._options) });
 			}
 		}
 		this._updateState(totalResult);
@@ -379,7 +391,7 @@ class ViewportUnicodeHighlighter extends Disposable {
 		const text = model.getValueInRange(range);
 		const decoration = {
 			range: range,
-			options: Decorations.instance.getDecoration(!this._options.includeComments, !this._options.includeStrings),
+			options: Decorations.instance.getDecorationFromOptions(this._options),
 			id: decorationId,
 			ownerId: 0,
 		};
@@ -525,7 +537,11 @@ class Decorations {
 
 	private readonly map = new Map<string, ModelDecorationOptions>();
 
-	getDecoration(hideInComments: boolean, hideInStrings: boolean): ModelDecorationOptions {
+	getDecorationFromOptions(options: UnicodeHighlighterOptions): ModelDecorationOptions {
+		return this.getDecoration(!options.includeComments, !options.includeStrings);
+	}
+
+	private getDecoration(hideInComments: boolean, hideInStrings: boolean): ModelDecorationOptions {
 		const key = `${hideInComments}${hideInStrings}`;
 		let options = this.map.get(key);
 		if (!options) {
@@ -534,14 +550,8 @@ class Decorations {
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				className: 'unicode-highlight',
 				showIfCollapsed: true,
-				overviewRuler: {
-					color: themeColorFromId(overviewRulerUnicodeHighlightForeground),
-					position: OverviewRulerLane.Center
-				},
-				minimap: {
-					color: themeColorFromId(minimapUnicodeHighlight),
-					position: MinimapPosition.Inline
-				},
+				overviewRuler: null,
+				minimap: null,
 				hideInCommentTokens: hideInComments,
 				hideInStringTokens: hideInStrings,
 			});

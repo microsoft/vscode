@@ -1742,6 +1742,7 @@ export function registerTerminalActions() {
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
 			const configurationService = accessor.get(IConfigurationService);
+			const configurationResolverService = accessor.get(IConfigurationResolverService);
 			const folders = workspaceContextService.getWorkspace().folders;
 			if (eventOrOptions && eventOrOptions instanceof MouseEvent && (eventOrOptions.altKey || eventOrOptions.ctrlKey)) {
 				await terminalService.createTerminal({ location: { splitActiveTerminal: true } });
@@ -1768,13 +1769,14 @@ export function registerTerminalActions() {
 					eventOrOptions.cwd = workspace.uri;
 					const cwdConfig = configurationService.getValue(TerminalSettingId.Cwd, { resource: workspace.uri });
 					if (typeof cwdConfig === 'string' && cwdConfig.length > 0) {
-						if (isAbsolute(cwdConfig) || cwdConfig.startsWith(AbstractVariableResolverService.VARIABLE_LHS)) {
+						const resolvedCwdConfig = await configurationResolverService.resolveAsync(workspace, cwdConfig);
+						if (isAbsolute(resolvedCwdConfig) || resolvedCwdConfig.startsWith(AbstractVariableResolverService.VARIABLE_LHS)) {
 							eventOrOptions.cwd = URI.from({
 								scheme: workspace.uri.scheme,
-								path: cwdConfig
+								path: resolvedCwdConfig
 							});
 						} else {
-							eventOrOptions.cwd = URI.joinPath(workspace.uri, cwdConfig);
+							eventOrOptions.cwd = URI.joinPath(workspace.uri, resolvedCwdConfig);
 						}
 					}
 					instance = await terminalService.createTerminal(eventOrOptions);
@@ -1922,7 +1924,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.openDetectedLink', "Open Detected Link..."), original: 'Open Detected Link...' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+				precondition: TerminalContextKeys.terminalHasBeenCreated,
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1937,7 +1939,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.openLastWebLink', "Open Last Web Link"), original: 'Open Last Web Link' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+				precondition: TerminalContextKeys.terminalHasBeenCreated,
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1952,7 +1954,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.openLastFileLink', "Open Last File Link"), original: 'Open Last File Link' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+				precondition: TerminalContextKeys.terminalHasBeenCreated,
 			});
 		}
 		run(accessor: ServicesAccessor) {

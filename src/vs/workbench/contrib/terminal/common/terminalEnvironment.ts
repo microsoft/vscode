@@ -448,7 +448,7 @@ export function injectShellIntegrationArgs(logService: ILogService, env: IProces
 				if (!originalArgs || originalArgs.length === 0) {
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 				} else if (areZshBashLoginArgs(originalArgs)) {
-					env['VSCODE_SHELL_LOGIN'] = os === OperatingSystem.Macintosh ? '1' : '';
+					env['VSCODE_SHELL_LOGIN'] = '1';
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 				}
 				break;

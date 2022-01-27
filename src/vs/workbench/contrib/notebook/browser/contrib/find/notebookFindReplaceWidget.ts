@@ -52,7 +52,7 @@ const NOTEBOOK_FIND_FILTERS = nls.localize('notebook.find.filter.filterAction', 
 const NOTEBOOK_FIND_IN_MARKUP_INPUT = nls.localize('notebook.find.filter.findInMarkupInput', "Markdown Source");
 const NOTEBOOK_FIND_IN_MARKUP_PREVIEW = nls.localize('notebook.find.filter.findInMarkupPreview', "Rendered Markdown");
 const NOTEBOOK_FIND_IN_CODE_INPUT = nls.localize('notebook.find.filter.findInCodeInput', "Code Cell Source");
-const NOTEBOOK_FIND_IN_CODE_OUTPUT = nls.localize('notebook.find.filter.findInCodeOutput', "Code Cell Outputs");
+const NOTEBOOK_FIND_IN_CODE_OUTPUT = nls.localize('notebook.find.filter.findInCodeOutput', "Cell Output");
 
 class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 	constructor(readonly filters: NotebookFindFilters, action: IAction, actionRunner: IActionRunner, @IContextMenuService contextMenuService: IContextMenuService) {
@@ -62,8 +62,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 			{
 				actionRunner,
 				classNames: action.class,
-				anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
-				menuAsChild: true
+				anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 			}
 		);
 	}
@@ -160,6 +159,12 @@ class NotebookFindInput extends FindInput {
 				this._filtersAction.checked = false;
 			}
 		}));
+
+		this.inputBox.paddingRight = this.caseSensitive.width() + this.wholeWords.width() + this.regex.width() + this.getFilterWidth();
+	}
+
+	private getFilterWidth() {
+		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
 	private createFilters(container: HTMLElement): void {
@@ -545,6 +550,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._domNode.classList.toggle('replaceToggled', this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 
+		this.foundMatch = this._state.matchesCount > 0;
+		this.updateButtons(this.foundMatch);
 	}
 
 	protected _updateMatchesCount(): void {

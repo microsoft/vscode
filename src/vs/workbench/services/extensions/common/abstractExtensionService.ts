@@ -1156,13 +1156,13 @@ class ProposedApiController {
 				const key = ExtensionIdentifier.toKey(entry.key);
 				const proposalNames = entry.value.filter(name => {
 					if (!allApiProposals[<ApiProposalName>name]) {
-						_logService.warn(`Extension '${key} wants API proposal '${name}' but that proposal DOES NOT EXIST.`);
+						_logService.warn(`Via 'product.json#extensionEnabledApiProposals' extension '${key}' wants API proposal '${name}' but that proposal DOES NOT EXIST. Likely, the proposal has been finalized (check 'vscode.d.ts') or was abandoned.`);
 						return false;
 					}
 					return true;
 				});
 				if (this._productEnabledExtensions.has(key)) {
-					_logService.warn(`Extension '${key} appears in BOTH 'product.json#extensionAllowedProposedApi' and 'extensionEnabledApiProposals'. The latter is more restrictive and will override the former.`);
+					_logService.warn(`Extension '${key}' appears in BOTH 'product.json#extensionAllowedProposedApi' and 'extensionEnabledApiProposals'. The latter is more restrictive and will override the former.`);
 				}
 				this._productEnabledExtensions.set(key, proposalNames);
 			});
@@ -1174,8 +1174,19 @@ class ProposedApiController {
 		// this is a trick to make the extension description writeable...
 		type Writeable<T> = { -readonly [P in keyof T]: Writeable<T[P]> };
 		const extension = <Writeable<IExtensionDescription>>_extension;
-
 		const key = ExtensionIdentifier.toKey(_extension.identifier);
+
+		// warn about invalid proposal and remove them from the list
+		if (isNonEmptyArray(extension.enabledApiProposals)) {
+			extension.enabledApiProposals = extension.enabledApiProposals.filter(name => {
+				const result = Boolean(allApiProposals[<ApiProposalName>name]);
+				if (!result) {
+					this._logService.critical(`Extension '${key}' wants API proposal '${name}' but that proposal DOES NOT EXIST. Likely, the proposal has been finalized (check 'vscode.d.ts') or was abandoned.`);
+				}
+				return result;
+			});
+		}
+
 
 		if (this._productEnabledExtensions.has(key)) {
 			// NOTE that proposals that are listed in product.json override whatever is declared in the extension

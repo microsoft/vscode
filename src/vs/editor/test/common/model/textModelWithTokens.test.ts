@@ -348,7 +348,7 @@ suite('TextModelWithTokens', () => {
 		const mode1 = 'testMode1';
 		const mode2 = 'testMode2';
 
-		const languageIdCodec = instantiationService.invokeFunction((accessor) => accessor.get(ILanguageService).languageIdCodec);
+		const languageIdCodec = instantiationService.get(ILanguageService).languageIdCodec;
 
 		disposables.add(ModesRegistry.registerLanguage({ id: mode1 }));
 		disposables.add(ModesRegistry.registerLanguage({ id: mode2 }));
@@ -450,7 +450,7 @@ suite('TextModelWithTokens', () => {
 		const instantiationService = createModelServices(disposables);
 		const mode = 'testMode';
 
-		const languageIdCodec = instantiationService.invokeFunction((accessor) => accessor.get(ILanguageService).languageIdCodec);
+		const languageIdCodec = instantiationService.get(ILanguageService).languageIdCodec;
 
 		const encodedMode = languageIdCodec!.encodeLanguageId(mode);
 
@@ -669,7 +669,7 @@ suite('TextModelWithTokens regression tests', () => {
 		disposables.add(ModesRegistry.registerLanguage({ id: outerMode }));
 		disposables.add(ModesRegistry.registerLanguage({ id: innerMode }));
 
-		const languageIdCodec = instantiationService.invokeFunction((accessor) => accessor.get(ILanguageService).languageIdCodec);
+		const languageIdCodec = instantiationService.get(ILanguageService).languageIdCodec;
 		const encodedInnerMode = languageIdCodec.encodeLanguageId(innerMode);
 
 		const tokenizationSupport: ITokenizationSupport = {

@@ -552,8 +552,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- inline hints
 
-	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean, eventHandle: number | undefined): void {
+	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean, eventHandle: number | undefined, displayName: string | undefined): void {
 		const provider = <modes.InlayHintsProvider>{
+			displayName,
 			provideInlayHints: async (model: ITextModel, range: EditorRange, token: CancellationToken): Promise<modes.InlayHintList | undefined> => {
 				const result = await this._proxy.$provideInlayHints(handle, model.uri, range, token);
 				if (!result) {

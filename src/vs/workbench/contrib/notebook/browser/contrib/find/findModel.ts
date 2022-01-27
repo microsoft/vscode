@@ -332,7 +332,7 @@ export class FindModel extends Disposable {
 
 	private _updateCurrentMatch(findMatches: CellFindMatchWithIndex[], currentMatchesPosition: number) {
 		this.set(findMatches, false);
-		this._currentMatch = currentMatchesPosition;
+		this._currentMatch = currentMatchesPosition % findMatches.length;
 		const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 		this.highlightCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder);
 

@@ -6908,6 +6908,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface InlayHintsProvider {
+		displayName?: string;
 		onDidChangeInlayHints?: IEvent<void>;
 		provideInlayHints(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHintList>;
 		resolveInlayHint?(hint: InlayHint, token: CancellationToken): ProviderResult<InlayHint>;

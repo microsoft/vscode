@@ -57,7 +57,7 @@ suite('SmartSelect', () => {
 	setup(() => {
 		disposables = new DisposableStore();
 		const instantiationService = createModelServices(disposables);
-		modelService = instantiationService.invokeFunction((accessor) => accessor.get(IModelService));
+		modelService = instantiationService.get(IModelService);
 		mode = disposables.add(new MockJSMode());
 	});
 
