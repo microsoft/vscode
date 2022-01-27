@@ -184,7 +184,7 @@ async function parsePort(host, strPort, strPickPort) {
 			process.exit(1);
 		}
 	}
-	// pick-port is deprected and will be removed soon
+	// pick-port is deprecated and will be removed soon
 	if (strPickPort) {
 		const range = parseRange(strPickPort);
 		if (range) {
