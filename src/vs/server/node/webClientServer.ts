@@ -173,18 +173,18 @@ export class WebClientServer {
 		}
 
 		const headers: IHeaders = {};
-		const seRequestHeader = (header: string) => {
+		const setRequestHeader = (header: string) => {
 			const value = req.headers[header];
 			if (value && (isString(value) || value[0])) {
 				headers[header] = isString(value) ? value : value[0];
 			} else if (header !== header.toLowerCase()) {
-				seRequestHeader(header.toLowerCase());
+				setRequestHeader(header.toLowerCase());
 			}
 		};
-		seRequestHeader('X-Client-Name');
-		seRequestHeader('X-Client-Version');
-		seRequestHeader('X-Machine-Id');
-		seRequestHeader('X-Client-Commit');
+		setRequestHeader('X-Client-Name');
+		setRequestHeader('X-Client-Version');
+		setRequestHeader('X-Machine-Id');
+		setRequestHeader('X-Client-Commit');
 
 		const context = await this._requestService.request({
 			type: 'GET',
@@ -202,16 +202,16 @@ export class WebClientServer {
 		}
 
 		const responseHeaders: Record<string, string> = Object.create(null);
-		const seResponseHeader = (header: string) => {
+		const setResponseHeader = (header: string) => {
 			const value = context.res.headers[header];
 			if (value) {
 				responseHeaders[header] = value;
 			} else if (header !== header.toLowerCase()) {
-				seResponseHeader(header.toLowerCase());
+				setResponseHeader(header.toLowerCase());
 			}
 		};
-		seResponseHeader('Cache-Control');
-		seResponseHeader('Content-Type');
+		setResponseHeader('Cache-Control');
+		setResponseHeader('Content-Type');
 		res.writeHead(200, responseHeaders);
 		const buffer = await streamToBuffer(context.stream);
 		return res.end(buffer.buffer);
