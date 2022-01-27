@@ -19,12 +19,13 @@ import { FileAccess, connectionTokenCookieName, connectionTokenQueryName } from 
 import { generateUuid } from 'vs/base/common/uuid';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
-import { IRequestService } from 'vs/platform/request/common/request';
+import { asText, IRequestService } from 'vs/platform/request/common/request';
 import { IHeaders } from 'vs/base/parts/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { IProductConfiguration } from 'vs/base/common/product';
+import { isString } from 'vs/base/common/types';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -139,34 +140,73 @@ export class WebClientServer {
 		return serveFile(this._logService, req, res, filePath, headers);
 	}
 
+	private _getResourceURLTemplateAuthority(uri: URI): string | undefined {
+		const index = uri.authority.indexOf('.');
+		return index !== -1 ? uri.authority.substring(index + 1) : undefined;
+	}
+
 	/**
 	 * Handle extension resources
 	 */
 	private async _handleWebExtensionResource(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+		if (!this._productService.extensionsGallery?.resourceUrlTemplate) {
+			return serveError(req, res, 500, 'No extension gallery service configured.');
+		}
+
 		// Strip `/web-extension-resource/` from the path
 		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
 		const path = normalize(normalizedPathname.substr('/web-extension-resource/'.length));
-
-		const url = URI.parse(path).with({
+		const uri = URI.parse(path).with({
 			scheme: this._productService.extensionsGallery?.resourceUrlTemplate ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate).scheme : 'https',
 			authority: path.substring(0, path.indexOf('/')),
 			path: path.substring(path.indexOf('/') + 1)
-		}).toString(true);
+		});
+
+		if (this._getResourceURLTemplateAuthority(URI.parse(this._productService.extensionsGallery.resourceUrlTemplate)) !== this._getResourceURLTemplateAuthority(uri)) {
+			return serveError(req, res, 403, 'Request Forbidden');
+		}
 
 		const headers: IHeaders = {};
-		for (const header of req.rawHeaders) {
-			if (req.headers[header]) {
-				headers[header] = req.headers[header]![0];
+		const seRequestHeader = (header: string) => {
+			const value = req.headers[header];
+			if (value && (isString(value) || value[0])) {
+				headers[header] = isString(value) ? value : value[0];
+			} else if (header !== header.toLowerCase()) {
+				seRequestHeader(header.toLowerCase());
 			}
-		}
+		};
+		seRequestHeader('X-Client-Name');
+		seRequestHeader('X-Client-Version');
+		seRequestHeader('X-Machine-Id');
+		seRequestHeader('X-Client-Commit');
 
 		const context = await this._requestService.request({
 			type: 'GET',
-			url,
+			url: uri.toString(true),
 			headers
 		}, CancellationToken.None);
 
-		res.writeHead(context.res.statusCode || 500, context.res.headers);
+		const status = context.res.statusCode || 500;
+		if (status !== 200) {
+			let text: string | null = null;
+			try {
+				text = await asText(context);
+			} catch (error) {/* Ignore */ }
+			return serveError(req, res, status, text || `Request failed with status ${status}`);
+		}
+
+		const responseHeaders: Record<string, string> = Object.create(null);
+		const seResponseHeader = (header: string) => {
+			const value = context.res.headers[header];
+			if (value) {
+				responseHeaders[header] = value;
+			} else if (header !== header.toLowerCase()) {
+				seResponseHeader(header.toLowerCase());
+			}
+		};
+		seResponseHeader('Cache-Control');
+		seResponseHeader('Content-Type');
+		res.writeHead(200, responseHeaders);
 		const buffer = await streamToBuffer(context.stream);
 		return res.end(buffer.buffer);
 	}
