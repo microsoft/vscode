@@ -375,7 +375,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",
@@ -778,7 +778,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",
@@ -1147,7 +1147,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",
@@ -1490,7 +1490,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",
@@ -1798,7 +1798,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",
