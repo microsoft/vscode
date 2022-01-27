@@ -152,6 +152,28 @@ export const startEntries: GettingStartedStartEntryContent = [
 			command: 'welcome.showAllWalkthroughs',
 		}
 	},
+	{
+		id: 'topLevelVideoTutorials',
+		title: localize('gettingStarted.topLevelVideoTutorials.title', "Watch Video Tutorials"),
+		description: localize('gettingStarted.topLevelVideoTutorials.description', "Watch our series of short & practical video tutorials for VS Code's key features."),
+		icon: Codicon.playCircle,
+		when: 'config.workbench.welcomePage.experimental.videoTutorials == on',
+		content: {
+			type: 'startEntry',
+			command: 'https://aka.ms/vscode-getting-started-video',
+		}
+	},
+	{
+		id: 'topLevelVideoTutorialsExperimental',
+		title: localize('gettingStarted.topLevelVideoTutorials.title', "Watch Video Tutorials"),
+		description: localize('gettingStarted.topLevelVideoTutorials.description', "Watch our series of short & practical video tutorials for VS Code's key features."),
+		when: 'config.workbench.welcomePage.experimental.videoTutorials == experimental',
+		icon: Codicon.playCircle,
+		content: {
+			type: 'startEntry',
+			command: 'https://aka.ms/vscode-videos',
+		}
+	},
 ];
 
 const Button = (title: string, href: string) => `[${title}](${href})`;
