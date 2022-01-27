@@ -766,7 +766,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				const buttons: IQuickInputButton[] = [{
 					iconClass,
 					tooltip: nls.localize('viewCommandOutput', "View Command Output"),
-					alwaysVisible: true,
+					alwaysVisible: true
 				}];
 				items.push({
 					label,
