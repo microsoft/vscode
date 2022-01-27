@@ -799,7 +799,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 							query: `terminal-output-${selectedCommand.timestamp}-${this.instanceId}`
 						}));
 					if (textContent) {
-						this._editorService.openEditor({
+						await this._editorService.openEditor({
 							resource: textContent.uri
 						});
 					}
