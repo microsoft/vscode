@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, groupBy, isNonEmptyArray } from 'vs/base/common/arrays';
+import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { INotebookCellExecution, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, INotebookKernelChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 
 abstract class MainThreadKernel implements INotebookKernel {
 
@@ -46,7 +46,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 		return flatten(this.preloads.map(p => p.provides));
 	}
 
-	constructor(data: INotebookKernelDto2, private _modeService: IModeService) {
+	constructor(data: INotebookKernelDto2, private _languageService: ILanguageService) {
 		this.id = data.id;
 		this.viewType = data.notebookType;
 		this.extension = data.extensionId;
@@ -56,7 +56,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 		this.description = data.description;
 		this.detail = data.detail;
 		this.kind = data.kind;
-		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : _modeService.getRegisteredModes();
+		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : _languageService.getRegisteredLanguageIds();
 		this.implementsExecutionOrder = data.supportsExecutionOrder ?? false;
 		this.localResourceRoot = URI.revive(data.extensionLocation);
 		this.preloads = data.preloads?.map(u => ({ uri: URI.revive(u.uri), provides: u.provides })) ?? [];
@@ -83,7 +83,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 			event.kind = true;
 		}
 		if (data.supportedLanguages !== undefined) {
-			this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : this._modeService.getRegisteredModes();
+			this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : this._languageService.getRegisteredLanguageIds();
 			event.supportedLanguages = true;
 		}
 		if (data.supportsExecutionOrder !== undefined) {
@@ -110,10 +110,9 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
-		@INotebookExecutionService private readonly _notebookExecutionService: INotebookExecutionService,
-		// @INotebookService private readonly _notebookService: INotebookService,
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookKernels);
@@ -121,6 +120,17 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		notebookEditorService.listNotebookEditors().forEach(this._onEditorAdd, this);
 		notebookEditorService.onDidAddNotebookEditor(this._onEditorAdd, this, this._disposables);
 		notebookEditorService.onDidRemoveNotebookEditor(this._onEditorRemove, this, this._disposables);
+
+		this._disposables.add(toDisposable(() => {
+			// EH shut down, complete all executions started by this EH
+			this._executions.forEach(e => {
+				e.complete({ });
+			});
+		}));
+
+		this._disposables.add(this._notebookExecutionStateService.onDidChangeCellExecution(e => {
+			this._proxy.$cellExecutionChanged(e.notebook, e.cellHandle, e.changed?.state);
+		}));
 	}
 
 	dispose(): void {
@@ -197,7 +207,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			async cancelNotebookCellExecution(uri: URI, handles: number[]): Promise<void> {
 				await that._proxy.$cancelCells(handle, uri, handles);
 			}
-		}(data, this._modeService);
+		}(data, this._languageService);
 
 		const listener = this._notebookKernelService.onDidChangeSelectedNotebooks(e => {
 			if (e.oldKernel === kernel.id) {
@@ -235,30 +245,34 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 	// --- execution
 
-	$addExecution(handle: number, uri: UriComponents, cellHandle: number): void {
-		const execution = this._notebookExecutionService.createNotebookCellExecution(URI.revive(uri), cellHandle);
+	$createExecution(handle: number, controllerId: string, rawUri: UriComponents, cellHandle: number): void {
+		const uri = URI.revive(rawUri);
+		const execution = this._notebookExecutionStateService.createCellExecution(controllerId, uri, cellHandle);
 		this._executions.set(handle, execution);
 	}
 
-	$updateExecutions(data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void {
+	$updateExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void {
 		const updates = data.value;
-		const groupedUpdates = groupBy(updates, (a, b) => a.executionHandle - b.executionHandle);
-		groupedUpdates.forEach(datas => {
-			const first = datas[0];
-			const execution = this._executions.get(first.executionHandle);
-			if (!execution) {
-				return;
+		try {
+			const execution = this._executions.get(handle);
+			if (execution) {
+				execution.update(updates.map(NotebookDto.fromCellExecuteUpdateDto));
 			}
-
-			try {
-				execution.update(datas.map(NotebookDto.fromCellExecuteUpdateDto));
-			} catch (e) {
-				onUnexpectedError(e);
-			}
-		});
+		} catch (e) {
+			onUnexpectedError(e);
+		}
 	}
 
-	$removeExecution(handle: number): void {
-		this._executions.delete(handle);
+	$completeExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void {
+		try {
+			const execution = this._executions.get(handle);
+			if (execution) {
+				execution.complete(NotebookDto.fromCellExecuteCompleteDto(data.value));
+			}
+		} catch (e) {
+			onUnexpectedError(e);
+		} finally {
+			this._executions.delete(handle);
+		}
 	}
 }

@@ -7,12 +7,13 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostContext, IExtHostEditorTabsShape, IExtHostContext, MainContext, IEditorTabDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor, GroupModelChangeKind, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { isGroupEditorCloseEvent, isGroupEditorMoveEvent, isGroupEditorOpenEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { GroupChangeKind, GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorsChangeEvent, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 
@@ -75,9 +76,10 @@ export class MainThreadEditorTabs {
 				secondary: { resource: URI.revive(tab.additionalResourcesAndViewIds[1].resource), options: { override: tab.additionalResourcesAndViewIds[1].viewId } }
 			};
 		} else {
+			// For now only text diff editor are supported
 			return {
-				modified: { resource: URI.revive(tab.resource), options: { override: tab.editorId } },
-				original: { resource: URI.revive(tab.additionalResourcesAndViewIds[1].resource), options: { override: tab.additionalResourcesAndViewIds[1].viewId } }
+				modified: { resource: URI.revive(tab.resource), options: { override: DEFAULT_EDITOR_ASSOCIATION.id } },
+				original: { resource: URI.revive(tab.additionalResourcesAndViewIds[1].resource), options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }
 			};
 		}
 	}
@@ -105,7 +107,7 @@ export class MainThreadEditorTabs {
 	}
 
 	private _onDidTabOpen(event: IEditorsChangeEvent): void {
-		if (event.kind !== GroupChangeKind.EDITOR_OPEN || !event.editor || event.editorIndex === undefined) {
+		if (!isGroupEditorOpenEvent(event)) {
 			return;
 		}
 		if (!this._tabModel.has(event.groupId)) {
@@ -124,7 +126,7 @@ export class MainThreadEditorTabs {
 	}
 
 	private _onDidTabClose(event: IEditorsChangeEvent): void {
-		if (event.kind !== GroupChangeKind.EDITOR_CLOSE || event.editorIndex === undefined) {
+		if (!isGroupEditorCloseEvent(event)) {
 			return;
 		}
 		this._tabModel.get(event.groupId)?.splice(event.editorIndex, 1);
@@ -137,7 +139,7 @@ export class MainThreadEditorTabs {
 	}
 
 	private _onDidTabMove(event: IEditorsChangeEvent): void {
-		if (event.kind !== GroupChangeKind.EDITOR_MOVE || event.editorIndex === undefined || event.oldEditorIndex === undefined) {
+		if (!isGroupEditorMoveEvent(event)) {
 			return;
 		}
 		const movedTab = this._tabModel.get(event.groupId)?.splice(event.oldEditorIndex, 1);
@@ -156,7 +158,7 @@ export class MainThreadEditorTabs {
 	}
 
 	private _onDidGroupActivate(event: IEditorsChangeEvent): void {
-		if (event.kind !== GroupChangeKind.GROUP_INDEX && event.kind !== GroupChangeKind.EDITOR_ACTIVE) {
+		if (event.kind !== GroupModelChangeKind.GROUP_INDEX && event.kind !== GroupModelChangeKind.EDITOR_ACTIVE) {
 			return;
 		}
 		this._findAndUpdateActiveTab();
@@ -187,15 +189,15 @@ export class MainThreadEditorTabs {
 	// 	let eventString = '[';
 	// 	events.forEach(event => {
 	// 		switch (event.kind) {
-	// 			case GroupChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX, '; break;
-	// 			case GroupChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE, '; break;
-	// 			case GroupChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN, '; break;
-	// 			case GroupChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN, '; break;
-	// 			case GroupChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE, '; break;
-	// 			case GroupChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE, '; break;
-	// 			case GroupChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL, '; break;
-	// 			case GroupChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE, '; break;
-	// 			case GroupChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED, '; break;
+	// 			case GroupModelChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX, '; break;
+	// 			case GroupModelChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE, '; break;
+	// 			case GroupModelChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN, '; break;
+	// 			case GroupModelChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN, '; break;
+	// 			case GroupModelChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE, '; break;
+	// 			case GroupModelChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE, '; break;
+	// 			case GroupModelChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL, '; break;
+	// 			case GroupModelChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE, '; break;
+	// 			case GroupModelChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED, '; break;
 	// 			default: eventString += 'UNKNOWN, '; break;
 	// 		}
 	// 	});
@@ -211,24 +213,24 @@ export class MainThreadEditorTabs {
 		events.forEach(event => {
 			// Call the correct function for the change type
 			switch (event.kind) {
-				case GroupChangeKind.EDITOR_OPEN:
+				case GroupModelChangeKind.EDITOR_OPEN:
 					this._onDidTabOpen(event);
 					break;
-				case GroupChangeKind.EDITOR_CLOSE:
+				case GroupModelChangeKind.EDITOR_CLOSE:
 					this._onDidTabClose(event);
 					break;
-				case GroupChangeKind.EDITOR_ACTIVE:
-				case GroupChangeKind.GROUP_ACTIVE:
+				case GroupModelChangeKind.EDITOR_ACTIVE:
+				case GroupModelChangeKind.GROUP_ACTIVE:
 					if (this._editorGroupsService.activeGroup.id !== event.groupId) {
 						return;
 					}
 					this._onDidGroupActivate(event);
 					break;
-				case GroupChangeKind.GROUP_INDEX:
+				case GroupModelChangeKind.GROUP_INDEX:
 					this._createTabsModel();
 					// Here we stop the loop as no need to process other events
 					break;
-				case GroupChangeKind.EDITOR_MOVE:
+				case GroupModelChangeKind.EDITOR_MOVE:
 					this._onDidTabMove(event);
 					break;
 				default:
@@ -276,7 +278,8 @@ export class MainThreadEditorTabs {
 		if (!group) {
 			return;
 		}
-		const editor = group.editors.find(editor => editor.matches(this._tabToUntypedEditorInput(tab)));
+		const editorTab = this._tabToUntypedEditorInput(tab);
+		const editor = group.editors.find(editor => editor.matches(editorTab));
 		if (!editor) {
 			return;
 		}

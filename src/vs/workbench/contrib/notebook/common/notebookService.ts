@@ -92,4 +92,5 @@ export interface INotebookService {
 
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean): void;
 	getToCopy(): { items: NotebookCellTextModel[], isCopy: boolean; } | undefined;
+	clearEditorCache(): void;
 }

@@ -6,20 +6,22 @@
 import { Event } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { OverviewRulerPosition, ConfigurationChangedEvent, EditorLayoutInfo, IComputedEditorOptions, EditorOption, FindComputedEditorOptionValueById, IEditorOptions, IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursor/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer, IWordAtPosition } from 'vs/editor/common/model';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
+import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer, PositionAffinity } from 'vs/editor/common/model';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/textModelEvents';
+import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { IDimension } from 'vs/editor/common/core/dimension';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -34,8 +36,14 @@ export interface IViewZone {
 	/**
 	 * The column after which this zone should appear.
 	 * If not set, the maxLineColumn of `afterLineNumber` will be used.
+	 * This is relevant for wrapped lines.
 	 */
 	afterColumn?: number;
+
+	/**
+	 * If the `afterColumn` has multiple view columns, the affinity specifies which one to use. Defaults to `none`.
+	*/
+	afterColumnAffinity?: PositionAffinity;
 	/**
 	 * Suppress mouse down events.
 	 * If set, the editor will attach a mouse down listener to the view zone and .preventDefault on it.
@@ -142,7 +150,9 @@ export interface IContentWidget {
 	 * Render this content widget in a location where it could overflow the editor's view dom node.
 	 */
 	allowEditorOverflow?: boolean;
-
+	/**
+	 * Call preventDefault() on mousedown events that target the content widget.
+	 */
 	suppressMouseDown?: boolean;
 	/**
 	 * Get a unique identifier of the content widget.
@@ -162,7 +172,7 @@ export interface IContentWidget {
 	 * the content widget. If a dimension is returned the editor will
 	 * attempt to use it.
 	 */
-	beforeRender?(): editorCommon.IDimension | null;
+	beforeRender?(): IDimension | null;
 	/**
 	 * Optional function that is invoked after rendering the content
 	 * widget. Is being invoked with the selected position preference
@@ -279,19 +289,11 @@ export const enum MouseTargetType {
 	 */
 	OUTSIDE_EDITOR,
 }
-
-/**
- * Target hit with the mouse in the editor.
- */
-export interface IMouseTarget {
+export interface IBaseMouseTarget {
 	/**
 	 * The target element
 	 */
 	readonly element: Element | null;
-	/**
-	 * The target type
-	 */
-	readonly type: MouseTargetType;
 	/**
 	 * The 'approximate' editor position
 	 */
@@ -304,11 +306,103 @@ export interface IMouseTarget {
 	 * The 'approximate' editor range
 	 */
 	readonly range: Range | null;
-	/**
-	 * Some extra detail.
-	 */
-	readonly detail: any;
 }
+export interface IMouseTargetUnknown extends IBaseMouseTarget {
+	readonly type: MouseTargetType.UNKNOWN;
+}
+export interface IMouseTargetTextarea extends IBaseMouseTarget {
+	readonly type: MouseTargetType.TEXTAREA;
+	readonly position: null;
+	readonly range: null;
+}
+export interface IMouseTargetMarginData {
+	readonly isAfterLines: boolean;
+	readonly glyphMarginLeft: number;
+	readonly glyphMarginWidth: number;
+	readonly lineNumbersWidth: number;
+	readonly offsetX: number;
+}
+export interface IMouseTargetMargin extends IBaseMouseTarget {
+	readonly type: MouseTargetType.GUTTER_GLYPH_MARGIN | MouseTargetType.GUTTER_LINE_NUMBERS | MouseTargetType.GUTTER_LINE_DECORATIONS;
+	readonly position: Position;
+	readonly range: Range;
+	readonly detail: IMouseTargetMarginData;
+}
+export interface IMouseTargetViewZoneData {
+	readonly viewZoneId: string;
+	readonly positionBefore: Position | null;
+	readonly positionAfter: Position | null;
+	readonly position: Position;
+	readonly afterLineNumber: number;
+}
+export interface IMouseTargetViewZone extends IBaseMouseTarget {
+	readonly type: MouseTargetType.GUTTER_VIEW_ZONE | MouseTargetType.CONTENT_VIEW_ZONE;
+	readonly position: Position;
+	readonly range: Range;
+	readonly detail: IMouseTargetViewZoneData;
+}
+export interface IMouseTargetContentTextData {
+	readonly mightBeForeignElement: boolean;
+	/**
+	 * @internal
+	 */
+	readonly injectedText: InjectedText | null;
+}
+export interface IMouseTargetContentText extends IBaseMouseTarget {
+	readonly type: MouseTargetType.CONTENT_TEXT;
+	readonly position: Position;
+	readonly range: Range;
+	readonly detail: IMouseTargetContentTextData;
+}
+export interface IMouseTargetContentEmptyData {
+	readonly isAfterLines: boolean;
+	readonly horizontalDistanceToText?: number;
+}
+export interface IMouseTargetContentEmpty extends IBaseMouseTarget {
+	readonly type: MouseTargetType.CONTENT_EMPTY;
+	readonly position: Position;
+	readonly range: Range;
+	readonly detail: IMouseTargetContentEmptyData;
+}
+export interface IMouseTargetContentWidget extends IBaseMouseTarget {
+	readonly type: MouseTargetType.CONTENT_WIDGET;
+	readonly position: null;
+	readonly range: null;
+	readonly detail: string;
+}
+export interface IMouseTargetOverlayWidget extends IBaseMouseTarget {
+	readonly type: MouseTargetType.OVERLAY_WIDGET;
+	readonly position: null;
+	readonly range: null;
+	readonly detail: string;
+}
+export interface IMouseTargetScrollbar extends IBaseMouseTarget {
+	readonly type: MouseTargetType.SCROLLBAR;
+	readonly position: Position;
+	readonly range: Range;
+}
+export interface IMouseTargetOverviewRuler extends IBaseMouseTarget {
+	readonly type: MouseTargetType.OVERVIEW_RULER;
+}
+export interface IMouseTargetOutsideEditor extends IBaseMouseTarget {
+	readonly type: MouseTargetType.OUTSIDE_EDITOR;
+}
+/**
+ * Target hit with the mouse in the editor.
+ */
+export type IMouseTarget = (
+	IMouseTargetUnknown
+	| IMouseTargetTextarea
+	| IMouseTargetMargin
+	| IMouseTargetViewZone
+	| IMouseTargetContentText
+	| IMouseTargetContentEmpty
+	| IMouseTargetContentWidget
+	| IMouseTargetOverlayWidget
+	| IMouseTargetScrollbar
+	| IMouseTargetOverviewRuler
+	| IMouseTargetOutsideEditor
+);
 /**
  * A mouse event originating from the editor.
  */
@@ -349,23 +443,11 @@ export interface IEditorAriaOptions {
 	role?: string;
 }
 
-export interface IEditorConstructionOptions extends IEditorOptions {
-	/**
-	 * The initial editor dimension (to avoid measuring the container).
-	 */
-	dimension?: editorCommon.IDimension;
-	/**
-	 * Place overflow widgets inside an external DOM node.
-	 * Defaults to an internal DOM node.
-	 */
-	overflowWidgetsDomNode?: HTMLElement;
-}
-
 export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 	/**
 	 * The initial editor dimension (to avoid measuring the container).
 	 */
-	dimension?: editorCommon.IDimension;
+	dimension?: IDimension;
 
 	/**
 	 * Place overflow widgets inside an external DOM node.
@@ -403,177 +485,177 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * An event emitted when the content of the current model has changed.
 	 * @event
 	 */
-	onDidChangeModelContent: Event<IModelContentChangedEvent>;
+	readonly onDidChangeModelContent: Event<IModelContentChangedEvent>;
 	/**
 	 * An event emitted when the language of the current model has changed.
 	 * @event
 	 */
-	onDidChangeModelLanguage: Event<IModelLanguageChangedEvent>;
+	readonly onDidChangeModelLanguage: Event<IModelLanguageChangedEvent>;
 	/**
 	 * An event emitted when the language configuration of the current model has changed.
 	 * @event
 	 */
-	onDidChangeModelLanguageConfiguration: Event<IModelLanguageConfigurationChangedEvent>;
+	readonly onDidChangeModelLanguageConfiguration: Event<IModelLanguageConfigurationChangedEvent>;
 	/**
 	 * An event emitted when the options of the current model has changed.
 	 * @event
 	 */
-	onDidChangeModelOptions: Event<IModelOptionsChangedEvent>;
+	readonly onDidChangeModelOptions: Event<IModelOptionsChangedEvent>;
 	/**
 	 * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
 	 * @event
 	 */
-	onDidChangeConfiguration: Event<ConfigurationChangedEvent>;
+	readonly onDidChangeConfiguration: Event<ConfigurationChangedEvent>;
 	/**
 	 * An event emitted when the cursor position has changed.
 	 * @event
 	 */
-	onDidChangeCursorPosition: Event<ICursorPositionChangedEvent>;
+	readonly onDidChangeCursorPosition: Event<ICursorPositionChangedEvent>;
 	/**
 	 * An event emitted when the cursor selection has changed.
 	 * @event
 	 */
-	onDidChangeCursorSelection: Event<ICursorSelectionChangedEvent>;
+	readonly onDidChangeCursorSelection: Event<ICursorSelectionChangedEvent>;
 	/**
 	 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
 	 * @event
 	 */
-	onDidChangeModel: Event<editorCommon.IModelChangedEvent>;
+	readonly onDidChangeModel: Event<editorCommon.IModelChangedEvent>;
 	/**
 	 * An event emitted when the decorations of the current model have changed.
 	 * @event
 	 */
-	onDidChangeModelDecorations: Event<IModelDecorationsChangedEvent>;
+	readonly onDidChangeModelDecorations: Event<IModelDecorationsChangedEvent>;
 	/**
 	 * An event emitted when the text inside this editor gained focus (i.e. cursor starts blinking).
 	 * @event
 	 */
-	onDidFocusEditorText(listener: () => void): IDisposable;
+	readonly onDidFocusEditorText: Event<void>;
 	/**
 	 * An event emitted when the text inside this editor lost focus (i.e. cursor stops blinking).
 	 * @event
 	 */
-	onDidBlurEditorText(listener: () => void): IDisposable;
+	readonly onDidBlurEditorText: Event<void>;
 	/**
 	 * An event emitted when the text inside this editor or an editor widget gained focus.
 	 * @event
 	 */
-	onDidFocusEditorWidget(listener: () => void): IDisposable;
+	readonly onDidFocusEditorWidget: Event<void>;
 	/**
 	 * An event emitted when the text inside this editor or an editor widget lost focus.
 	 * @event
 	 */
-	onDidBlurEditorWidget(listener: () => void): IDisposable;
+	readonly onDidBlurEditorWidget: Event<void>;
 	/**
 	 * An event emitted before interpreting typed characters (on the keyboard).
 	 * @event
 	 * @internal
 	 */
-	onWillType(listener: (text: string) => void): IDisposable;
+	readonly onWillType: Event<string>;
 	/**
 	 * An event emitted after interpreting typed characters (on the keyboard).
 	 * @event
 	 * @internal
 	 */
-	onDidType(listener: (text: string) => void): IDisposable;
+	readonly onDidType: Event<string>;
 	/**
 	 * An event emitted after composition has started.
 	 */
-	onDidCompositionStart(listener: () => void): IDisposable;
+	readonly onDidCompositionStart: Event<void>;
 	/**
 	 * An event emitted after composition has ended.
 	 */
-	onDidCompositionEnd(listener: () => void): IDisposable;
+	readonly onDidCompositionEnd: Event<void>;
 	/**
 	 * An event emitted when editing failed because the editor is read-only.
 	 * @event
 	 */
-	onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
+	readonly onDidAttemptReadOnlyEdit: Event<void>;
 	/**
 	 * An event emitted when users paste text in the editor.
 	 * @event
 	 */
-	onDidPaste: Event<IPasteEvent>;
+	readonly onDidPaste: Event<IPasteEvent>;
 	/**
 	 * An event emitted on a "mouseup".
 	 * @event
 	 */
-	onMouseUp: Event<IEditorMouseEvent>;
+	readonly onMouseUp: Event<IEditorMouseEvent>;
 	/**
 	 * An event emitted on a "mousedown".
 	 * @event
 	 */
-	onMouseDown: Event<IEditorMouseEvent>;
+	readonly onMouseDown: Event<IEditorMouseEvent>;
 	/**
 	 * An event emitted on a "mousedrag".
 	 * @internal
 	 * @event
 	 */
-	onMouseDrag: Event<IEditorMouseEvent>;
+	readonly onMouseDrag: Event<IEditorMouseEvent>;
 	/**
 	 * An event emitted on a "mousedrop".
 	 * @internal
 	 * @event
 	 */
-	onMouseDrop: Event<IPartialEditorMouseEvent>;
+	readonly onMouseDrop: Event<IPartialEditorMouseEvent>;
 	/**
 	 * An event emitted on a "mousedropcanceled".
 	 * @internal
 	 * @event
 	 */
-	onMouseDropCanceled(listener: () => void): IDisposable;
+	readonly onMouseDropCanceled: Event<void>;
 	/**
 	 * An event emitted on a "contextmenu".
 	 * @event
 	 */
-	onContextMenu: Event<IEditorMouseEvent>;
+	readonly onContextMenu: Event<IEditorMouseEvent>;
 	/**
 	 * An event emitted on a "mousemove".
 	 * @event
 	 */
-	onMouseMove: Event<IEditorMouseEvent>;
+	readonly onMouseMove: Event<IEditorMouseEvent>;
 	/**
 	 * An event emitted on a "mouseleave".
 	 * @event
 	 */
-	onMouseLeave: Event<IPartialEditorMouseEvent>;
+	readonly onMouseLeave: Event<IPartialEditorMouseEvent>;
 	/**
 	 * An event emitted on a "mousewheel"
 	 * @event
 	 * @internal
 	 */
-	onMouseWheel: Event<IMouseWheelEvent>;
+	readonly onMouseWheel: Event<IMouseWheelEvent>;
 	/**
 	 * An event emitted on a "keyup".
 	 * @event
 	 */
-	onKeyUp: Event<IKeyboardEvent>;
+	readonly onKeyUp: Event<IKeyboardEvent>;
 	/**
 	 * An event emitted on a "keydown".
 	 * @event
 	 */
-	onKeyDown: Event<IKeyboardEvent>;
+	readonly onKeyDown: Event<IKeyboardEvent>;
 	/**
 	 * An event emitted when the layout of the editor has changed.
 	 * @event
 	 */
-	onDidLayoutChange: Event<EditorLayoutInfo>;
+	readonly onDidLayoutChange: Event<EditorLayoutInfo>;
 	/**
 	 * An event emitted when the content width or content height in the editor has changed.
 	 * @event
 	 */
-	onDidContentSizeChange: Event<editorCommon.IContentSizeChangedEvent>;
+	readonly onDidContentSizeChange: Event<editorCommon.IContentSizeChangedEvent>;
 	/**
 	 * An event emitted when the scroll in the editor has changed.
 	 * @event
 	 */
-	onDidScrollChange: Event<editorCommon.IScrollEvent>;
+	readonly onDidScrollChange: Event<editorCommon.IScrollEvent>;
 
 	/**
 	 * An event emitted when hidden areas change in the editor (e.g. due to folding).
 	 * @event
 	 */
-	onDidChangeHiddenAreas: Event<void>;
+	readonly onDidChangeHiddenAreas: Event<void>;
 
 	/**
 	 * Saves current view state of the editor in a serializable object.
@@ -595,7 +677,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @id Unique identifier of the contribution.
 	 * @return The contribution or null if contribution not found.
 	 */
-	getContribution<T extends editorCommon.IEditorContribution>(id: string): T;
+	getContribution<T extends editorCommon.IEditorContribution>(id: string): T | null;
 
 	/**
 	 * Execute `fn` with the editor's services.
@@ -746,6 +828,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Get all the decorations on a line (filtering out decorations from other editors).
 	 */
 	getLineDecorations(lineNumber: number): IModelDecoration[] | null;
+
+	/**
+	 * Get all the decorations for a range (filtering out decorations from other editors).
+	 */
+	getDecorationsInRange(range: Range): IModelDecoration[] | null;
 
 	/**
 	 * All decorations added through this call will get the ownerId of this editor.
@@ -899,6 +986,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	hasModel(): this is IActiveCodeEditor;
+
+	setBanner(bannerDomNode: HTMLElement | null, height: number): void;
 }
 
 /**
@@ -988,15 +1077,15 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	readonly maxComputationTime: number;
 
 	/**
-	 * @see {@link ICodeEditor.getDomNode}
+	 * @see {@link ICodeEditor.getContainerDomNode}
 	 */
-	getDomNode(): HTMLElement;
+	getContainerDomNode(): HTMLElement;
 
 	/**
 	 * An event emitted when the diff information computed by this diff editor has been updated.
 	 * @event
 	 */
-	onDidUpdateDiff(listener: () => void): IDisposable;
+	readonly onDidUpdateDiff: Event<void>;
 
 	/**
 	 * Saves current view state of the editor in a serializable object.
@@ -1036,7 +1125,7 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	/**
 	 * Get the computed diff information.
 	 */
-	getLineChanges(): editorCommon.ILineChange[] | null;
+	getLineChanges(): ILineChange[] | null;
 
 	/**
 	 * Get the computed diff information.

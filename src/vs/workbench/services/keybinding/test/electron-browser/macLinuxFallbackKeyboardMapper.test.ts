@@ -161,7 +161,7 @@ suite('keyboardMapper - MAC fallback', () => {
 			},
 			{
 				label: '⌥',
-				ariaLabel: 'Alt',
+				ariaLabel: 'Option',
 				electronAccelerator: null,
 				userSettingsLabel: 'alt',
 				isWYSIWYG: true,

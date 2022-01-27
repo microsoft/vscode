@@ -22,7 +22,7 @@ import { indexOfPath } from 'vs/base/common/extpath';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -122,7 +122,8 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * resources associated with the input should be freed.
 	 *
 	 * This method can be called based on different contexts, e.g. when opening
-	 * a different editor control or when closing all editors in a group.
+	 * a different input or different editor control or when closing all editors
+	 * in a group.
 	 *
 	 * To monitor the lifecycle of editor inputs, you should not rely on this
 	 * method, rather refer to the listeners on `IEditorGroup` via `IEditorGroupService`.

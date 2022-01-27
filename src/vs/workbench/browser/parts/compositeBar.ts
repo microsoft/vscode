@@ -428,7 +428,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		// Case: we closed the last visible composite
 		// Solv: we hide the part
-		else if (this.visibleComposites.length === 0) {
+		else if (this.visibleComposites.length <= 1) {
 			this.options.hidePart();
 		}
 

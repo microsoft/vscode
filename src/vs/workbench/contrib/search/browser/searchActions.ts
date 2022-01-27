@@ -667,10 +667,9 @@ function matchToString(match: Match, indent = 0): string {
 }
 
 const lineDelimiter = isWindows ? '\r\n' : '\n';
-function fileMatchToString(fileMatch: FileMatch, maxMatches: number, labelService: ILabelService): { text: string, count: number } {
+function fileMatchToString(fileMatch: FileMatch, labelService: ILabelService): { text: string, count: number } {
 	const matchTextRows = fileMatch.matches()
 		.sort(searchMatchComparer)
-		.slice(0, maxMatches)
 		.map(match => matchToString(match, 2));
 	const uriString = labelService.getUriLabel(fileMatch.resource, { noPrefix: true });
 	return {
@@ -679,17 +678,17 @@ function fileMatchToString(fileMatch: FileMatch, maxMatches: number, labelServic
 	};
 }
 
-function folderMatchToString(folderMatch: FolderMatchWithResource | FolderMatch, maxMatches: number, labelService: ILabelService): { text: string, count: number } {
+function folderMatchToString(folderMatch: FolderMatchWithResource | FolderMatch, labelService: ILabelService): { text: string, count: number } {
 	const fileResults: string[] = [];
 	let numMatches = 0;
 
 	const matches = folderMatch.matches().sort(searchMatchComparer);
 
-	for (let i = 0; i < folderMatch.fileCount() && numMatches < maxMatches; i++) {
-		const fileResult = fileMatchToString(matches[i], maxMatches - numMatches, labelService);
+	matches.forEach(match => {
+		const fileResult = fileMatchToString(match, labelService);
 		numMatches += fileResult.count;
 		fileResults.push(fileResult.text);
-	}
+	});
 
 	return {
 		text: fileResults.join(lineDelimiter + lineDelimiter),
@@ -697,7 +696,6 @@ function folderMatchToString(folderMatch: FolderMatchWithResource | FolderMatch,
 	};
 }
 
-const maxClipboardMatches = 1e4;
 export const copyMatchCommand: ICommandHandler = async (accessor, match: RenderableMatch | undefined) => {
 	if (!match) {
 		const selection = getSelectedRow(accessor);
@@ -715,9 +713,9 @@ export const copyMatchCommand: ICommandHandler = async (accessor, match: Rendera
 	if (match instanceof Match) {
 		text = matchToString(match);
 	} else if (match instanceof FileMatch) {
-		text = fileMatchToString(match, maxClipboardMatches, labelService).text;
+		text = fileMatchToString(match, labelService).text;
 	} else if (match instanceof FolderMatch) {
-		text = folderMatchToString(match, maxClipboardMatches, labelService).text;
+		text = folderMatchToString(match, labelService).text;
 	}
 
 	if (text) {
@@ -725,14 +723,12 @@ export const copyMatchCommand: ICommandHandler = async (accessor, match: Rendera
 	}
 };
 
-function allFolderMatchesToString(folderMatches: Array<FolderMatchWithResource | FolderMatch>, maxMatches: number, labelService: ILabelService): string {
+function allFolderMatchesToString(folderMatches: Array<FolderMatchWithResource | FolderMatch>, labelService: ILabelService): string {
 	const folderResults: string[] = [];
-	let numMatches = 0;
 	folderMatches = folderMatches.sort(searchMatchComparer);
-	for (let i = 0; i < folderMatches.length && numMatches < maxMatches; i++) {
-		const folderResult = folderMatchToString(folderMatches[i], maxMatches - numMatches, labelService);
+	for (let i = 0; i < folderMatches.length; i++) {
+		const folderResult = folderMatchToString(folderMatches[i], labelService);
 		if (folderResult.count) {
-			numMatches += folderResult.count;
 			folderResults.push(folderResult.text);
 		}
 	}
@@ -755,7 +751,7 @@ export const copyAllCommand: ICommandHandler = async (accessor) => {
 	if (searchView) {
 		const root = searchView.searchResult;
 
-		const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches, labelService);
+		const text = allFolderMatchesToString(root.folderMatches(), labelService);
 		await clipboardService.writeText(text);
 	}
 };

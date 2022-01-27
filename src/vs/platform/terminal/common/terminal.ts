@@ -91,6 +91,7 @@ export const enum TerminalSettingId {
 	UnicodeVersion = 'terminal.integrated.unicodeVersion',
 	ExperimentalLinkProvider = 'terminal.integrated.experimentalLinkProvider',
 	LocalEchoLatencyThreshold = 'terminal.integrated.localEchoLatencyThreshold',
+	LocalEchoEnabled = 'terminal.integrated.localEchoEnabled',
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
@@ -100,6 +101,8 @@ export const enum TerminalSettingId {
 	InheritEnv = 'terminal.integrated.inheritEnv',
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
 	IgnoreProcessNames = 'terminal.integrated.ignoreProcessNames',
+	AutoReplies = 'terminal.integrated.autoReplies',
+	EnableShellIntegration = 'terminal.integrated.enableShellIntegration'
 }
 
 export enum WindowsShellType {
@@ -220,15 +223,19 @@ export interface IFixedTerminalDimensions {
 	rows?: number;
 }
 
-
-export interface IPtyService {
-	readonly _serviceBrand: undefined;
-
+export interface IPtyHostController {
 	readonly onPtyHostExit?: Event<number>;
 	readonly onPtyHostStart?: Event<void>;
 	readonly onPtyHostUnresponsive?: Event<void>;
 	readonly onPtyHostResponsive?: Event<void>;
 	readonly onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent>;
+
+	restartPtyHost?(): Promise<void>;
+	acceptPtyHostResolvedVariables?(requestId: number, resolved: string[]): Promise<void>;
+}
+
+export interface IPtyService extends IPtyHostController {
+	readonly _serviceBrand: undefined;
 
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
 	readonly onProcessReady: Event<{ id: number, event: IProcessReadyEvent }>;
@@ -277,6 +284,9 @@ export interface IPtyService {
 	orphanQuestionReply(id: number): Promise<void>;
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
 	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
+	installAutoReply(match: string, reply: string): Promise<void>;
+	uninstallAllAutoReplies(): Promise<void>;
+	uninstallAutoReply(match: string): Promise<void>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getProfiles?(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
@@ -295,11 +305,36 @@ export interface IPtyService {
 	 * Revives a workspaces terminal processes, these can then be reconnected to using the normal
 	 * flow for restoring terminals after reloading.
 	 */
-	reviveTerminalProcesses(state: string): Promise<void>;
+	reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void>;
 	refreshProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]>;
 	updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: IProcessPropertyMap[T]): Promise<void>;
 
 	refreshIgnoreProcessNames?(names: string[]): Promise<void>;
+}
+
+/**
+ * Serialized terminal state matching the interface that can be used across versions, the version
+ * should be verified before using the state payload.
+ */
+export interface ICrossVersionSerializedTerminalState {
+	version: number;
+	state: unknown;
+}
+
+export interface ISerializedTerminalState {
+	id: number;
+	shellLaunchConfig: IShellLaunchConfig;
+	processDetails: IProcessDetails;
+	processLaunchOptions: IPersistentTerminalProcessLaunchOptions;
+	unicodeVersion: '6' | '11';
+	replayEvent: IPtyHostProcessReplayEvent;
+	timestamp: number;
+}
+
+export interface IPersistentTerminalProcessLaunchOptions {
+	env: IProcessEnvironment;
+	executableEnv: IProcessEnvironment;
+	windowsEnableConpty: boolean;
 }
 
 export interface IRequestResolveVariablesEvent {
@@ -335,6 +370,7 @@ export enum HeartbeatConstants {
 export interface IHeartbeatService {
 	readonly onBeat: Event<void>;
 }
+
 
 export interface IShellLaunchConfig {
 	/**
@@ -462,6 +498,11 @@ export interface IShellLaunchConfig {
 	 * or via Size to Content Width
 	 */
 	fixedDimensions?: IFixedTerminalDimensions;
+
+	/**
+	 * Opt-out of the default terminal persistence on restart and reload
+	 */
+	disablePersistence?: boolean;
 }
 
 export interface ICreateContributedTerminalProfileOptions {
@@ -504,12 +545,7 @@ export interface ITerminalLaunchError {
 export interface IProcessReadyEvent {
 	pid: number,
 	cwd: string,
-	capabilities: ProcessCapability[],
 	requiresWindowsMode?: boolean
-}
-
-export const enum ProcessCapability {
-	CwdDetection = 'cwdDetection'
 }
 
 /**
@@ -528,11 +564,6 @@ export interface ITerminalChildProcess {
 	 * Whether the process should be persisted across reloads.
 	 */
 	shouldPersist: boolean;
-
-	/**
-	 * Capabilities of the process, designated when it starts
-	 */
-	capabilities: ProcessCapability[];
 
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessReady: Event<IProcessReadyEvent>;
@@ -650,6 +681,11 @@ export interface ITerminalProfile {
 	path: string;
 	isDefault: boolean;
 	isAutoDetected?: boolean;
+	/**
+	 * Whether the profile path was found on the `$PATH` environment variable, if so it will be
+	 * cleaner to display this profile in the UI using only `basename(path)`.
+	 */
+	isFromPath?: boolean;
 	args?: string | string[] | undefined;
 	env?: ITerminalEnvironment;
 	overrideName?: boolean;

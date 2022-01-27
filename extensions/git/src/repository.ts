@@ -5,7 +5,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, SourceControlActionButton } from 'vscode';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
 import { AutoFetcher } from './autofetch';
@@ -13,12 +14,12 @@ import { debounce, memoize, throttle } from './decorators';
 import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, logTimestamp, onceEvent, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { Log, LogLevel } from './log';
-import { IRemoteSourceProviderRegistry } from './remoteProvider';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
+import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -516,8 +517,8 @@ class FileEventLogger {
 		}
 
 		this.eventDisposable = combinedDisposable([
-			this.onWorkspaceWorkingTreeFileChange(uri => this.outputChannel.appendLine(`[debug] [wt] Change: ${uri.fsPath}`)),
-			this.onDotGitFileChange(uri => this.outputChannel.appendLine(`[debug] [.git] Change: ${uri.fsPath}`))
+			this.onWorkspaceWorkingTreeFileChange(uri => this.outputChannel.appendLine(`${logTimestamp()} [debug] [wt] Change: ${uri.fsPath}`)),
+			this.onDotGitFileChange(uri => this.outputChannel.appendLine(`${logTimestamp()} [debug] [.git] Change: ${uri.fsPath}`))
 		]);
 	}
 
@@ -567,7 +568,7 @@ class DotGitWatcher implements IFileWatcher {
 			upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
 		} catch (err) {
 			if (Log.logLevel <= LogLevel.Error) {
-				this.outputChannel.appendLine(`Warning: Failed to watch ref '${upstreamPath}', is most likely packed.`);
+				this.outputChannel.appendLine(`${logTimestamp()} Warning: Failed to watch ref '${upstreamPath}', is most likely packed.`);
 			}
 		}
 	}
@@ -664,7 +665,7 @@ class ResourceCommandResolver {
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
 			case Status.IGNORED:
-			case Status.INTENT_TO_ADD:
+			case Status.INTENT_TO_ADD: {
 				const uriString = resource.resourceUri.toString();
 				const [indexStatus] = this.repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 
@@ -673,7 +674,7 @@ class ResourceCommandResolver {
 				}
 
 				return resource.resourceUri;
-
+			}
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return resource.resourceUri;
@@ -850,10 +851,11 @@ export class Repository implements Disposable {
 
 	constructor(
 		private readonly repository: BaseRepository,
-		remoteSourceProviderRegistry: IRemoteSourceProviderRegistry,
 		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
+		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		globalState: Memento,
-		outputChannel: OutputChannel
+		outputChannel: OutputChannel,
+		private telemetryReporter: TelemetryReporter
 	) {
 		const workspaceWatcher = workspace.createFileSystemWatcher('**');
 		this.disposables.push(workspaceWatcher);
@@ -870,7 +872,7 @@ export class Repository implements Disposable {
 			this.disposables.push(dotGitFileWatcher);
 		} catch (err) {
 			if (Log.logLevel <= LogLevel.Error) {
-				outputChannel.appendLine(`Failed to watch '${this.dotGit}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
+				outputChannel.appendLine(`${logTimestamp()} Failed to watch '${this.dotGit}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
 			}
 
 			onDotGitFileChange = filterEvent(onWorkspaceRepositoryFileChange, uri => /\/\.git($|\/)/.test(uri.path));
@@ -959,7 +961,7 @@ export class Repository implements Disposable {
 			}
 		}, null, this.disposables);
 
-		const statusBar = new StatusBarCommands(this, remoteSourceProviderRegistry);
+		const statusBar = new StatusBarCommands(this, remoteSourcePublisherRegistry);
 		this.disposables.push(statusBar);
 		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
 		this._sourceControl.statusBarCommands = statusBar.commands;
@@ -1159,8 +1161,8 @@ export class Repository implements Disposable {
 	}
 
 	async stage(resource: Uri, contents: string): Promise<void> {
-		const relativePath = path.relative(this.repository.root, resource.fsPath).replace(/\\/g, '/');
-		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
+		const path = relativePath(this.repository.root, resource.fsPath).replace(/\\/g, '/');
+		await this.run(Operation.Stage, () => this.repository.stage(path, contents));
 		this._onDidChangeOriginalResource.fire(resource);
 	}
 
@@ -1543,16 +1545,16 @@ export class Repository implements Disposable {
 
 	async show(ref: string, filePath: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
-			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
+			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
 			const defaultEncoding = configFiles.get<string>('encoding');
 			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
 
 			try {
-				return await this.repository.bufferString(`${ref}:${relativePath}`, defaultEncoding, autoGuessEncoding);
+				return await this.repository.bufferString(`${ref}:${path}`, defaultEncoding, autoGuessEncoding);
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.WrongCase) {
-					const gitRelativePath = await this.repository.getGitRelativePath(ref, relativePath);
+					const gitRelativePath = await this.repository.getGitRelativePath(ref, path);
 					return await this.repository.bufferString(`${ref}:${gitRelativePath}`, defaultEncoding, autoGuessEncoding);
 				}
 
@@ -1563,8 +1565,8 @@ export class Repository implements Disposable {
 
 	async buffer(ref: string, filePath: string): Promise<Buffer> {
 		return this.run(Operation.Show, () => {
-			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
-			return this.repository.buffer(`${ref}:${relativePath}`);
+			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
+			return this.repository.buffer(`${ref}:${path}`);
 		});
 	}
 
@@ -1608,7 +1610,7 @@ export class Repository implements Disposable {
 		return await this.run(Operation.Ignore, async () => {
 			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
 			const textToAppend = files
-				.map(uri => path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
+				.map(uri => relativePath(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
 				.join('\n');
 
 			const document = await new Promise(c => fs.exists(ignoreFile, c))
@@ -1800,9 +1802,20 @@ export class Repository implements Disposable {
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
 
-		const limit = scopedConfig.get<number>('statusLimit', 5000);
+		const limit = scopedConfig.get<number>('statusLimit', 10000);
 
-		const { status, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules });
+		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules });
+
+		if (didHitLimit) {
+			/* __GDPR__
+				"statusLimit" : {
+					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"limit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+				}
+			*/
+			this.telemetryReporter.sendTelemetryEvent('statusLimit', { ignoreSubmodules: String(ignoreSubmodules) }, { limit, statusLength });
+		}
 
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
@@ -1922,7 +1935,7 @@ export class Repository implements Disposable {
 			return undefined;
 		});
 
-		let actionButton: SourceControl['actionButton'];
+		let actionButton: SourceControlActionButton | undefined;
 		if (HEAD !== undefined) {
 			const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 			const showActionButton = config.get<string>('showUnpublishedCommitsButton', 'whenEmpty');
@@ -1935,18 +1948,23 @@ export class Repository implements Disposable {
 							const rebaseWhenSync = config.get<string>('rebaseWhenSync');
 
 							actionButton = {
-								command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
-								title: localize('scm button sync title', '$(sync) Sync Changes {0}{1}', HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
-								tooltip: this.syncTooltip,
-								arguments: [this._sourceControl],
+								command: {
+									command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
+									title: localize('scm button sync title', "$(sync) {0}{1}", HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
+									tooltip: this.syncTooltip,
+									arguments: [this._sourceControl],
+								},
+								description: localize('scm button sync description', "$(sync) Sync Changes {0}{1}", HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`)
 							};
 						}
 					} else {
 						actionButton = {
-							command: 'git.publish',
-							title: localize('scm button publish title', "$(cloud-upload) Publish Changes"),
-							tooltip: localize('scm button publish tooltip', "Publish Changes"),
-							arguments: [this._sourceControl],
+							command: {
+								command: 'git.publish',
+								title: localize('scm button publish title', "$(cloud-upload) Publish Branch"),
+								tooltip: localize('scm button publish tooltip', "Publish Branch"),
+								arguments: [this._sourceControl],
+							}
 						};
 					}
 				}

@@ -12,23 +12,21 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { activeContrastBorder, contrastBorder, editorBackground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Extensions as PaneCompositeExtensions } from 'vs/workbench/browser/panecomposite';
 import { BasePanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
-import { ActiveAuxiliaryContext, AuxiliaryBarFocusContext } from 'vs/workbench/common/auxiliarybar';
+import { ActiveAuxiliaryContext, AuxiliaryBarFocusContext } from 'vs/workbench/common/contextkeys';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, SIDE_BAR_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IAction, Separator } from 'vs/base/common/actions';
+import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
 import { assertIsDefined } from 'vs/base/common/types';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-export const AUXILIARYBAR_ENABLED: string = 'workbench.experimental.sidePanel.enabled';
+import { MoveSidePanelToPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 
 export class AuxiliaryBarPart extends BasePanelPart {
 	static readonly activePanelSettingsKey = 'workbench.auxiliarybar.activepanelid';
@@ -36,13 +34,12 @@ export class AuxiliaryBarPart extends BasePanelPart {
 	static readonly placeholdeViewContainersKey = 'workbench.auxiliarybar.placeholderPanels';
 
 	// Use the side bar dimensions
-	override readonly minimumWidth: number = this.isEnabled ? 170 : 0;
-	override readonly maximumWidth: number = this.isEnabled ? Number.POSITIVE_INFINITY : 0;
+	override readonly minimumWidth: number = 170;
+	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	override readonly minimumHeight: number = 0;
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
 	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -56,16 +53,6 @@ export class AuxiliaryBarPart extends BasePanelPart {
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		super(
-			Parts.AUXILIARYBAR_PART,
-			AuxiliaryBarPart.activePanelSettingsKey,
-			AuxiliaryBarPart.pinnedPanelsKey,
-			AuxiliaryBarPart.placeholdeViewContainersKey,
-			PaneCompositeExtensions.Auxiliary,
-			SIDE_BAR_BACKGROUND,
-			ViewContainerLocation.AuxiliaryBar,
-			ActiveAuxiliaryContext.bindTo(contextKeyService),
-			AuxiliaryBarFocusContext.bindTo(contextKeyService),
-			() => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0,
 			notificationService,
 			storageService,
 			telemetryService,
@@ -77,11 +64,21 @@ export class AuxiliaryBarPart extends BasePanelPart {
 			viewDescriptorService,
 			contextKeyService,
 			extensionService,
+			Parts.AUXILIARYBAR_PART,
+			AuxiliaryBarPart.activePanelSettingsKey,
+			AuxiliaryBarPart.pinnedPanelsKey,
+			AuxiliaryBarPart.placeholdeViewContainersKey,
+			PaneCompositeExtensions.Auxiliary,
+			SIDE_BAR_BACKGROUND,
+			ViewContainerLocation.AuxiliaryBar,
+			ActiveAuxiliaryContext.bindTo(contextKeyService),
+			AuxiliaryBarFocusContext.bindTo(contextKeyService),
+			{
+				useIcons: true,
+				hasTitle: true,
+				borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0,
+			}
 		);
-	}
-
-	get isEnabled(): boolean {
-		return !!this.configurationService.getValue<boolean>(AUXILIARYBAR_ENABLED);
 	}
 
 	override updateStyles(): void {
@@ -110,6 +107,7 @@ export class AuxiliaryBarPart extends BasePanelPart {
 	protected fillExtraContextMenuActions(actions: IAction[]): void {
 		actions.push(...[
 			new Separator(),
+			toAction({ id: MoveSidePanelToPanelAction.ID, label: localize('moveToPanel', "Move Views to Panel"), run: () => this.instantiationService.invokeFunction(accessor => new MoveSidePanelToPanelAction().run(accessor)) }),
 			this.instantiationService.createInstance(ToggleAuxiliaryBarAction, ToggleAuxiliaryBarAction.ID, localize('hideAuxiliaryBar', "Hide Side Panel"))
 		]);
 	}
@@ -139,31 +137,17 @@ registerThemingParticipant((theme, collector) => {
 
 	// Title Active
 	const titleActive = theme.getColor(SIDE_BAR_TITLE_FOREGROUND);
-	const titleActiveBorder = theme.getColor(SIDE_BAR_TITLE_FOREGROUND);
-	if (titleActive || titleActiveBorder) {
+	if (titleActive) {
 		collector.addRule(`
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
-				color: ${titleActive} !important;
-				border-bottom-color: ${titleActiveBorder} !important;
-			}
+		.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+			color: ${titleActive} !important;
+		}
 		`);
-	}
-
-	// Title focus
-	const focusBorderColor = theme.getColor(focusBorder);
-	if (focusBorderColor) {
 		collector.addRule(`
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
-				color: ${titleActive} !important;
-				border-bottom-color: ${focusBorderColor} !important;
-				border-bottom: 1px solid;
-			}
-			`);
-		collector.addRule(`
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
-				outline: none;
-			}
-			`);
+		.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
+			color: ${titleActive} !important;
+		}
+		`);
 	}
 
 	// Styling with Outline color (e.g. high contrast theme)

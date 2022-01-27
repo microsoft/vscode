@@ -15,8 +15,9 @@ import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Command } from 'vs/editor/common/modes';
+import { Command } from 'vs/editor/common/languages';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
@@ -27,6 +28,10 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
+
+export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
+export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
+
 
 export enum CellKind {
 	Markup = 1,
@@ -57,14 +62,14 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER: readonly string[] = [
 ];
 
 /**
- * A mapping of extension IDs who contain renderers, to extensions who they
+ * A mapping of extension IDs who contain renderers, to notebook ids who they
  * should be treated as the same in the renderer selection logic. This is used
  * to prefer the 1st party Jupyter renderers even though they're in a separate
  * extension, for instance. See #136247.
  */
 export const RENDERER_EQUIVALENT_EXTENSIONS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
-	['ms-toolsai.jupyter', new Set(['vscode.ipynb'])],
-	['ms-toolsai.jupyter-renderers', new Set(['vscode.ipynb'])],
+	['ms-toolsai.jupyter', new Set(['jupyter-notebook', 'interactive'])],
+	['ms-toolsai.jupyter-renderers', new Set(['jupyter-notebook', 'interactive'])],
 ]);
 
 export const BUILTIN_RENDERER_ID = '_builtin';
@@ -101,13 +106,22 @@ export interface NotebookCellMetadata {
 export interface NotebookCellInternalMetadata {
 	executionOrder?: number;
 	lastRunSuccess?: boolean;
-	runState?: NotebookCellExecutionState;
 	runStartTime?: number;
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
-	isPaused?: boolean;
-	didPause?: boolean;
 }
+
+export interface NotebookCellCollapseState {
+	inputCollapsed?: boolean;
+	outputCollapsed?: boolean;
+}
+
+export interface NotebookCellDefaultCollapseConfig {
+	codeCell?: NotebookCellCollapseState;
+	markupCell?: NotebookCellCollapseState;
+}
+
+export type InteractiveWindowCollapseCodeCells = 'always' | 'never' | 'fromEditor';
 
 export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
 export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
@@ -190,7 +204,6 @@ export interface ICellOutput {
 }
 
 export interface CellInternalMetadataChangedEvent {
-	readonly runStateChanged?: boolean;
 	readonly lastRunSuccessChanged?: boolean;
 }
 
@@ -386,6 +399,7 @@ export interface ICellDto2 {
 	outputs: IOutputDto[];
 	metadata?: NotebookCellMetadata;
 	internalMetadata?: NotebookCellInternalMetadata;
+	collapseState?: NotebookCellCollapseState;
 }
 
 export interface ICellReplaceEdit {
@@ -515,25 +529,36 @@ export namespace CellUri {
 		return {
 			handle,
 			notebook: cell.with({
-				scheme: cell.fragment.substr(match[0].length) || Schemas.file,
+				scheme: cell.fragment.substring(match[0].length) || Schemas.file,
 				fragment: null
 			})
 		};
 	}
 
-	export function parseCellMetadataUri(metadata: URI) {
-		if (metadata.scheme !== Schemas.vscodeNotebookCellMetadata) {
-			return undefined;
+	export function generateCellOutputUri(notebook: URI, handle: number, outputId?: string) {
+		return notebook.with({
+			scheme: Schemas.vscodeNotebookCellOutput,
+			fragment: `ch${handle.toString().padStart(7, '0')},${outputId ?? ''},${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+		});
+	}
+
+	export function parseCellOutputUri(uri: URI): { notebook: URI, handle: number; outputId?: string } | undefined {
+		if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
+			return;
 		}
-		const match = _regex.exec(metadata.fragment);
+
+		const match = /^ch(\d{7,})\,([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?\,(.*)$/i.exec(uri.fragment);
 		if (!match) {
 			return undefined;
 		}
 		const handle = Number(match[1]);
+		const outputId = (match[2] && match[2] !== '') ? match[2] : undefined;
+		const scheme = match[3];
 		return {
 			handle,
-			notebook: metadata.with({
-				scheme: metadata.fragment.substr(match[0].length) || Schemas.file,
+			outputId,
+			notebook: uri.with({
+				scheme: scheme || Schemas.file,
 				fragment: null
 			})
 		};
@@ -558,7 +583,7 @@ export namespace CellUri {
 		return {
 			handle,
 			notebook: metadata.with({
-				scheme: metadata.fragment.substr(match[0].length) || Schemas.file,
+				scheme: metadata.fragment.substring(match[0].length) || Schemas.file,
 				fragment: null
 			})
 		};
@@ -578,7 +603,6 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['image/git', { alwaysSecure: true, supportedByCore: true }],
 	['image/svg+xml', { supportedByCore: true }],
 	['application/json', { alwaysSecure: true, supportedByCore: true }],
-	[Mimes.latex, { alwaysSecure: true, supportedByCore: true }],
 	[Mimes.text, { alwaysSecure: true, supportedByCore: true }],
 	['text/html', { supportedByCore: true }],
 	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
@@ -806,6 +830,10 @@ export interface INotebookSearchOptions {
 	wholeWord?: boolean;
 	caseSensitive?: boolean;
 	wordSeparators?: string;
+	includeMarkupInput?: boolean;
+	includeMarkupPreview?: boolean;
+	includeCodeInput?: boolean;
+	includeOutput?: boolean;
 }
 
 export interface INotebookExclusiveDocumentFilter {
@@ -840,8 +868,8 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 	}
 
 	if (filter.filenamePattern) {
-		let filenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.include : (filter.filenamePattern as string | glob.IRelativePattern);
-		let excludeFilenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.exclude : undefined;
+		const filenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.include : (filter.filenamePattern as string | glob.IRelativePattern);
+		const excludeFilenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.exclude : undefined;
 
 		if (glob.match(filenamePattern, basename(resource.fsPath).toLowerCase())) {
 			if (excludeFilenamePattern) {
@@ -880,7 +908,7 @@ export class CellSequence implements ISequence {
 
 export interface INotebookDiffResult {
 	cellsDiff: IDiffResult,
-	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[]; }[];
+	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: ILineChange[]; }[];
 }
 
 export interface INotebookCellStatusBarItem {
@@ -924,6 +952,7 @@ export const NotebookSetting = {
 	textOutputLineLimit: 'notebook.output.textLineLimit',
 	globalToolbarShowLabel: 'notebook.globalToolbarShowLabel',
 	markupFontSize: 'notebook.markup.fontSize',
+	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode'
 } as const;
 
 export const enum CellStatusbarAlignment {
@@ -947,7 +976,7 @@ export class NotebookWorkingCopyTypeIdentifier {
 
 	static parse(candidate: string): string | undefined {
 		if (candidate.startsWith(NotebookWorkingCopyTypeIdentifier._prefix)) {
-			return candidate.substr(NotebookWorkingCopyTypeIdentifier._prefix.length);
+			return candidate.substring(NotebookWorkingCopyTypeIdentifier._prefix.length);
 		}
 		return undefined;
 	}

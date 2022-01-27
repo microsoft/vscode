@@ -6,7 +6,7 @@
 declare module 'vscode' {
 
 	// eslint-disable-next-line vscode-dts-region-comments
-	// @roblourens: new debug session option for simple UI 'managedByParent' (see https://github.com/microsoft/vscode/issues/128588)
+	// @roblourens: new debug session option for simple UI (see https://github.com/microsoft/vscode/issues/128588)
 
 	/**
 	 * Options for {@link debug.startDebugging starting a debug session}.

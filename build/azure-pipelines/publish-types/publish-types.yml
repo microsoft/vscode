@@ -14,10 +14,6 @@ steps:
     inputs:
       versionSpec: "14.x"
 
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.x"
-
   - bash: |
       TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
       CHANNEL="C1C14HJ2F"

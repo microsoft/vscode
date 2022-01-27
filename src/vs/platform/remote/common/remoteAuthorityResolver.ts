@@ -28,8 +28,18 @@ export interface TunnelDescription {
 	privacy?: string;
 	protocol?: string;
 }
+export interface TunnelPrivacy {
+	themeIcon: string;
+	id: string;
+	label: string;
+}
 export interface TunnelInformation {
 	environmentTunnels?: TunnelDescription[];
+	features?: {
+		elevation: boolean;
+		public?: boolean;
+		privacyOptions: TunnelPrivacy[];
+	}
 }
 
 export interface ResolverResult {

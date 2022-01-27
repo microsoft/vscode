@@ -7,7 +7,7 @@ import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import * as minimist from 'minimist';
 import * as performance from 'vs/base/common/performance';
-import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol, ProtocolConstants, BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
@@ -30,7 +30,7 @@ import 'vs/workbench/api/node/extHost.node.services';
 interface ParsedExtHostArgs {
 	uriTransformerPath?: string;
 	skipWorkspaceStorageLock?: boolean;
-	useHostProxy?: string;
+	useHostProxy?: boolean;
 }
 
 // workaround for https://github.com/microsoft/vscode/issues/85490
@@ -46,11 +46,11 @@ interface ParsedExtHostArgs {
 
 const args = minimist(process.argv.slice(2), {
 	string: [
-		'uriTransformerPath',
-		'useHostProxy'
+		'uriTransformerPath'
 	],
 	boolean: [
-		'skipWorkspaceStorageLock'
+		'skipWorkspaceStorageLock',
+		'useHostProxy'
 	]
 }) as ParsedExtHostArgs;
 
@@ -65,7 +65,7 @@ const args = minimist(process.argv.slice(2), {
 
 	Module._load = function (request: string) {
 		if (request === 'natives') {
-			throw new Error('Either the extension or a NPM dependency is using the "natives" node module which is unsupported as it can cause a crash of the extension host. Click [here](https://go.microsoft.com/fwlink/?linkid=871887) to find out more');
+			throw new Error('Either the extension or an NPM dependency is using the [unsupported "natives" node module](https://go.microsoft.com/fwlink/?linkid=871887).');
 		}
 
 		return originalLoad.apply(this, arguments);
@@ -120,13 +120,17 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 
 			process.on('message', (msg: IExtHostSocketMessage | IExtHostReduceGraceTimeMessage, handle: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
+					// Disable Nagle's algorithm. We also do this on the server process,
+					// but nodejs doesn't document if this option is transferred with the socket
+					handle.setNoDelay(true);
+
 					const initialDataChunk = VSBuffer.wrap(Buffer.from(msg.initialDataChunk, 'base64'));
 					let socket: NodeSocket | WebSocketNodeSocket;
 					if (msg.skipWebSocketFrames) {
-						socket = new NodeSocket(handle);
+						socket = new NodeSocket(handle, 'extHost-socket');
 					} else {
 						const inflateBytes = VSBuffer.wrap(Buffer.from(msg.inflateBytes, 'base64'));
-						socket = new WebSocketNodeSocket(new NodeSocket(handle), msg.permessageDeflate, inflateBytes, false);
+						socket = new WebSocketNodeSocket(new NodeSocket(handle, 'extHost-socket'), msg.permessageDeflate, inflateBytes, false);
 					}
 					if (protocol) {
 						// reconnection case
@@ -134,9 +138,11 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 						disconnectRunner2.cancel();
 						protocol.beginAcceptReconnection(socket, initialDataChunk);
 						protocol.endAcceptReconnection();
+						protocol.sendResume();
 					} else {
 						clearTimeout(timer);
 						protocol = new PersistentProtocol(socket, initialDataChunk);
+						protocol.sendResume();
 						protocol.onDidDispose(() => onTerminate('renderer disconnected'));
 						resolve(protocol);
 
@@ -174,7 +180,7 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 
 			const socket = net.createConnection(pipeName, () => {
 				socket.removeListener('error', reject);
-				resolve(new PersistentProtocol(new NodeSocket(socket)));
+				resolve(new PersistentProtocol(new NodeSocket(socket, 'extHost-renderer')));
 			});
 			socket.once('error', reject);
 
@@ -296,7 +302,7 @@ export async function startExtensionHostProcess(): Promise<void> {
 			if (idx >= 0) {
 				promise.catch(e => {
 					unhandledPromises.splice(idx, 1);
-					if (!isPromiseCanceledError(e)) {
+					if (!isCancellationError(e)) {
 						console.warn(`rejected promise not handled within 1 second: ${e}`);
 						if (e && e.stack) {
 							console.warn(`stack trace: ${e.stack}`);
@@ -330,7 +336,7 @@ export async function startExtensionHostProcess(): Promise<void> {
 	const { initData } = renderer;
 	// setup things
 	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/microsoft/vscode/issues/37708)
-	initData.environment.useHostProxy = args.useHostProxy !== undefined ? args.useHostProxy !== 'false' : undefined;
+	initData.environment.useHostProxy = !!args.useHostProxy;
 	initData.environment.skipWorkspaceStorageLock = boolean(args.skipWorkspaceStorageLock, false);
 
 	// host abstraction

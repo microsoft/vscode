@@ -570,16 +570,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const remoteAuthority = emptyWindowBackupInfo.remoteAuthority;
 				const filesToOpenInWindow = isEqualAuthority(filesToOpen?.remoteAuthority, remoteAuthority) ? filesToOpen : undefined;
 
-				addUsedWindow(this.openInBrowserWindow({
-					userEnv: openConfig.userEnv,
-					cli: openConfig.cli,
-					initialStartup: openConfig.initialStartup,
-					filesToOpen: filesToOpenInWindow,
-					remoteAuthority,
-					forceNewWindow: true,
-					forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
-					emptyWindowBackupInfo
-				}), !!filesToOpenInWindow);
+				addUsedWindow(this.doOpenEmpty(openConfig, true, remoteAuthority, filesToOpenInWindow, emptyWindowBackupInfo), !!filesToOpenInWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			});
@@ -605,7 +596,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private doOpenFilesInExistingWindow(configuration: IOpenConfiguration, window: ICodeWindow, filesToOpen?: IFilesToOpen): ICodeWindow {
-		this.logService.trace('windowsManager#doOpenFilesInExistingWindow');
+		this.logService.trace('windowsManager#doOpenFilesInExistingWindow', { filesToOpen });
 
 		window.focus(); // make sure window has focus
 
@@ -621,7 +612,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private doAddFoldersToExistingWindow(window: ICodeWindow, foldersToAdd: URI[]): ICodeWindow {
-		this.logService.trace('windowsManager#doAddFoldersToExistingWindow');
+		this.logService.trace('windowsManager#doAddFoldersToExistingWindow', { foldersToAdd });
 
 		window.focus(); // make sure window has focus
 
@@ -631,8 +622,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return window;
 	}
 
-	private doOpenEmpty(openConfig: IOpenConfiguration, forceNewWindow: boolean, remoteAuthority: string | undefined, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): ICodeWindow {
-		if (!forceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'number') {
+	private doOpenEmpty(openConfig: IOpenConfiguration, forceNewWindow: boolean, remoteAuthority: string | undefined, filesToOpen: IFilesToOpen | undefined, emptyWindowBackupInfo?: IEmptyWindowBackupInfo): ICodeWindow {
+		this.logService.trace('windowsManager#doOpenEmpty', { restore: !!emptyWindowBackupInfo, remoteAuthority, filesToOpen, forceNewWindow });
+
+		let windowToUse: ICodeWindow | undefined;
+		if (!forceNewWindow && typeof openConfig.contextWindowId === 'number') {
 			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/97172
 		}
 
@@ -644,11 +638,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			forceNewWindow,
 			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
 			filesToOpen,
-			windowToUse
+			windowToUse,
+			emptyWindowBackupInfo
 		});
 	}
 
 	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen, forceNewWindow: boolean, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): ICodeWindow {
+		this.logService.trace('windowsManager#doOpenFolderOrWorkspace', { folderOrWorkspace, filesToOpen });
+
 		if (!forceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'number') {
 			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/49587
 		}
@@ -842,7 +839,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			case 'one':
 			case 'all':
 			case 'preserve':
-			case 'folders':
+			case 'folders': {
 
 				// Collect previously opened windows
 				const lastSessionWindows: IWindowState[] = [];
@@ -879,6 +876,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				}
 
 				return pathsToOpen;
+			}
 		}
 	}
 
@@ -1187,7 +1185,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const extensionDevelopmentPathRemoteAuthority = getRemoteAuthority(url);
 				if (extensionDevelopmentPathRemoteAuthority) {
 					if (remoteAuthority) {
-						if (extensionDevelopmentPathRemoteAuthority !== remoteAuthority) {
+						if (!isEqualAuthority(extensionDevelopmentPathRemoteAuthority, remoteAuthority)) {
 							this.logService.error('more than one extension development path authority');
 						}
 					} else {
@@ -1296,8 +1294,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			os: { release: release(), hostname: hostname() },
 			zoomLevel: typeof windowConfig?.zoomLevel === 'number' ? windowConfig.zoomLevel : undefined,
 
-			legacyWatcher: this.configurationService.getValue('files.legacyWatcher'),
-			experimentalSandboxedFileService: this.configurationService.getValue('files.experimentalSandboxedFileService'),
 			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,
 			accessibilitySupport: app.accessibilitySupportEnabled,
 			colorScheme: {
@@ -1401,7 +1397,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (isWorkspaceIdentifier(configuration.workspace)) {
 				configuration.backupPath = this.backupMainService.registerWorkspaceBackupSync({ workspace: configuration.workspace, remoteAuthority: configuration.remoteAuthority });
 			} else if (isSingleFolderWorkspaceIdentifier(configuration.workspace)) {
-				configuration.backupPath = this.backupMainService.registerFolderBackupSync(configuration.workspace.uri);
+				configuration.backupPath = this.backupMainService.registerFolderBackupSync({ folderUri: configuration.workspace.uri, remoteAuthority: configuration.remoteAuthority });
 			} else {
 				const backupFolder = options.emptyWindowBackupInfo && options.emptyWindowBackupInfo.backupFolder;
 				configuration.backupPath = this.backupMainService.registerEmptyWindowBackupSync(backupFolder, configuration.remoteAuthority);

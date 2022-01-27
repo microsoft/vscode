@@ -8,7 +8,7 @@ import { basename } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
+import { canceled, isCancellationError } from 'vs/base/common/errors';
 import { IProcessEnvironment, isWindows, OS } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { getSystemShell } from 'vs/base/node/shell';
@@ -27,15 +27,14 @@ const MAX_SHELL_RESOLVE_TIME = 10000;
 let unixShellEnvPromise: Promise<typeof process.env> | undefined = undefined;
 
 /**
- * We need to get the environment from a user's shell.
- * This should only be done when Code itself is not launched
- * from within a shell.
+ * Resolves the shell environment by spawning a shell. This call will cache
+ * the shell spawning so that subsequent invocations use that cached result.
  *
  * Will throw an error if:
  * - we hit a timeout of `MAX_SHELL_RESOLVE_TIME`
  * - any other error from spawning a shell to figure out the environment
  */
-export async function resolveShellEnv(logService: ILogService, args: NativeParsedArgs, env: IProcessEnvironment): Promise<typeof process.env> {
+export async function getResolvedShellEnv(logService: ILogService, args: NativeParsedArgs, env: IProcessEnvironment): Promise<typeof process.env> {
 
 	// Skip if --force-disable-user-env
 	if (args['force-disable-user-env']) {
@@ -83,7 +82,7 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 				try {
 					resolve(await doResolveUnixShellEnv(logService, cts.token));
 				} catch (error) {
-					if (!isPromiseCanceledError(error) && !cts.token.isCancellationRequested) {
+					if (!isCancellationError(error) && !cts.token.isCancellationRequested) {
 						reject(new Error(localize('resolveShellEnvError', "Unable to resolve your shell environment: {0}", toErrorMessage(error))));
 					} else {
 						resolve({});

@@ -7,13 +7,12 @@ import { diffSets } from 'vs/base/common/collections';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 export interface ICellVisibilityChangeEvent {
-	added: CellViewModel[];
-	removed: CellViewModel[];
+	added: ICellViewModel[];
+	removed: ICellViewModel[];
 }
 
 export class NotebookVisibleCellObserver extends Disposable {
@@ -22,9 +21,9 @@ export class NotebookVisibleCellObserver extends Disposable {
 
 	private readonly _viewModelDisposables = this._register(new DisposableStore());
 
-	private _visibleCells: CellViewModel[] = [];
+	private _visibleCells: ICellViewModel[] = [];
 
-	get visibleCells(): CellViewModel[] {
+	get visibleCells(): ICellViewModel[] {
 		return this._visibleCells;
 	}
 
@@ -59,17 +58,17 @@ export class NotebookVisibleCellObserver extends Disposable {
 		const rangesWithEnd = this._notebookEditor.visibleRanges
 			.map(range => ({ start: range.start, end: range.end + 1 }));
 		const newVisibleCells = cellRangesToIndexes(rangesWithEnd)
-			.map(index => this._notebookEditor.cellAt(index) as CellViewModel)
+			.map(index => this._notebookEditor.cellAt(index))
 			.filter(isDefined);
 		const newVisibleHandles = new Set(newVisibleCells.map(cell => cell.handle));
 		const oldVisibleHandles = new Set(this._visibleCells.map(cell => cell.handle));
 		const diff = diffSets(oldVisibleHandles, newVisibleHandles);
 
 		const added = diff.added
-			.map(handle => this._notebookEditor.getCellByHandle(handle) as CellViewModel)
+			.map(handle => this._notebookEditor.getCellByHandle(handle))
 			.filter(isDefined);
 		const removed = diff.removed
-			.map(handle => this._notebookEditor.getCellByHandle(handle) as CellViewModel)
+			.map(handle => this._notebookEditor.getCellByHandle(handle))
 			.filter(isDefined);
 
 		this._visibleCells = newVisibleCells;

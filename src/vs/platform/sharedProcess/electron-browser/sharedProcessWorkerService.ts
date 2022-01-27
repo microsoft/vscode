@@ -5,6 +5,7 @@
 
 import { CrashReporterStartOptions, ipcRenderer } from 'electron';
 import { join } from 'path';
+import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -176,8 +177,7 @@ class SharedProcessWebWorker extends Disposable {
 	}
 
 	private doInit(): Promise<Worker> {
-		let readyResolve: (result: Worker) => void;
-		const readyPromise = new Promise<Worker>(resolve => readyResolve = resolve);
+		const readyPromise = new DeferredPromise<Worker>();
 
 		const worker = new Worker('../../../base/worker/workerMain.js', {
 			name: `Shared Process Worker (${this.type})`
@@ -198,7 +198,7 @@ class SharedProcessWebWorker extends Disposable {
 
 				// Lifecycle: Ready
 				case SharedProcessWorkerMessages.Ready:
-					readyResolve(worker);
+					readyPromise.complete(worker);
 					break;
 
 				// Lifecycle: Ack
@@ -250,7 +250,7 @@ class SharedProcessWebWorker extends Disposable {
 		// First message triggers the load of the worker
 		worker.postMessage('vs/platform/sharedProcess/electron-browser/sharedProcessWorkerMain');
 
-		return readyPromise;
+		return readyPromise.p;
 	}
 
 	private async send(message: ISharedProcessToWorkerMessage, token: CancellationToken, port?: MessagePort): Promise<void> {

@@ -197,6 +197,12 @@
           "default": true,
           "description": "%html.validate.styles%"
         },
+        "html.autoCreateQuotes": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%html.autoCreateQuotes%"
+        },
         "html.autoClosingTags": {
           "type": "boolean",
           "scope": "resource",
@@ -255,9 +261,10 @@
     ]
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.4.3",
+    "@vscode/extension-telemetry": "0.4.6",
     "vscode-languageclient": "^7.0.0",
-    "vscode-nls": "^5.0.0"
+    "vscode-nls": "^5.0.0",
+    "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
     "@types/node": "14.x"

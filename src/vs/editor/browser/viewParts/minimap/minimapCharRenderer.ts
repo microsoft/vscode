@@ -19,7 +19,7 @@ export class MinimapCharRenderer {
 	}
 
 	private static soften(input: Uint8ClampedArray, ratio: number): Uint8ClampedArray {
-		let result = new Uint8ClampedArray(input.length);
+		const result = new Uint8ClampedArray(input.length);
 		for (let i = 0, len = input.length; i < len; i++) {
 			result[i] = toUint8(input[i] * ratio);
 		}

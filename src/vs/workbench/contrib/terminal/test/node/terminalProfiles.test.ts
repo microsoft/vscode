@@ -200,8 +200,8 @@ suite('Workbench - TerminalProfiles', () => {
 				const configurationService = new TestConfigurationService({ terminal: { integrated: onPathConfig } });
 				const profiles = await detectAvailableProfiles(undefined, undefined, true, configurationService, process.env, fsProvider, undefined, undefined, undefined);
 				const expected: ITerminalProfile[] = [
-					{ profileName: 'fakeshell1', path: 'fakeshell1', isDefault: true },
-					{ profileName: 'fakeshell3', path: 'fakeshell3', isDefault: true }
+					{ profileName: 'fakeshell1', path: '/bin/fakeshell1', isFromPath: true, isDefault: true },
+					{ profileName: 'fakeshell3', path: '/bin/fakeshell3', isFromPath: true, isDefault: true }
 				];
 				profilesEqual(profiles, expected);
 			});
@@ -213,7 +213,7 @@ suite('Workbench - TerminalProfiles', () => {
 				const configurationService = new TestConfigurationService({ terminal: { integrated: onPathConfig } });
 				const profiles = await detectAvailableProfiles(undefined, undefined, true, configurationService, process.env, fsProvider, undefined, undefined, undefined);
 				const expected: ITerminalProfile[] = [
-					{ profileName: 'fakeshell1', path: 'fakeshell1', isDefault: true }
+					{ profileName: 'fakeshell1', path: '/bin/fakeshell1', isFromPath: true, isDefault: true }
 				];
 				profilesEqual(profiles, expected);
 			});

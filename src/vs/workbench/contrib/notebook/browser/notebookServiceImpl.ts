@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/browser';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
@@ -135,6 +135,12 @@ export class NotebookProviderInfoStore extends Disposable {
 		this._memento.saveMemento();
 	}
 
+	clearEditorCache() {
+		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = [];
+		this._memento.saveMemento();
+	}
+
 	private _convertPriority(priority?: string) {
 		if (!priority) {
 			return RegisteredEditorPriority.default;
@@ -247,7 +253,7 @@ export class NotebookProviderInfoStore extends Disposable {
 
 	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {
 		const result: NotebookProviderInfo[] = [];
-		for (let info of this._contributedEditors.values()) {
+		for (const info of this._contributedEditors.values()) {
 			if (info.matches(resource)) {
 				result.push(info);
 			}
@@ -320,6 +326,7 @@ export class NotebookOutputRendererInfoStore {
 
 		const preferred = notebookProviderInfo && this.preferredMimetype.getValue()[notebookProviderInfo.id]?.[mimeType];
 		const notebookExtId = notebookProviderInfo?.extension?.value;
+		const notebookId = notebookProviderInfo?.id;
 		const renderers: { ordered: IOrderedMimeType, score: number }[] = Array.from(this.contributedRenderers.values())
 			.map(renderer => {
 				const ownScore = kernelProvides === undefined
@@ -333,7 +340,7 @@ export class NotebookOutputRendererInfoStore {
 				const rendererExtId = renderer.extensionId.value;
 				const reuseScore = preferred === renderer.id
 					? ReuseOrder.PreviouslySelected
-					: rendererExtId === notebookExtId || RENDERER_EQUIVALENT_EXTENSIONS.get(rendererExtId)?.has(notebookExtId!)
+					: rendererExtId === notebookExtId || RENDERER_EQUIVALENT_EXTENSIONS.get(rendererExtId)?.has(notebookId!)
 						? ReuseOrder.SameExtensionAsNotebook
 						: renderer.isBuiltin ? ReuseOrder.BuiltIn : ReuseOrder.OtherRenderer;
 				return {
@@ -478,7 +485,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		}));
 
 		let decorationTriggeredAdjustment = false;
-		let decorationCheckSet = new Set<string>();
+		const decorationCheckSet = new Set<string>();
 		this._register(this._codeEditorService.onDecorationTypeRegistered(e => {
 			if (decorationTriggeredAdjustment) {
 				return;
@@ -501,7 +508,7 @@ export class NotebookService extends Disposable implements INotebookService {
 							// there is a `::before` or `::after` text decoration whose position is above or below current line
 							// we at least make sure that the editor top padding is at least one line
 							const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-							updateEditorTopPadding(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()).lineHeight + 2);
+							updateEditorTopPadding(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value).lineHeight + 2);
 							decorationTriggeredAdjustment = true;
 							break;
 						}
@@ -520,6 +527,10 @@ export class NotebookService extends Disposable implements INotebookService {
 			displayName: info.displayName,
 			providerDisplayName: info.providerDisplayName
 		}));
+	}
+
+	clearEditorCache(): void {
+		this.notebookProviderInfoStore.clearEditorCache();
 	}
 
 	private _postDocumentOpenActivation(viewType: string) {

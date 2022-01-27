@@ -6,6 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -119,12 +120,14 @@ class RemoteExtensionsInitializer extends AbstractExtensionsInitializer {
 			this.logService.trace('No new remote extensions to install.');
 			return;
 		}
-		const extensionsToInstall = await this.extensionGalleryService.getExtensions(newExtensions, CancellationToken.None);
+		const targetPlatform = await this.extensionManagementService.getTargetPlatform();
+		const extensionsToInstall = await this.extensionGalleryService.getExtensions(newExtensions, { targetPlatform, compatible: true }, CancellationToken.None);
 		if (extensionsToInstall.length) {
 			await Promise.allSettled(extensionsToInstall.map(async e => {
 				const manifest = await this.extensionGalleryService.getManifest(e, CancellationToken.None);
 				if (manifest && this.extensionManifestPropertiesService.canExecuteOnWorkspace(manifest)) {
-					await this.extensionManagementService.installFromGallery(e);
+					const syncedExtension = remoteExtensions.find(e => areSameExtensions(e.identifier, e.identifier));
+					await this.extensionManagementService.installFromGallery(e, { installPreReleaseVersion: syncedExtension?.preRelease, donotIncludePackAndDependencies: true });
 				}
 			}));
 		}

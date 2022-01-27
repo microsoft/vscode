@@ -22,7 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getExcludes, ISearchConfiguration, SEARCH_EXCLUDE_CONFIG } from 'vs/workbench/services/search/common/search';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/cursor/cursorEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -386,23 +386,27 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.updateContextKeys();
 	}
 
-	private navigate(): void {
+	private async navigate(): Promise<void> {
 		this.navigatingInStack = true;
 
 		const navigateToStackEntry = this.navigationStack[this.navigationStackIndex];
 
-		this.doNavigate(navigateToStackEntry).finally(() => { this.navigatingInStack = false; });
+		try {
+			await this.doNavigate(navigateToStackEntry);
+		} finally {
+			this.navigatingInStack = false;
+		}
 	}
 
 	private doNavigate(location: IStackEntry): Promise<IEditorPane | undefined> {
 		const options: ITextEditorOptions = {
-			revealIfOpened: true, // support to navigate across editor groups,
+			revealIfOpened: true, // support to navigate across editor groups
 			selection: location.selection,
 			selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
 		};
 
 		if (isEditorInput(location.editor)) {
-			return this.editorGroupService.activeGroup.openEditor(location.editor, options);
+			return this.editorService.openEditor(location.editor, options);
 		}
 
 		return this.editorService.openEditor({
@@ -1258,7 +1262,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.doNavigateInRecentlyUsedEditorsStack(stack[index], groupId);
 	}
 
-	private doNavigateInRecentlyUsedEditorsStack(editorIdentifier: IEditorIdentifier | undefined, groupId?: GroupIdentifier): void {
+	private async doNavigateInRecentlyUsedEditorsStack(editorIdentifier: IEditorIdentifier | undefined, groupId?: GroupIdentifier): Promise<void> {
 		if (editorIdentifier) {
 			const acrossGroups = typeof groupId !== 'number' || !this.editorGroupService.getGroup(groupId);
 
@@ -1269,13 +1273,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 			}
 
 			const group = this.editorGroupService.getGroup(editorIdentifier.groupId) ?? this.editorGroupService.activeGroup;
-			group.openEditor(editorIdentifier.editor).finally(() => {
+			try {
+				await group.openEditor(editorIdentifier.editor);
+			} finally {
 				if (acrossGroups) {
 					this.navigatingInRecentlyUsedEditorsStack = false;
 				} else {
 					this.navigatingInRecentlyUsedEditorsInGroupStack = false;
 				}
-			});
+			}
 		}
 	}
 

@@ -1801,7 +1801,7 @@ export class TabsTitleControl extends TitleControl {
 				if (sourceGroup) {
 
 					// Move editor to target position and index
-					if (this.isMoveOperation(e, draggedEditor.groupId)) {
+					if (this.isMoveOperation(e, draggedEditor.groupId, draggedEditor.editor)) {
 						sourceGroup.moveEditor(draggedEditor.editor, this.group, { index: targetIndex });
 					}
 
@@ -1843,10 +1843,14 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private isMoveOperation(e: DragEvent, source: GroupIdentifier) {
+	private isMoveOperation(e: DragEvent, sourceGroup: GroupIdentifier, sourceEditor?: EditorInput) {
+		if (sourceEditor?.hasCapability(EditorInputCapabilities.Singleton)) {
+			return true; // Singleton editors cannot be split
+		}
+
 		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 
-		return !isCopy || source === this.group.id;
+		return !isCopy || sourceGroup === this.group.id;
 	}
 
 	override dispose(): void {
@@ -1954,11 +1958,23 @@ registerThemingParticipant((theme, collector) => {
 	}
 
 	// Hover Border
+	//
+	// Unfortunately we need to copy a lot of CSS over from the
+	// tabsTitleControl.css because we want to reuse the same
+	// styles we already have for the normal bottom-border.
 	const tabHoverBorder = theme.getColor(TAB_HOVER_BORDER);
 	if (tabHoverBorder) {
 		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover  {
-				box-shadow: ${tabHoverBorder} 0 -1px inset !important;
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover > .tab-border-bottom-container {
+				display: block;
+				position: absolute;
+				left: 0;
+				pointer-events: none;
+				width: 100%;
+				z-index: 10;
+				bottom: 0;
+				height: 1px;
+				background-color: ${tabHoverBorder};
 			}
 		`);
 	}
@@ -1966,8 +1982,16 @@ registerThemingParticipant((theme, collector) => {
 	const tabUnfocusedHoverBorder = theme.getColor(TAB_UNFOCUSED_HOVER_BORDER);
 	if (tabUnfocusedHoverBorder) {
 		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover  {
-				box-shadow: ${tabUnfocusedHoverBorder} 0 -1px inset !important;
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-border-bottom-container  {
+				display: block;
+				position: absolute;
+				left: 0;
+				pointer-events: none;
+				width: 100%;
+				z-index: 10;
+				bottom: 0;
+				height: 1px;
+				background-color: ${tabUnfocusedHoverBorder};
 			}
 		`);
 	}

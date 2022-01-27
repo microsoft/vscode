@@ -28,6 +28,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { isWeb } from 'vs/base/common/platform';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 /**
  * The only one that should be dealing with `IStoredFileWorkingCopy` and handle all
@@ -503,8 +504,14 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 
 				// Async reload: trigger a reload but return immediately
 				if (options.reload.async) {
-					workingCopy.resolve(resolveOptions);
 					workingCopyResolve = Promise.resolve();
+					(async () => {
+						try {
+							await workingCopy.resolve(resolveOptions);
+						} catch (error) {
+							onUnexpectedError(error);
+						}
+					})();
 				}
 
 				// Sync reload: do not return until working copy reloaded
@@ -555,30 +562,30 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		}
 
 		try {
-
-			// Wait for working copy to resolve
 			await workingCopyResolve;
-
-			// Remove from pending resolves
-			this.mapResourceToPendingWorkingCopyResolve.delete(resource);
-
-			// Stored file working copy can be dirty if a backup was restored, so we make sure to
-			// have this event delivered if we created the working copy here
-			if (didCreateWorkingCopy && workingCopy.isDirty()) {
-				this._onDidChangeDirty.fire(workingCopy);
-			}
-
-			return workingCopy;
 		} catch (error) {
 
-			// Free resources of this invalid working copy
-			workingCopy.dispose();
+			// Automatically dispose the working copy if we created
+			// it because we cannot dispose a working copy we do not
+			// own (https://github.com/microsoft/vscode/issues/138850)
+			if (didCreateWorkingCopy) {
+				workingCopy.dispose();
+			}
+
+			throw error;
+		} finally {
 
 			// Remove from pending resolves
 			this.mapResourceToPendingWorkingCopyResolve.delete(resource);
-
-			throw error;
 		}
+
+		// Stored file working copy can be dirty if a backup was restored, so we make sure to
+		// have this event delivered if we created the working copy here
+		if (didCreateWorkingCopy && workingCopy.isDirty()) {
+			this._onDidChangeDirty.fire(workingCopy);
+		}
+
+		return workingCopy;
 	}
 
 	private joinPendingResolves(resource: URI): Promise<void> | undefined {

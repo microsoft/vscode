@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { distinct } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
@@ -19,7 +21,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { FocusedViewContext, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IActionableTestTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
@@ -42,7 +45,8 @@ const category = CATEGORIES.Test;
 
 const enum ActionOrder {
 	// Navigation:
-	Run = 10,
+	Refresh = 10,
+	Run,
 	Debug,
 	Coverage,
 	RunUsing,
@@ -733,31 +737,48 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		const profileService = accessor.get(ITestProfileService);
 
 		let bestNodes: InternalTestItem[] = [];
-		let bestRange: IRange | undefined;
+		let bestRange: Range | undefined;
+
+		let bestNodesBefore: InternalTestItem[] = [];
+		let bestRangeBefore: Range | undefined;
 
 		// testsInFile will descend in the test tree. We assume that as we go
 		// deeper, ranges get more specific. We'll want to run all tests whose
 		// range is equal to the most specific range we find (see #133519)
+		//
+		// If we don't find any test whose range contains the position, we pick
+		// the closest one before the position. Again, if we find several tests
+		// whose range is equal to the closest one, we run them all.
 		await showDiscoveringWhile(accessor.get(IProgressService), (async () => {
 			for await (const test of testsInFile(testService.collection, model.uri)) {
-				if (!test.item.range || !Range.containsPosition(test.item.range, position) || !(profileService.capabilitiesForTest(test) & this.group)) {
+				if (!test.item.range || !(profileService.capabilitiesForTest(test) & this.group)) {
 					continue;
 				}
 
-				if (bestRange && Range.equalsRange(test.item.range, bestRange)) {
-					bestNodes.push(test);
-				} else {
-					bestRange = test.item.range;
-					bestNodes = [test];
+				const irange = Range.lift(test.item.range);
+				if (irange.containsPosition(position)) {
+					if (bestRange && Range.equalsRange(test.item.range, bestRange)) {
+						bestNodes.push(test);
+					} else {
+						bestRange = irange;
+						bestNodes = [test];
+					}
+				} else if (Position.isBefore(irange.getStartPosition(), position)) {
+					if (!bestRangeBefore || bestRangeBefore.getStartPosition().isBefore(irange.getStartPosition())) {
+						bestRangeBefore = irange;
+						bestNodesBefore = [test];
+					} else if (irange.equalsRange(bestRangeBefore)) {
+						bestNodesBefore.push(test);
+					}
 				}
 			}
 		})());
 
-
-		if (bestNodes.length) {
+		const testsToRun = bestNodes.length ? bestNodes : bestNodesBefore;
+		if (testsToRun.length) {
 			await testService.runTests({
 				group: this.group,
-				tests: bestNodes,
+				tests: bestNodes.length ? bestNodes : bestNodesBefore,
 			});
 		}
 	}
@@ -818,15 +839,28 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 		}
 
 		const testService = accessor.get(ITestService);
-
 		const demandedUri = model.uri.toString();
-		for (const test of testService.collection.all) {
-			if (test.item.uri?.toString() === demandedUri) {
-				return testService.runTests({
-					tests: [test],
-					group: this.group,
-				});
+
+		// Iterate through the entire collection and run any tests that are in the
+		// uri. See #138007.
+		const queue = [testService.collection.rootIds];
+		const discovered: InternalTestItem[] = [];
+		while (queue.length) {
+			for (const id of queue.pop()!) {
+				const node = testService.collection.getNodeById(id)!;
+				if (node.item.uri?.toString() === demandedUri) {
+					discovered.push(node);
+				} else {
+					queue.push(node.children);
+				}
 			}
+		}
+
+		if (discovered.length) {
+			return testService.runTests({
+				tests: discovered,
+				group: this.group,
+			});
 		}
 
 		return undefined;
@@ -1112,10 +1146,91 @@ export class ToggleInlineTestOutput extends Action2 {
 	}
 }
 
+const refreshMenus = (whenIsRefreshing: boolean): IAction2Options['menu'] => [
+	{
+		id: MenuId.TestItem,
+		group: 'inline',
+		order: ActionOrder.Refresh,
+		when: ContextKeyExpr.and(
+			TestingContextKeys.canRefreshTests.isEqualTo(true),
+			TestingContextKeys.isRefreshingTests.isEqualTo(whenIsRefreshing),
+		),
+	},
+	{
+		id: MenuId.ViewTitle,
+		group: 'navigation',
+		order: ActionOrder.Refresh,
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals('view', Testing.ExplorerViewId),
+			TestingContextKeys.canRefreshTests.isEqualTo(true),
+			TestingContextKeys.isRefreshingTests.isEqualTo(whenIsRefreshing),
+		),
+	},
+	{
+		id: MenuId.CommandPalette,
+		when: TestingContextKeys.canRefreshTests.isEqualTo(true),
+	},
+];
+
+export class RefreshTestsAction extends Action2 {
+	public static readonly ID = 'testing.refreshTests';
+	constructor() {
+		super({
+			id: RefreshTestsAction.ID,
+			title: localize('testing.refreshTests', "Refresh Tests"),
+			category,
+			icon: icons.testingRefreshTests,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyR),
+				when: TestingContextKeys.canRefreshTests.isEqualTo(true),
+			},
+			menu: refreshMenus(false),
+		});
+	}
+
+	public async run(accessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]) {
+		const testService = accessor.get(ITestService);
+		const progressService = accessor.get(IProgressService);
+
+		const controllerIds = distinct(
+			elements
+				.filter((e): e is TestItemTreeElement => e instanceof TestItemTreeElement)
+				.map(e => e.test.controllerId)
+		);
+
+		return progressService.withProgress({ location: Testing.ViewletId }, async () => {
+			if (controllerIds.length) {
+				await Promise.all(controllerIds.map(id => testService.refreshTests(id)));
+			} else {
+				await testService.refreshTests();
+			}
+		});
+	}
+}
+
+export class CancelTestRefreshAction extends Action2 {
+	public static readonly ID = 'testing.cancelTestRefresh';
+	constructor() {
+		super({
+			id: CancelTestRefreshAction.ID,
+			title: localize('testing.cancelTestRefresh', "Cancel Test Refresh"),
+			category,
+			icon: icons.testingCancelRefreshTests,
+			menu: refreshMenus(true),
+		});
+	}
+
+	public async run(accessor: ServicesAccessor) {
+		accessor.get(ITestService).cancelRefreshTests();
+	}
+}
+
 export const allTestActions = [
 	// todo: these are disabled until we figure out how we want autorun to work
 	// AutoRunOffAction,
 	// AutoRunOnAction,
+	CancelTestRefreshAction,
 	CancelTestRunAction,
 	ClearTestResultsAction,
 	CollapseAllAction,
@@ -1130,6 +1245,7 @@ export const allTestActions = [
 	GoToTest,
 	HideTestAction,
 	OpenOutputPeek,
+	RefreshTestsAction,
 	ReRunFailedTests,
 	ReRunLastRun,
 	RunAction,
@@ -1141,9 +1257,9 @@ export const allTestActions = [
 	SearchForTestExtension,
 	SelectDefaultTestProfiles,
 	ShowMostRecentOutputAction,
+	TestingSortByDurationAction,
 	TestingSortByLocationAction,
 	TestingSortByStatusAction,
-	TestingSortByDurationAction,
 	TestingViewAsListAction,
 	TestingViewAsTreeAction,
 	ToggleInlineTestOutput,

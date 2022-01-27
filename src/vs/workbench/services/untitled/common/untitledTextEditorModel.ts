@@ -6,21 +6,21 @@
 import { ISaveOptions } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { IModelService } from 'vs/editor/common/services/model';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ITextModel } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IEncodingSupport, IModeSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IEncodingSupport, ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
+import { ensureValidWordDefinition } from 'vs/editor/common/core/wordHelper';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getCharContainingOffset } from 'vs/base/common/strings';
@@ -29,7 +29,7 @@ import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
-export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
+export interface IUntitledTextEditorModel extends ITextEditorModel, ILanguageSupport, IEncodingSupport, IWorkingCopy {
 
 	/**
 	 * Emits an event when the encoding of this untitled model changes.
@@ -52,9 +52,9 @@ export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport
 	readonly hasAssociatedFilePath: boolean;
 
 	/**
-	 * Whether this model has an explicit language mode or not.
+	 * Whether this model has an explicit language or not.
 	 */
-	readonly hasModeSetExplicitly: boolean;
+	readonly hasLanguageSetExplicitly: boolean;
 
 	/**
 	 * Sets the encoding to use for this untitled model.
@@ -72,13 +72,12 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private static readonly FIRST_LINE_NAME_MAX_LENGTH = 40;
 	private static readonly FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH = UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH * 10;
 
-	// support the special '${activeEditorLanguage}' mode by
-	// looking up the language mode from the editor that is
-	// active before the untitled editor opens. This special
-	// mode is only used for the initial language mode and
-	// can be changed after the fact (either manually or through
-	// auto-detection).
-	private static readonly ACTIVE_EDITOR_LANGUAGE_MODE = '${activeEditorLanguage}';
+	// support the special '${activeEditorLanguage}' language by
+	// looking up the language id from the editor that is active
+	// before the untitled editor opens. This special id is only
+	// used for the initial language and can be changed after the
+	// fact (either manually or through auto-detection).
+	private static readonly ACTIVE_EDITOR_LANGUAGE_ID = '${activeEditorLanguage}';
 
 	//#region Events
 
@@ -127,9 +126,9 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		readonly resource: URI,
 		readonly hasAssociatedFilePath: boolean,
 		private readonly initialValue: string | undefined,
-		private preferredMode: string | undefined,
+		private preferredLanguageId: string | undefined,
 		private preferredEncoding: string | undefined,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IModelService modelService: IModelService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
@@ -140,15 +139,15 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
-		super(modelService, modeService, languageDetectionService, accessibilityService);
+		super(modelService, languageService, languageDetectionService, accessibilityService);
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
 
 		// This is typically controlled by the setting `files.defaultLanguage`.
 		// If that setting is set, we should not detect the language.
-		if (preferredMode) {
-			this.setMode(preferredMode);
+		if (preferredLanguageId) {
+			this.setLanguageId(preferredLanguageId);
 		}
 
 		// Fetch config
@@ -187,25 +186,25 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 
-	//#region Mode
+	//#region Language
 
-	override setMode(mode: string): void {
-		let actualMode: string | undefined = mode === UntitledTextEditorModel.ACTIVE_EDITOR_LANGUAGE_MODE
-			? this.editorService.activeTextEditorMode
-			: mode;
-		this.preferredMode = actualMode;
+	override setLanguageId(languageId: string): void {
+		let actualLanguage: string | undefined = languageId === UntitledTextEditorModel.ACTIVE_EDITOR_LANGUAGE_ID
+			? this.editorService.activeTextEditorLanguageId
+			: languageId;
+		this.preferredLanguageId = actualLanguage;
 
-		if (actualMode) {
-			super.setMode(actualMode);
+		if (actualLanguage) {
+			super.setLanguageId(actualLanguage);
 		}
 	}
 
-	override getMode(): string | undefined {
+	override getLanguageId(): string | undefined {
 		if (this.textEditorModel) {
 			return this.textEditorModel.getLanguageId();
 		}
 
-		return this.preferredMode;
+		return this.preferredLanguageId;
 	}
 
 	//#endregion
@@ -310,21 +309,21 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			// accordingly.
 			const untitledContentsFactory = await createTextBufferFactoryFromStream(await this.textFileService.getDecodedStream(this.resource, untitledContents, { encoding: UTF8 }));
 
-			this.createTextEditorModel(untitledContentsFactory, this.resource, this.preferredMode);
+			this.createTextEditorModel(untitledContentsFactory, this.resource, this.preferredLanguageId);
 			createdUntitledModel = true;
 		}
 
 		// Otherwise: the untitled model already exists and we must assume
 		// that the value of the model was changed by the user. As such we
-		// do not update the contents, only the mode if configured.
+		// do not update the contents, only the language if configured.
 		else {
-			this.updateTextEditorModel(undefined, this.preferredMode);
+			this.updateTextEditorModel(undefined, this.preferredLanguageId);
 		}
 
 		// Listen to text model events
 		const textEditorModel = assertIsDefined(this.textEditorModel);
 		this._register(textEditorModel.onDidChangeContent(e => this.onModelContentChanged(textEditorModel, e)));
-		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange(true))); // mode change can have impact on config
+		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange(true))); // language change can have impact on config
 
 		// Only adjust name and dirty state etc. if we
 		// actually created the untitled model

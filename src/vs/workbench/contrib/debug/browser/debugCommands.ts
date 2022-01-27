@@ -20,9 +20,9 @@ import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpo
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { PanelFocusContext } from 'vs/workbench/common/panel';
+import { PanelFocusContext } from 'vs/workbench/common/contextkeys';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -144,7 +144,7 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const textResourcePropertiesService = accessor.get(ITextResourcePropertiesService);
 		const clipboardService = accessor.get(IClipboardService);
-		let frame = getFrame(accessor.get(IDebugService), context);
+		const frame = getFrame(accessor.get(IDebugService), context);
 		if (frame) {
 			const eol = textResourcePropertiesService.getEOL(frame.source.uri);
 			await clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(eol));
@@ -353,7 +353,7 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const debugService = accessor.get(IDebugService);
 		const notificationService = accessor.get(INotificationService);
-		let frame = getFrame(debugService, context);
+		const frame = getFrame(debugService, context);
 		if (frame) {
 			try {
 				await frame.restart();
@@ -423,7 +423,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: async (accessor: ServicesAccessor, debugStartOptions?: { config?: Partial<IConfig>; noDebug?: boolean }) => {
 		const debugService = accessor.get(IDebugService);
 		await saveAllBeforeDebugStart(accessor.get(IConfigurationService), accessor.get(IEditorService));
-		let { launch, name, getConfig } = debugService.getConfigurationManager().selectedConfiguration;
+		const { launch, name, getConfig } = debugService.getConfigurationManager().selectedConfiguration;
 		const config = await getConfig();
 		const configOrName = config ? Object.assign(deepClone(config), debugStartOptions?.config) : name;
 		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions?.noDebug, startedByUser: true }, false);
@@ -624,7 +624,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			if (editor && !created) {
 				const codeEditor = <ICodeEditor>editor.getControl();
 				if (codeEditor) {
-					await codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
+					await codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID)?.addLaunchConfiguration();
 				}
 			}
 		}

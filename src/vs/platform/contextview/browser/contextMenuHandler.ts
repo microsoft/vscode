@@ -8,7 +8,7 @@ import { $, addDisposableListener, EventType, isHTMLElement } from 'vs/base/brow
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Menu } from 'vs/base/browser/ui/menu/menu';
 import { ActionRunner, IRunEvent, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./contextMenuHandler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -158,7 +158,7 @@ export class ContextMenuHandler {
 	}
 
 	private onDidActionRun(e: IRunEvent): void {
-		if (e.error && !isPromiseCanceledError(e.error)) {
+		if (e.error && !isCancellationError(e.error)) {
 			this.notificationService.error(e.error);
 		}
 	}

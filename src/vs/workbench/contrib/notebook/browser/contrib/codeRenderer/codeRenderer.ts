@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { IModelService } from 'vs/editor/common/services/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { RenderOutputType, ICellOutputViewModel, IRenderOutput } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
-import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ICellOutputViewModel, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookDelegateForOutput } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { INotebookDelegateForOutput, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 abstract class CodeRendererContrib extends Disposable implements IOutputTransformContribution {
 	getType() {
@@ -29,7 +29,7 @@ abstract class CodeRendererContrib extends Disposable implements IOutputTransfor
 		public notebookEditor: INotebookDelegateForOutput,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 	}
@@ -60,7 +60,7 @@ abstract class CodeRendererContrib extends Disposable implements IOutputTransfor
 			container.style.height = `${editorHeight + 8}px`;
 		}));
 
-		const mode = this.modeService.create(languageId);
+		const mode = this.languageService.createById(languageId);
 		const textModel = this.modelService.createModel(value, mode, undefined, false);
 		editor.setModel(textModel);
 
@@ -81,7 +81,7 @@ abstract class CodeRendererContrib extends Disposable implements IOutputTransfor
 
 export class NotebookCodeRendererContribution extends Disposable {
 
-	constructor(@IModeService _modeService: IModeService) {
+	constructor(@ILanguageService _languageService: ILanguageService) {
 		super();
 
 		const registeredMimeTypes = new Map();
@@ -104,12 +104,14 @@ export class NotebookCodeRendererContribution extends Disposable {
 			registeredMimeTypes.set(mimeType, true);
 		};
 
-		_modeService.getRegisteredModes().forEach(id => {
+		_languageService.getRegisteredLanguageIds().forEach(id => {
 			registerCodeRendererContrib(`text/x-${id}`, id);
 		});
 
-		this._register(_modeService.onDidEncounterLanguage((languageId) => {
-			registerCodeRendererContrib(`text/x-${languageId}`, languageId);
+		this._register(_languageService.onDidChange(() => {
+			_languageService.getRegisteredLanguageIds().forEach(id => {
+				registerCodeRendererContrib(`text/x-${id}`, id);
+			});
 		}));
 
 		registerCodeRendererContrib('application/json', 'json');

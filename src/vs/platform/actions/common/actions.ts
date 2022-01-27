@@ -112,6 +112,7 @@ export class MenuId {
 	static readonly MenubarHelpMenu = new MenuId('MenubarHelpMenu');
 	static readonly MenubarLayoutMenu = new MenuId('MenubarLayoutMenu');
 	static readonly MenubarNewBreakpointMenu = new MenuId('MenubarNewBreakpointMenu');
+	static readonly MenubarPanelAlignmentMenu = new MenuId('MenubarPanelAlignmentMenu');
 	static readonly MenubarPreferencesMenu = new MenuId('MenubarPreferencesMenu');
 	static readonly MenubarRecentMenu = new MenuId('MenubarRecentMenu');
 	static readonly MenubarSelectionMenu = new MenuId('MenubarSelectionMenu');
@@ -344,21 +345,6 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		});
 	}
 };
-
-export class ExecuteCommandAction extends Action {
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private readonly _commandService: ICommandService) {
-
-		super(id, label);
-	}
-
-	override run(...args: any[]): Promise<void> {
-		return this._commandService.executeCommand(this.id, ...args);
-	}
-}
 
 export class SubmenuItemAction extends SubmenuAction {
 

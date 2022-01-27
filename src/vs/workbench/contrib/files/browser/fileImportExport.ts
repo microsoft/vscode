@@ -10,7 +10,7 @@ import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithMe
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { VIEW_ID } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, UndoConfirmLevel, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Limiter, Promises, RunOnceWorker } from 'vs/base/common/async';
 import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
@@ -31,6 +31,8 @@ import { listenStream } from 'vs/base/common/stream';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { once } from 'vs/base/common/functional';
 import { coalesce } from 'vs/base/common/arrays';
+import { canceled } from 'vs/base/common/errors';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 //#region Browser File Upload (drag and drop, input element)
 
@@ -386,6 +388,7 @@ export class ExternalFileImport {
 		@IFileService private readonly fileService: IFileService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IExplorerService private readonly explorerService: IExplorerService,
@@ -527,14 +530,16 @@ export class ExternalFileImport {
 				return new ResourceFileEdit(resource, targetFile, { overwrite: true, copy: true });
 			});
 
+			const undoLevel = this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo;
 			await this.explorerService.applyBulkEdit(resourceFileEdits, {
 				undoLabel: resourcesFiltered.length === 1 ?
-					localize('copyFile', "Copy {0}", basename(resourcesFiltered[0])) :
-					localize('copynFile', "Copy {0} resources", resourcesFiltered.length),
+					localize('importFile', "Import {0}", basename(resourcesFiltered[0])) :
+					localize('importnFile', "Import {0} resources", resourcesFiltered.length),
 				progressLabel: resourcesFiltered.length === 1 ?
 					localize('copyingFile', "Copying {0}", basename(resourcesFiltered[0])) :
 					localize('copyingnFile', "Copying {0} resources", resourcesFiltered.length),
-				progressLocation: ProgressLocation.Window
+				progressLocation: ProgressLocation.Window,
+				confirmBeforeUndo: undoLevel === UndoConfirmLevel.Verbose || undoLevel === UndoConfirmLevel.Default,
 			});
 
 			// if we only add one file, just open it directly
@@ -657,7 +662,7 @@ export class FileDownload {
 		else if (stat.isFile) {
 			let bufferOrUri: Uint8Array | URI;
 			try {
-				bufferOrUri = (await this.fileService.readFile(stat.resource, { limits: { size: maxBlobDownloadSize } })).value.buffer;
+				bufferOrUri = (await this.fileService.readFile(stat.resource, { limits: { size: maxBlobDownloadSize } }, cts.token)).value.buffer;
 			} catch (error) {
 				bufferOrUri = FileAccess.asBrowserUri(stat.resource);
 			}
@@ -669,7 +674,7 @@ export class FileDownload {
 	}
 
 	private async downloadFileBufferedBrowser(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
-		const contents = await this.fileService.readFileStream(resource);
+		const contents = await this.fileService.readFileStream(resource, undefined, token);
 		if (token.isCancellationRequested) {
 			target.close();
 			return;
@@ -681,20 +686,15 @@ export class FileDownload {
 			const disposables = new DisposableStore();
 			disposables.add(toDisposable(() => target.close()));
 
-			let disposed = false;
-			disposables.add(toDisposable(() => disposed = true));
-
 			disposables.add(once(token.onCancellationRequested)(() => {
 				disposables.dispose();
-				reject();
+				reject(canceled());
 			}));
 
-			listenStream(sourceStream, {
+			disposables.add(listenStream(sourceStream, {
 				onData: data => {
-					if (!disposed) {
-						target.write(data.buffer);
-						this.reportProgress(contents.name, contents.size, data.byteLength, operation);
-					}
+					target.write(data.buffer);
+					this.reportProgress(contents.name, contents.size, data.byteLength, operation);
 				},
 				onError: error => {
 					disposables.dispose();
@@ -704,12 +704,12 @@ export class FileDownload {
 					disposables.dispose();
 					resolve();
 				}
-			});
+			}));
 		});
 	}
 
 	private async downloadFileUnbufferedBrowser(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
-		const contents = await this.fileService.readFile(resource);
+		const contents = await this.fileService.readFile(resource, undefined, token);
 		if (!token.isCancellationRequested) {
 			target.write(contents.value.buffer);
 			this.reportProgress(contents.name, contents.size, contents.value.byteLength, operation);

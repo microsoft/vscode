@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { AbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
 import { Emitter } from 'vs/base/common/event';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { Convert, TestItemImpl } from 'vs/workbench/contrib/testing/common/testStubs';
+import { Convert, TestItemImpl } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
 
 class TestHierarchicalByLocationProjection extends HierarchicalByLocationProjection {
@@ -28,7 +29,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
 		};
 
-		harness = new TestTreeTestHarness(l => new TestHierarchicalByLocationProjection(l, resultsService as any));
+		harness = new TestTreeTestHarness(l => new TestHierarchicalByLocationProjection(AbstractTreeViewState.empty(), l, resultsService as any));
 	});
 
 	teardown(() => {
@@ -119,8 +120,9 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		onTestChanged.fire({
 			reason: TestResultItemChangeReason.OwnStateChange,
 			result: null as any,
-			previous: TestResultState.Unset,
+			previousState: TestResultState.Unset,
 			item: resultInState(TestResultState.Queued),
+			previousOwnDuration: undefined,
 		});
 		harness.projection.applyTo(harness.tree);
 
@@ -133,8 +135,9 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		onTestChanged.fire({
 			reason: TestResultItemChangeReason.OwnStateChange,
 			result: null as any,
-			previous: TestResultState.Queued,
+			previousState: TestResultState.Queued,
 			item: resultInState(TestResultState.Unset),
+			previousOwnDuration: undefined,
 		});
 		harness.projection.applyTo(harness.tree);
 

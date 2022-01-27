@@ -88,10 +88,10 @@ export interface IBaseTextResourceEditorInput extends IBaseResourceEditorInput {
 	encoding?: string;
 
 	/**
-	 * The identifier of the language mode of the text input
+	 * The identifier of the language id of the text input
 	 * if known to use when displaying the contents.
 	 */
-	mode?: string;
+	languageId?: string;
 }
 
 export interface IResourceEditorInput extends IBaseResourceEditorInput {
@@ -289,7 +289,7 @@ export interface IEditorOptions {
 
 	/**
 	 * An optional property to signal that certain view state should be
-	 * applied when opening the editor. 
+	 * applied when opening the editor.
 	 */
 	viewState?: object;
 }

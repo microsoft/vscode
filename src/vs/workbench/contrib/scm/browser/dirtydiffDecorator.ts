@@ -14,7 +14,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
@@ -24,7 +24,7 @@ import { registerColor, transparent } from 'vs/platform/theme/common/colorRegist
 import { Color, RGBA } from 'vs/base/common/color';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { PeekViewWidget, getOuterEditor, peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/peekView';
+import { PeekViewWidget, getOuterEditor, peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/browser/peekView';
 import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -39,10 +39,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename, isEqualOrParent } from 'vs/base/common/resources';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IChange, IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
+import { IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { OverviewRulerLane, ITextModel, IModelDecorationOptions, MinimapPosition } from 'vs/editor/common/model';
 import { sortedDiff } from 'vs/base/common/arrays';
-import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISplice } from 'vs/base/common/sequence';
 import { createStyleSheet } from 'vs/base/browser/dom';
@@ -50,8 +49,9 @@ import { EncodingMode, ITextFileEditorModel, IResolvedTextFileEditorModel, IText
 import { gotoNextLocation, gotoPreviousLocation } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { TextCompareEditorActiveContext } from 'vs/workbench/common/editor';
+import { TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IChange } from 'vs/editor/common/diff/diffComputer';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -556,7 +556,7 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 
 	public static readonly ID = 'editor.contrib.dirtydiff';
 
-	static get(editor: ICodeEditor): DirtyDiffController {
+	static get(editor: ICodeEditor): DirtyDiffController | null {
 		return editor.getContribution<DirtyDiffController>(DirtyDiffController.ID);
 	}
 
@@ -766,7 +766,7 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 			return;
 		}
 
-		const data = e.target.detail as IMarginData;
+		const data = e.target.detail;
 		const offsetLeftInGutter = (e.target.element as HTMLElement).offsetLeft;
 		const gutterOffsetX = data.offsetX - offsetLeftInGutter;
 
@@ -1162,7 +1162,7 @@ export class DirtyDiffModel extends Disposable {
 	}
 
 	private diff(): Promise<IChange[] | null> {
-		return this.progressService.withProgress({ location: ProgressLocation.Scm }, async () => {
+		return this.progressService.withProgress({ location: ProgressLocation.Scm, delay: 250 }, async () => {
 			return this.getOriginalURIPromise().then(originalURI => {
 				if (this._disposed || this._model.isDisposed() || !originalURI) {
 					return Promise.resolve([]); // disposed
@@ -1410,7 +1410,9 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 			.map(editor => {
 				const codeEditor = editor as CodeEditorWidget;
 				const controller = DirtyDiffController.get(codeEditor);
-				controller.modelRegistry = this;
+				if (controller) {
+					controller.modelRegistry = this;
+				}
 				return codeEditor.getModel();
 			})
 

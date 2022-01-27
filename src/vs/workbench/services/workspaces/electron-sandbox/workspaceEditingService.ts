@@ -125,7 +125,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 					await this.workspacesService.addRecentlyOpened([{
 						label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true }),
 						workspace: newWorkspaceIdentifier,
-						remoteAuthority: this.environmentService.remoteAuthority
+						remoteAuthority: this.environmentService.remoteAuthority // remember whether this was a remote window
 					}]);
 
 					// Delete the untitled one

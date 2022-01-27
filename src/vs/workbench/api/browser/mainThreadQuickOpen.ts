@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPickOptions, IInputOptions, IQuickInputService, IQuickInput, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, TransferQuickPickItem, MainContext, IExtHostContext, TransferQuickInput, TransferQuickInputButton, IInputBoxOptions } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, TransferQuickPickItem, MainContext, IExtHostContext, TransferQuickInput, TransferQuickInputButton, IInputBoxOptions, TransferQuickPickItemOrSeparator } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -27,7 +27,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	private readonly _proxy: ExtHostQuickOpenShape;
 	private readonly _quickInputService: IQuickInputService;
 	private readonly _items: Record<number, {
-		resolve(items: TransferQuickPickItem[]): void;
+		resolve(items: TransferQuickPickItemOrSeparator[]): void;
 		reject(error: Error): void;
 	}> = {};
 
@@ -43,7 +43,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	}
 
 	$show(instance: number, options: IPickOptions<TransferQuickPickItem>, token: CancellationToken): Promise<number | number[] | undefined> {
-		const contents = new Promise<TransferQuickPickItem[]>((resolve, reject) => {
+		const contents = new Promise<TransferQuickPickItemOrSeparator[]>((resolve, reject) => {
 			this._items[instance] = { resolve, reject };
 		});
 
@@ -73,7 +73,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		}
 	}
 
-	$setItems(instance: number, items: TransferQuickPickItem[]): Promise<void> {
+	$setItems(instance: number, items: TransferQuickPickItemOrSeparator[]): Promise<void> {
 		if (this._items[instance]) {
 			this._items[instance].resolve(items);
 			delete this._items[instance];
@@ -169,7 +169,11 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 				}
 			} else if (param === 'items') {
 				handlesToItems.clear();
-				params[param].forEach((item: TransferQuickPickItem) => {
+				params[param].forEach((item: TransferQuickPickItemOrSeparator) => {
+					if (item.type === 'separator') {
+						return;
+					}
+
 					if (item.buttons) {
 						item.buttons = item.buttons.map((button: TransferQuickInputButton) => {
 							if (button.iconPath) {

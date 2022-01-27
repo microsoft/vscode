@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { join, basename } from 'vs/base/common/path';
 import { UTF16le, UTF8_with_bom, UTF16be, UTF8, UTF16le_BOM, UTF16be_BOM, UTF8_BOM } from 'vs/workbench/services/textfile/common/encoding';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ITextSnapshot, DefaultEndOfLine } from 'vs/editor/common/model';
 import { isWindows } from 'vs/base/common/platform';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';

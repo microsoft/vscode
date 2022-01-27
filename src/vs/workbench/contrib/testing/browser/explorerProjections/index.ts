@@ -100,7 +100,7 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly treeId = getId();
+	public readonly treeId = this.test.item.extId;
 
 	/**
 	 * @inheritdoc
@@ -113,6 +113,10 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 
 	public get description() {
 		return this.test.item.description;
+	}
+
+	public get sortText() {
+		return this.test.item.sortText;
 	}
 
 	/**

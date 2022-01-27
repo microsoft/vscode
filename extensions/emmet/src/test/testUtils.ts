@@ -8,8 +8,13 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { join } from 'path';
 
-function rndName() {
-	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
+export function rndName() {
+	let name = '';
+	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	for (let i = 0; i < 10; i++) {
+		name += possible.charAt(Math.floor(Math.random() * possible.length));
+	}
+	return name;
 }
 
 export function createRandomFile(contents = '', fileExtension = 'txt'): Thenable<vscode.Uri> {

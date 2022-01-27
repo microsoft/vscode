@@ -29,7 +29,7 @@
 			performance.mark('code/didLoadWorkbenchMain');
 
 			// @ts-ignore
-			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
+			return require('vs/workbench/electron-sandbox/desktop.main').main(configuration);
 		},
 		{
 			configureDeveloperSettings: function (windowConfig) {

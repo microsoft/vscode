@@ -7,8 +7,8 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IReference, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
+import { ITextModel, shouldSynchronizeModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService, FileOperation } from 'vs/platform/files/common/files';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
@@ -138,7 +138,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 
 		this._register(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
 		this._register(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
-		this._register(_modelService.onModelModeChanged(this._onModelModeChanged, this));
+		this._register(_modelService.onModelLanguageChanged(this._onModelModeChanged, this));
 
 		this._register(_textFileService.files.onDidSave(e => {
 			if (this._shouldHandleFileEvent(e.model.resource)) {
@@ -193,12 +193,12 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		this._modelTrackers.set(model.uri, new ModelTracker(model, this._onIsCaughtUpWithContentChanges, this._proxy, this._textFileService));
 	}
 
-	private _onModelModeChanged(event: { model: ITextModel; oldModeId: string; }): void {
+	private _onModelModeChanged(event: { model: ITextModel; oldLanguageId: string; }): void {
 		let { model } = event;
 		if (!this._modelIsSynced.has(model.uri)) {
 			return;
 		}
-		this._proxy.$acceptModelModeChanged(model.uri, model.getLanguageId());
+		this._proxy.$acceptModelLanguageChanged(model.uri, model.getLanguageId());
 	}
 
 	private _onModelRemoved(modelUrl: URI): void {
@@ -271,10 +271,10 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		});
 	}
 
-	private _doCreateUntitled(associatedResource?: URI, mode?: string, initialValue?: string): Promise<URI> {
+	private _doCreateUntitled(associatedResource?: URI, languageId?: string, initialValue?: string): Promise<URI> {
 		return this._textFileService.untitled.resolve({
 			associatedResource,
-			mode,
+			languageId,
 			initialValue
 		}).then(model => {
 			const resource = model.resource;

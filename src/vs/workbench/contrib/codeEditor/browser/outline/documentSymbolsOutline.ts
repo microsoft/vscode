@@ -12,25 +12,25 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { DocumentSymbolComparator, DocumentSymbolAccessibilityProvider, DocumentSymbolRenderer, DocumentSymbolFilter, DocumentSymbolGroupRenderer, DocumentSymbolIdentityProvider, DocumentSymbolNavigationLabelProvider, DocumentSymbolVirtualDelegate } from 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsTree';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { OutlineGroup, OutlineElement, OutlineModel, TreeElement, IOutlineMarker } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
+import { OutlineGroup, OutlineElement, OutlineModel, TreeElement, IOutlineMarker, IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
+import { DocumentSymbolProviderRegistry } from 'vs/editor/common/languages';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { raceCancellation, TimeoutTimer, timeout, Barrier } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { isEqual } from 'vs/base/common/resources';
 
@@ -133,6 +133,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		target: OutlineTarget,
 		firstLoadBarrier: Barrier,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IOutlineModelService private readonly _outlineModelService: IOutlineModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
@@ -188,8 +189,11 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		const updateSoon = new TimeoutTimer();
 		this._disposables.add(updateSoon);
 		this._disposables.add(this._editor.onDidChangeModelContent(event => {
-			const timeout = OutlineModel.getRequestDelay(this._editor!.getModel());
-			updateSoon.cancelAndSet(() => this._createOutline(event), timeout);
+			const model = this._editor.getModel();
+			if (model) {
+				const timeout = _outlineModelService.getDebounceValue(model);
+				updateSoon.cancelAndSet(() => this._createOutline(event), timeout);
+			}
 		}));
 
 		// stop when editor dies
@@ -206,6 +210,10 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 	get isEmpty(): boolean {
 		return !this._outlineModel || TreeElement.empty(this._outlineModel);
+	}
+
+	get uri() {
+		return this._outlineModel?.uri;
 	}
 
 	async reveal(entry: DocumentSymbolItem, options: IEditorOptions, sideBySide: boolean): Promise<void> {
@@ -273,7 +281,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		this._outlineDisposables.add(toDisposable(() => cts.dispose(true)));
 
 		try {
-			let model = await OutlineModel.create(buffer, cts.token);
+			let model = await this._outlineModelService.getOrCreate(buffer, cts.token);
 			if (cts.token.isCancellationRequested) {
 				// cancelled -> do nothing
 				return;
@@ -303,9 +311,6 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 					}
 				}
 			}
-
-			// copy the model
-			model = model.adopt();
 
 			// feature: show markers with outline element
 			this._applyMarkersToOutline(model);

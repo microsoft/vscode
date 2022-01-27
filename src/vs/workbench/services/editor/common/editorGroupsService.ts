@@ -5,14 +5,15 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDimension } from 'vs/editor/common/editorCommon';
+import { IDimension } from 'vs/editor/common/core/dimension';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
+import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -395,53 +396,6 @@ export interface IEditorGroupsService {
 	enforcePartOptions(options: IEditorPartOptions): IDisposable;
 }
 
-export const enum GroupChangeKind {
-
-	/* Group Changes */
-	GROUP_ACTIVE,
-	GROUP_INDEX,
-	GROUP_LOCKED,
-
-	/* Editor Changes */
-	EDITOR_OPEN,
-	EDITOR_CLOSE,
-	EDITOR_MOVE,
-	EDITOR_ACTIVE,
-	EDITOR_LABEL,
-	EDITOR_CAPABILITIES,
-	EDITOR_PIN,
-	EDITOR_STICKY,
-	EDITOR_DIRTY
-}
-
-export interface IGroupChangeEvent {
-
-	/**
-	 * The kind of change that occured in the group.
-	 */
-	kind: GroupChangeKind;
-
-	/**
-	 * Only applies when editors change providing
-	 * access to the editor the event is about.
-	 */
-	editor?: EditorInput;
-
-	/**
-	 * Only applies when an editor opens, closes
-	 * or is moved. Identifies the index of the
-	 * editor in the group.
-	 */
-	editorIndex?: number;
-
-	/**
-	 * For `EDITOR_MOVE` only: Signifies the index the
-	 * editor is moving from. `editorIndex` will contain
-	 * the index the editor is moving to.
-	 */
-	oldEditorIndex?: number;
-}
-
 export const enum OpenEditorContext {
 	NEW_EDITOR = 1,
 	MOVE_EDITOR = 2,
@@ -451,9 +405,9 @@ export const enum OpenEditorContext {
 export interface IEditorGroup {
 
 	/**
-	 * An aggregated event for when the group changes in any way.
+	 * An event which fires whenever the underlying group model changes.
 	 */
-	readonly onDidGroupChange: Event<IGroupChangeEvent>;
+	readonly onDidModelChange: Event<IGroupModelChangeEvent>;
 
 	/**
 	 * An event that is fired when the group gets disposed.
@@ -461,9 +415,19 @@ export interface IEditorGroup {
 	readonly onWillDispose: Event<void>;
 
 	/**
+	 * An event that is fired when the active editor in the group changed.
+	 */
+	readonly onDidActiveEditorChange: Event<IActiveEditorChangeEvent>;
+
+	/**
 	 * An event that is fired when an editor is about to close.
 	 */
 	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
+
+	/**
+	 * An event that is fired when an editor is closed.
+	 */
+	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
 	/**
 	 * An event that is fired when an editor is about to move to
@@ -494,7 +458,7 @@ export interface IEditorGroup {
 	/**
 	 * A human readable label for the group. This label can change depending
 	 * on the layout of all editor groups. Clients should listen on the
-	 * `onDidGroupChange` event to react to that.
+	 * `onDidGroupModelChange` event to react to that.
 	 */
 	readonly label: string;
 
@@ -569,9 +533,10 @@ export interface IEditorGroup {
 	 * each editor that reports a `resource` that matches the
 	 * provided one.
 	 *
-	 * @param resource The resource of the editor to find
+	 * @param resource the resource of the editor to find
+	 * @param options whether to support side by side editors or not
 	 */
-	findEditors(resource: URI): readonly EditorInput[];
+	findEditors(resource: URI, options?: IFindEditorOptions): readonly EditorInput[];
 
 	/**
 	 * Returns the editor at a specific index of the group.
@@ -620,8 +585,9 @@ export interface IEditorGroup {
 	 * Find out if a certain editor is included in the group.
 	 *
 	 * @param candidate the editor to find
+	 * @param options fine tune how to match editors
 	 */
-	contains(candidate: EditorInput | IUntypedEditorInput): boolean;
+	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean;
 
 	/**
 	 * Move an editor from this group either within this group or to another group.

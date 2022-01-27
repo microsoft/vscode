@@ -23,7 +23,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
-import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/cursor/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TrackedRangeStickiness, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -211,7 +211,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 export class OpenWorkspaceButtonContribution extends Disposable implements IEditorContribution {
 
-	static get(editor: ICodeEditor): OpenWorkspaceButtonContribution {
+	static get(editor: ICodeEditor): OpenWorkspaceButtonContribution | null {
 		return editor.getContribution<OpenWorkspaceButtonContribution>(OpenWorkspaceButtonContribution.ID);
 	}
 

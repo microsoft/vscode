@@ -5,11 +5,11 @@
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require("fs");
-const url = require("url");
 const crypto = require("crypto");
-const azure = require("azure-storage");
+const storage_blob_1 = require("@azure/storage-blob");
 const mime = require("mime");
 const cosmos_1 = require("@azure/cosmos");
+const identity_1 = require("@azure/identity");
 const retry_1 = require("./retry");
 if (process.argv.length !== 8) {
     console.error('Usage: node createAsset.js PRODUCT OS ARCH TYPE NAME FILE');
@@ -118,20 +118,6 @@ function hashStream(hashName, stream) {
             .on('close', () => c(shasum.digest('hex')));
     });
 }
-async function doesAssetExist(blobService, quality, blobName) {
-    const existsResult = await new Promise((c, e) => blobService.doesBlobExist(quality, blobName, (err, r) => err ? e(err) : c(r)));
-    return existsResult.exists;
-}
-async function uploadBlob(blobService, quality, blobName, filePath, fileName) {
-    const blobOptions = {
-        contentSettings: {
-            contentType: mime.lookup(filePath),
-            contentDisposition: `attachment; filename="${fileName}"`,
-            cacheControl: 'max-age=31536000, public'
-        }
-    };
-    await new Promise((c, e) => blobService.createBlockBlobFromLocalFile(quality, blobName, filePath, blobOptions, err => err ? e(err) : c()));
-}
 function getEnv(name) {
     const result = process.env[name];
     if (typeof result === 'undefined') {
@@ -155,28 +141,35 @@ async function main() {
     console.log('SHA1:', sha1hash);
     console.log('SHA256:', sha256hash);
     const blobName = commit + '/' + fileName;
-    const storageAccount = process.env['AZURE_STORAGE_ACCOUNT_2'];
-    const blobService = azure.createBlobService(storageAccount, process.env['AZURE_STORAGE_ACCESS_KEY_2'])
-        .withFilter(new azure.ExponentialRetryPolicyFilter(20));
-    const blobExists = await doesAssetExist(blobService, quality, blobName);
+    const storagePipelineOptions = { retryOptions: { retryPolicyType: storage_blob_1.StorageRetryPolicyType.EXPONENTIAL, maxTries: 6, tryTimeoutInMs: 10 * 60 * 1000 } };
+    const credential = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
+    const blobServiceClient = new storage_blob_1.BlobServiceClient(`https://vscode.blob.core.windows.net`, credential, storagePipelineOptions);
+    const containerClient = blobServiceClient.getContainerClient(quality);
+    const blobClient = containerClient.getBlockBlobClient(blobName);
+    const blobExists = await blobClient.exists();
     if (blobExists) {
         console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
         return;
     }
-    const mooncakeBlobService = azure.createBlobService(storageAccount, process.env['MOONCAKE_STORAGE_ACCESS_KEY'], `${storageAccount}.blob.core.chinacloudapi.cn`)
-        .withFilter(new azure.ExponentialRetryPolicyFilter(20));
-    // mooncake is fussy and far away, this is needed!
-    blobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
-    mooncakeBlobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
+    const mooncakeCredential = new identity_1.ClientSecretCredential(process.env['AZURE_MOONCAKE_TENANT_ID'], process.env['AZURE_MOONCAKE_CLIENT_ID'], process.env['AZURE_MOONCAKE_CLIENT_SECRET']);
+    const mooncakeBlobServiceClient = new storage_blob_1.BlobServiceClient(`https://vscode.blob.core.chinacloudapi.cn`, mooncakeCredential, storagePipelineOptions);
+    const mooncakeContainerClient = mooncakeBlobServiceClient.getContainerClient(quality);
+    const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
     console.log('Uploading blobs to Azure storage and Mooncake Azure storage...');
+    const blobOptions = {
+        blobHTTPHeaders: {
+            blobContentType: mime.lookup(filePath),
+            blobContentDisposition: `attachment; filename="${fileName}"`,
+            blobCacheControl: 'max-age=31536000, public'
+        }
+    };
     await (0, retry_1.retry)(() => Promise.all([
-        uploadBlob(blobService, quality, blobName, filePath, fileName),
-        uploadBlob(mooncakeBlobService, quality, blobName, filePath, fileName)
+        blobClient.uploadFile(filePath, blobOptions),
+        mooncakeBlobClient.uploadFile(filePath, blobOptions)
     ]));
     console.log('Blobs successfully uploaded.');
-    // TODO: Understand if blobName and blobPath are the same and replace blobPath with blobName if so.
     const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
-    const blobPath = url.parse(assetUrl).path;
+    const blobPath = new URL(assetUrl).pathname;
     const mooncakeUrl = `${process.env['MOONCAKE_CDN_URL']}${blobPath}`;
     const asset = {
         platform,
@@ -192,7 +185,7 @@ async function main() {
         asset.supportsFastUpdate = true;
     }
     console.log('Asset:', JSON.stringify(asset, null, '  '));
-    const client = new cosmos_1.CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT'], key: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
+    const client = new cosmos_1.CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT'], aadCredentials: credential });
     const scripts = client.database('builds').container(quality).scripts;
     await (0, retry_1.retry)(() => scripts.storedProcedure('createAsset').execute('', [commit, asset, true]));
     console.log(`  Done ✔️`);

@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import * as marked from 'vs/base/common/marked/marked';
+import { marked } from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
-import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const DEFAULT_MARKDOWN_STYLES = `
@@ -199,7 +198,7 @@ function sanitize(documentContent: string, allowUnknownProtocols: boolean): stri
 export async function renderMarkdownDocument(
 	text: string,
 	extensionService: IExtensionService,
-	modeService: IModeService,
+	languageService: ILanguageService,
 	shouldSanitize: boolean = true,
 	allowUnknownProtocols: boolean = false,
 ): Promise<string> {
@@ -209,13 +208,9 @@ export async function renderMarkdownDocument(
 			return code;
 		}
 		extensionService.whenInstalledExtensionsRegistered().then(async () => {
-			let support: ITokenizationSupport | undefined;
-			const languageId = modeService.getModeIdForLanguageName(lang);
-			if (languageId) {
-				modeService.triggerMode(languageId);
-				support = await TokenizationRegistry.getPromise(languageId) ?? undefined;
-			}
-			callback(null, `<code>${tokenizeToString(code, modeService.languageIdCodec, support)}</code>`);
+			const languageId = languageService.getLanguageIdByLanguageName(lang);
+			const html = await tokenizeToString(languageService, code, languageId);
+			callback(null, `<code>${html}</code>`);
 		});
 		return '';
 	};

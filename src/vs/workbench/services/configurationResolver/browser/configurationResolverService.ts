@@ -201,7 +201,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					result = await this.showUserInput(name, inputs);
 					break;
 
-				case 'command':
+				case 'command': {
 					// use the name as a command ID #12735
 					const commandId = (variableToCommandMap ? variableToCommandMap[name] : undefined) || name;
 					result = await this.commandService.executeCommand(commandId, configuration);
@@ -209,6 +209,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						throw new Error(nls.localize('commandVariable.noStringType', "Cannot substitute command variable '{0}' because command did not return a result of type string.", commandId));
 					}
 					break;
+				}
 				default:
 					// Try to resolve it as a contributed variable
 					if (this._contributedVariables.has(variable)) {

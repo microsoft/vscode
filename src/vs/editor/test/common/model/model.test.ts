@@ -8,15 +8,14 @@ import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
-import { IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
+import { EncodedTokenizationResult, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { NullState } from 'vs/editor/common/languages/nullMode';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { createModelServices, createTextModel, createTextModel2 } from 'vs/editor/test/common/editorTestUtils';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import { ILanguageService } from 'vs/editor/common/services/language';
 
 // --------- utils
 
@@ -384,17 +383,17 @@ suite('Editor Model - Words', () => {
 
 	class OuterMode extends MockMode {
 		constructor(
-			@IModeService modeService: IModeService
+			@ILanguageService languageService: ILanguageService
 		) {
 			super(OUTER_LANGUAGE_ID);
-			const languageIdCodec = modeService.languageIdCodec;
+			const languageIdCodec = languageService.languageIdCodec;
 
 			this._register(LanguageConfigurationRegistry.register(this.languageId, {}));
 
 			this._register(TokenizationRegistry.register(this.languageId, {
-				getInitialState: (): IState => NULL_STATE,
+				getInitialState: (): IState => NullState,
 				tokenize: undefined!,
-				tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
+				tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
 					const tokensArr: number[] = [];
 					let prevLanguageId: string | undefined = undefined;
 					for (let i = 0; i < line.length; i++) {
@@ -411,7 +410,7 @@ suite('Editor Model - Words', () => {
 					for (let i = 0; i < tokens.length; i++) {
 						tokens[i] = tokensArr[i];
 					}
-					return new TokenizationResult2(tokens, state);
+					return new EncodedTokenizationResult(tokens, state);
 				}
 			}));
 		}
@@ -459,7 +458,7 @@ suite('Editor Model - Words', () => {
 		const outerMode = disposables.add(instantiationService.createInstance(OuterMode));
 		disposables.add(new InnerMode());
 
-		const model = disposables.add(createTextModel2(instantiationService, 'ab<xx>ab<x>', undefined, outerMode.languageId));
+		const model = disposables.add(instantiateTextModel(instantiationService, 'ab<xx>ab<x>', outerMode.languageId));
 
 		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 1)), { word: 'ab', startColumn: 1, endColumn: 3 });
 		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 2)), { word: 'ab', startColumn: 1, endColumn: 3 });
@@ -485,7 +484,7 @@ suite('Editor Model - Words', () => {
 		};
 		disposables.push(mode);
 
-		const thisModel = createTextModel('.🐷-a-b', undefined, MODE_ID);
+		const thisModel = createTextModel('.🐷-a-b', MODE_ID);
 		disposables.push(thisModel);
 
 		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 1)), { word: '.', startColumn: 1, endColumn: 2 });

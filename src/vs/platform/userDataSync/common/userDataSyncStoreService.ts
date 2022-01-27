@@ -5,7 +5,7 @@
 
 import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
+import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
@@ -21,7 +21,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { asJson, asText, IRequestService, isSuccess as isSuccessContext } from 'vs/platform/request/common/request';
-import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
+import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { CONFIGURATION_SYNC_STORE_KEY, HEADER_EXECUTION_ID, HEADER_OPERATION_ID, IAuthenticationProvider, IResourceRefHandle, IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStore, IUserDataSyncStoreClient, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, ServerResource, SYNC_SERVICE_URL_TYPE, UserDataSyncErrorCode, UserDataSyncStoreError, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 
@@ -65,7 +65,7 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 		this._onDidChangeUserDataSyncStore.fire();
 	}
 
-	protected toUserDataSyncStore(productStore: ConfigurationSyncStore & { web?: ConfigurationSyncStore } | undefined, configuredStore?: ConfigurationSyncStore): UserDataSyncStore | undefined {
+	protected toUserDataSyncStore(productStore: ConfigurationSyncStore & { web?: ConfigurationSyncStore; } | undefined, configuredStore?: ConfigurationSyncStore): UserDataSyncStore | undefined {
 		// Check for web overrides for backward compatibility while reading previous store
 		productStore = isWeb && productStore?.web ? { ...productStore, ...productStore.web } : productStore;
 		const value: Partial<ConfigurationSyncStore> = { ...(productStore || {}), ...(configuredStore || {}) };
@@ -144,7 +144,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 
 	private userDataSyncStoreUrl: URI | undefined;
 
-	private authToken: { token: string, type: string } | undefined;
+	private authToken: { token: string, type: string; } | undefined;
 	private readonly commonHeadersPromise: Promise<{ [key: string]: string; }>;
 	private readonly session: RequestsSession;
 
@@ -240,7 +240,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 
 		const context = await this.request(uri.toString(), { type: 'GET', headers }, [], CancellationToken.None);
 
-		const result = await asJson<{ url: string, created: number }[]>(context) || [];
+		const result = await asJson<{ url: string, created: number; }[]>(context) || [];
 		return result.map(({ url, created }) => ({ ref: relativePath(uri, uri.with({ path: url }))!, created: created * 1000 /* Server returns in seconds */ }));
 	}
 
@@ -453,7 +453,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 				}
 
 				// Request canceled
-				else if (isPromiseCanceledError(e)) {
+				else if (isCancellationError(e)) {
 					code = UserDataSyncErrorCode.RequestCanceled;
 				}
 

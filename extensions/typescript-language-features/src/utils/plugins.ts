@@ -8,7 +8,7 @@ import * as arrays from './arrays';
 import { Disposable } from './dispose';
 
 export interface TypeScriptServerPlugin {
-	readonly path: string;
+	readonly uri: vscode.Uri;
 	readonly name: string;
 	readonly enableForWorkspaceTypeScriptVersions: boolean;
 	readonly languages: ReadonlyArray<string>;
@@ -17,7 +17,7 @@ export interface TypeScriptServerPlugin {
 
 namespace TypeScriptServerPlugin {
 	export function equals(a: TypeScriptServerPlugin, b: TypeScriptServerPlugin): boolean {
-		return a.path === b.path
+		return a.uri.toString() === b.uri.toString()
 			&& a.name === b.name
 			&& a.enableForWorkspaceTypeScriptVersions === b.enableForWorkspaceTypeScriptVersions
 			&& arrays.equals(a.languages, b.languages);
@@ -76,7 +76,7 @@ export class PluginManager extends Disposable {
 					plugins.push({
 						name: plugin.name,
 						enableForWorkspaceTypeScriptVersions: !!plugin.enableForWorkspaceTypeScriptVersions,
-						path: extension.extensionPath,
+						uri: extension.extensionUri,
 						languages: Array.isArray(plugin.languages) ? plugin.languages : [],
 						configNamespace: plugin.configNamespace,
 					});

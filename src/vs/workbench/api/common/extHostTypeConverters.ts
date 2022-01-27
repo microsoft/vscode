@@ -7,10 +7,10 @@ import { asArray, coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import * as marked from 'vs/base/common/marked/marked';
+import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { isDefined, isEmptyObject, isNumber, isString } from 'vs/base/common/types';
+import { isDefined, isEmptyObject, isNumber, isString, withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -19,8 +19,8 @@ import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { IContentDecorationRenderOptions, IDecorationOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import * as languageSelector from 'vs/editor/common/modes/languageSelector';
+import * as modes from 'vs/editor/common/languages';
+import * as languageSelector from 'vs/editor/common/languageSelector';
 import { EditorResolution, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
@@ -142,7 +142,7 @@ export namespace DocumentSelector {
 				$serialized: true,
 				language: selector.language,
 				scheme: _transformScheme(selector.scheme, uriTransformer),
-				pattern: typeof selector.pattern === 'undefined' ? undefined : GlobPattern.from(selector.pattern),
+				pattern: GlobPattern.from(selector.pattern) ?? undefined,
 				exclusive: selector.exclusive
 			};
 		}
@@ -339,7 +339,7 @@ export namespace MarkdownString {
 		};
 		const renderer = new marked.Renderer();
 		renderer.link = collectUri;
-		renderer.image = href => collectUri(htmlContent.parseHrefAndDimensions(href).href);
+		renderer.image = href => typeof href === 'string' ? collectUri(htmlContent.parseHrefAndDimensions(href).href) : '';
 
 		marked(res.value, { renderer });
 
@@ -834,7 +834,7 @@ export namespace DefinitionLink {
 				: undefined,
 		};
 	}
-	export function to(value: extHostProtocol.IDefinitionLinkDto): vscode.LocationLink {
+	export function to(value: extHostProtocol.ILocationLinkDto): vscode.LocationLink {
 		return {
 			targetUri: URI.revive(value.uri),
 			targetRange: Range.to(value.range),
@@ -1152,25 +1152,33 @@ export namespace SignatureHelp {
 
 export namespace InlayHint {
 
-	export function from(hint: vscode.InlayHint): modes.InlayHint {
-		return {
-			text: hint.text,
-			position: Position.from(hint.position),
-			kind: InlayHintKind.from(hint.kind ?? types.InlayHintKind.Other),
-			whitespaceBefore: hint.whitespaceBefore,
-			whitespaceAfter: hint.whitespaceAfter
-		};
-	}
-
-	export function to(hint: modes.InlayHint): vscode.InlayHint {
+	export function to(converter: CommandsConverter, hint: modes.InlayHint): vscode.InlayHint {
 		const res = new types.InlayHint(
-			hint.text,
+			typeof hint.label === 'string' ? hint.label : hint.label.map(InlayHintLabelPart.to.bind(undefined, converter)),
 			Position.to(hint.position),
 			InlayHintKind.to(hint.kind)
 		);
-		res.whitespaceAfter = hint.whitespaceAfter;
-		res.whitespaceBefore = hint.whitespaceBefore;
+		res.tooltip = htmlContent.isMarkdownString(hint.tooltip) ? MarkdownString.to(hint.tooltip) : hint.tooltip;
+		res.paddingLeft = hint.paddingLeft;
+		res.paddingRight = hint.paddingRight;
 		return res;
+	}
+}
+
+export namespace InlayHintLabelPart {
+
+	export function to(converter: CommandsConverter, part: modes.InlayHintLabelPart): types.InlayHintLabelPart {
+		const result = new types.InlayHintLabelPart(part.label);
+		result.tooltip = htmlContent.isMarkdownString(part.tooltip)
+			? MarkdownString.to(part.tooltip)
+			: part.tooltip;
+		if (modes.Command.is(part.command)) {
+			result.command = converter.fromInternal(part.command);
+		}
+		if (part.location) {
+			result.location = location.to(part.location);
+		}
+		return result;
 	}
 }
 
@@ -1374,29 +1382,60 @@ export namespace TextEditorOpenOptions {
 
 export namespace GlobPattern {
 
-	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern;
+	export function from(pattern: vscode.GlobPattern): string | extHostProtocol.IRelativePatternDto;
 	export function from(pattern: undefined): undefined;
 	export function from(pattern: null): null;
-	export function from(pattern: vscode.GlobPattern | undefined | null): string | types.RelativePattern | undefined | null;
-	export function from(pattern: vscode.GlobPattern | undefined | null): string | types.RelativePattern | undefined | null {
+	export function from(pattern: vscode.GlobPattern | undefined | null): string | extHostProtocol.IRelativePatternDto | undefined | null;
+	export function from(pattern: vscode.GlobPattern | undefined | null): string | extHostProtocol.IRelativePatternDto | undefined | null {
 		if (pattern instanceof types.RelativePattern) {
-			return pattern;
+			return pattern.toJSON();
 		}
 
 		if (typeof pattern === 'string') {
 			return pattern;
 		}
 
-		if (isRelativePattern(pattern)) {
-			return new types.RelativePattern(pattern.base, pattern.pattern);
+		// This is slightly bogus because we declare this method to accept
+		// `vscode.GlobPattern` which can be `vscode.RelativePattern` class,
+		// but given we cannot enforce classes from our vscode.d.ts, we have
+		// to probe for objects too
+		// Refs: https://github.com/microsoft/vscode/issues/140771
+		if (isRelativePatternShape(pattern) || isLegacyRelativePatternShape(pattern)) {
+			return new types.RelativePattern(pattern.baseUri ?? pattern.base, pattern.pattern).toJSON();
 		}
 
 		return pattern; // preserve `undefined` and `null`
 	}
 
-	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
-		const rp = obj as vscode.RelativePattern;
-		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	function isRelativePatternShape(obj: unknown): obj is { base: string, baseUri: URI, pattern: string } {
+		const rp = obj as { base: string, baseUri: URI, pattern: string } | undefined | null;
+		if (!rp) {
+			return false;
+		}
+
+		return URI.isUri(rp.baseUri) && typeof rp.pattern === 'string';
+	}
+
+	function isLegacyRelativePatternShape(obj: unknown): obj is { base: string, pattern: string } {
+
+		// Before 1.64.x, `RelativePattern` did not have any `baseUri: Uri`
+		// property. To preserve backwards compatibility with older extensions
+		// we allow this old format when creating the `vscode.RelativePattern`.
+
+		const rp = obj as { base: string, pattern: string } | undefined | null;
+		if (!rp) {
+			return false;
+		}
+
+		return typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	}
+
+	export function to(pattern: string | extHostProtocol.IRelativePatternDto): vscode.GlobPattern {
+		if (typeof pattern === 'string') {
+			return pattern;
+		}
+
+		return new types.RelativePattern(URI.revive(pattern.baseUri), pattern.pattern);
 	}
 }
 
@@ -1417,7 +1456,7 @@ export namespace LanguageSelector {
 			return <languageSelector.LanguageFilter>{
 				language: filter.language,
 				scheme: filter.scheme,
-				pattern: typeof filter.pattern === 'undefined' ? undefined : GlobPattern.from(filter.pattern),
+				pattern: GlobPattern.from(filter.pattern),
 				exclusive: filter.exclusive
 			};
 		}
@@ -1558,75 +1597,39 @@ export namespace NotebookCellOutput {
 
 
 export namespace NotebookExclusiveDocumentPattern {
-	export function from(pattern: { include: vscode.GlobPattern | undefined, exclude: vscode.GlobPattern | undefined }): { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined };
-	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern;
+	export function from(pattern: { include: vscode.GlobPattern | undefined, exclude: vscode.GlobPattern | undefined }): { include: string | extHostProtocol.IRelativePatternDto | undefined, exclude: string | extHostProtocol.IRelativePatternDto | undefined };
+	export function from(pattern: vscode.GlobPattern): string | extHostProtocol.IRelativePatternDto;
 	export function from(pattern: undefined): undefined;
-	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | types.RelativePattern | { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined } | undefined;
-	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | types.RelativePattern | { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined } | undefined {
-		if (pattern === null || pattern === undefined) {
-			return undefined;
-		}
-
-		if (pattern instanceof types.RelativePattern) {
-			return pattern;
-		}
-
-		if (typeof pattern === 'string') {
-			return pattern;
-		}
-
-
-		if (isRelativePattern(pattern)) {
-			return new types.RelativePattern(pattern.base, pattern.pattern);
-		}
-
+	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | extHostProtocol.IRelativePatternDto | { include: string | extHostProtocol.IRelativePatternDto | undefined, exclude: string | extHostProtocol.IRelativePatternDto | undefined } | undefined;
+	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | extHostProtocol.IRelativePatternDto | { include: string | extHostProtocol.IRelativePatternDto | undefined, exclude: string | extHostProtocol.IRelativePatternDto | undefined } | undefined {
 		if (isExclusivePattern(pattern)) {
 			return {
-				include: GlobPattern.from(pattern.include) || undefined,
-				exclude: GlobPattern.from(pattern.exclude) || undefined
+				include: withNullAsUndefined(GlobPattern.from(pattern.include)),
+				exclude: withNullAsUndefined(GlobPattern.from(pattern.exclude))
 			};
 		}
 
-		return undefined; // preserve `undefined`
-
+		return withNullAsUndefined(GlobPattern.from(pattern));
 	}
 
-	export function to(pattern: string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern }): { include: vscode.GlobPattern, exclude: vscode.GlobPattern } | vscode.GlobPattern {
-		if (typeof pattern === 'string') {
-			return pattern;
-		}
-
-		if (isRelativePattern(pattern)) {
+	export function to(pattern: string | extHostProtocol.IRelativePatternDto | { include: string | extHostProtocol.IRelativePatternDto, exclude: string | extHostProtocol.IRelativePatternDto }): { include: vscode.GlobPattern, exclude: vscode.GlobPattern } | vscode.GlobPattern {
+		if (isExclusivePattern(pattern)) {
 			return {
-				base: pattern.base,
-				pattern: pattern.pattern
+				include: GlobPattern.to(pattern.include),
+				exclude: GlobPattern.to(pattern.exclude)
 			};
 		}
 
-		return {
-			include: pattern.include,
-			exclude: pattern.exclude
-		};
+		return GlobPattern.to(pattern);
 	}
 
-	function isExclusivePattern(obj: any): obj is { include: types.RelativePattern | undefined | null, exclude: types.RelativePattern | undefined | null } {
-		const ep = obj as { include: vscode.GlobPattern, exclude: vscode.GlobPattern };
-		const include = GlobPattern.from(ep.include);
-		if (!(include && include instanceof types.RelativePattern || typeof include === 'string')) {
+	function isExclusivePattern<T>(obj: any): obj is { include?: T, exclude?: T } {
+		const ep = obj as { include?: T, exclude?: T } | undefined | null;
+		if (!ep) {
 			return false;
 		}
 
-		const exclude = GlobPattern.from(ep.exclude);
-		if (!(exclude && exclude instanceof types.RelativePattern || typeof exclude === 'string')) {
-			return false;
-		}
-
-		return true;
-	}
-
-	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
-		const rp = obj as vscode.RelativePattern;
-		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+		return !!ep.include && !!ep.exclude;
 	}
 }
 
@@ -1722,6 +1725,7 @@ export namespace TestItem {
 			tags: item.tags.map(t => TestTag.namespace(ctrlId, t.id)),
 			range: Range.from(item.range) || null,
 			description: item.description || null,
+			sortText: item.sortText || null,
 			error: item.error ? (MarkdownString.fromStrict(item.error) || null) : null,
 		};
 	}
@@ -1742,6 +1746,7 @@ export namespace TestItem {
 			canResolveChildren: false,
 			busy: false,
 			description: item.description || undefined,
+			sortText: item.sortText || undefined,
 		};
 	}
 
@@ -1750,6 +1755,7 @@ export namespace TestItem {
 		const testItem = new TestItemImpl(testId.controllerId, testId.localId, item.label, URI.revive(item.uri));
 		testItem.range = Range.to(item.range || undefined);
 		testItem.description = item.description || undefined;
+		testItem.sortText = item.sortText || undefined;
 		return testItem;
 	}
 

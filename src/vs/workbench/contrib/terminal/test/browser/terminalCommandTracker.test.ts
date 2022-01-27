@@ -8,6 +8,10 @@ import { Terminal } from 'xterm';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { isWindows } from 'vs/base/common/platform';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { timeout } from 'vs/base/common/async';
+import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/partialCommandDetectionCapability';
+import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 interface TestTerminal extends Terminal {
 	_core: IXtermCore;
@@ -17,23 +21,40 @@ const ROWS = 10;
 const COLS = 10;
 
 async function writeP(terminal: TestTerminal, data: string): Promise<void> {
-	return new Promise<void>(r => terminal.write(data, r));
+	return new Promise<void>((resolve, reject) => {
+		const failTimeout = timeout(2000);
+		failTimeout.then(() => reject('Writing to xterm is taking longer than 2 seconds'));
+		terminal.write(data, () => {
+			failTimeout.cancel();
+			resolve();
+		});
+	});
 }
 
-suite('Workbench - TerminalCommandTracker', () => {
+suite('Workbench - TerminalCommandTracker', function () {
 	let xterm: TestTerminal;
 	let commandTracker: CommandTrackerAddon;
+	let store: TerminalCapabilityStore;
 
-	setup(async () => {
+	// These tests are flaky on GH actions as sometimes they are particularly slow and timeout
+	// on the await writeP calls. These have been reduced but the timeout is increased to try
+	// catch edge cases.
+	this.timeout(20000);
+
+	setup(async function () {
 		xterm = (<TestTerminal>new Terminal({
 			cols: COLS,
 			rows: ROWS
 		}));
 		// Fill initial viewport
+		let data = '';
 		for (let i = 0; i < ROWS - 1; i++) {
-			await writeP(xterm, `${i}\n`);
+			data += `${i}\n`;
 		}
-		commandTracker = new CommandTrackerAddon();
+		await writeP(xterm, data);
+		store = new TerminalCapabilityStore();
+		commandTracker = new CommandTrackerAddon(store);
+		store.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(xterm));
 		xterm.loadAddon(commandTracker);
 	});
 
@@ -55,9 +76,6 @@ suite('Workbench - TerminalCommandTracker', () => {
 	suite('Commands', () => {
 		let container: HTMLElement;
 		setup(() => {
-			(<any>window).matchMedia = () => {
-				return { addListener: () => { } };
-			};
 			container = document.createElement('div');
 			document.body.appendChild(container);
 			xterm.open(container);
@@ -70,9 +88,7 @@ suite('Workbench - TerminalCommandTracker', () => {
 			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line #10
 			assert.strictEqual(xterm.markers[0].line, 9);
 
-			for (let i = 0; i < 20; i++) {
-				await writeP(xterm, `\r\n`);
-			}
+			await writeP(xterm, `\r\n`.repeat(20));
 			assert.strictEqual(xterm.buffer.active.baseY, 20);
 			assert.strictEqual(xterm.buffer.active.viewportY, 20);
 
@@ -93,13 +109,17 @@ suite('Workbench - TerminalCommandTracker', () => {
 			assert.strictEqual(xterm.buffer.active.viewportY, 20);
 		});
 		test('should select to the next and previous commands', async () => {
-			await writeP(xterm, '\r0');
-			await writeP(xterm, '\n\r1');
-			await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
+			await writeP(xterm,
+				'\r0' +
+				'\n\r1' +
+				'\x1b[3G' // Move cursor to column 3
+			);
 			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
 			assert.strictEqual(xterm.markers[0].line, 10);
-			await writeP(xterm, '\n\r2');
-			await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
+			await writeP(xterm,
+				'\n\r2' +
+				'\x1b[3G' // Move cursor to column 3
+			);
 			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
 			assert.strictEqual(xterm.markers[1].line, 11);
 			await writeP(xterm, '\n\r3');
@@ -118,13 +138,17 @@ suite('Workbench - TerminalCommandTracker', () => {
 			assert.strictEqual(xterm.getSelection(), isWindows ? '\r\n' : '\n');
 		});
 		test('should select to the next and previous lines & commands', async () => {
-			await writeP(xterm, '\r0');
-			await writeP(xterm, '\n\r1');
-			await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
+			await writeP(xterm,
+				'\r0' +
+				'\n\r1' +
+				'\x1b[3G' // Move cursor to column 3
+			);
 			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
 			assert.strictEqual(xterm.markers[0].line, 10);
-			await writeP(xterm, '\n\r2');
-			await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
+			await writeP(xterm,
+				'\n\r2' +
+				'\x1b[3G' // Move cursor to column 3
+			);
 			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
 			assert.strictEqual(xterm.markers[1].line, 11);
 			await writeP(xterm, '\n\r3');

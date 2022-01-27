@@ -18,7 +18,7 @@ export class HoverWidget extends Disposable {
 
 	public readonly containerDomNode: HTMLElement;
 	public readonly contentsDomNode: HTMLElement;
-	private readonly _scrollbar: DomScrollableElement;
+	public readonly scrollbar: DomScrollableElement;
 
 	constructor() {
 		super();
@@ -31,14 +31,14 @@ export class HoverWidget extends Disposable {
 		this.contentsDomNode = document.createElement('div');
 		this.contentsDomNode.className = 'monaco-hover-content';
 
-		this._scrollbar = this._register(new DomScrollableElement(this.contentsDomNode, {
+		this.scrollbar = this._register(new DomScrollableElement(this.contentsDomNode, {
 			consumeMouseWheelIfScrollbarIsNeeded: true
 		}));
-		this.containerDomNode.appendChild(this._scrollbar.getDomNode());
+		this.containerDomNode.appendChild(this.scrollbar.getDomNode());
 	}
 
 	public onContentsChanged(): void {
-		this._scrollbar.scanDomNode();
+		this.scrollbar.scanDomNode();
 	}
 }
 
@@ -55,7 +55,6 @@ export class HoverAction extends Disposable {
 
 		this.actionContainer = dom.append(parent, $('div.action-container'));
 		this.action = dom.append(this.actionContainer, $('a.action'));
-		this.action.setAttribute('href', '#');
 		this.action.setAttribute('role', 'button');
 		if (actionOptions.iconClass) {
 			dom.append(this.action, $(`span.icon.${actionOptions.iconClass}`));

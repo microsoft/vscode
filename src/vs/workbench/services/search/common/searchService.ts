@@ -12,7 +12,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI, URI as uri } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -22,6 +22,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { isNumber } from 'vs/base/common/types';
 
 export class SearchService extends Disposable implements ISearchService {
 
@@ -32,6 +33,8 @@ export class SearchService extends Disposable implements ISearchService {
 
 	private deferredFileSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
 	private deferredTextSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
+
+	private loggedSchemesMissingProviders = new Set<string>();
 
 	constructor(
 		@IModelService private readonly modelService: IModelService,
@@ -201,6 +204,12 @@ export class SearchService extends Disposable implements ISearchService {
 		const searchPs: Promise<ISearchComplete>[] = [];
 
 		const fqs = this.groupFolderQueriesByScheme(query);
+		const someSchemeHasProvider = [...fqs.keys()].some(scheme => {
+			return query.type === QueryType.File ?
+				this.fileSearchProviders.has(scheme) :
+				this.textSearchProviders.has(scheme);
+		});
+
 		await Promise.all([...fqs.keys()].map(async scheme => {
 			const schemeFQs = fqs.get(scheme)!;
 			let provider = query.type === QueryType.File ?
@@ -208,8 +217,19 @@ export class SearchService extends Disposable implements ISearchService {
 				this.textSearchProviders.get(scheme);
 
 			if (!provider) {
-				console.warn(`No search provider registered for scheme: ${scheme}, waiting`);
-				provider = await this.waitForProvider(query.type, scheme);
+				if (someSchemeHasProvider) {
+					if (!this.loggedSchemesMissingProviders.has(scheme)) {
+						this.logService.warn(`No search provider registered for scheme: ${scheme}. Another scheme has a provider, not waiting for ${scheme}`);
+						this.loggedSchemesMissingProviders.add(scheme);
+					}
+					return;
+				} else {
+					if (!this.loggedSchemesMissingProviders.has(scheme)) {
+						this.logService.warn(`No search provider registered for scheme: ${scheme}, waiting`);
+						this.loggedSchemesMissingProviders.add(scheme);
+					}
+					provider = await this.waitForProvider(query.type, scheme);
+				}
 			}
 
 			const oneSchemeQuery: ISearchQuery = {
@@ -445,7 +465,7 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 
 				// Use editor API to find matches
-				const askMax = typeof query.maxResults === 'number' ? query.maxResults + 1 : undefined;
+				const askMax = isNumber(query.maxResults) ? query.maxResults + 1 : Number.MAX_SAFE_INTEGER;
 				let matches = model.findMatches(query.contentPattern.pattern, false, !!query.contentPattern.isRegExp, !!query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators! : null, false, askMax);
 				if (matches.length) {
 					if (askMax && matches.length >= askMax) {

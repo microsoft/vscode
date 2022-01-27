@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { TableOfContentsProvider } from '../tableOfContentsProvider';
+import { TableOfContents } from '../tableOfContentsProvider';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryDocument } from './inMemoryDocument';
 
@@ -16,36 +16,36 @@ const testFileName = vscode.Uri.file('test.md');
 suite('markdown.TableOfContentsProvider', () => {
 	test('Lookup should not return anything for empty document', async () => {
 		const doc = new InMemoryDocument(testFileName, '');
-		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
+		const provider = await TableOfContents.create(createNewMarkdownEngine(), doc);
 
-		assert.strictEqual(await provider.lookup(''), undefined);
-		assert.strictEqual(await provider.lookup('foo'), undefined);
+		assert.strictEqual(provider.lookup(''), undefined);
+		assert.strictEqual(provider.lookup('foo'), undefined);
 	});
 
 	test('Lookup should not return anything for document with no headers', async () => {
 		const doc = new InMemoryDocument(testFileName, 'a *b*\nc');
-		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
+		const provider = await TableOfContents.create(createNewMarkdownEngine(), doc);
 
-		assert.strictEqual(await provider.lookup(''), undefined);
-		assert.strictEqual(await provider.lookup('foo'), undefined);
-		assert.strictEqual(await provider.lookup('a'), undefined);
-		assert.strictEqual(await provider.lookup('b'), undefined);
+		assert.strictEqual(provider.lookup(''), undefined);
+		assert.strictEqual(provider.lookup('foo'), undefined);
+		assert.strictEqual(provider.lookup('a'), undefined);
+		assert.strictEqual(provider.lookup('b'), undefined);
 	});
 
 	test('Lookup should return basic #header', async () => {
 		const doc = new InMemoryDocument(testFileName, `# a\nx\n# c`);
-		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
+		const provider = await TableOfContents.create(createNewMarkdownEngine(), doc);
 
 		{
-			const entry = await provider.lookup('a');
+			const entry = provider.lookup('a');
 			assert.ok(entry);
 			assert.strictEqual(entry!.line, 0);
 		}
 		{
-			assert.strictEqual(await provider.lookup('x'), undefined);
+			assert.strictEqual(provider.lookup('x'), undefined);
 		}
 		{
-			const entry = await provider.lookup('c');
+			const entry = provider.lookup('c');
 			assert.ok(entry);
 			assert.strictEqual(entry!.line, 2);
 		}
@@ -53,40 +53,40 @@ suite('markdown.TableOfContentsProvider', () => {
 
 	test('Lookups should be case in-sensitive', async () => {
 		const doc = new InMemoryDocument(testFileName, `# fOo\n`);
-		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
+		const provider = await TableOfContents.create(createNewMarkdownEngine(), doc);
 
-		assert.strictEqual((await provider.lookup('fOo'))!.line, 0);
-		assert.strictEqual((await provider.lookup('foo'))!.line, 0);
-		assert.strictEqual((await provider.lookup('FOO'))!.line, 0);
+		assert.strictEqual((provider.lookup('fOo'))!.line, 0);
+		assert.strictEqual((provider.lookup('foo'))!.line, 0);
+		assert.strictEqual((provider.lookup('FOO'))!.line, 0);
 	});
 
 	test('Lookups should ignore leading and trailing white-space, and collapse internal whitespace', async () => {
 		const doc = new InMemoryDocument(testFileName, `#      f o  o    \n`);
-		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
+		const provider = await TableOfContents.create(createNewMarkdownEngine(), doc);
 
-		assert.strictEqual((await provider.lookup('f o  o'))!.line, 0);
-		assert.strictEqual((await provider.lookup('  f o  o'))!.line, 0);
-		assert.strictEqual((await provider.lookup('  f o  o  '))!.line, 0);
-		assert.strictEqual((await provider.lookup('f o o'))!.line, 0);
-		assert.strictEqual((await provider.lookup('f o       o'))!.line, 0);
+		assert.strictEqual((provider.lookup('f o  o'))!.line, 0);
+		assert.strictEqual((provider.lookup('  f o  o'))!.line, 0);
+		assert.strictEqual((provider.lookup('  f o  o  '))!.line, 0);
+		assert.strictEqual((provider.lookup('f o o'))!.line, 0);
+		assert.strictEqual((provider.lookup('f o       o'))!.line, 0);
 
-		assert.strictEqual(await provider.lookup('f'), undefined);
-		assert.strictEqual(await provider.lookup('foo'), undefined);
-		assert.strictEqual(await provider.lookup('fo o'), undefined);
+		assert.strictEqual(provider.lookup('f'), undefined);
+		assert.strictEqual(provider.lookup('foo'), undefined);
+		assert.strictEqual(provider.lookup('fo o'), undefined);
 	});
 
 	test('should handle special characters #44779', async () => {
 		const doc = new InMemoryDocument(testFileName, `# Indentação\n`);
-		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
+		const provider = await TableOfContents.create(createNewMarkdownEngine(), doc);
 
-		assert.strictEqual((await provider.lookup('indentação'))!.line, 0);
+		assert.strictEqual((provider.lookup('indentação'))!.line, 0);
 	});
 
 	test('should handle special characters 2, #48482', async () => {
 		const doc = new InMemoryDocument(testFileName, `# Инструкция - Делай Раз, Делай Два\n`);
-		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
+		const provider = await TableOfContents.create(createNewMarkdownEngine(), doc);
 
-		assert.strictEqual((await provider.lookup('инструкция---делай-раз-делай-два'))!.line, 0);
+		assert.strictEqual((provider.lookup('инструкция---делай-раз-делай-два'))!.line, 0);
 	});
 
 	test('should handle special characters 3, #37079', async () => {
@@ -97,32 +97,32 @@ suite('markdown.TableOfContentsProvider', () => {
 ### Заголовок Header 3
 ## Заголовок`);
 
-		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
+		const provider = await TableOfContents.create(createNewMarkdownEngine(), doc);
 
-		assert.strictEqual((await provider.lookup('header-2'))!.line, 0);
-		assert.strictEqual((await provider.lookup('header-3'))!.line, 1);
-		assert.strictEqual((await provider.lookup('Заголовок-2'))!.line, 2);
-		assert.strictEqual((await provider.lookup('Заголовок-3'))!.line, 3);
-		assert.strictEqual((await provider.lookup('Заголовок-header-3'))!.line, 4);
-		assert.strictEqual((await provider.lookup('Заголовок'))!.line, 5);
+		assert.strictEqual((provider.lookup('header-2'))!.line, 0);
+		assert.strictEqual((provider.lookup('header-3'))!.line, 1);
+		assert.strictEqual((provider.lookup('Заголовок-2'))!.line, 2);
+		assert.strictEqual((provider.lookup('Заголовок-3'))!.line, 3);
+		assert.strictEqual((provider.lookup('Заголовок-header-3'))!.line, 4);
+		assert.strictEqual((provider.lookup('Заголовок'))!.line, 5);
 	});
 
 	test('Lookup should support suffixes for repeated headers', async () => {
 		const doc = new InMemoryDocument(testFileName, `# a\n# a\n## a`);
-		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
+		const provider = await TableOfContents.create(createNewMarkdownEngine(), doc);
 
 		{
-			const entry = await provider.lookup('a');
+			const entry = provider.lookup('a');
 			assert.ok(entry);
 			assert.strictEqual(entry!.line, 0);
 		}
 		{
-			const entry = await provider.lookup('a-1');
+			const entry = provider.lookup('a-1');
 			assert.ok(entry);
 			assert.strictEqual(entry!.line, 1);
 		}
 		{
-			const entry = await provider.lookup('a-2');
+			const entry = provider.lookup('a-2');
 			assert.ok(entry);
 			assert.strictEqual(entry!.line, 2);
 		}

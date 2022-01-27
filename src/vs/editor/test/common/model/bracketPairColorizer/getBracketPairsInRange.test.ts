@@ -7,10 +7,10 @@ import assert = require('assert');
 import { Disposable, disposeOnReturn } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { BracketPairInfo } from 'vs/editor/common/model/bracketPairs/bracketPairs';
-import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { BracketPairInfo } from 'vs/editor/common/textModelBracketPairs';
+import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 	function createLang() {
@@ -29,7 +29,7 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`{ ( [] ¹ ) [ ² { } ] () } []`);
 			const model = store.add(
-				createTextModel(doc.text, {}, store.add(createLang()).id)
+				createTextModel(doc.text, store.add(createLang()).id)
 			);
 			assert.deepStrictEqual(
 				model.bracketPairs
@@ -63,7 +63,7 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`{ ( [] ¹ ²) [  { } ] () } []`);
 			const model = store.add(
-				createTextModel(doc.text, {}, store.add(createLang()).id)
+				createTextModel(doc.text, store.add(createLang()).id)
 			);
 			assert.deepStrictEqual(
 				model.bracketPairs
@@ -91,7 +91,7 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`¹ ² { ( [] ) [  { } ] () } []`);
 			const model = store.add(
-				createTextModel(doc.text, {}, store.add(createLang()).id)
+				createTextModel(doc.text, store.add(createLang()).id)
 			);
 			assert.deepStrictEqual(
 				model.bracketPairs
@@ -106,7 +106,7 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`¹ { ( [] ) [  { } ] () } [] ²`);
 			const model = store.add(
-				createTextModel(doc.text, {}, store.add(createLang()).id)
+				createTextModel(doc.text, store.add(createLang()).id)
 			);
 			assert.deepStrictEqual(
 				model.bracketPairs

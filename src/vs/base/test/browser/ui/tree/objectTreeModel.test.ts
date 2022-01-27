@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { ITreeFilter, ITreeNode, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { timeout } from 'vs/base/common/async';
 
 function toList<T>(arr: T[]): IList<T> {
 	return {
@@ -243,7 +244,7 @@ suite('ObjectTreeModel', function () {
 		assert.deepStrictEqual(toArray(list), [0, 10, 100, 1000, 11, 12, 1, 2]);
 	});
 
-	test('issue #95641', () => {
+	test('issue #95641', async () => {
 		const list: ITreeNode<string>[] = [];
 		let fn = (_: string) => true;
 		const filter = new class implements ITreeFilter<string> {
@@ -265,12 +266,15 @@ suite('ObjectTreeModel', function () {
 		assert.deepStrictEqual(toArray(list), []);
 
 		model.setChildren('file', [{ element: 'world' }]);
+		await timeout(0); // wait for refilter microtask
 		assert.deepStrictEqual(toArray(list), ['file', 'world']);
 
 		model.setChildren('file', [{ element: 'hello' }]);
+		await timeout(0); // wait for refilter microtask
 		assert.deepStrictEqual(toArray(list), []);
 
 		model.setChildren('file', [{ element: 'world' }]);
+		await timeout(0); // wait for refilter microtask
 		assert.deepStrictEqual(toArray(list), ['file', 'world']);
 	});
 });

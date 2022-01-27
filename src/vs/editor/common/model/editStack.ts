@@ -10,7 +10,7 @@ import { EndOfLineSequence, ICursorStateComputer, IIdentifiedSingleEditOperation
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IUndoRedoService, IResourceUndoRedoElement, UndoRedoElementType, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
-import { TextChange, compressConsecutiveTextChanges } from 'vs/editor/common/model/textChange';
+import { TextChange, compressConsecutiveTextChanges } from 'vs/editor/common/core/textChange';
 import * as buffer from 'vs/base/common/buffer';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';

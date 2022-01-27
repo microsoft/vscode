@@ -22,7 +22,6 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 	readonly onDidChangeCapabilities = Event.None;
 	readonly onDidChangeFile = Event.None;
-	readonly onDidErrorOccur = Event.None;
 
 	//#endregion
 

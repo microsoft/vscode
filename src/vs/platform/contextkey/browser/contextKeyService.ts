@@ -12,7 +12,6 @@ import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpression, ContextKeyInfo, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, RawContextKey, SET_CONTEXT_COMMAND_ID } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
@@ -300,7 +299,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 			throw new Error(`AbstractContextKeyService has been disposed`);
 		}
 		const context = this.getContextValuesContainer(this._myContextId);
-		const result = KeybindingResolver.contextMatchesRules(context, rules);
+		const result = (rules ? rules.evaluate(context) : true);
 		// console.group(rules.serialize() + ' -> ' + result);
 		// rules.keys().forEach(key => { console.log(key, ctx[key]); });
 		// console.groupEnd();
@@ -536,7 +535,7 @@ class OverlayContextKeyService implements IContextKeyService {
 
 	contextMatchesRules(rules: ContextKeyExpression | undefined): boolean {
 		const context = this.getContextValuesContainer(this.contextId);
-		const result = KeybindingResolver.contextMatchesRules(context, rules);
+		const result = (rules ? rules.evaluate(context) : true);
 		return result;
 	}
 

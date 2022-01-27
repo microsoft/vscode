@@ -109,6 +109,9 @@ export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestS
 	private readonly _onDidInitiateWorkspaceTrustRequest = new Emitter<WorkspaceTrustRequestOptions>();
 	readonly onDidInitiateWorkspaceTrustRequest = this._onDidInitiateWorkspaceTrustRequest.event;
 
+	private readonly _onDidInitiateWorkspaceTrustRequestOnStartup = new Emitter<void>();
+	readonly onDidInitiateWorkspaceTrustRequestOnStartup = this._onDidInitiateWorkspaceTrustRequestOnStartup.event;
+
 	constructor(private readonly _trusted: boolean) { }
 
 	requestOpenUrisHandler = async (uris: URI[]) => {
@@ -133,5 +136,9 @@ export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestS
 
 	async requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> {
 		return this._trusted;
+	}
+
+	requestWorkspaceTrustOnStartup(): void {
+		throw new Error('Method not implemented.');
 	}
 }

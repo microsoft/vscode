@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { iconRegistry } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
@@ -27,8 +27,8 @@ const terminalProfileBaseProperties: IJSONSchemaMap = {
 	icon: {
 		description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
 		type: 'string',
-		enum: Array.from(iconRegistry.all, icon => icon.id),
-		markdownEnumDescriptions: Array.from(iconRegistry.all, icon => `$(${icon.id})`),
+		enum: Array.from(Codicon.getAll(), icon => icon.id),
+		markdownEnumDescriptions: Array.from(Codicon.getAll(), icon => `$(${icon.id})`),
 	},
 	color: {
 		description: localize('terminalProfile.color', 'A theme color ID to associate with this terminal.'),
@@ -62,6 +62,21 @@ const terminalProfileSchema: IJSONSchema = {
 		path: {
 			description: localize('terminalProfile.path', 'A single path to a shell executable or an array of paths that will be used as fallbacks when one fails.'),
 			type: ['string', 'array'],
+			items: {
+				type: 'string'
+			}
+		},
+		...terminalProfileBaseProperties
+	}
+};
+
+const terminalAutomationProfileSchema: IJSONSchema = {
+	type: 'object',
+	required: ['path'],
+	properties: {
+		path: {
+			description: localize('terminalAutomationProfile.path', 'A single path to a shell executable.'),
+			type: ['string'],
 			items: {
 				type: 'string'
 			}
@@ -120,7 +135,15 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: null,
 			'anyOf': [
 				{ type: 'null' },
-				terminalProfileSchema
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
 			]
 		},
 		[TerminalSettingId.AutomationProfileMacOs]: {
@@ -130,7 +153,15 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: null,
 			'anyOf': [
 				{ type: 'null' },
-				terminalProfileSchema
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
 			]
 		},
 		[TerminalSettingId.AutomationProfileWindows]: {
@@ -140,7 +171,15 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: null,
 			'anyOf': [
 				{ type: 'null' },
-				terminalProfileSchema
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
 			]
 		},
 		[TerminalSettingId.ShellLinux]: {
@@ -409,7 +448,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.IgnoreProcessNames]: {
-			description: localize('terminal.integrated.confirmIgnoreProcesses', "Configurable to provide a custom setting to ignore processes"),
+			description: localize('terminal.integrated.confirmIgnoreProcesses', "A set of process names to ignore when using the {0} setting.", '`terminal.integrated.confirmOnKill`'),
 			type: 'array',
 			items: {
 				type: 'string',

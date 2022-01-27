@@ -425,16 +425,16 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	private focusFirst(): boolean {
-		this.focusedItem = this.length() > 1 ? 1 : 0;
-		return this.focusPrevious();
+		this.focusedItem = this.length() - 1;
+		return this.focusNext(true);
 	}
 
 	private focusLast(): boolean {
-		this.focusedItem = this.length() < 2 ? 0 : this.length() - 2;
-		return this.focusNext();
+		this.focusedItem = 0;
+		return this.focusPrevious(true);
 	}
 
-	protected focusNext(): boolean {
+	protected focusNext(forceLoop?: boolean): boolean {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = this.viewItems.length - 1;
 		} else if (this.viewItems.length <= 1) {
@@ -445,7 +445,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		let item: IActionViewItem;
 		do {
 
-			if (this.options.preventLoopNavigation && this.focusedItem + 1 >= this.viewItems.length) {
+			if (!forceLoop && this.options.preventLoopNavigation && this.focusedItem + 1 >= this.viewItems.length) {
 				this.focusedItem = startIndex;
 				return false;
 			}
@@ -458,7 +458,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		return true;
 	}
 
-	protected focusPrevious(): boolean {
+	protected focusPrevious(forceLoop?: boolean): boolean {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = 0;
 		} else if (this.viewItems.length <= 1) {
@@ -471,7 +471,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		do {
 			this.focusedItem = this.focusedItem - 1;
 			if (this.focusedItem < 0) {
-				if (this.options.preventLoopNavigation) {
+				if (!forceLoop && this.options.preventLoopNavigation) {
 					this.focusedItem = startIndex;
 					return false;
 				}

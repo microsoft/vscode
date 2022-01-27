@@ -6,18 +6,19 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { revive } from 'vs/base/common/marshalling';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { ExtensionRunTestsRequest, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, SerializedTestMessage, TestDiffOpType, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
+import { ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, SerializedTestMessage, TestDiffOpType, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
+import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestController, ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { ExtHostContext, ExtHostTestingShape, IExtHostContext, ILocationDto, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostTestingShape, IExtHostContext, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
 const reviveDiff = (diff: TestsDiff) => {
 	for (const entry of diff) {
@@ -40,6 +41,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	private readonly testProviderRegistrations = new Map<string, {
 		instance: IMainThreadTestController;
 		label: MutableObservableValue<string>;
+		canRefresh: MutableObservableValue<boolean>;
 		disposable: IDisposable
 	}>();
 
@@ -119,7 +121,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			}
 
 			(task.coverage as MutableObservableValue<TestCoverage>).value = new TestCoverage({
-				provideFileCoverage: token => this.proxy.$provideFileCoverage(runId, taskId, token),
+				provideFileCoverage: async token => revive<IFileCoverage[]>(await this.proxy.$provideFileCoverage(runId, taskId, token)),
 				resolveFileCoverage: (i, token) => this.proxy.$resolveFileCoverage(runId, taskId, i, token),
 			});
 		});
@@ -193,17 +195,19 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $registerTestController(controllerId: string, labelStr: string) {
+	public $registerTestController(controllerId: string, labelStr: string, canRefreshValue: boolean) {
 		const disposable = new DisposableStore();
-		const label = new MutableObservableValue(labelStr);
+		const label = disposable.add(new MutableObservableValue(labelStr));
+		const canRefresh = disposable.add(new MutableObservableValue(canRefreshValue));
 		const controller: IMainThreadTestController = {
 			id: controllerId,
 			label,
+			canRefresh,
+			refreshTests: token => this.proxy.$refreshTests(controllerId, token),
 			configureRunProfile: id => this.proxy.$configureRunProfile(controllerId, id),
 			runTests: (req, token) => this.proxy.$runControllerTests(req, token),
 			expandTest: (testId, levels) => this.proxy.$expandTest(testId, isFinite(levels) ? levels : -1),
 		};
-
 
 		disposable.add(toDisposable(() => this.testProfiles.removeProfile(controllerId)));
 		disposable.add(this.testService.registerTestController(controllerId, controller));
@@ -211,6 +215,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		this.testProviderRegistrations.set(controllerId, {
 			instance: controller,
 			label,
+			canRefresh,
 			disposable
 		});
 	}
@@ -218,10 +223,18 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $updateControllerLabel(controllerId: string, label: string) {
+	public $updateController(controllerId: string, patch: ITestControllerPatch) {
 		const controller = this.testProviderRegistrations.get(controllerId);
-		if (controller) {
-			controller.label.value = label;
+		if (!controller) {
+			return;
+		}
+
+		if (patch.label !== undefined) {
+			controller.label.value = patch.label;
+		}
+
+		if (patch.canRefresh !== undefined) {
+			controller.canRefresh.value = patch.canRefresh;
 		}
 	}
 

@@ -7,7 +7,7 @@ import { groupBy } from 'vs/base/common/arrays';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { compareIgnoreCase, uppercaseFirstLetter } from 'vs/base/common/strings';
-import { HoverProviderRegistry } from 'vs/editor/common/modes';
+import { HoverProviderRegistry } from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -24,7 +24,8 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { CENTER_ACTIVE_CELL } from 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { getNotebookEditorFromEditorPane, INotebookEditor, KERNEL_EXTENSIONS, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { getNotebookEditorFromEditorPane, INotebookEditor, KERNEL_EXTENSIONS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -139,7 +140,7 @@ registerAction2(class extends Action2 {
 		let newKernel: INotebookKernel | undefined;
 		if (controllerId) {
 			const wantedId = `${extensionId}/${controllerId}`;
-			for (let candidate of all) {
+			for (const candidate of all) {
 				if (candidate.id === wantedId) {
 					newKernel = candidate;
 					break;
@@ -267,7 +268,7 @@ class ImplictKernelSelector implements IDisposable {
 		// IMPLICITLY select a suggested kernel when the notebook has been changed
 		// e.g change cell source, move cells, etc
 		disposables.add(notebook.onDidChangeContent(e => {
-			for (let event of e.rawEvents) {
+			for (const event of e.rawEvents) {
 				switch (event.kind) {
 					case NotebookCellsChangeType.ChangeCellContent:
 					case NotebookCellsChangeType.ModelChange:
@@ -346,8 +347,8 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 		this._kernelInfoElement.clear();
 
-		let { selected, suggestions, all } = this._notebookKernelService.getMatchingKernel(notebook);
-		const suggested = suggestions[0];
+		const { selected, suggestions, all } = this._notebookKernelService.getMatchingKernel(notebook);
+		const suggested = (suggestions.length === 1 && all.length === 1) ? suggestions[0] : undefined;
 		let isSuggested = false;
 
 		if (all.length === 0) {

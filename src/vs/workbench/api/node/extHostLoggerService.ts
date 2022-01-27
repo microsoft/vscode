@@ -14,6 +14,7 @@ export class ExtHostLoggerService extends BaseExtHostLoggerService {
 
 	protected override doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
 		if (resource.scheme === Schemas.file) {
+			/* Create the logger in the Extension Host process to prevent loggers (log, output channels...) traffic  over IPC */
 			return new SpdLogLogger(options?.name || generateUuid(), resource.fsPath, !options?.donotRotate, !!options?.donotUseFormatters, logLevel);
 		}
 		return super.doCreateLogger(resource, logLevel, options);

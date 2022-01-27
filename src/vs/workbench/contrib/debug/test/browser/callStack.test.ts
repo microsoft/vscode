@@ -42,8 +42,6 @@ export function createMockSession(model: DebugModel, name = 'mockSession', optio
 }
 
 function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFrame, secondStackFrame: StackFrame } {
-	let firstStackFrame: StackFrame;
-	let secondStackFrame: StackFrame;
 	const thread = new class extends Thread {
 		public override getCallStack(): StackFrame[] {
 			return [firstStackFrame, secondStackFrame];
@@ -61,8 +59,8 @@ function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFr
 		sourceReference: 11,
 	}, 'aDebugSessionId', mockUriIdentityService);
 
-	firstStackFrame = new StackFrame(thread, 0, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 10 }, 0, true);
-	secondStackFrame = new StackFrame(thread, 1, secondSource, 'app2.js', 'normal', { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 10 }, 1, true);
+	const firstStackFrame = new StackFrame(thread, 0, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 10 }, 0, true);
+	const secondStackFrame = new StackFrame(thread, 1, secondSource, 'app2.js', 'normal', { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 10 }, 1, true);
 
 	return { firstStackFrame, secondStackFrame };
 }

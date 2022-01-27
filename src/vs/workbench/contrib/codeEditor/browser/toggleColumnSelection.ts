@@ -13,7 +13,6 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export class ToggleColumnSelectionAction extends Action2 {
@@ -61,7 +60,7 @@ export class ToggleColumnSelectionAction extends Action2 {
 				position: modelSelectionStart,
 				viewPosition: viewSelectionStart
 			});
-			const visibleColumn = CursorColumns.visibleColumnFromColumn2(viewModel.cursorConfig, viewModel, viewPosition);
+			const visibleColumn = viewModel.cursorConfig.visibleColumnFromColumn(viewModel, viewPosition);
 			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(viewModel, {
 				position: modelPosition,
 				viewPosition: viewPosition,
@@ -70,9 +69,9 @@ export class ToggleColumnSelectionAction extends Action2 {
 			});
 		} else {
 			const columnSelectData = viewModel.getCursorColumnSelectData();
-			const fromViewColumn = CursorColumns.columnFromVisibleColumn2(viewModel.cursorConfig, viewModel, columnSelectData.fromViewLineNumber, columnSelectData.fromViewVisualColumn);
+			const fromViewColumn = viewModel.cursorConfig.columnFromVisibleColumn(viewModel, columnSelectData.fromViewLineNumber, columnSelectData.fromViewVisualColumn);
 			const fromPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(columnSelectData.fromViewLineNumber, fromViewColumn));
-			const toViewColumn = CursorColumns.columnFromVisibleColumn2(viewModel.cursorConfig, viewModel, columnSelectData.toViewLineNumber, columnSelectData.toViewVisualColumn);
+			const toViewColumn = viewModel.cursorConfig.columnFromVisibleColumn(viewModel, columnSelectData.toViewLineNumber, columnSelectData.toViewVisualColumn);
 			const toPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(columnSelectData.toViewLineNumber, toViewColumn));
 
 			codeEditor.setSelection(new Selection(fromPosition.lineNumber, fromPosition.column, toPosition.lineNumber, toPosition.column));

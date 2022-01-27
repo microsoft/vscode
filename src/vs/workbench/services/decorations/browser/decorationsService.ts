@@ -10,18 +10,18 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
-import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector, asCSSPropertyValue } from 'vs/base/browser/dom';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { hash } from 'vs/base/common/hash';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { iconRegistry } from 'vs/base/common/codicons';
 import { asArray, distinct } from 'vs/base/common/arrays';
 import { asCssVariableName } from 'vs/platform/theme/common/colorRegistry';
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 
 class DecorationRule {
 
@@ -48,7 +48,7 @@ class DecorationRule {
 
 	private _refCounter: number = 0;
 
-	constructor(data: IDecorationData | IDecorationData[], key: string) {
+	constructor(readonly themeService: IThemeService, data: IDecorationData | IDecorationData[], key: string) {
 		this.data = data;
 		const suffix = hash(key).toString(36);
 		this.itemColorClassName = `${DecorationRule._classNamesPrefix}-itemColor-${suffix}`;
@@ -121,20 +121,23 @@ class DecorationRule {
 
 	private _createIconCSSRule(icon: ThemeIcon, color: string | undefined, element: HTMLStyleElement) {
 
-		const index = icon.id.lastIndexOf('~');
-		const id = index < 0 ? icon.id : icon.id.substr(0, index);
-		const modifier = index < 0 ? '' : icon.id.substr(index + 1);
-
-		const codicon = iconRegistry.get(id);
-		if (!codicon || !('fontCharacter' in codicon.definition)) {
+		const modifier = ThemeIcon.getModifier(icon);
+		if (modifier) {
+			icon = ThemeIcon.modify(icon, undefined);
+		}
+		const iconContribution = getIconRegistry().getIcon(icon.id);
+		if (!iconContribution) {
 			return;
 		}
-		const charCode = parseInt(codicon.definition.fontCharacter.substr(1), 16);
+		const definition = this.themeService.getProductIconTheme().getIcon(iconContribution);
+		if (!definition) {
+			return;
+		}
 		createCSSRule(
 			`.${this.iconBadgeClassName}::after`,
-			`content: "${String.fromCharCode(charCode)}";
+			`content: '${definition.fontCharacter}';
 			color: ${getColor(color)};
-			font-family: codicon;
+			font-family: ${asCSSPropertyValue(definition.font?.id ?? 'codicon')};
 			font-size: 16px;
 			margin-right: 14px;
 			font-weight: normal;
@@ -158,6 +161,9 @@ class DecorationStyles {
 	private readonly _decorationRules = new Map<string, DecorationRule>();
 	private readonly _dispoables = new DisposableStore();
 
+	constructor(private readonly _themeService: IThemeService) {
+	}
+
 	dispose(): void {
 		this._dispoables.dispose();
 		this._styleElement.remove();
@@ -173,7 +179,7 @@ class DecorationStyles {
 
 		if (!rule) {
 			// new css rule
-			rule = new DecorationRule(data, key);
+			rule = new DecorationRule(this._themeService, data, key);
 			this._decorationRules.set(key, rule);
 			rule.appendCSSRules(this._styleElement);
 		}
@@ -250,8 +256,9 @@ export class DecorationsService implements IDecorationsService {
 
 	constructor(
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IThemeService themeService: IThemeService,
 	) {
-		this._decorationStyles = new DecorationStyles();
+		this._decorationStyles = new DecorationStyles(themeService);
 		this._data = TernarySearchTree.forUris(key => uriIdentityService.extUri.ignorePathCasing(key));
 
 		this._onDidChangeDecorationsDelayed.event(event => { this._onDidChangeDecorations.fire(new FileDecorationChangeEvent(event)); });
@@ -379,7 +386,7 @@ export class DecorationsService implements IDecorationsService {
 					this._keepItem(map, provider, uri, data);
 				}
 			}).catch(err => {
-				if (!isPromiseCanceledError(err) && map.get(provider) === request) {
+				if (!isCancellationError(err) && map.get(provider) === request) {
 					map.delete(provider);
 				}
 			}));

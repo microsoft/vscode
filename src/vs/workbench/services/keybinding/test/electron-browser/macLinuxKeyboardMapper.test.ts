@@ -134,7 +134,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 			KeyMod.CtrlCmd | KeyCode.BracketRight,
 			[{
 				label: '⌃⌥⌘6',
-				ariaLabel: 'Control+Alt+Command+6',
+				ariaLabel: 'Control+Option+Command+6',
 				electronAccelerator: 'Ctrl+Alt+Cmd+6',
 				userSettingsLabel: 'ctrl+alt+cmd+6',
 				isWYSIWYG: true,
@@ -175,7 +175,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 			KeyMod.Shift | KeyCode.BracketRight,
 			[{
 				label: '⌃⌥9',
-				ariaLabel: 'Control+Alt+9',
+				ariaLabel: 'Control+Option+9',
 				electronAccelerator: 'Ctrl+Alt+9',
 				userSettingsLabel: 'ctrl+alt+9',
 				isWYSIWYG: true,
@@ -223,7 +223,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 			KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Backslash),
 			[{
 				label: '⌘K ⌃⇧⌥⌘7',
-				ariaLabel: 'Command+K Control+Shift+Alt+Command+7',
+				ariaLabel: 'Command+K Control+Shift+Option+Command+7',
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd+k ctrl+shift+alt+cmd+7',
 				isWYSIWYG: true,

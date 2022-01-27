@@ -16,14 +16,13 @@ import { toBase64UrlEncoding } from './utils';
 import fetch, { Response } from 'node-fetch';
 import { sha256 } from './env/node/sha256';
 import * as nls from 'vscode-nls';
-import { MicrosoftAuthenticationSession } from './microsoft-authentication';
 
 const localize = nls.loadMessageBundle();
 
 const redirectUrl = 'https://vscode-redirect.azurewebsites.net/';
 const loginEndpointUrl = 'https://login.microsoftonline.com/';
-const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56';
-const tenant = 'organizations';
+const DEFAULT_CLIENT_ID = 'aebc6443-996d-45c2-90f0-388ff96faa56';
+const DEFAULT_TENANT = 'organizations';
 
 interface IToken {
 	accessToken?: string; // When unable to refresh due to network problems, the access token becomes undefined
@@ -77,6 +76,14 @@ export interface ITokenResponse {
 export interface IMicrosoftTokens {
 	accessToken: string;
 	idToken?: string;
+}
+
+interface IScopeData {
+	scopes: string[],
+	scopeStr: string,
+	scopesToSend: string,
+	clientId: string,
+	tenant: string
 }
 
 function parseQuery(uri: vscode.Uri) {
@@ -138,24 +145,29 @@ export class AzureActiveDirectoryService {
 				}
 
 				try {
-					await this.refreshToken(session.refreshToken, session.scope, session.id);
+					const scopes = session.scope.split(' ');
+					const scopeData: IScopeData = {
+						scopes,
+						scopeStr: session.scope,
+						// filter our special scopes
+						scopesToSend: scopes.filter(s => !s.startsWith('VSCODE_')).join(' '),
+						clientId: this.getClientId(scopes),
+						tenant: this.getTenantId(scopes),
+					};
+					await this.refreshToken(session.refreshToken, scopeData, session.id);
 				} catch (e) {
 					// If we aren't connected to the internet, then wait and try to refresh again later.
 					if (e.message === REFRESH_NETWORK_FAILURE) {
-						const didSucceedOnRetry = await this.handleRefreshNetworkError(session.id, session.refreshToken, session.scope);
-						if (!didSucceedOnRetry) {
-							this._tokens.push({
-								accessToken: undefined,
-								refreshToken: session.refreshToken,
-								account: {
-									label: session.account.label ?? session.account.displayName!,
-									id: session.account.id
-								},
-								scope: session.scope,
-								sessionId: session.id
-							});
-							this.pollForReconnect(session.id, session.refreshToken, session.scope);
-						}
+						this._tokens.push({
+							accessToken: undefined,
+							refreshToken: session.refreshToken,
+							account: {
+								label: session.account.label ?? session.account.displayName!,
+								id: session.account.id
+							},
+							scope: session.scope,
+							sessionId: session.id
+						});
 					} else {
 						await this.removeSession(session.id);
 					}
@@ -198,12 +210,20 @@ export class AzureActiveDirectoryService {
 					const matchesExisting = this._tokens.some(token => token.scope === session.scope && token.sessionId === session.id);
 					if (!matchesExisting && session.refreshToken) {
 						try {
-							const token = await this.refreshToken(session.refreshToken, session.scope, session.id);
+							const scopes = session.scope.split(' ');
+							const scopeData: IScopeData = {
+								scopes,
+								scopeStr: session.scope,
+								// filter our special scopes
+								scopesToSend: scopes.filter(s => !s.startsWith('VSCODE_')).join(' '),
+								clientId: this.getClientId(scopes),
+								tenant: this.getTenantId(scopes),
+							};
+							const token = await this.refreshToken(session.refreshToken, scopeData, session.id);
 							added.push(this.convertToSessionSync(token));
 						} catch (e) {
-							if (e.message === REFRESH_NETWORK_FAILURE) {
-								// Ignore, will automatically retry on next poll.
-							} else {
+							// Network failures will automatically retry on next poll.
+							if (e.message !== REFRESH_NETWORK_FAILURE) {
 								await this.removeSession(session.id);
 							}
 						}
@@ -251,7 +271,7 @@ export class AzureActiveDirectoryService {
 	 * Return a session object without checking for expiry and potentially refreshing.
 	 * @param token The token information.
 	 */
-	private convertToSessionSync(token: IToken): MicrosoftAuthenticationSession {
+	private convertToSessionSync(token: IToken): vscode.AuthenticationSession {
 		return {
 			id: token.sessionId,
 			accessToken: token.accessToken!,
@@ -261,7 +281,7 @@ export class AzureActiveDirectoryService {
 		};
 	}
 
-	private async convertToSession(token: IToken): Promise<MicrosoftAuthenticationSession> {
+	private async convertToSession(token: IToken): Promise<vscode.AuthenticationSession> {
 		const resolvedTokens = await this.resolveAccessAndIdTokens(token);
 		return {
 			id: token.sessionId,
@@ -285,7 +305,16 @@ export class AzureActiveDirectoryService {
 
 		try {
 			Logger.info(`Token expired or unavailable (for scopes ${token.scope}), trying refresh`);
-			const refreshedToken = await this.refreshToken(token.refreshToken, token.scope, token.sessionId);
+			const scopes = token.scope.split(' ');
+			const scopeData: IScopeData = {
+				scopes,
+				scopeStr: token.scope,
+				// filter our special scopes
+				scopesToSend: scopes.filter(s => !s.startsWith('VSCODE_')).join(' '),
+				clientId: this.getClientId(scopes),
+				tenant: this.getTenantId(scopes),
+			};
+			const refreshedToken = await this.refreshToken(token.refreshToken, scopeData, token.sessionId);
 			if (refreshedToken.accessToken) {
 				return {
 					accessToken: refreshedToken.accessToken,
@@ -323,7 +352,7 @@ export class AzureActiveDirectoryService {
 			}
 		}
 		if (!scopes) {
-			const sessions = await this.sessions;
+			const sessions = this._tokens.map(token => this.convertToSessionSync(token));
 			Logger.info(`Got ${sessions.length} sessions for all scopes...`);
 			return sessions;
 		}
@@ -334,16 +363,25 @@ export class AzureActiveDirectoryService {
 		return Promise.all(matchingTokens.map(token => this.convertToSession(token)));
 	}
 
-	public async createSession(scope: string): Promise<vscode.AuthenticationSession> {
-		Logger.info(`Logging in for the following scopes: ${scope}`);
-		if (!scope.includes('offline_access')) {
+	public async createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
+		const scopeData: IScopeData = {
+			scopes,
+			scopeStr: scopes.join(' '),
+			// filter our special scopes
+			scopesToSend: scopes.filter(s => !s.startsWith('VSCODE_')).join(' '),
+			clientId: this.getClientId(scopes),
+			tenant: this.getTenantId(scopes),
+		};
+
+		Logger.info(`Logging in for the following scopes: ${scopeData.scopeStr}`);
+		if (!scopeData.scopes.includes('offline_access')) {
 			Logger.info('Warning: The \'offline_access\' scope was not included, so the generated token will not be able to be refreshed.');
 		}
 
 		const runsRemote = vscode.env.remoteName !== undefined;
 		const runsServerless = vscode.env.remoteName === undefined && vscode.env.uiKind === vscode.UIKind.Web;
 		if (runsRemote || runsServerless) {
-			return this.loginWithoutLocalServer(scope);
+			return this.loginWithoutLocalServer(scopeData);
 		}
 
 		const nonce = randomBytes(16).toString('base64');
@@ -370,7 +408,8 @@ export class AzureActiveDirectoryService {
 
 			const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
 			const codeChallenge = toBase64UrlEncoding(await sha256(codeVerifier));
-			const loginUrl = `${loginEndpointUrl}${tenant}/oauth2/v2.0/authorize?response_type=code&response_mode=query&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&scope=${encodeURIComponent(scope)}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`;
+
+			const loginUrl = `${loginEndpointUrl}${scopeData.tenant}/oauth2/v2.0/authorize?response_type=code&response_mode=query&client_id=${encodeURIComponent(scopeData.clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&scope=${encodeURIComponent(scopeData.scopesToSend)}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`;
 
 			redirectReq.res.writeHead(302, { Location: loginUrl });
 			redirectReq.res.end();
@@ -382,9 +421,9 @@ export class AzureActiveDirectoryService {
 				if ('err' in codeRes) {
 					throw codeRes.err;
 				}
-				token = await this.exchangeCodeForToken(codeRes.code, codeVerifier, scope);
-				await this.setToken(token, scope);
-				Logger.info(`Login successful for scopes: ${scope}`);
+				token = await this.exchangeCodeForToken(codeRes.code, codeVerifier, scopeData);
+				await this.setToken(token, scopeData);
+				Logger.info(`Login successful for scopes: ${scopeData.scopeStr}`);
 				res.writeHead(302, { Location: '/' });
 				const session = await this.convertToSession(token);
 				return session;
@@ -395,11 +434,11 @@ export class AzureActiveDirectoryService {
 				res.end();
 			}
 		} catch (e) {
-			Logger.error(`Error creating session for scopes: ${scope} Error: ${e}`);
+			Logger.error(`Error creating session for scopes: ${scopeData.scopeStr} Error: ${e}`);
 
 			// If the error was about starting the server, try directly hitting the login endpoint instead
 			if (e.message === 'Error listening to server' || e.message === 'Closed' || e.message === 'Timeout waiting for port') {
-				return this.loginWithoutLocalServer(scope);
+				return this.loginWithoutLocalServer(scopeData);
 			}
 
 			throw e;
@@ -431,18 +470,18 @@ export class AzureActiveDirectoryService {
 		}
 	}
 
-	private async loginWithoutLocalServer(scope: string): Promise<vscode.AuthenticationSession> {
+	private async loginWithoutLocalServer(scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.microsoft-authentication`));
 		const nonce = randomBytes(16).toString('base64');
 		const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
 		const callbackEnvironment = this.getCallbackEnvironment(callbackUri);
 		const state = `${callbackEnvironment},${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
-		const signInUrl = `${loginEndpointUrl}${tenant}/oauth2/v2.0/authorize`;
+		const signInUrl = `${loginEndpointUrl}${scopeData.tenant}/oauth2/v2.0/authorize`;
 		let uri = vscode.Uri.parse(signInUrl);
 		const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
 		const codeChallenge = toBase64UrlEncoding(await sha256(codeVerifier));
 		uri = uri.with({
-			query: `response_type=code&client_id=${encodeURIComponent(clientId)}&response_mode=query&redirect_uri=${redirectUrl}&state=${state}&scope=${scope}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`
+			query: `response_type=code&client_id=${encodeURIComponent(scopeData.clientId)}&response_mode=query&redirect_uri=${redirectUrl}&state=${state}&scope=${scopeData.scopesToSend}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`
 		});
 		vscode.env.openExternal(uri);
 
@@ -453,36 +492,35 @@ export class AzureActiveDirectoryService {
 			}, 1000 * 60 * 5);
 		});
 
-		const existingStates = this._pendingStates.get(scope) || [];
-		this._pendingStates.set(scope, [...existingStates, state]);
+		const existingStates = this._pendingStates.get(scopeData.scopeStr) || [];
+		this._pendingStates.set(scopeData.scopeStr, [...existingStates, state]);
 
 		// Register a single listener for the URI callback, in case the user starts the login process multiple times
 		// before completing it.
-		let existingPromise = this._codeExchangePromises.get(scope);
+		let existingPromise = this._codeExchangePromises.get(scopeData.scopeStr);
 		if (!existingPromise) {
-			existingPromise = this.handleCodeResponse(scope);
-			this._codeExchangePromises.set(scope, existingPromise);
+			existingPromise = this.handleCodeResponse(scopeData);
+			this._codeExchangePromises.set(scopeData.scopeStr, existingPromise);
 		}
 
 		this._codeVerfifiers.set(state, codeVerifier);
 
 		return Promise.race([existingPromise, timeoutPromise])
 			.finally(() => {
-				this._pendingStates.delete(scope);
-				this._codeExchangePromises.delete(scope);
+				this._pendingStates.delete(scopeData.scopeStr);
+				this._codeExchangePromises.delete(scopeData.scopeStr);
 				this._codeVerfifiers.delete(state);
 			});
 	}
 
-	private async handleCodeResponse(scope: string): Promise<vscode.AuthenticationSession> {
+	private async handleCodeResponse(scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
 		let uriEventListener: vscode.Disposable;
 		return new Promise((resolve: (value: vscode.AuthenticationSession) => void, reject) => {
 			uriEventListener = this._uriHandler.event(async (uri: vscode.Uri) => {
 				try {
 					const query = parseQuery(uri);
 					const code = query.code;
-
-					const acceptedStates = this._pendingStates.get(scope) || [];
+					const acceptedStates = this._pendingStates.get(scopeData.scopeStr) || [];
 					// Workaround double encoding issues of state in web
 					if (!acceptedStates.includes(query.state) && !acceptedStates.includes(decodeURIComponent(query.state))) {
 						throw new Error('State does not match.');
@@ -493,8 +531,8 @@ export class AzureActiveDirectoryService {
 						throw new Error('No available code verifier');
 					}
 
-					const token = await this.exchangeCodeForToken(code, verifier, scope);
-					await this.setToken(token, scope);
+					const token = await this.exchangeCodeForToken(code, verifier, scopeData);
+					await this.setToken(token, scopeData);
 
 					const session = await this.convertToSession(token);
 					resolve(session);
@@ -511,8 +549,8 @@ export class AzureActiveDirectoryService {
 		});
 	}
 
-	private async setToken(token: IToken, scope: string): Promise<void> {
-		Logger.info(`Setting token for scopes: ${scope}`);
+	private async setToken(token: IToken, scopeData: IScopeData): Promise<void> {
+		Logger.info(`Setting token for scopes: ${scopeData.scopeStr}`);
 		const existingTokenIndex = this._tokens.findIndex(t => t.sessionId === token.sessionId);
 		if (existingTokenIndex > -1) {
 			this._tokens.splice(existingTokenIndex, 1, token);
@@ -525,16 +563,11 @@ export class AzureActiveDirectoryService {
 		if (token.expiresIn) {
 			this._refreshTimeouts.set(token.sessionId, setTimeout(async () => {
 				try {
-					const refreshedToken = await this.refreshToken(token.refreshToken, scope, token.sessionId);
+					const refreshedToken = await this.refreshToken(token.refreshToken, scopeData, token.sessionId);
 					Logger.info('Triggering change session event...');
 					onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
 				} catch (e) {
-					if (e.message === REFRESH_NETWORK_FAILURE) {
-						const didSucceedOnRetry = await this.handleRefreshNetworkError(token.sessionId, token.refreshToken, scope);
-						if (!didSucceedOnRetry) {
-							this.pollForReconnect(token.sessionId, token.refreshToken, token.scope);
-						}
-					} else {
+					if (e.message !== REFRESH_NETWORK_FAILURE) {
 						await this.removeSession(token.sessionId);
 						onDidChangeSessions.fire({ added: [], removed: [this.convertToSessionSync(token)], changed: [] });
 					}
@@ -546,7 +579,7 @@ export class AzureActiveDirectoryService {
 		await this.storeTokenData();
 	}
 
-	private getTokenFromResponse(json: ITokenResponse, scope: string, existingId?: string): IToken {
+	private getTokenFromResponse(json: ITokenResponse, scopeData: IScopeData, existingId?: string): IToken {
 		let claims = undefined;
 
 		try {
@@ -566,7 +599,7 @@ export class AzureActiveDirectoryService {
 			accessToken: json.access_token,
 			idToken: json.id_token,
 			refreshToken: json.refresh_token,
-			scope,
+			scope: scopeData.scopeStr,
 			sessionId: existingId || `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${uuid()}`,
 			account: {
 				label: claims.email || claims.unique_name || claims.preferred_username || 'user@example.com',
@@ -575,47 +608,51 @@ export class AzureActiveDirectoryService {
 		};
 	}
 
-	private async exchangeCodeForToken(code: string, codeVerifier: string, scope: string): Promise<IToken> {
-		Logger.info(`Exchanging login code for token for scopes: ${scope}`);
+	private getClientId(scopes: string[]) {
+		return scopes.reduce<string | undefined>((prev, current) => {
+			if (current.startsWith('VSCODE_CLIENT_ID:')) {
+				return current.split('VSCODE_CLIENT_ID:')[1];
+			}
+			return prev;
+		}, undefined) ?? DEFAULT_CLIENT_ID;
+	}
+
+	private getTenantId(scopes: string[]) {
+		return scopes.reduce<string | undefined>((prev, current) => {
+			if (current.startsWith('VSCODE_TENANT:')) {
+				return current.split('VSCODE_TENANT:')[1];
+			}
+			return prev;
+		}, undefined) ?? DEFAULT_TENANT;
+	}
+
+	private async exchangeCodeForToken(code: string, codeVerifier: string, scopeData: IScopeData): Promise<IToken> {
+		Logger.info(`Exchanging login code for token for scopes: ${scopeData.scopeStr}`);
 		try {
 			const postData = querystring.stringify({
 				grant_type: 'authorization_code',
 				code: code,
-				client_id: clientId,
-				scope: scope,
+				client_id: scopeData.clientId,
+				scope: scopeData.scopesToSend,
 				code_verifier: codeVerifier,
 				redirect_uri: redirectUrl
 			});
 
 			const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
 			const endpointUrl = proxyEndpoints?.microsoft || loginEndpointUrl;
-			const endpoint = `${endpointUrl}${tenant}/oauth2/v2.0/token`;
+			const endpoint = `${endpointUrl}${scopeData.tenant}/oauth2/v2.0/token`;
 
-			const result = await fetch(endpoint, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/x-www-form-urlencoded',
-					'Content-Length': postData.length.toString()
-				},
-				body: postData
-			});
-
-			if (result.ok) {
-				const json = await result.json();
-				Logger.info(`Exchanging login code for token (for scopes: ${scope}) succeeded!`);
-				return this.getTokenFromResponse(json, scope);
-			} else {
-				Logger.error(`Exchanging login code for token (for scopes: ${scope}) failed: ${await result.text()}`);
-				throw new Error('Unable to login.');
-			}
+			const json = await this.fetchTokenResponse(endpoint, postData, scopeData);
+			Logger.info(`Exchanging login code for token (for scopes: ${scopeData.scopeStr}) succeeded!`);
+			return this.getTokenFromResponse(json, scopeData);
 		} catch (e) {
-			Logger.error(`Error exchanging code for token (for scopes ${scope}): ${e}`);
+			Logger.error(`Error exchanging code for token (for scopes ${scopeData.scopeStr}): ${e}`);
 			throw e;
 		}
 	}
 
-	private async refreshToken(refreshToken: string, scope: string, sessionId: string): Promise<IToken> {
-		this._refreshingPromise = this.doRefreshToken(refreshToken, scope, sessionId);
+	private async refreshToken(refreshToken: string, scopeData: IScopeData, sessionId: string): Promise<IToken> {
+		this._refreshingPromise = this.doRefreshToken(refreshToken, scopeData, sessionId);
 		try {
 			const result = await this._refreshingPromise;
 			return result;
@@ -624,46 +661,74 @@ export class AzureActiveDirectoryService {
 		}
 	}
 
-	private async doRefreshToken(refreshToken: string, scope: string, sessionId: string): Promise<IToken> {
-		Logger.info(`Refreshing token for scopes: ${scope}`);
-		const postData = querystring.stringify({
-			refresh_token: refreshToken,
-			client_id: clientId,
-			grant_type: 'refresh_token',
-			scope: scope
-		});
+	private async fetchTokenResponse(endpoint: string, postData: string, scopeData: IScopeData): Promise<ITokenResponse> {
+		let attempts = 0;
+		while (attempts <= 3) {
+			attempts++;
+			let result: Response | undefined;
+			let errorMessage: string | undefined;
+			try {
+				result = await fetch(endpoint, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/x-www-form-urlencoded',
+						'Content-Length': postData.length.toString()
+					},
+					body: postData
+				});
+			} catch (e) {
+				errorMessage = e.message ?? e;
+			}
 
-		let result: Response;
-		try {
-			const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
-			const endpointUrl = proxyEndpoints?.microsoft || loginEndpointUrl;
-			const endpoint = `${endpointUrl}${tenant}/oauth2/v2.0/token`;
-			result = await fetch(endpoint, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/x-www-form-urlencoded',
-					'Content-Length': postData.length.toString()
-				},
-				body: postData
-			});
-		} catch (e) {
-			Logger.error(`Refreshing token failed (for scopes: ${scope}) Error: ${e}`);
-			throw new Error(REFRESH_NETWORK_FAILURE);
+			if (!result || result.status > 499) {
+				if (attempts > 3) {
+					Logger.error(`Fetching token failed for scopes (${scopeData.scopeStr}): ${result ? await result.text() : errorMessage}`);
+					break;
+				}
+				// Exponential backoff
+				await new Promise(resolve => setTimeout(resolve, 5 * attempts * attempts * 1000));
+				continue;
+			} else if (!result.ok) {
+				// For 4XX errors, the user may actually have an expired token or have changed
+				// their password recently which is throwing a 4XX. For this, we throw an error
+				// so that the user can be prompted to sign in again.
+				throw new Error(await result.text());
+			}
+
+			return await result.json() as ITokenResponse;
 		}
 
+		throw new Error(REFRESH_NETWORK_FAILURE);
+	}
+
+	private async doRefreshToken(refreshToken: string, scopeData: IScopeData, sessionId: string): Promise<IToken> {
+		Logger.info(`Refreshing token for scopes: ${scopeData.scopeStr}`);
+		const postData = querystring.stringify({
+			refresh_token: refreshToken,
+			client_id: scopeData.clientId,
+			grant_type: 'refresh_token',
+			scope: scopeData.scopesToSend
+		});
+
+		const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
+		const endpointUrl = proxyEndpoints?.microsoft || loginEndpointUrl;
+		const endpoint = `${endpointUrl}${scopeData.tenant}/oauth2/v2.0/token`;
+
 		try {
-			if (result.ok) {
-				const json = await result.json();
-				const token = this.getTokenFromResponse(json, scope, sessionId);
-				await this.setToken(token, scope);
-				Logger.info(`Token refresh success for scopes: ${token.scope}`);
-				return token;
-			} else {
-				throw new Error('Bad request.');
-			}
+			const json = await this.fetchTokenResponse(endpoint, postData, scopeData);
+			const token = this.getTokenFromResponse(json, scopeData, sessionId);
+			await this.setToken(token, scopeData);
+			Logger.info(`Token refresh success for scopes: ${token.scope}`);
+			return token;
 		} catch (e) {
+			if (e.message === REFRESH_NETWORK_FAILURE) {
+				// We were unable to refresh because of a network failure (i.e. the user lost internet access).
+				// so set up a timeout to try again later.
+				this.pollForReconnect(sessionId, refreshToken, scopeData);
+				throw e;
+			}
 			vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
-			Logger.error(`Refreshing token failed (for scopes: ${scope}): ${result.statusText}`);
+			Logger.error(`Refreshing token failed (for scopes: ${scopeData.scopeStr}): ${e.message}`);
 			throw new Error('Refreshing token failed');
 		}
 	}
@@ -688,40 +753,17 @@ export class AzureActiveDirectoryService {
 		return token;
 	}
 
-	private pollForReconnect(sessionId: string, refreshToken: string, scope: string): void {
+	private pollForReconnect(sessionId: string, refreshToken: string, scopeData: IScopeData): void {
 		this.clearSessionTimeout(sessionId);
-
+		Logger.trace(`Setting up reconnection timeout for scopes: ${scopeData.scopeStr}...`);
 		this._refreshTimeouts.set(sessionId, setTimeout(async () => {
 			try {
-				const refreshedToken = await this.refreshToken(refreshToken, scope, sessionId);
+				const refreshedToken = await this.refreshToken(refreshToken, scopeData, sessionId);
 				onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
 			} catch (e) {
-				this.pollForReconnect(sessionId, refreshToken, scope);
+				this.pollForReconnect(sessionId, refreshToken, scopeData);
 			}
 		}, 1000 * 60 * 30));
-	}
-
-	private handleRefreshNetworkError(sessionId: string, refreshToken: string, scope: string, attempts: number = 1): Promise<boolean> {
-		return new Promise((resolve, _) => {
-			if (attempts === 3) {
-				Logger.error(`Token refresh (for scopes: ${scope}) failed after 3 attempts`);
-				return resolve(false);
-			}
-
-			const delayBeforeRetry = 5 * attempts * attempts;
-
-			this.clearSessionTimeout(sessionId);
-
-			this._refreshTimeouts.set(sessionId, setTimeout(async () => {
-				try {
-					const refreshedToken = await this.refreshToken(refreshToken, scope, sessionId);
-					onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
-					return resolve(true);
-				} catch (e) {
-					return resolve(await this.handleRefreshNetworkError(sessionId, refreshToken, scope, attempts + 1));
-				}
-			}, 1000 * delayBeforeRetry));
-		});
 	}
 
 	public async removeSession(sessionId: string): Promise<vscode.AuthenticationSession | undefined> {

@@ -8,12 +8,6 @@ Make sure you are on **Node v12.x**.
 # Build extensions in the VS Code repo (if needed)
 yarn && yarn compile
 
-# Install Dependencies and Compile
-yarn --cwd test/smoke
-
-# Prepare OSS in repo*
-node build/lib/preLaunch.js
-
 # Dev (Electron)
 yarn smoketest
 
@@ -61,7 +55,6 @@ xattr -d com.apple.quarantine <path to server with web folder zip>
 
 - `--verbose` logs all the low level driver calls made to Code;
 - `-f PATTERN` (alias `-g PATTERN`) filters the tests to be run. You can also use pretty much any mocha argument;
-- `--screenshots SCREENSHOT_DIR` captures screenshots when tests fail.
 - `--headless` will run playwright in headless mode when `--web` is used.
 
 **Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (https://playwright.dev/docs/debug#verbose-api-logs)

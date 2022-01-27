@@ -15,8 +15,11 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { joinPath, isEqualOrParent, basenameOrAuthority } from 'vs/base/common/resources';
-import { SortOrder } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, SortOrder } from 'vs/workbench/contrib/files/common/files';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { ExplorerFileNestingTrie } from 'vs/workbench/contrib/files/common/explorerFileNestingTrie';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class ExplorerModel implements IDisposable {
 
@@ -27,10 +30,11 @@ export class ExplorerModel implements IDisposable {
 	constructor(
 		private readonly contextService: IWorkspaceContextService,
 		private readonly uriIdentityService: IUriIdentityService,
-		fileService: IFileService
+		fileService: IFileService,
+		configService: IConfigurationService,
 	) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
-			.map(folder => new ExplorerItem(folder.uri, fileService, undefined, true, false, false, folder.name));
+			.map(folder => new ExplorerItem(folder.uri, fileService, configService, undefined, true, false, false, folder.name));
 		setRoots();
 
 		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => {
@@ -83,9 +87,12 @@ export class ExplorerItem {
 	public isError = false;
 	private _isExcluded = false;
 
+	private nestedChildren: ExplorerItem[] | undefined;
+
 	constructor(
 		public resource: URI,
 		private readonly fileService: IFileService,
+		private readonly configService: IConfigurationService,
 		private _parent: ExplorerItem | undefined,
 		private _isDirectory?: boolean,
 		private _isSymbolicLink?: boolean,
@@ -110,6 +117,14 @@ export class ExplorerItem {
 
 	set isExcluded(value: boolean) {
 		this._isExcluded = value;
+	}
+
+	get hasChildren() {
+		return this.isDirectory || this.hasNests;
+	}
+
+	get hasNests() {
+		return !!(this.nestedChildren?.length);
 	}
 
 	get isDirectoryResolved(): boolean {
@@ -179,8 +194,8 @@ export class ExplorerItem {
 		return this === this.root;
 	}
 
-	static create(fileService: IFileService, raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, fileService, parent, raw.isDirectory, raw.isSymbolicLink, raw.readonly, raw.name, raw.mtime, !raw.isFile && !raw.isDirectory);
+	static create(fileService: IFileService, configService: IConfigurationService, raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
+		const stat = new ExplorerItem(raw.resource, fileService, configService, parent, raw.isDirectory, raw.isSymbolicLink, raw.readonly, raw.name, raw.mtime, !raw.isFile && !raw.isDirectory);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -195,7 +210,7 @@ export class ExplorerItem {
 			// Recurse into children
 			if (raw.children) {
 				for (let i = 0, len = raw.children.length; i < len; i++) {
-					const child = ExplorerItem.create(fileService, raw.children[i], stat, resolveTo);
+					const child = ExplorerItem.create(fileService, configService, raw.children[i], stat, resolveTo);
 					stat.addChild(child);
 				}
 			}
@@ -282,6 +297,9 @@ export class ExplorerItem {
 	}
 
 	async fetchChildren(sortOrder: SortOrder): Promise<ExplorerItem[]> {
+		const nestingConfig = this.configService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting;
+		if (nestingConfig.enabled && this.nestedChildren) { return this.nestedChildren; }
+
 		if (!this._isDirectoryResolved) {
 			// Resolve metadata only when the mtime is needed since this can be expensive
 			// Mtime is only used when the sort order is 'modified'
@@ -289,7 +307,7 @@ export class ExplorerItem {
 			this.isError = false;
 			try {
 				const stat = await this.fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
-				const resolved = ExplorerItem.create(this.fileService, stat, this);
+				const resolved = ExplorerItem.create(this.fileService, this.configService, stat, this);
 				ExplorerItem.mergeLocalWithDisk(resolved, this);
 			} catch (e) {
 				this.isError = true;
@@ -299,9 +317,46 @@ export class ExplorerItem {
 		}
 
 		const items: ExplorerItem[] = [];
-		this.children.forEach(child => {
-			items.push(child);
-		});
+		if (nestingConfig.enabled) {
+			const patterns = Object.entries(nestingConfig.patterns).map(
+				([parentPattern, childrenPatterns]) =>
+					[parentPattern.trim(), childrenPatterns.split(',').map(p => p.trim())] as [string, string[]]);
+
+			const nester = new ExplorerFileNestingTrie(patterns);
+
+			const fileChildren: [string, ExplorerItem][] = [];
+			const dirChildren: [string, ExplorerItem][] = [];
+			for (const child of this.children.entries()) {
+				if (child[1].isDirectory) {
+					dirChildren.push(child);
+				} else {
+					fileChildren.push(child);
+				}
+			}
+
+			const nested = nester.nest(fileChildren.map(([name]) => name));
+
+			for (const [fileEntryName, fileEntryItem] of fileChildren) {
+				const nestedItems = nested.get(fileEntryName);
+				if (nestedItems !== undefined) {
+					fileEntryItem.nestedChildren = [];
+					for (const name of nestedItems.keys()) {
+						fileEntryItem.nestedChildren.push(assertIsDefined(this.children.get(name)));
+					}
+					items.push(fileEntryItem);
+				} else {
+					fileEntryItem.nestedChildren = undefined;
+				}
+			}
+
+			for (const [_, dirEntryItem] of dirChildren.values()) {
+				items.push(dirEntryItem);
+			}
+		} else {
+			this.children.forEach(child => {
+				items.push(child);
+			});
+		}
 
 		return items;
 	}
@@ -410,8 +465,8 @@ export class ExplorerItem {
 }
 
 export class NewExplorerItem extends ExplorerItem {
-	constructor(fileService: IFileService, parent: ExplorerItem, isDirectory: boolean) {
-		super(URI.file(''), fileService, parent, isDirectory);
+	constructor(fileService: IFileService, configService: IConfigurationService, parent: ExplorerItem, isDirectory: boolean) {
+		super(URI.file(''), fileService, configService, parent, isDirectory);
 		this._isDirectoryResolved = true;
 	}
 }

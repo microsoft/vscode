@@ -218,7 +218,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			backgroundColor: this.themeMainService.getBackgroundColor(),
 			webPreferences: {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-				additionalArguments: [`--vscode-window-config=${configObjectUrl.resource.toString()}`],
+				additionalArguments: [`--vscode-window-config=${configObjectUrl.resource.toString()}`, '--vscode-window-kind=shared-process'],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				nodeIntegration: true,
 				nodeIntegrationInWorker: true,
@@ -227,8 +227,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 				spellcheck: false,
 				nativeWindowOpen: true,
 				images: false,
-				webgl: false,
-				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
+				webgl: false
 			}
 		});
 

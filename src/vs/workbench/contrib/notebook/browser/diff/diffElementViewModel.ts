@@ -6,17 +6,17 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CellDiffViewModelLayoutChangeEvent, DiffSide, DIFF_CELL_MARGIN, IDiffElementLayoutInfo } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { CellLayoutState, IGenericCellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellLayoutState, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { hash } from 'vs/base/common/hash';
-import { format } from 'vs/base/common/jsonFormatter';
-import { applyEdits } from 'vs/base/common/jsonEdit';
+import { toFormattedString } from 'vs/base/common/jsonFormatter';
 import { ICellOutput, IOutputDto, IOutputItemDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { URI } from 'vs/base/common/uri';
 import { NotebookDiffEditorEventDispatcher, NotebookDiffViewEventType } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 
 export enum PropertyFoldingState {
 	Expanded,
@@ -243,7 +243,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	}
 
 	private estimateEditorHeight(lineHeight: number | undefined = 20): number {
-		let hasScrolling = false;
+		const hasScrolling = false;
 		const verticalScrollbarHeight = hasScrolling ? 12 : 0; // take zoom level into account
 		// const editorPadding = this.viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
 		const lineCount = Math.max(this.original?.textModel.textBuffer.getLineCount() ?? 1, this.modified?.textModel.textBuffer.getLineCount() ?? 1);
@@ -607,7 +607,7 @@ export function getFormatedMetadataJSON(documentTextModel: NotebookTextModel, me
 		const transientCellMetadata = documentTextModel.transientOptions.transientCellMetadata;
 
 		const keys = new Set([...Object.keys(metadata)]);
-		for (let key of keys) {
+		for (const key of keys) {
 			if (!(transientCellMetadata[key as keyof NotebookCellMetadata])
 			) {
 				filteredMetadata[key] = metadata[key as keyof NotebookCellMetadata];
@@ -617,13 +617,12 @@ export function getFormatedMetadataJSON(documentTextModel: NotebookTextModel, me
 		filteredMetadata = metadata;
 	}
 
-	const content = JSON.stringify({
+	const obj = {
 		language,
 		...filteredMetadata
-	});
+	};
 
-	const edits = format(content, undefined, {});
-	const metadataSource = applyEdits(content, edits);
+	const metadataSource = toFormattedString(obj, {});
 
 	return metadataSource;
 }

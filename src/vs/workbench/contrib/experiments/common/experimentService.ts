@@ -302,7 +302,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				type ExperimentsClassification = {
 					experiments: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 				};
-				this.telemetryService.publicLog2<{ experiments: IExperiment[]; }, ExperimentsClassification>('experiments', { experiments: this._experiments });
+				this.telemetryService.publicLog2<{ experiments: string[]; }, ExperimentsClassification>('experiments', { experiments: this._experiments.map(e => e.id) });
 			});
 		});
 	}

@@ -32,11 +32,9 @@ declare module 'vscode' {
 		isTrusted?: boolean;
 
 		/**
-		 * When provided, remote server will be initialized with the data synced using given user account.
-		 * **Note:** Initialization happens only when VSCode is opened in Desktop and only extensions are initialized as of now.
+		 * When provided, remote server will be initialized with the extensions synced using the given user account.
 		 */
-		// authenticationSession(ForInitialization|ForInitializingExtensions)?
-		authenticationSession?: AuthenticationSession & { providerId: string };
+		authenticationSessionForInitializingExtensions?: AuthenticationSession & { providerId: string };
 	}
 
 	export interface TunnelPrivacy {
@@ -89,6 +87,13 @@ declare module 'vscode' {
 		 */
 		environmentTunnels?: TunnelDescription[];
 
+		tunnelFeatures?: {
+			elevation: boolean;
+			/**
+			 * One of the the options must have the ID "private".
+			 */
+			privacyOptions: TunnelPrivacy[];
+		};
 	}
 
 	export interface TunnelCreationOptions {
@@ -148,18 +153,11 @@ declare module 'vscode' {
 		showCandidatePort?: (host: string, port: number, detail: string) => Thenable<boolean>;
 
 		/**
-		 * Lets the resolver declare which tunnel factory features it supports.
-		 * UNDER DISCUSSION! MAY CHANGE SOON.
+		 * @deprecated Return tunnelFeatures as part of the resolver result in tunnelInformation.
 		 */
 		tunnelFeatures?: {
 			elevation: boolean;
-			/**
-			 * @deprecated Use privacy instead
-			 */
 			public: boolean;
-			/**
-			 * One of the the options must have the ID "private".
-			 */
 			privacyOptions: TunnelPrivacy[];
 		};
 

@@ -9,13 +9,13 @@ import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/commo
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IRange } from 'vs/editor/common/core/range';
-import * as modes from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/languages';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
-import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from '../common/extHost.protocol';
+import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges, CommentChanges } from '../common/extHost.protocol';
 import { COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -23,7 +23,7 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { localize } from 'vs/nls';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId, revive } from 'vs/base/common/marshalling';
 
 
 export class MainThreadCommentThread implements modes.CommentThread {
@@ -139,9 +139,25 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		if (modified('range')) { this._range = changes.range!; }
 		if (modified('label')) { this._label = changes.label; }
 		if (modified('contextValue')) { this._contextValue = changes.contextValue === null ? undefined : changes.contextValue; }
-		if (modified('comments')) { this._comments = changes.comments; }
+		if (modified('comments')) { this._comments = this.commentsFromCommentChanges(changes.comments); }
 		if (modified('collapseState')) { this._collapsibleState = changes.collapseState; }
 		if (modified('canReply')) { this.canReply = changes.canReply!; }
+	}
+
+	private commentsFromCommentChanges(comments?: CommentChanges[]): modes.Comment[] | undefined {
+		return comments?.map(comment => {
+			return {
+				body: comment.body,
+				uniqueIdInThread: comment.uniqueIdInThread,
+				userName: comment.userName,
+				commentReactions: comment.commentReactions,
+				contextValue: comment.contextValue,
+				timestamp: comment.timestamp ? <Date>revive<Date>(comment.timestamp) : undefined,
+				label: comment.label,
+				mode: comment.mode,
+				userIconPath: comment.userIconPath
+			};
+		});
 	}
 
 	dispose() {

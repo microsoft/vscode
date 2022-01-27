@@ -50,7 +50,7 @@ class Kernel {
 	}
 
 	protected async _execute(cells: vscode.NotebookCell[]): Promise<void> {
-		for (let cell of cells) {
+		for (const cell of cells) {
 			await this._runCell(cell);
 		}
 	}
@@ -136,7 +136,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	}
 };
 
-suite.skip('Notebook API tests', function () {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('Notebook API tests', function () {
 
 	const testDisposables: vscode.Disposable[] = [];
 	const suiteDisposables: vscode.Disposable[] = [];
@@ -281,7 +281,8 @@ suite.skip('Notebook API tests', function () {
 		assert.strictEqual(editor.document.cellCount, 2);
 	});
 
-	test('#98841, initialzation should not emit cell change events.', async function () {
+	// #126371
+	test.skip('#98841, initialzation should not emit cell change events.', async function () {
 		let count = 0;
 
 		testDisposables.push(vscode.notebooks.onDidChangeNotebookCells(() => {
@@ -462,7 +463,8 @@ suite.skip('Notebook API tests', function () {
 		});
 	});
 
-	test('cell execute command takes arguments ICellRange[]', async () => {
+	// #126371
+	test.skip('cell execute command takes arguments ICellRange[]', async () => {
 		const resource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 
@@ -566,7 +568,7 @@ suite.skip('Notebook API tests', function () {
 		});
 	});
 
-	test('onDidChangeCellExecutionState is fired', async () => {
+	test.skip('onDidChangeCellExecutionState is fired', async () => { // TODO@rebornix https://github.com/microsoft/vscode/issues/139350
 		const resource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		const editor = vscode.window.activeNotebookEditor!;
@@ -623,7 +625,7 @@ suite.skip('Notebook API tests', function () {
 		});
 	});
 
-	test('multiple tabs: dirty + clean', async function () {
+	test.skip('multiple tabs: dirty + clean', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/140285
 		const notebook = await openRandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
@@ -870,9 +872,66 @@ suite.skip('Notebook API tests', function () {
 		assert.strictEqual(cell.executionSummary?.timing?.endTime, 20);
 
 	});
+
+	test('execution cancelled when delete while executing', async () => {
+		const document = await openRandomNotebookDocument();
+		const cell = document.cellAt(0);
+
+		let executionWasCancelled = false;
+		const cancelledKernel = new class extends Kernel {
+			constructor() {
+				super('cancelledKernel', '');
+			}
+
+			override async _execute(cells: vscode.NotebookCell[]) {
+				const [cell] = cells;
+				const exe = this.controller.createNotebookCellExecution(cell);
+				exe.token.onCancellationRequested(() => executionWasCancelled = true);
+			}
+		};
+		testDisposables.push(cancelledKernel.controller);
+
+		await vscode.window.showNotebookDocument(document);
+		await assertKernel(cancelledKernel, document);
+		await vscode.commands.executeCommand('notebook.cell.execute');
+
+		// Delete executing cell
+		const edit = new vscode.WorkspaceEdit();
+		edit.replaceNotebookCells(cell!.notebook.uri, new vscode.NotebookRange(cell!.index, cell!.index + 1), []);
+		await vscode.workspace.applyEdit(edit);
+
+		assert.strictEqual(executionWasCancelled, true);
+	});
+
+	test('execution cancelled when kernel changed', async () => {
+		await openRandomNotebookDocument();
+		let executionWasCancelled = false;
+		const cancelledKernel = new class extends Kernel {
+			constructor() {
+				super('cancelledKernel', '');
+			}
+
+			override async _execute(cells: vscode.NotebookCell[]) {
+				const [cell] = cells;
+				const exe = this.controller.createNotebookCellExecution(cell);
+				exe.token.onCancellationRequested(() => executionWasCancelled = true);
+			}
+		};
+
+		const notebook = await openRandomNotebookDocument();
+		await vscode.window.showNotebookDocument(notebook);
+		testDisposables.push(cancelledKernel.controller);
+		await assertKernel(cancelledKernel, notebook);
+		await vscode.commands.executeCommand('notebook.cell.execute');
+
+		const newKernel = new Kernel('newKernel', 'kernel');
+		testDisposables.push(newKernel.controller);
+		await assertKernel(newKernel, notebook);
+		assert.strictEqual(executionWasCancelled, true);
+	});
 });
 
-suite.skip('statusbar', () => {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('statusbar', () => {
 	const emitter = new vscode.EventEmitter<vscode.NotebookCell>();
 	const onDidCallProvide = emitter.event;
 	const suiteDisposables: vscode.Disposable[] = [];
@@ -897,7 +956,7 @@ suite.skip('statusbar', () => {
 		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
 	});
 
-	test('provideCellStatusBarItems called on metadata change', async function () {
+	test.skip('provideCellStatusBarItems called on metadata change', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139324
 		const provideCalled = asPromise(onDidCallProvide);
 		const resource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
@@ -910,7 +969,7 @@ suite.skip('statusbar', () => {
 	});
 });
 
-suite.skip('Notebook API tests (metadata)', function () {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('Notebook API tests (metadata)', function () {
 	const testDisposables: vscode.Disposable[] = [];
 	const suiteDisposables: vscode.Disposable[] = [];
 

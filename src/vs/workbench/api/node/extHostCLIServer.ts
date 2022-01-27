@@ -22,6 +22,7 @@ export interface OpenCommandPipeArgs {
 	gotoLineMode?: boolean;
 	forceReuseWindow?: boolean;
 	waitMarkerFilePath?: string;
+	remoteAuthority?: string | null;
 }
 
 export interface OpenExternalCommandPipeArgs {
@@ -111,7 +112,7 @@ export class CLIServerBase {
 	}
 
 	private open(data: OpenCommandPipeArgs, res: http.ServerResponse) {
-		let { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow, gotoLineMode, waitMarkerFilePath } = data;
+		const { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow, gotoLineMode, waitMarkerFilePath, remoteAuthority } = data;
 		const urisToOpen: IWindowOpenable[] = [];
 		if (Array.isArray(folderURIs)) {
 			for (const s of folderURIs) {
@@ -135,12 +136,11 @@ export class CLIServerBase {
 				}
 			}
 		}
-		if (urisToOpen.length) {
-			const waitMarkerFileURI = waitMarkerFilePath ? URI.file(waitMarkerFilePath) : undefined;
-			const preferNewWindow = !forceReuseWindow && !waitMarkerFileURI && !addMode;
-			const windowOpenArgs: IOpenWindowOptions = { forceNewWindow, diffMode, addMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI };
-			this._commands.executeCommand('_remoteCLI.windowOpen', urisToOpen, windowOpenArgs);
-		}
+		const waitMarkerFileURI = waitMarkerFilePath ? URI.file(waitMarkerFilePath) : undefined;
+		const preferNewWindow = !forceReuseWindow && !waitMarkerFileURI && !addMode;
+		const windowOpenArgs: IOpenWindowOptions = { forceNewWindow, diffMode, addMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI, remoteAuthority };
+		this._commands.executeCommand('_remoteCLI.windowOpen', urisToOpen, windowOpenArgs);
+
 		res.writeHead(200);
 		res.end();
 	}

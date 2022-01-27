@@ -7,7 +7,7 @@ import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 namespace Samples {
 
@@ -48,7 +48,6 @@ suite('Event', function () {
 
 		let doc = new Samples.Document3();
 
-		document.createElement('div').onclick = function () { };
 		let subscription = doc.onDidChange(counter.onEvent, counter);
 
 		doc.setText('far');
@@ -956,5 +955,35 @@ suite('Event utils', () => {
 			e2.fire(6);
 			assert.deepStrictEqual(result, [2, 4]);
 		});
+	});
+
+	test('runAndSubscribeWithStore', () => {
+		const eventEmitter = new Emitter();
+		const event = eventEmitter.event;
+
+		let i = 0;
+		let log = new Array<any>();
+		const disposable = Event.runAndSubscribeWithStore(event, (e, disposables) => {
+			const idx = i++;
+			log.push({ label: 'handleEvent', data: e || null, idx });
+			disposables.add(toDisposable(() => {
+				log.push({ label: 'dispose', idx });
+			}));
+		});
+
+		log.push({ label: 'fire' });
+		eventEmitter.fire('someEventData');
+
+		log.push({ label: 'disposeAll' });
+		disposable.dispose();
+
+		assert.deepStrictEqual(log, [
+			{ label: 'handleEvent', data: null, idx: 0 },
+			{ label: 'fire' },
+			{ label: 'dispose', idx: 0 },
+			{ label: 'handleEvent', data: 'someEventData', idx: 1 },
+			{ label: 'disposeAll' },
+			{ label: 'dispose', idx: 1 },
+		]);
 	});
 });
