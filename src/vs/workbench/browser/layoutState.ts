@@ -82,7 +82,7 @@ interface ILayoutStateChangeEvent<T extends StorageKeyType> {
 	value: T;
 }
 export class LayoutStateModel extends Disposable {
-	static readonly STORAGE_PREFIX = 'workbench.state.';
+	static readonly STORAGE_PREFIX = 'workbench.';
 	private stateCache = new Map<string, any>();
 
 	private readonly _onDidChangeState: Emitter<ILayoutStateChangeEvent<StorageKeyType>> = this._register(new Emitter<ILayoutStateChangeEvent<StorageKeyType>>());
