@@ -286,7 +286,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'enum': ['left', 'bottom', 'right'],
 				'default': 'bottom',
 				'description': localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom, right, or left of the workbench."),
-				'deprecationMessage': localize('panelDefaultLocationDeprecated', "With the introduction of the side panel, the panel position is no longer able to be moved in favor of moving view containers between the panels.")
+				'deprecationMessage': localize('panelDefaultLocationDeprecated', "This setting has been deprecated with the addition of the new side panel. Instead of setting the location for the panel, you now use the \"Move Views\" commands to set the location of the individual view containers within the panels.")
 			},
 			'workbench.panel.opensMaximized': {
 				'type': 'string',
