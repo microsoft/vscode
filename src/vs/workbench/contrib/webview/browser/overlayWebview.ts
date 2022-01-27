@@ -154,9 +154,9 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._container.style.height = `${dimension ? dimension.height : frameRect.height}px`;
 
 		// Temporary fix for https://github.com/microsoft/vscode/issues/110450
-		// There is an animated that lasts about 200ms, update the webview positioning to match.
+		// There is an animation that lasts about 200ms, update the webview positioning to match.
 		if (animated) {
-			for (let i = 40; i <= 240; i+= 20) {
+			for (let i = 40; i <= 240; i += 20) {
 				setTimeout(() => {
 					this.layoutWebviewOverElement(element, dimension, /*animated*/ false);
 				}, i);
