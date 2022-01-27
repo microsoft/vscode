@@ -8,7 +8,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { TernarySearchTree } from 'vs/base/common/map';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isLinux } from 'vs/base/common/platform';
-import { extname, extUri } from 'vs/base/common/resources';
+import { extname, normalizePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -118,7 +118,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 		// 3.) Strip anything from the URI that could result in
 		//     relative paths (such as "..") by using `normalize`
-		return extUri.normalizePath(unnormalizedFileUri);
+		return normalizePath(unnormalizedFileUri);
 	}
 
 	//#endregion
