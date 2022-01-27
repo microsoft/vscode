@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .parameter-hints-widget {
-	z-index: 10;
+	/* Must be higher than sash's z-index and terminal canvases */
+	z-index: 40;
 	display: flex;
 	flex-direction: column;
 	line-height: 1.5em;
