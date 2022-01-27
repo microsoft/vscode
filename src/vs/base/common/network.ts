@@ -134,6 +134,10 @@ class RemoteAuthoritiesImpl {
 		return this._preferredWebSchema;
 	}
 
+	getConnectionToken(authority: string) {
+		return this._connectionTokens[authority];
+	}
+
 	rewrite(uri: URI): URI {
 		if (this._delegate) {
 			return this._delegate(uri);
