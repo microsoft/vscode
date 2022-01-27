@@ -33,7 +33,7 @@ import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/w
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
-import { Direction, ICreateTerminalOptions, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Direction, ICreateTerminalOptions, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfileService, TerminalCommandId, TERMINAL_ACTION_CATEGORY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -311,7 +311,17 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
-			await accessor.get(ITerminalService).activeInstance?.runRecent('command');
+			const terminalGroupService = accessor.get(ITerminalGroupService);
+			const terminalEditorService = accessor.get(ITerminalEditorService);
+			const instance = accessor.get(ITerminalService).activeInstance;
+			if (instance) {
+				await instance.runRecent('command');
+				if (instance?.target === TerminalLocation.Editor) {
+					terminalEditorService.revealActiveEditor();
+				} else {
+					terminalGroupService.showPanel(false);
+				}
+			}
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -325,7 +335,17 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
-			await accessor.get(ITerminalService).activeInstance?.runRecent('cwd');
+			const terminalGroupService = accessor.get(ITerminalGroupService);
+			const terminalEditorService = accessor.get(ITerminalEditorService);
+			const instance = accessor.get(ITerminalService).activeInstance;
+			if (instance) {
+				await instance.runRecent('cwd');
+				if (instance?.target === TerminalLocation.Editor) {
+					terminalEditorService.revealActiveEditor();
+				} else {
+					terminalGroupService.showPanel(false);
+				}
+			}
 		}
 	});
 	registerAction2(class extends Action2 {
