@@ -52,8 +52,8 @@ export const enum TerminalLinkType {
 	Protocol,
 
 	/**
-	 * A low confidence link which will search for the file in the workspace, if there is a single
-	 * match it will open the file, otherwise it will present a quick pick searching the workspace.
+	 * A low confidence link which will search for the file in the workspace. If there is a single
+	 * match, it will open the file; otherwise, it will present the matches in a quick pick.
 	 */
 	Search
 }
