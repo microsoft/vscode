@@ -11,7 +11,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
-import { FoldingModel } from 'vs/editor/contrib/folding/foldingModel';
+import { FoldingModel } from './foldingModel';
 
 export class HiddenRangeModel {
 
@@ -84,7 +84,7 @@ export class HiddenRangeModel {
 		this._hasLineChanges = false;
 		this._updateEventEmitter.fire(newHiddenAreas);
 	}
-w
+
 	public hasRanges() {
 		return this._hiddenRanges.length > 0;
 	}
