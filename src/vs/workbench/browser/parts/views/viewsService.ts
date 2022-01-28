@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey, getEnabledViewContainerContextKey, FocusedViewContext } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer } from 'vs/workbench/common/views';
+import { FocusedViewContext, getVisbileViewContextKey, getEnabledViewContainerContextKey } from 'vs/workbench/common/contextkeys';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -268,7 +269,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 						if (location === ViewContainerLocation.Sidebar) {
 							this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
-						} else if (location === ViewContainerLocation.Panel) {
+						} else if (location === ViewContainerLocation.Panel || location === ViewContainerLocation.AuxiliaryBar) {
 							this.paneCompositeService.hideActivePaneComposite(location);
 						}
 
@@ -431,10 +432,14 @@ export class ViewsService extends Disposable implements IViewsService {
 
 					const focusedViewId = FocusedViewContext.getValue(contextKeyService);
 					if (focusedViewId === viewDescriptor.id) {
+
+						const viewLocation = viewDescriptorService.getViewLocationById(viewDescriptor.id);
 						if (viewDescriptorService.getViewLocationById(viewDescriptor.id) === ViewContainerLocation.Sidebar) {
+							// focus the editor if the view is focused and in the side bar
 							editorGroupService.activeGroup.focus();
-						} else {
-							layoutService.setPartHidden(true, Parts.PANEL_PART);
+						} else if (viewLocation !== null) {
+							// otherwise hide the part where the view lives if focused
+							layoutService.setPartHidden(true, getPartByLocation(viewLocation));
 						}
 					} else {
 						viewsService.openView(viewDescriptor.id, true);

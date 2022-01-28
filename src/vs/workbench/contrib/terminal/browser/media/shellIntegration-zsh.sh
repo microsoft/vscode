@@ -20,10 +20,6 @@ command_complete() {
     update_cwd
 }
 
-set_shell_integration_enabled() {
-    printf "\033]133;E\007"
-}
-
 update_prompt() {
     PRIOR_PROMPT="$PS1"
     IN_COMMAND_EXECUTION=""
@@ -53,5 +49,4 @@ preexec() {
 }
 precmd_functions+=($precmd_functions precmd)
 preexec_functions+=($preexec_functions preexec)
-update_cwd
-set_shell_integration_enabled
+echo "\033[1;32mShell integration activated!\033[0m"

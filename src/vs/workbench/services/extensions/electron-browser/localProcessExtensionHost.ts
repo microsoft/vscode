@@ -48,6 +48,7 @@ import { IShellEnvironmentService } from 'vs/workbench/services/environment/elec
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
 import { SerializedError } from 'vs/base/common/errors';
 import { removeDangerousEnvVariables } from 'vs/base/node/processes';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -458,7 +459,10 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 			});
 
 			// Now that the named pipe listener is installed, start the ext host process
+			const sw = StopWatch.create(false);
 			this._extensionHostProcess!.start(opts).then(() => {
+				const duration = sw.elapsed();
+				this._logService.info(`IExtensionHostStarter.start() took ${duration} ms.`);
 			}, (err) => {
 				// Starting the ext host process resulted in an error
 				reject(err);

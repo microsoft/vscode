@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorOpenContext } from 'vs/platform/editor/common/editor';
-import { IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, matchesSomeScheme, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
+import { IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, matchesSomeScheme, OpenOptions, ResolveExternalUriOptions, selectionFragment } from 'vs/platform/opener/common/opener';
 
 class CommandOpener implements IOpener {
 
@@ -62,16 +62,8 @@ class EditorOpener implements IOpener {
 		if (typeof target === 'string') {
 			target = URI.parse(target);
 		}
-		let selection: { startLineNumber: number; startColumn: number; } | undefined = undefined;
-		const match = /^L?(\d+)(?:,(\d+))?/.exec(target.fragment);
-		if (match) {
-			// support file:///some/file.js#73,84
-			// support file:///some/file.js#L73
-			selection = {
-				startLineNumber: parseInt(match[1]),
-				startColumn: match[2] ? parseInt(match[2]) : 1
-			};
-			// remove fragment
+		const selection: { startLineNumber: number; startColumn: number; } | undefined = selectionFragment(target);
+		if (selection) {
 			target = target.with({ fragment: '' });
 		}
 
@@ -224,8 +216,8 @@ export class OpenerService implements IOpenerService {
 			// open the url-string AS IS
 			href = resource;
 		} else {
-			// open URI using the toString(noEncode)+encodeURI-trick
-			href = encodeURI(externalUri.toString(true));
+			// open URI via "new URL(...).href encoding"
+			href = new URL(externalUri.toString(true)).href;
 		}
 
 		if (options?.allowContributedOpeners) {

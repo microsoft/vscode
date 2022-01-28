@@ -5,6 +5,7 @@
 
 import { flatten } from 'vs/base/common/arrays';
 import { Limiter, Promises, Queue } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -22,11 +23,11 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { ExtensionManagementError, ExtensionManagementErrorCode, Metadata, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
-import { ExtensionType, IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtensionIdentifier, IExtensionManifest, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { CancellationToken } from 'vscode';
+
 
 export type ILocalExtensionManifest = IExtensionManifest & { __metadata?: Metadata };
 type IRelaxedLocalExtension = Omit<ILocalExtension, 'isBuiltin'> & { isBuiltin: boolean };
@@ -409,7 +410,11 @@ export class ExtensionsScanner extends Disposable {
 	private parseManifest(raw: string): Promise<{ manifest: IExtensionManifest; metadata: Metadata | null; }> {
 		return new Promise((c, e) => {
 			try {
-				const manifest = JSON.parse(raw);
+				const manifest = <ILocalExtensionManifest & { publisher: string }>JSON.parse(raw);
+				// allow publisher to be undefined to make the initial extension authoring experience smoother
+				if (!manifest.publisher) {
+					manifest.publisher = UNDEFINED_PUBLISHER;
+				}
 				const metadata = manifest.__metadata || null;
 				c({ manifest, metadata });
 			} catch (err) {

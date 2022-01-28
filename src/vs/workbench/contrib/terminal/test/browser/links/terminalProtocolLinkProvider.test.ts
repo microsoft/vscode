@@ -86,4 +86,20 @@ suite('Workbench - TerminalProtocolLinkProvider', () => {
 			{ range: [[16, 1], [29, 1]], text: 'http://bar.foo' }
 		]);
 	});
+	test('should cap link size', async () => {
+		await assertLink([
+			'https://foo.bar/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar',
+			'/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar'.repeat(69)]
+			.join(''),
+			[{
+				range: [[1, 1], [80, 26]],
+				text:
+					[
+						'https://foo.bar/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar',
+						'/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar/foo.bar'.repeat(31),
+						'/'
+					].join('')
+			}]
+		);
+	});
 });

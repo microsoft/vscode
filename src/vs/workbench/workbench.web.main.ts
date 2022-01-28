@@ -57,7 +57,7 @@ import 'vs/workbench/services/path/browser/pathService';
 import 'vs/workbench/services/themes/browser/browserHostColorSchemeService';
 import 'vs/workbench/services/encryption/browser/encryptionService';
 import 'vs/workbench/services/workingCopy/browser/workingCopyBackupService';
-import 'vs/workbench/services/remote/browser/tunnelService';
+import 'vs/workbench/services/tunnel/browser/tunnelService';
 import 'vs/workbench/services/files/browser/elevatedFileService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -125,7 +125,7 @@ import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
 import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 
 // Welcome Banner
-import 'vs/workbench/contrib/welcome/banner/browser/welcomeBanner.contribution';
+import 'vs/workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.web.contribution';
@@ -149,5 +149,16 @@ import 'vs/workbench/contrib/issue/browser/issue.web.contribution';
 
 // Splash
 import 'vs/workbench/contrib/splash/browser/splash.contribution';
+
+// Offline
+import 'vs/workbench/contrib/offline/browser/offline.contribution';
+
+//#endregion
+
+
+//#region --- export workbench factory
+
+import * as factory from 'vs/workbench/browser/web.factory';
+export = factory;
 
 //#endregion

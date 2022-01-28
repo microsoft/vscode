@@ -8,9 +8,8 @@ import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Token, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import * as model from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
@@ -75,7 +74,7 @@ export function setLanguageConfiguration(languageId: string, configuration: Lang
 /**
  * @internal
  */
-export class EncodedTokenizationSupportAdapter implements modes.ITokenizationSupport {
+export class EncodedTokenizationSupportAdapter implements languages.ITokenizationSupport {
 
 	private readonly _languageId: string;
 	private readonly _actual: EncodedTokensProvider;
@@ -85,27 +84,27 @@ export class EncodedTokenizationSupportAdapter implements modes.ITokenizationSup
 		this._actual = actual;
 	}
 
-	public getInitialState(): modes.IState {
+	public getInitialState(): languages.IState {
 		return this._actual.getInitialState();
 	}
 
-	public tokenize(line: string, hasEOL: boolean, state: modes.IState): TokenizationResult {
+	public tokenize(line: string, hasEOL: boolean, state: languages.IState): languages.TokenizationResult {
 		if (typeof this._actual.tokenize === 'function') {
-			return TokenizationSupportAdapter.adaptTokenize(this._languageId, <{ tokenize(line: string, state: modes.IState): ILineTokens; }>this._actual, line, state);
+			return TokenizationSupportAdapter.adaptTokenize(this._languageId, <{ tokenize(line: string, state: languages.IState): ILineTokens; }>this._actual, line, state);
 		}
 		throw new Error('Not supported!');
 	}
 
-	public tokenizeEncoded(line: string, hasEOL: boolean, state: modes.IState): EncodedTokenizationResult {
+	public tokenizeEncoded(line: string, hasEOL: boolean, state: languages.IState): languages.EncodedTokenizationResult {
 		const result = this._actual.tokenizeEncoded(line, state);
-		return new EncodedTokenizationResult(result.tokens, result.endState);
+		return new languages.EncodedTokenizationResult(result.tokens, result.endState);
 	}
 }
 
 /**
  * @internal
  */
-export class TokenizationSupportAdapter implements modes.ITokenizationSupport {
+export class TokenizationSupportAdapter implements languages.ITokenizationSupport {
 
 	constructor(
 		private readonly _languageId: string,
@@ -115,12 +114,12 @@ export class TokenizationSupportAdapter implements modes.ITokenizationSupport {
 	) {
 	}
 
-	public getInitialState(): modes.IState {
+	public getInitialState(): languages.IState {
 		return this._actual.getInitialState();
 	}
 
-	private static _toClassicTokens(tokens: IToken[], language: string): Token[] {
-		const result: Token[] = [];
+	private static _toClassicTokens(tokens: IToken[], language: string): languages.Token[] {
+		const result: languages.Token[] = [];
 		let previousStartIndex: number = 0;
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			const t = tokens[i];
@@ -135,18 +134,18 @@ export class TokenizationSupportAdapter implements modes.ITokenizationSupport {
 				startIndex = previousStartIndex;
 			}
 
-			result[i] = new Token(startIndex, t.scopes, language);
+			result[i] = new languages.Token(startIndex, t.scopes, language);
 
 			previousStartIndex = startIndex;
 		}
 		return result;
 	}
 
-	public static adaptTokenize(language: string, actual: { tokenize(line: string, state: modes.IState): ILineTokens; }, line: string, state: modes.IState): TokenizationResult {
+	public static adaptTokenize(language: string, actual: { tokenize(line: string, state: languages.IState): ILineTokens; }, line: string, state: languages.IState): languages.TokenizationResult {
 		const actualResult = actual.tokenize(line, state);
 		const tokens = TokenizationSupportAdapter._toClassicTokens(actualResult.tokens, language);
 
-		let endState: modes.IState;
+		let endState: languages.IState;
 		// try to save an object if possible
 		if (actualResult.endState.equals(state)) {
 			endState = state;
@@ -154,14 +153,14 @@ export class TokenizationSupportAdapter implements modes.ITokenizationSupport {
 			endState = actualResult.endState;
 		}
 
-		return new TokenizationResult(tokens, endState);
+		return new languages.TokenizationResult(tokens, endState);
 	}
 
-	public tokenize(line: string, hasEOL: boolean, state: modes.IState): TokenizationResult {
+	public tokenize(line: string, hasEOL: boolean, state: languages.IState): languages.TokenizationResult {
 		return TokenizationSupportAdapter.adaptTokenize(this._languageId, this._actual, line, state);
 	}
 
-	private _toBinaryTokens(languageIdCodec: modes.ILanguageIdCodec, tokens: IToken[]): Uint32Array {
+	private _toBinaryTokens(languageIdCodec: languages.ILanguageIdCodec, tokens: IToken[]): Uint32Array {
 		const languageId = languageIdCodec.encodeLanguageId(this._languageId);
 		const tokenTheme = this._standaloneThemeService.getColorTheme().tokenTheme;
 
@@ -200,11 +199,11 @@ export class TokenizationSupportAdapter implements modes.ITokenizationSupport {
 		return actualResult;
 	}
 
-	public tokenizeEncoded(line: string, hasEOL: boolean, state: modes.IState): EncodedTokenizationResult {
+	public tokenizeEncoded(line: string, hasEOL: boolean, state: languages.IState): languages.EncodedTokenizationResult {
 		const actualResult = this._actual.tokenize(line, state);
 		const tokens = this._toBinaryTokens(this._languageService.languageIdCodec, actualResult.tokens);
 
-		let endState: modes.IState;
+		let endState: languages.IState;
 		// try to save an object if possible
 		if (actualResult.endState.equals(state)) {
 			endState = state;
@@ -212,7 +211,7 @@ export class TokenizationSupportAdapter implements modes.ITokenizationSupport {
 			endState = actualResult.endState;
 		}
 
-		return new EncodedTokenizationResult(tokens, endState);
+		return new languages.EncodedTokenizationResult(tokens, endState);
 	}
 }
 
@@ -236,7 +235,7 @@ export interface ILineTokens {
 	 * The tokenization end state.
 	 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
 	 */
-	endState: modes.IState;
+	endState: languages.IState;
 }
 
 /**
@@ -268,14 +267,14 @@ export interface IEncodedLineTokens {
 	 * The tokenization end state.
 	 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
 	 */
-	endState: modes.IState;
+	endState: languages.IState;
 }
 
 /**
  * A factory for token providers.
  */
 export interface TokensProviderFactory {
-	create(): modes.ProviderResult<TokensProvider | EncodedTokensProvider | IMonarchLanguage>;
+	create(): languages.ProviderResult<TokensProvider | EncodedTokensProvider | IMonarchLanguage>;
 }
 
 /**
@@ -285,11 +284,11 @@ export interface TokensProvider {
 	/**
 	 * The initial state of a language. Will be the state passed in to tokenize the first line.
 	 */
-	getInitialState(): modes.IState;
+	getInitialState(): languages.IState;
 	/**
 	 * Tokenize a line given the state at the beginning of the line.
 	 */
-	tokenize(line: string, state: modes.IState): ILineTokens;
+	tokenize(line: string, state: languages.IState): ILineTokens;
 }
 
 /**
@@ -299,15 +298,15 @@ export interface EncodedTokensProvider {
 	/**
 	 * The initial state of a language. Will be the state passed in to tokenize the first line.
 	 */
-	getInitialState(): modes.IState;
+	getInitialState(): languages.IState;
 	/**
 	 * Tokenize a line given the state at the beginning of the line.
 	 */
-	tokenizeEncoded(line: string, state: modes.IState): IEncodedLineTokens;
+	tokenizeEncoded(line: string, state: languages.IState): IEncodedLineTokens;
 	/**
 	 * Tokenize a line given the state at the beginning of the line.
 	 */
-	tokenize?(line: string, state: modes.IState): ILineTokens;
+	tokenize?(line: string, state: languages.IState): ILineTokens;
 }
 
 function isATokensProvider(provider: TokensProvider | EncodedTokensProvider | IMonarchLanguage): provider is TokensProvider | EncodedTokensProvider {
@@ -361,8 +360,8 @@ function createTokenizationSupportAdapter(languageId: string, provider: TokensPr
  * with a tokens provider set using `registerDocumentSemanticTokensProvider` or `registerDocumentRangeSemanticTokensProvider`.
  */
 export function registerTokensProviderFactory(languageId: string, factory: TokensProviderFactory): IDisposable {
-	const adaptedFactory: modes.ITokenizationSupportFactory = {
-		createTokenizationSupport: async (): Promise<modes.ITokenizationSupport | null> => {
+	const adaptedFactory: languages.ITokenizationSupportFactory = {
+		createTokenizationSupport: async (): Promise<languages.ITokenizationSupport | null> => {
 			const result = await Promise.resolve(factory.create());
 			if (!result) {
 				return null;
@@ -373,7 +372,7 @@ export function registerTokensProviderFactory(languageId: string, factory: Token
 			return new MonarchTokenizer(StandaloneServices.get(ILanguageService), StandaloneServices.get(IStandaloneThemeService), languageId, compile(languageId, result));
 		}
 	};
-	return modes.TokenizationRegistry.registerFactory(languageId, adaptedFactory);
+	return languages.TokenizationRegistry.registerFactory(languageId, adaptedFactory);
 }
 
 /**
@@ -390,7 +389,7 @@ export function setTokensProvider(languageId: string, provider: TokensProvider |
 	if (isThenable<TokensProvider | EncodedTokensProvider>(provider)) {
 		return registerTokensProviderFactory(languageId, { create: () => provider });
 	}
-	return modes.TokenizationRegistry.register(languageId, createTokenizationSupportAdapter(languageId, provider));
+	return languages.TokenizationRegistry.register(languageId, createTokenizationSupportAdapter(languageId, provider));
 }
 
 /**
@@ -406,39 +405,39 @@ export function setMonarchTokensProvider(languageId: string, languageDef: IMonar
 	if (isThenable<IMonarchLanguage>(languageDef)) {
 		return registerTokensProviderFactory(languageId, { create: () => languageDef });
 	}
-	return modes.TokenizationRegistry.register(languageId, create(languageDef));
+	return languages.TokenizationRegistry.register(languageId, create(languageDef));
 }
 
 /**
  * Register a reference provider (used by e.g. reference search).
  */
-export function registerReferenceProvider(languageId: string, provider: modes.ReferenceProvider): IDisposable {
-	return modes.ReferenceProviderRegistry.register(languageId, provider);
+export function registerReferenceProvider(languageId: string, provider: languages.ReferenceProvider): IDisposable {
+	return languages.ReferenceProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a rename provider (used by e.g. rename symbol).
  */
-export function registerRenameProvider(languageId: string, provider: modes.RenameProvider): IDisposable {
-	return modes.RenameProviderRegistry.register(languageId, provider);
+export function registerRenameProvider(languageId: string, provider: languages.RenameProvider): IDisposable {
+	return languages.RenameProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a signature help provider (used by e.g. parameter hints).
  */
-export function registerSignatureHelpProvider(languageId: string, provider: modes.SignatureHelpProvider): IDisposable {
-	return modes.SignatureHelpProviderRegistry.register(languageId, provider);
+export function registerSignatureHelpProvider(languageId: string, provider: languages.SignatureHelpProvider): IDisposable {
+	return languages.SignatureHelpProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a hover provider (used by e.g. editor hover).
  */
-export function registerHoverProvider(languageId: string, provider: modes.HoverProvider): IDisposable {
-	return modes.HoverProviderRegistry.register(languageId, {
-		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Promise<modes.Hover | undefined> => {
+export function registerHoverProvider(languageId: string, provider: languages.HoverProvider): IDisposable {
+	return languages.HoverProviderRegistry.register(languageId, {
+		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Promise<languages.Hover | undefined> => {
 			const word = model.getWordAtPosition(position);
 
-			return Promise.resolve<modes.Hover | null | undefined>(provider.provideHover(model, position, token)).then((value): modes.Hover | undefined => {
+			return Promise.resolve<languages.Hover | null | undefined>(provider.provideHover(model, position, token)).then((value): languages.Hover | undefined => {
 				if (!value) {
 					return undefined;
 				}
@@ -457,59 +456,59 @@ export function registerHoverProvider(languageId: string, provider: modes.HoverP
 /**
  * Register a document symbol provider (used by e.g. outline).
  */
-export function registerDocumentSymbolProvider(languageId: string, provider: modes.DocumentSymbolProvider): IDisposable {
-	return modes.DocumentSymbolProviderRegistry.register(languageId, provider);
+export function registerDocumentSymbolProvider(languageId: string, provider: languages.DocumentSymbolProvider): IDisposable {
+	return languages.DocumentSymbolProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a document highlight provider (used by e.g. highlight occurrences).
  */
-export function registerDocumentHighlightProvider(languageId: string, provider: modes.DocumentHighlightProvider): IDisposable {
-	return modes.DocumentHighlightProviderRegistry.register(languageId, provider);
+export function registerDocumentHighlightProvider(languageId: string, provider: languages.DocumentHighlightProvider): IDisposable {
+	return languages.DocumentHighlightProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register an linked editing range provider.
  */
-export function registerLinkedEditingRangeProvider(languageId: string, provider: modes.LinkedEditingRangeProvider): IDisposable {
-	return modes.LinkedEditingRangeProviderRegistry.register(languageId, provider);
+export function registerLinkedEditingRangeProvider(languageId: string, provider: languages.LinkedEditingRangeProvider): IDisposable {
+	return languages.LinkedEditingRangeProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a definition provider (used by e.g. go to definition).
  */
-export function registerDefinitionProvider(languageId: string, provider: modes.DefinitionProvider): IDisposable {
-	return modes.DefinitionProviderRegistry.register(languageId, provider);
+export function registerDefinitionProvider(languageId: string, provider: languages.DefinitionProvider): IDisposable {
+	return languages.DefinitionProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a implementation provider (used by e.g. go to implementation).
  */
-export function registerImplementationProvider(languageId: string, provider: modes.ImplementationProvider): IDisposable {
-	return modes.ImplementationProviderRegistry.register(languageId, provider);
+export function registerImplementationProvider(languageId: string, provider: languages.ImplementationProvider): IDisposable {
+	return languages.ImplementationProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a type definition provider (used by e.g. go to type definition).
  */
-export function registerTypeDefinitionProvider(languageId: string, provider: modes.TypeDefinitionProvider): IDisposable {
-	return modes.TypeDefinitionProviderRegistry.register(languageId, provider);
+export function registerTypeDefinitionProvider(languageId: string, provider: languages.TypeDefinitionProvider): IDisposable {
+	return languages.TypeDefinitionProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a code lens provider (used by e.g. inline code lenses).
  */
-export function registerCodeLensProvider(languageId: string, provider: modes.CodeLensProvider): IDisposable {
-	return modes.CodeLensProviderRegistry.register(languageId, provider);
+export function registerCodeLensProvider(languageId: string, provider: languages.CodeLensProvider): IDisposable {
+	return languages.CodeLensProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a code action provider (used by e.g. quick fix).
  */
 export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider, metadata?: CodeActionProviderMetadata): IDisposable {
-	return modes.CodeActionProviderRegistry.register(languageId, {
+	return languages.CodeActionProviderRegistry.register(languageId, {
 		providedCodeActionKinds: metadata?.providedCodeActionKinds,
-		provideCodeActions: (model: model.ITextModel, range: Range, context: modes.CodeActionContext, token: CancellationToken): modes.ProviderResult<modes.CodeActionList> => {
+		provideCodeActions: (model: model.ITextModel, range: Range, context: languages.CodeActionContext, token: CancellationToken): languages.ProviderResult<languages.CodeActionList> => {
 			const markerService = StandaloneServices.get(IMarkerService);
 			const markers = markerService.read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
@@ -523,64 +522,64 @@ export function registerCodeActionProvider(languageId: string, provider: CodeAct
 /**
  * Register a formatter that can handle only entire models.
  */
-export function registerDocumentFormattingEditProvider(languageId: string, provider: modes.DocumentFormattingEditProvider): IDisposable {
-	return modes.DocumentFormattingEditProviderRegistry.register(languageId, provider);
+export function registerDocumentFormattingEditProvider(languageId: string, provider: languages.DocumentFormattingEditProvider): IDisposable {
+	return languages.DocumentFormattingEditProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a formatter that can handle a range inside a model.
  */
-export function registerDocumentRangeFormattingEditProvider(languageId: string, provider: modes.DocumentRangeFormattingEditProvider): IDisposable {
-	return modes.DocumentRangeFormattingEditProviderRegistry.register(languageId, provider);
+export function registerDocumentRangeFormattingEditProvider(languageId: string, provider: languages.DocumentRangeFormattingEditProvider): IDisposable {
+	return languages.DocumentRangeFormattingEditProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a formatter than can do formatting as the user types.
  */
-export function registerOnTypeFormattingEditProvider(languageId: string, provider: modes.OnTypeFormattingEditProvider): IDisposable {
-	return modes.OnTypeFormattingEditProviderRegistry.register(languageId, provider);
+export function registerOnTypeFormattingEditProvider(languageId: string, provider: languages.OnTypeFormattingEditProvider): IDisposable {
+	return languages.OnTypeFormattingEditProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a link provider that can find links in text.
  */
-export function registerLinkProvider(languageId: string, provider: modes.LinkProvider): IDisposable {
-	return modes.LinkProviderRegistry.register(languageId, provider);
+export function registerLinkProvider(languageId: string, provider: languages.LinkProvider): IDisposable {
+	return languages.LinkProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a completion item provider (use by e.g. suggestions).
  */
-export function registerCompletionItemProvider(languageId: string, provider: modes.CompletionItemProvider): IDisposable {
-	return modes.CompletionProviderRegistry.register(languageId, provider);
+export function registerCompletionItemProvider(languageId: string, provider: languages.CompletionItemProvider): IDisposable {
+	return languages.CompletionProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a document color provider (used by Color Picker, Color Decorator).
  */
-export function registerColorProvider(languageId: string, provider: modes.DocumentColorProvider): IDisposable {
-	return modes.ColorProviderRegistry.register(languageId, provider);
+export function registerColorProvider(languageId: string, provider: languages.DocumentColorProvider): IDisposable {
+	return languages.ColorProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a folding range provider
  */
-export function registerFoldingRangeProvider(languageId: string, provider: modes.FoldingRangeProvider): IDisposable {
-	return modes.FoldingRangeProviderRegistry.register(languageId, provider);
+export function registerFoldingRangeProvider(languageId: string, provider: languages.FoldingRangeProvider): IDisposable {
+	return languages.FoldingRangeProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a declaration provider
  */
-export function registerDeclarationProvider(languageId: string, provider: modes.DeclarationProvider): IDisposable {
-	return modes.DeclarationProviderRegistry.register(languageId, provider);
+export function registerDeclarationProvider(languageId: string, provider: languages.DeclarationProvider): IDisposable {
+	return languages.DeclarationProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register a selection range provider
  */
-export function registerSelectionRangeProvider(languageId: string, provider: modes.SelectionRangeProvider): IDisposable {
-	return modes.SelectionRangeRegistry.register(languageId, provider);
+export function registerSelectionRangeProvider(languageId: string, provider: languages.SelectionRangeProvider): IDisposable {
+	return languages.SelectionRangeRegistry.register(languageId, provider);
 }
 
 /**
@@ -590,8 +589,8 @@ export function registerSelectionRangeProvider(languageId: string, provider: mod
  *
  * For the best user experience, register both a semantic tokens provider and a top-down tokenizer.
  */
-export function registerDocumentSemanticTokensProvider(languageId: string, provider: modes.DocumentSemanticTokensProvider): IDisposable {
-	return modes.DocumentSemanticTokensProviderRegistry.register(languageId, provider);
+export function registerDocumentSemanticTokensProvider(languageId: string, provider: languages.DocumentSemanticTokensProvider): IDisposable {
+	return languages.DocumentSemanticTokensProviderRegistry.register(languageId, provider);
 }
 
 /**
@@ -601,22 +600,22 @@ export function registerDocumentSemanticTokensProvider(languageId: string, provi
  *
  * For the best user experience, register both a semantic tokens provider and a top-down tokenizer.
  */
-export function registerDocumentRangeSemanticTokensProvider(languageId: string, provider: modes.DocumentRangeSemanticTokensProvider): IDisposable {
-	return modes.DocumentRangeSemanticTokensProviderRegistry.register(languageId, provider);
+export function registerDocumentRangeSemanticTokensProvider(languageId: string, provider: languages.DocumentRangeSemanticTokensProvider): IDisposable {
+	return languages.DocumentRangeSemanticTokensProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register an inline completions provider.
  */
-export function registerInlineCompletionsProvider(languageId: string, provider: modes.InlineCompletionsProvider): IDisposable {
-	return modes.InlineCompletionsProviderRegistry.register(languageId, provider);
+export function registerInlineCompletionsProvider(languageId: string, provider: languages.InlineCompletionsProvider): IDisposable {
+	return languages.InlineCompletionsProviderRegistry.register(languageId, provider);
 }
 
 /**
  * Register an inlay hints provider.
  */
-export function registerInlayHintsProvider(languageId: string, provider: modes.InlayHintsProvider): IDisposable {
-	return modes.InlayHintsProviderRegistry.register(languageId, provider);
+export function registerInlayHintsProvider(languageId: string, provider: languages.InlayHintsProvider): IDisposable {
+	return languages.InlayHintsProviderRegistry.register(languageId, provider);
 }
 
 /**
@@ -644,12 +643,12 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): modes.ProviderResult<modes.CodeActionList>;
+	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): languages.ProviderResult<languages.CodeActionList>;
 
 	/**
 	 * Given a code action fill in the edit. Will only invoked when missing.
 	 */
-	resolveCodeAction?(codeAction: modes.CodeAction, token: CancellationToken): modes.ProviderResult<modes.CodeAction>;
+	resolveCodeAction?(codeAction: languages.CodeAction, token: CancellationToken): languages.ProviderResult<languages.CodeAction>;
 }
 
 
@@ -725,6 +724,6 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		InlineCompletionTriggerKind: standaloneEnums.InlineCompletionTriggerKind,
 
 		// classes
-		FoldingRangeKind: modes.FoldingRangeKind,
+		FoldingRangeKind: languages.FoldingRangeKind,
 	};
 }

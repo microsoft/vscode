@@ -33,6 +33,8 @@ import { parse, stringify } from 'vs/base/common/marshalling';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ITreeDataTransfer } from 'vs/workbench/common/views';
+import { selectionFragment } from 'vs/platform/opener/common/opener';
 
 //#region Editor / Resources DND
 
@@ -44,6 +46,11 @@ export class DraggedEditorIdentifier {
 export class DraggedEditorGroupIdentifier {
 
 	constructor(readonly identifier: GroupIdentifier) { }
+}
+
+export class DraggedTreeItemsIdentifier {
+
+	constructor(readonly identifier: string) { }
 }
 
 export const CodeDataTransfers = {
@@ -74,14 +81,7 @@ export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEdit
 		else {
 			try {
 				const rawResourcesData = e.dataTransfer.getData(DataTransfers.RESOURCES);
-				if (rawResourcesData) {
-					const resourcesRaw: string[] = JSON.parse(rawResourcesData);
-					for (const resourceRaw of resourcesRaw) {
-						if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/microsoft/vscode/issues/124946
-							editors.push({ resource: URI.parse(resourceRaw) });
-						}
-					}
-				}
+				editors.push(...createDraggedEditorInputFromRawResourcesData(rawResourcesData));
 			} catch (error) {
 				// Invalid transfer
 			}
@@ -127,6 +127,45 @@ export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEdit
 			}
 		}
 	}
+
+	return editors;
+}
+
+function createDraggedEditorInputFromRawResourcesData(rawResourcesData: string | undefined): IDraggedResourceEditorInput[] {
+	const editors: IDraggedResourceEditorInput[] = [];
+
+	if (rawResourcesData) {
+		const resourcesRaw: string[] = JSON.parse(rawResourcesData);
+		for (const resourceRaw of resourcesRaw) {
+			if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/microsoft/vscode/issues/124946
+				const resource = URI.parse(resourceRaw);
+				editors.push({
+					resource,
+					options: {
+						selection: selectionFragment(resource)
+					}
+				});
+			}
+		}
+	}
+
+	return editors;
+}
+
+export async function extractTreeDropData(dataTransfer: ITreeDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
+	const editors: IDraggedResourceEditorInput[] = [];
+	const resourcesKey = DataTransfers.RESOURCES.toLowerCase();
+
+	// Data Transfer: Resources
+	if (dataTransfer.has(resourcesKey)) {
+		try {
+			const rawResourcesData = await dataTransfer.get(resourcesKey)?.asString();
+			editors.push(...createDraggedEditorInputFromRawResourcesData(rawResourcesData));
+		} catch (error) {
+			// Invalid transfer
+		}
+	}
+	
 	return editors;
 }
 

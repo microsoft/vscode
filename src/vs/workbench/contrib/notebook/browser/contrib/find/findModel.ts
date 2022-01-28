@@ -4,21 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { INotebookEditor, CellFindMatch, CellEditState, CellFindMatchWithIndex, OutputFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, CellFindMatch, CellEditState, CellFindMatchWithIndex, OutputFindMatch, ICellModelDecorations, ICellModelDeltaDecorations } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Range } from 'vs/editor/common/core/range';
-import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
+import { FindDecorations } from 'vs/editor/contrib/find/browser/findDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { FindMatch, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ICellModelDeltaDecorations, ICellModelDecorations } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
+import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { CellKind, INotebookSearchOptions, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { findFirstInSorted } from 'vs/base/common/arrays';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { INotebookFindFilter } from 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
+import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 
 
 export class FindModel extends Disposable {
@@ -41,7 +40,7 @@ export class FindModel extends Disposable {
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		private readonly _state: FindReplaceState<INotebookFindFilter>,
+		private readonly _state: FindReplaceState<NotebookFindFilters>,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
@@ -308,7 +307,16 @@ export class FindModel extends Disposable {
 		const val = this._state.searchString;
 		const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
 
-		const options: INotebookSearchOptions = { regex: this._state.isRegex, wholeWord: this._state.wholeWord, caseSensitive: this._state.matchCase, wordSeparators: wordSeparators, includePreview: !!this._state.filters?.findInMarkdownPreview, includeOutput: !!this._state.filters?.findInOutput };
+		const options: INotebookSearchOptions = {
+			regex: this._state.isRegex,
+			wholeWord: this._state.wholeWord,
+			caseSensitive: this._state.matchCase,
+			wordSeparators: wordSeparators,
+			includeMarkupInput: this._state.filters?.markupInput ?? true,
+			includeCodeInput: this._state.filters?.codeInput ?? true,
+			includeMarkupPreview: !!this._state.filters?.markupPreview,
+			includeOutput: !!this._state.filters?.codeOutput
+		};
 		if (!val) {
 			ret = null;
 		} else if (!this._notebookEditor.hasModel()) {
@@ -324,7 +332,7 @@ export class FindModel extends Disposable {
 
 	private _updateCurrentMatch(findMatches: CellFindMatchWithIndex[], currentMatchesPosition: number) {
 		this.set(findMatches, false);
-		this._currentMatch = currentMatchesPosition;
+		this._currentMatch = currentMatchesPosition % findMatches.length;
 		const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 		this.highlightCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder);
 

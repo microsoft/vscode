@@ -61,9 +61,11 @@ export interface ResolvedTestRunRequest {
 		controllerId: string;
 		profileGroup: TestRunProfileBitset;
 		profileId: number;
-	}[]
+	}[];
 	exclude?: string[];
 	isAutoRun?: boolean;
+	/** Whether this was trigged by a user action in UI. Default=true */
+	isUiTriggered?: boolean;
 }
 
 /**
@@ -160,6 +162,7 @@ export interface ITestItem {
 	range: IRange | null;
 	description: string | null;
 	error: string | IMarkdownString | null;
+	sortText: string | null;
 }
 
 export const enum TestItemExpandState {

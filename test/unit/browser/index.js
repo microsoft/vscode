@@ -13,7 +13,7 @@ const createStatsCollector = require('../../../node_modules/mocha/lib/stats-coll
 const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const minimatch = require('minimatch');
-const playwright = require('playwright');
+const playwright = require('@playwright/test');
 const { applyReporter } = require('../reporter');
 
 // opts

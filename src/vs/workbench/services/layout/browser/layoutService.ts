@@ -35,7 +35,7 @@ export const enum PanelOpensMaximizedOptions {
 	REMEMBER_LAST
 }
 
-export type PanelAlignment = 'left' | 'center' | 'right' | 'justified';
+export type PanelAlignment = 'left' | 'center' | 'right' | 'justify';
 
 export function positionToString(position: Position): string {
 	switch (position) {
@@ -100,9 +100,9 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onDidChangeCenteredLayout: Event<boolean>;
 
 	/**
-	 * Emit when panel position changes.
+	 * Emit when panel alignment changes.
 	 */
-	readonly onDidChangePanelPosition: Event<string>;
+	readonly onDidChangePanelAlignment: Event<PanelAlignment>;
 
 	/**
 	 * Emit when part visibility changes
@@ -202,14 +202,15 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	toggleMenuBar(): void;
 
 	/**
-	 * Gets the current panel position. Note that the panel can be hidden too.
+	 *
+	 * Gets the panel alignement.
 	 */
-	getPanelPosition(): Position;
+	getPanelAlignment(): PanelAlignment;
 
 	/**
-	 * Sets the panel position.
+	 * Sets the panel alignment.
 	 */
-	setPanelPosition(position: Position): void;
+	setPanelAlignment(alignment: PanelAlignment): void;
 
 	/**
 	 * Gets the maximum possible size for editor.

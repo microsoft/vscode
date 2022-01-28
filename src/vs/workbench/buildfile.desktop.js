@@ -12,7 +12,7 @@ exports.collectModules = function () {
 
 		createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
 
-		createModuleDescription('vs/platform/files/node/watcher/parcel/parcelWatcherMain'),
+		createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
 
 		createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
 

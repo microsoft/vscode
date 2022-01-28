@@ -38,11 +38,6 @@ interface ConfigFilePatterns {
 	relativePathPattern?: RegExp;
 }
 
-interface RootFileMatcher {
-	tag: string;
-	matcher: (path: string) => boolean;
-}
-
 export async function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
 	const configFilePatterns: ConfigFilePatterns[] = [
 		{ tag: 'grunt.js', filePattern: /^gruntfile\.js$/i },
@@ -66,83 +61,12 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		{ tag: 'dockerfile', filePattern: /^(dockerfile|docker\-compose\.ya?ml)$/i }
 	];
 
-	let rootFileMatchers: RootFileMatcher[];
-
-	// Linux is omitted because few cloud sync clients support it, and for those who are available on Linux, there are multiple clients and they can be configured differently
-	const homeDir = osLib.homedir().toLowerCase();
-	switch (process.platform) {
-		case 'win32':
-			rootFileMatchers = [
-				{
-					tag: 'gdrive', matcher: (path) => {
-						// File Streaming or Mirror Files mode
-						return /^[a-z]:\\(my drive|shared drives)\\/.test(path) || path.startsWith(homeDir + '\\my drive\\');
-					}
-				},
-				{
-					tag: 'dropbox', matcher: path => path.startsWith(homeDir + '\\dropbox') // Ending in *
-				},
-				{
-					tag: 'onedrive', matcher: path => path.startsWith(homeDir + '\\onedrive') // Ending in *
-				},
-				{
-					tag: 'box', matcher: path => path.startsWith(homeDir + '\\box\\')
-				},
-				{
-					tag: 'nextcloud', matcher: path => path.startsWith(homeDir + '\\nextcloud\\')
-				},
-				{
-					tag: 'owncloud', matcher: path => path.startsWith(homeDir + '\\owncloud\\')
-				},
-			];
-			break;
-
-		case 'darwin':
-			rootFileMatchers = [
-				{
-					tag: 'gdrive', matcher: (path) => {
-						// File Streaming mode
-						return path.startsWith('/volumes/googledrive/') || path.startsWith(homeDir + '/my drive/');
-					}
-				},
-				{
-					tag: 'dropbox', matcher: path => path.startsWith(homeDir + '/dropbox') // Ending in *
-				},
-				{
-					tag: 'onedrive', matcher: (path) => {
-						// Old vs new client
-						return path.startsWith(homeDir + '/onedrive') || path.startsWith(homeDir + '/library/cloudstorage/onedrive');
-					}
-				},
-				{
-					tag: 'icloud', matcher: path => path.startsWith(homeDir + '/library/mobile documents/')
-				},
-				{
-					tag: 'box', matcher: path => path.startsWith(homeDir + '/box/')
-				},
-				{
-					tag: 'nextcloud', matcher: path => path.startsWith(homeDir + '/nextcloud/')
-				},
-				{
-					tag: 'owncloud', matcher: path => path.startsWith(homeDir + '/owncloud/')
-				},
-			];
-			break;
-	}
-
 	const fileTypes = new Map<string, number>();
 	const configFiles = new Map<string, number>();
 
 	const MAX_FILES = 20000;
 
 	function collect(root: string, dir: string, filter: string[], token: { count: number, maxReached: boolean }): Promise<void> {
-		for (const rootPath of rootFileMatchers) {
-			const lowercaseRoot = root.toLowerCase();
-			if (rootPath.matcher(lowercaseRoot)) {
-				configFiles.set(rootPath.tag, 1);
-			}
-		}
-
 		const relativePath = dir.substring(root.length + 1);
 
 		return Promises.withAsyncBody(async resolve => {

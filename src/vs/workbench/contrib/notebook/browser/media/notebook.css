@@ -415,7 +415,7 @@
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .notebook-folding-indicator.mouseover .codicon.codicon-notebook-expanded {
 	opacity: 0;
-	transition: opacity 0.s;
+	transition: opacity 0.1 s;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .markdown-cell-hover .notebook-folding-indicator.mouseover .codicon.codicon-notebook-expanded {
@@ -849,6 +849,15 @@
 	visibility: visible;
 	height: 16px;
 	padding: 4px 4px 4px 4px;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container .notebook-folded-hint {
+	position: absolute;
+	font-size: var(--notebook-cell-output-font-size);
+	font-family: var(--monaco-monospace-font);
+	font-style: italic;
+	opacity: 0.7;
+	user-select: none;
 }
 
 /** Theming */

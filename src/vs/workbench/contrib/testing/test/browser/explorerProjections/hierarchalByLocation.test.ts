@@ -10,7 +10,7 @@ import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/b
 import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { Convert, TestItemImpl } from 'vs/workbench/contrib/testing/common/testStubs';
+import { Convert, TestItemImpl } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
 
 class TestHierarchicalByLocationProjection extends HierarchicalByLocationProjection {
@@ -120,8 +120,9 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		onTestChanged.fire({
 			reason: TestResultItemChangeReason.OwnStateChange,
 			result: null as any,
-			previous: TestResultState.Unset,
+			previousState: TestResultState.Unset,
 			item: resultInState(TestResultState.Queued),
+			previousOwnDuration: undefined,
 		});
 		harness.projection.applyTo(harness.tree);
 
@@ -134,8 +135,9 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		onTestChanged.fire({
 			reason: TestResultItemChangeReason.OwnStateChange,
 			result: null as any,
-			previous: TestResultState.Queued,
+			previousState: TestResultState.Queued,
 			item: resultInState(TestResultState.Unset),
+			previousOwnDuration: undefined,
 		});
 		harness.projection.applyTo(harness.tree);
 

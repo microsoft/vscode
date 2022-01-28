@@ -75,8 +75,8 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 				Position.fromLocation(hint.position),
 				hint.kind && fromProtocolInlayHintKind(hint.kind)
 			);
-			result.whitespaceBefore = hint.whitespaceBefore;
-			result.whitespaceAfter = hint.whitespaceAfter;
+			result.paddingLeft = hint.whitespaceBefore;
+			result.paddingRight = hint.whitespaceAfter;
 			return result;
 		});
 	}
@@ -92,7 +92,7 @@ function fromProtocolInlayHintKind(kind: Proto.InlayHintKind): vscode.InlayHintK
 	}
 }
 
-export function requireInlayHintsConfiguration(
+function requireInlayHintsConfiguration(
 	language: string
 ) {
 	return new Condition(

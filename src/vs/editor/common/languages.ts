@@ -12,14 +12,14 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import * as model from 'vs/editor/common/model';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languages/languageFeatureRegistry';
-import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/languages/tokenizationRegistry';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 /**
  * Open ended enum at runtime
@@ -218,6 +218,60 @@ export interface ILanguageIdCodec {
 	decodeLanguageId(languageId: LanguageId): string;
 }
 
+export class Token {
+	_tokenBrand: void = undefined;
+
+	public readonly offset: number;
+	public readonly type: string;
+	public readonly language: string;
+
+	constructor(offset: number, type: string, language: string) {
+		this.offset = offset;
+		this.type = type;
+		this.language = language;
+	}
+
+	public toString(): string {
+		return '(' + this.offset + ', ' + this.type + ')';
+	}
+}
+
+/**
+ * @internal
+ */
+export class TokenizationResult {
+	_tokenizationResultBrand: void = undefined;
+
+	public readonly tokens: Token[];
+	public readonly endState: IState;
+
+	constructor(tokens: Token[], endState: IState) {
+		this.tokens = tokens;
+		this.endState = endState;
+	}
+}
+
+/**
+ * @internal
+ */
+export class EncodedTokenizationResult {
+	_encodedTokenizationResultBrand: void = undefined;
+
+	/**
+	 * The tokens in binary format. Each token occupies two array indices. For token i:
+	 *  - at offset 2*i => startIndex
+	 *  - at offset 2*i + 1 => metadata
+	 *
+	 */
+	public readonly tokens: Uint32Array;
+	public readonly endState: IState;
+
+	constructor(tokens: Uint32Array, endState: IState) {
+		this.tokens = tokens;
+		this.endState = endState;
+	}
+}
+
 /**
  * @internal
  */
@@ -311,7 +365,7 @@ export interface EvaluatableExpressionProvider {
 }
 
 /**
-	 * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
+ * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
  * @internal
  */
 export interface InlineValueContext {
@@ -615,7 +669,7 @@ export interface CompletionItem {
 	 * selecting this completion. Edits must not overlap with the main edit
 	 * nor with themselves.
 	 */
-	additionalTextEdits?: model.ISingleEditOperation[];
+	additionalTextEdits?: ISingleEditOperation[];
 	/**
 	 * A command that should be run upon acceptance of this item.
 	 */
@@ -743,6 +797,12 @@ export interface InlineCompletion {
 	readonly range?: IRange;
 
 	readonly command?: Command;
+
+	/**
+	 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
+	 * Defaults to `false`.
+	*/
+	readonly completeBracketPairs?: boolean;
 }
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
@@ -1709,13 +1769,14 @@ export enum CommentMode {
  */
 export interface Comment {
 	readonly uniqueIdInThread: number;
-	readonly body: IMarkdownString;
+	readonly body: string | IMarkdownString;
 	readonly userName: string;
 	readonly userIconPath?: string;
 	readonly contextValue?: string;
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
 	readonly mode?: CommentMode;
+	readonly timestamp?: Date;
 }
 
 /**
@@ -1764,8 +1825,10 @@ export enum InlayHintKind {
 
 export interface InlayHintLabelPart {
 	label: string;
-	collapsible?: boolean;
-	action?: Command | Location
+	tooltip?: string | IMarkdownString
+	// collapsible?: boolean;
+	command?: Command
+	location?: Location;
 }
 
 export interface InlayHint {
@@ -1773,8 +1836,8 @@ export interface InlayHint {
 	tooltip?: string | IMarkdownString
 	position: IPosition;
 	kind: InlayHintKind;
-	whitespaceBefore?: boolean;
-	whitespaceAfter?: boolean;
+	paddingLeft?: boolean;
+	paddingRight?: boolean;
 }
 
 export interface InlayHintList {
@@ -1783,6 +1846,7 @@ export interface InlayHintList {
 }
 
 export interface InlayHintsProvider {
+	displayName?: string
 	onDidChangeInlayHints?: Event<void>;
 	provideInlayHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHintList>;
 	resolveInlayHint?(hint: InlayHint, token: CancellationToken): ProviderResult<InlayHint>;

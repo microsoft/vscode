@@ -3,529 +3,136 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { watch } from 'fs';
-import { ThrottledDelayer, ThrottledWorker } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isEqualOrParent } from 'vs/base/common/extpath';
-import { parse } from 'vs/base/common/glob';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { basename, dirname, join } from 'vs/base/common/path';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { realcase } from 'vs/base/node/extpath';
-import { Promises } from 'vs/base/node/pfs';
-import { FileChangeType } from 'vs/platform/files/common/files';
-import { IDiskFileChange, ILogMessage, coalesceEvents, INonRecursiveWatcher, INonRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
+import { equals } from 'vs/base/common/arrays';
+import { Event, Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { isLinux } from 'vs/base/common/platform';
+import { IDiskFileChange, ILogMessage, INonRecursiveWatchRequest, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 
-export class NodeJSFileWatcher extends Disposable implements INonRecursiveWatcher {
+export interface INodeJSWatcherInstance {
 
-	// A delay in reacting to file deletes to support
-	// atomic save operations where a tool may chose
-	// to delete a file before creating it again for
-	// an update.
-	private static readonly FILE_DELETE_HANDLER_DELAY = 100;
+	/**
+	 * The watcher instance.
+	 */
+	readonly instance: NodeJSFileWatcherLibrary;
 
-	// A delay for collecting file changes from node.js
-	// before collecting them for coalescing and emitting
-	// (same delay as Parcel is using)
-	private static readonly FILE_CHANGES_HANDLER_DELAY = 50;
+	/**
+	 * The watch request associated to the watcher.
+	 */
+	readonly request: INonRecursiveWatchRequest;
+}
 
-	// Reduce likelyhood of spam from file events via throttling.
-	// These numbers are a bit more aggressive compared to the
-	// recursive watcher because we can have many individual
-	// node.js watchers per request.
-	// (https://github.com/microsoft/vscode/issues/124723)
-	private readonly throttledFileChangesWorker = new ThrottledWorker<IDiskFileChange>(
-		{
-			maxWorkChunkSize: 100,	// only process up to 100 changes at once before...
-			throttleDelay: 200,	  	// ...resting for 200ms until we process events again...
-			maxBufferedWork: 10000 	// ...but never buffering more than 10000 events in memory
-		},
-		events => this.onDidFilesChange(events)
-	);
+export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
 
-	private readonly fileChangesDelayer = this._register(new ThrottledDelayer<void>(NodeJSFileWatcher.FILE_CHANGES_HANDLER_DELAY));
-	private fileChangesBuffer: IDiskFileChange[] = [];
+	private readonly _onDidChangeFile = this._register(new Emitter<IDiskFileChange[]>());
+	readonly onDidChangeFile = this._onDidChangeFile.event;
 
-	private readonly excludes = this.request.excludes.map(exclude => parse(exclude));
+	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
+	readonly onDidLogMessage = this._onDidLogMessage.event;
 
-	private readonly cts = new CancellationTokenSource();
+	readonly onDidError = Event.None;
 
-	readonly ready = this.watch();
+	protected readonly watchers = new Map<string, INodeJSWatcherInstance>();
 
-	constructor(
-		private request: INonRecursiveWatchRequest,
-		private onDidFilesChange: (changes: IDiskFileChange[]) => void,
-		private onLogMessage?: (msg: ILogMessage) => void,
-		private verboseLogging?: boolean
-	) {
-		super();
-	}
+	private verboseLogging = false;
 
-	private async watch(): Promise<void> {
-		try {
-			const realPath = await this.normalizePath(this.request);
+	async watch(requests: INonRecursiveWatchRequest[]): Promise<void> {
 
-			if (this.cts.token.isCancellationRequested) {
-				return;
+		// Figure out duplicates to remove from the requests
+		const normalizedRequests = this.normalizeRequests(requests);
+
+		// Gather paths that we should start watching
+		const requestsToStartWatching = normalizedRequests.filter(request => {
+			const watcher = this.watchers.get(request.path);
+			if (!watcher) {
+				return true; // not yet watching that path
 			}
 
-			this.trace(`Request to start watching: ${realPath} (excludes: ${this.request.excludes}))}`);
-
-			// Watch via node.js
-			const stat = await Promises.stat(realPath);
-			this._register(await this.doWatch(realPath, stat.isDirectory()));
-
-		} catch (error) {
-			if (error.code !== 'ENOENT') {
-				this.error(error);
-			} else {
-				this.trace(error);
-			}
-		}
-	}
-
-	private async normalizePath(request: INonRecursiveWatchRequest): Promise<string> {
-		let realPath = request.path;
-
-		try {
-
-			// First check for symbolic link
-			realPath = await Promises.realpath(request.path);
-
-			// Second check for casing difference
-			// Note: this will be a no-op on Linux platforms
-			if (request.path === realPath) {
-				realPath = await realcase(request.path) ?? request.path;
-			}
-
-			// Correct watch path as needed
-			if (request.path !== realPath) {
-				this.warn(`correcting a path to watch that seems to be a symbolic link or wrong casing (original: ${request.path}, real: ${realPath})`);
-			}
-		} catch (error) {
-			// ignore
-		}
-
-		return realPath;
-	}
-
-	private async doWatch(path: string, isDirectory: boolean): Promise<IDisposable> {
-
-		// macOS: watching samba shares can crash VSCode so we do
-		// a simple check for the file path pointing to /Volumes
-		// (https://github.com/microsoft/vscode/issues/106879)
-		// TODO@electron this needs a revisit when the crash is
-		// fixed or mitigated upstream.
-		if (isMacintosh && isEqualOrParent(path, '/Volumes/')) {
-			this.error(`Refusing to watch ${path} for changes using fs.watch() for possibly being a network share where watching is unreliable and unstable.`);
-
-			return Disposable.None;
-		}
-
-		const cts = new CancellationTokenSource(this.cts.token);
-
-		let disposables = new DisposableStore();
-
-		try {
-			const pathBasename = basename(path);
-
-			// Creating watcher can fail with an exception
-			const watcher = watch(path);
-			disposables.add(toDisposable(() => {
-				watcher.removeAllListeners();
-				watcher.close();
-			}));
-
-			// Folder: resolve children to emit proper events
-			const folderChildren = new Set<string>();
-			if (isDirectory) {
-				try {
-					for (const child of await Promises.readdir(path)) {
-						folderChildren.add(child);
-					}
-				} catch (error) {
-					this.error(error);
-				}
-			}
-
-			const mapPathToStatDisposable = new Map<string, IDisposable>();
-			disposables.add(toDisposable(() => {
-				for (const [, disposable] of mapPathToStatDisposable) {
-					disposable.dispose();
-				}
-				mapPathToStatDisposable.clear();
-			}));
-
-			watcher.on('error', (code: number, signal: string) => {
-				this.error(`Failed to watch ${path} for changes using fs.watch() (${code}, ${signal})`);
-
-				// The watcher is no longer functional reliably
-				// so we go ahead and dispose it
-				this.dispose();
-			});
-
-			watcher.on('change', (type, raw) => {
-				if (cts.token.isCancellationRequested) {
-					return; // ignore if already disposed
-				}
-
-				this.trace(`[raw] ["${type}"] ${raw}`);
-
-				// Normalize file name
-				let changedFileName = '';
-				if (raw) { // https://github.com/microsoft/vscode/issues/38191
-					changedFileName = raw.toString();
-					if (isMacintosh) {
-						// Mac: uses NFD unicode form on disk, but we want NFC
-						// See also https://github.com/nodejs/node/issues/2165
-						changedFileName = normalizeNFC(changedFileName);
-					}
-				}
-
-				if (!changedFileName || (type !== 'change' && type !== 'rename')) {
-					return; // ignore unexpected events
-				}
-
-				// Folder
-				if (isDirectory) {
-
-					// Folder child added/deleted
-					if (type === 'rename') {
-
-						// Cancel any previous stats for this file if existing
-						mapPathToStatDisposable.get(changedFileName)?.dispose();
-
-						// Wait a bit and try see if the file still exists on disk
-						// to decide on the resulting event
-						const timeoutHandle = setTimeout(async () => {
-							mapPathToStatDisposable.delete(changedFileName);
-
-							// Depending on the OS the watcher runs on, there
-							// is different behaviour for when the watched
-							// folder path is being deleted:
-							//
-							// -   macOS: not reported but events continue to
-							//            work even when the folder is brought
-							//            back, though it seems every change
-							//            to a file is reported as "rename"
-							// -   Linux: "rename" event is reported with the
-							//            name of the folder and events stop
-							//            working
-							// - Windows: an EPERM error is thrown that we
-							//            handle from the `on('error')` event
-							//
-							// We do not re-attach the watcher after timeout
-							// though as we do for file watches because for
-							// file watching specifically we want to handle
-							// the atomic-write cases where the file is being
-							// deleted and recreated with different contents.
-							//
-							// Same as with recursive watching, we do not
-							// emit a delete event in this case.
-							if (changedFileName === pathBasename && !await Promises.exists(path)) {
-								this.warn('Watcher shutdown because watched path got deleted');
-
-								// The watcher is no longer functional reliably
-								// so we go ahead and dispose it
-								this.dispose();
-
-								return;
-							}
-
-							// In order to properly detect renames on a case-insensitive
-							// file system, we need to use `existsChildStrictCase` helper
-							// because otherwise we would wrongly assume a file exists
-							// when it was renamed to same name but different case.
-							const fileExists = await this.existsChildStrictCase(join(path, changedFileName));
-
-							if (cts.token.isCancellationRequested) {
-								return; // ignore if disposed by now
-							}
-
-							// Figure out the correct event type:
-							// File Exists: either 'added' or 'updated' if known before
-							// File Does not Exist: always 'deleted'
-							let type: FileChangeType;
-							if (fileExists) {
-								if (folderChildren.has(changedFileName)) {
-									type = FileChangeType.UPDATED;
-								} else {
-									type = FileChangeType.ADDED;
-									folderChildren.add(changedFileName);
-								}
-							} else {
-								folderChildren.delete(changedFileName);
-								type = FileChangeType.DELETED;
-							}
-
-							this.onFileChange({ path: join(this.request.path, changedFileName), type });
-						}, NodeJSFileWatcher.FILE_DELETE_HANDLER_DELAY);
-
-						mapPathToStatDisposable.set(changedFileName, toDisposable(() => clearTimeout(timeoutHandle)));
-					}
-
-					// Folder child changed
-					else {
-
-						// Figure out the correct event type: if this is the
-						// first time we see this child, it can only be added
-						let type: FileChangeType;
-						if (folderChildren.has(changedFileName)) {
-							type = FileChangeType.UPDATED;
-						} else {
-							type = FileChangeType.ADDED;
-							folderChildren.add(changedFileName);
-						}
-
-						this.onFileChange({ path: join(this.request.path, changedFileName), type });
-					}
-				}
-
-				// File
-				else {
-
-					// File added/deleted
-					if (type === 'rename' || changedFileName !== pathBasename) {
-
-						// Depending on the OS the watcher runs on, there
-						// is different behaviour for when the watched
-						// file path is being deleted:
-						//
-						// -   macOS: "rename" event is reported and events
-						//            stop working
-						// -   Linux: "rename" event is reported and events
-						//            stop working
-						// - Windows: "rename" event is reported and events
-						//            continue to work when file is restored
-						//
-						// As opposed to folder watching, we re-attach the
-						// watcher after brief timeout to support "atomic save"
-						// operations where a tool may decide to delete a file
-						// and then create it with the updated contents.
-						//
-						// Different to folder watching, we emit a delete event
-						// though we never detect when the file is brought back
-						// because the watcher is disposed then.
-
-						const timeoutHandle = setTimeout(async () => {
-							const fileExists = await Promises.exists(path);
-
-							if (cts.token.isCancellationRequested) {
-								return; // ignore if disposed by now
-							}
-
-							// File still exists, so emit as change event and reapply the watcher
-							if (fileExists) {
-								this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED }, true /* skip excludes (file is explicitly watched) */);
-
-								disposables.add(await this.doWatch(path, false));
-							}
-
-							// File seems to be really gone, so emit a deleted event and dispose
-							else {
-								const eventPromise = this.onFileChange({ path: this.request.path, type: FileChangeType.DELETED }, true /* skip excludes (file is explicitly watched) */);
-
-								// Important to await the event delivery
-								// before disposing the watcher, otherwise
-								// we will loose this event.
-								await eventPromise;
-								this.dispose();
-							}
-						}, NodeJSFileWatcher.FILE_DELETE_HANDLER_DELAY);
-
-						// Very important to dispose the watcher which now points to a stale inode
-						// and wire in a new disposable that tracks our timeout that is installed
-						disposables.clear();
-						disposables.add(toDisposable(() => clearTimeout(timeoutHandle)));
-					}
-
-					// File changed
-					else {
-						this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED }, true /* skip excludes (file is explicitly watched) */);
-					}
-				}
-			});
-		} catch (error) {
-			if (await Promises.exists(path) && !cts.token.isCancellationRequested) {
-				this.error(`Failed to watch ${path} for changes using fs.watch() (${error.toString()})`);
-			}
-		}
-
-		return toDisposable(() => {
-			cts.dispose(true);
-			disposables.dispose();
+			// Re-watch path if excludes have changed
+			return !equals(watcher.request.excludes, request.excludes);
 		});
-	}
 
-	private async onFileChange(event: IDiskFileChange, skipExcludes = false): Promise<void> {
-		if (this.cts.token.isCancellationRequested) {
-			return;
-		}
+		// Gather paths that we should stop watching
+		const pathsToStopWatching = Array.from(this.watchers.values()).filter(({ request }) => {
+			return !normalizedRequests.find(normalizedRequest => normalizedRequest.path === request.path && equals(normalizedRequest.excludes, request.excludes));
+		}).map(({ request }) => request.path);
 
 		// Logging
-		if (this.verboseLogging) {
-			this.trace(`${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
+
+		if (requestsToStartWatching.length) {
+			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'})`).join(',')}`);
 		}
 
-		// Add to buffer unless ignored (not if explicitly disabled)
-		if (!skipExcludes && this.excludes.some(exclude => exclude(event.path))) {
-			if (this.verboseLogging) {
-				this.trace(` >> ignored ${event.path}`);
-			}
-		} else {
-			this.fileChangesBuffer.push(event);
+		if (pathsToStopWatching.length) {
+			this.trace(`Request to stop watching: ${pathsToStopWatching.join(',')}`);
 		}
 
-		// Handle emit through delayer to accommodate for bulk changes and thus reduce spam
-		try {
-			await this.fileChangesDelayer.trigger(async () => {
-				const fileChanges = this.fileChangesBuffer;
-				this.fileChangesBuffer = [];
+		// Stop watching as instructed
+		for (const pathToStopWatching of pathsToStopWatching) {
+			this.stopWatching(pathToStopWatching);
+		}
 
-				// Coalesce events: merge events of same kind
-				const coalescedFileChanges = coalesceEvents(fileChanges);
-
-				if (coalescedFileChanges.length > 0) {
-
-					// Logging
-					if (this.verboseLogging) {
-						for (const event of coalescedFileChanges) {
-							this.trace(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
-						}
-					}
-
-					// Broadcast to clients via throttler
-					const worked = this.throttledFileChangesWorker.work(coalescedFileChanges);
-
-					// Logging
-					if (!worked) {
-						this.warn(`started ignoring events due to too many file change events at once (incoming: ${coalescedFileChanges.length}, most recent change: ${coalescedFileChanges[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
-					} else {
-						if (this.throttledFileChangesWorker.pending > 0) {
-							this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesWorker.pending}, most recent change: ${coalescedFileChanges[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
-						}
-					}
-				}
-			});
-		} catch (error) {
-			// ignore (we are likely disposed and cancelled)
+		// Start watching as instructed
+		for (const request of requestsToStartWatching) {
+			this.startWatching(request);
 		}
 	}
 
-	private async existsChildStrictCase(path: string): Promise<boolean> {
-		if (isLinux) {
-			return Promises.exists(path);
+	private startWatching(request: INonRecursiveWatchRequest): void {
+
+		// Start via node.js lib
+		const instance = new NodeJSFileWatcherLibrary(request, changes => this._onDidChangeFile.fire(changes), msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
+
+		// Remember as watcher instance
+		const watcher: INodeJSWatcherInstance = { request, instance };
+		this.watchers.set(request.path, watcher);
+	}
+
+	async stop(): Promise<void> {
+		for (const [path] of this.watchers) {
+			this.stopWatching(path);
 		}
 
-		try {
-			const pathBasename = basename(path);
-			const children = await Promises.readdir(dirname(path));
+		this.watchers.clear();
+	}
 
-			return children.some(child => child === pathBasename);
-		} catch (error) {
-			this.trace(error);
+	private stopWatching(path: string): void {
+		const watcher = this.watchers.get(path);
+		if (watcher) {
+			this.watchers.delete(path);
 
-			return false;
+			watcher.instance.dispose();
 		}
 	}
 
-	setVerboseLogging(verboseLogging: boolean): void {
-		this.verboseLogging = verboseLogging;
-	}
+	private normalizeRequests(requests: INonRecursiveWatchRequest[]): INonRecursiveWatchRequest[] {
+		const requestsMap = new Map<string, INonRecursiveWatchRequest>();
 
-	private error(error: string): void {
-		if (!this.cts.token.isCancellationRequested) {
-			this.onLogMessage?.({ type: 'error', message: `[File Watcher (node.js)] ${error}` });
+		// Ignore requests for the same paths
+		for (const request of requests) {
+			const path = isLinux ? request.path : request.path.toLowerCase(); // adjust for case sensitivity
+			requestsMap.set(path, request);
 		}
+
+		return Array.from(requestsMap.values());
 	}
 
-	private warn(message: string): void {
-		if (!this.cts.token.isCancellationRequested) {
-			this.onLogMessage?.({ type: 'warn', message: `[File Watcher (node.js)] ${message}` });
+	async setVerboseLogging(enabled: boolean): Promise<void> {
+		this.verboseLogging = enabled;
+
+		for (const [, watcher] of this.watchers) {
+			watcher.instance.setVerboseLogging(enabled);
 		}
 	}
 
 	private trace(message: string): void {
-		if (!this.cts.token.isCancellationRequested && this.verboseLogging) {
-			this.onLogMessage?.({ type: 'trace', message: `[File Watcher (node.js)] ${message}` });
+		if (this.verboseLogging) {
+			this._onDidLogMessage.fire({ type: 'trace', message: this.toMessage(message) });
 		}
 	}
 
-	override dispose(): void {
-		this.trace('stopping file watcher');
-
-		this.cts.dispose(true);
-
-		super.dispose();
+	private toMessage(message: string, watcher?: INodeJSWatcherInstance): string {
+		return watcher ? `[File Watcher (node.js)] ${message} (path: ${watcher.request.path})` : `[File Watcher (node.js)] ${message}`;
 	}
-}
-
-/**
- * Watch the provided `path` for changes and return
- * the data in chunks of `Uint8Array` for further use.
- */
-export async function watchFileContents(path: string, onData: (chunk: Uint8Array) => void, onReady: () => void, token: CancellationToken, bufferSize = 512): Promise<void> {
-	const handle = await Promises.open(path, 'r');
-	const buffer = Buffer.allocUnsafe(bufferSize);
-
-	const cts = new CancellationTokenSource(token);
-
-	let error: Error | undefined = undefined;
-	let isReading = false;
-
-	const request: INonRecursiveWatchRequest = { path, excludes: [] };
-	const watcher = new NodeJSFileWatcher(request, changes => {
-		(async () => {
-			for (const { type } of changes) {
-				if (type === FileChangeType.UPDATED) {
-
-					if (isReading) {
-						return; // return early if we are already reading the output
-					}
-
-					isReading = true;
-
-					try {
-						// Consume the new contents of the file until finished
-						// everytime there is a change event signalling a change
-						while (!cts.token.isCancellationRequested) {
-							const { bytesRead } = await Promises.read(handle, buffer, 0, bufferSize, null);
-							if (!bytesRead || cts.token.isCancellationRequested) {
-								break;
-							}
-
-							onData(buffer.slice(0, bytesRead));
-						}
-					} catch (err) {
-						error = new Error(err);
-						cts.dispose(true);
-					} finally {
-						isReading = false;
-					}
-				}
-			}
-		})();
-	});
-
-	await watcher.ready;
-	onReady();
-
-	return new Promise<void>((resolve, reject) => {
-		cts.token.onCancellationRequested(async () => {
-			watcher.dispose();
-
-			try {
-				await Promises.close(handle);
-			} catch (err) {
-				error = new Error(err);
-			}
-
-			if (error) {
-				reject(error);
-			} else {
-				resolve();
-			}
-		});
-	});
 }

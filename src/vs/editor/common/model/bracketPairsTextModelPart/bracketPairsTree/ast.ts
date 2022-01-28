@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
+import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { ITextModel } from 'vs/editor/common/model';
-import { Length, lengthAdd, lengthGetLineCount, lengthHash, lengthToObj, lengthZero } from './length';
+import { Length, lengthAdd, lengthGetLineCount, lengthToObj, lengthZero } from './length';
 import { SmallImmutableSet } from './smallImmutableSet';
 import { OpeningBracketId } from './tokenizer';
 
@@ -624,17 +624,12 @@ export class TextAstNode extends ImmutableLeafAstNode {
 }
 
 export class BracketAstNode extends ImmutableLeafAstNode {
-	private static cacheByLength = new Map<number, BracketAstNode>();
-
-	public static create(length: Length): BracketAstNode {
-		const lengthKey = lengthHash(length);
-		const cached = BracketAstNode.cacheByLength.get(lengthKey);
-		if (cached) {
-			return cached;
-		}
-
-		const node = new BracketAstNode(length);
-		BracketAstNode.cacheByLength.set(lengthKey, node);
+	public static create(
+		length: Length,
+		languageId: string,
+		bracketIds: SmallImmutableSet<OpeningBracketId>
+	): BracketAstNode {
+		const node = new BracketAstNode(length, languageId, bracketIds);
 		return node;
 	}
 
@@ -646,7 +641,15 @@ export class BracketAstNode extends ImmutableLeafAstNode {
 		return SmallImmutableSet.getEmpty();
 	}
 
-	private constructor(length: Length) {
+	private constructor(
+		length: Length,
+		public readonly languageId: string,
+		/**
+		 * In case of a opening bracket, this is the id of the opening bracket.
+		 * In case of a closing bracket, this contains the ids of all opening brackets it can close.
+		*/
+		public readonly bracketIds: SmallImmutableSet<OpeningBracketId>
+	) {
 		super(length);
 	}
 

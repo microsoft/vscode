@@ -113,9 +113,27 @@ export interface IConfigurationService {
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
 
+	/**
+	 * Update a configuration value.
+	 *
+	 * Use `target` to update the configuration in a specific `ConfigurationTarget`.
+	 *
+	 * Use `overrides` to update the configuration for a resource or for override identifiers or both.
+	 *
+	 * Passing a resource through overrides will update the configuration in the workspace folder containing that resource.
+	 *
+	 * *Note 1:* Updating configuraiton to a default value will remove the configuration from the requested target. If not target is passed, it will be removed from all writeable targets.
+	 *
+	 * *Note 2:* Use `undefined` value to remove the configuration from the given target. If not target is passed, it will be removed from all writeable targets.
+	 *
+	 * Use `donotNotifyError` and set it to `true` to surpresss errors.
+	 *
+	 * @param key setting to be updated
+	 * @param value The new value
+	 */
 	updateValue(key: string, value: any): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
 	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
 
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<Readonly<T>>;

@@ -76,7 +76,7 @@ import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
 import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import 'vs/workbench/services/extensionManagement/common/webExtensionsScannerService';
+import 'vs/workbench/services/extensionManagement/browser/webExtensionsScannerService';
 import 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import 'vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService';
 import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRecommendationsService';
@@ -105,7 +105,7 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { EditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { EditorWorkerService } from 'vs/editor/browser/services/editorWorkerService';
 import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -246,7 +246,7 @@ import 'vs/workbench/contrib/tasks/browser/task.contribution';
 
 // Remote
 import 'vs/workbench/contrib/remote/common/remote.contribution';
-import 'vs/workbench/contrib/remote/browser/remote';
+import 'vs/workbench/contrib/remote/browser/remote.contribution';
 
 // Emmet
 import 'vs/workbench/contrib/emmet/browser/emmet.contribution';
@@ -282,12 +282,12 @@ import 'vs/workbench/contrib/surveys/browser/ces.contribution';
 import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
 
 // Welcome
-import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
-import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
-import 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted.contribution';
-import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
-import 'vs/workbench/contrib/welcome/common/viewsWelcome.contribution';
-import 'vs/workbench/contrib/welcome/common/newFile.contribution';
+import 'vs/workbench/contrib/welcomeOverlay/browser/welcomeOverlay';
+import 'vs/workbench/contrib/welcomePage/browser/welcomePage.contribution';
+import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.contribution';
+import 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThrough.contribution';
+import 'vs/workbench/contrib/welcomeViews/common/viewsWelcome.contribution';
+import 'vs/workbench/contrib/welcomeViews/common/newFile.contribution';
 
 // Call Hierarchy
 import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';
@@ -312,7 +312,7 @@ import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 
 // Code Actions
-import 'vs/workbench/contrib/codeActions/common/codeActions.contribution';
+import 'vs/workbench/contrib/codeActions/browser/codeActions.contribution';
 
 // Timeline
 import 'vs/workbench/contrib/timeline/browser/timeline.contribution';

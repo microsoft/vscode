@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
+import { MarkdownEngine } from '../markdownEngine';
 import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/links';
 import { dirname } from '../util/path';
 
@@ -102,35 +103,70 @@ export function stripAngleBrackets(link: string) {
 	return link.replace(angleBracketLinkRe, '$1');
 }
 
-export default class LinkProvider implements vscode.DocumentLinkProvider {
-	private readonly linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*(".*?")?\)/g;
-	private readonly referenceLinkPattern = /(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]/g;
-	private readonly definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>]+>)/gm;
+const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*(".*?")?\)/g;
+const referenceLinkPattern = /(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]/g;
+const definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>]+>)/gm;
+const inlineCodePattern = /(?:^|[^`])(`+)(?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?\1(?:$|[^`])/gm;
 
-	public provideDocumentLinks(
+interface CodeInDocument {
+	/**
+	 * code blocks and fences each represented by [line_start,line_end).
+	 */
+	readonly multiline: ReadonlyArray<[number, number]>;
+
+	/**
+	 * inline code spans each represented by {@link vscode.Range}.
+	 */
+	readonly inline: readonly vscode.Range[];
+}
+
+async function findCode(document: vscode.TextDocument, engine: MarkdownEngine): Promise<CodeInDocument> {
+	const tokens = await engine.parse(document);
+	const multiline = tokens.filter(t => (t.type === 'code_block' || t.type === 'fence') && !!t.map).map(t => t.map) as [number, number][];
+
+	const text = document.getText();
+	const inline = [...text.matchAll(inlineCodePattern)].map(match => {
+		const start = match.index || 0;
+		return new vscode.Range(document.positionAt(start), document.positionAt(start + match[0].length));
+	});
+
+	return { multiline, inline };
+}
+
+function isLinkInsideCode(code: CodeInDocument, link: vscode.DocumentLink) {
+	return code.multiline.some(interval => link.range.start.line >= interval[0] && link.range.start.line < interval[1]) ||
+		code.inline.some(position => position.intersection(link.range));
+}
+
+export default class LinkProvider implements vscode.DocumentLinkProvider {
+	constructor(
+		private readonly engine: MarkdownEngine
+	) { }
+
+	public async provideDocumentLinks(
 		document: vscode.TextDocument,
 		_token: vscode.CancellationToken
-	): vscode.DocumentLink[] {
+	): Promise<vscode.DocumentLink[]> {
 		const text = document.getText();
-
 		return [
-			...this.providerInlineLinks(text, document),
+			...(await this.providerInlineLinks(text, document)),
 			...this.provideReferenceLinks(text, document)
 		];
 	}
 
-	private providerInlineLinks(
+	private async providerInlineLinks(
 		text: string,
 		document: vscode.TextDocument,
-	): vscode.DocumentLink[] {
+	): Promise<vscode.DocumentLink[]> {
 		const results: vscode.DocumentLink[] = [];
-		for (const match of text.matchAll(this.linkPattern)) {
+		const codeInDocument = await findCode(document, this.engine);
+		for (const match of text.matchAll(linkPattern)) {
 			const matchImage = match[4] && extractDocumentLink(document, match[3].length + 1, match[4], match.index);
-			if (matchImage) {
+			if (matchImage && !isLinkInsideCode(codeInDocument, matchImage)) {
 				results.push(matchImage);
 			}
 			const matchLink = extractDocumentLink(document, match[1].length, match[5], match.index);
-			if (matchLink) {
+			if (matchLink && !isLinkInsideCode(codeInDocument, matchLink)) {
 				results.push(matchLink);
 			}
 		}
@@ -143,8 +179,8 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 	): vscode.DocumentLink[] {
 		const results: vscode.DocumentLink[] = [];
 
-		const definitions = this.getDefinitions(text, document);
-		for (const match of text.matchAll(this.referenceLinkPattern)) {
+		const definitions = LinkProvider.getDefinitions(text, document);
+		for (const match of text.matchAll(referenceLinkPattern)) {
 			let linkStart: vscode.Position;
 			let linkEnd: vscode.Position;
 			let reference = match[3];
@@ -188,9 +224,9 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 		return results;
 	}
 
-	private getDefinitions(text: string, document: vscode.TextDocument) {
+	public static getDefinitions(text: string, document: vscode.TextDocument) {
 		const out = new Map<string, { link: string, linkRange: vscode.Range }>();
-		for (const match of text.matchAll(this.definitionPattern)) {
+		for (const match of text.matchAll(definitionPattern)) {
 			const pre = match[1];
 			const reference = match[2];
 			const link = match[3].trim();

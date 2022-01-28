@@ -529,6 +529,19 @@ export class Codicon implements CSSIcon {
 	public static readonly verifiedFilled = new Codicon('verified-filled', { fontCharacter: '\\ebe9' });
 	public static readonly newLine = new Codicon('newline', { fontCharacter: '\\ebea' });
 	public static readonly layout = new Codicon('layout', { fontCharacter: '\\ebeb' });
+	public static readonly layoutActivitybarLeft = new Codicon('layout-activitybar-left', { fontCharacter: '\\ebec' });
+	public static readonly layoutActivitybarRight = new Codicon('layout-activitybar-right', { fontCharacter: '\\ebed' });
+	public static readonly layoutPanelLeft = new Codicon('layout-panel-left', { fontCharacter: '\\ebee' });
+	public static readonly layoutPanelCenter = new Codicon('layout-panel-center', { fontCharacter: '\\ebef' });
+	public static readonly layoutPanelJustify = new Codicon('layout-panel-justify', { fontCharacter: '\\ebf0' });
+	public static readonly layoutPanelRight = new Codicon('layout-panel-right', { fontCharacter: '\\ebf1' });
+	public static readonly layoutPanel = new Codicon('layout-panel', { fontCharacter: '\\ebf2' });
+	public static readonly layoutSidebarLeft = new Codicon('layout-sidebar-left', { fontCharacter: '\\ebf3' });
+	public static readonly layoutSidebarRight = new Codicon('layout-sidebar-right', { fontCharacter: '\\ebf4' });
+	public static readonly layoutStatusbar = new Codicon('layout-statusbar', { fontCharacter: '\\ebf5' });
+	public static readonly layoutMenubar = new Codicon('layout-menubar', { fontCharacter: '\\ebf6' });
+	public static readonly layoutCentered = new Codicon('layout-centered', { fontCharacter: '\\ebf7' });
+	public static readonly target = new Codicon('target', { fontCharacter: '\\ebf8' });
 
 	// derived icons, that could become separate icons
 

@@ -9,6 +9,6 @@ const { createModuleDescription, createEditorWorkerModuleDescription } = require
 exports.collectModules = function () {
 	return [
 		createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
-		createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.api']),
+		createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main']),
 	];
 };

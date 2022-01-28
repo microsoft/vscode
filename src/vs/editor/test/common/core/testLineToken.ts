@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewLineTokens } from 'vs/editor/common/model/tokens/lineTokens';
+import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ColorId, ITokenPresentation, TokenMetadata } from 'vs/editor/common/languages';
 
 /**
@@ -107,6 +107,13 @@ export class TestLineTokens implements IViewLineTokens {
 		throw new Error('Not implemented');
 	}
 
+	public getMetadata(tokenIndex: number): number {
+		throw new Error('Method not implemented.');
+	}
+
+	public getLanguageId(tokenIndex: number): string {
+		throw new Error('Method not implemented.');
+	}
 }
 
 export class TestLineTokenFactory {

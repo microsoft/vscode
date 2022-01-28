@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICredentialsService, ICredentialsProvider, ICredentialsChangeEvent } from 'vs/platform/credentials/common/credentials';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ICredentialsService, ICredentialsProvider, ICredentialsChangeEvent, InMemoryCredentialsProvider } from 'vs/platform/credentials/common/credentials';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class BrowserCredentialsService extends Disposable implements ICredentialsService {
 
@@ -17,13 +20,27 @@ export class BrowserCredentialsService extends Disposable implements ICredential
 
 	private credentialsProvider: ICredentialsProvider;
 
-	constructor(@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService) {
+	private _secretStoragePrefix: Promise<string>;
+	public async getSecretStoragePrefix() { return this._secretStoragePrefix; }
+
+	constructor(
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IProductService private readonly productService: IProductService
+	) {
 		super();
 
-		if (environmentService.options && environmentService.options.credentialsProvider) {
-			this.credentialsProvider = environmentService.options.credentialsProvider;
+		if (environmentService.remoteAuthority && !environmentService.options?.credentialsProvider) {
+			// If we have a remote authority but the embedder didn't provide a credentialsProvider,
+			// we can use the CredentialsService on the remote side
+			const remoteCredentialsService = ProxyChannel.toService<ICredentialsService>(remoteAgentService.getConnection()!.getChannel('credentials'));
+			this.credentialsProvider = remoteCredentialsService;
+			this._secretStoragePrefix = remoteCredentialsService.getSecretStoragePrefix();
 		} else {
-			this.credentialsProvider = new InMemoryCredentialsProvider();
+			// fall back to InMemoryCredentialsProvider if none was given to us. This should really only be used
+			// when running tests.
+			this.credentialsProvider = environmentService.options?.credentialsProvider ?? new InMemoryCredentialsProvider();
+			this._secretStoragePrefix = Promise.resolve(this.productService.urlProtocol);
 		}
 	}
 
@@ -58,57 +75,5 @@ export class BrowserCredentialsService extends Disposable implements ICredential
 		if (this.credentialsProvider.clear) {
 			return this.credentialsProvider.clear();
 		}
-	}
-}
-
-interface ICredential {
-	service: string;
-	account: string;
-	password: string;
-}
-
-class InMemoryCredentialsProvider implements ICredentialsProvider {
-
-	private credentials: ICredential[] = [];
-
-	async getPassword(service: string, account: string): Promise<string | null> {
-		const credential = this.doFindPassword(service, account);
-
-		return credential ? credential.password : null;
-	}
-
-	async setPassword(service: string, account: string, password: string): Promise<void> {
-		this.deletePassword(service, account);
-		this.credentials.push({ service, account, password });
-	}
-
-	async deletePassword(service: string, account: string): Promise<boolean> {
-		const credential = this.doFindPassword(service, account);
-		if (credential) {
-			this.credentials.splice(this.credentials.indexOf(credential), 1);
-		}
-
-		return !!credential;
-	}
-
-	async findPassword(service: string): Promise<string | null> {
-		const credential = this.doFindPassword(service);
-
-		return credential ? credential.password : null;
-	}
-
-	private doFindPassword(service: string, account?: string): ICredential | undefined {
-		return this.credentials.find(credential =>
-			credential.service === service && (typeof account !== 'string' || credential.account === account));
-	}
-
-	async findCredentials(service: string): Promise<Array<{ account: string, password: string; }>> {
-		return this.credentials
-			.filter(credential => credential.service === service)
-			.map(({ account, password }) => ({ account, password }));
-	}
-
-	async clear(): Promise<void> {
-		this.credentials = [];
 	}
 }

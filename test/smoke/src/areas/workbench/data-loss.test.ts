@@ -135,11 +135,10 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 
 			// macOS: the first launch of stable Code will trigger
 			// additional checks in the OS (notarization validation)
-			// so it can take a very long time. as such we increase
-			// the timeout and install a retry handler to make sure
-			// we do not fail as a consequence.
+			// so it can take a very long time. as such we install
+			// a retry handler to make sure we do not fail as a
+			// consequence.
 			if (process.platform === 'darwin') {
-				this.timeout(2 * 60 * 1000);
 				this.retries(2);
 			}
 

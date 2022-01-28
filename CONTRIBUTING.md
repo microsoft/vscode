@@ -69,6 +69,9 @@ Please include the following with each issue:
 
 * Errors from the Dev Tools Console (open from the menu: Help > Toggle Developer Tools)
 
+### Creating Pull Requests
+* Please refer to the article [here](https://github.com/microsoft/vscode/wiki/How-to-Contribute#pull-requests) for information on how to create Pull Requests and contribute to this project.
+
 ### Final Checklist
 
 Please remember to do the following:

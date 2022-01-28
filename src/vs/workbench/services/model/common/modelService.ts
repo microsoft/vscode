@@ -15,6 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
 export class WorkbenchModelService extends ModelService {
 	constructor(
@@ -25,9 +26,10 @@ export class WorkbenchModelService extends ModelService {
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageService languageService: ILanguageService,
+		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService,
 		@IPathService private readonly _pathService: IPathService,
 	) {
-		super(configurationService, resourcePropertiesService, themeService, logService, undoRedoService, languageService, languageConfigurationService);
+		super(configurationService, resourcePropertiesService, themeService, logService, undoRedoService, languageService, languageConfigurationService, languageFeatureDebounceService);
 	}
 
 	protected override _schemaShouldMaintainUndoRedoElements(resource: URI) {

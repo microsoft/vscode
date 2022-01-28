@@ -23,7 +23,7 @@ declare module 'vscode' {
 		/**
 		* An optional interface to implement drag and drop in the tree view.
 		*/
-		dragAndDropController?: DragAndDropController<T>;
+		dragAndDropController?: TreeDragAndDropController<T>;
 	}
 
 	/**
@@ -79,7 +79,7 @@ declare module 'vscode' {
 	/**
 	 * Provides support for drag and drop in `TreeView`.
 	 */
-	export interface DragAndDropController<T> {
+	export interface TreeDragAndDropController<T> {
 
 		/**
 		 * The mime types that the `drop` method of this `DragAndDropController` supports. This could be well-defined, existing, mime types,
@@ -102,11 +102,14 @@ declare module 'vscode' {
 		 * When the items are dropped on **another tree item** in **the same tree**, your `TreeDataTransferItem` objects
 		 * will be preserved. See the documentation for `TreeDataTransferItem` for how best to take advantage of this.
 		 *
-		 * The returned `TreeDataTransfer` will be merged with the original`TreeDataTransfer` for the operation.
+		 * To add a data transfer item that can be dragged into the editor, use the application specific mime type "resourceurls".
+		 * The data for "resourceurls" should be an array of `toString()`ed Uris. To specify a cursor position in the file,
+		 * set the Uri's fragment to `L3,5`, where 3 is the line number and 5 is the column number.
 		 *
 		 * @param source The source items for the drag and drop operation.
+		 * @param treeDataTransfer The data transfer associated with this drag.
 		 */
-		handleDrag?(source: T[]): Thenable<TreeDataTransfer>;
+		handleDrag?(source: T[], treeDataTransfer: TreeDataTransfer): Thenable<void> | void;
 
 		/**
 		 * Called when a drag and drop action results in a drop on the tree that this `DragAndDropController` belongs too.

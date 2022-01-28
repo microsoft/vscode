@@ -7,51 +7,48 @@ import 'vs/css!./media/notebookFind';
 import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
 import * as strings from 'vs/base/common/strings';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellEditState, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, getNotebookEditorFromEditorPane, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { INotebookEditor, CellEditState, INotebookEditorContribution, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Range } from 'vs/editor/common/core/range';
-import { MATCHES_LIMIT } from 'vs/editor/contrib/find/findModel';
+import { MATCHES_LIMIT } from 'vs/editor/contrib/find/browser/findModel';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import * as DOM from 'vs/base/browser/dom';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { registerAction2, Action2, MenuId, MenuRegistry, IMenuService } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, IMenuService } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/findController';
+import { StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/browser/findController';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from 'vs/editor/contrib/find/findWidget';
+import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from 'vs/editor/contrib/find/browser/findWidget';
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { FindMatch } from 'vs/editor/common/model';
+import { FindMatch, ITextModel } from 'vs/editor/common/model';
 import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
-import { Codicon } from 'vs/base/common/codicons';
+import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { Schemas } from 'vs/base/common/network';
+import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { URI } from 'vs/base/common/uri';
+import { isEqual } from 'vs/base/common/resources';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
 let MAX_MATCHES_COUNT_WIDTH = 69;
 
-export interface INotebookFindFilter {
-	findInMarkdownPreview: boolean;
-	findInOutput: boolean;
-}
-export const FindInPreviewFilterContext = new RawContextKey<boolean>('notebookFindMarkdownPreview', false);
-export const FindInOutputFilterContext = new RawContextKey<boolean>('notebookFindOutputPreview', false);
-
-export class NotebookFindWidget extends SimpleFindReplaceWidget<INotebookFindFilter> implements INotebookEditorContribution {
+export class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.find';
 	protected _findWidgetFocused: IContextKey<boolean>;
 	private _showTimeout: number | null = null;
 	private _hideTimeout: number | null = null;
 	private _previousFocusElement?: HTMLElement;
 	private _findModel: FindModel;
-	private _findInPreview: IContextKey<boolean>;
-	private _findInOutput: IContextKey<boolean>;
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
@@ -63,12 +60,10 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget<INotebookFindFil
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(contextViewService, contextKeyService, themeService, configurationService, menuService, contextMenuService, instantiationService, new FindReplaceState<INotebookFindFilter>());
+		super(contextViewService, contextKeyService, themeService, configurationService, menuService, contextMenuService, instantiationService, new FindReplaceState<NotebookFindFilters>());
 		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
-		this._findInPreview = FindInPreviewFilterContext.bindTo(this._scopedContextKeyService);
-		this._findInOutput = FindInOutputFilterContext.bindTo(this._scopedContextKeyService);
 		this._findWidgetFocused = KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
 		this.updateTheme(themeService.getColorTheme());
@@ -90,6 +85,13 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget<INotebookFindFil
 			if (this._findModel.currentMatch >= 0) {
 				const currentMatch = this._findModel.getCurrentMatch();
 				this._replaceBtn.setEnabled(currentMatch.isModelMatch);
+			}
+
+			const matches = this._findModel.findMatches;
+			this._replaceAllBtn.setEnabled(matches.find(match => match.modelMatchCount < match.matches.length) === null);
+
+			if (e.filters) {
+				this._findInput.updateFilterState((this._state.filters?.markupPreview ?? false) || (this._state.filters?.codeOutput ?? false));
 			}
 		}));
 
@@ -254,22 +256,6 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget<INotebookFindFil
 		}
 	}
 
-	toggleFindFilter(filters: {
-		findInMarkdownPreview?: boolean,
-		findInOutput?: boolean
-	}) {
-		const currentFilters = this._state.filters ?? { findInMarkdownPreview: false, findInOutput: false };
-		this._state.change({
-			filters: {
-				findInMarkdownPreview: filters.findInMarkdownPreview ? !currentFilters?.findInMarkdownPreview : currentFilters?.findInMarkdownPreview,
-				findInOutput: filters.findInOutput ? !currentFilters?.findInOutput : currentFilters?.findInOutput
-			}
-		}, false);
-		this._findInPreview.set(!!this._state.filters?.findInMarkdownPreview);
-		this._findInOutput.set(!!this._state.filters?.findInOutput);
-		this._findInput.updateFilterState((this._state.filters?.findInMarkdownPreview ?? false) || (this._state.filters?.findInOutput ?? false));
-	}
-
 	override hide() {
 		super.hide();
 		this._state.change({ isRevealed: false }, false);
@@ -412,6 +398,17 @@ registerAction2(class extends Action2 {
 	}
 });
 
+function notebookContainsTextModel(uri: URI, textModel: ITextModel) {
+	if (textModel.uri.scheme === Schemas.vscodeNotebookCell) {
+		const cellUri = CellUri.parse(textModel.uri);
+		if (cellUri && isEqual(cellUri.notebook, uri)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: ICodeEditor, args: any) => {
 	const editorService = accessor.get(IEditorService);
 	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
@@ -421,7 +418,14 @@ StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: 
 	}
 
 	if (!editor.hasEditorFocus() && !editor.hasWebviewFocus()) {
-		return false;
+		const codeEditorService = accessor.get(ICodeEditorService);
+		// check if the active pane contains the active text editor
+		const textEditor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
+		if (editor.hasModel() && textEditor && textEditor.hasModel() && notebookContainsTextModel(editor.textModel.uri, textEditor.getModel())) {
+			// the active text editor is in notebook editor
+		} else {
+			return false;
+		}
 	}
 
 	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
@@ -444,69 +448,4 @@ StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeE
 	}
 
 	return false;
-});
-
-MenuRegistry.appendMenuItem(MenuId.NotebookFindToolbar, {
-	submenu: MenuId.NotebookFindFilter,
-	title: localize('notebookMenu.notebookFindFilter', "Notebook Find Filter"),
-	icon: Codicon.filter
-});
-
-registerAction2(class NotebookFindInMarkdownPreviewFilter extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.findInMarkdownPreview',
-			title: localize('notebook.findInMarkdownPreview', "Find in Markdown Preview"),
-			menu: {
-				id: MenuId.NotebookFindFilter,
-				order: 0
-			},
-			toggled: FindInPreviewFilterContext
-		});
-	}
-
-	run(accessor: ServicesAccessor, ...args: any[]): void {
-		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-
-		if (!editor) {
-			return;
-		}
-
-		const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
-		if (controller) {
-			controller.toggleFindFilter({ findInMarkdownPreview: true });
-			return;
-		}
-	}
-});
-
-
-registerAction2(class NotebookFindInMarkdownPreviewFilter extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.findInOutput',
-			title: localize('notebook.findInOutput', "Find in Cell Outputs"),
-			menu: {
-				id: MenuId.NotebookFindFilter,
-				order: 1
-			},
-			toggled: FindInOutputFilterContext
-		});
-	}
-
-	run(accessor: ServicesAccessor, ...args: any[]): void {
-		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-
-		if (!editor) {
-			return;
-		}
-
-		const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
-		if (controller) {
-			controller.toggleFindFilter({ findInOutput: true });
-			return;
-		}
-	}
 });

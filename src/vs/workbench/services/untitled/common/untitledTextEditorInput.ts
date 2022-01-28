@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
 import { DEFAULT_EDITOR_ASSOCIATION, findViewStateForEditor, GroupIdentifier, IUntitledTextResourceEditorInput, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -128,7 +129,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 	}
 
 	override toUntyped(options?: { preserveViewState: GroupIdentifier }): IUntitledTextResourceEditorInput {
-		const untypedInput: IUntitledTextResourceEditorInput & { options: ITextEditorOptions } = {
+		const untypedInput: IUntitledTextResourceEditorInput & { resource: URI | undefined, options: ITextEditorOptions } = {
 			resource: this.model.hasAssociatedFilePath ? toLocalResource(this.model.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme) : this.resource,
 			forceUntitled: true,
 			options: {
@@ -141,6 +142,18 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 			untypedInput.languageId = this.getLanguageId();
 			untypedInput.contents = this.model.isDirty() ? this.model.textEditorModel?.getValue() : undefined;
 			untypedInput.options.viewState = findViewStateForEditor(this, options.preserveViewState, this.editorService);
+
+			if (typeof untypedInput.contents === 'string' && !this.model.hasAssociatedFilePath) {
+				// Given how generic untitled resources in the system are, we
+				// need to be careful not to set our resource into the untyped
+				// editor if we want to transport contents too, because of
+				// issue https://github.com/microsoft/vscode/issues/140898
+				// The workaround is to simply remove the resource association
+				// if we have contents and no associated resource.
+				// In that case we can ensure that a new untitled resource is
+				// being created and the contents can be restored properly.
+				untypedInput.resource = undefined;
+			}
 		}
 
 		return untypedInput;

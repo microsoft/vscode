@@ -103,6 +103,9 @@ export namespace Schemas {
 	export const vsls = 'vsls';
 }
 
+export const connectionTokenCookieName = 'vscode-tkn';
+export const connectionTokenQueryName = 'tkn';
+
 class RemoteAuthoritiesImpl {
 	private readonly _hosts: { [authority: string]: string | undefined; } = Object.create(null);
 	private readonly _ports: { [authority: string]: number | undefined; } = Object.create(null);
@@ -127,6 +130,10 @@ class RemoteAuthoritiesImpl {
 		this._connectionTokens[authority] = connectionToken;
 	}
 
+	getPreferredWebSchema(): 'http' | 'https' {
+		return this._preferredWebSchema;
+	}
+
 	rewrite(uri: URI): URI {
 		if (this._delegate) {
 			return this._delegate(uri);
@@ -140,7 +147,7 @@ class RemoteAuthoritiesImpl {
 		const connectionToken = this._connectionTokens[authority];
 		let query = `path=${encodeURIComponent(uri.path)}`;
 		if (typeof connectionToken === 'string') {
-			query += `&tkn=${encodeURIComponent(connectionToken)}`;
+			query += `&${connectionTokenQueryName}=${encodeURIComponent(connectionToken)}`;
 		}
 		return URI.from({
 			scheme: platform.isWeb ? this._preferredWebSchema : Schemas.vscodeRemoteResource,

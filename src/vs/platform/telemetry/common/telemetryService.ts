@@ -67,15 +67,6 @@ export class TelemetryService implements ITelemetryService {
 			optIn: boolean;
 		};
 		this.publicLog2<OptInEvent, OptInClassification>('optInStatus', { optIn: this._telemetryLevel === TelemetryLevel.USAGE });
-
-		this._commonProperties.then(values => {
-			const isHashedId = /^[a-f0-9]+$/i.test(values['common.machineId']);
-
-			type MachineIdFallbackClassification = {
-				usingFallbackGuid: { classification: 'SystemMetaData', purpose: 'BusinessInsight', isMeasurement: true };
-			};
-			this.publicLog2<{ usingFallbackGuid: boolean }, MachineIdFallbackClassification>('machineIdFallback', { usingFallbackGuid: !isHashedId });
-		});
 	}
 
 	setExperimentProperty(name: string, value: string): void {
@@ -204,7 +195,7 @@ export class TelemetryService implements ITelemetryService {
 		const value = property.toLowerCase();
 
 		const emailRegex = /@[a-zA-Z0-9-.]+/; // Regex which matches @*.site
-		const secretRegex = /(key|token|sig|signature|password|passwd|pwd)[="':\s]/;
+		const secretRegex = /(key|token|sig|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/;
 		const tokenRegex = /xox[pbaors]\-[a-zA-Z0-9]+\-[a-zA-Z0-9\-]+?/; // last +? is lazy as a microoptimization since we don't care about the full value
 
 		// Check for common user data in the telemetry events

@@ -108,13 +108,16 @@ module.exports = {
             if (allowTaggedTemplates && node.type === 'TaggedTemplateExpression') {
                 return true;
             }
-            return /^(?:Assignment|OptionalCall|Call|New|Update|Yield|Await)Expression$/u.test(node.type) ||
+            if (node.type === 'ExpressionStatement') {
+                return isValidExpression(node.expression);
+            }
+            return /^(?:Assignment|OptionalCall|Call|New|Update|Yield|Await|Chain)Expression$/u.test(node.type) ||
                 (node.type === 'UnaryExpression' && ['delete', 'void'].indexOf(node.operator) >= 0);
         }
         return {
             ExpressionStatement(node) {
                 if (!isValidExpression(node.expression) && !isDirective(node, context.getAncestors())) {
-                    context.report({ node: node, message: 'Expected an assignment or function call and instead saw an expression.' });
+                    context.report({ node: node, message: `Expected an assignment or function call and instead saw an expression. ${node.expression}` });
                 }
             }
         };

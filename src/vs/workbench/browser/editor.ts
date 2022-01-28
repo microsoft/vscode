@@ -17,6 +17,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 //#region Editor Pane Registry
@@ -199,11 +200,29 @@ export function whenEditorClosed(accessor: ServicesAccessor, resources: URI[]): 
 			// Remove from resources to wait for being closed based on the
 			// resources from editors that got closed
 			remainingResources = remainingResources.filter(resource => {
+
+				// Closing editor matches resource directly: remove from remaining
 				if (uriIdentityService.extUri.isEqual(resource, primaryResource) || uriIdentityService.extUri.isEqual(resource, secondaryResource)) {
-					return false; // remove - the closing editor matches this resource
+					return false;
 				}
 
-				return true; // keep - not yet closed
+				// Closing editor is untitled with associated resource
+				// that matches resource directly: remove from remaining
+				// but only if the editor was not replaced, otherwise
+				// saving an untitled with associated resource would
+				// release the `--wait` call.
+				// (see https://github.com/microsoft/vscode/issues/141237)
+				if (event.context !== EditorCloseContext.REPLACE) {
+					if (
+						(primaryResource?.scheme === Schemas.untitled && uriIdentityService.extUri.isEqual(resource, primaryResource.with({ scheme: resource.scheme }))) ||
+						(secondaryResource?.scheme === Schemas.untitled && uriIdentityService.extUri.isEqual(resource, secondaryResource.with({ scheme: resource.scheme })))
+					) {
+						return false;
+					}
+				}
+
+				// Editor is not yet closed, so keep it in waiting mode
+				return true;
 			});
 
 			// All resources to wait for being closed are closed

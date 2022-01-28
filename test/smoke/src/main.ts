@@ -11,7 +11,7 @@ import * as os from 'os';
 import * as minimist from 'minimist';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
-import * as vscodetest from 'vscode-test';
+import * as vscodetest from '@vscode/test-electron';
 import fetch from 'node-fetch';
 import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog } from '../../automation';
 import { timeout } from './utils';
@@ -104,6 +104,9 @@ mkdirp.sync(extensionsPath);
 
 function fail(errorMessage): void {
 	logger.log(errorMessage);
+	if (!opts.verbose) {
+		console.error(errorMessage);
+	}
 	process.exit(1);
 }
 
@@ -177,7 +180,7 @@ if (!opts.web) {
 	}
 
 	if (!fs.existsSync(electronPath || '')) {
-		fail(`Can't find VSCode at ${electronPath}.`);
+		fail(`Can't find VSCode at ${electronPath}. Please run VSCode once first (scripts/code.sh, scripts\\code.bat) and try again.`);
 	}
 
 	if (process.env.VSCODE_DEV === '1') {
@@ -275,9 +278,29 @@ async function ensureStableCode(): Promise<void> {
 
 		logger.log(`Found VS Code v${version}, downloading previous VS Code version ${previousVersion.version}...`);
 
+		let lastProgressMessage: string | undefined = undefined;
+		let lastProgressReportedAt = 0;
 		const stableCodeExecutable = await measureAndLog(vscodetest.download({
 			cachePath: path.join(os.tmpdir(), 'vscode-test'),
-			version: previousVersion.version
+			version: previousVersion.version,
+			extractSync: true,
+			reporter: {
+				report: report => {
+					let progressMessage = `download stable code progress: ${report.stage}`;
+					const now = Date.now();
+					if (progressMessage !== lastProgressMessage || now - lastProgressReportedAt > 10000) {
+						lastProgressMessage = progressMessage;
+						lastProgressReportedAt = now;
+
+						if (report.stage === 'downloading') {
+							progressMessage += ` (${report.bytesSoFar}/${report.totalBytes})`;
+						}
+
+						logger.log(progressMessage);
+					}
+				},
+				error: error => logger.log(`download stable code error: ${error}`)
+			}
 		}), 'download stable code', logger);
 
 		if (process.platform === 'darwin') {
@@ -313,7 +336,7 @@ async function setup(): Promise<void> {
 
 // Before main suite (before all tests)
 before(async function () {
-	this.timeout(2 * 60 * 1000); // allow two minutes for setup
+	this.timeout(5 * 60 * 1000); // increase since we download VSCode
 
 	this.defaultOptions = {
 		quality,

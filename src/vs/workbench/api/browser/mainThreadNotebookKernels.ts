@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, groupBy, isNonEmptyArray } from 'vs/base/common/arrays';
+import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -14,8 +14,7 @@ import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, INotebookKernelChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
@@ -107,7 +106,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	private readonly _kernels = new Map<number, [kernel: MainThreadKernel, registraion: IDisposable]>();
 	private readonly _proxy: ExtHostNotebookKernelsShape;
 
-	private readonly _executions = new Set<string>();
+	private readonly _executions = new Map<number, INotebookCellExecution>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -125,10 +124,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		this._disposables.add(toDisposable(() => {
 			// EH shut down, complete all executions started by this EH
 			this._executions.forEach(e => {
-				const uri = CellUri.parse(URI.parse(e));
-				if (uri) {
-					this._notebookExecutionStateService.completeNotebookCellExecution(uri.notebook, uri.handle, { });
-				}
+				e.complete({ });
 			});
 		}));
 
@@ -249,34 +245,34 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 	// --- execution
 
-	$addExecution(rawUri: UriComponents, cellHandle: number): void {
+	$createExecution(handle: number, controllerId: string, rawUri: UriComponents, cellHandle: number): void {
 		const uri = URI.revive(rawUri);
-		this._notebookExecutionStateService.createNotebookCellExecution(uri, cellHandle);
-
-		const cellUri = CellUri.generateCellUri(uri, cellHandle, uri.scheme);
-		this._executions.add(cellUri.toString());
+		const execution = this._notebookExecutionStateService.createCellExecution(controllerId, uri, cellHandle);
+		this._executions.set(handle, execution);
 	}
 
-	$updateExecutions(data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void {
+	$updateExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void {
 		const updates = data.value;
-		const groupedUpdates = groupBy(updates, (a, b) => a.cellHandle - b.cellHandle);
-		groupedUpdates.forEach(datas => {
-			const first = datas[0];
-
-			try {
-				const uri = URI.revive(first.uri);
-				this._notebookExecutionStateService.updateNotebookCellExecution(uri, first.cellHandle, datas.map(NotebookDto.fromCellExecuteUpdateDto));
-			} catch (e) {
-				onUnexpectedError(e);
+		try {
+			const execution = this._executions.get(handle);
+			if (execution) {
+				execution.update(updates.map(NotebookDto.fromCellExecuteUpdateDto));
 			}
-		});
+		} catch (e) {
+			onUnexpectedError(e);
+		}
 	}
 
-	$completeExecution(rawUri: UriComponents, cellHandle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void {
-		const uri = URI.revive(rawUri);
-		this._notebookExecutionStateService.completeNotebookCellExecution(uri, cellHandle, NotebookDto.fromCellExecuteCompleteDto(data.value));
-
-		const cellUri = CellUri.generateCellUri(uri, cellHandle, uri.scheme);
-		this._executions.delete(cellUri.toString());
+	$completeExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void {
+		try {
+			const execution = this._executions.get(handle);
+			if (execution) {
+				execution.complete(NotebookDto.fromCellExecuteCompleteDto(data.value));
+			}
+		} catch (e) {
+			onUnexpectedError(e);
+		} finally {
+			this._executions.delete(handle);
+		}
 	}
 }

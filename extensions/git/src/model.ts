@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel, commands } from 'vscode';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise, logTimestamp } from './util';
@@ -108,7 +109,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 
 	private disposables: Disposable[] = [];
 
-	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private outputChannel: OutputChannel) {
+	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private outputChannel: OutputChannel, private telemetryReporter: TelemetryReporter) {
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
 		workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
@@ -141,12 +142,10 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 	private async scanWorkspaceFolders(): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
-		const repositoryScanMaxDepth = config.get<number>('repositoryScanMaxDepth', 1);
 
 		// Log repository scan settings
 		if (Log.logLevel <= LogLevel.Trace) {
 			this.outputChannel.appendLine(`${logTimestamp()} Trace: autoRepositoryDetection="${autoRepositoryDetection}"`);
-			this.outputChannel.appendLine(`${logTimestamp()} Trace: repositoryScanMaxDepth=${repositoryScanMaxDepth}`);
 		}
 
 		if (autoRepositoryDetection !== true && autoRepositoryDetection !== 'subFolders') {
@@ -157,7 +156,10 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			const root = folder.uri.fsPath;
 
 			// Workspace folder children
-			const subfolders = new Set(await this.traverseWorkspaceFolder(root, repositoryScanMaxDepth));
+			const repositoryScanMaxDepth = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<number>('repositoryScanMaxDepth', 1);
+			const repositoryScanIgnoredFolders = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<string[]>('repositoryScanIgnoredFolders', []);
+
+			const subfolders = new Set(await this.traverseWorkspaceFolder(root, repositoryScanMaxDepth, repositoryScanIgnoredFolders));
 
 			// Repository scan folders
 			const scanPaths = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<string[]>('scanRepositories') || [];
@@ -178,7 +180,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 		}));
 	}
 
-	private async traverseWorkspaceFolder(workspaceFolder: string, maxDepth: number): Promise<string[]> {
+	private async traverseWorkspaceFolder(workspaceFolder: string, maxDepth: number, repositoryScanIgnoredFolders: string[]): Promise<string[]> {
 		const result: string[] = [];
 		const foldersToTravers = [{ path: workspaceFolder, depth: 0 }];
 
@@ -188,7 +190,9 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			if (currentFolder.depth < maxDepth || maxDepth === -1) {
 				const children = await fs.promises.readdir(currentFolder.path, { withFileTypes: true });
 				const childrenFolders = children
-					.filter(dirent => dirent.isDirectory() && dirent.name !== '.git')
+					.filter(dirent =>
+						dirent.isDirectory() && dirent.name !== '.git' &&
+						!repositoryScanIgnoredFolders.find(f => pathEquals(dirent.name, f)))
 					.map(dirent => path.join(currentFolder.path, dirent.name));
 
 				result.push(...childrenFolders);
@@ -331,7 +335,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			}
 
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this.globalState, this.outputChannel);
+			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this.globalState, this.outputChannel, this.telemetryReporter);
 
 			this.open(repository);
 			repository.status(); // do not await this, we want SCM to know about the repo asap

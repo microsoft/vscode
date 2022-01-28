@@ -14,7 +14,7 @@ import { GitFileSystemProvider } from './fileSystemProvider';
 import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
 import { toDisposable, filterEvent, eventToPromise, logTimestamp } from './util';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import { GitExtension } from './api/git';
 import { GitProtocolHandler } from './protocolHandler';
 import { GitExtensionImpl } from './api/extension';
@@ -73,7 +73,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 		version: info.version,
 		env: environment,
 	});
-	const model = new Model(git, askpass, context.globalState, outputChannel);
+	const model = new Model(git, askpass, context.globalState, outputChannel, telemetryReporter);
 	disposables.push(model);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
@@ -191,6 +191,11 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 
 		console.warn(err.message);
 		outputChannel.appendLine(`${logTimestamp()} ${err.message}`);
+
+		/* __GDPR__
+			"git.missing" : {}
+		*/
+		telemetryReporter.sendTelemetryEvent('git.missing');
 
 		commands.executeCommand('setContext', 'git.missing', true);
 		warnAboutMissingGit();

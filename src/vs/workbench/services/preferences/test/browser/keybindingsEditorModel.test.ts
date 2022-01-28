@@ -63,6 +63,18 @@ suite('KeybindingsEditorModel', () => {
 		assertKeybindingItems(actuals, expected);
 	});
 
+	test('fetch returns distinct keybindings', async () => {
+		const command = 'a' + uuid.generateUuid();
+		const expected = prepareKeybindingService(
+			aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape } }),
+			aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape } }),
+		);
+
+		await testObject.resolve(new Map<string, string>());
+		const actuals = asResolvedKeybindingItems(testObject.fetch(''));
+		assertKeybindingItems(actuals, [expected[0]]);
+	});
+
 	test('fetch returns default keybindings at the top', async () => {
 		const expected = prepareKeybindingService(
 			aResolvedKeybindingItem({ command: 'a' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape } }),

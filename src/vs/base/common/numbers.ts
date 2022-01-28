@@ -24,10 +24,10 @@ export class MovingAverage {
 	private _n = 1;
 	private _val = 0;
 
-	update(value: number): this {
+	update(value: number): number {
 		this._val = this._val + (value - this._val) / this._n;
 		this._n += 1;
-		return this;
+		return this._val;
 	}
 
 	get value(): number {
@@ -49,7 +49,7 @@ export class SlidingWindowAverage {
 		this._values.fill(0, 0, size);
 	}
 
-	update(value: number) {
+	update(value: number): number {
 		const oldValue = this._values[this._index];
 		this._values[this._index] = value;
 		this._index = (this._index + 1) % this._values.length;
@@ -62,6 +62,7 @@ export class SlidingWindowAverage {
 		}
 
 		this._val = this._sum / this._n;
+		return this._val;
 	}
 
 	get value(): number {

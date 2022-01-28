@@ -17,7 +17,7 @@ const filter = require('gulp-filter');
 const _ = require('underscore');
 const { getProductionDependencies } = require('./lib/dependencies');
 const vfs = require('vinyl-fs');
-const fs = require('fs');
+const replace = require('gulp-replace');
 const packageJson = require('../package.json');
 const { compileBuildTask } = require('./gulpfile.compile');
 const extensions = require('./lib/extensions');
@@ -64,7 +64,7 @@ const vscodeWebResources = [
 const buildfile = require('../src/buildfile');
 
 const vscodeWebEntryPoints = _.flatten([
-	buildfile.entrypoint('vs/workbench/workbench.web.api'),
+	buildfile.entrypoint('vs/workbench/workbench.web.main'),
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
@@ -100,8 +100,7 @@ const createVSCodeWebFileContentMapper = (extensionsRoot) => {
 
 		// (2) Patch builtin extensions
 		if (path.endsWith('vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.js')) {
-			// Do not inline `vscode-web-playground` even if it has been packed!
-			const builtinExtensions = JSON.stringify(extensions.scanBuiltinExtensions(extensionsRoot, ['vscode-web-playground']));
+			const builtinExtensions = JSON.stringify(extensions.scanBuiltinExtensions(extensionsRoot));
 			return content.replace('/*BUILD->INSERT_BUILTIN_EXTENSIONS*/', builtinExtensions.substr(1, builtinExtensions.length - 2) /* without [ and ]*/);
 		}
 
@@ -168,6 +167,13 @@ function packageTask(sourceFolderName, destinationFolderName) {
 			gulp.src('resources/server/code-512.png', { base: 'resources/server' })
 		);
 
+		// TODO@bpasero remove me in Feb
+		const legacyMain = es.merge(
+			gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.js').pipe(rename('out/vs/workbench/workbench.web.api.js')).pipe(replace('workbench.web.main', 'workbench.web.api')),
+			gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.css').pipe(rename('out/vs/workbench/workbench.web.api.css')),
+			gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.nls.js').pipe(rename('out/vs/workbench/workbench.web.api.nls.js')).pipe(replace('workbench.web.main', 'workbench.web.api'))
+		);
+
 		let all = es.merge(
 			packageJsonStream,
 			license,
@@ -175,7 +181,8 @@ function packageTask(sourceFolderName, destinationFolderName) {
 			deps,
 			favicon,
 			manifest,
-			pwaicons
+			pwaicons,
+			legacyMain
 		);
 
 		let result = all

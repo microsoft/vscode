@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import product from 'vs/platform/product/common/product';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -286,7 +285,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['left', 'bottom', 'right'],
 				'default': 'bottom',
-				'description': localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom, right, or left of the workbench.")
+				'description': localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom, right, or left of the workbench."),
+				'deprecationMessage': localize('panelDefaultLocationDeprecated', "This setting has been deprecated with the addition of the new side panel. Instead of setting the location for the panel, you now use the \"Move Views\" commands to set the location of the individual view containers within the panels.")
 			},
 			'workbench.panel.opensMaximized': {
 				'type': 'string',
@@ -361,25 +361,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'tags': ['experimental'],
 				'default': false,
 				'description': localize('layoutControlEnabled', "Controls whether the layout control button in the custom title bar is enabled."),
-			},
-			'workbench.experimental.sidePanel.enabled': {
-				'type': 'boolean',
-				'default': false,
-				'description': localize('auxiliaryBarEnabled', "Controls whether the side panel opposite the side bar is enabled."),
-				'included': product.quality !== 'stable'
-			},
-			'workbench.experimental.panel.alignment': {
-				'type': 'string',
-				'enum': ['left', 'center', 'right', 'justify'],
-				'enumDescriptions': [
-					localize('panel.alignment.left', "The panel spans from the far left of the window to the right side of the editor area."),
-					localize('panel.alignment.center', "The panel spans beneath the editor area."),
-					localize('panel.alignment.right', "The panel spans from the left side of the editor area to the far right of the window."),
-					localize('panel.alignment.justify', "The panel spans the full width of the window."),
-				],
-				'default': 'center',
-				'description': localize('panelAlignment', "Controls the alignment of the panel (terminal, debug console, output, problems) and whether or not it spans beneath the side bar and side panel. Note that this setting only takes effect when the panel is positioned at the bottom of the screen."),
-				'included': product.quality !== 'stable'
 			},
 		}
 	});

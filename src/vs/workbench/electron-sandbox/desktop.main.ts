@@ -55,7 +55,7 @@ import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataPr
 export class DesktopMain extends Disposable {
 
 	constructor(
-		protected readonly configuration: INativeWorkbenchConfiguration
+		private readonly configuration: INativeWorkbenchConfiguration
 	) {
 		super();
 
@@ -224,7 +224,7 @@ export class DesktopMain extends Disposable {
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, this._register(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, fileService, logService)));
+		fileService.registerProvider(Schemas.userData, this._register(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, logService)));
 
 		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);

@@ -41,7 +41,6 @@
     "taskPresentationGroup",
     "terminalDataWriteEvent",
     "terminalDimensions",
-    "terminalLocation",
     "terminalNameChangeEvent",
     "testCoverage",
     "testObserver",
@@ -51,7 +50,8 @@
     "tokenInformation",
     "treeViewDragAndDrop",
     "treeViewReveal",
-    "workspaceTrust"
+    "workspaceTrust",
+    "telemetry"
   ],
   "private": true,
   "activationEvents": [],

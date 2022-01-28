@@ -833,7 +833,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	get minimumHeight(): number { return Math.min(this.centeredLayoutWidget.minimumHeight, this.layoutService.getMaximumEditorDimensions().height); }
 	get maximumHeight(): number { return this.centeredLayoutWidget.maximumHeight; }
 
-	readonly snap = true;
+	get snap(): boolean { return this.layoutService.getPanelAlignment() === 'center'; }
 
 	override get onDidChange(): Event<IViewSize | undefined> { return Event.any(this.centeredLayoutWidget.onDidChange, this.onDidSetGridWidget.event); }
 	readonly priority: LayoutPriority = LayoutPriority.High;
@@ -903,7 +903,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		let lastOpenHorizontalPosition: Position | undefined;
 		let lastOpenVerticalPosition: Position | undefined;
 		const openPartAtPosition = (position: Position) => {
-			if (!this.layoutService.isVisible(Parts.PANEL_PART) && position === this.layoutService.getPanelPosition()) {
+			if (!this.layoutService.isVisible(Parts.PANEL_PART) && position === Position.BOTTOM) {
 				this.layoutService.setPartHidden(false, Parts.PANEL_PART);
 			} else if (!this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) && position === (this.layoutService.getSideBarPosition() === Position.RIGHT ? Position.LEFT : Position.RIGHT)) {
 				this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
