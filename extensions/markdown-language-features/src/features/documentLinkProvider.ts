@@ -106,7 +106,7 @@ export function stripAngleBrackets(link: string) {
 const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*(".*?")?\)/g;
 const referenceLinkPattern = /(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]/g;
 const definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>]+>)/gm;
-const inlineCodePattern = /(?:(?<!`)(`+)(?!`)(?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?(?<!`)\1(?!`))/g;
+const inlineCodePattern = /(?:^|[^`])(`+)(?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?\1(?:$|[^`])/gm;
 
 interface CodeInDocument {
 	/**
