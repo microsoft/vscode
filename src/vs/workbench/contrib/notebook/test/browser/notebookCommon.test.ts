@@ -295,7 +295,7 @@ suite('CellUri', function () {
 
 	test('parse, generate (file-scheme)', function () {
 
-		const nb = URI.parse('foo:///bar/følder/file.nb');
+		const nb = URI.parse('file:///bar/følder/file.nb');
 		const id = 17;
 
 		const data = CellUri.generate(nb, id);
