@@ -112,11 +112,11 @@ type CodeInDocument = {
 	/**
 	 * code blocks and fences each represented by [line_start,line_end).
 	 */
-	multiline: [number, number][];
+	readonly multiline: ReadonlyArray<[number, number]>;
 	/**
 	 * inline code spans each represented by {@link vscode.Range}.
 	 */
-	inline: vscode.Range[];
+	readonly inline: readonly vscode.Range[];
 };
 
 async function findCode(document: vscode.TextDocument, engine: MarkdownEngine): Promise<CodeInDocument> {
