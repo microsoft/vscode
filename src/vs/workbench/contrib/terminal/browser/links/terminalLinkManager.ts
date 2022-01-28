@@ -30,7 +30,7 @@ import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { EventType } from 'vs/base/browser/dom';
-import { TerminalLinkProviderAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkProviderAdapter';
+import { TerminalLinkDetectorAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkDetectorAdapter';
 import { TerminalWorkLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
 import { TerminalSearchLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
 import { ITerminalLinkOpener, ITerminalSimpleLink, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
@@ -101,7 +101,7 @@ export class TerminalLinkManager extends DisposableStore {
 
 		// Word links
 		const wordDetector = this._instantiationService.createInstance(TerminalWorkLinkDetector, this._xterm);
-		const wordProvider = this._instantiationService.createInstance(TerminalLinkProviderAdapter, wordDetector);
+		const wordProvider = this._instantiationService.createInstance(TerminalLinkDetectorAdapter, wordDetector);
 		wordProvider.onDidActivateLink(e => this._openLink(e));
 		this._standardLinkProviders.set(TerminalWorkLinkDetector.id, wordProvider);
 

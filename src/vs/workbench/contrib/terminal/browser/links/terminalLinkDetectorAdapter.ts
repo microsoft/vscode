@@ -15,7 +15,7 @@ import { IBufferLine, ILink, ILinkProvider } from 'xterm';
 /**
  * Wrap a link detector object so it can be used in xterm.js
  */
-export class TerminalLinkProviderAdapter extends Disposable implements ILinkProvider {
+export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProvider {
 	private _activeLinks: TerminalLink[] | undefined;
 
 	private readonly _onDidActivateLink = this._register(new Emitter<ITerminalSimpleLink>());
