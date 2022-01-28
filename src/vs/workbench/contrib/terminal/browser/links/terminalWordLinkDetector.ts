@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalLink, ITerminalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IBufferLine, Terminal } from 'xterm';
@@ -26,17 +26,17 @@ export class TerminalWorkLinkDetector implements ITerminalLinkDetector {
 	static id = 'word';
 
 	constructor(
-		private readonly _xterm: Terminal,
+		readonly xterm: Terminal,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 	}
 
-	detect(startLine: number, endLine: number): ITerminalLink[] {
-		const links: ITerminalLink[] = [];
+	detect(startLine: number, endLine: number): ITerminalSimpleLink[] {
+		const links: ITerminalSimpleLink[] = [];
 		const wordSeparators = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).wordSeparators;
 
 		// Get the text representation of the wrapped line
-		const text = getXtermLineContent(this._xterm.buffer.active, startLine, endLine, this._xterm.cols);
+		const text = getXtermLineContent(this.xterm.buffer.active, startLine, endLine, this.xterm.cols);
 		if (text === '' || text.length > Constants.MaxLineLength) {
 			return [];
 		}
@@ -47,7 +47,7 @@ export class TerminalWorkLinkDetector implements ITerminalLinkDetector {
 		// Get the xterm.js buffer line objects
 		const lines: IBufferLine[] = [];
 		for (let i = startLine; i <= endLine; i++) {
-			const line = this._xterm.buffer.active.getLine(startLine);
+			const line = this.xterm.buffer.active.getLine(startLine);
 			if (!line) {
 				throw new Error(`Could not retrieve line ${i} from xterm.js`);
 			}
@@ -61,7 +61,7 @@ export class TerminalWorkLinkDetector implements ITerminalLinkDetector {
 			}
 			const bufferRange = convertLinkRangeToBuffer(
 				lines,
-				this._xterm.cols,
+				this.xterm.cols,
 				{
 					startColumn: word.startIndex + 1,
 					startLineNumber: 1,
@@ -70,7 +70,11 @@ export class TerminalWorkLinkDetector implements ITerminalLinkDetector {
 				},
 				startLine
 			);
-			links.push({ text: word.text, bufferRange });
+			links.push({
+				text: word.text,
+				bufferRange,
+				type: TerminalLinkType.Search
+			});
 		}
 
 		return links;

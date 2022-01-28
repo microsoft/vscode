@@ -31,6 +31,10 @@ import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { EventType } from 'vs/base/browser/dom';
+import { TerminalLinkProviderAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkProviderAdapter';
+import { TerminalWorkLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
+import { TerminalSearchLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
+import { ITerminalLinkOpener, ITerminalSimpleLink, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
@@ -50,11 +54,12 @@ export class TerminalLinkManager extends DisposableStore {
 	private _standardLinkProviders: Map<string, ILinkProvider> = new Map();
 	private _linkProvidersDisposables: IDisposable[] = [];
 	private readonly _xterm: Terminal;
+	private _openers: Map<TerminalLinkType, ITerminalLinkOpener> = new Map();
 
 	constructor(
 		private _xtermTerminal: XtermTerminal,
 		private readonly _processManager: ITerminalProcessManager,
-		private readonly _capabilities: ITerminalCapabilityStore,
+		capabilities: ITerminalCapabilityStore,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -96,10 +101,22 @@ export class TerminalLinkManager extends DisposableStore {
 		}
 
 		// Word links
-		const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xtermTerminal, this._capabilities, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
-		this._standardLinkProviders.set(TerminalWordLinkProvider.id, wordProvider);
+		// const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xtermTerminal, this._capabilities, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
+		// this._standardLinkProviders.set(TerminalWordLinkProvider.id, wordProvider);
+		const wordDetector = this._instantiationService.createInstance(TerminalWorkLinkDetector, this._xterm);
+		const wordProvider = this._instantiationService.createInstance(TerminalLinkProviderAdapter, wordDetector);
+		wordProvider.onDidActivateLink(e => this._openLink(e));
+		this._standardLinkProviders.set(TerminalWorkLinkDetector.id, wordProvider);
+
+		// Setup link openers
+		this._openers.set(TerminalLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities));
+
 
 		this._registerStandardLinkProviders();
+	}
+
+	private async _openLink(link: ITerminalSimpleLink): Promise<void> {
+		await this._openers.get(link.type)?.open(link);
 	}
 
 	async openRecentLink(type: 'file' | 'web'): Promise<ILink | undefined> {
