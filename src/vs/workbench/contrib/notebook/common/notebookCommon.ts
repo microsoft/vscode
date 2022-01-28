@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
+import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
@@ -518,7 +518,7 @@ export namespace CellUri {
 		const s = handle.toString(_radix);
 		const p = s.length < _lengths.length ? _lengths[s.length - 1] : 'z';
 
-		const fragment = `${p}${s}s${btoa(notebook.scheme)}`;
+		const fragment = `${p}${s}s${encodeBase64(VSBuffer.fromString(notebook.scheme), true, true)}`;
 		return notebook.with({ scheme, fragment });
 	}
 
@@ -533,7 +533,7 @@ export namespace CellUri {
 		}
 
 		const handle = parseInt(cell.fragment.substring(0, idx).replace(_padRegexp, ''), _radix);
-		const _scheme = atob(cell.fragment.substring(idx + 1));
+		const _scheme = decodeBase64(cell.fragment.substring(idx + 1)).toString();
 
 		if (isNaN(handle)) {
 			return undefined;
