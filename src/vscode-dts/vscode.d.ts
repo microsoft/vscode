@@ -1645,7 +1645,7 @@ declare module 'vscode' {
 	export enum QuickPickItemKind {
 		/**
 		 * When a {@link QuickPickItem} has a kind of {@link Separator}, the item is just a visual separator and does not represent a real item.
-		 * The only property that applies is {@link label}. All other properties on {@link QuickPickItem} will be ignored and have no effect.
+		 * The only property that applies is {@link QuickPickItem.label label }. All other properties on {@link QuickPickItem} will be ignored and have no effect.
 		 */
 		Separator = -1,
 		/**
@@ -5984,7 +5984,7 @@ declare module 'vscode' {
 
 	/**
 	 * Assumes a {@link TerminalLocation} of editor and allows specifying a {@link ViewColumn} and
-	 * {@link preserveFocus} property
+	 * {@link TerminalEditorLocationOptions.preserveFocus preserveFocus } property
 	 */
 	export interface TerminalEditorLocationOptions {
 		/**
@@ -7688,7 +7688,7 @@ declare module 'vscode' {
 		/**
 		 * Controls whether forms are enabled in the webview content or not.
 		 *
-		 * Defaults to true if {@link enableScripts scripts are enabled}. Otherwise defaults to false.
+		 * Defaults to true if {@link WebViewOptions.enableScripts scripts are enabled}. Otherwise defaults to false.
 		 * Explicitly setting this property to either true or false overrides the default.
 		 */
 		readonly enableForms?: boolean;
@@ -8868,7 +8868,7 @@ declare module 'vscode' {
 		/**
 		 * A short-hand for `openTextDocument(uri).then(document => showTextDocument(document, options))`.
 		 *
-		 * @see {@link openTextDocument}
+		 * @see {@link workspace.openTextDocument}
 		 *
 		 * @param uri A resource identifier.
 		 * @param options {@link TextDocumentShowOptions Editor options} to configure the behavior of showing the {@link TextEditor editor}.
@@ -9304,7 +9304,7 @@ declare module 'vscode' {
 		 * Registers a webview panel serializer.
 		 *
 		 * Extensions that support reviving should have an `"onWebviewPanel:viewType"` activation event and
-		 * make sure that {@link registerWebviewPanelSerializer} is called during activation.
+		 * make sure that `registerWebviewPanelSerializer` is called during activation.
 		 *
 		 * Only a single serializer may be registered at a time for a given `viewType`.
 		 *
@@ -11177,7 +11177,7 @@ declare module 'vscode' {
 		/**
 		 * A short-hand for `openTextDocument(Uri.file(fileName))`.
 		 *
-		 * @see {@link openTextDocument}
+		 * @see {@link workspace.openTextDocument}
 		 * @param fileName A name of a file on disk.
 		 * @return A promise that resolves to a {@link TextDocument document}.
 		 */
@@ -11281,7 +11281,7 @@ declare module 'vscode' {
 		 * Open an untitled notebook. The editor will prompt the user for a file
 		 * path when the document is to be saved.
 		 *
-		 * @see {@link openNotebookDocument}
+		 * @see {@link workspace.openNotebookDocument}
 		 * @param notebookType The notebook type that should be used.
 		 * @param content The initial contents of the notebook.
 		 * @returns A promise that resolves to a {@link NotebookDocument notebook}.
@@ -14140,7 +14140,7 @@ declare module 'vscode' {
 		 *
 		 * Defaults to false.
 		 *
-		 * Note: you cannot use this option with {@link silent}.
+		 * Note: you cannot use this option with {@link AuthenticationGetSessionOptions.silent silent}.
 		 */
 		createIfNone?: boolean;
 
@@ -14162,7 +14162,7 @@ declare module 'vscode' {
 		 *
 		 * Defaults to false.
 		 *
-		 * Note: you cannot use this option with any other options that prompt the user like {@link createIfNone}.
+		 * Note: you cannot use this option with any other options that prompt the user like {@link AuthenticationGetSessionOptions.createIfNone createIfNone}.
 		 */
 		silent?: boolean;
 	}
@@ -14510,7 +14510,7 @@ declare module 'vscode' {
 		 * the function returns or the returned thenable resolves.
 		 *
 		 * @param item An unresolved test item for which children are being
-		 * requested, or `undefined` to resolve the controller's initial {@link items}.
+		 * requested, or `undefined` to resolve the controller's initial {@link TestController.items items}.
 		 */
 		resolveHandler?: (item: TestItem | undefined) => Thenable<void> | void;
 
@@ -14560,7 +14560,7 @@ declare module 'vscode' {
 	 * A TestRunRequest is a precursor to a {@link TestRun}, which in turn is
 	 * created by passing a request to {@link tests.runTests}. The TestRunRequest
 	 * contains information about which tests should be run, which should not be
-	 * run, and how they are run (via the {@link profile}).
+	 * run, and how they are run (via the {@link TestRunRequest.profile profile}).
 	 *
 	 * In general, TestRunRequests are created by the editor and pass to
 	 * {@link TestRunProfile.runHandler}, however you can also create test
@@ -14762,7 +14762,7 @@ declare module 'vscode' {
 		/**
 		 * The parent of this item. It's set automatically, and is undefined
 		 * top-level items in the {@link TestController.items} and for items that
-		 * aren't yet included in another item's {@link children}.
+		 * aren't yet included in another item's {@link TestItem.children children}.
 		 */
 		readonly parent: TestItem | undefined;
 
@@ -14802,7 +14802,7 @@ declare module 'vscode' {
 		description?: string;
 
 		/**
-		 * Location of the test item in its {@link uri}.
+		 * Location of the test item in its {@link TestItem.uri uri}.
 		 *
 		 * This is only meaningful if the `uri` points to a file.
 		 */
@@ -14828,12 +14828,12 @@ declare module 'vscode' {
 		message: string | MarkdownString;
 
 		/**
-		 * Expected test output. If given with {@link actualOutput}, a diff view will be shown.
+		 * Expected test output. If given with {@link TestMessage.actualOutput actualOutput }, a diff view will be shown.
 		 */
 		expectedOutput?: string;
 
 		/**
-		 * Actual test output. If given with {@link expectedOutput}, a diff view will be shown.
+		 * Actual test output. If given with {@link TestMessage.expectedOutput expectedOutput }, a diff view will be shown.
 		 */
 		actualOutput?: string;
 
