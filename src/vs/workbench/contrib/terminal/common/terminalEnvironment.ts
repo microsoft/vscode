@@ -414,12 +414,12 @@ shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', ' -
 shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', ' -command', '. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh"; zsh -i']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-zsh.sh"; zsh -il']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/ShellIntegration-bash.sh']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-zsh.sh"; zsh -i']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-zsh.sh"; zsh -il']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh']);
 const loginArgs = ['-login', '-l'];
 const pwshImpliedArgs = ['-nol', '-nologo'];
-export function injectShellIntegrationArgs(logService: ILogService, enableShellIntegration: boolean, shellLaunchConfig: IShellLaunchConfig, isBackendWindows?: boolean): { args: string | string[] | undefined, enableShellIntegration: boolean } {
+export function injectShellIntegrationArgs(logService: ILogService, env: IProcessEnvironment, enableShellIntegration: boolean, shellLaunchConfig: IShellLaunchConfig, os?: OperatingSystem): { args: string | string[] | undefined, enableShellIntegration: boolean } {
 	// Shell integration arg injection is disabled when:
 	// - The global setting is disabled
 	// - There is no executable (not sure what script to run)
@@ -429,9 +429,10 @@ export function injectShellIntegrationArgs(logService: ILogService, enableShellI
 	}
 
 	const originalArgs = shellLaunchConfig.args;
-	const shell = path.basename(shellLaunchConfig.executable);
+	const shell = path.basename(shellLaunchConfig.executable).toLowerCase();
 	let newArgs: string | string[] | undefined;
-	if (isBackendWindows) {
+
+	if (os === OperatingSystem.Windows) {
 		if (shell === 'pwsh.exe') {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwsh);
@@ -444,7 +445,10 @@ export function injectShellIntegrationArgs(logService: ILogService, enableShellI
 	} else {
 		switch (shell) {
 			case 'bash':
-				if (!originalArgs || originalArgs.length === 0 || areZshBashLoginArgs(originalArgs)) {
+				if (!originalArgs || originalArgs.length === 0) {
+					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
+				} else if (areZshBashLoginArgs(originalArgs)) {
+					env['VSCODE_SHELL_LOGIN'] = '1';
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 				}
 				break;

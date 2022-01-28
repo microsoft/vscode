@@ -4,11 +4,11 @@ if [ -z "$VSCODE_SHELL_LOGIN" ]; then
 else
     # Imitate -l because --init-file doesn't support it:
     # run the first of these files that exists
-    if [ -f "~/.bash_profile" ]; then
+    if [ -f ~/.bash_profile ]; then
         . ~/.bash_profile
-    elif [ -f "~/.bash_login" ]; then
+    elif [ -f ~/.bash_login ]; then
         . ~/.bash_login
-    elif [ -f "~/.profile" ]; then
+    elif [ -f ~/.profile ]; then
         . ~/.profile
     fi
     VSCODE_SHELL_LOGIN=""
@@ -77,4 +77,4 @@ else
 fi
 
 trap 'preexec' DEBUG
-echo -e "\033[01;32mShell integration activated!\033[0m"
+echo -e "\033[1;32mShell integration activated!\033[0m"

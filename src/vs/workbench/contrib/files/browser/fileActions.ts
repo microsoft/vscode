@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { VIEWLET_ID, IFilesConfiguration, VIEW_ID, UndoEnablement } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, IFilesConfiguration, VIEW_ID, UndoConfirmLevel } from 'vs/workbench/contrib/files/common/files';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
@@ -870,6 +870,7 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 	const notificationService = accessor.get(INotificationService);
 	const remoteAgentService = accessor.get(IRemoteAgentService);
 	const pathService = accessor.get(IPathService);
+	const configurationService = accessor.get(IConfigurationService);
 
 	const stats = explorerService.getContext(false);
 	const stat = stats.length > 0 ? stats[0] : undefined;
@@ -888,6 +889,7 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 				if (stat.resource.toString() !== targetResource.toString()) {
 					try {
 						await explorerService.applyBulkEdit([new ResourceFileEdit(stat.resource, targetResource)], {
+							confirmBeforeUndo: configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
 							undoLabel: nls.localize('renameBulkEdit', "Rename {0} to {1}", stat.name, value),
 							progressLabel: nls.localize('renamingBulkEdit', "Renaming {0} to {1}", stat.name, value),
 						});
@@ -1029,6 +1031,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			if (pasteShouldMove) {
 				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target));
 				const options = {
+					confirmBeforeUndo: configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
 					progressLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'movingBulkEdit', comment: ['Placeholder will be replaced by the number of files being moved'] }, "Moving {0} files", sourceTargetPairs.length)
 						: nls.localize({ key: 'movingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file moved.'] }, "Moving {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
 					undoLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'moveBulkEdit', comment: ['Placeholder will be replaced by the number of files being moved'] }, "Move {0} files", sourceTargetPairs.length)
@@ -1037,8 +1040,9 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 				await explorerService.applyBulkEdit(resourceFileEdits, options);
 			} else {
 				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target, { copy: true }));
+				const undoLevel = configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo;
 				const options = {
-					confirmBeforeUndo: configurationService.getValue<IFilesConfiguration>().explorer.enableUndo === UndoEnablement.Warn,
+					confirmBeforeUndo: undoLevel === UndoConfirmLevel.Default || undoLevel === UndoConfirmLevel.Verbose,
 					progressLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'copyingBulkEdit', comment: ['Placeholder will be replaced by the number of files being copied'] }, "Copying {0} files", sourceTargetPairs.length)
 						: nls.localize({ key: 'copyingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file copied.'] }, "Copying {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
 					undoLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'copyBulkEdit', comment: ['Placeholder will be replaced by the number of files being copied'] }, "Paste {0} files", sourceTargetPairs.length)

@@ -57,17 +57,7 @@ startServer();
 
 function startServer() {
 	console.log(`Starting server: ${entryPoint} ${serverArgs.join(' ')}`);
-	const proc = cp.spawn(process.execPath, [entryPoint, ...serverArgs], { env });
-
-	proc.stdout.on('data', data => {
-		// Log everything
-		console.log(data.toString());
-	});
-
-	// Log errors
-	proc.stderr.on('data', data => {
-		console.error(data.toString());
-	});
+	const proc = cp.spawn(process.execPath, [entryPoint, ...serverArgs], { env, stdio: 'inherit' });
 
 	proc.on('exit', (code) => process.exit(code));
 

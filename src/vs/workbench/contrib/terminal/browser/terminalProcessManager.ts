@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent, ITerminalProfileResolverService, ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent, ITerminalProfileResolverService, ITerminalBackend, ShellIntegrationExitCode } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -63,6 +63,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	isDisconnected: boolean = false;
 	environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	backend: ITerminalBackend | undefined;
+	shellIntegrationAttempted: boolean = false;
 	readonly capabilities = new TerminalCapabilityStore();
 
 	private _isDisposed: boolean = false;
@@ -225,7 +226,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this.os = remoteEnv.os;
 
 				// this is a copy of what the merged environment collection is on the remote side
-				await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
+				const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
 				const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.disablePersistence;
 				if (shellLaunchConfig.attachPersistentProcess) {
@@ -242,13 +243,29 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						os: this.os
 					});
 					try {
+						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, this.os);
+						this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
+						if (this.shellIntegrationAttempted) {
+							shellLaunchConfig.args = shellIntegration.args;
+							// resolve the injected arguments
+							await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
+								remoteAuthority: this.remoteAuthority,
+								os: this.os
+							});
+						}
+						//TODO: fix
+						if (env?.['VSCODE_SHELL_LOGIN']) {
+							shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
+							shellLaunchConfig.env['VSCODE_SHELL_LOGIN'] = '1';
+						}
+
 						newProcess = await backend.createProcess(
 							shellLaunchConfig,
 							'', // TODO: Fix cwd
 							cols,
 							rows,
 							this._configHelper.config.unicodeVersion,
-							{}, // TODO: Fix env
+							env, // TODO:
 							true, // TODO: Fix enable
 							shouldPersist
 						);
@@ -416,6 +433,16 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
+		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, OS);
+		if (shellIntegration.enableShellIntegration) {
+			shellLaunchConfig.args = shellIntegration.args;
+			// resolve the injected arguments
+			await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
+				remoteAuthority: undefined,
+				os: OS
+			});
+		}
+		this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
 		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, useConpty, shouldPersist);
@@ -466,6 +493,18 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				}
 			}
 		}));
+	}
+
+	async getBackendOS(): Promise<OperatingSystem> {
+		let os = OS;
+		if (!!this.remoteAuthority) {
+			const remoteEnv = await this._remoteAgentService.getEnvironment();
+			if (!remoteEnv) {
+				throw new Error(`Failed to get remote environment for remote authority "${this.remoteAuthority}"`);
+			}
+			os = remoteEnv.os;
+		}
+		return os;
 	}
 
 	setDimensions(cols: number, rows: number): Promise<void>;
@@ -570,7 +609,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._setProcessState(ProcessState.KilledByProcess);
 		}
 
-		this._onProcessExit.fire(exitCode);
+		this._onProcessExit.fire(this.shellIntegrationAttempted ? ShellIntegrationExitCode : exitCode);
 	}
 
 	private _setProcessState(state: ProcessState) {

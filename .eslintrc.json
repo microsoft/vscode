@@ -92,6 +92,83 @@
 		],
 		"code-import-patterns": [
 			"warn",
+			{
+				// imports that are allowed in all files of layers:
+				// - browser
+				// - electron-sandbox
+				// - electron-browser
+				"when": "hasBrowser",
+				"allow": [
+					"vs/css!./**/*"
+				]
+			},
+			{
+				// imports that are allowed in all files of layers:
+				// - node
+				// - electron-browser
+				// - electron-main
+				"when": "hasNode",
+				"allow": [
+					"@microsoft/applicationinsights-web",
+					"@parcel/watcher",
+					"@vscode/sqlite3",
+					"@vscode/vscode-languagedetection",
+					"@vscode/ripgrep",
+					"@vscode/iconv-lite-umd",
+					"applicationinsights",
+					"assert",
+					"child_process",
+					"console",
+					"cookie",
+					"crypto",
+					"electron",
+					"events",
+					"fs",
+					"graceful-fs",
+					"http",
+					"https",
+					"minimist",
+					"native-keymap",
+					"native-watchdog",
+					"net",
+					"node-pty",
+					"os",
+					"path",
+					"perf_hooks",
+					"spdlog",
+					"stream",
+					"string_decoder",
+					"tas-client-umd",
+					"tls",
+					"url",
+					"util",
+					"v8-inspect-profiler",
+					"vscode-proxy-agent",
+					"vscode-regexpp",
+					"vscode-textmate",
+					"windows-process-tree",
+					"worker_threads",
+					"xterm",
+					"xterm-addon-search",
+					"xterm-addon-serialize",
+					"xterm-addon-unicode11",
+					"xterm-addon-webgl",
+					"xterm-headless",
+					"yauzl",
+					"yazl",
+					"zlib"
+				]
+			},
+			{
+				// imports that are allowed in all /test/ files
+				"when": "test",
+				"allow": [
+					"assert",
+					"sinon",
+					"sinon-test"
+				]
+			},
+
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			// !!! Do not relax these rules !!!
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -218,8 +295,7 @@
 					"vs/workbench/~",
 					"vs/workbench/services/*/~",
 					"assert",
-					{ "when": "test", "pattern": "vs/workbench/contrib/*/~" }, // TODO@layers
-					{ "when": "test", "pattern": "vs/workbench/workbench.desktop.main" } // TODO@layers
+					{ "when": "test", "pattern": "vs/workbench/contrib/*/~" } // TODO@layers
 				]
 			},
 			{

@@ -195,6 +195,7 @@
 	"config.showUnpublishedCommitsButton.never": "Never shows the action button.",
 	"config.statusLimit": "Controls how to limit the number of changes that can be parsed from Git status command. Can be set to 0 for no limit.",
 	"config.experimental.installGuide": "Experimental improvements for the git setup flow.",
+	"config.repositoryScanIgnoredFolders": "List of folders that are ignored while scanning for Git repositories when `#git.autoRepositoryDetection#` is set to `true` or `subFolders`.",
 	"config.repositoryScanMaxDepth": "Controls the depth used when scanning workspace folders for Git repositories when `#git.autoRepositoryDetection#` is set to `true` or `subFolders`. Can be set to `-1` for no limit.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",

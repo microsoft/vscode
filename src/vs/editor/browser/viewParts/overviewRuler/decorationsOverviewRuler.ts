@@ -318,8 +318,10 @@ export class DecorationsOverviewRuler extends ViewPart {
 		if (this._settings.overviewRulerLanes === 0) {
 			// overview ruler is off
 			this._domNode.setBackgroundColor(this._settings.backgroundColor ? this._settings.backgroundColor : '');
+			this._domNode.setDisplay('none');
 			return;
 		}
+		this._domNode.setDisplay('block');
 		const canvasWidth = this._settings.canvasWidth;
 		const canvasHeight = this._settings.canvasHeight;
 		const lineHeight = this._settings.lineHeight;

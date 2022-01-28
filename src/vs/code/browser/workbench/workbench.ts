@@ -15,6 +15,8 @@ import { request } from 'vs/base/parts/request/browser/request';
 import product from 'vs/platform/product/common/product';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { create, ICredentialsProvider, IURLCallbackProvider, IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.main';
+import { posix } from 'vs/base/common/path';
+import { ltrim } from 'vs/base/common/strings';
 
 interface ICredential {
 	service: string;
@@ -280,7 +282,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 
 class WorkspaceProvider implements IWorkspaceProvider {
 
-	private static readonly LAST_WORKSPACE_STORAGE_KEY = 'workspace.lastOpened';
+	private static readonly LAST_WORKSPACE_STORAGE_KEY = 'workspaces.lastOpened';
 
 	private static QUERY_PARAM_EMPTY_WINDOW = 'ew';
 	private static QUERY_PARAM_FOLDER = 'folder';
@@ -299,8 +301,11 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 				// Folder
 				case WorkspaceProvider.QUERY_PARAM_FOLDER:
-					if (config.remoteAuthority) {
-						workspace = { folderUri: URI.from({ scheme: 'vscode-remote', path: value }) }; // support the nicer URI syntax for folders when connected to a remote
+					if (config.remoteAuthority && value.startsWith(posix.sep)) {
+						// when connected to a remote and having a value
+						// that is a path (begins with a `/`), assume this
+						// is a vscode-remote resource as simplified URL.
+						workspace = { folderUri: URI.from({ scheme: Schemas.vscodeRemote, path: value, authority: config.remoteAuthority }) };
 					} else {
 						workspace = { folderUri: URI.parse(value) };
 					}
@@ -309,10 +314,13 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 				// Workspace
 				case WorkspaceProvider.QUERY_PARAM_WORKSPACE:
-					if (config.remoteAuthority) {
-						workspace = { workspaceUri: URI.from({ scheme: 'vscode-remote', path: value }) }; // support the nicer URI syntax for workspaces when connected to a remote
+					if (config.remoteAuthority && value.startsWith(posix.sep)) {
+						// when connected to a remote and having a value
+						// that is a path (begins with a `/`), assume this
+						// is a vscode-remote resource as simplified URL.
+						workspace = { workspaceUri: URI.from({ scheme: Schemas.vscodeRemote, path: value, authority: config.remoteAuthority }) };
 					} else {
-						workspace = { folderUri: URI.parse(value) };
+						workspace = { workspaceUri: URI.parse(value) };
 					}
 					foundWorkspace = true;
 					break;
@@ -412,8 +420,13 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		// Folder
 		else if (isFolderToOpen(workspace)) {
 			let queryParamFolder: string;
-			if (this.config.remoteAuthority) {
-				queryParamFolder = workspace.folderUri.path; // prefer nicer, shorter URLs when connected to a remote to make opening local folders easier
+			if (this.config.remoteAuthority && workspace.folderUri.scheme === Schemas.vscodeRemote) {
+				// when connected to a remote and having a folder
+				// for that remote, only use the path as query
+				// value to form shorter, nicer URLs.
+				// ensure paths are absolute (begin with `/`)
+				// clipboard: ltrim(workspace.folderUri.path, posix.sep)
+				queryParamFolder = `${posix.sep}${ltrim(workspace.folderUri.path, posix.sep)}`;
 			} else {
 				queryParamFolder = encodeURIComponent(workspace.folderUri.toString(true));
 			}
@@ -424,8 +437,12 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		// Workspace
 		else if (isWorkspaceToOpen(workspace)) {
 			let queryParamWorkspace: string;
-			if (this.config.remoteAuthority) {
-				queryParamWorkspace = workspace.workspaceUri.path; // prefer nicer, shorter URLs when connected to a remote to make opening local workspaces easier
+			if (this.config.remoteAuthority && workspace.workspaceUri.scheme === Schemas.vscodeRemote) {
+				// when connected to a remote and having a workspace
+				// for that remote, only use the path as query
+				// value to form shorter, nicer URLs.
+				// ensure paths are absolute (begin with `/`)
+				queryParamWorkspace = `${posix.sep}${ltrim(workspace.workspaceUri.path, posix.sep)}`;
 			} else {
 				queryParamWorkspace = encodeURIComponent(workspace.workspaceUri.toString(true));
 			}

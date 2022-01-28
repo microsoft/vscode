@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AuthenticationSession } from 'vscode';
-
-/**
- * Represents a session of a currently logged in Microsoft user.
- */
-export interface MicrosoftAuthenticationSession extends AuthenticationSession {
+declare module 'vscode' {
 	/**
-	 * The id token.
+	 * Represents a session of a currently logged in user.
 	 */
-	idToken?: string;
+	export interface AuthenticationSession {
+		/**
+		 * An optional ID token that may be included in the session.
+		 */
+		readonly idToken?: string;
+	}
 }

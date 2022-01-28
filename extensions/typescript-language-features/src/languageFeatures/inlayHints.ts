@@ -92,7 +92,7 @@ function fromProtocolInlayHintKind(kind: Proto.InlayHintKind): vscode.InlayHintK
 	}
 }
 
-export function requireInlayHintsConfiguration(
+function requireInlayHintsConfiguration(
 	language: string
 ) {
 	return new Condition(

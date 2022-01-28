@@ -11,11 +11,12 @@ import { TMGrammarFactory, ICreateGrammarResult } from 'vs/workbench/services/te
 import { IModelChangedEvent, MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { TextMateWorkerHost } from 'vs/workbench/services/textMate/browser/nativeTextMateService';
 import { TokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
-import type { IGrammar, StackElement, IRawTheme, IOnigLib } from 'vscode-textmate';
+import type { IRawTheme, IOnigLib } from 'vscode-textmate';
 import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { FileAccess } from 'vs/base/common/network';
+import { TMTokenization } from 'vs/workbench/services/textMate/common/TMTokenization';
 
 export interface IValidGrammarDefinitionDTO {
 	location: UriComponents;
@@ -41,21 +42,19 @@ export interface IRawModelData {
 
 class TextMateWorkerModel extends MirrorTextModel {
 
-	private readonly _tokenizationStateStore: TokenizationStateStore;
+	private _tokenizationStateStore: TokenizationStateStore | null;
 	private readonly _worker: TextMateWorker;
 	private _languageId: string;
 	private _encodedLanguageId: LanguageId;
-	private _grammar: IGrammar | null;
 	private _isDisposed: boolean;
 
 	constructor(uri: URI, lines: string[], eol: string, versionId: number, worker: TextMateWorker, languageId: string, encodedLanguageId: LanguageId) {
 		super(uri, lines, eol, versionId);
-		this._tokenizationStateStore = new TokenizationStateStore();
+		this._tokenizationStateStore = null;
 		this._worker = worker;
 		this._languageId = languageId;
 		this._encodedLanguageId = encodedLanguageId;
 		this._isDisposed = false;
-		this._grammar = null;
 		this._resetTokenization();
 	}
 
@@ -72,17 +71,18 @@ class TextMateWorkerModel extends MirrorTextModel {
 
 	override onEvents(e: IModelChangedEvent): void {
 		super.onEvents(e);
-		for (let i = 0; i < e.changes.length; i++) {
-			const change = e.changes[i];
-			const [eolCount] = countEOL(change.text);
-			this._tokenizationStateStore.applyEdits(change.range, eolCount);
+		if (this._tokenizationStateStore) {
+			for (let i = 0; i < e.changes.length; i++) {
+				const change = e.changes[i];
+				const [eolCount] = countEOL(change.text);
+				this._tokenizationStateStore.applyEdits(change.range, eolCount);
+			}
 		}
 		this._ensureTokens();
 	}
 
 	private _resetTokenization(): void {
-		this._grammar = null;
-		this._tokenizationStateStore.flush(null);
+		this._tokenizationStateStore = null;
 
 		const languageId = this._languageId;
 		const encodedLanguageId = this._encodedLanguageId;
@@ -91,14 +91,18 @@ class TextMateWorkerModel extends MirrorTextModel {
 				return;
 			}
 
-			this._grammar = r.grammar;
-			this._tokenizationStateStore.flush(r.initialState);
+			if (r.grammar) {
+				const tokenizationSupport = new TMTokenization(r.grammar, r.initialState, false);
+				this._tokenizationStateStore = new TokenizationStateStore(tokenizationSupport, tokenizationSupport.getInitialState());
+			} else {
+				this._tokenizationStateStore = null;
+			}
 			this._ensureTokens();
 		});
 	}
 
 	private _ensureTokens(): void {
-		if (!this._grammar) {
+		if (!this._tokenizationStateStore) {
 			return;
 		}
 		const builder = new ContiguousMultilineTokensBuilder();
@@ -109,10 +113,10 @@ class TextMateWorkerModel extends MirrorTextModel {
 			const text = this._lines[lineIndex];
 			const lineStartState = this._tokenizationStateStore.getBeginState(lineIndex);
 
-			const r = this._grammar.tokenizeLine2(text, <StackElement>lineStartState!);
+			const r = this._tokenizationStateStore.tokenizationSupport.tokenizeEncoded(text, true, lineStartState!);
 			LineTokens.convertToEndOffset(r.tokens, text.length);
 			builder.add(lineIndex + 1, r.tokens);
-			this._tokenizationStateStore.setEndState(lineCount, lineIndex, r.ruleStack);
+			this._tokenizationStateStore.setEndState(lineCount, lineIndex, r.endState);
 			lineIndex = this._tokenizationStateStore.invalidLineStartIndex - 1; // -1 because the outer loop increments it
 		}
 

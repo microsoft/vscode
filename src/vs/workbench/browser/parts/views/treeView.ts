@@ -57,7 +57,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Command } from 'vs/editor/common/languages';
 import { isCancellationError } from 'vs/base/common/errors';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { CodeDataTransfers, fillEditorsDragData } from 'vs/workbench/browser/dnd';
+import { CodeDataTransfers, DraggedTreeItemsIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { ITreeViewsDragAndDropService } from 'vs/workbench/services/views/common/treeViewsDragAndDropService';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -1241,6 +1241,8 @@ const TREE_DRAG_UUID_MIME = 'tree-dnd';
 
 export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	private readonly treeMimeType: string;
+	private readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedTreeItemsIdentifier>();
+
 	constructor(
 		private readonly treeId: string,
 		@ILabelService private readonly labelService: ILabelService,
@@ -1262,6 +1264,10 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		const uuid = generateUuid();
 		this.treeViewsDragAndDropService.addDragOperationTransfer(uuid, this.dndController.handleDrag(itemHandles, uuid));
 		originalEvent.dataTransfer.setData(TREE_DRAG_UUID_MIME, uuid);
+		this.treeItemsTransfer.setData([new DraggedTreeItemsIdentifier(uuid)], DraggedTreeItemsIdentifier.prototype);
+		this.dndController.supportedMimeTypes.forEach(supportedType => {
+			originalEvent.dataTransfer?.setData(supportedType, '');
+		});
 	}
 
 	private addResourceInfoToTransfer(originalEvent: DragEvent, resources: URI[]) {

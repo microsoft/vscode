@@ -308,7 +308,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 			const isNewlyInstalled = !this.metadata.get(categoryID);
 			if (isNewlyInstalled) {
-				this.metadata.set(categoryID, { firstSeen: +new Date(), stepIDs: walkthrough.steps.map(s => s.id), manaullyOpened: false });
+				this.metadata.set(categoryID, { firstSeen: +new Date(), stepIDs: walkthrough.steps?.map(s => s.id) ?? [], manaullyOpened: false });
 			}
 
 			const override = await Promise.race([
@@ -327,8 +327,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				}
 			}
 
-
-			const steps = walkthrough.steps.map((step, index) => {
+			const steps = (walkthrough.steps ?? []).map((step, index) => {
 				const description = parseDescription(step.description || '');
 				const fullyQualifiedID = extension.identifier.value + '#' + walkthrough.id + '#' + step.id;
 

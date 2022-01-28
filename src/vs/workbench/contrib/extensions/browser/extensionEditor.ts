@@ -66,7 +66,7 @@ import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { errorIcon, infoIcon, starEmptyIcon, verifiedPublisherIcon as verifiedPublisherThemeIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { errorIcon, infoIcon, preReleaseIcon, starEmptyIcon, verifiedPublisherIcon as verifiedPublisherThemeIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
@@ -195,7 +195,9 @@ class PreReleaseTextWidget extends ExtensionWithDifferentGalleryVersionWidget {
 	constructor(container: HTMLElement) {
 		super();
 		this.element = append(container, $('span.pre-release'));
-		this.element.textContent = localize('preRelease', "Pre-Release");
+		append(this.element, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
+		const textElement = append(this.element, $('span.pre-release-text'));
+		textElement.textContent = localize('preRelease', "Pre-Release");
 		this.render();
 	}
 	render(): void {
@@ -286,10 +288,11 @@ export class ExtensionEditor extends EditorPane {
 		const name = append(title, $('span.name.clickable', { title: localize('name', "Extension name"), role: 'heading', tabIndex: 0 }));
 		const versionWidget = new VersionWidget(title);
 
+		const preReleaseWidget = new PreReleaseTextWidget(title);
+
 		const preview = append(title, $('span.preview', { title: localize('preview', "Preview") }));
 		preview.textContent = localize('preview', "Preview");
 
-		const preReleaseWidget = new PreReleaseTextWidget(title);
 		const builtin = append(title, $('span.builtin'));
 		builtin.textContent = localize('builtin', "Built-in");
 

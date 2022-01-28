@@ -32,6 +32,8 @@ export function getSimpleEditorOptions(): IEditorOptions {
 		renderLineHighlight: 'none',
 		fixedOverflowWidgets: true,
 		acceptSuggestionOnEnter: 'smart',
+		dragAndDrop: false,
+		revealHorizontalRightPadding: 5,
 		minimap: {
 			enabled: false
 		},

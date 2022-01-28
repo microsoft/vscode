@@ -417,10 +417,11 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		this._hover.contentsDomNode.textContent = '';
 		this._hover.contentsDomNode.appendChild(node);
+		this._hover.contentsDomNode.style.paddingBottom = '';
 		this._updateFont();
 
 		this._editor.layoutContentWidget(this);
-		this._hover.onContentsChanged();
+		this.onContentsChanged();
 
 		// Simply force a synchronous render on the editor
 		// such that the widget does not really render with left = '0px'
@@ -429,7 +430,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
 		this._editor.layoutContentWidget(this);
-		this._hover.onContentsChanged();
+		this.onContentsChanged();
 
 		if (visibleData.stoleFocus) {
 			this._hover.containerDomNode.focus();
@@ -452,6 +453,18 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public onContentsChanged(): void {
 		this._hover.onContentsChanged();
+
+		const scrollDimensions = this._hover.scrollbar.getScrollDimensions();
+		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
+		if (hasHorizontalScrollbar) {
+			// There is just a horizontal scrollbar
+			const extraBottomPadding = `${this._hover.scrollbar.options.horizontalScrollbarSize}px`;
+			if (this._hover.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
+				this._hover.contentsDomNode.style.paddingBottom = extraBottomPadding;
+				this._editor.layoutContentWidget(this);
+				this._hover.onContentsChanged();
+			}
+		}
 	}
 
 	public clear(): void {

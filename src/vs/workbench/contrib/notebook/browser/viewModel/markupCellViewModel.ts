@@ -137,8 +137,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				+ layoutConfiguration.markdownCellTopMargin
 				+ layoutConfiguration.markdownCellBottomMargin
 				+ bottomToolbarGap
-				+ this.viewContext.notebookOptions.computeStatusBarHeight()
-				+ foldHintHeight;
+				+ this.viewContext.notebookOptions.computeStatusBarHeight();
 		} else {
 			// @rebornix
 			// On file open, the previewHeight + bottomToolbarGap for a cell out of viewport can be 0
@@ -149,8 +148,8 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 	}
 
 	private _computeFoldHintHeight(): number {
-		return this.foldingState === CellFoldingState.Collapsed ?
-			this.viewContext.notebookOptions.getLayoutConfiguration().markdownFoldHintHeight : 0;
+		return (this.getEditState() === CellEditState.Editing || this.foldingState !== CellFoldingState.Collapsed) ?
+			0 : this.viewContext.notebookOptions.getLayoutConfiguration().markdownFoldHintHeight;
 	}
 
 	updateOptions(e: NotebookOptionsChangeEvent) {

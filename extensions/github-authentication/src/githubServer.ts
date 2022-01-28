@@ -220,18 +220,19 @@ export class GitHubServer implements IGitHubServer {
 
 		const json = await result.json() as IGitHubDeviceCodeResponse;
 
-		await vscode.env.clipboard.writeText(json.user_code);
 
 		const modalResult = await vscode.window.showInformationMessage(
 			localize('code.title', "Your Code: {0}", json.user_code),
 			{
 				modal: true,
-				detail: localize('code.detail', "The above one-time code has been copied to your clipboard. To finish authenticating, paste it on GitHub.")
-			}, 'Continue to GitHub');
+				detail: localize('code.detail', "To finish authenticating, navigate to GitHub and paste in the above one-time code.")
+			}, 'Copy & Continue to GitHub');
 
-		if (modalResult !== 'Continue to GitHub') {
+		if (modalResult !== 'Copy & Continue to GitHub') {
 			throw new Error('Cancelled');
 		}
+
+		await vscode.env.clipboard.writeText(json.user_code);
 
 		const uriToOpen = await vscode.env.asExternalUri(vscode.Uri.parse(json.verification_uri));
 		await vscode.env.openExternal(uriToOpen);
