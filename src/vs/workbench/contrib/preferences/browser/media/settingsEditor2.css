@@ -215,10 +215,6 @@
 	display: none;
 }
 
-.settings-editor > .settings-body .settings-toc-container .monaco-scrollable-element > .shadow {
-	display: none;
-}
-
 .settings-editor > .settings-body .settings-toc-container .monaco-list-row .monaco-tl-contents {
 	display: flex;
 }
@@ -415,7 +411,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-text .setting-item-validation-message {
-	width: 500px;
+	width: 420px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-number .setting-item-validation-message {
@@ -497,7 +493,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-text .setting-item-control {
-	width: 500px;
+	width: 420px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control,

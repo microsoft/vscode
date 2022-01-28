@@ -29,7 +29,7 @@ import { ConfigurationTarget, IConfigurationOverrides } from 'vs/platform/config
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -92,10 +92,11 @@ export class SettingsEditor2 extends EditorPane {
 	private static SETTING_UPDATE_FAST_DEBOUNCE: number = 200;
 	private static SETTING_UPDATE_SLOW_DEBOUNCE: number = 1000;
 	private static CONFIG_SCHEMA_UPDATE_DELAYER = 500;
-	private static TOC_MIN_WIDTH: number = 200;
-	private static EDITOR_MIN_WIDTH: number = 600;
-	private static NARROW_WIDTH: number = 600;
-	private static MEDIUM_WIDTH: number = 1000;
+	private static TOC_MIN_WIDTH: number = 100;
+	private static TOC_RESET_WIDTH: number = 200;
+	private static EDITOR_MIN_WIDTH: number = 500;
+	private static NARROW_TOTAL_WIDTH: number = SettingsEditor2.TOC_MIN_WIDTH + SettingsEditor2.EDITOR_MIN_WIDTH;
+	private static MEDIUM_TOTAL_WIDTH: number = 1000;
 
 	private static readonly SUGGESTIONS: string[] = [
 		`@${MODIFIED_SETTING_TAG}`,
@@ -205,7 +206,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IPreferencesSearchService private readonly preferencesSearchService: IPreferencesSearchService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
@@ -406,8 +407,8 @@ export class SettingsEditor2 extends EditorPane {
 		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - this.controlsElement.clientWidth - 12;
 		this.searchWidget.layout(new DOM.Dimension(monacoWidth, 20));
 
-		this.rootElement.classList.toggle('mid-width', dimension.width < SettingsEditor2.MEDIUM_WIDTH && dimension.width >= SettingsEditor2.NARROW_WIDTH);
-		this.rootElement.classList.toggle('narrow-width', dimension.width < SettingsEditor2.NARROW_WIDTH);
+		this.rootElement.classList.toggle('mid-width', dimension.width < SettingsEditor2.MEDIUM_TOTAL_WIDTH && dimension.width >= SettingsEditor2.NARROW_TOTAL_WIDTH);
+		this.rootElement.classList.toggle('narrow-width', dimension.width < SettingsEditor2.NARROW_TOTAL_WIDTH);
 	}
 
 	override focus(): void {
@@ -690,6 +691,7 @@ export class SettingsEditor2 extends EditorPane {
 			orientation: Orientation.HORIZONTAL,
 			proportionalLayout: false
 		});
+		const startingWidth = this.storageService.getNumber('settingsEditor2.splitViewWidth', StorageScope.GLOBAL, SettingsEditor2.TOC_RESET_WIDTH);
 		this.splitView.addView({
 			onDidChange: Event.None,
 			element: this.tocTreeContainer,
@@ -698,7 +700,7 @@ export class SettingsEditor2 extends EditorPane {
 			layout: (width) => {
 				this.tocTreeContainer.style.width = `${width}px`;
 			}
-		}, 200);
+		}, startingWidth);
 		this.splitView.addView({
 			onDidChange: Event.None,
 			element: this.settingsTreeContainer,
@@ -710,8 +712,12 @@ export class SettingsEditor2 extends EditorPane {
 		}, Sizing.Distribute);
 		this._register(this.splitView.onDidSashReset(() => {
 			const totalSize = this.splitView.getViewSize(0) + this.splitView.getViewSize(1);
-			this.splitView.resizeView(0, SettingsEditor2.TOC_MIN_WIDTH);
-			this.splitView.resizeView(1, totalSize - SettingsEditor2.TOC_MIN_WIDTH);
+			this.splitView.resizeView(0, SettingsEditor2.TOC_RESET_WIDTH);
+			this.splitView.resizeView(1, totalSize - SettingsEditor2.TOC_RESET_WIDTH);
+		}));
+		this._register(this.splitView.onDidSashChange(() => {
+			const width = this.splitView.getViewSize(0);
+			this.storageService.store('settingsEditor2.splitViewWidth', width, StorageScope.GLOBAL, StorageTarget.USER);
 		}));
 		const borderColor = this.theme.getColor(settingsSashBorder)!;
 		this.splitView.style({ separatorBorder: borderColor });
@@ -1509,12 +1515,12 @@ export class SettingsEditor2 extends EditorPane {
 		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
 		this.settingsTree.layout(settingsTreeHeight, dimension.width);
 
-		const tocTreeHeight = settingsTreeHeight - 1;
+		const tocTreeHeight = settingsTreeHeight;
 		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
 		this.tocTree.layout(tocTreeHeight);
 
 		this.splitView.el.style.height = `${settingsTreeHeight}px`;
-		const firstViewVisible = dimension.width >= SettingsEditor2.NARROW_WIDTH;
+		const firstViewVisible = dimension.width >= SettingsEditor2.NARROW_TOTAL_WIDTH;
 		this.splitView.setViewVisible(0, firstViewVisible);
 		this.splitView.style({
 			separatorBorder: firstViewVisible ? this.theme.getColor(settingsSashBorder)! : Color.transparent
