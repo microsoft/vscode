@@ -508,32 +508,44 @@ export namespace CellUri {
 
 	export const scheme = Schemas.vscodeNotebookCell;
 
-	const _regex = /^ch(\d{7,})/;
+
+	const _lengths = ['W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f'];
+	const _padRegexp = new RegExp(`^[${_lengths.join('')}]+`);
+	const _radix = 7;
 
 	export function generate(notebook: URI, handle: number): URI {
-		return notebook.with({
-			scheme,
-			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
-		});
+
+		const s = handle.toString(_radix);
+		const p = s.length < _lengths.length ? _lengths[s.length - 1] : 'z';
+
+		const fragment = `${p}${s}s${btoa(notebook.scheme)}`;
+		return notebook.with({ scheme, fragment });
 	}
 
 	export function parse(cell: URI): { notebook: URI, handle: number; } | undefined {
 		if (cell.scheme !== scheme) {
 			return undefined;
 		}
-		const match = _regex.exec(cell.fragment);
-		if (!match) {
+
+		const idx = cell.fragment.indexOf('s');
+		if (idx < 0) {
 			return undefined;
 		}
-		const handle = Number(match[1]);
+
+		const handle = parseInt(cell.fragment.substring(0, idx).replace(_padRegexp, ''), _radix);
+		const _scheme = atob(cell.fragment.substring(idx + 1));
+
+		if (isNaN(handle)) {
+			return undefined;
+		}
 		return {
 			handle,
-			notebook: cell.with({
-				scheme: cell.fragment.substring(match[0].length) || Schemas.file,
-				fragment: null
-			})
+			notebook: cell.with({ scheme: _scheme, fragment: null })
 		};
 	}
+
+
+	const _regex = /^(\d{8,})(\w[\w\d+.-]*)$/;
 
 	export function generateCellOutputUri(notebook: URI, handle: number, outputId?: string) {
 		return notebook.with({
