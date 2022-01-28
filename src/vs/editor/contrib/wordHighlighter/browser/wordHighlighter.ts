@@ -157,7 +157,7 @@ function computeOccurencesAtPosition(model: ITextModel, selection: Selection, wo
 	return new TextualOccurenceAtPositionRequest(model, selection, wordSeparators);
 }
 
-registerModelAndPositionCommand('_executeDocumentHighlights', (model, position) => getOccurrencesAtPosition(model, position, CancellationToken.None));
+registerModelAndPositionCommand('_executeDocumentHighlights', (_accessor, model, position) => getOccurrencesAtPosition(model, position, CancellationToken.None));
 
 class WordHighlighter {
 

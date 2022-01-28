@@ -21,6 +21,7 @@ import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLex
 import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 /**
  * Register information about a new language.
@@ -412,7 +413,8 @@ export function setMonarchTokensProvider(languageId: string, languageDef: IMonar
  * Register a reference provider (used by e.g. reference search).
  */
 export function registerReferenceProvider(languageId: string, provider: languages.ReferenceProvider): IDisposable {
-	return languages.ReferenceProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.referenceProvider.register(languageId, provider);
 }
 
 /**

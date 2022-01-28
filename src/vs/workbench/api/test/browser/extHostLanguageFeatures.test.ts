@@ -51,6 +51,8 @@ import { Progress } from 'vs/platform/progress/common/progress';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeatureService } from 'vs/editor/common/services/languageFeaturesService';
 
 suite('ExtHostLanguageFeatures', function () {
 
@@ -60,6 +62,7 @@ suite('ExtHostLanguageFeatures', function () {
 	let mainThread: MainThreadLanguageFeatures;
 	let disposables: vscode.Disposable[] = [];
 	let rpcProtocol: TestRPCProtocol;
+	let languageFeaturesService: ILanguageFeaturesService;
 	let originalErrorHandler: (e: any) => any;
 
 	suiteSetup(() => {
@@ -76,11 +79,14 @@ suite('ExtHostLanguageFeatures', function () {
 
 		rpcProtocol = new TestRPCProtocol();
 
+		languageFeaturesService = new LanguageFeatureService();
+
 		// Use IInstantiationService to get typechecking when instantiating
 		let inst: IInstantiationService;
 		{
 			let instantiationService = new TestInstantiationService();
 			instantiationService.stub(IMarkerService, MarkerService);
+			instantiationService.set(ILanguageFeaturesService, languageFeaturesService);
 			inst = instantiationService;
 		}
 
@@ -567,7 +573,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), false, CancellationToken.None);
+		let value = await getReferencesAtPosition(languageFeaturesService.referenceProvider, model, new EditorPosition(1, 2), false, CancellationToken.None);
 		assert.strictEqual(value.length, 2);
 		let [first, second] = value;
 		assert.strictEqual(first.uri.path, '/second');
@@ -583,7 +589,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), false, CancellationToken.None);
+		let value = await getReferencesAtPosition(languageFeaturesService.referenceProvider, model, new EditorPosition(1, 2), false, CancellationToken.None);
 		assert.strictEqual(value.length, 1);
 		let [item] = value;
 		assert.deepStrictEqual(item.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
@@ -604,7 +610,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getReferencesAtPosition(model, new EditorPosition(1, 2), false, CancellationToken.None);
+		const value = await getReferencesAtPosition(languageFeaturesService.referenceProvider, model, new EditorPosition(1, 2), false, CancellationToken.None);
 		assert.strictEqual(value.length, 1);
 	});
 

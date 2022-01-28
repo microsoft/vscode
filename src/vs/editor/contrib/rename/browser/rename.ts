@@ -354,13 +354,13 @@ registerEditorCommand(new RenameCommand({
 
 // ---- api bridge command
 
-registerModelAndPositionCommand('_executeDocumentRenameProvider', function (model, position, ...args) {
+registerModelAndPositionCommand('_executeDocumentRenameProvider', function (_accessor, model, position, ...args) {
 	const [newName] = args;
 	assertType(typeof newName === 'string');
 	return rename(model, position, newName);
 });
 
-registerModelAndPositionCommand('_executePrepareRename', async function (model, position) {
+registerModelAndPositionCommand('_executePrepareRename', async function (_accessor, model, position) {
 	const skeleton = new RenameSkeleton(model, position);
 	const loc = await skeleton.resolveRenameLocation(CancellationToken.None);
 	if (loc?.rejectReason) {

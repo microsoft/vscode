@@ -16,7 +16,7 @@ export class HoverProviderResult {
 		public readonly provider: HoverProvider,
 		public readonly hover: Hover,
 		public readonly ordinal: number
-	) {}
+	) { }
 }
 
 async function executeProvider(provider: HoverProvider, ordinal: number, model: ITextModel, position: Position, token: CancellationToken): Promise<HoverProviderResult | undefined> {
@@ -41,7 +41,7 @@ export function getHoverPromise(model: ITextModel, position: Position, token: Ca
 	return getHover(model, position, token).map(item => item.hover).toPromise();
 }
 
-registerModelAndPositionCommand('_executeHoverProvider', (model, position) => getHoverPromise(model, position, CancellationToken.None));
+registerModelAndPositionCommand('_executeHoverProvider', (_accessor, model, position) => getHoverPromise(model, position, CancellationToken.None));
 
 function isValid(result: Hover) {
 	const hasRange = (typeof result.range !== 'undefined');

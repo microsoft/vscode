@@ -452,7 +452,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
-registerModelAndPositionCommand('_executeLinkedEditingProvider', (model, position) => getLinkedEditingRanges(model, position, CancellationToken.None));
+registerModelAndPositionCommand('_executeLinkedEditingProvider', (_accessor, model, position) => getLinkedEditingRanges(model, position, CancellationToken.None));
 
 registerEditorContribution(LinkedEditingContribution.ID, LinkedEditingContribution);
 registerEditorAction(LinkedEditingAction);

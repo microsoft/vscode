@@ -61,6 +61,7 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { IDimension } from 'vs/editor/common/core/dimension';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 let EDITOR_ID = 0;
 
@@ -266,6 +267,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		@INotificationService notificationService: INotificationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
@@ -296,7 +298,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._commandService = commandService;
 		this._themeService = themeService;
 		this._register(new EditorContextKeysManager(this, this._contextKeyService));
-		this._register(new EditorModeContext(this, this._contextKeyService));
+		this._register(new EditorModeContext(this, this._contextKeyService, languageFeaturesService));
 
 		this._instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService]));
 
@@ -1910,7 +1912,8 @@ export class EditorModeContext extends Disposable {
 
 	constructor(
 		private readonly _editor: CodeEditorWidget,
-		private readonly _contextKeyService: IContextKeyService
+		private readonly _contextKeyService: IContextKeyService,
+		private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
@@ -1952,7 +1955,7 @@ export class EditorModeContext extends Disposable {
 		this._register(modes.HoverProviderRegistry.onDidChange(update));
 		this._register(modes.DocumentHighlightProviderRegistry.onDidChange(update));
 		this._register(modes.DocumentSymbolProviderRegistry.onDidChange(update));
-		this._register(modes.ReferenceProviderRegistry.onDidChange(update));
+		this._register(_languageFeaturesService.referenceProvider.onDidChange(update));
 		this._register(modes.RenameProviderRegistry.onDidChange(update));
 		this._register(modes.DocumentFormattingEditProviderRegistry.onDidChange(update));
 		this._register(modes.DocumentRangeFormattingEditProviderRegistry.onDidChange(update));
@@ -2006,7 +2009,7 @@ export class EditorModeContext extends Disposable {
 			this._hasHoverProvider.set(modes.HoverProviderRegistry.has(model));
 			this._hasDocumentHighlightProvider.set(modes.DocumentHighlightProviderRegistry.has(model));
 			this._hasDocumentSymbolProvider.set(modes.DocumentSymbolProviderRegistry.has(model));
-			this._hasReferenceProvider.set(modes.ReferenceProviderRegistry.has(model));
+			this._hasReferenceProvider.set(this._languageFeaturesService.referenceProvider.has(model));
 			this._hasRenameProvider.set(modes.RenameProviderRegistry.has(model));
 			this._hasSignatureHelpProvider.set(modes.SignatureHelpProviderRegistry.has(model));
 			this._hasInlayHintsProvider.set(modes.InlayHintsProviderRegistry.has(model));

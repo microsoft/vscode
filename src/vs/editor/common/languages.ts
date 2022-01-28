@@ -1887,10 +1887,6 @@ export interface DocumentRangeSemanticTokensProvider {
 
 // --- feature registries ------
 
-/**
- * @internal
- */
-export const ReferenceProviderRegistry = new LanguageFeatureRegistry<ReferenceProvider>();
 
 /**
  * @internal
