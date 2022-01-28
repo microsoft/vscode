@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IViewportRange, IBufferLine, IBufferRange } from 'xterm';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { localize } from 'vs/nls';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -17,7 +15,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
 import { normalize, isAbsolute } from 'vs/base/common/path';
-import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { isWindows } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
@@ -25,12 +22,13 @@ import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-
-const MAX_LENGTH = 2000;
+import { TerminalWorkLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
 
 export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	private readonly _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
 	static id: string = 'TerminalWordLinkProvider';
+
+	private _detector: TerminalWorkLinkDetector;
 
 	constructor(
 		private _xterm: XtermTerminal,
@@ -38,7 +36,6 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ISearchService private readonly _searchService: ISearchService,
@@ -47,12 +44,13 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
+
+		this._detector = this._instantiationService.createInstance(TerminalWorkLinkDetector, this._xterm.raw);
 	}
 
 	protected _provideLinks(y: number): TerminalLink[] {
 		// Dispose of all old links if new links are provides, links are only cached for the current line
 		const links: TerminalLink[] = [];
-		const wordSeparators = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).wordSeparators;
 		const activateCallback = this._wrapLinkHandler((_, link) => this._activate(link, y));
 
 		let startLine = y - 1;
@@ -72,52 +70,13 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			endLine++;
 		}
 
-		const text = getXtermLineContent(this._xterm.raw.buffer.active, startLine, endLine, this._xterm.raw.cols);
-		if (text === '' || text.length > MAX_LENGTH) {
-			return [];
+		// Get links from new link detector and map to xterm TerminalLink objects
+		const detectedLinks = this._detector.detect(startLine, endLine);
+		for (const l of detectedLinks) {
+			links.push(this._createTerminalLink(l.text, activateCallback, l.bufferRange));
 		}
 
-		const words: Word[] = this._parseWords(text, wordSeparators);
-
-		for (const word of words) {
-			if (word.text === '') {
-				continue;
-			}
-			const bufferRange = convertLinkRangeToBuffer
-				(
-					lines,
-					this._xterm.raw.cols,
-					{
-						startColumn: word.startIndex + 1,
-						startLineNumber: 1,
-						endColumn: word.endIndex + 1,
-						endLineNumber: 1
-					},
-					startLine
-				);
-			links.push(this._createTerminalLink(word.text, activateCallback, bufferRange));
-		}
 		return links;
-	}
-
-	private _parseWords(text: string, separators: string): Word[] {
-		const words: Word[] = [];
-
-		const wordSeparators: string[] = separators.split('');
-		const characters = text.split('');
-
-		let startIndex = 0;
-		for (let i = 0; i < text.length; i++) {
-			if (wordSeparators.includes(characters[i])) {
-				words.push({ startIndex, endIndex: i, text: text.substring(startIndex, i) });
-				startIndex = i + 1;
-			}
-		}
-		if (startIndex < text.length) {
-			words.push({ startIndex, endIndex: text.length, text: text.substring(startIndex) });
-		}
-
-		return words;
 	}
 
 	private _createTerminalLink(text: string, activateCallback: XtermLinkMatcherHandler, bufferRange: IBufferRange): TerminalLink {
@@ -238,10 +197,4 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		}
 		return exactResource;
 	}
-}
-
-interface Word {
-	startIndex: number;
-	endIndex: number;
-	text: string;
 }

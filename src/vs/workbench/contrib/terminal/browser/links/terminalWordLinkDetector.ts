@@ -1,0 +1,98 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITerminalLink, ITerminalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IBufferLine, Terminal } from 'xterm';
+
+const enum Constants {
+	/**
+	 * The max line length to try extract word links from.
+	 */
+	MaxLineLength = 2000
+}
+
+interface Word {
+	startIndex: number;
+	endIndex: number;
+	text: string;
+}
+
+export class TerminalWorkLinkDetector implements ITerminalLinkDetector {
+	static id = 'word';
+
+	constructor(
+		private readonly _xterm: Terminal,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	) {
+	}
+
+	detect(startLine: number, endLine: number): ITerminalLink[] {
+		const links: ITerminalLink[] = [];
+		const wordSeparators = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).wordSeparators;
+
+		// Get the text representation of the wrapped line
+		const text = getXtermLineContent(this._xterm.buffer.active, startLine, endLine, this._xterm.cols);
+		if (text === '' || text.length > Constants.MaxLineLength) {
+			return [];
+		}
+
+		// Parse out all words from the wrapped line
+		const words: Word[] = this._parseWords(text, wordSeparators);
+
+		// Get the xterm.js buffer line objects
+		const lines: IBufferLine[] = [];
+		for (let i = startLine; i <= endLine; i++) {
+			const line = this._xterm.buffer.active.getLine(startLine);
+			if (!line) {
+				throw new Error(`Could not retrieve line ${i} from xterm.js`);
+			}
+			lines.push(line!);
+		}
+
+		// Map the words to ITerminalLink objects
+		for (const word of words) {
+			if (word.text === '') {
+				continue;
+			}
+			const bufferRange = convertLinkRangeToBuffer(
+				lines,
+				this._xterm.cols,
+				{
+					startColumn: word.startIndex + 1,
+					startLineNumber: 1,
+					endColumn: word.endIndex + 1,
+					endLineNumber: 1
+				},
+				startLine
+			);
+			links.push({ text: word.text, bufferRange });
+		}
+
+		return links;
+	}
+
+	private _parseWords(text: string, separators: string): Word[] {
+		const words: Word[] = [];
+
+		const wordSeparators: string[] = separators.split('');
+		const characters = text.split('');
+
+		let startIndex = 0;
+		for (let i = 0; i < text.length; i++) {
+			if (wordSeparators.includes(characters[i])) {
+				words.push({ startIndex, endIndex: i, text: text.substring(startIndex, i) });
+				startIndex = i + 1;
+			}
+		}
+		if (startIndex < text.length) {
+			words.push({ startIndex, endIndex: text.length, text: text.substring(startIndex) });
+		}
+
+		return words;
+	}
+}
