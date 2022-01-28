@@ -419,7 +419,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- rename
 
 	$registerRenameSupport(handle: number, selector: IDocumentFilterDto[], supportResolveLocation: boolean): void {
-		this._registrations.set(handle, modes.RenameProviderRegistry.register(selector, <modes.RenameProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.renameProvider.register(selector, <modes.RenameProvider>{
 			provideRenameEdits: (model: ITextModel, position: EditorPosition, newName: string, token: CancellationToken) => {
 				return this._proxy.$provideRenameEdits(handle, model.uri, position, newName, token).then(reviveWorkspaceEditDto);
 			},

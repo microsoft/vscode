@@ -421,7 +421,8 @@ export function registerReferenceProvider(languageId: string, provider: language
  * Register a rename provider (used by e.g. rename symbol).
  */
 export function registerRenameProvider(languageId: string, provider: languages.RenameProvider): IDisposable {
-	return languages.RenameProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.renameProvider.register(languageId, provider);
 }
 
 /**

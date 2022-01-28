@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ReferenceProvider } from 'vs/editor/common/languages';
+import { ReferenceProvider, RenameProvider } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
@@ -13,6 +13,8 @@ export class LanguageFeatureService implements ILanguageFeaturesService {
 	declare _serviceBrand: undefined;
 
 	readonly referenceProvider = new LanguageFeatureRegistry<ReferenceProvider>();
+
+	readonly renameProvider = new LanguageFeatureRegistry<RenameProvider>();
 }
 
 registerSingleton(ILanguageFeaturesService, LanguageFeatureService, true);

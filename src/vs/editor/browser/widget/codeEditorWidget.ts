@@ -1956,7 +1956,7 @@ export class EditorModeContext extends Disposable {
 		this._register(modes.DocumentHighlightProviderRegistry.onDidChange(update));
 		this._register(modes.DocumentSymbolProviderRegistry.onDidChange(update));
 		this._register(_languageFeaturesService.referenceProvider.onDidChange(update));
-		this._register(modes.RenameProviderRegistry.onDidChange(update));
+		this._register(_languageFeaturesService.renameProvider.onDidChange(update));
 		this._register(modes.DocumentFormattingEditProviderRegistry.onDidChange(update));
 		this._register(modes.DocumentRangeFormattingEditProviderRegistry.onDidChange(update));
 		this._register(modes.SignatureHelpProviderRegistry.onDidChange(update));
@@ -2010,7 +2010,7 @@ export class EditorModeContext extends Disposable {
 			this._hasDocumentHighlightProvider.set(modes.DocumentHighlightProviderRegistry.has(model));
 			this._hasDocumentSymbolProvider.set(modes.DocumentSymbolProviderRegistry.has(model));
 			this._hasReferenceProvider.set(this._languageFeaturesService.referenceProvider.has(model));
-			this._hasRenameProvider.set(modes.RenameProviderRegistry.has(model));
+			this._hasRenameProvider.set(this._languageFeaturesService.renameProvider.has(model));
 			this._hasSignatureHelpProvider.set(modes.SignatureHelpProviderRegistry.has(model));
 			this._hasInlayHintsProvider.set(modes.InlayHintsProviderRegistry.has(model));
 			this._hasDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.has(model) || modes.DocumentRangeFormattingEditProviderRegistry.has(model));

@@ -766,7 +766,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		try {
-			await rename(model, new EditorPosition(1, 1), 'newName');
+			await rename(languageFeaturesService.renameProvider, model, new EditorPosition(1, 1), 'newName');
 			throw Error();
 		}
 		catch (err) {
@@ -783,7 +783,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await rename(model, new EditorPosition(1, 1), 'newName');
+		const value = await rename(languageFeaturesService.renameProvider, model, new EditorPosition(1, 1), 'newName');
 		assert.strictEqual(value.rejectReason, 'evil');
 	});
 
@@ -804,7 +804,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await rename(model, new EditorPosition(1, 1), 'newName');
+		const value = await rename(languageFeaturesService.renameProvider, model, new EditorPosition(1, 1), 'newName');
 		assert.strictEqual(value.edits.length, 1);
 	});
 
@@ -826,7 +826,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await rename(model, new EditorPosition(1, 1), 'newName');
+		const value = await rename(languageFeaturesService.renameProvider, model, new EditorPosition(1, 1), 'newName');
 		// least relevant rename provider
 		assert.strictEqual(value.edits.length, 2);
 	});
@@ -860,7 +860,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		await rename(model, new EditorPosition(1, 1), 'newName');
+		await rename(languageFeaturesService.renameProvider, model, new EditorPosition(1, 1), 'newName');
 
 		assert.deepStrictEqual(called, [true, true, true, false]);
 	});
@@ -891,7 +891,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		await rename(model, new EditorPosition(1, 1), 'newName');
+		await rename(languageFeaturesService.renameProvider, model, new EditorPosition(1, 1), 'newName');
 
 		// first provider has NO prepare which means it is taken by default
 		assert.deepStrictEqual(called, [false, false, true]);
