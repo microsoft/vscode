@@ -1160,6 +1160,35 @@ export class SnakeCaseAction extends AbstractCaseAction {
 	}
 }
 
+export class KebapCaseAction extends AbstractCaseAction {
+
+	public static caseBoundary = new BackwardsCompatibleRegExp('(\\p{Ll})(\\p{Lu})', 'gmu');
+	public static singleLetters = new BackwardsCompatibleRegExp('(\\p{Lu}|\\p{N})(\\p{Lu})(\\p{Ll})', 'gmu');
+
+	constructor() {
+		super({
+			id: 'editor.action.transformToKebapcase',
+			label: nls.localize('editor.transformToKebapcase', "Transform to Kebap Case"),
+			alias: 'Transform to Kebap Case',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	protected _modifyText(text: string, wordSeparators: string): string {
+		const caseBoundary = KebapCaseAction.caseBoundary.get();
+		const singleLetters = KebapCaseAction.singleLetters.get();
+		if (!caseBoundary || !singleLetters) {
+			// cannot support this
+			return text;
+		}
+		return (text
+			.replace(caseBoundary, '$1-$2')
+			.replace(singleLetters, '$1-$2$3')
+			.toLocaleLowerCase()
+		);
+	}
+}
+
 registerEditorAction(CopyLinesUpAction);
 registerEditorAction(CopyLinesDownAction);
 registerEditorAction(DuplicateSelectionAction);
@@ -1183,6 +1212,9 @@ registerEditorAction(LowerCaseAction);
 
 if (SnakeCaseAction.caseBoundary.isSupported() && SnakeCaseAction.singleLetters.isSupported()) {
 	registerEditorAction(SnakeCaseAction);
+}
+if (KebapCaseAction.caseBoundary.isSupported() && KebapCaseAction.singleLetters.isSupported()) {
+	registerEditorAction(KebapCaseAction);
 }
 if (TitleCaseAction.titleBoundary.isSupported()) {
 	registerEditorAction(TitleCaseAction);
