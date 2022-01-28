@@ -21,7 +21,6 @@ import { OperatingSystem, isMacintosh, OS } from 'vs/base/common/platform';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { TerminalProtocolLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalProtocolLinkProvider';
 import { TerminalValidatedLocalLinkProvider, lineAndColumnClause, unixLocalLinkClause, winLocalLinkClause, winDrivePrefix, winLineAndColumnMatchIndex, unixLineAndColumnMatchIndex, lineAndColumnClauseGroupCount } from 'vs/workbench/contrib/terminal/browser/links/terminalValidatedLocalLinkProvider';
-import { TerminalWordLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkProvider';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { TerminalHover, ILinkHoverTargetOptions } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
@@ -101,8 +100,6 @@ export class TerminalLinkManager extends DisposableStore {
 		}
 
 		// Word links
-		// const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xtermTerminal, this._capabilities, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
-		// this._standardLinkProviders.set(TerminalWordLinkProvider.id, wordProvider);
 		const wordDetector = this._instantiationService.createInstance(TerminalWorkLinkDetector, this._xterm);
 		const wordProvider = this._instantiationService.createInstance(TerminalLinkProviderAdapter, wordDetector);
 		wordProvider.onDidActivateLink(e => this._openLink(e));
@@ -176,10 +173,11 @@ export class TerminalLinkManager extends DisposableStore {
 		return { wordLinks, webLinks, fileLinks };
 	}
 
+	// TODO: Convert to use ITerminalSimpleLink
 	async getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined> {
 		switch (type) {
 			case 'word':
-				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalWordLinkProvider.id)?.provideLinks(y, r)));
+				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalWorkLinkDetector.id)?.provideLinks(y, r)));
 			case 'web':
 				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalProtocolLinkProvider.id)?.provideLinks(y, r)));
 			case 'file':

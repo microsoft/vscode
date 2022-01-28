@@ -34,8 +34,6 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
-		console.log('search link opener', link);
-
 		const pathSeparator = (isWindows ? '\\' : '/');
 		// Remove file:/// and any leading ./ or ../ since quick access doesn't understand that format
 		let text = link.text.replace(/^file:\/\/\/?/, '');
