@@ -34,7 +34,7 @@ export interface ITerminalSimpleLink {
 	readonly bufferRange: IBufferRange;
 
 	/**
-	 * The type of link which determines how it is handled when clicked.
+	 * The type of link, which determines how it is handled when activated.
 	 */
 	readonly type: TerminalLinkType;
 }
