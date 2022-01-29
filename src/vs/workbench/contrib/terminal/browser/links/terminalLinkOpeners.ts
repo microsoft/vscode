@@ -7,6 +7,7 @@ import { Schemas } from 'vs/base/common/network';
 import { isAbsolute, normalize } from 'vs/base/common/path';
 import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -24,16 +25,13 @@ import { ISearchService } from 'vs/workbench/services/search/common/search';
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	constructor(
 		private readonly _os: OperatingSystem,
-		private readonly _resolvePath: (link: string) => Promise<{ uri: URI, link: string, isDirectory: boolean } | undefined>,
 		@IEditorService private readonly _editorService: IEditorService,
 	) {
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
-		// TODO: This is already validated at this point but we need the URI
-		const resolvedLink = await this._resolvePath(link.text);
-		if (!resolvedLink) {
-			return;
+		if (!link.uri) {
+			throw new Error('Tried to open file link without a resolved URI');
 		}
 		const lineColumnInfo: LineColumnInfo = this.extractLineColumnInfo(link.text);
 		const selection: ITextEditorSelection = {
@@ -42,7 +40,7 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 		};
 		console.log('TerminalLocalFileLinkOpener');
 		await this._editorService.openEditor({
-			resource: resolvedLink.uri,
+			resource: link.uri,
 			options: { pinned: true, selection, revealIfOpened: true }
 		});
 	}
@@ -88,6 +86,21 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 		return lineColumnInfo;
 	}
 }
+
+export class TerminalLocalFolderInWorkspaceLinkOpener implements ITerminalLinkOpener {
+	constructor(
+		@ICommandService private readonly _commandService: ICommandService,
+	) {
+	}
+
+	async open(link: ITerminalSimpleLink): Promise<void> {
+		if (!link.uri) {
+			throw new Error('Tried to open folder in workspace link without a resolved URI');
+		}
+		await this._commandService.executeCommand('revealInExplorer', link.uri);
+	}
+}
+
 export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	private readonly _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
 

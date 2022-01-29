@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IBufferLine, IBufferRange, Terminal } from 'xterm';
+import { URI } from 'vs/base/common/uri';
 
 export interface ITerminalLinkDetector {
 	/**
@@ -28,6 +29,11 @@ export interface ITerminalSimpleLink {
 	 * The text of the link.
 	 */
 	text: string;
+
+	/**
+	 * The URI of the link if it has been resolved.
+	 */
+	uri?: URI
 
 	/**
 	 * The buffer range of the link.
