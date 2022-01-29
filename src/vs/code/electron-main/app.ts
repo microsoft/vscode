@@ -9,7 +9,7 @@ import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { isEqualOrParent, randomPath } from 'vs/base/common/extpath';
+import { isEqualOrParent, randomPath, hasDriveLetter } from 'vs/base/common/extpath';
 import { once } from 'vs/base/common/functional';
 import { stripComments } from 'vs/base/common/json';
 import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -933,6 +933,14 @@ export class CodeApplication extends Disposable {
 
 	private shouldBlockURI(uri: URI): boolean {
 		if (uri.authority === Schemas.file && isWindows) {
+			// Don't show confirmation box to windows path that starts with drive letter, e.g. C:/Users
+			// Note: Normalized path is required to prevent fsPath such as C:/..//$smbserver, which
+			// 		 is actually directed to //$smbserver even though it starts with drive letter
+			const normalizedPath = getPathLabel(uri.fsPath, this.environmentMainService);
+			if (hasDriveLetter(normalizedPath)) {
+				return false;
+			}
+
 			const res = dialog.showMessageBoxSync({
 				title: this.productService.nameLong,
 				type: 'question',
@@ -942,7 +950,7 @@ export class CodeApplication extends Disposable {
 				],
 				defaultId: 0,
 				cancelId: 1,
-				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri.fsPath, this.environmentMainService), this.productService.nameShort),
+				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", normalizedPath, this.productService.nameShort),
 				detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
 				noLink: true
 			});
