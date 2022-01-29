@@ -63,6 +63,7 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 
 	call yarn gulp 	compile-extension:vscode-api-tests^
 					compile-extension:microsoft-authentication^
+					compile-extension:github-authentication^
 					compile-extension:vscode-test-resolver
 
 	:: Configuration for more verbose output

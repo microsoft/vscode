@@ -55,6 +55,7 @@ else
 				compile-extension:git \
 				compile-extension:ipynb \
 				compile-extension:microsoft-authentication \
+				compile-extension:github-authentication \
 				compile-extension-media
 
 	# Configuration for more verbose output
