@@ -18,9 +18,9 @@ IF "%~1" == "" (
 set REMOTE_VSCODE=%AUTHORITY%%EXT_PATH%
 
 if "%VSCODE_REMOTE_SERVER_PATH%"=="" (
-	echo "Using remote server out of sources for integration web tests"
+	echo Using remote server out of sources for integration web tests
 ) else (
-	echo "Using %VSCODE_REMOTE_SERVER_PATH% as server path for web integration tests"
+	echo Using '%VSCODE_REMOTE_SERVER_PATH%' as server path for web integration tests
 
 	:: Run from a built: need to compile all test extensions
 	:: because we run extension tests from their source folders
