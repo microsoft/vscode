@@ -504,7 +504,7 @@ export class SmoothScrollingOperation {
 
 	public static start(from: ISmoothScrollPosition, to: ISmoothScrollPosition, duration: number): SmoothScrollingOperation {
 		// +10 / -10 : pretend the animation already started for a quicker response to a scroll request
-		duration = duration + 10;
+		duration += 10;
 		const startTime = Date.now() - 10;
 
 		return new SmoothScrollingOperation(from, to, startTime, duration);

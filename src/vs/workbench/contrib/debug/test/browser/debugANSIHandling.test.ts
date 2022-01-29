@@ -1021,7 +1021,7 @@ suite('Debug - ANSI Handling', () => {
 			assert(calcANSI8bitColor(i) === undefined, 'Values less than 16 passed to calcANSI8bitColor should return undefined.');
 		}
 		// In-range range decimals
-		for (let i = 16.5; i < 254; i += 1) {
+		for (let i = 16.5; i < 254; i++) {
 			assert(calcANSI8bitColor(i) === undefined, 'Floats passed to calcANSI8bitColor should return undefined.');
 		}
 		// Above range

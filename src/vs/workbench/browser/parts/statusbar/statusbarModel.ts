@@ -248,9 +248,7 @@ export class StatusbarViewModel extends Disposable {
 			const entry = getVisibleEntry(this._entries.indexOf(focused) + delta);
 			if (entry) {
 				this._lastFocusedEntry = entry;
-
 				entry.labelContainer.focus();
-
 				return;
 			}
 		}

@@ -99,7 +99,7 @@ function concatMultilineString(str: string | string[], trim?: boolean): string {
 	const nonLineFeedWhiteSpaceTrim = /(^[\t\f\v\r ]+|[\t\f\v\r ]+$)/g;
 	if (Array.isArray(str)) {
 		let result = '';
-		for (let i = 0; i < str.length; i += 1) {
+		for (let i = 0; i < str.length; i++) {
 			const s = str[i];
 			if (i < str.length - 1 && !s.endsWith('\n')) {
 				result = result.concat(`${s}\n`);
@@ -345,8 +345,8 @@ export function jupyterNotebookModelToNotebookData(
 	}
 
 	const cells = notebookContent.cells
-		.map(cell => createNotebookCellDataFromJupyterCell(preferredLanguage, cell))
-		.filter((item): item is NotebookCellData => !!item);
+		.map((cell: any) => createNotebookCellDataFromJupyterCell(preferredLanguage, cell))
+		.filter((item: any): item is NotebookCellData => !!item);
 
 	const notebookData = new NotebookData(cells);
 	notebookData.metadata = { custom: notebookContentWithoutCells };

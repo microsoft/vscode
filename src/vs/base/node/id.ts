@@ -62,7 +62,7 @@ export const virtualMachineHint: { value(): number } = new class {
 						if (!internal) {
 							interfaceCount += 1;
 							if (this._isVirtualMachineMacAddress(mac.toUpperCase())) {
-								vmOui += 1;
+								vmOui++;
 							}
 						}
 					}
