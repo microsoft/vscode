@@ -37,21 +37,40 @@ if not exist ".\test\integration\browser\out\index.js" (
 	call yarn --cwd test/integration/browser compile
 	call yarn playwright-install
 )
+
+echo.
+echo ### API tests (folder)
+echo.
 call node .\test\integration\browser\out\index.js --workspacePath=.\extensions\vscode-api-tests\testWorkspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=.\extensions\vscode-api-tests --extensionTestsPath=.\extensions\vscode-api-tests\out\singlefolder-tests %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo.
+echo ### API tests (workspace)
+echo.
 call node .\test\integration\browser\out\index.js --workspacePath=.\extensions\vscode-api-tests\testworkspace.code-workspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=.\extensions\vscode-api-tests --extensionTestsPath=.\extensions\vscode-api-tests\out\workspace-tests %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo.
+echo ### TypeScript tests
+echo.
 call node .\test\integration\browser\out\index.js --workspacePath=.\extensions\typescript-language-features\test-workspace --extensionDevelopmentPath=.\extensions\typescript-language-features --extensionTestsPath=.\extensions\typescript-language-features\out\test\unit %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo.
+echo ### Markdown tests
+echo.
 call node .\test\integration\browser\out\index.js --workspacePath=.\extensions\markdown-language-features\test-workspace --extensionDevelopmentPath=.\extensions\markdown-language-features --extensionTestsPath=.\extensions\markdown-language-features\out\test %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo.
+echo ### Emmet tests
+echo.
 call node .\test\integration\browser\out\index.js --workspacePath=.\extensions\emmet\test-workspace --extensionDevelopmentPath=.\extensions\emmet --extensionTestsPath=.\extensions\emmet\out\test %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo.
+echo ### Git tests
+echo.
 for /f "delims=" %%i in ('node -p "require('fs').realpathSync.native(require('os').tmpdir())"') do set TEMPDIR=%%i
 set GITWORKSPACE=%TEMPDIR%\git-%RANDOM%
 mkdir %GITWORKSPACE%
