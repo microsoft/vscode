@@ -40,7 +40,6 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	echo Storing log files into '%VSCODELOGSDIR%'.
 
 	:: Tests in the extension host running from sources
-
 	echo.
 	echo ### API tests (folder)
 	call .\scripts\code.bat --folder-uri=%REMOTE_VSCODE%/vscode-api-tests/testWorkspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/singlefolder-tests %API_TESTS_EXTRA_ARGS%
@@ -70,7 +69,6 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	set ELECTRON_ENABLE_STACK_DUMPING=1
 
 	:: Tests in the extension host running from built version (both client and server)
-
 	echo.
 	echo ### API tests (folder)
 	call "%INTEGRATION_TEST_ELECTRON_PATH%" --folder-uri=%REMOTE_VSCODE%/vscode-api-tests/testWorkspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/singlefolder-tests %API_TESTS_EXTRA_ARGS% --extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver --enable-proposed-api=vscode.vscode-api-tests --enable-proposed-api=vscode.image-preview
@@ -84,7 +82,6 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 
 
 :: Cleanup
-
 IF "%3" == "" (
 	rmdir /s /q %VSCODEUSERDATADIR%
 )
