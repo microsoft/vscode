@@ -22,7 +22,7 @@ interface Word {
 	text: string;
 }
 
-export class TerminalWorkLinkDetector implements ITerminalLinkDetector {
+export class TerminalWordLinkDetector implements ITerminalLinkDetector {
 	static id = 'word';
 
 	constructor(
@@ -31,7 +31,7 @@ export class TerminalWorkLinkDetector implements ITerminalLinkDetector {
 	) {
 	}
 
-	detect(startLine: number, endLine: number): ITerminalSimpleLink[] {
+	detect(lines: IBufferLine[], startLine: number, endLine: number): ITerminalSimpleLink[] {
 		const links: ITerminalSimpleLink[] = [];
 		const wordSeparators = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).wordSeparators;
 
@@ -43,16 +43,6 @@ export class TerminalWorkLinkDetector implements ITerminalLinkDetector {
 
 		// Parse out all words from the wrapped line
 		const words: Word[] = this._parseWords(text, wordSeparators);
-
-		// Get the xterm.js buffer line objects
-		const lines: IBufferLine[] = [];
-		for (let i = startLine; i <= endLine; i++) {
-			const line = this.xterm.buffer.active.getLine(startLine);
-			if (!line) {
-				throw new Error(`Could not retrieve line ${i} from xterm.js`);
-			}
-			lines.push(line!);
-		}
 
 		// Map the words to ITerminalLink objects
 		for (const word of words) {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBufferRange, Terminal } from 'xterm';
+import { IBufferLine, IBufferRange, Terminal } from 'xterm';
 
 export interface ITerminalLinkDetector {
 	/**
@@ -14,12 +14,13 @@ export interface ITerminalLinkDetector {
 	/**
 	 * Detects links within the _wrapped_ line range provided and returns them as an array.
 	 *
+	 * @param lines The individual buffer lines that make up the wrapped line.
 	 * @param startLine The start of the wrapped line. This _will not_ be validated that it is
 	 * indeed the start of a wrapped line.
 	 * @param endLine The end of the wrapped line.  This _will not_ be validated that it is indeed
 	 * the end of a wrapped line.
 	 */
-	detect(startLine: number, endLine: number): ITerminalSimpleLink[] | Promise<ITerminalSimpleLink[]>;
+	detect(lines: IBufferLine[], startLine: number, endLine: number): ITerminalSimpleLink[] | Promise<ITerminalSimpleLink[]>;
 }
 
 export interface ITerminalSimpleLink {
@@ -41,9 +42,21 @@ export interface ITerminalSimpleLink {
 
 export const enum TerminalLinkType {
 	/**
-	 * The link is validated on the file system and will open an editor.
+	 * The link is validated to be a file on the file system and will open an editor.
 	 */
-	Local,
+	LocalFile,
+
+	/**
+	 * The link is validated to be a folder on the file system and is outside the workspace. It will
+	 * reveal the folder within the explorer.
+	 */
+	LocalFolderOutsideWorkspace,
+
+	/**
+	 * The link is validated to be a folder on the file system and is within the workspace and will
+	 * reveal the folder within the explorer.
+	 */
+	LocalFolderInWorkspace,
 
 	/**
 	 * The link starts with a protocol like https://, file://, etc. and will be opened depending on

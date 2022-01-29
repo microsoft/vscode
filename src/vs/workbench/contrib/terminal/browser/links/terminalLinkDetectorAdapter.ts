@@ -10,7 +10,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
-import { IBufferLine, ILink, ILinkProvider } from 'xterm';
+import { IBufferLine, ILink, ILinkProvider, IViewportRange } from 'xterm';
+
+export interface IShowHoverEvent {
+	link: TerminalLink;
+	viewportRange: IViewportRange;
+	modifierDownCallback?: () => void;
+	modifierUpCallback?: () => void;
+}
 
 /**
  * Wrap a link detector object so it can be used in xterm.js
@@ -20,6 +27,8 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 
 	private readonly _onDidActivateLink = this._register(new Emitter<ITerminalSimpleLink>());
 	readonly onDidActivateLink = this._onDidActivateLink.event;
+	private readonly _onDidShowHover = this._register(new Emitter<IShowHoverEvent>());
+	readonly onDidShowHover = this._onDidShowHover.event;
 
 	constructor(
 		private readonly _detector: ITerminalLinkDetector,
@@ -55,7 +64,7 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			endLine++;
 		}
 
-		const detectedLinks = await this._detector.detect(startLine, endLine);
+		const detectedLinks = await this._detector.detect(lines, startLine, endLine);
 		for (const l of detectedLinks) {
 			// TODO: This probably shouldn't be async
 			links.push(this._createTerminalLink(l, async () => {
@@ -78,18 +87,23 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			l.text,
 			this._detector.xterm.buffer.active.viewportY,
 			activateCallback,
-			// TODO: Handle tooltip
-			() => { },
-			// this._tooltipCallback,
-			false,
-			// TODO: Move this into TerminalLink?
+			(link, viewportRange, modifierDownCallback, modifierUpCallback) => this._onDidShowHover.fire({
+				link,
+				viewportRange,
+				modifierDownCallback,
+				modifierUpCallback
+			}),
+			l.type !== TerminalLinkType.Search, // Only search is low confidence
 			this._getLabel(l.type)
 		);
 	}
 
 	private _getLabel(type: TerminalLinkType): string {
 		switch (type) {
-			case TerminalLinkType.Search: localize('searchWorkspace', 'Search workspace');
+			case TerminalLinkType.Search: return localize('searchWorkspace', 'Search workspace');
+			case TerminalLinkType.LocalFile: return localize('openFile', 'Open file in editor');
+			case TerminalLinkType.LocalFolderInWorkspace: return localize('focusFolder', 'Focus folder in explorer');
+			case TerminalLinkType.LocalFolderOutsideWorkspace: return localize('openFolder', 'Open folder in new window');
 			default:
 				return 'TODO'; // TODO
 		}

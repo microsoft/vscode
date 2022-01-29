@@ -5,19 +5,89 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { isAbsolute, normalize } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ITerminalLinkOpener, ITerminalSimpleLink } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { LineColumnInfo } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
+import { lineAndColumnClause, lineAndColumnClauseGroupCount, unixLineAndColumnMatchIndex, unixLocalLinkClause, winLineAndColumnMatchIndex, winLocalLinkClause } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 
+export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
+	constructor(
+		private readonly _os: OperatingSystem,
+		private readonly _resolvePath: (link: string) => Promise<{ uri: URI, link: string, isDirectory: boolean } | undefined>,
+		@IEditorService private readonly _editorService: IEditorService,
+	) {
+	}
+
+	async open(link: ITerminalSimpleLink): Promise<void> {
+		// TODO: This is already validated at this point but we need the URI
+		const resolvedLink = await this._resolvePath(link.text);
+		if (!resolvedLink) {
+			return;
+		}
+		const lineColumnInfo: LineColumnInfo = this.extractLineColumnInfo(link.text);
+		const selection: ITextEditorSelection = {
+			startLineNumber: lineColumnInfo.lineNumber,
+			startColumn: lineColumnInfo.columnNumber
+		};
+		console.log('TerminalLocalFileLinkOpener');
+		await this._editorService.openEditor({
+			resource: resolvedLink.uri,
+			options: { pinned: true, selection, revealIfOpened: true }
+		});
+	}
+
+	// TODO: This is duplicated
+	protected get _localLinkRegex(): RegExp {
+		const baseLocalLinkClause = this._os === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
+		// Append line and column number regex
+		return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
+	}
+
+	/**
+	 * Returns line and column number of URl if that is present.
+	 *
+	 * @param link Url link which may contain line and column number.
+	 */
+	extractLineColumnInfo(link: string): LineColumnInfo {
+		const matches: string[] | null = this._localLinkRegex.exec(link);
+		const lineColumnInfo: LineColumnInfo = {
+			lineNumber: 1,
+			columnNumber: 1
+		};
+
+		if (!matches) {
+			return lineColumnInfo;
+		}
+
+		const lineAndColumnMatchIndex = this._os === OperatingSystem.Windows ? winLineAndColumnMatchIndex : unixLineAndColumnMatchIndex;
+		for (let i = 0; i < lineAndColumnClause.length; i++) {
+			const lineMatchIndex = lineAndColumnMatchIndex + (lineAndColumnClauseGroupCount * i);
+			const rowNumber = matches[lineMatchIndex];
+			if (rowNumber) {
+				lineColumnInfo['lineNumber'] = parseInt(rowNumber, 10);
+				// Check if column number exists
+				const columnNumber = matches[lineMatchIndex + 2];
+				if (columnNumber) {
+					lineColumnInfo['columnNumber'] = parseInt(columnNumber, 10);
+				}
+				break;
+			}
+		}
+
+		return lineColumnInfo;
+	}
+}
 export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	private readonly _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
 
