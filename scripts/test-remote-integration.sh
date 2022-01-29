@@ -70,12 +70,6 @@ else
 	echo "Running remote integration tests with $INTEGRATION_TEST_ELECTRON_PATH as build."
 fi
 
-if [ -z "$INTEGRATION_TEST_APP_NAME" ]; then
-	after_suite() { true; }
-else
-	after_suite() { killall $INTEGRATION_TEST_APP_NAME || true; }
-fi
-
 export TESTRESOLVER_DATA_FOLDER=$TESTRESOLVER_DATA_FOLDER
 export TESTRESOLVER_LOGS_FOLDER=$VSCODELOGSDIR/server
 
@@ -88,7 +82,11 @@ else
 	export TESTRESOLVER_INSTALL_BUILTIN_EXTENSION='ms-vscode.vscode-smoketest-check'
 fi
 
-# Tests in the extension host
+if [ -z "$INTEGRATION_TEST_APP_NAME" ]; then
+	kill_app() { true; }
+else
+	kill_app() { killall $INTEGRATION_TEST_APP_NAME || true; }
+fi
 
 API_TESTS_EXTRA_ARGS="--disable-telemetry --skip-welcome --skip-release-notes --crash-reporter-directory=$VSCODECRASHDIR --logsPath=$VSCODELOGSDIR --no-cached-data --disable-updates --disable-keytar --disable-workspace-trust --user-data-dir=$VSCODEUSERDATADIR"
 
@@ -96,45 +94,47 @@ echo
 echo "### API tests (folder)"
 echo
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS --folder-uri=$REMOTE_VSCODE/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$REMOTE_VSCODE/vscode-api-tests --extensionTestsPath=$REMOTE_VSCODE/vscode-api-tests/out/singlefolder-tests $API_TESTS_EXTRA_ARGS $EXTRA_INTEGRATION_TEST_ARGUMENTS
-after_suite
+kill_app
 
 echo
 echo "### API tests (workspace)"
 echo
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS --file-uri=$REMOTE_VSCODE/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=$REMOTE_VSCODE/vscode-api-tests --extensionTestsPath=$REMOTE_VSCODE/vscode-api-tests/out/workspace-tests $API_TESTS_EXTRA_ARGS $EXTRA_INTEGRATION_TEST_ARGUMENTS
-after_suite
+kill_app
 
 echo
 echo "### TypeScript tests"
 echo
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS --folder-uri=$REMOTE_VSCODE/typescript-language-features/test-workspace --enable-proposed-api=vscode.typescript-language-features --extensionDevelopmentPath=$REMOTE_VSCODE/typescript-language-features --extensionTestsPath=$REMOTE_VSCODE/typescript-language-features/out/test/unit $API_TESTS_EXTRA_ARGS $EXTRA_INTEGRATION_TEST_ARGUMENTS
-after_suite
+kill_app
 
 echo
 echo "### Markdown tests"
 echo
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS --folder-uri=$REMOTE_VSCODE/markdown-language-features/test-workspace --extensionDevelopmentPath=$REMOTE_VSCODE/markdown-language-features --extensionTestsPath=$REMOTE_VSCODE/markdown-language-features/out/test $API_TESTS_EXTRA_ARGS $EXTRA_INTEGRATION_TEST_ARGUMENTS
-after_suite
+kill_app
 
 echo
 echo "### Emmet tests"
 echo
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS --folder-uri=$REMOTE_VSCODE/emmet/test-workspace --extensionDevelopmentPath=$REMOTE_VSCODE/emmet --extensionTestsPath=$REMOTE_VSCODE/emmet/out/test $API_TESTS_EXTRA_ARGS $EXTRA_INTEGRATION_TEST_ARGUMENTS
-after_suite
+kill_app
 
 echo
 echo "### Git tests"
 echo
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS --folder-uri=$AUTHORITY$(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$REMOTE_VSCODE/git --extensionTestsPath=$REMOTE_VSCODE/git/out/test $API_TESTS_EXTRA_ARGS $EXTRA_INTEGRATION_TEST_ARGUMENTS
-after_suite
+kill_app
 
 echo
 echo "### Ipynb tests"
 echo
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS --folder-uri=$AUTHORITY$(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$REMOTE_VSCODE/ipynb --extensionTestsPath=$REMOTE_VSCODE/ipynb/out/test $API_TESTS_EXTRA_ARGS $EXTRA_INTEGRATION_TEST_ARGUMENTS
-after_suite
+kill_app
 
-# Clean up
+
+# Cleanup
+
 if [[ "$3" == "" ]]; then
 	rm -rf $VSCODEUSERDATADIR
 fi

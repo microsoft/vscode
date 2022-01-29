@@ -60,6 +60,7 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	:: Run from a built: need to compile all test extensions
 	:: because we run extension tests from their source folders
 	:: and the build bundles extensions into .build webpacked
+
 	call yarn gulp 	compile-extension:vscode-api-tests^
 					compile-extension:microsoft-authentication^
 					compile-extension:vscode-test-resolver
@@ -83,6 +84,9 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	call "%INTEGRATION_TEST_ELECTRON_PATH%" --file-uri=%REMOTE_VSCODE%/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/workspace-tests %API_TESTS_EXTRA_ARGS% --extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver --enable-proposed-api=vscode.vscode-api-tests --enable-proposed-api=vscode.image-preview
 	if %errorlevel% neq 0 exit /b %errorlevel%
 )
+
+
+:: Cleanup
 
 IF "%3" == "" (
 	rmdir /s /q %VSCODEUSERDATADIR%

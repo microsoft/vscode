@@ -46,6 +46,7 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 
 
 :: Tests standalone (AMD)
+
 echo.
 echo ### node.js integration tests
 echo.
@@ -124,6 +125,9 @@ echo ### HTML tests
 echo.
 call %~dp0\node-electron.bat %~dp0\..\extensions\html-language-features/server/test/index.js
 if %errorlevel% neq 0 exit /b %errorlevel%
+
+
+:: Cleanup
 
 rmdir /s /q %VSCODEUSERDATADIR%
 
