@@ -32,7 +32,7 @@ import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/c
 import { EventType } from 'vs/base/browser/dom';
 import { TerminalLinkDetectorAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkDetectorAdapter';
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
-import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalSearchLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
+import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalLocalFolderOutsideWorkspaceLinkOpener, TerminalSearchLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
 import { ITerminalLinkDetector, ITerminalLinkOpener, ITerminalSimpleLink, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
 
@@ -88,6 +88,7 @@ export class TerminalLinkManager extends DisposableStore {
 		// Setup link openers
 		this._openers.set(TerminalLinkType.LocalFile, this._instantiationService.createInstance(TerminalLocalFileLinkOpener, this._processManager.os || OS));
 		this._openers.set(TerminalLinkType.LocalFolderInWorkspace, this._instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener));
+		this._openers.set(TerminalLinkType.LocalFolderOutsideWorkspace, this._instantiationService.createInstance(TerminalLocalFolderOutsideWorkspaceLinkOpener));
 		this._openers.set(TerminalLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities));
 
 		// TODO: Hook up wrap link handler which is what gets modifier down working

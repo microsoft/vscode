@@ -20,6 +20,7 @@ import { lineAndColumnClause, lineAndColumnClauseGroupCount, unixLineAndColumnMa
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
@@ -98,6 +99,20 @@ export class TerminalLocalFolderInWorkspaceLinkOpener implements ITerminalLinkOp
 			throw new Error('Tried to open folder in workspace link without a resolved URI');
 		}
 		await this._commandService.executeCommand('revealInExplorer', link.uri);
+	}
+}
+
+export class TerminalLocalFolderOutsideWorkspaceLinkOpener implements ITerminalLinkOpener {
+	constructor(
+		@IHostService private readonly _hostService: IHostService,
+	) {
+	}
+
+	async open(link: ITerminalSimpleLink): Promise<void> {
+		if (!link.uri) {
+			throw new Error('Tried to open folder in workspace link without a resolved URI');
+		}
+		this._hostService.openWindow([{ folderUri: link.uri }], { forceNewWindow: true });
 	}
 }
 

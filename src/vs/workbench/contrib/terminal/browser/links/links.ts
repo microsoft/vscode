@@ -6,6 +6,10 @@
 import { IBufferLine, IBufferRange, Terminal } from 'xterm';
 import { URI } from 'vs/base/common/uri';
 
+/**
+ * A link detector can search for and return links within the xterm.js buffer. A single link
+ * detector can return multiple links of differing types.
+ */
 export interface ITerminalLinkDetector {
 	/**
 	 * The xterm.js instance this detector belongs to.
