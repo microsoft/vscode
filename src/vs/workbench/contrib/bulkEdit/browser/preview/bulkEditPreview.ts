@@ -173,7 +173,7 @@ export class BulkFileOperations {
 			let uri: URI;
 			let type: BulkFileOperationType;
 
-			// store inital checked state
+			// store initial checked state
 			this.checked.updateChecked(edit, !edit.metadata?.needsConfirmation);
 
 			if (edit instanceof ResourceTextEdit) {
