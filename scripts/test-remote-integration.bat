@@ -43,13 +43,11 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 
 	echo.
 	echo ### API tests (folder)
-	echo.
 	call .\scripts\code.bat --folder-uri=%REMOTE_VSCODE%/vscode-api-tests/testWorkspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/singlefolder-tests %API_TESTS_EXTRA_ARGS%
 	if %errorlevel% neq 0 exit /b %errorlevel%
 
 	echo.
 	echo ### API tests (workspace)
-	echo.
 	call .\scripts\code.bat --file-uri=%REMOTE_VSCODE%/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/workspace-tests %API_TESTS_EXTRA_ARGS%
 	if %errorlevel% neq 0 exit /b %errorlevel%
 ) else (
@@ -75,13 +73,11 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 
 	echo.
 	echo ### API tests (folder)
-	echo.
 	call "%INTEGRATION_TEST_ELECTRON_PATH%" --folder-uri=%REMOTE_VSCODE%/vscode-api-tests/testWorkspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/singlefolder-tests %API_TESTS_EXTRA_ARGS% --extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver --enable-proposed-api=vscode.vscode-api-tests --enable-proposed-api=vscode.image-preview
 	if %errorlevel% neq 0 exit /b %errorlevel%
 
 	echo.
 	echo ### API tests (workspace)
-	echo.
 	call "%INTEGRATION_TEST_ELECTRON_PATH%" --file-uri=%REMOTE_VSCODE%/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/workspace-tests %API_TESTS_EXTRA_ARGS% --extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver --enable-proposed-api=vscode.vscode-api-tests --enable-proposed-api=vscode.image-preview
 	if %errorlevel% neq 0 exit /b %errorlevel%
 )
