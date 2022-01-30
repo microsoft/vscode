@@ -36,22 +36,18 @@ set API_TESTS_EXTRA_ARGS=--disable-telemetry --skip-welcome --skip-release-notes
 
 :: Figure out which Electron to use for running tests
 if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
-	echo Storing crash reports into '%VSCODECRASHDIR%'.
-	echo Storing log files into '%VSCODELOGSDIR%'.
+	echo Storing crash reports into '%VSCODECRASHDIR%'
+	echo Storing log files into '%VSCODELOGSDIR%'
 
 	:: Tests in the extension host running from sources
-	echo.
-	echo ### API tests (folder)
 	call .\scripts\code.bat --folder-uri=%REMOTE_VSCODE%/vscode-api-tests/testWorkspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/singlefolder-tests %API_TESTS_EXTRA_ARGS%
 	if %errorlevel% neq 0 exit /b %errorlevel%
 
-	echo.
-	echo ### API tests (workspace)
 	call .\scripts\code.bat --file-uri=%REMOTE_VSCODE%/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/workspace-tests %API_TESTS_EXTRA_ARGS%
 	if %errorlevel% neq 0 exit /b %errorlevel%
 ) else (
-	echo Storing crash reports into '%VSCODECRASHDIR%'.
-	echo Storing log files into '%VSCODELOGSDIR%'.
+	echo Storing crash reports into '%VSCODECRASHDIR%'
+	echo Storing log files into '%VSCODELOGSDIR%'
  	echo Using %INTEGRATION_TEST_ELECTRON_PATH% as Electron path
 
 	:: Run from a built: need to compile all test extensions
@@ -68,19 +64,13 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	set ELECTRON_ENABLE_STACK_DUMPING=1
 
 	:: Tests in the extension host running from built version (both client and server)
-	echo.
-	echo ### API tests (folder)
 	call "%INTEGRATION_TEST_ELECTRON_PATH%" --folder-uri=%REMOTE_VSCODE%/vscode-api-tests/testWorkspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/singlefolder-tests %API_TESTS_EXTRA_ARGS% --extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver --enable-proposed-api=vscode.vscode-api-tests --enable-proposed-api=vscode.image-preview
 	if %errorlevel% neq 0 exit /b %errorlevel%
 
-	echo.
-	echo ### API tests (workspace)
 	call "%INTEGRATION_TEST_ELECTRON_PATH%" --file-uri=%REMOTE_VSCODE%/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/workspace-tests %API_TESTS_EXTRA_ARGS% --extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver --enable-proposed-api=vscode.vscode-api-tests --enable-proposed-api=vscode.image-preview
 	if %errorlevel% neq 0 exit /b %errorlevel%
 )
 
-
-:: Cleanup
 IF "%3" == "" (
 	rmdir /s /q %VSCODEUSERDATADIR%
 )
