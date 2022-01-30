@@ -25,7 +25,7 @@ export function createScopedLineTokens(context: LineTokens, offset: number): Sco
 		context,
 		desiredLanguageId,
 		firstTokenIndex,
-		lastTokenIndex ++,
+		lastTokenIndex + 1,
 		context.getStartOffset(firstTokenIndex),
 		context.getEndOffset(lastTokenIndex)
 	);
