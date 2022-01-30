@@ -249,6 +249,30 @@ function transparentToUndefined(color: Color | undefined): Color | undefined {
 	return color;
 }
 
+function unpack(colors: string[], theme: IColorTheme): (Color | undefined)[] {
+	const result = colors.reduce((array: (Color | undefined)[], value) => {
+		const color = theme.getColor(value);
+
+		return array.concat(typeof color !== 'undefined' ? (color.array) : [color]);
+	}, []);
+
+	// // move undefined items to the end
+	// for (let index = 0; index < result.length; index++) {
+	// 	if (result[index] === undefined) {
+	// 		result.push(result.splice(index, 1)[0]);
+	// 	}
+	// }
+
+	// remove undefined items
+	for (let index = 0; index < result.length; index++) {
+		if (result[index] === undefined) {
+			result.splice(index, 1);
+		}
+	}
+
+	return result;
+}
+
 registerThemingParticipant((theme, collector) => {
 	const editorIndentGuidesColor = theme.getColor(editorIndentGuides);
 	if (editorIndentGuidesColor) {
@@ -259,25 +283,87 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .lines-content .core-guide-indent-active { box-shadow: 1px 0 0 0 ${editorActiveIndentGuidesColor} inset; }`);
 	}
 
-	const colors = [
-		{ bracketColor: editorBracketHighlightingForeground1, guideColor: editorBracketPairGuideBackground1, guideColorActive: editorBracketPairGuideActiveBackground1 },
-		{ bracketColor: editorBracketHighlightingForeground2, guideColor: editorBracketPairGuideBackground2, guideColorActive: editorBracketPairGuideActiveBackground2 },
-		{ bracketColor: editorBracketHighlightingForeground3, guideColor: editorBracketPairGuideBackground3, guideColorActive: editorBracketPairGuideActiveBackground3 },
-		{ bracketColor: editorBracketHighlightingForeground4, guideColor: editorBracketPairGuideBackground4, guideColorActive: editorBracketPairGuideActiveBackground4 },
-		{ bracketColor: editorBracketHighlightingForeground5, guideColor: editorBracketPairGuideBackground5, guideColorActive: editorBracketPairGuideActiveBackground5 },
-		{ bracketColor: editorBracketHighlightingForeground6, guideColor: editorBracketPairGuideBackground6, guideColorActive: editorBracketPairGuideActiveBackground6 }
-	];
+	const bracketColors = unpack([
+		editorBracketHighlightingForeground1,
+		editorBracketHighlightingForeground2,
+		editorBracketHighlightingForeground3,
+		editorBracketHighlightingForeground4,
+		editorBracketHighlightingForeground5,
+		editorBracketHighlightingForeground6,
+	], theme);
+
+	const guideColors = unpack([
+		editorBracketPairGuideBackground1,
+		editorBracketPairGuideBackground2,
+		editorBracketPairGuideBackground3,
+		editorBracketPairGuideBackground4,
+		editorBracketPairGuideBackground5,
+		editorBracketPairGuideBackground6,
+	], theme);
+
+	const guideColorsActive = unpack([
+		editorBracketPairGuideActiveBackground1,
+		editorBracketPairGuideActiveBackground2,
+		editorBracketPairGuideActiveBackground3,
+		editorBracketPairGuideActiveBackground4,
+		editorBracketPairGuideActiveBackground5,
+		editorBracketPairGuideActiveBackground6,
+	], theme);
+
+	const colors: { bracketColor?: Color, guideColor?: Color, guideColorActive?: Color }[] = [];
+
+	bracketColors.forEach((value, index) => {
+		if (colors[index] === undefined) {
+			colors[index] = {};
+		}
+
+		colors[index].bracketColor = value;
+	});
+
+	guideColors.forEach((value, index) => {
+		if (colors[index] === undefined) {
+			colors[index] = {};
+		}
+
+		colors[index].guideColor = value;
+	});
+
+	guideColorsActive.forEach((value, index) => {
+		if (colors[index] === undefined) {
+			colors[index] = {};
+		}
+
+		colors[index].guideColorActive = value;
+	});
+
+	// const colors = [
+	// 	{ bracketColor: editorBracketHighlightingForeground1, guideColor: editorBracketPairGuideBackground1, guideColorActive: editorBracketPairGuideActiveBackground1 },
+	// 	{ bracketColor: editorBracketHighlightingForeground2, guideColor: editorBracketPairGuideBackground2, guideColorActive: editorBracketPairGuideActiveBackground2 },
+	// 	{ bracketColor: editorBracketHighlightingForeground3, guideColor: editorBracketPairGuideBackground3, guideColorActive: editorBracketPairGuideActiveBackground3 },
+	// 	{ bracketColor: editorBracketHighlightingForeground4, guideColor: editorBracketPairGuideBackground4, guideColorActive: editorBracketPairGuideActiveBackground4 },
+	// 	{ bracketColor: editorBracketHighlightingForeground5, guideColor: editorBracketPairGuideBackground5, guideColorActive: editorBracketPairGuideActiveBackground5 },
+	// 	{ bracketColor: editorBracketHighlightingForeground6, guideColor: editorBracketPairGuideBackground6, guideColorActive: editorBracketPairGuideActiveBackground6 }
+	// ];
+
+	// const bracketColors: (Color | undefined)[] = [];
+
+	// const bracketColors = colors.reduce((array: (Color | undefined)[], value) => {
+	// 	const color = theme.getColor(value.bracketColor);
+
+	// 	return array.concat(typeof color !== 'undefined' ? (color.array) : [color]);
+	// }, []);
+
 	const colorProvider = new BracketPairGuidesClassNames();
 
 
 	const colorValues = colors
 		.map(c => {
-			const bracketColor = theme.getColor(c.bracketColor);
-			const guideColor = theme.getColor(c.guideColor);
-			const guideColorActive = theme.getColor(c.guideColorActive);
+			// const bracketColor = theme.getColor(c.bracketColor);
+			// const guideColor = theme.getColor(c.guideColor);
+			// const guideColorActive = theme.getColor(c.guideColorActive);
 
-			const effectiveGuideColor = transparentToUndefined(transparentToUndefined(guideColor) ?? bracketColor?.transparent(0.3));
-			const effectiveGuideColorActive = transparentToUndefined(transparentToUndefined(guideColorActive) ?? bracketColor);
+			const effectiveGuideColor = transparentToUndefined(transparentToUndefined(c.guideColor) ?? c.bracketColor?.transparent(0.3));
+			const effectiveGuideColorActive = transparentToUndefined(transparentToUndefined(c.guideColorActive) ?? c.bracketColor);
 
 			if (!effectiveGuideColor || !effectiveGuideColorActive) {
 				return undefined;

@@ -372,7 +372,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	private overwriteCustomColors(colors: IColorCustomizations) {
 		for (let id in colors) {
 			let colorVal = colors[id];
-			if (typeof colorVal === 'string') {
+			if (typeof colorVal === 'string' || types.isArray(colorVal)) {
 				this.customColorMap[id] = Color.fromHex(colorVal);
 			}
 		}

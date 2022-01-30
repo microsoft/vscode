@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
+import { isArray } from 'vs/base/common/types';
 
 function roundFloat(number: number, decimalPoints: number): number {
 	const decimal = Math.pow(10, decimalPoints);
@@ -255,7 +256,14 @@ export class HSVA {
 
 export class Color {
 
-	static fromHex(hex: string): Color {
+	static fromHex(hex: string | string[]): Color {
+		if (isArray(hex)) {
+			const [first, ...rest] = hex;
+			const result = Color.fromHex(first);
+			result.array = rest.map(Color.fromHex);
+
+			return result;
+		}
 		return Color.Format.CSS.parseHex(hex) || Color.red;
 	}
 
@@ -275,6 +283,21 @@ export class Color {
 			return this._hsva;
 		}
 		return HSVA.fromRGBA(this.rgba);
+	}
+
+	private _array?: Color[];
+	get array(): Color[] {
+		if (this._array) {
+			return [this, ...this._array];
+		}
+		return [this];
+	}
+	private set array(value: Color[]) {
+		this._array = value;
+	}
+
+	isArray() {
+		return !!this._array;
 	}
 
 	constructor(arg: RGBA | HSLA | HSVA) {

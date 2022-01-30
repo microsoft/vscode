@@ -14,7 +14,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import {
 	editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketHighlightingUnexpectedBracketForeground
 } from 'vs/editor/common/core/editorColorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export class ColorizedBracketPairsDecorationProvider extends Disposable implements DecorationProvider {
 	private colorizationOptions: BracketPairColorizationOptions;
@@ -90,21 +90,46 @@ class ColorProvider {
 	}
 }
 
+function unpack(colors: string[], theme: IColorTheme): (Color | undefined)[] {
+	const result = colors.reduce((array: (Color | undefined)[], value) => {
+		const color = theme.getColor(value);
+
+		return array.concat(typeof color !== 'undefined' ? (color.array) : [color]);
+	}, []);
+
+	// // move undefined items to the end
+	// for (let index = 0; index < result.length; index++) {
+	// 	if (result[index] === undefined) {
+	// 		result.push(result.splice(index, 1)[0]);
+	// 	}
+	// }
+
+	// remove undefined items
+	for (let index = 0; index < result.length; index++) {
+		if (result[index] === undefined) {
+			result.splice(index, 1);
+		}
+	}
+
+	return result;
+}
+
 registerThemingParticipant((theme, collector) => {
-	const colors = [
+	const colors = unpack([
 		editorBracketHighlightingForeground1,
 		editorBracketHighlightingForeground2,
 		editorBracketHighlightingForeground3,
 		editorBracketHighlightingForeground4,
 		editorBracketHighlightingForeground5,
 		editorBracketHighlightingForeground6
-	];
+	], theme);
+
 	const colorProvider = new ColorProvider();
 
 	collector.addRule(`.monaco-editor .${colorProvider.unexpectedClosingBracketClassName} { color: ${theme.getColor(editorBracketHighlightingUnexpectedBracketForeground)}; }`);
 
 	const colorValues = colors
-		.map(c => theme.getColor(c))
+		// .map(c => theme.getColor(c))
 		.filter((c): c is Color => !!c)
 		.filter(c => !c.isTransparent());
 
