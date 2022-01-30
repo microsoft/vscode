@@ -133,6 +133,11 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false
 		},
+		[TerminalSettingId.MultiLinePasteWarning]: {
+			description: localize('terminal.integrated.multiLinePasteWarning', "show the warning indicator when the terminal does a multi-line paste."),
+			type: 'boolean',
+			default: true
+		},
 		[TerminalSettingId.DrawBoldTextInBrightColors]: {
 			description: localize('terminal.integrated.drawBoldTextInBrightColors', "Controls whether bold text in the terminal will always use the \"bright\" ANSI color variant."),
 			type: 'boolean',

@@ -73,6 +73,7 @@ import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabil
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 
 const enum Constants {
 	/**
@@ -343,6 +344,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IProductService private readonly _productService: IProductService,
@@ -1058,6 +1060,47 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalAltBufferActiveContextKey.set(!!(this.xterm && this.xterm.raw.buffer.active === this.xterm.raw.buffer.alternate));
 	}
 
+	private async _shouldPasteText(text: string): Promise<boolean> {
+		let textForLines = text.split(/(\r\n|\n|\r)/);
+		let confirmation: IConfirmationResult;
+
+		// If the clipboard has only one line, no prompt will be triggered
+		if (textForLines.length === 1 || this._configurationService.getValue<boolean>(TerminalSettingId.MultiLinePasteWarning) === false) {
+			confirmation = { confirmed: true };
+		} else {
+			let message = nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to paste the following {0} lines to the terminal?", text.split(/\r\n|\n|\r/).length);
+
+			let displayItemsCount = 3;
+			let detail = textForLines.slice(0, displayItemsCount).join('');
+			if (textForLines.length > displayItemsCount) {
+				detail += '...';
+			}
+			let primaryButton = nls.localize({ key: 'multiLinePasteButton', comment: ['&& denotes a mnemonic'] }, "&&Paste");
+
+			confirmation = await this._dialogService.confirm({
+				type: 'question',
+				message: message,
+				detail: detail,
+				primaryButton: primaryButton,
+				checkbox: {
+					label: nls.localize('doNotAskAgain', "Do not ask me again")
+				}
+			});
+		}
+
+		// Check for confirmation
+		if (!confirmation.confirmed) {
+			return false;
+		}
+
+		// Check for confirmation checkbox
+		if (confirmation.confirmed && confirmation.checkboxChecked === true) {
+			await this._configurationService.updateValue(TerminalSettingId.MultiLinePasteWarning, false);
+		}
+		return true;
+	}
+
+
 	override dispose(immediate?: boolean): void {
 		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
 		dispose(this._linkManager);
@@ -1136,8 +1179,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			return;
 		}
+
+		let currentText: string = await this._clipboardService.readText();
+		if (await this._shouldPasteText(currentText) === false) {
+			return;
+		}
+
 		this.focus();
-		this.xterm.raw.paste(await this._clipboardService.readText());
+		this.xterm.raw.paste(currentText);
 	}
 
 	async pasteSelection(): Promise<void> {
