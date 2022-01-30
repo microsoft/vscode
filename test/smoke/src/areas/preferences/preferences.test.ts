@@ -8,7 +8,7 @@ import { Application, ActivityBarPosition, Logger } from '../../../../automation
 import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
-	describe.skip('Preferences', () => { // TODO@sandy081 TODO@roblourens https://github.com/microsoft/vscode/issues/141054
+	describe('Preferences', () => {
 
 		// Shared before/after handling
 		installAllHandlers(logger);

@@ -13,16 +13,17 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { editorCodeLensForeground, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/core/editorColorRegistry';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { editorCodeLensForeground, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/core/editorColorRegistry';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -536,6 +537,7 @@ abstract class TitleLensContentWidget {
 
 			this.viewZoneId = accessor.addZone({
 				afterLineNumber: 0,
+				afterColumn: Constants.MAX_SAFE_SMALL_INTEGER,
 				domNode: document.createElement('div'),
 				heightInPx: 20,
 			});

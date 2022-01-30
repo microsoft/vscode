@@ -46,9 +46,9 @@ export class FoldedCellHint extends CellPart {
 
 	private getHiddenCellsLabel(num: number): string {
 		if (num === 1) {
-			return localize('hiddenCellsLabel', "1 cell hidden...");
+			return localize('hiddenCellsLabel', "1 cell hidden") + '…';
 		} else {
-			return localize('hiddenCellsLabelPlural', "{0} cells hidden...", num);
+			return localize('hiddenCellsLabelPlural', "{0} cells hidden", num) + '…';
 		}
 	}
 

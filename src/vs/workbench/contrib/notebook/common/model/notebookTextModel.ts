@@ -388,10 +388,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return this.cells.findIndex(c => !!c.outputs.find(o => o.outputId === outputId));
 	}
 
-	checkCellExistence(handle: number) {
-		return this._cellListeners.has(handle);
-	}
-
 	reset(cells: ICellDto2[], metadata: NotebookDocumentMetadata, transientOptions: TransientOptions): void {
 		this.transientOptions = transientOptions;
 		this._cellhandlePool = 0;

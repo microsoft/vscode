@@ -1018,7 +1018,7 @@ registerAction2(DecreaseViewSizeAction);
 registerAction2(DecreaseViewWidthAction);
 registerAction2(DecreaseViewHeightAction);
 
-const menubarIcon = registerIcon('menu-bar', Codicon.menu, localize('menuBarIcon', "Represents the menu bar"));
+const menubarIcon = registerIcon('menuBar', Codicon.layoutMenubar, localize('menuBarIcon', "Represents the menu bar"));
 const activityBarLeftIcon = registerIcon('activity-bar-left', Codicon.layoutActivitybarLeft, localize('activityBarLeft', "Represents the activity bar in the left position"));
 const activityBarRightIcon = registerIcon('activity-bar-right', Codicon.layoutActivitybarRight, localize('activityBarRight', "Represents the activity bar in the right position"));
 const panelLeftIcon = registerIcon('panel-left', Codicon.layoutSidebarLeft, localize('panelLeft', "Represents the side bar or side panel in the left position"));
@@ -1030,6 +1030,10 @@ const panelAlignmentLeftIcon = registerIcon('panel-align-left', Codicon.layoutPa
 const panelAlignmentRightIcon = registerIcon('panel-align-right', Codicon.layoutPanelRight, localize('panelBottomRight', "Represents the bottom panel alignment set to the right"));
 const panelAlignmentCenterIcon = registerIcon('panel-align-center', Codicon.layoutPanelCenter, localize('panelBottomCenter', "Represents the bottom panel alignment set to the center"));
 const panelAlignmentJustifyIcon = registerIcon('panel-align-justify', Codicon.layoutPanelJustify, localize('panelBottomJustify', "Represents the bottom panel alignment set to justified"));
+
+const fullscreenIcon = registerIcon('fullscreen', Codicon.screenFull, localize('fullScreenIcon', "Represents full screen"));
+const centerLayoutIcon = registerIcon('centerLayoutIcon', Codicon.layoutCentered, localize('centerLayoutIcon', "Represents centered layout mode"));
+const zenModeIcon = registerIcon('zenMode', Codicon.target, localize('zenModeIcon', "Represents zen mode"));
 
 type ContextualLayoutVisualIcon = { iconA: ThemeIcon, iconB: ThemeIcon, whenA: ContextKeyExpression };
 type LayoutVisualIcon = ThemeIcon | ContextualLayoutVisualIcon;
@@ -1103,9 +1107,9 @@ const AlignPanelActions: CustomizeLayoutItem[] = [
 ];
 
 const MiscLayoutOptions: CustomizeLayoutItem[] = [
-	CreateOptionLayoutItem('workbench.action.toggleZenMode', InEditorZenModeContext, localize('zenMode', "Zen Mode")),
-	CreateOptionLayoutItem('workbench.action.toggleCenteredLayout', IsCenteredLayoutContext, localize('centeredLayout', "Centered Layout")),
-	CreateOptionLayoutItem('workbench.action.toggleFullScreen', IsFullscreenContext, localize('fullscreen', "Full Screen")),
+	CreateOptionLayoutItem('workbench.action.toggleFullScreen', IsFullscreenContext, localize('fullscreen', "Full Screen"), fullscreenIcon),
+	CreateOptionLayoutItem('workbench.action.toggleZenMode', InEditorZenModeContext, localize('zenMode', "Zen Mode"), zenModeIcon),
+	CreateOptionLayoutItem('workbench.action.toggleCenteredLayout', IsCenteredLayoutContext, localize('centeredLayout', "Centered Layout"), centerLayoutIcon),
 ];
 
 const LayoutContextKeySet = new Set<string>();

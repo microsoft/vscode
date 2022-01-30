@@ -833,7 +833,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	get minimumHeight(): number { return Math.min(this.centeredLayoutWidget.minimumHeight, this.layoutService.getMaximumEditorDimensions().height); }
 	get maximumHeight(): number { return this.centeredLayoutWidget.maximumHeight; }
 
-	readonly snap = true;
+	get snap(): boolean { return this.layoutService.getPanelAlignment() === 'center'; }
 
 	override get onDidChange(): Event<IViewSize | undefined> { return Event.any(this.centeredLayoutWidget.onDidChange, this.onDidSetGridWidget.event); }
 	readonly priority: LayoutPriority = LayoutPriority.High;
