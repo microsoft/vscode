@@ -67,10 +67,10 @@ class ShowKeyboardWidget extends Disposable implements IOverlayWidget {
 		this._domNode = document.createElement('textarea');
 		this._domNode.className = 'iPadShowKeyboard';
 
-		this._register(dom.addDisposableListener(this._domNode, 'touchstart', (e) => {
+		this._register(dom.addDisposableListener(this._domNode, 'touchstart', () => {
 			this.editor.focus();
 		}));
-		this._register(dom.addDisposableListener(this._domNode, 'focus', (e) => {
+		this._register(dom.addDisposableListener(this._domNode, 'focus', () => {
 			this.editor.focus();
 		}));
 
