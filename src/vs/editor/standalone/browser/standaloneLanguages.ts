@@ -579,7 +579,8 @@ export function registerColorProvider(languageId: string, provider: languages.Do
  * Register a folding range provider
  */
 export function registerFoldingRangeProvider(languageId: string, provider: languages.FoldingRangeProvider): IDisposable {
-	return languages.FoldingRangeProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.foldingRangeProvider.register(languageId, provider);
 }
 
 /**

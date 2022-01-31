@@ -691,7 +691,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			provider.onDidChange = emitter.event;
 		}
 
-		this._registrations.set(handle, modes.FoldingRangeProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, this._languageFeaturesService.foldingRangeProvider.register(selector, provider));
 	}
 
 	$emitFoldingRangeEvent(eventHandle: number, event?: any): void {
