@@ -36,6 +36,8 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 
 	readonly execPath: string;
 
+	readonly backupPath?: string;
+
 	readonly log?: string;
 
 	readonly os: IOSConfiguration;
@@ -68,6 +70,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get execPath() { return this.configuration2.execPath; }
+
+	@memoize
+	get backupPath() { return this.configuration2.backupPath; }
 
 	@memoize
 	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
