@@ -11,6 +11,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalLinkOpener, ITerminalSimpleLink } from 'vs/workbench/contrib/terminal/browser/links/links';
@@ -230,5 +231,23 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 			}
 		}
 		return exactResource;
+	}
+}
+
+export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
+	constructor(
+		private readonly _isRemote: boolean,
+		@IOpenerService private readonly _openerService: IOpenerService,
+	) {
+	}
+
+	async open(link: ITerminalSimpleLink): Promise<void> {
+		if (!link.uri) {
+			throw new Error('Tried to open a url without a resolved URI');
+		}
+		this._openerService.open(link.uri || URI.parse(link.text), {
+			allowTunneling: this._isRemote,
+			allowContributedOpeners: true,
+		});
 	}
 }

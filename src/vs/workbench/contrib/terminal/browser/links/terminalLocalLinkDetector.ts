@@ -151,7 +151,6 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				}
 			}
 
-
 			// Create the link if validated
 			if (linkStat) {
 				let type: TerminalLinkType;

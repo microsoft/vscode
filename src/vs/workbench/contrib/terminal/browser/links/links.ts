@@ -78,7 +78,12 @@ export const enum TerminalLinkType {
 	 * A low confidence link which will search for the file in the workspace. If there is a single
 	 * match, it will open the file; otherwise, it will present the matches in a quick pick.
 	 */
-	Search
+	Search,
+
+	/**
+	 * A link whose text is a valid URI.
+	 */
+	Url
 }
 
 export interface ITerminalLinkOpener {
