@@ -35,7 +35,7 @@ export class NativeHostColorSchemeService extends Disposable implements IHostCol
 		// register listener with the OS
 		this._register(this.nativeHostService.onDidChangeColorScheme(scheme => this.update(scheme)));
 
-		const initial = this.getStoredValue() ?? environmentService.configuration.colorScheme;
+		const initial = this.getStoredValue() ?? environmentService.configuration2.colorScheme;
 		this.dark = initial.dark;
 		this.highContrast = initial.highContrast;
 

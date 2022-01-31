@@ -48,7 +48,7 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	 * Please consider using the environment service directly
 	 * if you can.
 	 */
-	readonly configuration: IWorkbenchConfiguration;
+	readonly configuration2: IWorkbenchConfiguration;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:

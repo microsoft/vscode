@@ -25,6 +25,10 @@ export interface INativeWorkbenchConfiguration extends IWorkbenchConfiguration, 
  */
 export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnvironmentService, INativeEnvironmentService {
 
+	readonly windowId: number;
+
+	readonly mainPid: number;
+
 	readonly machineId: string;
 
 	readonly crashReporterDirectory?: string;
@@ -43,28 +47,34 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 	 * Please consider using the environment service directly
 	 * if you can.
 	 */
-	readonly configuration: INativeWorkbenchConfiguration;
+	readonly configuration2: INativeWorkbenchConfiguration;
 }
 
 export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironmentService implements INativeWorkbenchEnvironmentService {
 
 	@memoize
-	get machineId() { return this.configuration.machineId; }
+	get windowId() { return this.configuration2.windowId; }
 
 	@memoize
-	get remoteAuthority() { return this.configuration.remoteAuthority; }
+	get mainPid() { return this.configuration2.mainPid; }
 
 	@memoize
-	get execPath() { return this.configuration.execPath; }
+	get machineId() { return this.configuration2.machineId; }
+
+	@memoize
+	get remoteAuthority() { return this.configuration2.remoteAuthority; }
+
+	@memoize
+	get execPath() { return this.configuration2.execPath; }
 
 	@memoize
 	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
 
 	@memoize
-	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
+	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration2.windowId}.log`)); }
 
 	@memoize
-	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
+	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration2.windowId}`)); }
 
 	@memoize
 	get webviewExternalEndpoint(): string { return `${Schemas.vscodeWebview}://{{uuid}}`; }
@@ -92,13 +102,13 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	}
 
 	get os(): IOSConfiguration {
-		return this.configuration.os;
+		return this.configuration2.os;
 	}
 
 	constructor(
-		readonly configuration: INativeWorkbenchConfiguration,
+		readonly configuration2: INativeWorkbenchConfiguration,
 		productService: IProductService
 	) {
-		super(configuration, { homeDir: configuration.homeDir, tmpDir: configuration.tmpDir, userDataDir: configuration.userDataDir }, productService);
+		super(configuration2, { homeDir: configuration2.homeDir, tmpDir: configuration2.tmpDir, userDataDir: configuration2.userDataDir }, productService);
 	}
 }

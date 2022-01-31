@@ -102,7 +102,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	declare readonly _serviceBrand: undefined;
 
 	private _configuration: IWindowConfiguration | undefined = undefined;
-	get configuration(): IWindowConfiguration {
+	get configuration2(): IWindowConfiguration {
 		if (!this._configuration) {
 			this._configuration = new BrowserWorkbenchConfiguration(this.options, this.payload);
 		}
