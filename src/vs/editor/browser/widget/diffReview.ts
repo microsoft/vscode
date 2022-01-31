@@ -33,7 +33,7 @@ import { Constants } from 'vs/base/common/uint';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 
 const DIFF_LINES_PADDING = 3;

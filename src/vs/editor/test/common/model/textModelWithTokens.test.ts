@@ -14,7 +14,7 @@ import { CharacterPair } from 'vs/editor/common/languages/languageConfiguration'
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { NullState } from 'vs/editor/common/languages/nullMode';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { TestLineToken } from 'vs/editor/test/common/core/testLineToken';
 import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 

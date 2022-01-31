@@ -16,7 +16,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { FontStyle, IState, ITokenizationSupport, StandardTokenType, TokenMetadata, TokenizationRegistry, ILanguageIdCodec, Token } from 'vs/editor/common/languages';
 import { NullState, nullTokenize, nullTokenizeEncoded } from 'vs/editor/common/languages/nullMode';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';

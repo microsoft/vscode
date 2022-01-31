@@ -21,7 +21,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
 import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';

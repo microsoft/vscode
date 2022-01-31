@@ -43,7 +43,7 @@ import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
 import { getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { FormattingOptions, StandardTokenType } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IColorTheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';

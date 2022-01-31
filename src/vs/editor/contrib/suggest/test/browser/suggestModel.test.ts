@@ -19,7 +19,7 @@ import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionP
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { NullState } from 'vs/editor/common/languages/nullMode';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';

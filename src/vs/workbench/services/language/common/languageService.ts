@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { registerLanguageAssociation, clearLanguageAssociations } from 'vs/editor/common/services/languagesAssociations';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/languages/language';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';

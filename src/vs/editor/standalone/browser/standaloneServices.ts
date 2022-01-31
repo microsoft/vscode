@@ -62,7 +62,7 @@ import { getSingletonServiceDescriptors, registerSingleton } from 'vs/platform/i
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { EditorWorkerService } from 'vs/editor/browser/services/editorWorkerService';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
 import { ModelService } from 'vs/editor/common/services/modelService';
