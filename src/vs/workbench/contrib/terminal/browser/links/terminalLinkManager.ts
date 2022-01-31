@@ -107,7 +107,11 @@ export class TerminalLinkManager extends DisposableStore {
 
 	private async _openLink(link: ITerminalSimpleLink): Promise<void> {
 		console.log('open', link);
-		await this._openers.get(link.type)?.open(link);
+		const opener = this._openers.get(link.type);
+		if (!opener) {
+			throw new Error(`No matching opener for link type "${link.type}"`);
+		}
+		await opener.open(link);
 	}
 
 	async openRecentLink(type: 'file' | 'web'): Promise<ILink | undefined> {
