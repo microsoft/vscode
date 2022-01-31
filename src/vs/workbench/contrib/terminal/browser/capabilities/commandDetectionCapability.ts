@@ -152,22 +152,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				marker: this._currentCommand.commandStartMarker
 			};
 			this._commands.push(newCommand);
-			const decoration = this._terminal.registerDecoration({ marker: this._currentCommand.commandStartMarker, anchor: 'right' });
-			const outputLineCount = (this._currentCommand.commandFinishedMarker?.line || 0) - (this._currentCommand.commandExecutedMarker?.line || 0) > 0;
-			if (decoration && newCommand && outputLineCount) {
-				this._currentCommand.outputDecoration = decoration;
-				const output = newCommand.getOutput();
-				if (output?.length && this._currentCommand.outputDecoration.element) {
-					dom.addDisposableListener(this._currentCommand.outputDecoration.element, 'click', async () => {
-						await this._clipboardService.writeText(output);
-					});
-					const outputHover = document.createElement('span');
-					outputHover.textContent = 'Copy';
-					outputHover.id = 'button-buffer-decoration-textContent';
-					this._currentCommand.outputDecoration.element.appendChild(outputHover);
-				}
-				decoration.onRender(() => console.log('on render'));
-			}
+			this._registerOutputDecoration(this._currentCommand, newCommand);
 			this._onCommandFinished.fire(newCommand);
 		}
 		this._currentCommand.previousCommandMarker?.dispose();
@@ -178,6 +163,28 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	setCommandLine(commandLine: string) {
 		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine);
 		this._currentCommand.command = commandLine;
+	}
+
+	private _registerOutputDecoration(currentCommand: ICurrentPartialCommand, newCommand: ITerminalCommand): void {
+		if (!this._currentCommand.commandStartMarker) {
+			return;
+		}
+		const decoration = this._terminal.registerDecoration({ marker: this._currentCommand.commandStartMarker, anchor: 'right' });
+		const outputLineCount = (this._currentCommand.commandFinishedMarker?.line || 0) - (this._currentCommand.commandExecutedMarker?.line || 0) > 0;
+		if (decoration && newCommand && outputLineCount) {
+			this._currentCommand.outputDecoration = decoration;
+			const output = newCommand.getOutput();
+			if (output?.length && this._currentCommand.outputDecoration.element) {
+				dom.addDisposableListener(this._currentCommand.outputDecoration.element, 'click', async () => {
+					await this._clipboardService.writeText(output);
+				});
+				const outputHover = document.createElement('span');
+				outputHover.textContent = 'Copy';
+				outputHover.id = 'button-buffer-decoration-textContent';
+				this._currentCommand.outputDecoration.element.appendChild(outputHover);
+			}
+			decoration.onRender(() => console.log('on render'));
+		}
 	}
 }
 
