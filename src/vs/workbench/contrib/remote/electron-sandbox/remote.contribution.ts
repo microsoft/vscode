@@ -137,7 +137,7 @@ class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchC
 			return shouldShowExplorer();
 		}
 
-		const { remoteAuthority, filesToDiff, filesToOpenOrCreate, filesToWait } = environmentService.configuration;
+		const { remoteAuthority, filesToDiff, filesToOpenOrCreate, filesToWait } = environmentService;
 		if (remoteAuthority && contextService.getWorkbenchState() === WorkbenchState.EMPTY && !filesToDiff?.length && !filesToOpenOrCreate?.length && !filesToWait) {
 			remoteAuthorityResolverService.resolveAuthority(remoteAuthority).then(() => {
 				if (shouldShowExplorer()) {

@@ -157,7 +157,7 @@ suite('TerminalProfileService', () => {
 		remoteAgentService = new TestRemoteAgentService();
 		terminalInstanceService = new TestTerminalInstanceService();
 		extensionService = new TestTerminalExtensionService();
-		environmentService = { configuration: {}, remoteAuthority: undefined } as IWorkbenchEnvironmentService;
+		environmentService = { remoteAuthority: undefined } as IWorkbenchEnvironmentService;
 		instantiationService = new TestInstantiationService();
 
 		let themeService = new TestThemeService();
@@ -258,7 +258,7 @@ suite('TerminalProfileService', () => {
 	});
 
 	test('should get profiles from remoteTerminalService when there is a remote authority', async () => {
-		environmentService = { configuration: {}, remoteAuthority: 'fakeremote' } as IWorkbenchEnvironmentService;
+		environmentService = { remoteAuthority: 'fakeremote' } as IWorkbenchEnvironmentService;
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
 		await terminalProfileService.hasRefreshedProfiles;

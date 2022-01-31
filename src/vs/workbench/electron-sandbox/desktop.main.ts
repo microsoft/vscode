@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import product from 'vs/platform/product/common/product';
-import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
+import { INativeWindowConfiguration, zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
@@ -12,7 +12,7 @@ import { domContentLoaded } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
@@ -55,7 +55,7 @@ import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataPr
 export class DesktopMain extends Disposable {
 
 	constructor(
-		private readonly configuration: INativeWorkbenchConfiguration
+		private readonly configuration: INativeWindowConfiguration
 	) {
 		super();
 
@@ -174,11 +174,11 @@ export class DesktopMain extends Disposable {
 
 		// Logger
 		const logLevelChannelClient = new LogLevelChannelClient(mainProcessService.getChannel('logLevel'));
-		const loggerService = new LoggerChannelClient(environmentService.configuration.logLevel, logLevelChannelClient.onDidChangeLogLevel, mainProcessService.getChannel('logger'));
+		const loggerService = new LoggerChannelClient(this.configuration.logLevel, logLevelChannelClient.onDidChangeLogLevel, mainProcessService.getChannel('logger'));
 		serviceCollection.set(ILoggerService, loggerService);
 
 		// Log
-		const logService = this._register(new NativeLogService(`renderer${this.configuration.windowId}`, environmentService.configuration.logLevel, loggerService, logLevelChannelClient, environmentService));
+		const logService = this._register(new NativeLogService(`renderer${this.configuration.windowId}`, this.configuration.logLevel, loggerService, logLevelChannelClient, environmentService));
 		serviceCollection.set(ILogService, logService);
 
 		// Shared Process
@@ -372,7 +372,7 @@ export class DesktopMain extends Disposable {
 	}
 }
 
-export function main(configuration: INativeWorkbenchConfiguration): Promise<void> {
+export function main(configuration: INativeWindowConfiguration): Promise<void> {
 	const workbench = new DesktopMain(configuration);
 
 	return workbench.open();

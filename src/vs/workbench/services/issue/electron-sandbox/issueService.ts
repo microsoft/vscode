@@ -97,7 +97,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 	openProcessExplorer(): Promise<void> {
 		const theme = this.themeService.getColorTheme();
 		const data: ProcessExplorerData = {
-			pid: this.environmentService.configuration.mainPid,
+			pid: this.environmentService.mainPid,
 			zoomLevel: getZoomLevel(),
 			styles: {
 				backgroundColor: getColor(theme, editorBackground),
