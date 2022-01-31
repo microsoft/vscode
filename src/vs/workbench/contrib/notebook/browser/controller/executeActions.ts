@@ -6,7 +6,7 @@
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';

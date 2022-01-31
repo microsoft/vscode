@@ -15,7 +15,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ModelService } from 'vs/editor/common/services/modelService';

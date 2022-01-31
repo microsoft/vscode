@@ -11,7 +11,8 @@ import { Disposable, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+import { ITextModel } from 'vs/editor/common/model';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -847,11 +848,10 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		const groupContent = builder.getContent() + '\n';
 		const groupEndLine = this._model.getLineCount();
 		const cursorPosition = new Selection(startLine, 1, startLine, 1);
-		const edit: IIdentifiedSingleEditOperation = {
+		const edit: ISingleEditOperation = {
 			text: groupContent,
 			forceMoveMarkers: true,
-			range: new Range(startLine, 1, groupEndLine, 1),
-			identifier: { major: 1, minor: 0 }
+			range: new Range(startLine, 1, groupEndLine, 1)
 		};
 
 		this._model.pushEditOperations([cursorPosition], [edit], () => [cursorPosition]);

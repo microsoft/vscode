@@ -5,17 +5,17 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as resources from 'vs/base/common/resources';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { Promises, ThrottledDelayer } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { Disposable, toDisposable, IDisposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -257,7 +257,7 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 		this.doUpdateModel(model, edits, contentToReplace);
 	}
 
-	private async getReplaceEdits(model: ITextModel, contentToReplace: string): Promise<IIdentifiedSingleEditOperation[]> {
+	private async getReplaceEdits(model: ITextModel, contentToReplace: string): Promise<ISingleEditOperation[]> {
 		if (!contentToReplace) {
 			return [EditOperation.delete(model.getFullModelRange())];
 		}
@@ -270,7 +270,7 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 		return [];
 	}
 
-	private doUpdateModel(model: ITextModel, edits: IIdentifiedSingleEditOperation[], content: VSBuffer): void {
+	private doUpdateModel(model: ITextModel, edits: ISingleEditOperation[], content: VSBuffer): void {
 		if (edits.length) {
 			model.applyEdits(edits);
 		}

@@ -89,7 +89,6 @@ export const enum TerminalSettingId {
 	WordSeparators = 'terminal.integrated.wordSeparators',
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
 	UnicodeVersion = 'terminal.integrated.unicodeVersion',
-	ExperimentalLinkProvider = 'terminal.integrated.experimentalLinkProvider',
 	LocalEchoLatencyThreshold = 'terminal.integrated.localEchoLatencyThreshold',
 	LocalEchoEnabled = 'terminal.integrated.localEchoEnabled',
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',

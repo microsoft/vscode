@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { MainThreadTunnelServiceShape, IExtHostContext, MainContext, ExtHostContext, ExtHostTunnelServiceShape, CandidatePortSource, PortAttributesProviderSelector } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadTunnelServiceShape, MainContext, ExtHostContext, ExtHostTunnelServiceShape, CandidatePortSource, PortAttributesProviderSelector } from 'vs/workbench/api/common/extHost.protocol';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { CandidatePort, IRemoteExplorerService, makeAddress, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, RemoteTunnel, isPortPrivileged, ProvidedPortAttributes, PortAttributesProvider, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';

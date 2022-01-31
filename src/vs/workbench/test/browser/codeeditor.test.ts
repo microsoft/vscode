@@ -8,7 +8,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { URI } from 'vs/base/common/uri';
 import { workbenchInstantiationService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/codeeditor';
 import { TextModel } from 'vs/editor/common/model/textModel';

@@ -14,7 +14,7 @@ import { registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/
 import type { IEditorContribution } from 'vs/editor/common/editorCommon';
 import type { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';

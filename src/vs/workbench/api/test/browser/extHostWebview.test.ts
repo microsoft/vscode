@@ -10,7 +10,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { MainThreadWebviewManager } from 'vs/workbench/api/browser/mainThreadWebviewManager';
-import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';

@@ -12,12 +12,13 @@ import { dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostExtensionServiceShape, IInitData, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IResolveAuthorityResult } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostExtensionServiceShape, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IResolveAuthorityResult } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { ActivatedExtension, EmptyExtension, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostStorage, IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { MissingExtensionDependency, ActivationKind, checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { MissingExtensionDependency, ActivationKind, checkProposedApiEnabled, isProposedApiEnabled, ExtensionActivationReason } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as errors from 'vs/base/common/errors';
 import type * as vscode from 'vscode';
@@ -34,7 +35,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IExtensionActivationHost, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
+import { IExtensionActivationHost, checkActivateWorkspaceContainsExtension } from 'vs/workbench/services/extensions/common/workspaceContains';
 import { ExtHostSecretState, IExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
 import { ExtensionSecrets } from 'vs/workbench/api/common/extHostSecrets';
 import { Schemas } from 'vs/base/common/network';
@@ -80,7 +81,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	public readonly onDidChangeRemoteConnectionData = this._onDidChangeRemoteConnectionData.event;
 
 	protected readonly _hostUtils: IHostUtils;
-	protected readonly _initData: IInitData;
+	protected readonly _initData: IExtensionHostInitData;
 	protected readonly _extHostContext: IExtHostRpcService;
 	protected readonly _instaService: IInstantiationService;
 	protected readonly _extHostWorkspace: ExtHostWorkspace;

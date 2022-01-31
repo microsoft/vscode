@@ -295,7 +295,7 @@ export class WebClientServer {
 			'default-src \'self\';',
 			'img-src \'self\' https: data: blob:;',
 			'media-src \'self\';',
-			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-9CevbjD7QdrWdGrVTVJD74tTH4eAhisvCOlLtWUn+Iw=' http://${remoteAuthority};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
+			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-Luz5WwVrEgqx3ZT5ekNejY0UMaLynWfImiCqdaT6CeQ=' http://${remoteAuthority};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
 			'child-src \'self\';',
 			`frame-src 'self' https://*.vscode-webview.net ${this._productService.webEndpointUrl || ''} data:;`,
 			'worker-src \'self\' data:;',

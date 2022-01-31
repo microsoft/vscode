@@ -13,7 +13,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

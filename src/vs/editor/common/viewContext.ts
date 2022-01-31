@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { IViewLayout, IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
+import { IViewLayout, IViewModel } from 'vs/editor/common/viewModel';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';

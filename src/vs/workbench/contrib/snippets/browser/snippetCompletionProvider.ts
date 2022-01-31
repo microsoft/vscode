@@ -9,7 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { localize } from 'vs/nls';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';

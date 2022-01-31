@@ -11,7 +11,7 @@ import { IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { timeout, TaskSequentializer } from 'vs/base/common/async';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';

@@ -8,10 +8,10 @@ import { shouldSynchronizeModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
-import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ITextFileSaveParticipant, ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { SaveReason } from 'vs/workbench/common/editor';
-import { ExtHostContext, ExtHostDocumentSaveParticipantShape, IExtHostContext } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostDocumentSaveParticipantShape } from '../common/extHost.protocol';
 import { canceled } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 

@@ -15,7 +15,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { HoverProviderRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { getHover } from 'vs/editor/contrib/hover/browser/getHover';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import * as nls from 'vs/nls';
@@ -43,6 +43,8 @@ export class MarkdownHover implements IHoverPart {
 }
 
 export class MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
+
+	public readonly hoverOrdinal: number = 2;
 
 	constructor(
 		protected readonly _editor: ICodeEditor,

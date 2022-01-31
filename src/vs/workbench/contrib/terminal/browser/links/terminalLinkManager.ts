@@ -28,7 +28,7 @@ import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/termin
 import { TerminalExternalLinkProviderAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkProviderAdapter';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { EventType } from 'vs/base/browser/dom';
 import { TerminalLinkDetectorAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkDetectorAdapter';
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
@@ -84,6 +84,10 @@ export class TerminalLinkManager extends DisposableStore {
 			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, this._processManager.os || OS, this._resolvePath.bind(this)));
 		}
 		this._setupLinkDetector(TerminalWordLinkDetector.id, this._instantiationService.createInstance(TerminalWordLinkDetector, this._xterm));
+
+		capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(cwd => {
+			this.processCwd = cwd;
+		});
 
 		// Setup link openers
 		this._openers.set(TerminalLinkType.LocalFile, this._instantiationService.createInstance(TerminalLocalFileLinkOpener, this._processManager.os || OS));

@@ -6,7 +6,7 @@
 import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractTextMateService } from 'vs/workbench/services/textMate/browser/abstractTextMateService';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';

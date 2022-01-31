@@ -8,7 +8,7 @@ import { ILanguageDetectionService, ILanguageDetectionStats, LanguageDetectionSt
 import { FileAccess } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

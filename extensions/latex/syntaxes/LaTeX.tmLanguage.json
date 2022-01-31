@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/de12bcd961c686e147190f15a951b4336f0128e4",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/b98c2d4911652824fc990f4b26c9c30be59b78a2",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [

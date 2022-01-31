@@ -10,7 +10,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { IInitData, MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
+import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -43,7 +44,7 @@ export class ExtensionHostMain {
 
 	constructor(
 		protocol: IMessagePassingProtocol,
-		initData: IInitData,
+		initData: IExtensionHostInitData,
 		hostUtils: IHostUtils,
 		uriTransformer: IURITransformer | null,
 		messagePorts?: ReadonlyMap<string, MessagePort>
@@ -151,7 +152,7 @@ export class ExtensionHostMain {
 		});
 	}
 
-	private static _transform(initData: IInitData, rpcProtocol: RPCProtocol): IInitData {
+	private static _transform(initData: IExtensionHostInitData, rpcProtocol: RPCProtocol): IExtensionHostInitData {
 		initData.extensions.forEach((ext) => (<any>ext).extensionLocation = URI.revive(rpcProtocol.transformIncomingURIs(ext.extensionLocation)));
 		initData.environment.appRoot = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appRoot));
 		const extDevLocs = initData.environment.extensionDevelopmentLocationURI;

@@ -299,7 +299,16 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	private getAllUserAssociations(): EditorAssociations {
-		const rawAssociations = this.configurationService.getValue<{ [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
+		const inspectedEditorAssociations = this.configurationService.inspect<{ [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
+		const workspaceAssociations = inspectedEditorAssociations.workspaceValue ?? {};
+		const userAssociations = inspectedEditorAssociations.userValue ?? {};
+		const rawAssociations: { [fileNamePattern: string]: string } = { ...workspaceAssociations };
+		// We want to apply the user associations on top of the workspace associations but ignore duplicate keys.
+		for (const [key, value] of Object.entries(userAssociations)) {
+			if (rawAssociations[key] === undefined) {
+				rawAssociations[key] = value;
+			}
+		}
 		let associations = [];
 		for (const [key, value] of Object.entries(rawAssociations)) {
 			const association: EditorAssociation = {

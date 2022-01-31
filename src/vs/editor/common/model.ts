@@ -22,6 +22,7 @@ import { equals } from 'vs/base/common/objects';
 import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -365,25 +366,12 @@ export interface ISingleEditOperationIdentifier {
 /**
  * A single edit operation, that has an identifier.
  */
-export interface IIdentifiedSingleEditOperation {
+export interface IIdentifiedSingleEditOperation extends ISingleEditOperation {
 	/**
 	 * An identifier associated with this single edit operation.
 	 * @internal
 	 */
 	identifier?: ISingleEditOperationIdentifier | null;
-	/**
-	 * The range to replace. This can be empty to emulate a simple insert.
-	 */
-	range: IRange;
-	/**
-	 * The text to replace with. This can be null to emulate a simple delete.
-	 */
-	text: string | null;
-	/**
-	 * This indicates that this operation has "insert" semantics.
-	 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
-	 */
-	forceMoveMarkers?: boolean;
 	/**
 	 * This indicates that this operation is inserting automatic whitespace
 	 * that can be removed on next model edit operation if `config.trimAutoWhitespace` is true.

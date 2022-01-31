@@ -7,7 +7,7 @@ import 'vs/css!./media/anythingQuickAccess';
 import { IQuickInputButton, IKeyMods, quickPickItemScorerAccessor, QuickPickItemScorerAccessor, IQuickPick, IQuickPickItemWithResource, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction, FastAndSlowPicks, Picks, PicksWithActive } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { prepareQuery, IPreparedQuery, compareItemsByFuzzyScore, scoreItemFuzzy, FuzzyScorerCache } from 'vs/base/common/fuzzyScorer';
-import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, IWorkbenchSearchConfiguration } from 'vs/workbench/contrib/search/common/search';
 import { ISearchService, ISearchComplete } from 'vs/workbench/services/search/common/search';
@@ -23,7 +23,7 @@ import { DisposableStore, IDisposable, toDisposable, MutableDisposable, Disposab
 import { ILabelService } from 'vs/platform/label/common/label';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
