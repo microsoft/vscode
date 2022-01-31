@@ -1890,11 +1890,6 @@ export interface DocumentRangeSemanticTokensProvider {
 /**
  * @internal
  */
-export const EvaluatableExpressionProviderRegistry = new LanguageFeatureRegistry<EvaluatableExpressionProvider>();
-
-/**
- * @internal
- */
 export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
 
 /**
