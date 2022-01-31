@@ -9,7 +9,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, registerModelCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -24,6 +24,11 @@ import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { assertType } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 
 class SelectionRanges {
 
@@ -58,7 +63,10 @@ class SmartSelectController implements IEditorContribution {
 	private _selectionListener?: IDisposable;
 	private _ignoreSelection: boolean = false;
 
-	constructor(private readonly _editor: ICodeEditor) { }
+	constructor(
+		private readonly _editor: ICodeEditor,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+	) { }
 
 	dispose(): void {
 		this._selectionListener?.dispose();
@@ -71,13 +79,13 @@ class SmartSelectController implements IEditorContribution {
 
 		const selections = this._editor.getSelections();
 		const model = this._editor.getModel();
-		if (!modes.SelectionRangeRegistry.has(model)) {
+		if (!this._languageFeaturesService.selectionRangeProvider.has(model)) {
 			return;
 		}
 
 		if (!this._state) {
 
-			await provideSelectionRanges(model, selections.map(s => s.getPosition()), this._editor.getOption(EditorOption.smartSelect), CancellationToken.None).then(ranges => {
+			await provideSelectionRanges(this._languageFeaturesService.selectionRangeProvider, model, selections.map(s => s.getPosition()), this._editor.getOption(EditorOption.smartSelect), CancellationToken.None).then(ranges => {
 				if (!arrays.isNonEmptyArray(ranges) || ranges.length !== selections.length) {
 					// invalid result
 					return;
@@ -201,16 +209,14 @@ registerEditorContribution(SmartSelectController.ID, SmartSelectController);
 registerEditorAction(GrowSelectionAction);
 registerEditorAction(ShrinkSelectionAction);
 
-// word selection
-modes.SelectionRangeRegistry.register('*', new WordSelectionRangeProvider());
-
 export interface SelectionRangesOptions {
 	selectLeadingAndTrailingWhitespace: boolean
 }
 
-export async function provideSelectionRanges(model: ITextModel, positions: Position[], options: SelectionRangesOptions, token: CancellationToken): Promise<Range[][]> {
+export async function provideSelectionRanges(registry: LanguageFeatureRegistry<modes.SelectionRangeProvider>, model: ITextModel, positions: Position[], options: SelectionRangesOptions, token: CancellationToken): Promise<Range[][]> {
 
-	const providers = modes.SelectionRangeRegistry.all(model);
+	const providers = registry.all(model)
+		.concat(new WordSelectionRangeProvider()); // ALWAYS have word based selection range
 
 	if (providers.length === 1) {
 		// add word selection and bracket selection when no provider exists
@@ -300,7 +306,18 @@ export async function provideSelectionRanges(model: ITextModel, positions: Posit
 	});
 }
 
-registerModelCommand('_executeSelectionRangeProvider', function (model, ...args) {
-	const [positions] = args;
-	return provideSelectionRanges(model, positions, { selectLeadingAndTrailingWhitespace: true }, CancellationToken.None);
+
+CommandsRegistry.registerCommand('_executeSelectionRangeProvider', async function (accessor, ...args) {
+
+	const [resource, positions] = args;
+	assertType(URI.isUri(resource));
+
+	const registry = accessor.get(ILanguageFeaturesService).selectionRangeProvider;
+	const reference = await accessor.get(ITextModelService).createModelReference(resource);
+
+	try {
+		return provideSelectionRanges(registry, reference.object.textEditorModel, positions, { selectLeadingAndTrailingWhitespace: true }, CancellationToken.None);
+	} finally {
+		reference.dispose();
+	}
 });

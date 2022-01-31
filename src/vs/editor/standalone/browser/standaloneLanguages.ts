@@ -594,7 +594,8 @@ export function registerDeclarationProvider(languageId: string, provider: langua
  * Register a selection range provider
  */
 export function registerSelectionRangeProvider(languageId: string, provider: languages.SelectionRangeProvider): IDisposable {
-	return languages.SelectionRangeRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.selectionRangeProvider.register(languageId, provider);
 }
 
 /**

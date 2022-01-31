@@ -1930,11 +1930,6 @@ export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorPr
 /**
  * @internal
  */
-export const SelectionRangeRegistry = new LanguageFeatureRegistry<SelectionRangeProvider>();
-
-/**
- * @internal
- */
 export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry<FoldingRangeProvider>();
 
 /**

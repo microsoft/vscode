@@ -450,32 +450,6 @@ export function registerModelAndPositionCommand(id: string, handler: (accessor: 
 	});
 }
 
-export function registerModelCommand(id: string, handler: (model: ITextModel, ...args: any[]) => any) {
-	CommandsRegistry.registerCommand(id, function (accessor, ...args) {
-
-		const [resource] = args;
-		assertType(URI.isUri(resource));
-
-		const model = accessor.get(IModelService).getModel(resource);
-		if (model) {
-			return handler(model, ...args.slice(1));
-		}
-
-		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
-			return new Promise((resolve, reject) => {
-				try {
-					const result = handler(reference.object.textEditorModel, args.slice(1));
-					resolve(result);
-				} catch (err) {
-					reject(err);
-				}
-			}).finally(() => {
-				reference.dispose();
-			});
-		});
-	});
-}
-
 export function registerEditorCommand<T extends EditorCommand>(editorCommand: T): T {
 	EditorContributionRegistry.INSTANCE.registerEditorCommand(editorCommand);
 	return editorCommand;

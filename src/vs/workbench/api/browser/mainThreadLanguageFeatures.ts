@@ -704,7 +704,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// -- smart select
 
 	$registerSelectionRangeProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.SelectionRangeRegistry.register(selector, {
+		this._registrations.set(handle, this._languageFeaturesService.selectionRangeProvider.register(selector, {
 			provideSelectionRanges: (model, positions, token) => {
 				return this._proxy.$provideSelectionRanges(handle, model.uri, positions, token);
 			}
