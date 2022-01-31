@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConfiguration } from 'vs/workbench/services/environment/common/environmentService';
 import { PerformanceMark } from 'vs/base/common/performance';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IColorScheme, INativeWindowConfiguration, IOSConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
@@ -17,8 +16,6 @@ import { join } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export const INativeWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeWorkbenchEnvironmentService>(IEnvironmentService);
-
-export interface INativeWorkbenchConfiguration extends IWorkbenchConfiguration, INativeWindowConfiguration { }
 
 /**
  * A subclass of the `IWorkbenchEnvironmentService` to be used only in native
@@ -131,7 +128,7 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get filesToWait(): IPathsToWaitFor | undefined { return this.configuration.filesToWait; }
 
 	constructor(
-		private readonly configuration: INativeWorkbenchConfiguration,
+		private readonly configuration: INativeWindowConfiguration,
 		productService: IProductService
 	) {
 		super(configuration, { homeDir: configuration.homeDir, tmpDir: configuration.tmpDir, userDataDir: configuration.userDataDir }, productService);

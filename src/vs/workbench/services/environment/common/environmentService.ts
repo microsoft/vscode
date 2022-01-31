@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IPath } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 
 export const IWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, IWorkbenchEnvironmentService>(IEnvironmentService);
-
-export interface IWorkbenchConfiguration extends IWindowConfiguration { }
 
 /**
  * A workbench specific environment service that is only present in workbench
