@@ -1951,7 +1951,7 @@ export class EditorModeContext extends Disposable {
 		this._register(_languageFeaturesService.definitionProvider.onDidChange(update));
 		this._register(modes.DeclarationProviderRegistry.onDidChange(update));
 		this._register(modes.ImplementationProviderRegistry.onDidChange(update));
-		this._register(modes.TypeDefinitionProviderRegistry.onDidChange(update));
+		this._register(_languageFeaturesService.typeDefinitionProvider.onDidChange(update));
 		this._register(modes.HoverProviderRegistry.onDidChange(update));
 		this._register(modes.DocumentHighlightProviderRegistry.onDidChange(update));
 		this._register(_languageFeaturesService.documentSymbolProvider.onDidChange(update));
@@ -2005,7 +2005,7 @@ export class EditorModeContext extends Disposable {
 			this._hasDefinitionProvider.set(this._languageFeaturesService.definitionProvider.has(model));
 			this._hasDeclarationProvider.set(modes.DeclarationProviderRegistry.has(model));
 			this._hasImplementationProvider.set(modes.ImplementationProviderRegistry.has(model));
-			this._hasTypeDefinitionProvider.set(modes.TypeDefinitionProviderRegistry.has(model));
+			this._hasTypeDefinitionProvider.set(this._languageFeaturesService.typeDefinitionProvider.has(model));
 			this._hasHoverProvider.set(modes.HoverProviderRegistry.has(model));
 			this._hasDocumentHighlightProvider.set(modes.DocumentHighlightProviderRegistry.has(model));
 			this._hasDocumentSymbolProvider.set(this._languageFeaturesService.documentSymbolProvider.has(model));

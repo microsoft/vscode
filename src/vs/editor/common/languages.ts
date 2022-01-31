@@ -1940,11 +1940,6 @@ export const ImplementationProviderRegistry = new LanguageFeatureRegistry<Implem
 /**
  * @internal
  */
-export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDefinitionProvider>();
-
-/**
- * @internal
- */
 export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
 
 /**

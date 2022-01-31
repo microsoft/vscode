@@ -497,7 +497,8 @@ export function registerImplementationProvider(languageId: string, provider: lan
  * Register a type definition provider (used by e.g. go to type definition).
  */
 export function registerTypeDefinitionProvider(languageId: string, provider: languages.TypeDefinitionProvider): IDisposable {
-	return languages.TypeDefinitionProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.typeDefinitionProvider.register(languageId, provider);
 }
 
 /**

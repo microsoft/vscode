@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { CodeLensProvider, DefinitionProvider, DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, DocumentSymbolProvider, InlayHintsProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider } from 'vs/editor/common/languages';
+import { CodeLensProvider, DefinitionProvider, DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, DocumentSymbolProvider, InlayHintsProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ILanguageFeaturesService = createDecorator<ILanguageFeaturesService>('ILanguageFeaturesService');
@@ -16,6 +16,8 @@ export interface ILanguageFeaturesService {
 	readonly referenceProvider: LanguageFeatureRegistry<ReferenceProvider>;
 
 	readonly definitionProvider: LanguageFeatureRegistry<DefinitionProvider>;
+
+	readonly typeDefinitionProvider: LanguageFeatureRegistry<TypeDefinitionProvider>;
 
 	readonly renameProvider: LanguageFeatureRegistry<RenameProvider>;
 

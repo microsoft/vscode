@@ -237,7 +237,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	}
 
 	$registerTypeDefinitionSupport(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.TypeDefinitionProviderRegistry.register(selector, <modes.TypeDefinitionProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.typeDefinitionProvider.register(selector, <modes.TypeDefinitionProvider>{
 			provideTypeDefinition: (model, position, token): Promise<modes.LocationLink[]> => {
 				return this._proxy.$provideTypeDefinition(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
 			}

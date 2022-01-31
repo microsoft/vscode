@@ -437,7 +437,7 @@ registerGoToAction(class PeekDeclarationAction extends DeclarationAction {
 class TypeDefinitionAction extends SymbolNavigationAction {
 
 	protected async _getLocationModel(languageFeaturesService: ILanguageFeaturesService, model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getTypeDefinitionsAtPosition(model, position, token), nls.localize('typedef.title', 'Type Definitions'));
+		return new ReferencesModel(await getTypeDefinitionsAtPosition(languageFeaturesService.typeDefinitionProvider, model, position, token), nls.localize('typedef.title', 'Type Definitions'));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
