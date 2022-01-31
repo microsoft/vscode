@@ -310,7 +310,7 @@ export class NativeWindow extends Disposable {
 			Event.map(Event.filter(this.nativeHostService.onDidUnmaximizeWindow, id => id === this.nativeHostService.windowId), () => false)
 		)(e => this.onDidChangeWindowMaximized(e)));
 
-		this.onDidChangeWindowMaximized(this.environmentService.configuration2.maximized ?? false);
+		this.onDidChangeWindowMaximized(this.environmentService.windowMaximized ?? false);
 
 		// Lifecycle
 		this._register(this.lifecycleService.onBeforeShutdownError(e => this.onBeforeShutdownError(e)));

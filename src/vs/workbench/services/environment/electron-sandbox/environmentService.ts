@@ -5,7 +5,7 @@
 
 import { IWorkbenchConfiguration } from 'vs/workbench/services/environment/common/environmentService';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { INativeWindowConfiguration, IOSConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
+import { IColorScheme, INativeWindowConfiguration, IOSConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
@@ -46,6 +46,10 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 
 	readonly accessibilitySupport?: boolean;
 
+	readonly windowMaximized?: boolean;
+
+	readonly colorScheme: IColorScheme;
+
 	/**
 	 * @deprecated this property will go away eventually as it
 	 * duplicates many properties of the environment service
@@ -78,6 +82,12 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get accessibilitySupport() { return this.configuration2.accessibilitySupport; }
+
+	@memoize
+	get windowMaximized() { return this.configuration2.maximized; }
+
+	@memoize
+	get colorScheme() { return this.configuration2.colorScheme; }
 
 	@memoize
 	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
