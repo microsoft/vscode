@@ -1065,7 +1065,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		let confirmation: IConfirmationResult;
 
 		// If the clipboard has only one line, no prompt will be triggered
-		if (textForLines.length === 1 || !this._configurationService.getValue<boolean>(TerminalSettingId.MultiLinePasteWarning)) {
+		if (textForLines.length === 1 || !this._configurationService.getValue<boolean>(TerminalSettingId.EnableMultiLinePasteWarning)) {
 			confirmation = { confirmed: true };
 		} else {
 			const message = nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to paste the following {0} lines to the terminal?", text.split(/\r?\n/).length);
@@ -1089,7 +1089,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		if (confirmation.confirmed && confirmation.checkboxChecked) {
-			await this._configurationService.updateValue(TerminalSettingId.MultiLinePasteWarning, false);
+			await this._configurationService.updateValue(TerminalSettingId.EnableMultiLinePasteWarning, false);
 		}
 
 		return confirmation.confirmed;

@@ -133,8 +133,8 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false
 		},
-		[TerminalSettingId.MultiLinePasteWarning]: {
-			description: localize('terminal.integrated.multiLinePasteWarning', "show the warning indicator when the terminal does a multi-line paste."),
+		[TerminalSettingId.EnableMultiLinePasteWarning]: {
+			description: localize('terminal.integrated.enableMultiLinePasteWarning', "Show a warning dialog when pasting multiple lines into the terminal."),
 			type: 'boolean',
 			default: true
 		},
