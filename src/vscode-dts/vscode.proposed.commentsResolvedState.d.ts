@@ -26,20 +26,7 @@ declare module 'vscode' {
 		// todo@alexr00 Do we also need a priority so we can count how many high priority comments there are in the UI?
 	}
 
-	export interface CommentController {
-		/**
-		 * Optional state handler for adding or modifying the state of a comment. This can be used
-		 * for setting a comment's state to "resolved" or "unresolved" for example.
-		 */
-		stateHandler?: (comment: Comment, state: CommentState) => Thenable<void>;
-	}
-
-	export interface Comment {
-		/**
-		 * Optional possible states of the {@link Comment}
-		 */
-		states?: CommentState[];
-
+	export interface CommentThread {
 		/**
 		 * Optional current state of the {@link Comment}
 		 */
