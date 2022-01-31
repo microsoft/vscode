@@ -27,7 +27,7 @@ import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/commo
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { IExtensionManagementService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkGlobFileExists, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
+import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkGlobFileExists, checkActivateWorkspaceContainsExtension } from 'vs/workbench/services/extensions/common/workspaceContains';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Schemas } from 'vs/base/common/network';

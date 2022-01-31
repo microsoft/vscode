@@ -8,7 +8,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter } from 'vs/base/common/event';
 import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/extensionHostMain';
+import { ExtensionHostMain } from 'vs/workbench/api/common/extensionHostMain';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { NestedWorker } from 'vs/workbench/services/extensions/worker/polyfillNestedWorker';
 import * as path from 'vs/base/common/path';

@@ -12,7 +12,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
-import { ISearchPathsInfo, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { ISearchPathsInfo, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IFileQuery, IFolderQuery, IPatternInfo, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
 import { TestPathService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';

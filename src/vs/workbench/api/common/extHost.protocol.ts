@@ -57,7 +57,7 @@ import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
-import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ISerializedTestResults, ITestItem, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, RunTestForControllerRequest, SerializedTestMessage, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { InternalTimelineOptions, Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
