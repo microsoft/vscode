@@ -356,7 +356,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getDeclarationsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
+		let value = await getDeclarationsAtPosition(languageFeaturesService.declarationProvider, model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 1);
 		let [entry] = value;
 		assert.deepStrictEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });

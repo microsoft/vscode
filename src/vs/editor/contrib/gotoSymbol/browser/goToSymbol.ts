@@ -8,7 +8,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { DeclarationProviderRegistry, DefinitionProvider, ImplementationProviderRegistry, LocationLink, ProviderResult, ReferenceProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
+import { DeclarationProvider, DefinitionProvider, ImplementationProviderRegistry, LocationLink, ProviderResult, ReferenceProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/browser/referencesModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -48,8 +48,8 @@ export function getDefinitionsAtPosition(registry: LanguageFeatureRegistry<Defin
 	});
 }
 
-export function getDeclarationsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getLocationLinks(model, position, DeclarationProviderRegistry, (provider, model, position) => {
+export function getDeclarationsAtPosition(registry: LanguageFeatureRegistry<DeclarationProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
+	return getLocationLinks(model, position, registry, (provider, model, position) => {
 		return provider.provideDeclaration(model, position, token);
 	});
 }
@@ -93,16 +93,20 @@ async function _sortedAndDeduped(callback: () => Promise<LocationLink[]>): Promi
 registerModelAndPositionCommand('_executeDefinitionProvider', (accessor, model, position) => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const promise = getDefinitionsAtPosition(languageFeaturesService.definitionProvider, model, position, CancellationToken.None);
-	_sortedAndDeduped(() => promise);
+	return _sortedAndDeduped(() => promise);
 });
 
 registerModelAndPositionCommand('_executeTypeDefinitionProvider', (accessor, model, position) => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const promise = getTypeDefinitionsAtPosition(languageFeaturesService.typeDefinitionProvider, model, position, CancellationToken.None);
-	_sortedAndDeduped(() => promise);
+	return _sortedAndDeduped(() => promise);
 });
 
-registerModelAndPositionCommand('_executeDeclarationProvider', (_accessor, model, position) => _sortedAndDeduped(() => getDeclarationsAtPosition(model, position, CancellationToken.None)));
+registerModelAndPositionCommand('_executeDeclarationProvider', (accessor, model, position) => {
+	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+	const promise = getDeclarationsAtPosition(languageFeaturesService.declarationProvider, model, position, CancellationToken.None);
+	return _sortedAndDeduped(() => promise);
+});
 
 registerModelAndPositionCommand('_executeReferenceProvider', (accessor, model, position) => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);

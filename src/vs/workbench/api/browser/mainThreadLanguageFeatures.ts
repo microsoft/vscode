@@ -221,7 +221,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	}
 
 	$registerDeclarationSupport(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.DeclarationProviderRegistry.register(selector, <modes.DeclarationProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.declarationProvider.register(selector, <modes.DeclarationProvider>{
 			provideDeclaration: (model, position, token) => {
 				return this._proxy.$provideDeclaration(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
 			}

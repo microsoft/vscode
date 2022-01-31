@@ -582,7 +582,8 @@ export function registerFoldingRangeProvider(languageId: string, provider: langu
  * Register a declaration provider
  */
 export function registerDeclarationProvider(languageId: string, provider: languages.DeclarationProvider): IDisposable {
-	return languages.DeclarationProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.declarationProvider.register(languageId, provider);
 }
 
 /**

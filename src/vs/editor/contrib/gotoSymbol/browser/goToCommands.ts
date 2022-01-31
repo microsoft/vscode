@@ -357,7 +357,7 @@ registerGoToAction(class PeekDefinitionAction extends DefinitionAction {
 class DeclarationAction extends SymbolNavigationAction {
 
 	protected async _getLocationModel(languageFeaturesService: ILanguageFeaturesService, model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getDeclarationsAtPosition(model, position, token), nls.localize('decl.title', 'Declarations'));
+		return new ReferencesModel(await getDeclarationsAtPosition(languageFeaturesService.declarationProvider, model, position, token), nls.localize('decl.title', 'Declarations'));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
