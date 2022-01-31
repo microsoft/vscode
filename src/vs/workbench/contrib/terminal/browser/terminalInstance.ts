@@ -1066,14 +1066,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// If the clipboard has only one line, no prompt will be triggered
 		if (textForLines.length === 1 || !this._configurationService.getValue<boolean>(TerminalSettingId.EnableMultiLinePasteWarning)) {
-			confirmation = { confirmed: true };
+			return true;
 		} else {
-			const message = nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to paste the following {0} lines to the terminal?", text.split(/\r?\n/).length);
+			const message = nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to paste the following {0} lines to the terminal?", text.split(/\r\n|\n|\r/).length);
 
 			const displayItemsCount = 3;
-			let detail = textForLines.slice(0, displayItemsCount).join('');
-			if (textForLines.length > displayItemsCount) {
-				detail += '...';
+			const ellipsis = '…';
+
+			let detail = textForLines
+				.slice(0, displayItemsCount)
+				.map(s => s.length >= 30 ? s.slice(0, 30) + ellipsis : s)
+				.join('');
+			if (textForLines.length > displayItemsCount && !detail.endsWith(ellipsis)) {
+				detail += ellipsis;
 			}
 			const primaryButton = nls.localize({ key: 'multiLinePasteButton', comment: ['&& denotes a mnemonic'] }, "&&Paste");
 
