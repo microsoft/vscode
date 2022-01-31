@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IBuffer, IMarker, Terminal } from 'xterm';
+import { IBuffer, IDecoration, IMarker, Terminal } from 'xterm';
 
 interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
@@ -23,6 +25,8 @@ interface ICurrentPartialCommand {
 	commandFinishedMarker?: IMarker;
 
 	command?: string;
+
+	outputDecoration?: IDecoration;
 }
 
 export class CommandDetectionCapability implements ICommandDetectionCapability {
@@ -41,7 +45,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 	constructor(
 		private readonly _terminal: Terminal,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IClipboardService private readonly _clipboardService: IClipboardService
 	) {
 	}
 
@@ -147,6 +152,18 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				marker: this._currentCommand.commandStartMarker
 			};
 			this._commands.push(newCommand);
+			const decoration = this._terminal.registerDecoration({ marker: this._currentCommand.commandStartMarker, anchor: 'right' });
+			const outputLineCount = (this._currentCommand.commandFinishedMarker?.line || 0) - (this._currentCommand.commandExecutedMarker?.line || 0) > 0;
+			if (decoration && newCommand && outputLineCount) {
+				this._currentCommand.outputDecoration = decoration;
+				const output = newCommand.getOutput();
+				if (output?.length && this._currentCommand.outputDecoration.element) {
+					dom.addDisposableListener(this._currentCommand.outputDecoration.element, 'click', async () => {
+						await this._clipboardService.writeText(output);
+					});
+				}
+				decoration.onRender(() => console.log('on render'));
+			}
 			this._onCommandFinished.fire(newCommand);
 		}
 		this._currentCommand.previousCommandMarker?.dispose();

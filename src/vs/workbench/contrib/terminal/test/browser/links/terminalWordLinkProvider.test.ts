@@ -36,6 +36,7 @@ import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/termin
 import { isWindows } from 'vs/base/common/platform';
 import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
+import { TestClipboardService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -138,7 +139,7 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
 		capabilities = new TerminalCapabilityStore();
 		xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, capabilities);
-		commandDetection = new TestCommandDetectionCapability(xterm.raw, new NullLogService());
+		commandDetection = new TestCommandDetectionCapability(xterm.raw, new NullLogService(), new TestClipboardService());
 		capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 	});
 

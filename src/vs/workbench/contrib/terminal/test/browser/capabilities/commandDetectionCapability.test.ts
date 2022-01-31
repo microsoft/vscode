@@ -9,6 +9,7 @@ import { Terminal } from 'xterm';
 import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TestClipboardService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 async function writeP(terminal: Terminal, data: string): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
@@ -64,7 +65,7 @@ suite('CommandDetectionCapability', () => {
 
 	setup(() => {
 		xterm = new Terminal({ cols: 80 });
-		capability = new TestCommandDetectionCapability(xterm, new NullLogService());
+		capability = new TestCommandDetectionCapability(xterm, new NullLogService(), new TestClipboardService());
 		addEvents = [];
 		capability.onCommandFinished(e => addEvents.push(e));
 		assertCommands([]);
