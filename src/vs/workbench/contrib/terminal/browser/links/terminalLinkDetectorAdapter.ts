@@ -44,7 +44,7 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 	}
 
 	private async _provideLinks(bufferLineNumber: number): Promise<TerminalLink[]> {
-		// Dispose of all old links if new links are provides, links are only cached for the current line
+		// Dispose of all old links if new links are provided, links are only cached for the current line
 		const links: TerminalLink[] = [];
 
 		let startLine = bufferLineNumber - 1;
