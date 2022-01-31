@@ -490,7 +490,8 @@ export function registerDefinitionProvider(languageId: string, provider: languag
  * Register a implementation provider (used by e.g. go to implementation).
  */
 export function registerImplementationProvider(languageId: string, provider: languages.ImplementationProvider): IDisposable {
-	return languages.ImplementationProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.implementationProvider.register(languageId, provider);
 }
 
 /**

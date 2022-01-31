@@ -518,7 +518,7 @@ registerGoToAction(class PeekTypeDefinitionAction extends TypeDefinitionAction {
 class ImplementationAction extends SymbolNavigationAction {
 
 	protected async _getLocationModel(languageFeaturesService: ILanguageFeaturesService, model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getImplementationsAtPosition(model, position, token), nls.localize('impl.title', 'Implementations'));
+		return new ReferencesModel(await getImplementationsAtPosition(languageFeaturesService.implementationProvider, model, position, token), nls.localize('impl.title', 'Implementations'));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {

@@ -8,7 +8,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { DeclarationProvider, DefinitionProvider, ImplementationProviderRegistry, LocationLink, ProviderResult, ReferenceProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
+import { DeclarationProvider, DefinitionProvider, ImplementationProvider, LocationLink, ProviderResult, ReferenceProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/browser/referencesModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -54,8 +54,8 @@ export function getDeclarationsAtPosition(registry: LanguageFeatureRegistry<Decl
 	});
 }
 
-export function getImplementationsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getLocationLinks(model, position, ImplementationProviderRegistry, (provider, model, position) => {
+export function getImplementationsAtPosition(registry: LanguageFeatureRegistry<ImplementationProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
+	return getLocationLinks(model, position, registry, (provider, model, position) => {
 		return provider.provideImplementation(model, position, token);
 	});
 }
@@ -114,4 +114,8 @@ registerModelAndPositionCommand('_executeReferenceProvider', (accessor, model, p
 	return _sortedAndDeduped(() => promise);
 });
 
-registerModelAndPositionCommand('_executeImplementationProvider', (_accessor, model, position) => _sortedAndDeduped(() => getImplementationsAtPosition(model, position, CancellationToken.None)));
+registerModelAndPositionCommand('_executeImplementationProvider', (accessor, model, position) => {
+	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+	const promise = getImplementationsAtPosition(languageFeaturesService.implementationProvider, model, position, CancellationToken.None);
+	_sortedAndDeduped(() => promise);
+});

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { CodeLensProvider, DeclarationProvider, DefinitionProvider, DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, DocumentSymbolProvider, InlayHintsProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
+import { CodeLensProvider, DeclarationProvider, DefinitionProvider, DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, DocumentSymbolProvider, ImplementationProvider, InlayHintsProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
@@ -21,6 +21,8 @@ export class LanguageFeatureService implements ILanguageFeaturesService {
 	readonly typeDefinitionProvider = new LanguageFeatureRegistry<TypeDefinitionProvider>();
 
 	readonly declarationProvider = new LanguageFeatureRegistry<DeclarationProvider>();
+
+	readonly implementationProvider = new LanguageFeatureRegistry<ImplementationProvider>();
 
 	readonly documentSymbolProvider = new LanguageFeatureRegistry<DocumentSymbolProvider>();
 

@@ -1930,11 +1930,6 @@ export const LinkedEditingRangeProviderRegistry = new LanguageFeatureRegistry<Li
 /**
  * @internal
  */
-export const ImplementationProviderRegistry = new LanguageFeatureRegistry<ImplementationProvider>();
-
-/**
- * @internal
- */
 export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
 
 /**
