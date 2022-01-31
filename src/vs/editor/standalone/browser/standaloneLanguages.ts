@@ -460,7 +460,8 @@ export function registerHoverProvider(languageId: string, provider: languages.Ho
  * Register a document symbol provider (used by e.g. outline).
  */
 export function registerDocumentSymbolProvider(languageId: string, provider: languages.DocumentSymbolProvider): IDisposable {
-	return languages.DocumentSymbolProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.documentSymbolProvider.register(languageId, provider);
 }
 
 /**

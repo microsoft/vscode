@@ -1954,7 +1954,7 @@ export class EditorModeContext extends Disposable {
 		this._register(modes.TypeDefinitionProviderRegistry.onDidChange(update));
 		this._register(modes.HoverProviderRegistry.onDidChange(update));
 		this._register(modes.DocumentHighlightProviderRegistry.onDidChange(update));
-		this._register(modes.DocumentSymbolProviderRegistry.onDidChange(update));
+		this._register(_languageFeaturesService.documentSymbolProvider.onDidChange(update));
 		this._register(_languageFeaturesService.referenceProvider.onDidChange(update));
 		this._register(_languageFeaturesService.renameProvider.onDidChange(update));
 		this._register(modes.DocumentFormattingEditProviderRegistry.onDidChange(update));
@@ -2008,7 +2008,7 @@ export class EditorModeContext extends Disposable {
 			this._hasTypeDefinitionProvider.set(modes.TypeDefinitionProviderRegistry.has(model));
 			this._hasHoverProvider.set(modes.HoverProviderRegistry.has(model));
 			this._hasDocumentHighlightProvider.set(modes.DocumentHighlightProviderRegistry.has(model));
-			this._hasDocumentSymbolProvider.set(modes.DocumentSymbolProviderRegistry.has(model));
+			this._hasDocumentSymbolProvider.set(this._languageFeaturesService.documentSymbolProvider.has(model));
 			this._hasReferenceProvider.set(this._languageFeaturesService.referenceProvider.has(model));
 			this._hasRenameProvider.set(this._languageFeaturesService.renameProvider.has(model));
 			this._hasSignatureHelpProvider.set(modes.SignatureHelpProviderRegistry.has(model));

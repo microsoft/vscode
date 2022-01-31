@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ReferenceProvider, RenameProvider } from 'vs/editor/common/languages';
+import { DocumentSymbolProvider, ReferenceProvider, RenameProvider } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ILanguageFeaturesService = createDecorator<ILanguageFeaturesService>('ILanguageFeaturesService');
@@ -16,4 +16,6 @@ export interface ILanguageFeaturesService {
 	readonly referenceProvider: LanguageFeatureRegistry<ReferenceProvider>;
 
 	readonly renameProvider: LanguageFeatureRegistry<RenameProvider>;
+
+	readonly documentSymbolProvider: LanguageFeatureRegistry<DocumentSymbolProvider>;
 }

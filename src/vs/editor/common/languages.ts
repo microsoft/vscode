@@ -1920,11 +1920,6 @@ export const InlineValuesProviderRegistry = new LanguageFeatureRegistry<InlineVa
 /**
  * @internal
  */
-export const DocumentSymbolProviderRegistry = new LanguageFeatureRegistry<DocumentSymbolProvider>();
-
-/**
- * @internal
- */
 export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<DocumentHighlightProvider>();
 
 /**

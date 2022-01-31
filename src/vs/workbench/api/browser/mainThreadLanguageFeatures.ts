@@ -166,7 +166,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- outline
 
 	$registerDocumentSymbolProvider(handle: number, selector: IDocumentFilterDto[], displayName: string): void {
-		this._registrations.set(handle, modes.DocumentSymbolProviderRegistry.register(selector, <modes.DocumentSymbolProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.documentSymbolProvider.register(selector, <modes.DocumentSymbolProvider>{
 			displayName,
 			provideDocumentSymbols: (model: ITextModel, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined> => {
 				return this._proxy.$provideDocumentSymbols(handle, model.uri, token);
