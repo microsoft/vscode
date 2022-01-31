@@ -10,7 +10,6 @@ import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser'
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { BrandedService, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IHoverPart {
@@ -80,6 +79,10 @@ export interface IEditorHoverAction {
 	setEnabled(enabled: boolean): void;
 }
 
+export interface IEditorHoverColorPickerWidget {
+	layout(): void;
+}
+
 export interface IEditorHoverRenderContext {
 	/**
 	 * The fragment where dom elements should be attached.
@@ -92,7 +95,7 @@ export interface IEditorHoverRenderContext {
 	/**
 	 * Set if the hover will render a color picker widget.
 	 */
-	setColorPicker(widget: ColorPickerWidget): void;
+	setColorPicker(widget: IEditorHoverColorPickerWidget): void;
 	/**
 	 * The contents rendered inside the fragment have been changed, which means that the hover should relayout.
 	 */

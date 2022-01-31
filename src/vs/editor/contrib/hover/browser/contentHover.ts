@@ -17,9 +17,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverRenderContext, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverColorPickerWidget, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverRenderContext, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -85,7 +84,7 @@ export class ContentHoverController extends Disposable {
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
 
-			if (!this._widget.colorPicker) { // TODO@Michel ensure that displayed text for other decorations is computed even if color picker is in place
+			if (!this._widget.isColorPickerVisible) { // TODO@Michel ensure that displayed text for other decorations is computed even if color picker is in place
 				this._hoverOperation.start(HoverStartMode.Delayed);
 			}
 		}
@@ -169,7 +168,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	public isColorPickerVisible(): boolean {
-		return !!this._widget.colorPicker;
+		return this._widget.isColorPickerVisible;
 	}
 
 	private _addLoadingMessage(result: IHoverPart[]): IHoverPart[] {
@@ -214,7 +213,7 @@ export class ContentHoverController extends Disposable {
 		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
 		const fragment = document.createDocumentFragment();
 
-		let colorPicker: ColorPickerWidget | null = null;
+		let colorPicker: IEditorHoverColorPickerWidget | null = null;
 		const context: IEditorHoverRenderContext = {
 			fragment,
 			statusBar,
@@ -297,7 +296,7 @@ class EditorDecorationsChangerListener extends Disposable {
 
 class ContentHoverVisibleData {
 	constructor(
-		public readonly colorPicker: ColorPickerWidget | null,
+		public readonly colorPicker: IEditorHoverColorPickerWidget | null,
 		public readonly showAtPosition: Position,
 		public readonly showAtRange: Range,
 		public readonly preferAbove: boolean,
@@ -324,11 +323,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		return this._visibleData?.showAtPosition ?? null;
 	}
 
-	/**
-	 * Returns `null` if the color picker is not visible.
-	 */
-	public get colorPicker(): ColorPickerWidget | null {
-		return this._visibleData?.colorPicker ?? null;
+	public get isColorPickerVisible(): boolean {
+		return Boolean(this._visibleData?.colorPicker);
 	}
 
 	constructor(
