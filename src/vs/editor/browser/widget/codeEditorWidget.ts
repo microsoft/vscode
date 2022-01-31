@@ -1960,7 +1960,7 @@ export class EditorModeContext extends Disposable {
 		this._register(modes.DocumentFormattingEditProviderRegistry.onDidChange(update));
 		this._register(modes.DocumentRangeFormattingEditProviderRegistry.onDidChange(update));
 		this._register(modes.SignatureHelpProviderRegistry.onDidChange(update));
-		this._register(modes.InlayHintsProviderRegistry.onDidChange(update));
+		this._register(_languageFeaturesService.inlayHintsProvider.onDidChange(update));
 
 		update();
 	}
@@ -2012,7 +2012,7 @@ export class EditorModeContext extends Disposable {
 			this._hasReferenceProvider.set(this._languageFeaturesService.referenceProvider.has(model));
 			this._hasRenameProvider.set(this._languageFeaturesService.renameProvider.has(model));
 			this._hasSignatureHelpProvider.set(modes.SignatureHelpProviderRegistry.has(model));
-			this._hasInlayHintsProvider.set(modes.InlayHintsProviderRegistry.has(model));
+			this._hasInlayHintsProvider.set(this._languageFeaturesService.inlayHintsProvider.has(model));
 			this._hasDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.has(model) || modes.DocumentRangeFormattingEditProviderRegistry.has(model));
 			this._hasDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.has(model));
 			this._hasMultipleDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.all(model).length + modes.DocumentRangeFormattingEditProviderRegistry.all(model).length > 1);

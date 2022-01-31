@@ -598,7 +598,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			provider.onDidChangeInlayHints = emitter.event;
 		}
 
-		this._registrations.set(handle, modes.InlayHintsProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, this._languageFeaturesService.inlayHintsProvider.register(selector, provider));
 	}
 
 	$emitInlayHintsEvent(eventHandle: number): void {

@@ -1955,11 +1955,6 @@ export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProv
 /**
  * @internal
  */
-export const InlayHintsProviderRegistry = new LanguageFeatureRegistry<InlayHintsProvider>();
-
-/**
- * @internal
- */
 export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
 
 /**

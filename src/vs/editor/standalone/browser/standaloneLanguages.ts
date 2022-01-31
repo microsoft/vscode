@@ -619,7 +619,8 @@ export function registerInlineCompletionsProvider(languageId: string, provider: 
  * Register an inlay hints provider.
  */
 export function registerInlayHintsProvider(languageId: string, provider: languages.InlayHintsProvider): IDisposable {
-	return languages.InlayHintsProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.inlayHintsProvider.register(languageId, provider);
 }
 
 /**
