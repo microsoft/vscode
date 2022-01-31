@@ -44,10 +44,13 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		this._extensionHostKind = extHostContext.extensionHostKind;
-		this._internalExtensionService = (<IInternalExtHostContext>extHostContext).internalExtensionService;
-		(<IInternalExtHostContext>extHostContext)._setExtensionHostProxy(
+
+		const internalExtHostContext = (<IInternalExtHostContext>extHostContext);
+		this._internalExtensionService = internalExtHostContext.internalExtensionService;
+		internalExtHostContext._setExtensionHostProxy(
 			new ExtensionHostProxy(extHostContext.getProxy(ExtHostContext.ExtHostExtensionService))
 		);
+		internalExtHostContext._setAllMainProxyIdentifiers(Object.keys(MainContext).map((key) => (<any>MainContext)[key]));
 	}
 
 	public dispose(): void {

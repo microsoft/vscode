@@ -10,7 +10,6 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostCustomersRegistry, IInternalExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { Proxied, ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -261,6 +260,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		this._rpcProtocol = new RPCProtocol(protocol, logger);
 		this._register(this._rpcProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
 		let extensionHostProxy: IExtensionHostProxy | null = null as IExtensionHostProxy | null;
+		let mainProxyIdentifiers: ProxyIdentifier<any>[] = [];
 		const extHostContext: IInternalExtHostContext = {
 			remoteAuthority: this._extensionHost.remoteAuthority,
 			extensionHostKind: this.kind,
@@ -273,6 +273,9 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 			internalExtensionService: this._internalExtensionService,
 			_setExtensionHostProxy: (value: IExtensionHostProxy): void => {
 				extensionHostProxy = value;
+			},
+			_setAllMainProxyIdentifiers: (value: ProxyIdentifier<any>[]): void => {
+				mainProxyIdentifiers = value;
 			},
 			//#endregion
 		};
@@ -298,8 +301,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		}
 
 		// Check that no named customers are missing
-		const expected: ProxyIdentifier<any>[] = Object.keys(MainContext).map((key) => (<any>MainContext)[key]);
-		this._rpcProtocol.assertRegistered(expected);
+		this._rpcProtocol.assertRegistered(mainProxyIdentifiers);
 
 		return extensionHostProxy;
 	}

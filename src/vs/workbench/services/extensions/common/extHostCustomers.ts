@@ -17,6 +17,7 @@ export interface IExtHostContext extends IRPCProtocol {
 export interface IInternalExtHostContext extends IExtHostContext {
 	readonly internalExtensionService: IInternalExtensionService;
 	_setExtensionHostProxy(extensionHostProxy: IExtensionHostProxy): void;
+	_setAllMainProxyIdentifiers(mainProxyIdentifiers: ProxyIdentifier<any>[]): void;
 }
 
 export type IExtHostNamedCustomer<T extends IDisposable> = [ProxyIdentifier<T>, IExtHostCustomerCtor<T>];
