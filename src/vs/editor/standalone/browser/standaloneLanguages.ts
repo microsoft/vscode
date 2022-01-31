@@ -627,7 +627,8 @@ export function registerDocumentRangeSemanticTokensProvider(languageId: string, 
  * Register an inline completions provider.
  */
 export function registerInlineCompletionsProvider(languageId: string, provider: languages.InlineCompletionsProvider): IDisposable {
-	return languages.InlineCompletionsProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.inlineCompletionsProvider.register(languageId, provider);
 }
 
 /**

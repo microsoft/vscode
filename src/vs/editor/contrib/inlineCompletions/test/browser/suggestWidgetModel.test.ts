@@ -144,6 +144,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 	await runWithFakedTimers({ useFakeTimers: options.fakeClock }, async () => {
 		const disposableStore = new DisposableStore();
 
+
 		try {
 			const serviceCollection = new ServiceCollection(
 				[ITelemetryService, NullTelemetryService],

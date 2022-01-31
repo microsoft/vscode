@@ -1895,11 +1895,6 @@ export const CompletionProviderRegistry = new LanguageFeatureRegistry<Completion
 /**
  * @internal
  */
-export const InlineCompletionsProviderRegistry = new LanguageFeatureRegistry<InlineCompletionsProvider>();
-
-/**
- * @internal
- */
 export const EvaluatableExpressionProviderRegistry = new LanguageFeatureRegistry<EvaluatableExpressionProvider>();
 
 /**

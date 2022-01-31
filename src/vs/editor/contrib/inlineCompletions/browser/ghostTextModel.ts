@@ -10,6 +10,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { InlineCompletionTriggerKind } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { InlineCompletionsModel, SynchronizedInlineCompletionsCache, TrackedInlineCompletions } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetPreviewModel';
@@ -68,8 +69,8 @@ export abstract class DelegatingModel extends Disposable implements GhostTextWid
 */
 export class GhostTextModel extends DelegatingModel implements GhostTextWidgetModel {
 	public readonly sharedCache = this._register(new SharedInlineCompletionCache());
-	public readonly suggestWidgetAdapterModel = this._register(new SuggestWidgetPreviewModel(this.editor, this.sharedCache));
-	public readonly inlineCompletionsModel = this._register(new InlineCompletionsModel(this.editor, this.sharedCache, this.commandService, this.languageConfigurationService));
+	public readonly suggestWidgetAdapterModel = this._register(new SuggestWidgetPreviewModel(this.editor, this.sharedCache, this.languageFeaturesService));
+	public readonly inlineCompletionsModel = this._register(new InlineCompletionsModel(this.editor, this.sharedCache, this.commandService, this.languageConfigurationService, this.languageFeaturesService));
 
 	public get activeInlineCompletionsModel(): InlineCompletionsModel | undefined {
 		if (this.targetModel === this.inlineCompletionsModel) {
@@ -82,6 +83,7 @@ export class GhostTextModel extends DelegatingModel implements GhostTextWidgetMo
 		private readonly editor: IActiveCodeEditor,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
