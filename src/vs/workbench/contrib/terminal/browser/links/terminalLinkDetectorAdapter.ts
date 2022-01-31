@@ -12,6 +12,11 @@ import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/termin
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IBufferLine, ILink, ILinkProvider, IViewportRange } from 'xterm';
 
+export interface IActivateLinkEvent {
+	link: ITerminalSimpleLink;
+	event?: MouseEvent;
+}
+
 export interface IShowHoverEvent {
 	link: TerminalLink;
 	viewportRange: IViewportRange;
@@ -25,7 +30,7 @@ export interface IShowHoverEvent {
 export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProvider {
 	private _activeLinks: TerminalLink[] | undefined;
 
-	private readonly _onDidActivateLink = this._register(new Emitter<ITerminalSimpleLink>());
+	private readonly _onDidActivateLink = this._register(new Emitter<IActivateLinkEvent>());
 	readonly onDidActivateLink = this._onDidActivateLink.event;
 	private readonly _onDidShowHover = this._register(new Emitter<IShowHoverEvent>());
 	readonly onDidShowHover = this._onDidShowHover.event;
@@ -65,10 +70,10 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 		}
 
 		const detectedLinks = await this._detector.detect(lines, startLine, endLine);
-		for (const l of detectedLinks) {
+		for (const link of detectedLinks) {
 			// TODO: This probably shouldn't be async
-			links.push(this._createTerminalLink(l, async () => {
-				this._onDidActivateLink.fire(l);
+			links.push(this._createTerminalLink(link, async (event) => {
+				this._onDidActivateLink.fire({ link, event });
 			}));
 		}
 

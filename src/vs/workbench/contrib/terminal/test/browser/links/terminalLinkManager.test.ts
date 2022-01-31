@@ -38,7 +38,7 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 
 class TestLinkManager extends TerminalLinkManager {
 	private _links: IDetectedLinks | undefined;
-	override async getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined> {
+	protected override async _getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined> {
 		switch (type) {
 			case 'word':
 				return this._links?.wordLinks?.[y] ? [this._links?.wordLinks?.[y]] : undefined;

@@ -162,24 +162,12 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				} else {
 					type = TerminalLinkType.LocalFile;
 				}
-				// const label = linkStat.isDirectory
-				// 	? (this._isDirectoryInsideWorkspace(linkStat.uri) ? FOLDER_IN_WORKSPACE_LABEL : FOLDER_NOT_IN_WORKSPACE_LABEL)
-				// 	: OPEN_FILE_LABEL;
-				// const activateCallback = this._wrapLinkHandler((event: MouseEvent | undefined, text: string) => {
-				// 	if (linkStat!.isDirectory) {
-				// 		this._handleLocalFolderLink(linkStat!.uri);
-				// 	} else {
-				// 		this._activateFileCallback(event, text);
-				// 	}
-				// });
 				links.push({
 					text: linkStat.link,
 					uri: linkStat.uri,
 					bufferRange,
 					type
 				});
-				// const validatedLink = this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, linkStat.link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label);
-				// links.push(validatedLink);
 			}
 		}
 

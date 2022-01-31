@@ -14,6 +14,7 @@ import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { ITerminalLinkDetector, ITerminalLinkOpener, ITerminalSimpleLink, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalExternalLinkProviderAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkProviderAdapter';
@@ -58,6 +59,7 @@ export class TerminalLinkManager extends DisposableStore {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
 		@ITunnelService private readonly _tunnelService: ITunnelService
 	) {
 		super();
@@ -80,20 +82,29 @@ export class TerminalLinkManager extends DisposableStore {
 		this._openers.set(TerminalLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities));
 		this._openers.set(TerminalLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processManager.remoteAuthority));
 
-		// TODO: Hook up wrap link handler which is what gets modifier down working
+		// TODO: Verify external link providers work
 
 		this._registerStandardLinkProviders();
 	}
 
 	private _setupLinkDetector(id: string, detector: ITerminalLinkDetector): void {
 		const detectorAdapter = this._instantiationService.createInstance(TerminalLinkDetectorAdapter, detector);
-		detectorAdapter.onDidActivateLink(e => this._openLink(e));
+		detectorAdapter.onDidActivateLink(e => {
+			// Prevent default electron link handling so Alt+Click mode works normally
+			e.event?.preventDefault();
+			// Require correct modifier on click unless event is coming from linkQuickPick selection
+			if (e.event && !(e.event instanceof TerminalLinkQuickPickEvent) && !this._isLinkActivationModifierDown(e.event)) {
+				return;
+			}
+			// Just call the handler if there is no before listener
+			this._openLink(e.link);
+		});
 		detectorAdapter.onDidShowHover(e => this._tooltipCallback(e.link, e.viewportRange, e.modifierDownCallback, e.modifierUpCallback));
 		this._standardLinkProviders.set(id, detectorAdapter);
 	}
 
 	private async _openLink(link: ITerminalSimpleLink): Promise<void> {
-		console.log('open', link);
+		this._logService.debug('Opening link', link);
 		const opener = this._openers.get(link.type);
 		if (!opener) {
 			throw new Error(`No matching opener for link type "${link.type}"`);
@@ -105,7 +116,7 @@ export class TerminalLinkManager extends DisposableStore {
 		let links;
 		let i = this._xterm.buffer.active.length;
 		while ((!links || links.length === 0) && i >= this._xterm.buffer.active.viewportY) {
-			links = await this.getLinksForType(i, type);
+			links = await this._getLinksForType(i, type);
 			i--;
 		}
 
@@ -141,9 +152,9 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	private async _getLinksForLine(y: number): Promise<IDetectedLinks | undefined> {
-		let unfilteredWordLinks = await this.getLinksForType(y, 'word');
-		const webLinks = await this.getLinksForType(y, 'web');
-		const fileLinks = await this.getLinksForType(y, 'file');
+		let unfilteredWordLinks = await this._getLinksForType(y, 'word');
+		const webLinks = await this._getLinksForType(y, 'web');
+		const fileLinks = await this._getLinksForType(y, 'file');
 		const words = new Set();
 		let wordLinks;
 		if (unfilteredWordLinks) {
@@ -159,7 +170,7 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	// TODO: Convert to use ITerminalSimpleLink
-	async getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined> {
+	protected async _getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined> {
 		switch (type) {
 			case 'word':
 				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalWordLinkDetector.id)?.provideLinks(y, r)));
@@ -239,6 +250,7 @@ export class TerminalLinkManager extends DisposableStore {
 		return newLinkProvider;
 	}
 
+	// TODO: Remove when external links are migrated
 	protected _wrapLinkHandler(handler: (event: MouseEvent | undefined, link: string) => void): XtermLinkMatcherHandler {
 		return async (event: MouseEvent | undefined, link: string) => {
 			// Prevent default electron link handling so Alt+Click mode works normally
