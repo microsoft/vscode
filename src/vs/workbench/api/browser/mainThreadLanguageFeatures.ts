@@ -302,7 +302,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- linked editing
 
 	$registerLinkedEditingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.LinkedEditingRangeProviderRegistry.register(selector, <modes.LinkedEditingRangeProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.linkedEditingRangeProvider.register(selector, <modes.LinkedEditingRangeProvider>{
 			provideLinkedEditingRanges: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.LinkedEditingRanges | undefined> => {
 				const res = await this._proxy.$provideLinkedEditingRanges(handle, model.uri, position, token);
 				if (res) {

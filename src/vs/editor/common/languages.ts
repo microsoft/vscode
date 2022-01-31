@@ -1900,11 +1900,6 @@ export const InlineValuesProviderRegistry = new LanguageFeatureRegistry<InlineVa
 /**
  * @internal
  */
-export const LinkedEditingRangeProviderRegistry = new LanguageFeatureRegistry<LinkedEditingRangeProvider>();
-
-/**
- * @internal
- */
 export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
 
 /**

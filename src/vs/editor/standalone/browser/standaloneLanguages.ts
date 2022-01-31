@@ -478,7 +478,8 @@ export function registerDocumentHighlightProvider(languageId: string, provider: 
  * Register an linked editing range provider.
  */
 export function registerLinkedEditingRangeProvider(languageId: string, provider: languages.LinkedEditingRangeProvider): IDisposable {
-	return languages.LinkedEditingRangeProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.linkedEditingRangeProvider.register(languageId, provider);
 }
 
 /**
