@@ -1900,11 +1900,6 @@ export const DocumentSemanticTokensProviderRegistry = new LanguageFeatureRegistr
 /**
  * @internal
  */
-export const DocumentRangeSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentRangeSemanticTokensProvider>();
-
-/**
- * @internal
- */
 export interface ITokenizationSupportChangedEvent {
 	changedLanguages: string[];
 	changedColorMap: boolean;

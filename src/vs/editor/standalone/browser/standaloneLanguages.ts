@@ -622,7 +622,8 @@ export function registerDocumentSemanticTokensProvider(languageId: string, provi
  * For the best user experience, register both a semantic tokens provider and a top-down tokenizer.
  */
 export function registerDocumentRangeSemanticTokensProvider(languageId: string, provider: languages.DocumentRangeSemanticTokensProvider): IDisposable {
-	return languages.DocumentRangeSemanticTokensProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.documentRangeSemanticTokensProvider.register(languageId, provider);
 }
 
 /**
