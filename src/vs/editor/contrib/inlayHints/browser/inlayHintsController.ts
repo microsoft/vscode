@@ -13,7 +13,6 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ClassNameReference, CssProperties, DynamicCssRules } from 'vs/editor/browser/editorDom';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -508,8 +507,6 @@ function fixSpace(str: string): string {
 	const noBreakWhitespace = '\xa0';
 	return str.replace(/[ \t]/g, noBreakWhitespace);
 }
-
-registerEditorContribution(InlayHintsController.ID, InlayHintsController);
 
 CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, ...args: [URI, IRange]): Promise<languages.InlayHint[]> => {
 

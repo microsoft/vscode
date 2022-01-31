@@ -44,6 +44,8 @@ export class MarkdownHover implements IHoverPart {
 
 export class MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
+	public readonly hoverOrdinal: number = 2;
+
 	constructor(
 		protected readonly _editor: ICodeEditor,
 		@ILanguageService private readonly _languageService: ILanguageService,

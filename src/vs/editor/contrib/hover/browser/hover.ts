@@ -25,6 +25,9 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorHoverBackground, editorHoverBorder, editorHoverForeground, editorHoverHighlight, editorHoverStatusBarBackground, textCodeBlockBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
+import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHoverParticipant';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -298,6 +301,8 @@ class ShowDefinitionPreviewHoverAction extends EditorAction {
 registerEditorContribution(ModesHoverController.ID, ModesHoverController);
 registerEditorAction(ShowHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
+HoverParticipantRegistry.register(MarkdownHoverParticipant);
+HoverParticipantRegistry.register(MarkerHoverParticipant);
 
 // theming
 registerThemingParticipant((theme, collector) => {

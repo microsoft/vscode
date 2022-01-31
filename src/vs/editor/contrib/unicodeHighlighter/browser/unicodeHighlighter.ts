@@ -22,7 +22,7 @@ import { UnicodeHighlighterOptions, UnicodeHighlighterReason, UnicodeHighlighter
 import { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { isModelDecorationInComment, isModelDecorationInString, isModelDecorationVisible } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { MarkdownHover, renderMarkdownHovers } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 import { BannerController } from 'vs/editor/contrib/unicodeHighlighter/browser/bannerController';
 import * as nls from 'vs/nls';
@@ -424,6 +424,8 @@ export class UnicodeHighlighterHover implements IHoverPart {
 
 export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
+	public readonly hoverOrdinal: number = 4;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -819,3 +821,4 @@ registerEditorAction(DisableHighlightingOfInvisibleCharactersAction);
 registerEditorAction(DisableHighlightingOfNonBasicAsciiCharactersAction);
 registerEditorAction(ShowExcludeOptions);
 registerEditorContribution(UnicodeHighlighter.ID, UnicodeHighlighter);
+HoverParticipantRegistry.register(UnicodeHighlighterHoverParticipant);

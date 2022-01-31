@@ -7,7 +7,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { firstNonWhitespaceIndex } from 'vs/base/common/strings';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorCommand, registerEditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { Range } from 'vs/editor/common/core/range';
@@ -282,8 +282,3 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 		}
 	}
 }
-
-registerEditorContribution(GhostTextController.ID, GhostTextController);
-registerEditorAction(TriggerInlineSuggestionAction);
-registerEditorAction(ShowNextInlineSuggestionAction);
-registerEditorAction(ShowPreviousInlineSuggestionAction);

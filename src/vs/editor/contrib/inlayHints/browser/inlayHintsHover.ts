@@ -28,6 +28,8 @@ class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 
 export class InlayHintsHover extends MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
+	public override readonly hoverOrdinal: number = 6;
+
 	constructor(
 		editor: ICodeEditor,
 		@ILanguageService languageService: ILanguageService,

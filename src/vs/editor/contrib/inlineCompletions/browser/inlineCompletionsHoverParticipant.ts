@@ -41,6 +41,9 @@ export class InlineCompletionsHover implements IHoverPart {
 }
 
 export class InlineCompletionsHoverParticipant implements IEditorHoverParticipant<InlineCompletionsHover> {
+
+	public readonly hoverOrdinal: number = 3;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ICommandService private readonly _commandService: ICommandService,
