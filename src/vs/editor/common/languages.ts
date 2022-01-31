@@ -1925,11 +1925,6 @@ export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
 /**
  * @internal
  */
-export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorProvider>();
-
-/**
- * @internal
- */
 export const DocumentSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentSemanticTokensProvider>();
 
 /**

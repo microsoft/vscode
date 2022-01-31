@@ -1219,7 +1219,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getColors(model, CancellationToken.None);
+		let value = await getColors(languageFeaturesService.colorProvider, model, CancellationToken.None);
 		assert.strictEqual(value.length, 1);
 		let [first] = value;
 		assert.deepStrictEqual(first.colorInfo.color, { red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4 });

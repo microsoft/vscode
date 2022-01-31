@@ -572,7 +572,8 @@ export function registerCompletionItemProvider(languageId: string, provider: lan
  * Register a document color provider (used by Color Picker, Color Decorator).
  */
 export function registerColorProvider(languageId: string, provider: languages.DocumentColorProvider): IDisposable {
-	return languages.ColorProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.colorProvider.register(languageId, provider);
 }
 
 /**
