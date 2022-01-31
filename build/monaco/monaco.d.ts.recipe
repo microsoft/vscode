@@ -76,7 +76,7 @@ export interface ICommandHandler {
 #include(vs/editor/common/core/dimension): IDimension
 #includeAll(vs/editor/common/editorCommon): IScrollEvent
 #includeAll(vs/editor/common/textModelEvents):
-#includeAll(vs/editor/common/cursor/cursorEvents):
+#includeAll(vs/editor/common/cursorEvents):
 #include(vs/platform/accessibility/common/accessibility): AccessibilitySupport
 #includeAll(vs/editor/common/config/editorOptions):
 #include(vs/editor/browser/config/editorConfiguration): IEditorConstructionOptions
@@ -93,7 +93,7 @@ declare namespace monaco.languages {
 #includeAll(vs/editor/standalone/browser/standaloneLanguages;languages.=>;editorCommon.=>editor.;model.=>editor.;IMarkerData=>editor.IMarkerData):
 #includeAll(vs/editor/common/languages/languageConfiguration):
 #includeAll(vs/editor/common/languages;IMarkerData=>editor.IMarkerData;ISingleEditOperation=>editor.ISingleEditOperation;model.=>editor.): Token
-#include(vs/editor/common/services/language): ILanguageExtensionPoint
+#include(vs/editor/common/languages/language): ILanguageExtensionPoint
 #includeAll(vs/editor/standalone/common/monarch/monarchTypes):
 
 }

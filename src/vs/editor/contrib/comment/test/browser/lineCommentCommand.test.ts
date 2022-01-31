@@ -11,7 +11,7 @@ import { EncodedTokenizationResult, ColorId, IState, MetadataConsts, Tokenizatio
 import { CommentRule } from 'vs/editor/common/languages/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { NullState } from 'vs/editor/common/languages/nullMode';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type } from 'vs/editor/contrib/comment/browser/lineCommentCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';

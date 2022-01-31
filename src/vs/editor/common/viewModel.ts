@@ -5,8 +5,8 @@
 
 import { IScrollPosition, Scrollable } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
-import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from 'vs/editor/common/cursor/cursorCommon';
-import { CursorChangeReason } from 'vs/editor/common/cursor/cursorEvents';
+import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from 'vs/editor/common/cursorCommon';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';

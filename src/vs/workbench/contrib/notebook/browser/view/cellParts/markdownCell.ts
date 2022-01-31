@@ -14,7 +14,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

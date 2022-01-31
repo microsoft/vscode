@@ -11,7 +11,7 @@ import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle'
 import { getLeadingWhitespace, isHighSurrogate, isLowSurrogate } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/cursor/cursorEvents';
+import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';

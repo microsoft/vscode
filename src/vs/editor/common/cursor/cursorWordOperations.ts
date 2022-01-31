@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { EditorAutoClosingEditStrategy, EditorAutoClosingStrategy } from 'vs/editor/common/config/editorOptions';
-import { CursorConfiguration, ICursorSimpleModel, SingleCursorState } from 'vs/editor/common/cursor/cursorCommon';
+import { CursorConfiguration, ICursorSimpleModel, SingleCursorState } from 'vs/editor/common/cursorCommon';
 import { DeleteOperations } from 'vs/editor/common/cursor/cursorDeleteOperations';
 import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';

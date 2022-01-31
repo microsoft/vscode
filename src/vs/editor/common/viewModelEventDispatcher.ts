@@ -9,7 +9,7 @@ import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 import { Emitter } from 'vs/base/common/event';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { CursorChangeReason } from 'vs/editor/common/cursor/cursorEvents';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 
 export class ViewModelEventDispatcher extends Disposable {
 

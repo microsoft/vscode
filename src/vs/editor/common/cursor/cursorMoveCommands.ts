@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as types from 'vs/base/common/types';
-import { CursorState, ICursorSimpleModel, PartialCursorState, SingleCursorState } from 'vs/editor/common/cursor/cursorCommon';
+import { CursorState, ICursorSimpleModel, PartialCursorState, SingleCursorState } from 'vs/editor/common/cursorCommon';
 import { MoveOperations } from 'vs/editor/common/cursor/cursorMoveOperations';
 import { WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
 import { IPosition, Position } from 'vs/editor/common/core/position';

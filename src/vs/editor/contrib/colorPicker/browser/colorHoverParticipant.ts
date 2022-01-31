@@ -10,7 +10,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation, IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/languages';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/browser/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
@@ -18,6 +18,7 @@ import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPic
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 export class ColorHover implements IHoverPart {
 
@@ -44,6 +45,8 @@ export class ColorHover implements IHoverPart {
 }
 
 export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover> {
+
+	public readonly hoverOrdinal: number = 1;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -110,10 +113,10 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
 
 		const updateEditorModel = () => {
-			let textEdits: IIdentifiedSingleEditOperation[];
+			let textEdits: ISingleEditOperation[];
 			let newRange: Range;
 			if (model.presentation.textEdit) {
-				textEdits = [model.presentation.textEdit as IIdentifiedSingleEditOperation];
+				textEdits = [model.presentation.textEdit];
 				newRange = new Range(
 					model.presentation.textEdit.range.startLineNumber,
 					model.presentation.textEdit.range.startColumn,
@@ -125,14 +128,14 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 				this._editor.executeEdits('colorpicker', textEdits);
 				newRange = this._editor.getModel()!._getTrackedRange(trackedRange) || newRange;
 			} else {
-				textEdits = [{ identifier: null, range, text: model.presentation.label, forceMoveMarkers: false }];
+				textEdits = [{ range, text: model.presentation.label, forceMoveMarkers: false }];
 				newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
 				this._editor.pushUndoStop();
 				this._editor.executeEdits('colorpicker', textEdits);
 			}
 
 			if (model.presentation.additionalTextEdits) {
-				textEdits = [...model.presentation.additionalTextEdits as IIdentifiedSingleEditOperation[]];
+				textEdits = [...model.presentation.additionalTextEdits];
 				this._editor.executeEdits('colorpicker', textEdits);
 				context.hide();
 			}

@@ -11,7 +11,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./snippetSession';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -87,7 +87,7 @@ export class OneSnippet {
 
 		// Transform placeholder text if necessary
 		if (this._placeholderGroupsIdx >= 0) {
-			let operations: IIdentifiedSingleEditOperation[] = [];
+			let operations: ISingleEditOperation[] = [];
 
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
 				// Check if the placeholder has a transformation
