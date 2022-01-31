@@ -11,10 +11,12 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IProcessEnvironment, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { localize } from 'vs/nls';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI, URI as uri } from 'vs/base/common/uri';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+
 
 export interface IVariableResolveContext {
 	getFolderUri(folderName: string): uri | undefined;
@@ -38,11 +40,13 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 	private _context: IVariableResolveContext;
 	private _labelService?: ILabelService;
 	private _envVariablesPromise?: Promise<IProcessEnvironment>;
+	private _pathService: IPathService | undefined;
 	protected _contributedVariables: Map<string, () => Promise<string | undefined>> = new Map();
 
-	constructor(_context: IVariableResolveContext, _labelService?: ILabelService, _envVariablesPromise?: Promise<IProcessEnvironment>) {
+	constructor(_context: IVariableResolveContext, _labelService?: ILabelService, _envVariablesPromise?: Promise<IProcessEnvironment>, _pathService?: IPathService) {
 		this._context = _context;
 		this._labelService = _labelService;
+		this._pathService = _pathService;
 		if (_envVariablesPromise) {
 			this._envVariablesPromise = _envVariablesPromise.then(envVariables => {
 				return this.prepareEnv(envVariables);
@@ -121,7 +125,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		}
 	}
 
-	private recursiveResolve(environment: IProcessEnvironment | undefined, folderUri: uri | undefined, value: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
+	private recursiveResolve(environment: IProcessEnvironment | IProcessEnvironment & { userHome: URI } | undefined, folderUri: uri | undefined, value: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
 		if (types.isString(value)) {
 			return this.resolveString(environment, folderUri, value, commandValueMapping, resolvedVariables);
 		} else if (types.isArray(value)) {
@@ -186,6 +190,14 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 			throw new Error(localize('canNotResolveFile', "Variable {0} can not be resolved. Please open an editor.", match));
 		};
 
+		const getUserHome = async (): Promise<string> => {
+			if (this._pathService) {
+				return (await this._pathService.userHome()).path;
+			}
+			else {
+				throw new Error(localize('canNotFindUserHome', "Variable {0} can not be resolved. Home path is undefined.", match));
+			}
+		};
 		// common error handling for all variables that require an open editor
 		const getFolderPathForFile = (): string => {
 
@@ -269,6 +281,10 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 					case 'workspaceRootFolderName':
 					case 'workspaceFolderBasename':
 						return paths.basename(this.fsPath(getFolderUri()));
+
+					case 'userHome': {
+
+					}
 
 					case 'lineNumber': {
 						const lineNumber = this._context.getLineNumber();
