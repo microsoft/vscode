@@ -13,7 +13,7 @@ import { ICodeEditor, IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent,
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason } from 'vs/editor/common/cursor/cursorEvents';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';

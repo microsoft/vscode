@@ -29,7 +29,7 @@ import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { getDocumentSemanticTokens, isSemanticTokens } from 'vs/editor/common/services/getSemanticTokens';

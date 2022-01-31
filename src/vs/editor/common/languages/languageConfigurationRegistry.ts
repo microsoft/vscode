@@ -20,7 +20,7 @@ import { RichEditBrackets } from 'vs/editor/common/languages/supports/richEditBr
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 /**

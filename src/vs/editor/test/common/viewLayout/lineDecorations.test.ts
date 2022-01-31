@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { DecorationSegment, LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
-import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
 
 suite('Editor ViewLayout - ViewLineParts', () => {
 

@@ -503,11 +503,6 @@ export interface IShellLaunchConfig {
 	 * Opt-out of the default terminal persistence on restart and reload
 	 */
 	disablePersistence?: boolean;
-
-	/**
-	 * This is a split terminal that inherited its parent's cwd
-	 */
-	splitInheritedCwd?: boolean;
 }
 
 export interface ICreateContributedTerminalProfileOptions {

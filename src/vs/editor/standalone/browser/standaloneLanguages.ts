@@ -13,7 +13,7 @@ import * as languages from 'vs/editor/common/languages';
 import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/languages/language';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { StandaloneServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';

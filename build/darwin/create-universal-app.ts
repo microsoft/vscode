@@ -9,7 +9,6 @@ import { makeUniversalApp } from 'vscode-universal-bundler';
 import { spawn } from '@malept/cross-spawn-promise';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import * as plist from 'plist';
 import * as product from '../../product.json';
 
 async function main() {
@@ -27,7 +26,6 @@ async function main() {
 	const arm64AsarPath = path.join(arm64AppPath, 'Contents', 'Resources', 'app', 'node_modules.asar');
 	const outAppPath = path.join(buildDir, `VSCode-darwin-${arch}`, appName);
 	const productJsonPath = path.resolve(outAppPath, 'Contents', 'Resources', 'app', 'product.json');
-	const infoPlistPath = path.resolve(outAppPath, 'Contents', 'Info.plist');
 
 	await makeUniversalApp({
 		x64AppPath,
@@ -51,13 +49,6 @@ async function main() {
 		darwinUniversalAssetId: 'darwin-universal'
 	});
 	await fs.writeJson(productJsonPath, productJson);
-
-	let infoPlistString = await fs.readFile(infoPlistPath, 'utf8');
-	let infoPlistJson = plist.parse(infoPlistString);
-	Object.assign(infoPlistJson, {
-		LSRequiresNativeExecution: true
-	});
-	await fs.writeFile(infoPlistPath, plist.build(infoPlistJson), 'utf8');
 
 	// Verify if native module architecture is correct
 	const findOutput = await spawn('find', [outAppPath, '-name', 'keytar.node'])
