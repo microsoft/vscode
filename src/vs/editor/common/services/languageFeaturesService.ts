@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { CodeLensProvider, CompletionItemProvider, DeclarationProvider, DefinitionProvider, DocumentColorProvider, DocumentFormattingEditProvider, DocumentHighlightProvider, DocumentRangeFormattingEditProvider, DocumentSymbolProvider, FoldingRangeProvider, HoverProvider, ImplementationProvider, InlayHintsProvider, InlineCompletionsProvider, LinkedEditingRangeProvider, LinkProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, SelectionRangeProvider, SignatureHelpProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
+import { CodeLensProvider, CompletionItemProvider, DeclarationProvider, DefinitionProvider, DocumentColorProvider, DocumentFormattingEditProvider, DocumentHighlightProvider, DocumentRangeFormattingEditProvider, DocumentSymbolProvider, FoldingRangeProvider, HoverProvider, ImplementationProvider, InlayHintsProvider, InlineCompletionsProvider, InlineValuesProvider, LinkedEditingRangeProvider, LinkProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, SelectionRangeProvider, SignatureHelpProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
@@ -55,6 +55,10 @@ export class LanguageFeaturesService implements ILanguageFeaturesService {
 	readonly completionProvider = new LanguageFeatureRegistry<CompletionItemProvider>();
 
 	readonly linkedEditingRangeProvider = new LanguageFeatureRegistry<LinkedEditingRangeProvider>();
+
+	// --- debug
+
+	readonly inlineValuesProvider = new LanguageFeatureRegistry<InlineValuesProvider>();
 
 }
 

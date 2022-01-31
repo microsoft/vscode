@@ -1895,11 +1895,6 @@ export const EvaluatableExpressionProviderRegistry = new LanguageFeatureRegistry
 /**
  * @internal
  */
-export const InlineValuesProviderRegistry = new LanguageFeatureRegistry<InlineValuesProvider>();
-
-/**
- * @internal
- */
 export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
 
 /**

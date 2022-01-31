@@ -279,7 +279,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			provider.onDidChangeInlineValues = emitter.event;
 		}
 
-		this._registrations.set(handle, modes.InlineValuesProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, this._languageFeaturesService.inlineValuesProvider.register(selector, provider));
 	}
 
 	$emitInlineValuesEvent(eventHandle: number, event?: any): void {
