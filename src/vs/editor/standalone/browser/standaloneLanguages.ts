@@ -518,7 +518,8 @@ export function registerCodeLensProvider(languageId: string, provider: languages
  * Register a code action provider (used by e.g. quick fix).
  */
 export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider, metadata?: CodeActionProviderMetadata): IDisposable {
-	return languages.CodeActionProviderRegistry.register(languageId, {
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.codeActionProvider.register(languageId, {
 		providedCodeActionKinds: metadata?.providedCodeActionKinds,
 		provideCodeActions: (model: model.ITextModel, range: Range, context: languages.CodeActionContext, token: CancellationToken): languages.ProviderResult<languages.CodeActionList> => {
 			const markerService = StandaloneServices.get(IMarkerService);

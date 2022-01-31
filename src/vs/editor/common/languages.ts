@@ -13,7 +13,6 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as model from 'vs/editor/common/model';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
@@ -1884,13 +1883,6 @@ export interface DocumentRangeSemanticTokensProvider {
 	getLegend(): SemanticTokensLegend;
 	provideDocumentRangeSemanticTokens(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 }
-
-// --- feature registries ------
-
-/**
- * @internal
- */
-export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
 
 /**
  * @internal

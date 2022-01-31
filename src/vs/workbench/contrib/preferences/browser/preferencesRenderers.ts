@@ -39,6 +39,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
@@ -475,11 +476,12 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 		this._register(this.editor.getModel()!.onDidChangeContent(() => this.delayedRender()));
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.source === ConfigurationTarget.DEFAULT)(() => this.delayedRender()));
-		this._register(modes.CodeActionProviderRegistry.register({ pattern: settingsEditorModel.uri.path }, this));
+		this._register(languageFeaturesService.codeActionProvider.register({ pattern: settingsEditorModel.uri.path }, this));
 	}
 
 	private delayedRender(): void {

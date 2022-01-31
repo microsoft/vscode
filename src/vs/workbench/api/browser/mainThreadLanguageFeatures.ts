@@ -357,7 +357,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			};
 		}
 
-		this._registrations.set(handle, modes.CodeActionProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, this._languageFeaturesService.codeActionProvider.register(selector, provider));
 	}
 
 	// --- formatting

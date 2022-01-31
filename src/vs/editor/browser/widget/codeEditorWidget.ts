@@ -38,7 +38,6 @@ import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/textModelEvents';
-import * as modes from 'vs/editor/common/languages';
 import { editorUnnecessaryCodeBorder, editorUnnecessaryCodeOpacity } from 'vs/editor/common/core/editorColorRegistry';
 import { editorErrorBorder, editorErrorForeground, editorHintBorder, editorHintForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, editorForeground, editorErrorBackground, editorInfoBackground, editorWarningBackground } from 'vs/platform/theme/common/colorRegistry';
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
@@ -1946,7 +1945,7 @@ export class EditorModeContext extends Disposable {
 
 		// update when registries change
 		this._register(_languageFeaturesService.completionProvider.onDidChange(update));
-		this._register(modes.CodeActionProviderRegistry.onDidChange(update));
+		this._register(_languageFeaturesService.codeActionProvider.onDidChange(update));
 		this._register(_languageFeaturesService.codeLensProvider.onDidChange(update));
 		this._register(_languageFeaturesService.definitionProvider.onDidChange(update));
 		this._register(_languageFeaturesService.declarationProvider.onDidChange(update));
@@ -2000,7 +1999,7 @@ export class EditorModeContext extends Disposable {
 		this._contextKeyService.bufferChangeEvents(() => {
 			this._langId.set(model.getLanguageId());
 			this._hasCompletionItemProvider.set(this._languageFeaturesService.completionProvider.has(model));
-			this._hasCodeActionsProvider.set(modes.CodeActionProviderRegistry.has(model));
+			this._hasCodeActionsProvider.set(this._languageFeaturesService.codeActionProvider.has(model));
 			this._hasCodeLensProvider.set(this._languageFeaturesService.codeLensProvider.has(model));
 			this._hasDefinitionProvider.set(this._languageFeaturesService.definitionProvider.has(model));
 			this._hasDeclarationProvider.set(this._languageFeaturesService.declarationProvider.has(model));

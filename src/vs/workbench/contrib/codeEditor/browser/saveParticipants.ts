@@ -31,6 +31,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { getModifiedRanges } from 'vs/workbench/contrib/format/browser/formatModified';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 
@@ -271,6 +272,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) { }
 
 	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
@@ -373,7 +375,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 	}
 
 	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, excludes: readonly CodeActionKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken) {
-		return getCodeActions(model, model.getFullModelRange(), {
+		return getCodeActions(this.languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), {
 			type: CodeActionTriggerType.Auto,
 			filter: { include: codeActionKind, excludes: excludes, includeSourceActions: true },
 		}, progress, token);
