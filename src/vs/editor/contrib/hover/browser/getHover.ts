@@ -45,7 +45,7 @@ export function getHoverPromise(registry: LanguageFeatureRegistry<HoverProvider>
 
 registerModelAndPositionCommand('_executeHoverProvider', (accessor, model, position) => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
-	getHoverPromise(languageFeaturesService.hoverProvider, model, position, CancellationToken.None);
+	return getHoverPromise(languageFeaturesService.hoverProvider, model, position, CancellationToken.None);
 });
 
 function isValid(result: Hover) {
