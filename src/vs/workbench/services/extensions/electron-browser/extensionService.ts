@@ -6,6 +6,7 @@
 import { LocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-browser/localProcessExtensionHost';
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-browser/cachedExtensionScanner';
 
+import { env } from 'vs/base/common/process';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractExtensionService, ExtensionRunningPreference, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import * as nls from 'vs/nls';
@@ -376,13 +377,31 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 					return uri;
 				}
 				const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
-				return localProcessExtensionHost.getCanonicalURI(remoteAuthority, uri);
+				if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+					this._logService.info(`Invoking getCanonicalURI for authority ${getRemoteAuthorityPrefix(remoteAuthority)}...`);
+				}
+				try {
+					return localProcessExtensionHost.getCanonicalURI(remoteAuthority, uri);
+				} finally {
+					if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+						this._logService.info(`getCanonicalURI returned for authority ${getRemoteAuthorityPrefix(remoteAuthority)}.`);
+					}
+				}
 			});
+
+			if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+				this._logService.info(`Starting to wait on IWorkspaceTrustManagementService.workspaceResolved...`);
+			}
 
 			// Now that the canonical URI provider has been registered, we need to wait for the trust state to be
 			// calculated. The trust state will be used while resolving the authority, however the resolver can
 			// override the trust state through the resolver result.
 			await this._workspaceTrustManagementService.workspaceResolved;
+
+			if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+				this._logService.info(`Finished waiting on IWorkspaceTrustManagementService.workspaceResolved.`);
+			}
+
 			let resolverResult: ResolverResult;
 
 			const sw = StopWatch.create(false);
