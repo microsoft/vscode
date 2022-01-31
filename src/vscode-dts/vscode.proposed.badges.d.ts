@@ -15,12 +15,12 @@ declare module 'vscode' {
 		/**
 		 * A label to present in tooltips for the badge
 		 */
-		label: string;
+		readonly tooltip: string;
 
 		/**
 		 * The value to present in the badge
 		 */
-		value: number;
+		readonly value: number;
 	}
 
 	export interface TreeView<T> {
