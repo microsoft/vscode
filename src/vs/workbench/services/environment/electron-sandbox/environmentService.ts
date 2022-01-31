@@ -44,6 +44,8 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 
 	readonly filesToWait?: IPathsToWaitFor;
 
+	readonly accessibilitySupport?: boolean;
+
 	/**
 	 * @deprecated this property will go away eventually as it
 	 * duplicates many properties of the environment service
@@ -73,6 +75,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get backupPath() { return this.configuration2.backupPath; }
+
+	@memoize
+	get accessibilitySupport() { return this.configuration2.accessibilitySupport; }
 
 	@memoize
 	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }

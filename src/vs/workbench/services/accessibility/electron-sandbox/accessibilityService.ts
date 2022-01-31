@@ -37,7 +37,7 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(contextKeyService, configurationService);
-		this.setAccessibilitySupport(environmentService.configuration2.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
+		this.setAccessibilitySupport(environmentService.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 	}
 
 	override async alwaysUnderlineAccessKeys(): Promise<boolean> {
