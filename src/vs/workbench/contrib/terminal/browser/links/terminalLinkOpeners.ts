@@ -55,7 +55,7 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	}
 
 	/**
-	 * Returns line and column number of URl if that is present.
+	 * Returns line and column number of URl if that is present, otherwise line 1 column 1.
 	 *
 	 * @param link Url link which may contain line and column number.
 	 */
