@@ -1950,11 +1950,6 @@ export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDe
 /**
  * @internal
  */
-export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
-
-/**
- * @internal
- */
 export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
 
 /**

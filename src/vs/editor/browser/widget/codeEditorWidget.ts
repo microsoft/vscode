@@ -1947,7 +1947,7 @@ export class EditorModeContext extends Disposable {
 		// update when registries change
 		this._register(modes.CompletionProviderRegistry.onDidChange(update));
 		this._register(modes.CodeActionProviderRegistry.onDidChange(update));
-		this._register(modes.CodeLensProviderRegistry.onDidChange(update));
+		this._register(_languageFeaturesService.codeLensProvider.onDidChange(update));
 		this._register(modes.DefinitionProviderRegistry.onDidChange(update));
 		this._register(modes.DeclarationProviderRegistry.onDidChange(update));
 		this._register(modes.ImplementationProviderRegistry.onDidChange(update));
@@ -2001,7 +2001,7 @@ export class EditorModeContext extends Disposable {
 			this._langId.set(model.getLanguageId());
 			this._hasCompletionItemProvider.set(modes.CompletionProviderRegistry.has(model));
 			this._hasCodeActionsProvider.set(modes.CodeActionProviderRegistry.has(model));
-			this._hasCodeLensProvider.set(modes.CodeLensProviderRegistry.has(model));
+			this._hasCodeLensProvider.set(this._languageFeaturesService.codeLensProvider.has(model));
 			this._hasDefinitionProvider.set(modes.DefinitionProviderRegistry.has(model));
 			this._hasDeclarationProvider.set(modes.DeclarationProviderRegistry.has(model));
 			this._hasImplementationProvider.set(modes.ImplementationProviderRegistry.has(model));

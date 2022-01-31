@@ -200,7 +200,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			provider.onDidChange = emitter.event;
 		}
 
-		this._registrations.set(handle, modes.CodeLensProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, this._languageFeaturesService.codeLensProvider.register(selector, provider));
 	}
 
 	$emitCodeLensEvent(eventHandle: number, event?: any): void {

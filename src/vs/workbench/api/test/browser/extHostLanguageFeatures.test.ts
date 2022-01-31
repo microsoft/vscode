@@ -226,7 +226,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getCodeLensModel(model, CancellationToken.None);
+		const value = await getCodeLensModel(languageFeaturesService.codeLensProvider, model, CancellationToken.None);
 		assert.strictEqual(value.lenses.length, 1);
 	});
 
@@ -244,7 +244,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getCodeLensModel(model, CancellationToken.None);
+		const value = await getCodeLensModel(languageFeaturesService.codeLensProvider, model, CancellationToken.None);
 		assert.strictEqual(value.lenses.length, 1);
 		const [data] = value.lenses;
 		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
@@ -261,7 +261,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getCodeLensModel(model, CancellationToken.None);
+		const value = await getCodeLensModel(languageFeaturesService.codeLensProvider, model, CancellationToken.None);
 		assert.strictEqual(value.lenses.length, 1);
 		let [data] = value.lenses;
 		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { DocumentSymbolProvider, InlayHintsProvider, ReferenceProvider, RenameProvider } from 'vs/editor/common/languages';
+import { CodeLensProvider, DocumentSymbolProvider, InlayHintsProvider, ReferenceProvider, RenameProvider } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
@@ -19,6 +19,8 @@ export class LanguageFeatureService implements ILanguageFeaturesService {
 	readonly documentSymbolProvider = new LanguageFeatureRegistry<DocumentSymbolProvider>();
 
 	readonly inlayHintsProvider = new LanguageFeatureRegistry<InlayHintsProvider>();
+
+	readonly codeLensProvider = new LanguageFeatureRegistry<CodeLensProvider>();
 }
 
 registerSingleton(ILanguageFeaturesService, LanguageFeatureService, true);

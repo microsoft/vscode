@@ -503,7 +503,8 @@ export function registerTypeDefinitionProvider(languageId: string, provider: lan
  * Register a code lens provider (used by e.g. inline code lenses).
  */
 export function registerCodeLensProvider(languageId: string, provider: languages.CodeLensProvider): IDisposable {
-	return languages.CodeLensProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.codeLensProvider.register(languageId, provider);
 }
 
 /**
