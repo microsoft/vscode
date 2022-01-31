@@ -1890,11 +1890,6 @@ export interface DocumentRangeSemanticTokensProvider {
 /**
  * @internal
  */
-export const CompletionProviderRegistry = new LanguageFeatureRegistry<CompletionItemProvider>();
-
-/**
- * @internal
- */
 export const EvaluatableExpressionProviderRegistry = new LanguageFeatureRegistry<EvaluatableExpressionProvider>();
 
 /**

@@ -511,7 +511,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				});
 			};
 		}
-		this._registrations.set(handle, modes.CompletionProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, this._languageFeaturesService.completionProvider.register(selector, provider));
 	}
 
 	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[]): void {

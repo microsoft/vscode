@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { CodeLensProvider, DeclarationProvider, DefinitionProvider, DocumentColorProvider, DocumentFormattingEditProvider, DocumentHighlightProvider, DocumentRangeFormattingEditProvider, DocumentSymbolProvider, FoldingRangeProvider, HoverProvider, ImplementationProvider, InlayHintsProvider, InlineCompletionsProvider, LinkProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, SelectionRangeProvider, SignatureHelpProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
+import { CodeLensProvider, CompletionItemProvider, DeclarationProvider, DefinitionProvider, DocumentColorProvider, DocumentFormattingEditProvider, DocumentHighlightProvider, DocumentRangeFormattingEditProvider, DocumentSymbolProvider, FoldingRangeProvider, HoverProvider, ImplementationProvider, InlayHintsProvider, InlineCompletionsProvider, LinkProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, SelectionRangeProvider, SignatureHelpProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class LanguageFeatureService implements ILanguageFeaturesService {
+export class LanguageFeaturesService implements ILanguageFeaturesService {
 
 	declare _serviceBrand: undefined;
 
@@ -52,6 +52,8 @@ export class LanguageFeatureService implements ILanguageFeaturesService {
 
 	readonly inlineCompletionsProvider = new LanguageFeatureRegistry<InlineCompletionsProvider>();
 
+	readonly completionProvider = new LanguageFeatureRegistry<CompletionItemProvider>();
+
 }
 
-registerSingleton(ILanguageFeaturesService, LanguageFeatureService, true);
+registerSingleton(ILanguageFeaturesService, LanguageFeaturesService, true);

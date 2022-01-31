@@ -79,7 +79,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 				});
 			}
 		}));
-		this._register(modes.CompletionProviderRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService, languageConfigurationService)));
+		this._register(languageFeaturesService.completionProvider.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService, languageConfigurationService)));
 	}
 
 	public override dispose(): void {

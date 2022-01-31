@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { Range } from 'vs/editor/common/core/range';
 import { InlineCompletionsProvider, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFeatureService } from 'vs/editor/common/services/languageFeaturesService';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextModel';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
@@ -551,7 +551,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 
 		try {
 			if (options.provider) {
-				const languageFeaturesService = new LanguageFeatureService();
+				const languageFeaturesService = new LanguageFeaturesService();
 				if (!options.serviceCollection) {
 					options.serviceCollection = new ServiceCollection();
 				}

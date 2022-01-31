@@ -566,7 +566,8 @@ export function registerLinkProvider(languageId: string, provider: languages.Lin
  * Register a completion item provider (use by e.g. suggestions).
  */
 export function registerCompletionItemProvider(languageId: string, provider: languages.CompletionItemProvider): IDisposable {
-	return languages.CompletionProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.completionProvider.register(languageId, provider);
 }
 
 /**

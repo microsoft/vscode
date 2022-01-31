@@ -52,7 +52,7 @@ import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSyste
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFeatureService } from 'vs/editor/common/services/languageFeaturesService';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 
 suite('ExtHostLanguageFeatures', function () {
 
@@ -79,7 +79,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		rpcProtocol = new TestRPCProtocol();
 
-		languageFeaturesService = new LanguageFeatureService();
+		languageFeaturesService = new LanguageFeaturesService();
 
 		// Use IInstantiationService to get typechecking when instantiating
 		let inst: IInstantiationService;
@@ -952,7 +952,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const { items } = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
+		const { items } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
 		assert.strictEqual(items.length, 1);
 		assert.strictEqual(items[0].completion.insertText, 'testing2');
 	});
@@ -972,7 +972,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const { items } = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
+		const { items } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
 		assert.strictEqual(items.length, 1);
 		assert.strictEqual(items[0].completion.insertText, 'weak-selector');
 	});
@@ -992,7 +992,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const { items } = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
+		const { items } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
 		assert.strictEqual(items.length, 2);
 		assert.strictEqual(items[0].completion.insertText, 'strong-1'); // sort by label
 		assert.strictEqual(items[1].completion.insertText, 'strong-2');
@@ -1014,7 +1014,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 
 		await rpcProtocol.sync();
-		const { items } = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
+		const { items } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
 		assert.strictEqual(items[0].container.incomplete, false);
 	});
 
@@ -1027,7 +1027,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet))).then(model => {
+		await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet))).then(model => {
 			assert.strictEqual(model.items[0].container.incomplete, true);
 		});
 	});
