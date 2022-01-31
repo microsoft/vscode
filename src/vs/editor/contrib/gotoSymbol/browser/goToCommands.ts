@@ -238,7 +238,7 @@ export abstract class SymbolNavigationAction extends EditorAction {
 export class DefinitionAction extends SymbolNavigationAction {
 
 	protected async _getLocationModel(languageFeaturesService: ILanguageFeaturesService, model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getDefinitionsAtPosition(model, position, token), nls.localize('def.title', 'Definitions'));
+		return new ReferencesModel(await getDefinitionsAtPosition(languageFeaturesService.definitionProvider, model, position, token), nls.localize('def.title', 'Definitions'));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {

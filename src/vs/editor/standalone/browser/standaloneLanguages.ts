@@ -482,7 +482,8 @@ export function registerLinkedEditingRangeProvider(languageId: string, provider:
  * Register a definition provider (used by e.g. go to definition).
  */
 export function registerDefinitionProvider(languageId: string, provider: languages.DefinitionProvider): IDisposable {
-	return languages.DefinitionProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.definitionProvider.register(languageId, provider);
 }
 
 /**

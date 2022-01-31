@@ -280,7 +280,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
+		let value = await getDefinitionsAtPosition(languageFeaturesService.definitionProvider, model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 1);
 		let [entry] = value;
 		assert.deepStrictEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
@@ -301,7 +301,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
+		const value = await getDefinitionsAtPosition(languageFeaturesService.definitionProvider, model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 2);
 	});
 
@@ -320,7 +320,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
+		const value = await getDefinitionsAtPosition(languageFeaturesService.definitionProvider, model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 2);
 		// let [first, second] = value;
 		assert.strictEqual(value[0].uri.authority, 'second');
@@ -341,7 +341,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
+		const value = await getDefinitionsAtPosition(languageFeaturesService.definitionProvider, model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 1);
 	});
 
