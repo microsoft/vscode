@@ -32,7 +32,7 @@ import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManage
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
-import { InlineDecoration, InlineDecorationType, IViewModel, ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecoration, InlineDecorationType, IViewModel, ViewLineRenderingData } from 'vs/editor/common/viewModel';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';

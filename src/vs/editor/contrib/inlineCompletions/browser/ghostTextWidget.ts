@@ -20,7 +20,7 @@ import { ILanguageService } from 'vs/editor/common/services/language';
 import { ghostTextBackground, ghostTextBorder, ghostTextForeground } from 'vs/editor/common/core/editorColorRegistry';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';

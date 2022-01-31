@@ -10,7 +10,7 @@ import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents'
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { IViewModel } from 'vs/editor/common/viewModel';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as platform from 'vs/base/common/platform';

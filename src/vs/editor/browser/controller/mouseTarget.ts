@@ -13,8 +13,8 @@ import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOp
 import { Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { ViewContext } from 'vs/editor/common/viewContext';
+import { IViewModel } from 'vs/editor/common/viewModel';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import * as dom from 'vs/base/browser/dom';
 import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/cursor/cursorAtomicMoveOperations';

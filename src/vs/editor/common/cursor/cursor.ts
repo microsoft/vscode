@@ -16,9 +16,9 @@ import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
 import { RawContentChangedType, ModelRawContentChangedEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/textModelEvents';
-import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from 'vs/editor/common/viewModel/viewEvents';
+import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from 'vs/editor/common/viewEvents';
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
-import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
 import { CursorStateChangedEvent, ViewModelEventsCollector } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 
 export class CursorsController extends Disposable {

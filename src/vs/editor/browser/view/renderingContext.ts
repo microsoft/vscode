@@ -6,7 +6,7 @@
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IViewLayout, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { IViewLayout, ViewModelDecoration } from 'vs/editor/common/viewModel';
 
 export interface IViewLines {
 	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
