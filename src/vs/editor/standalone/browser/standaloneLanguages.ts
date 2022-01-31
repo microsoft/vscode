@@ -558,7 +558,8 @@ export function registerOnTypeFormattingEditProvider(languageId: string, provide
  * Register a link provider that can find links in text.
  */
 export function registerLinkProvider(languageId: string, provider: languages.LinkProvider): IDisposable {
-	return languages.LinkProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.linkProvider.register(languageId, provider);
 }
 
 /**

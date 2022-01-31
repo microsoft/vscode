@@ -1920,11 +1920,6 @@ export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeAction
 /**
  * @internal
  */
-export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
-
-/**
- * @internal
- */
 export const DocumentSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentSemanticTokensProvider>();
 
 /**

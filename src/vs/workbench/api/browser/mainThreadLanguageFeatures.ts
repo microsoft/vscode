@@ -639,7 +639,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				});
 			};
 		}
-		this._registrations.set(handle, modes.LinkProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, this._languageFeaturesService.linkProvider.register(selector, provider));
 	}
 
 	// --- colors

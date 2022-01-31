@@ -1177,7 +1177,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let { links } = await getLinks(model, CancellationToken.None);
+		let { links } = await getLinks(languageFeaturesService.linkProvider, model, CancellationToken.None);
 		assert.strictEqual(links.length, 1);
 		let [first] = links;
 		assert.strictEqual(first.url?.toString(), 'foo:bar#3');
@@ -1200,7 +1200,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let { links } = await getLinks(model, CancellationToken.None);
+		let { links } = await getLinks(languageFeaturesService.linkProvider, model, CancellationToken.None);
 		assert.strictEqual(links.length, 1);
 		let [first] = links;
 		assert.strictEqual(first.url?.toString(), 'foo:bar#3');
