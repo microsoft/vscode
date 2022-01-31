@@ -103,65 +103,75 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	@memoize
 	get extHostLogsPath(): URI { return joinPath(this.logsHome, 'exthost'); }
 
-	private _extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
+	private extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
+
+	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		if (!this.extensionHostDebugEnvironment) {
+			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		return this._extensionHostDebugEnvironment.params;
+		return this.extensionHostDebugEnvironment.params;
 	}
 
+	@memoize
 	get isExtensionDevelopment(): boolean {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		if (!this.extensionHostDebugEnvironment) {
+			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		return this._extensionHostDebugEnvironment.isExtensionDevelopment;
+		return this.extensionHostDebugEnvironment.isExtensionDevelopment;
 	}
 
+	@memoize
 	get extensionDevelopmentLocationURI(): URI[] | undefined {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		if (!this.extensionHostDebugEnvironment) {
+			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		return this._extensionHostDebugEnvironment.extensionDevelopmentLocationURI;
+		return this.extensionHostDebugEnvironment.extensionDevelopmentLocationURI;
 	}
 
+	@memoize
 	get extensionDevelopmentLocationKind(): ExtensionKind[] | undefined {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		if (!this.extensionHostDebugEnvironment) {
+			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		return this._extensionHostDebugEnvironment.extensionDevelopmentKind;
+		return this.extensionHostDebugEnvironment.extensionDevelopmentKind;
 	}
 
+	@memoize
 	get extensionTestsLocationURI(): URI | undefined {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		if (!this.extensionHostDebugEnvironment) {
+			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		return this._extensionHostDebugEnvironment.extensionTestsLocationURI;
+		return this.extensionHostDebugEnvironment.extensionTestsLocationURI;
 	}
 
+	@memoize
 	get extensionEnabledProposedApi(): string[] | undefined {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		if (!this.extensionHostDebugEnvironment) {
+			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		return this._extensionHostDebugEnvironment.extensionEnabledProposedApi;
+		return this.extensionHostDebugEnvironment.extensionEnabledProposedApi;
 	}
 
+	@memoize
 	get debugRenderer(): boolean {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		if (!this.extensionHostDebugEnvironment) {
+			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		return this._extensionHostDebugEnvironment.debugRenderer;
+		return this.extensionHostDebugEnvironment.debugRenderer;
 	}
 
+	@memoize
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
+	@memoize
 	get enableExtensions() { return this.options.enabledExtensions; }
 
 	@memoize
@@ -178,12 +188,20 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get telemetryLogResource(): URI { return joinPath(this.logsHome, 'telemetry.log'); }
+
+	@memoize
 	get disableTelemetry(): boolean { return false; }
 
+	@memoize
 	get verbose(): boolean { return this.payload?.get('verbose') === 'true'; }
+
+	@memoize
 	get logExtensionHostCommunication(): boolean { return this.payload?.get('logExtensionHostCommunication') === 'true'; }
 
+	@memoize
 	get skipReleaseNotes(): boolean { return false; }
+
+	@memoize
 	get skipWelcome(): boolean { return this.payload?.get('skipWelcome') === 'true'; }
 
 	@memoize
@@ -261,6 +279,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 				extensionHostDebugEnvironment.extensionDevelopmentLocationURI = developmentOptions.extensions.map(e => URI.revive(e));
 				extensionHostDebugEnvironment.isExtensionDevelopment = true;
 			}
+			
 			if (developmentOptions.extensionTestsPath) {
 				extensionHostDebugEnvironment.extensionTestsLocationURI = URI.revive(developmentOptions.extensionTestsPath);
 			}

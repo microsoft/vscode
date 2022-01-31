@@ -21,7 +21,7 @@ class WorkbenchNativeHostService extends NativeHostService {
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IMainProcessService mainProcessService: IMainProcessService
 	) {
-		super(environmentService.windowId, mainProcessService);
+		super(environmentService.window.id, mainProcessService);
 	}
 }
 

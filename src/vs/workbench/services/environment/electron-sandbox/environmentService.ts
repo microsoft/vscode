@@ -26,42 +26,35 @@ export interface INativeWorkbenchConfiguration extends IWorkbenchConfiguration, 
  */
 export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnvironmentService, INativeEnvironmentService {
 
-	readonly windowId: number;
+	// --- Window
+	readonly window: {
+		id: number;
+		colorScheme: IColorScheme;
+		maximized?: boolean;
+		accessibilitySupport?: boolean;
+		isInitialStartup?: boolean;
+		isCodeCaching?: boolean;
+		perfMarks: PerformanceMark[];
+	};
 
+	// --- Main
 	readonly mainPid: number;
-
+	readonly os: IOSConfiguration;
 	readonly machineId: string;
 
+	// --- Paths
+	readonly execPath: string;
+	readonly backupPath?: string;
+
+	// --- Development
 	readonly crashReporterDirectory?: string;
 	readonly crashReporterId?: string;
 
-	readonly execPath: string;
-
-	readonly backupPath?: string;
-
-	readonly log?: string;
-
-	readonly os: IOSConfiguration;
-
+	// --- Editors to --wait
 	readonly filesToWait?: IPathsToWaitFor;
-
-	readonly accessibilitySupport?: boolean;
-
-	readonly windowMaximized?: boolean;
-
-	readonly colorScheme: IColorScheme;
-
-	readonly perf: {
-		codeCachePath?: string;
-		isInitialStartup?: boolean;
-		marks: PerformanceMark[];
-	}
 }
 
 export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironmentService implements INativeWorkbenchEnvironmentService {
-
-	@memoize
-	get windowId() { return this.configuration.windowId; }
 
 	@memoize
 	get mainPid() { return this.configuration.mainPid; }
@@ -79,20 +72,15 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get backupPath() { return this.configuration.backupPath; }
 
 	@memoize
-	get accessibilitySupport() { return this.configuration.accessibilitySupport; }
-
-	@memoize
-	get windowMaximized() { return this.configuration.maximized; }
-
-	@memoize
-	get colorScheme() { return this.configuration.colorScheme; }
-
-	@memoize
-	get perf() {
+	get window() {
 		return {
-			codeCachePath: this.configuration.codeCachePath,
+			id: this.configuration.windowId,
+			colorScheme: this.configuration.colorScheme,
+			maximized: this.configuration.maximized,
+			accessibilitySupport: this.configuration.accessibilitySupport,
+			perfMarks: this.configuration.perfMarks,
 			isInitialStartup: this.configuration.isInitialStartup,
-			marks: this.configuration.perfMarks
+			isCodeCaching: typeof this.configuration.codeCachePath === 'string'
 		};
 	}
 
@@ -130,24 +118,17 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 		return undefined;
 	}
 
-	get os(): IOSConfiguration {
-		return this.configuration.os;
-	}
+	@memoize
+	get os(): IOSConfiguration { return this.configuration.os; }
 
 	@memoize
-	get filesToOpenOrCreate(): IPath[] | undefined {
-		return this.configuration.filesToOpenOrCreate;
-	}
+	get filesToOpenOrCreate(): IPath[] | undefined { return this.configuration.filesToOpenOrCreate; }
 
 	@memoize
-	get filesToDiff(): IPath[] | undefined {
-		return this.configuration.filesToDiff;
-	}
+	get filesToDiff(): IPath[] | undefined { return this.configuration.filesToDiff; }
 
 	@memoize
-	get filesToWait(): IPathsToWaitFor | undefined {
-		return this.configuration.filesToWait;
-	}
+	get filesToWait(): IPathsToWaitFor | undefined { return this.configuration.filesToWait; }
 
 	constructor(
 		private readonly configuration: INativeWorkbenchConfiguration,

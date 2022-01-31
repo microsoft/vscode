@@ -24,23 +24,25 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	//       ENVIRONMENT SERVICE
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	readonly remoteAuthority?: string;
-
+	// --- Paths
 	readonly logFile: URI;
-
 	readonly extHostLogsPath: URI;
-	readonly logExtensionHostCommunication?: boolean;
+
+	// --- Extensions
 	readonly extensionEnabledProposedApi?: string[];
 
-	readonly webviewExternalEndpoint: string;
-
+	// --- Config
+	readonly remoteAuthority?: string;
 	readonly skipReleaseNotes: boolean;
 	readonly skipWelcome: boolean;
-
-	readonly debugRenderer: boolean;
-
 	readonly disableWorkspaceTrust: boolean;
+	readonly webviewExternalEndpoint: string;
 
+	// --- Development
+	readonly debugRenderer: boolean;
+	readonly logExtensionHostCommunication?: boolean;
+
+	// --- Editors to open
 	readonly filesToOpenOrCreate?: IPath[] | undefined
 	readonly filesToDiff?: IPath[] | undefined;
 
