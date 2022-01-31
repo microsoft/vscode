@@ -12,7 +12,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';

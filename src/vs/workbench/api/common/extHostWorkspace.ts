@@ -26,7 +26,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { GlobPattern } from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range } from 'vs/workbench/api/common/extHostTypes';
-import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import { IRawFileMatch2, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';

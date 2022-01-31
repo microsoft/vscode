@@ -24,10 +24,9 @@ import { IRemoteAuthorityResolverService, IRemoteConnectionData } from 'vs/platf
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
-import { createMessageOfType, isMessageOfType, MessageType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { createMessageOfType, isMessageOfType, MessageType, IExtensionHostInitData, UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtensionHostKind, ExtensionHostLogFileName, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
@@ -209,7 +208,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		this._onExit.fire([0, null]);
 	}
 
-	private async _createExtHostInitData(isExtensionDevelopmentDebug: boolean): Promise<IInitData> {
+	private async _createExtHostInitData(isExtensionDevelopmentDebug: boolean): Promise<IExtensionHostInitData> {
 		const [telemetryInfo, remoteInitData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
 
 		// Collect all identifiers for extension ids which can be considered "resolved"

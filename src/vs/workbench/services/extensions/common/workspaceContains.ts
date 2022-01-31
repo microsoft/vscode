@@ -9,7 +9,7 @@ import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cance
 import * as errors from 'vs/base/common/errors';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';

@@ -31,7 +31,7 @@ import 'vs/workbench/browser/actions/quickAccessActions';
 
 //#region --- API Extension Points
 
-import 'vs/workbench/api/common/menusExtensionPoint';
+import 'vs/workbench/services/actions/common/menusExtensionPoint';
 import 'vs/workbench/api/common/configurationExtensionPoint';
 import 'vs/workbench/api/browser/viewsExtensionPoint';
 

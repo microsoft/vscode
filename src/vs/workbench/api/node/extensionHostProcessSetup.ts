@@ -13,9 +13,8 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol, ProtocolConstants, BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import product from 'vs/platform/product/common/product';
-import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
-import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionHostMain, IExitFn } from 'vs/workbench/services/extensions/common/extensionHostMain';
+import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, ExtensionHostExitCode, IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { ExtensionHostMain, IExitFn } from 'vs/workbench/api/common/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
 import { Promises } from 'vs/base/node/pfs';
@@ -93,7 +92,7 @@ function patchProcess(allowExit: boolean) {
 
 interface IRendererConnection {
 	protocol: IMessagePassingProtocol;
-	initData: IInitData;
+	initData: IExtensionHostInitData;
 }
 
 // This calls exit directly in case the initialization is not finished and we need to exit
@@ -233,7 +232,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 		const first = protocol.onMessage(raw => {
 			first.dispose();
 
-			const initData = <IInitData>JSON.parse(raw.toString());
+			const initData = <IExtensionHostInitData>JSON.parse(raw.toString());
 
 			const rendererCommit = initData.commit;
 			const myCommit = product.commit;

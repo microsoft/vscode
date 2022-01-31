@@ -48,6 +48,7 @@ import { IColorTheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import { normalizeIndentation } from 'vs/editor/common/core/indentation';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -1374,7 +1375,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	_applyUndo(changes: TextChange[], eol: model.EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
-		const edits = changes.map<model.IIdentifiedSingleEditOperation>((change) => {
+		const edits = changes.map<ISingleEditOperation>((change) => {
 			const rangeStart = this.getPositionAt(change.newPosition);
 			const rangeEnd = this.getPositionAt(change.newEnd);
 			return {
@@ -1386,7 +1387,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	_applyRedo(changes: TextChange[], eol: model.EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
-		const edits = changes.map<model.IIdentifiedSingleEditOperation>((change) => {
+		const edits = changes.map<ISingleEditOperation>((change) => {
 			const rangeStart = this.getPositionAt(change.oldPosition);
 			const rangeEnd = this.getPositionAt(change.oldEnd);
 			return {
@@ -1397,7 +1398,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._applyUndoRedoEdits(edits, eol, false, true, resultingAlternativeVersionId, resultingSelection);
 	}
 
-	private _applyUndoRedoEdits(edits: model.IIdentifiedSingleEditOperation[], eol: model.EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
+	private _applyUndoRedoEdits(edits: ISingleEditOperation[], eol: model.EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();

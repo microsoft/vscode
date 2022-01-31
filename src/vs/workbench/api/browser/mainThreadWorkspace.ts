@@ -20,8 +20,8 @@ import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorksp
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { checkGlobFileExists } from 'vs/workbench/api/common/shared/workspaceContains';
-import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { checkGlobFileExists } from 'vs/workbench/services/extensions/common/workspaceContains';
+import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
