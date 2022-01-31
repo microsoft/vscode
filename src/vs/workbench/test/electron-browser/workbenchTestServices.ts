@@ -13,7 +13,7 @@ import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/commo
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/model';
-import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IDialogService, IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -23,7 +23,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { URI } from 'vs/base/common/uri';
 import { IReadTextFileOptions, ITextFileStreamContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IOpenedWindow, IPartsSplash, IColorScheme } from 'vs/platform/windows/common/windows';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IOpenedWindow, IPartsSplash, IColorScheme, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { LogLevel, ILogService } from 'vs/platform/log/common/log';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -37,7 +37,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { homedir, release, tmpdir, hostname } from 'os';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -50,7 +50,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const args = parseArgs(process.argv, OPTIONS);
 
-export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
+export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	windowId: 0,
 	machineId: 'testMachineId',
 	logLevel: LogLevel.Error,
@@ -68,7 +68,7 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	...args
 };
 
-export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration, TestProductService);
+export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestNativeWindowConfiguration, TestProductService);
 
 export class TestTextFileService extends NativeTextFileService {
 	private resolveTextContentError!: FileOperationError | null;

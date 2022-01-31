@@ -17,20 +17,13 @@ import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
-import { ColorHoverParticipant } from 'vs/editor/contrib/hover/browser/colorHoverParticipant';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { HoverAnchor, HoverAnchorType, HoverRangeAnchor, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverRenderContext, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
-import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHoverParticipant';
-import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHoverParticipant';
+import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverColorPickerWidget, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverRenderContext, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
-import { UnicodeHighlighterHoverParticipant } from 'vs/editor/contrib/unicodeHighlighter/browser/unicodeHighlighter';
 import { AsyncIterableObject } from 'vs/base/common/async';
-import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHintsHover';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Emitter } from 'vs/base/common/event';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
@@ -39,18 +32,11 @@ const $ = dom.$;
 
 export class ContentHoverController extends Disposable {
 
-	private readonly _participants: IEditorHoverParticipant[] = [
-		this._instantiationService.createInstance(ColorHoverParticipant, this._editor),
-		this._instantiationService.createInstance(MarkdownHoverParticipant, this._editor),
-		this._instantiationService.createInstance(InlineCompletionsHoverParticipant, this._editor),
-		this._instantiationService.createInstance(UnicodeHighlighterHoverParticipant, this._editor),
-		this._instantiationService.createInstance(MarkerHoverParticipant, this._editor),
-		this._instantiationService.createInstance(InlayHintsHover, this._editor),
-	];
+	private readonly _participants: IEditorHoverParticipant[];
 	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
 	private readonly _decorationsChangerListener = this._register(new EditorDecorationsChangerListener(this._editor));
-	private readonly _computer = new ContentHoverComputer(this._editor, this._participants);
-	private readonly _hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
+	private readonly _computer: ContentHoverComputer;
+	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
 	private _messages: IHoverPart[];
 	private _messagesAreComplete: boolean;
@@ -64,6 +50,16 @@ export class ContentHoverController extends Disposable {
 
 		this._messages = [];
 		this._messagesAreComplete = false;
+
+		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
+		this._participants = [];
+		for (const participant of HoverParticipantRegistry.getAll()) {
+			this._participants.push(this._instantiationService.createInstance(participant, this._editor));
+		}
+		this._participants.sort((p1, p2) => p1.hoverOrdinal - p2.hoverOrdinal);
+
+		this._computer = new ContentHoverComputer(this._editor, this._participants);
+		this._hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
 
 		this._register(this._hoverOperation.onResult((result) => {
 			this._withResult(result.value, result.isComplete, result.hasLoadingMessage);
@@ -88,7 +84,7 @@ export class ContentHoverController extends Disposable {
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
 
-			if (!this._widget.colorPicker) { // TODO@Michel ensure that displayed text for other decorations is computed even if color picker is in place
+			if (!this._widget.isColorPickerVisible) { // TODO@Michel ensure that displayed text for other decorations is computed even if color picker is in place
 				this._hoverOperation.start(HoverStartMode.Delayed);
 			}
 		}
@@ -172,7 +168,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	public isColorPickerVisible(): boolean {
-		return !!this._widget.colorPicker;
+		return this._widget.isColorPickerVisible;
 	}
 
 	private _addLoadingMessage(result: IHoverPart[]): IHoverPart[] {
@@ -217,7 +213,7 @@ export class ContentHoverController extends Disposable {
 		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
 		const fragment = document.createDocumentFragment();
 
-		let colorPicker: ColorPickerWidget | null = null;
+		let colorPicker: IEditorHoverColorPickerWidget | null = null;
 		const context: IEditorHoverRenderContext = {
 			fragment,
 			statusBar,
@@ -300,7 +296,7 @@ class EditorDecorationsChangerListener extends Disposable {
 
 class ContentHoverVisibleData {
 	constructor(
-		public readonly colorPicker: ColorPickerWidget | null,
+		public readonly colorPicker: IEditorHoverColorPickerWidget | null,
 		public readonly showAtPosition: Position,
 		public readonly showAtRange: Range,
 		public readonly preferAbove: boolean,
@@ -327,11 +323,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		return this._visibleData?.showAtPosition ?? null;
 	}
 
-	/**
-	 * Returns `null` if the color picker is not visible.
-	 */
-	public get colorPicker(): ColorPickerWidget | null {
-		return this._visibleData?.colorPicker ?? null;
+	public get isColorPickerVisible(): boolean {
+		return Boolean(this._visibleData?.colorPicker);
 	}
 
 	constructor(

@@ -22,7 +22,7 @@ import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
 import * as types from 'vs/base/common/types';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/languages/unicodeTextModelHighlighter';
+import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;

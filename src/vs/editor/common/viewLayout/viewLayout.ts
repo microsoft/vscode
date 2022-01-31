@@ -11,8 +11,8 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { LinesLayout, IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
-import { ContentSizeChangedEvent } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
+import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel';
+import { ContentSizeChangedEvent } from 'vs/editor/common/viewModelEventDispatcher';
 
 const SMOOTH_SCROLLING_TIME = 125;
 

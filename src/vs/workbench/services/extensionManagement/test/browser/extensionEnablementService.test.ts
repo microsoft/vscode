@@ -73,7 +73,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			storageService,
 			new GlobalExtensionEnablementService(storageService, extensionManagementService),
 			instantiationService.get(IWorkspaceContextService) || new TestContextService(),
-			instantiationService.get(IWorkbenchEnvironmentService) || instantiationService.stub(IWorkbenchEnvironmentService, { configuration: Object.create(null) } as IWorkbenchEnvironmentService),
+			instantiationService.get(IWorkbenchEnvironmentService) || instantiationService.stub(IWorkbenchEnvironmentService, {} as IWorkbenchEnvironmentService),
 			workbenchExtensionManagementService,
 			instantiationService.get(IConfigurationService),
 			extensionManagementServerService,

@@ -2130,7 +2130,8 @@ function cleanRenderedMarkdown(element: Node): void {
 }
 
 function fixSettingLinks(text: string, linkify = true): string {
-	return text.replace(/`#([^#]*)#`|'#([^#]*)#'/g, (match, settingKey) => {
+	return text.replace(/`#([^#]*)#`|'#([^#]*)#'/g, (match) => {
+		const settingKey = match.substring(2, match.length - 2);
 		const targetDisplayFormat = settingKeyToDisplayFormat(settingKey);
 		const targetName = `${targetDisplayFormat.category}: ${targetDisplayFormat.label}`;
 		return linkify ?

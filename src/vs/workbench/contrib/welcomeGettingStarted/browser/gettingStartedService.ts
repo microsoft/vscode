@@ -30,7 +30,7 @@ import { coalesce, flatten } from 'vs/base/common/arrays';
 import { IViewsService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { checkGlobFileExists } from 'vs/workbench/api/common/shared/workspaceContains';
+import { checkGlobFileExists } from 'vs/workbench/services/extensions/common/workspaceContains';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 

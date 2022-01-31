@@ -10,7 +10,7 @@ import { revive } from 'vs/base/common/marshalling';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, SerializedTestMessage, TestDiffOpType, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
@@ -18,7 +18,7 @@ import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testPro
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestController, ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { ExtHostContext, ExtHostTestingShape, IExtHostContext, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostTestingShape, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
 const reviveDiff = (diff: TestsDiff) => {
 	for (const entry of diff) {

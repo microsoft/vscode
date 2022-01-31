@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { basename, dirname, extname, isEqual } from 'vs/base/common/resources';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 

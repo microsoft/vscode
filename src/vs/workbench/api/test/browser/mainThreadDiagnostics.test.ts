@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { MainThreadDiagnostics } from 'vs/workbench/api/browser/mainThreadDiagnostics';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { mock } from 'vs/workbench/test/common/workbenchTestServices';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';

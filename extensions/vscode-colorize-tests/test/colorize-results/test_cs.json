@@ -1552,13 +1552,13 @@
 	},
 	{
 		"c": "List",
-		"t": "source.cs storage.type.cs",
+		"t": "source.cs entity.name.type.cs",
 		"r": {
-			"dark_plus": "storage.type.cs: #4EC9B0",
-			"light_plus": "storage.type.cs: #267F99",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type.cs: #4EC9B0"
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
@@ -1640,13 +1640,13 @@
 	},
 	{
 		"c": "List",
-		"t": "source.cs storage.type.cs",
+		"t": "source.cs entity.name.type.cs",
 		"r": {
-			"dark_plus": "storage.type.cs: #4EC9B0",
-			"light_plus": "storage.type.cs: #267F99",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type.cs: #4EC9B0"
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
@@ -1794,13 +1794,13 @@
 	},
 	{
 		"c": "List",
-		"t": "source.cs storage.type.cs",
+		"t": "source.cs entity.name.type.cs",
 		"r": {
-			"dark_plus": "storage.type.cs: #4EC9B0",
-			"light_plus": "storage.type.cs: #267F99",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type.cs: #4EC9B0"
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
@@ -1882,13 +1882,13 @@
 	},
 	{
 		"c": "List",
-		"t": "source.cs storage.type.cs",
+		"t": "source.cs entity.name.type.cs",
 		"r": {
-			"dark_plus": "storage.type.cs: #4EC9B0",
-			"light_plus": "storage.type.cs: #267F99",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type.cs: #4EC9B0"
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
@@ -2003,13 +2003,13 @@
 	},
 	{
 		"c": "List",
-		"t": "source.cs storage.type.cs",
+		"t": "source.cs entity.name.type.cs",
 		"r": {
-			"dark_plus": "storage.type.cs: #4EC9B0",
-			"light_plus": "storage.type.cs: #267F99",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type.cs: #4EC9B0"
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
 		}
 	},
 	{

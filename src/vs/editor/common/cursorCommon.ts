@@ -11,13 +11,13 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { ITextModel, PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { AutoClosingPairs } from 'vs/editor/common/languages/languageConfiguration';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
-import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
+import { normalizeIndentation } from 'vs/editor/common/core/indentation';
 
 export interface IColumnSelectData {
 	isReal: boolean;
@@ -179,7 +179,7 @@ export class CursorConfiguration {
 	}
 
 	public normalizeIndentation(str: string): string {
-		return TextModel.normalizeIndentation(str, this.indentSize, this.insertSpaces);
+		return normalizeIndentation(str, this.indentSize, this.insertSpaces);
 	}
 
 	private _getShouldAutoClose(languageId: string, autoCloseConfig: EditorAutoClosingStrategy): (ch: string) => boolean {

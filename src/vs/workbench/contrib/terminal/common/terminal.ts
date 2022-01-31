@@ -269,7 +269,6 @@ export interface ITerminalConfiguration {
 	wordSeparators: string;
 	enableFileLinks: boolean;
 	unicodeVersion: '6' | '11';
-	experimentalLinkProvider: boolean;
 	localEchoLatencyThreshold: number;
 	localEchoExcludePrograms: ReadonlyArray<string>;
 	localEchoEnabled: 'auto' | 'on' | 'off';

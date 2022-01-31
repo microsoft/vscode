@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 export class BlockCommentCommand implements ICommand {
@@ -93,7 +93,7 @@ export class BlockCommentCommand implements ICommand {
 			}
 		}
 
-		let ops: IIdentifiedSingleEditOperation[];
+		let ops: ISingleEditOperation[];
 
 		if (startTokenIndex !== -1 && endTokenIndex !== -1) {
 			// Consider spaces as part of the comment tokens
@@ -120,8 +120,8 @@ export class BlockCommentCommand implements ICommand {
 		}
 	}
 
-	public static _createRemoveBlockCommentOperations(r: Range, startToken: string, endToken: string): IIdentifiedSingleEditOperation[] {
-		let res: IIdentifiedSingleEditOperation[] = [];
+	public static _createRemoveBlockCommentOperations(r: Range, startToken: string, endToken: string): ISingleEditOperation[] {
+		let res: ISingleEditOperation[] = [];
 
 		if (!Range.isEmpty(r)) {
 			// Remove block comment start
@@ -146,8 +146,8 @@ export class BlockCommentCommand implements ICommand {
 		return res;
 	}
 
-	public static _createAddBlockCommentOperations(r: Range, startToken: string, endToken: string, insertSpace: boolean): IIdentifiedSingleEditOperation[] {
-		let res: IIdentifiedSingleEditOperation[] = [];
+	public static _createAddBlockCommentOperations(r: Range, startToken: string, endToken: string, insertSpace: boolean): ISingleEditOperation[] {
+		let res: ISingleEditOperation[] = [];
 
 		if (!Range.isEmpty(r)) {
 			// Insert block comment start

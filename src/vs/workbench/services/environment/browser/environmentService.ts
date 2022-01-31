@@ -6,9 +6,8 @@
 import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IPath } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -33,82 +32,9 @@ export interface IBrowserWorkbenchEnvironmentService extends IWorkbenchEnvironme
 	readonly options?: IWorkbenchConstructionOptions;
 }
 
-class BrowserWorkbenchConfiguration implements IWindowConfiguration {
-
-	constructor(
-		private readonly options: IWorkbenchConstructionOptions,
-		private readonly payload: Map<string, string> | undefined
-	) { }
-
-	@memoize
-	get sessionId(): string { return generateUuid(); }
-
-	@memoize
-	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
-
-	@memoize
-	get filesToOpenOrCreate(): IPath[] | undefined {
-		if (this.payload) {
-			const fileToOpen = this.payload.get('openFile');
-			if (fileToOpen) {
-				const fileUri = URI.parse(fileToOpen);
-
-				// Support: --goto parameter to open on line/col
-				if (this.payload.has('gotoLineMode')) {
-					const pathColumnAware = parseLineAndColumnAware(fileUri.path);
-
-					return [{
-						fileUri: fileUri.with({ path: pathColumnAware.path }),
-						selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
-					}];
-				}
-
-				return [{ fileUri }];
-			}
-		}
-
-		return undefined;
-	}
-
-	@memoize
-	get filesToDiff(): IPath[] | undefined {
-		if (this.payload) {
-			const fileToDiffPrimary = this.payload.get('diffFilePrimary');
-			const fileToDiffSecondary = this.payload.get('diffFileSecondary');
-			if (fileToDiffPrimary && fileToDiffSecondary) {
-				return [
-					{ fileUri: URI.parse(fileToDiffSecondary) },
-					{ fileUri: URI.parse(fileToDiffPrimary) }
-				];
-			}
-		}
-
-		return undefined;
-	}
-}
-
-interface IExtensionHostDebugEnvironment {
-	params: IExtensionHostDebugParams;
-	debugRenderer: boolean;
-	isExtensionDevelopment: boolean;
-	extensionDevelopmentLocationURI?: URI[];
-	extensionDevelopmentKind?: ExtensionKind[];
-	extensionTestsLocationURI?: URI;
-	extensionEnabledProposedApi?: string[];
-}
-
 export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
-
-	private _configuration: IWindowConfiguration | undefined = undefined;
-	get configuration(): IWindowConfiguration {
-		if (!this._configuration) {
-			this._configuration = new BrowserWorkbenchConfiguration(this.options, this.payload);
-		}
-
-		return this._configuration;
-	}
 
 	@memoize
 	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
@@ -177,65 +103,75 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	@memoize
 	get extHostLogsPath(): URI { return joinPath(this.logsHome, 'exthost'); }
 
-	private _extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
+	private extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
+
+	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		if (!this.extensionHostDebugEnvironment) {
+			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		return this._extensionHostDebugEnvironment.params;
+		return this.extensionHostDebugEnvironment.params;
 	}
 
+	@memoize
 	get isExtensionDevelopment(): boolean {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		if (!this.extensionHostDebugEnvironment) {
+			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		return this._extensionHostDebugEnvironment.isExtensionDevelopment;
+		return this.extensionHostDebugEnvironment.isExtensionDevelopment;
 	}
 
+	@memoize
 	get extensionDevelopmentLocationURI(): URI[] | undefined {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		if (!this.extensionHostDebugEnvironment) {
+			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		return this._extensionHostDebugEnvironment.extensionDevelopmentLocationURI;
+		return this.extensionHostDebugEnvironment.extensionDevelopmentLocationURI;
 	}
 
+	@memoize
 	get extensionDevelopmentLocationKind(): ExtensionKind[] | undefined {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		if (!this.extensionHostDebugEnvironment) {
+			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		return this._extensionHostDebugEnvironment.extensionDevelopmentKind;
+		return this.extensionHostDebugEnvironment.extensionDevelopmentKind;
 	}
 
+	@memoize
 	get extensionTestsLocationURI(): URI | undefined {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		if (!this.extensionHostDebugEnvironment) {
+			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		return this._extensionHostDebugEnvironment.extensionTestsLocationURI;
+		return this.extensionHostDebugEnvironment.extensionTestsLocationURI;
 	}
 
+	@memoize
 	get extensionEnabledProposedApi(): string[] | undefined {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		if (!this.extensionHostDebugEnvironment) {
+			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		return this._extensionHostDebugEnvironment.extensionEnabledProposedApi;
+		return this.extensionHostDebugEnvironment.extensionEnabledProposedApi;
 	}
 
+	@memoize
 	get debugRenderer(): boolean {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		if (!this.extensionHostDebugEnvironment) {
+			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		return this._extensionHostDebugEnvironment.debugRenderer;
+		return this.extensionHostDebugEnvironment.debugRenderer;
 	}
 
+	@memoize
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
+	@memoize
 	get enableExtensions() { return this.options.enabledExtensions; }
 
 	@memoize
@@ -252,12 +188,20 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get telemetryLogResource(): URI { return joinPath(this.logsHome, 'telemetry.log'); }
+
+	@memoize
 	get disableTelemetry(): boolean { return false; }
 
+	@memoize
 	get verbose(): boolean { return this.payload?.get('verbose') === 'true'; }
+
+	@memoize
 	get logExtensionHostCommunication(): boolean { return this.payload?.get('logExtensionHostCommunication') === 'true'; }
 
+	@memoize
 	get skipReleaseNotes(): boolean { return false; }
+
+	@memoize
 	get skipWelcome(): boolean { return this.payload?.get('skipWelcome') === 'true'; }
 
 	@memoize
@@ -335,6 +279,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 				extensionHostDebugEnvironment.extensionDevelopmentLocationURI = developmentOptions.extensions.map(e => URI.revive(e));
 				extensionHostDebugEnvironment.isExtensionDevelopment = true;
 			}
+			
 			if (developmentOptions.extensionTestsPath) {
 				extensionHostDebugEnvironment.extensionTestsLocationURI = URI.revive(developmentOptions.extensionTestsPath);
 			}
@@ -342,4 +287,54 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 		return extensionHostDebugEnvironment;
 	}
+
+	@memoize
+	get filesToOpenOrCreate(): IPath[] | undefined {
+		if (this.payload) {
+			const fileToOpen = this.payload.get('openFile');
+			if (fileToOpen) {
+				const fileUri = URI.parse(fileToOpen);
+
+				// Support: --goto parameter to open on line/col
+				if (this.payload.has('gotoLineMode')) {
+					const pathColumnAware = parseLineAndColumnAware(fileUri.path);
+
+					return [{
+						fileUri: fileUri.with({ path: pathColumnAware.path }),
+						selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
+					}];
+				}
+
+				return [{ fileUri }];
+			}
+		}
+
+		return undefined;
+	}
+
+	@memoize
+	get filesToDiff(): IPath[] | undefined {
+		if (this.payload) {
+			const fileToDiffPrimary = this.payload.get('diffFilePrimary');
+			const fileToDiffSecondary = this.payload.get('diffFileSecondary');
+			if (fileToDiffPrimary && fileToDiffSecondary) {
+				return [
+					{ fileUri: URI.parse(fileToDiffSecondary) },
+					{ fileUri: URI.parse(fileToDiffPrimary) }
+				];
+			}
+		}
+
+		return undefined;
+	}
+}
+
+interface IExtensionHostDebugEnvironment {
+	params: IExtensionHostDebugParams;
+	debugRenderer: boolean;
+	isExtensionDevelopment: boolean;
+	extensionDevelopmentLocationURI?: URI[];
+	extensionDevelopmentKind?: ExtensionKind[];
+	extensionTestsLocationURI?: URI;
+	extensionEnabledProposedApi?: string[];
 }

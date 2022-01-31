@@ -28,7 +28,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ModelService } from 'vs/editor/common/services/modelService';
 import { IResourceEncoding, ITextFileService, IReadTextFileOptions, ITextFileStreamContent, IWriteTextFileOptions, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';

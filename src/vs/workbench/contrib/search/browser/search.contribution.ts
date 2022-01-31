@@ -45,7 +45,7 @@ import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { resolveResourcesForSearchIncludes } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { resolveResourcesForSearchIncludes } from 'vs/workbench/services/search/common/queryBuilder';
 import { getWorkspaceSymbols, IWorkspaceSymbol, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { FileMatch, FileMatchOrMatch, FolderMatch, ISearchWorkbenchService, Match, RenderableMatch, SearchWorkbenchService } from 'vs/workbench/contrib/search/common/searchModel';

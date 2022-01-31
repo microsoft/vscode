@@ -10,7 +10,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/mar
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { commitInlineSuggestionAction, GhostTextController, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
 import * as nls from 'vs/nls';
@@ -41,6 +41,9 @@ export class InlineCompletionsHover implements IHoverPart {
 }
 
 export class InlineCompletionsHoverParticipant implements IEditorHoverParticipant<InlineCompletionsHover> {
+
+	public readonly hoverOrdinal: number = 3;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ICommandService private readonly _commandService: ICommandService,

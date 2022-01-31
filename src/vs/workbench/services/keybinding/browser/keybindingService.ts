@@ -34,7 +34,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { commandsExtensionPoint } from 'vs/workbench/api/common/menusExtensionPoint';
+import { commandsExtensionPoint } from 'vs/workbench/services/actions/common/menusExtensionPoint';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';

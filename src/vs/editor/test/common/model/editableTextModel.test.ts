@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { EndOfLinePreference, EndOfLineSequence } from 'vs/editor/common/model';
 import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
@@ -13,7 +14,7 @@ import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {
 
-	function testApplyEdits(original: string[], edits: IIdentifiedSingleEditOperation[], before: boolean, after: boolean): void {
+	function testApplyEdits(original: string[], edits: ISingleEditOperation[], before: boolean, after: boolean): void {
 		let model = createTextModel(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
 
@@ -24,7 +25,7 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () =
 		model.dispose();
 	}
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): ISingleEditOperation {
 		return {
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			text: text.join('\n')
@@ -59,7 +60,7 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () =
 
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicASCII', () => {
 
-	function testApplyEdits(original: string[], edits: IIdentifiedSingleEditOperation[], before: boolean, after: boolean): void {
+	function testApplyEdits(original: string[], edits: ISingleEditOperation[], before: boolean, after: boolean): void {
 		let model = createTextModel(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
 
@@ -70,7 +71,7 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicAS
 		model.dispose();
 	}
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): ISingleEditOperation {
 		return {
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			text: text.join('\n')
@@ -101,9 +102,8 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicAS
 
 suite('EditorModel - EditableTextModel.applyEdits', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): ISingleEditOperation {
 		return {
-			identifier: null,
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			text: text.join('\n'),
 			forceMoveMarkers: false
@@ -852,7 +852,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
-	function testApplyEditsFails(original: string[], edits: IIdentifiedSingleEditOperation[]): void {
+	function testApplyEditsFails(original: string[], edits: ISingleEditOperation[]): void {
 		let model = createTextModel(original.join('\n'));
 
 		let hasThrown = false;

@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { IState, ITokenizationSupport, LanguageId, TokenizationRegistry, StandardTokenType, ITokenizationSupportFactory, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/languages';
 import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';

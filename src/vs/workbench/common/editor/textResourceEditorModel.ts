@@ -5,7 +5,7 @@
 
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { URI } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';

@@ -18,7 +18,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import { IPatternInfo } from 'vs/workbench/services/search/common/search';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';

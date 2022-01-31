@@ -6,9 +6,9 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as modes from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IAuthenticationService, AllowedExtension, readAllowedExtensions, getAuthenticationProviderActivationEvent, addAccountUsage, readAccountUsages, removeAccountUsage } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { ExtHostAuthenticationShape, ExtHostContext, IExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { IAuthenticationService, AllowedExtension, readAllowedExtensions, getAuthenticationProviderActivationEvent, addAccountUsage, readAccountUsages, removeAccountUsage, IAuthenticationProvider } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { ExtHostAuthenticationShape, ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import Severity from 'vs/base/common/severity';
@@ -25,7 +25,7 @@ interface TrustedExtensionsQuickPickItem {
 	extension: AllowedExtension;
 }
 
-export class MainThreadAuthenticationProvider extends Disposable {
+export class MainThreadAuthenticationProvider extends Disposable implements IAuthenticationProvider {
 	constructor(
 		private readonly _proxy: ExtHostAuthenticationShape,
 		public readonly id: string,

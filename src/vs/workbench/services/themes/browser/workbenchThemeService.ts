@@ -40,7 +40,7 @@ import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { asCssVariableName, getColorRegistry } from 'vs/platform/theme/common/colorRegistry';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 // implementation
 

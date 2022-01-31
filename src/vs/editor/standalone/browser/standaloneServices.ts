@@ -19,10 +19,10 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { IBulkEditOptions, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { isDiffEditorConfigurationKey, isEditorConfigurationKey } from 'vs/editor/common/config/editorConfigurationSchema';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
+import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfiguration';
@@ -62,7 +62,7 @@ import { getSingletonServiceDescriptors, registerSingleton } from 'vs/platform/i
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { EditorWorkerService } from 'vs/editor/browser/services/editorWorkerService';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
 import { ModelService } from 'vs/editor/common/services/modelService';
@@ -764,7 +764,7 @@ class StandaloneBulkEditService implements IBulkEditService {
 
 	async apply(edits: ResourceEdit[], _options?: IBulkEditOptions): Promise<IBulkEditResult> {
 
-		const textEdits = new Map<ITextModel, IIdentifiedSingleEditOperation[]>();
+		const textEdits = new Map<ITextModel, ISingleEditOperation[]>();
 
 		for (let edit of edits) {
 			if (!(edit instanceof ResourceTextEdit)) {
