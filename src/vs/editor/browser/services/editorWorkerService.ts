@@ -23,7 +23,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { canceled } from 'vs/base/common/errors';
-import { UnicodeHighlighterOptions } from 'vs/editor/common/languages/unicodeTextModelHighlighter';
+import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 
 /**
