@@ -161,6 +161,10 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 					dom.addDisposableListener(this._currentCommand.outputDecoration.element, 'click', async () => {
 						await this._clipboardService.writeText(output);
 					});
+					const outputHover = document.createElement('span');
+					outputHover.textContent = 'Copy';
+					outputHover.id = 'button-buffer-decoration-textContent';
+					this._currentCommand.outputDecoration.element.appendChild(outputHover);
 				}
 				decoration.onRender(() => console.log('on render'));
 			}
