@@ -364,12 +364,17 @@ export class FileIconThemeLoader {
 		const cssRules: string[] = [];
 
 		const fonts = iconThemeDocument.fonts;
+		const fontSizes = new Map<string, string>();
 		if (Array.isArray(fonts)) {
+			const defaultFontSize = fonts[0].size || '150%';
 			fonts.forEach(font => {
 				const src = font.src.map(l => `${asCSSUrl(resolvePath(l.path))} format('${l.format}')`).join(', ');
 				cssRules.push(`@font-face { src: ${src}; font-family: '${font.id}'; font-weight: ${font.weight}; font-style: ${font.style}; font-display: block; }`);
+				if (font.size !== undefined && font.size !== defaultFontSize) {
+					fontSizes.set(font.id, font.size);
+				}
 			});
-			cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: '${fonts[0].id}'; font-size: ${fonts[0].size || '150%'}; }`);
+			cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: '${fonts[0].id}'; font-size: ${defaultFontSize}}; }`);
 		}
 
 		for (const defId in selectorByDefinitionId) {
@@ -386,8 +391,9 @@ export class FileIconThemeLoader {
 					if (definition.fontCharacter) {
 						body.push(`content: '${definition.fontCharacter}';`);
 					}
-					if (definition.fontSize) {
-						body.push(`font-size: ${definition.fontSize};`);
+					const fontSize = definition.fontSize ?? (definition.fontId ? fontSizes.get(definition.fontId) : undefined);
+					if (fontSize) {
+						body.push(`font-size: ${fontSize};`);
 					}
 					if (definition.fontId) {
 						body.push(`font-family: ${definition.fontId};`);
