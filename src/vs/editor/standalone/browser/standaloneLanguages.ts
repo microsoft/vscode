@@ -429,7 +429,8 @@ export function registerRenameProvider(languageId: string, provider: languages.R
  * Register a signature help provider (used by e.g. parameter hints).
  */
 export function registerSignatureHelpProvider(languageId: string, provider: languages.SignatureHelpProvider): IDisposable {
-	return languages.SignatureHelpProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.signatureHelpProvider.register(languageId, provider);
 }
 
 /**

@@ -117,5 +117,5 @@ registerModelAndPositionCommand('_executeReferenceProvider', (accessor, model, p
 registerModelAndPositionCommand('_executeImplementationProvider', (accessor, model, position) => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const promise = getImplementationsAtPosition(languageFeaturesService.implementationProvider, model, position, CancellationToken.None);
-	_sortedAndDeduped(() => promise);
+	return _sortedAndDeduped(() => promise);
 });

@@ -27,6 +27,7 @@ import { editorHoverBackground, editorHoverBorder, editorHoverForeground, regist
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const $ = dom.$;
 
@@ -62,10 +63,11 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@ILanguageService languageService: ILanguageService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService
 	) {
 		super();
 		this.markdownRenderer = this._register(new MarkdownRenderer({ editor }, languageService, openerService));
-		this.model = this._register(new ParameterHintsModel(editor));
+		this.model = this._register(new ParameterHintsModel(editor, languageFeaturesService.signatureHelpProvider));
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
 

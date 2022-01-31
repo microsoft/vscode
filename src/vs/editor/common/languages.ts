@@ -1900,11 +1900,6 @@ export const InlineCompletionsProviderRegistry = new LanguageFeatureRegistry<Inl
 /**
  * @internal
  */
-export const SignatureHelpProviderRegistry = new LanguageFeatureRegistry<SignatureHelpProvider>();
-
-/**
- * @internal
- */
 export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>();
 
 /**

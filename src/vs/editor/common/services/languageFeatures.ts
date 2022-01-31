@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { CodeLensProvider, DeclarationProvider, DefinitionProvider, DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, DocumentSymbolProvider, ImplementationProvider, InlayHintsProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
+import { CodeLensProvider, DeclarationProvider, DefinitionProvider, DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, DocumentSymbolProvider, ImplementationProvider, InlayHintsProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, SignatureHelpProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ILanguageFeaturesService = createDecorator<ILanguageFeaturesService>('ILanguageFeaturesService');
@@ -12,6 +12,8 @@ export const ILanguageFeaturesService = createDecorator<ILanguageFeaturesService
 export interface ILanguageFeaturesService {
 
 	readonly _serviceBrand: undefined;
+
+	// --- navigation
 
 	readonly referenceProvider: LanguageFeatureRegistry<ReferenceProvider>;
 
@@ -23,7 +25,17 @@ export interface ILanguageFeaturesService {
 
 	readonly implementationProvider: LanguageFeatureRegistry<ImplementationProvider>;
 
+	// --- code actions
+
 	readonly renameProvider: LanguageFeatureRegistry<RenameProvider>;
+
+	readonly documentFormattingEditProvider: LanguageFeatureRegistry<DocumentFormattingEditProvider>;
+
+	readonly documentRangeFormattingEditProvider: LanguageFeatureRegistry<DocumentRangeFormattingEditProvider>;
+
+	readonly onTypeFormattingEditProvider: LanguageFeatureRegistry<OnTypeFormattingEditProvider>;
+
+	// --- insights
 
 	readonly documentSymbolProvider: LanguageFeatureRegistry<DocumentSymbolProvider>;
 
@@ -31,9 +43,5 @@ export interface ILanguageFeaturesService {
 
 	readonly codeLensProvider: LanguageFeatureRegistry<CodeLensProvider>;
 
-	readonly documentFormattingEditProvider: LanguageFeatureRegistry<DocumentFormattingEditProvider>;
-
-	readonly documentRangeFormattingEditProvider: LanguageFeatureRegistry<DocumentRangeFormattingEditProvider>;
-
-	readonly onTypeFormattingEditProvider: LanguageFeatureRegistry<OnTypeFormattingEditProvider>;
+	readonly signatureHelpProvider: LanguageFeatureRegistry<SignatureHelpProvider>;
 }
