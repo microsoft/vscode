@@ -528,21 +528,24 @@ export function registerCodeActionProvider(languageId: string, provider: CodeAct
  * Register a formatter that can handle only entire models.
  */
 export function registerDocumentFormattingEditProvider(languageId: string, provider: languages.DocumentFormattingEditProvider): IDisposable {
-	return languages.DocumentFormattingEditProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.documentFormattingEditProvider.register(languageId, provider);
 }
 
 /**
  * Register a formatter that can handle a range inside a model.
  */
 export function registerDocumentRangeFormattingEditProvider(languageId: string, provider: languages.DocumentRangeFormattingEditProvider): IDisposable {
-	return languages.DocumentRangeFormattingEditProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.documentRangeFormattingEditProvider.register(languageId, provider);
 }
 
 /**
  * Register a formatter than can do formatting as the user types.
  */
 export function registerOnTypeFormattingEditProvider(languageId: string, provider: languages.OnTypeFormattingEditProvider): IDisposable {
-	return languages.OnTypeFormattingEditProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.onTypeFormattingEditProvider.register(languageId, provider);
 }
 
 /**

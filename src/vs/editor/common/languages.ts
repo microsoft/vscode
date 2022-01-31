@@ -1955,21 +1955,6 @@ export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeAction
 /**
  * @internal
  */
-export const DocumentFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentFormattingEditProvider>();
-
-/**
- * @internal
- */
-export const DocumentRangeFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentRangeFormattingEditProvider>();
-
-/**
- * @internal
- */
-export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry<OnTypeFormattingEditProvider>();
-
-/**
- * @internal
- */
 export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
 
 /**

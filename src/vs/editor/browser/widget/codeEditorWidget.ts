@@ -1957,8 +1957,8 @@ export class EditorModeContext extends Disposable {
 		this._register(_languageFeaturesService.documentSymbolProvider.onDidChange(update));
 		this._register(_languageFeaturesService.referenceProvider.onDidChange(update));
 		this._register(_languageFeaturesService.renameProvider.onDidChange(update));
-		this._register(modes.DocumentFormattingEditProviderRegistry.onDidChange(update));
-		this._register(modes.DocumentRangeFormattingEditProviderRegistry.onDidChange(update));
+		this._register(_languageFeaturesService.documentFormattingEditProvider.onDidChange(update));
+		this._register(_languageFeaturesService.documentRangeFormattingEditProvider.onDidChange(update));
 		this._register(modes.SignatureHelpProviderRegistry.onDidChange(update));
 		this._register(_languageFeaturesService.inlayHintsProvider.onDidChange(update));
 
@@ -2013,10 +2013,10 @@ export class EditorModeContext extends Disposable {
 			this._hasRenameProvider.set(this._languageFeaturesService.renameProvider.has(model));
 			this._hasSignatureHelpProvider.set(modes.SignatureHelpProviderRegistry.has(model));
 			this._hasInlayHintsProvider.set(this._languageFeaturesService.inlayHintsProvider.has(model));
-			this._hasDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.has(model) || modes.DocumentRangeFormattingEditProviderRegistry.has(model));
-			this._hasDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.has(model));
-			this._hasMultipleDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.all(model).length + modes.DocumentRangeFormattingEditProviderRegistry.all(model).length > 1);
-			this._hasMultipleDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.all(model).length > 1);
+			this._hasDocumentFormattingProvider.set(this._languageFeaturesService.documentFormattingEditProvider.has(model) || this._languageFeaturesService.documentRangeFormattingEditProvider.has(model));
+			this._hasDocumentSelectionFormattingProvider.set(this._languageFeaturesService.documentRangeFormattingEditProvider.has(model));
+			this._hasMultipleDocumentFormattingProvider.set(this._languageFeaturesService.documentFormattingEditProvider.all(model).length + this._languageFeaturesService.documentRangeFormattingEditProvider.all(model).length > 1);
+			this._hasMultipleDocumentSelectionFormattingProvider.set(this._languageFeaturesService.documentRangeFormattingEditProvider.all(model).length > 1);
 			this._isInWalkThrough.set(model.uri.scheme === Schemas.walkThroughSnippet);
 		});
 	}
