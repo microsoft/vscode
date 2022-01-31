@@ -24,7 +24,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 
 	constructor(
 		readonly xterm: Terminal,
-		private readonly _resolvePath: (link: string) => Promise<{ uri: URI, link: string, isDirectory: boolean } | undefined>,
+		private readonly _resolvePath: (link: string, uri?: URI) => Promise<{ uri: URI, link: string, isDirectory: boolean } | undefined>,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
@@ -69,6 +69,11 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 				continue;
 			}
 
+			// Filter out any URI with an authority, none are supported currently
+			if (uri.authority !== '') {
+				continue;
+			}
+
 			let linkStat = cachedValidatedLinks.get(text);
 
 			// The link is cached as doesn't exist
@@ -78,7 +83,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 
 			// The link isn't cached
 			if (linkStat === undefined) {
-				const linkStat = await this._resolvePath(text);
+				const linkStat = await this._resolvePath(text, uri);
 				if (this._enableCaching) {
 					cachedValidatedLinks.set(text, withUndefinedAsNull(linkStat));
 				}

@@ -374,9 +374,20 @@ export class TerminalLinkManager extends DisposableStore {
 		return link;
 	}
 
-	private async _resolvePath(link: string): Promise<{ uri: URI, link: string, isDirectory: boolean } | undefined> {
+	private async _resolvePath(link: string, uri?: URI): Promise<{ uri: URI, link: string, isDirectory: boolean } | undefined> {
 		if (!this._processManager) {
 			throw new Error('Process manager is required');
+		}
+
+		if (uri) {
+			try {
+				const stat = await this._fileService.resolve(uri);
+				return { uri, link, isDirectory: stat.isDirectory };
+			}
+			catch (e) {
+				// Does not exist
+				return undefined;
+			}
 		}
 
 		const preprocessedLink = this._preprocessPath(link);

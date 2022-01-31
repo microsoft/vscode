@@ -131,7 +131,6 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				endLineNumber: 1
 			}, startLine);
 
-			console.log('eval', link);
 			let linkStat = cachedValidatedLinks.get(link);
 
 			// The link is cached as doesn't exist
@@ -184,7 +183,6 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			}
 		}
 
-		console.log('local link detector', links);
 		return links;
 	}
 

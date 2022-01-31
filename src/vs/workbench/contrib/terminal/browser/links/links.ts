@@ -69,12 +69,6 @@ export const enum TerminalLinkType {
 	LocalFolderInWorkspace,
 
 	/**
-	 * The link starts with a protocol like https://, file://, etc. and will be opened depending on
-	 * the protocol.
-	 */
-	Protocol,
-
-	/**
 	 * A low confidence link which will search for the file in the workspace. If there is a single
 	 * match, it will open the file; otherwise, it will present the matches in a quick pick.
 	 */

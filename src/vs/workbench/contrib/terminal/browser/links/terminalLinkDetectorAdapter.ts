@@ -104,8 +104,7 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			case TerminalLinkType.LocalFile: return localize('openFile', 'Open file in editor');
 			case TerminalLinkType.LocalFolderInWorkspace: return localize('focusFolder', 'Focus folder in explorer');
 			case TerminalLinkType.LocalFolderOutsideWorkspace: return localize('openFolder', 'Open folder in new window');
-			default:
-				return 'TODO'; // TODO
+			case TerminalLinkType.Url: return localize('followLink', 'Follow link');
 		}
 	}
 }
