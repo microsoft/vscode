@@ -13,8 +13,8 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, ExtHostDocumentContentProvidersShape, IExtHostContext, MainContext, MainThreadDocumentContentProvidersShape } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext, ExtHostDocumentContentProvidersShape, MainContext, MainThreadDocumentContentProvidersShape } from '../common/extHost.protocol';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 @extHostNamedCustomer(MainContext.MainThreadDocumentContentProviders)

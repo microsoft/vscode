@@ -19,6 +19,7 @@ import { columnToEditorGroup, editorGroupToColumn } from 'vs/workbench/services/
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 /**
  * Bi-directional map between webview handles and inputs.
@@ -86,7 +87,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	private readonly _revivers = new Map<string, IDisposable>();
 
 	constructor(
-		context: extHostProtocol.IExtHostContext,
+		context: IExtHostContext,
 		private readonly _mainThreadWebviews: MainThreadWebviews,
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,

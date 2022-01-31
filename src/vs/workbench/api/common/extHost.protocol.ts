@@ -62,7 +62,7 @@ import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ISerializedTe
 import { InternalTimelineOptions, Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { ActivationKind, ExtensionActivationReason, ExtensionHostKind, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationKind, ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { createProxyIdentifier, Dto, IRPCProtocol, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ILanguageStatus } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
@@ -77,11 +77,6 @@ export interface IWorkspaceData extends IStaticWorkspaceData {
 
 export interface IConfigurationInitData extends IConfigurationData {
 	configurationScopes: [string, ConfigurationScope | undefined][];
-}
-
-export interface IExtHostContext extends IRPCProtocol {
-	readonly remoteAuthority: string | null;
-	readonly extensionHostKind: ExtensionHostKind;
 }
 
 export interface IMainContext extends IRPCProtocol {

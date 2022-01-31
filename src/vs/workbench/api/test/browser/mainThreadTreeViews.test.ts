@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ExtHostTreeViewsShape, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTreeViewsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { mock } from 'vs/base/test/common/mock';
 import { ITreeItem, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, ITreeViewDescriptor, ITreeView, ViewContainer, IViewDescriptorService, TreeItemCollapsibleState } from 'vs/workbench/common/views';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -19,6 +19,7 @@ import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewD
 import { CustomTreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 suite('MainThreadHostTreeView', function () {
 	const testTreeViewId = 'testTreeView';

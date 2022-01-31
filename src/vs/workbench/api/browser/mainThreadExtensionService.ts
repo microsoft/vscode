@@ -5,8 +5,8 @@
 
 import { SerializedError } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IExtHostContext, MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtensionService, ExtensionHostKind, MissingExtensionDependency, ExtensionActivationReason } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
