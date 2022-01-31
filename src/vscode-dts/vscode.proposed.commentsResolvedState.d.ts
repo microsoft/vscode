@@ -7,29 +7,25 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/127473
 
-	export interface CommentState {
-		/**
-		 * The human-readable label for the comment state. This may be shown in the UI (ex. "Mark comment as <label>").
-		 */
-		readonly label: string;
+	export interface CommentThreadDecorations {
 
 		/**
-		 * Icon for the state. This may be shown in the UI.
+		 * Icon that will show in association with a comment thread.
 		 */
 		readonly iconPath: string | Uri | ThemeIcon;
 
 		/**
-		 * An optional color that may be used to indicate the comment's state.
+		 * Color that will show in association with the comment thread.
 		 */
 		readonly color?: ThemeColor;
-
-		// todo@alexr00 Do we also need a priority so we can count how many high priority comments there are in the UI?
 	}
 
 	export interface CommentThread {
 		/**
 		 * Optional current state of the {@link Comment}
 		 */
-		state?: CommentState;
+		state?: { label: string, tooltip: string, includeInCount: boolean };
+
+		decoration?: CommentThreadDecorations
 	}
 }
