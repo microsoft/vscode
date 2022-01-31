@@ -247,7 +247,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- extra info
 
 	$registerHoverProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.HoverProviderRegistry.register(selector, <modes.HoverProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.hoverProvider.register(selector, <modes.HoverProvider>{
 			provideHover: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.Hover | undefined> => {
 				return this._proxy.$provideHover(handle, model.uri, position, token);
 			}

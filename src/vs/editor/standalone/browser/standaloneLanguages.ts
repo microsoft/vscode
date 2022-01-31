@@ -437,7 +437,8 @@ export function registerSignatureHelpProvider(languageId: string, provider: lang
  * Register a hover provider (used by e.g. editor hover).
  */
 export function registerHoverProvider(languageId: string, provider: languages.HoverProvider): IDisposable {
-	return languages.HoverProviderRegistry.register(languageId, {
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.hoverProvider.register(languageId, {
 		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Promise<languages.Hover | undefined> => {
 			const word = model.getWordAtPosition(position);
 
