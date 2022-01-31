@@ -99,10 +99,10 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	private _setupLinkDetector(id: string, detector: ITerminalLinkDetector): void {
-		const wordProvider = this._instantiationService.createInstance(TerminalLinkDetectorAdapter, detector);
-		wordProvider.onDidActivateLink(e => this._openLink(e));
-		wordProvider.onDidShowHover(e => this._tooltipCallback(e.link, e.viewportRange, e.modifierDownCallback, e.modifierUpCallback));
-		this._standardLinkProviders.set(id, wordProvider);
+		const detectorAdapter = this._instantiationService.createInstance(TerminalLinkDetectorAdapter, detector);
+		detectorAdapter.onDidActivateLink(e => this._openLink(e));
+		detectorAdapter.onDidShowHover(e => this._tooltipCallback(e.link, e.viewportRange, e.modifierDownCallback, e.modifierUpCallback));
+		this._standardLinkProviders.set(id, detectorAdapter);
 	}
 
 	private async _openLink(link: ITerminalSimpleLink): Promise<void> {
