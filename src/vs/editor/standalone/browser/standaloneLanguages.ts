@@ -470,7 +470,8 @@ export function registerDocumentSymbolProvider(languageId: string, provider: lan
  * Register a document highlight provider (used by e.g. highlight occurrences).
  */
 export function registerDocumentHighlightProvider(languageId: string, provider: languages.DocumentHighlightProvider): IDisposable {
-	return languages.DocumentHighlightProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.documentHighlightProvider.register(languageId, provider);
 }
 
 /**
