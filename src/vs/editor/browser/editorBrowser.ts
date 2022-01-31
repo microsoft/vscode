@@ -19,7 +19,7 @@ import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManage
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IViewModel } from 'vs/editor/common/viewModel';
-import { InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
 import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
 import { IDimension } from 'vs/editor/common/core/dimension';
 

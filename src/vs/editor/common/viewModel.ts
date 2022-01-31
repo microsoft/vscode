@@ -17,7 +17,7 @@ import { EditorTheme } from 'vs/editor/common/viewContext';
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { ILineBreaksComputer, InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { ILineBreaksComputer, InjectedText } from 'vs/editor/common/modelLineProjectionData';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 
 export interface IViewModel extends ICursorSimpleModel {

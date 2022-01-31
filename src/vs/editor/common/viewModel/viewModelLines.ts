@@ -15,7 +15,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { LineInjectedText } from 'vs/editor/common/textModelEvents';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { createModelLineProjection, IModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
-import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from 'vs/editor/common/modelLineProjectionData';
 import { ConstantTimePrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { ICoordinatesConverter, ViewLineData } from 'vs/editor/common/viewModel';
 

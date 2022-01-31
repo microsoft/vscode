@@ -19,7 +19,7 @@ import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import * as dom from 'vs/base/browser/dom';
 import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/cursor/cursorAtomicMoveOperations';
 import { PositionAffinity } from 'vs/editor/common/model';
-import { InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
 
 const enum HitTestResultType {
 	Unknown,

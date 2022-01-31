@@ -19,7 +19,7 @@ import { TestConfiguration } from 'vs/editor/test/browser/config/testConfigurati
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ISimpleModel, IModelLineProjection, createModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
-import { ModelLineProjectionData } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
