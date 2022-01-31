@@ -5,7 +5,7 @@
 
 import { IWorkbenchConfiguration } from 'vs/workbench/services/environment/common/environmentService';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { INativeWindowConfiguration, IOSConfiguration } from 'vs/platform/windows/common/windows';
+import { INativeWindowConfiguration, IOSConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
@@ -39,6 +39,8 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 	readonly log?: string;
 
 	readonly os: IOSConfiguration;
+
+	readonly filesToWait?: IPathsToWaitFor;
 
 	/**
 	 * @deprecated this property will go away eventually as it
@@ -103,6 +105,21 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	get os(): IOSConfiguration {
 		return this.configuration2.os;
+	}
+
+	@memoize
+	get filesToOpenOrCreate(): IPath[] | undefined {
+		return this.configuration2.filesToOpenOrCreate;
+	}
+
+	@memoize
+	get filesToDiff(): IPath[] | undefined {
+		return this.configuration2.filesToDiff;
+	}
+
+	@memoize
+	get filesToWait(): IPathsToWaitFor | undefined {
+		return this.configuration2.filesToWait;
 	}
 
 	constructor(

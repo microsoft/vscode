@@ -263,7 +263,7 @@ export class NativeWindow extends Disposable {
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidChangeVisibleEditors()));
 
 		// Listen to editor closing (if we run with --wait)
-		const filesToWait = this.environmentService.configuration2.filesToWait;
+		const filesToWait = this.environmentService.filesToWait;
 		if (filesToWait) {
 			this.trackClosedWaitFiles(filesToWait.waitMarkerFileUri, coalesce(filesToWait.paths.map(path => path.fileUri)));
 		}

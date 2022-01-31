@@ -36,8 +36,7 @@ export interface IBrowserWorkbenchEnvironmentService extends IWorkbenchEnvironme
 class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 
 	constructor(
-		private readonly options: IWorkbenchConstructionOptions,
-		private readonly payload: Map<string, string> | undefined
+		private readonly options: IWorkbenchConstructionOptions
 	) { }
 
 	@memoize
@@ -45,46 +44,6 @@ class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 
 	@memoize
 	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
-
-	@memoize
-	get filesToOpenOrCreate(): IPath[] | undefined {
-		if (this.payload) {
-			const fileToOpen = this.payload.get('openFile');
-			if (fileToOpen) {
-				const fileUri = URI.parse(fileToOpen);
-
-				// Support: --goto parameter to open on line/col
-				if (this.payload.has('gotoLineMode')) {
-					const pathColumnAware = parseLineAndColumnAware(fileUri.path);
-
-					return [{
-						fileUri: fileUri.with({ path: pathColumnAware.path }),
-						selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
-					}];
-				}
-
-				return [{ fileUri }];
-			}
-		}
-
-		return undefined;
-	}
-
-	@memoize
-	get filesToDiff(): IPath[] | undefined {
-		if (this.payload) {
-			const fileToDiffPrimary = this.payload.get('diffFilePrimary');
-			const fileToDiffSecondary = this.payload.get('diffFileSecondary');
-			if (fileToDiffPrimary && fileToDiffSecondary) {
-				return [
-					{ fileUri: URI.parse(fileToDiffSecondary) },
-					{ fileUri: URI.parse(fileToDiffPrimary) }
-				];
-			}
-		}
-
-		return undefined;
-	}
 }
 
 interface IExtensionHostDebugEnvironment {
@@ -104,7 +63,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	private _configuration: IWindowConfiguration | undefined = undefined;
 	get configuration2(): IWindowConfiguration {
 		if (!this._configuration) {
-			this._configuration = new BrowserWorkbenchConfiguration(this.options, this.payload);
+			this._configuration = new BrowserWorkbenchConfiguration(this.options);
 		}
 
 		return this._configuration;
@@ -341,5 +300,45 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 		}
 
 		return extensionHostDebugEnvironment;
+	}
+
+	@memoize
+	get filesToOpenOrCreate(): IPath[] | undefined {
+		if (this.payload) {
+			const fileToOpen = this.payload.get('openFile');
+			if (fileToOpen) {
+				const fileUri = URI.parse(fileToOpen);
+
+				// Support: --goto parameter to open on line/col
+				if (this.payload.has('gotoLineMode')) {
+					const pathColumnAware = parseLineAndColumnAware(fileUri.path);
+
+					return [{
+						fileUri: fileUri.with({ path: pathColumnAware.path }),
+						selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
+					}];
+				}
+
+				return [{ fileUri }];
+			}
+		}
+
+		return undefined;
+	}
+
+	@memoize
+	get filesToDiff(): IPath[] | undefined {
+		if (this.payload) {
+			const fileToDiffPrimary = this.payload.get('diffFilePrimary');
+			const fileToDiffSecondary = this.payload.get('diffFileSecondary');
+			if (fileToDiffPrimary && fileToDiffSecondary) {
+				return [
+					{ fileUri: URI.parse(fileToDiffSecondary) },
+					{ fileUri: URI.parse(fileToDiffPrimary) }
+				];
+			}
+		}
+
+		return undefined;
 	}
 }
