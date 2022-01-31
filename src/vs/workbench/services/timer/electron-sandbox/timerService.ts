@@ -38,11 +38,11 @@ export class TimerService extends AbstractTimerService {
 		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super(lifecycleService, contextService, extensionService, updateService, paneCompositeService, editorService, accessibilityService, telemetryService, layoutService);
-		this.setPerformanceMarks('main', _environmentService.configuration2.perfMarks);
+		this.setPerformanceMarks('main', _environmentService.perf.marks);
 	}
 
 	protected _isInitialStartup(): boolean {
-		return Boolean(this._environmentService.configuration2.isInitialStartup);
+		return Boolean(this._environmentService.perf.isInitialStartup);
 	}
 	protected _didUseCachedData(): boolean {
 		return didUseCachedData(this._productService, this._storageService, this._environmentService);
@@ -97,7 +97,7 @@ export function didUseCachedData(productService: IProductService, storageService
 	// this being the first start with the commit
 	// or subsequent
 	if (typeof _didUseCachedData !== 'boolean') {
-		if (!environmentService.configuration2.codeCachePath || !productService.commit) {
+		if (!environmentService.perf.codeCachePath || !productService.commit) {
 			_didUseCachedData = false; // we only produce cached data whith commit and code cache path
 		} else if (storageService.get(lastRunningCommitStorageKey, StorageScope.GLOBAL) === productService.commit) {
 			_didUseCachedData = true; // subsequent start on same commit, assume cached data is there

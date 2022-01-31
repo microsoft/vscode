@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchConfiguration } from 'vs/workbench/services/environment/common/environmentService';
+import { PerformanceMark } from 'vs/base/common/performance';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IColorScheme, INativeWindowConfiguration, IOSConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -50,6 +51,12 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 
 	readonly colorScheme: IColorScheme;
 
+	readonly perf: {
+		codeCachePath?: string;
+		isInitialStartup?: boolean;
+		marks: PerformanceMark[];
+	}
+
 	/**
 	 * @deprecated this property will go away eventually as it
 	 * duplicates many properties of the environment service
@@ -88,6 +95,15 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get colorScheme() { return this.configuration2.colorScheme; }
+
+	@memoize
+	get perf() {
+		return {
+			codeCachePath: this.configuration2.codeCachePath,
+			isInitialStartup: this.configuration2.isInitialStartup,
+			marks: this.configuration2.perfMarks
+		};
+	}
 
 	@memoize
 	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
