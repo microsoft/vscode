@@ -26,7 +26,7 @@ import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import type * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import 'vs/workbench/contrib/search/browser/search.contribution';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
 import { nullExtensionDescription, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { dispose, ImmortalReference } from 'vs/base/common/lifecycle';
@@ -111,6 +111,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}));
 		services.set(IMarkerService, new MarkerService());
+		services.set(ILogService, new SyncDescriptor(NullLogService));
+		services.set(ILanguageFeatureDebounceService, new SyncDescriptor(LanguageFeatureDebounceService));
 		services.set(IModelService, new class extends mock<IModelService>() {
 			override getModel() { return model; }
 			override onModelRemoved = Event.None;

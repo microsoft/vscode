@@ -7,9 +7,9 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IOverviewRuler } from 'vs/editor/browser/editorBrowser';
 import { OverviewRulerPosition, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ColorZone, OverviewRulerZone, OverviewZoneManager } from 'vs/editor/common/viewModel/overviewZoneManager';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { ViewContext } from 'vs/editor/common/viewContext';
+import * as viewEvents from 'vs/editor/common/viewEvents';
+import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 
 export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 

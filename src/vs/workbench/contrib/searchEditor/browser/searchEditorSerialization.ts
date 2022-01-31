@@ -39,7 +39,7 @@ const matchToSearchResultFormat = (match: Match, longestLineNumber: number): { l
 			const prefixOffset = prefix.length;
 
 			// split instead of replace to avoid creating a new string object
-			const line = prefix + sourceLine.split(/\r?\n?$/, 1)[0];
+			const line = prefix + (sourceLine.split(/\r?\n?$/, 1)[0] || '');
 
 			const rangeOnThisLine = ({ start, end }: { start?: number; end?: number; }) => new Range(1, (start ?? 1) + prefixOffset, 1, (end ?? sourceLine.length + 1) + prefixOffset);
 

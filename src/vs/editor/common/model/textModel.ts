@@ -2028,7 +2028,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (this.hasCompleteSemanticTokens()) {
 			return;
 		}
-		const changedRange = this._semanticTokens.setPartial(range, tokens);
+		const changedRange = this.validateRange(this._semanticTokens.setPartial(range, tokens));
 
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,

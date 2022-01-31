@@ -106,18 +106,19 @@ export function stripAngleBrackets(link: string) {
 const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*(".*?")?\)/g;
 const referenceLinkPattern = /(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]/g;
 const definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>]+>)/gm;
-const inlineCodePattern = /(?:(?<!`)(`+)(?!`)(?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?(?<!`)\1(?!`))/g;
+const inlineCodePattern = /(?:^|[^`])(`+)(?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?\1(?:$|[^`])/gm;
 
-type CodeInDocument = {
+interface CodeInDocument {
 	/**
 	 * code blocks and fences each represented by [line_start,line_end).
 	 */
-	multiline: [number, number][];
+	readonly multiline: ReadonlyArray<[number, number]>;
+
 	/**
 	 * inline code spans each represented by {@link vscode.Range}.
 	 */
-	inline: vscode.Range[];
-};
+	readonly inline: readonly vscode.Range[];
+}
 
 async function findCode(document: vscode.TextDocument, engine: MarkdownEngine): Promise<CodeInDocument> {
 	const tokens = await engine.parse(document);

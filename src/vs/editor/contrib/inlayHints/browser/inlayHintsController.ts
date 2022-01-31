@@ -28,7 +28,7 @@ import { goToDefinitionWithLocation, showGoToContextMenu } from 'vs/editor/contr
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
@@ -254,7 +254,7 @@ export class InlayHintsController implements IEditorContribution {
 			}
 		});
 		gesture.onCancel(removeHighlight);
-		gesture.onExecute(e => {
+		gesture.onExecute(async e => {
 			const label = this._getInlayHintLabelPart(e);
 			if (label) {
 				const part = label.part;
@@ -263,7 +263,15 @@ export class InlayHintsController implements IEditorContribution {
 					this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, part.location);
 				} else if (languages.Command.is(part.command)) {
 					// command -> execute it
-					this._commandService.executeCommand(part.command.id, ...(part.command.arguments ?? [])).catch(err => this._notificationService.error(err));
+					try {
+						await this._commandService.executeCommand(part.command.id, ...(part.command.arguments ?? []));
+					} catch (err) {
+						this._notificationService.notify({
+							severity: Severity.Error,
+							source: label.item.provider.displayName,
+							message: err
+						});
+					}
 				}
 			}
 		});

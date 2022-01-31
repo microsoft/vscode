@@ -130,6 +130,10 @@ class RemoteAuthoritiesImpl {
 		this._connectionTokens[authority] = connectionToken;
 	}
 
+	getPreferredWebSchema(): 'http' | 'https' {
+		return this._preferredWebSchema;
+	}
+
 	rewrite(uri: URI): URI {
 		if (this._delegate) {
 			return this._delegate(uri);

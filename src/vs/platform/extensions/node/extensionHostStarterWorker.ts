@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SerializedError, transformErrorForSerialization } from 'vs/base/common/errors';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
-import { Emitter, Event } from 'vs/base/common/event';
 import { ChildProcess, fork } from 'child_process';
-import { FileAccess } from 'vs/base/common/network';
 import { StringDecoder } from 'string_decoder';
-import * as platform from 'vs/base/common/platform';
-import { mixin } from 'vs/base/common/objects';
-import { cwd } from 'vs/base/common/process';
-import { StopWatch } from 'vs/base/common/stopwatch';
 import { Promises, timeout } from 'vs/base/common/async';
+import { SerializedError, transformErrorForSerialization } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { FileAccess } from 'vs/base/common/network';
+import { mixin } from 'vs/base/common/objects';
+import * as platform from 'vs/base/common/platform';
+import { cwd, env } from 'vs/base/common/process';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
 
 export interface IExtensionHostStarterWorkerHost {
 	logInfo(message: string): Promise<void>;
@@ -48,6 +48,9 @@ class ExtensionHostProcess extends Disposable {
 	}
 
 	start(opts: IExtensionHostProcessOptions): { pid: number; } {
+		if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+			this._host.logInfo(`Calling fork to start extension host...`);
+		}
 		const sw = StopWatch.create(false);
 		this._process = fork(
 			FileAccess.asFileUri('bootstrap-fork', require).fsPath,

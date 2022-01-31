@@ -99,7 +99,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	logService.trace('process arguments:', environmentService.args);
 	const serverGreeting = productService.serverGreeting.join('\n');
 	if (serverGreeting) {
-		logService.info(`\n\n${serverGreeting}\n\n`);
+		spdLogService.info(`\n\n${serverGreeting}\n\n`);
 	}
 
 	// ExtensionHost Debug broadcast service

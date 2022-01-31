@@ -1846,6 +1846,7 @@ export interface InlayHintList {
 }
 
 export interface InlayHintsProvider {
+	displayName?: string
 	onDidChangeInlayHints?: Event<void>;
 	provideInlayHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHintList>;
 	resolveInlayHint?(hint: InlayHint, token: CancellationToken): ProviderResult<InlayHint>;

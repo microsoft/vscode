@@ -10,7 +10,7 @@ import { WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { IViewModel } from 'vs/editor/common/viewModel';
 
 export class CursorMoveCommands {
 

@@ -22,7 +22,7 @@ suite('Bracket Pair Colorizer - Tokenizer', () => {
 		const mode1 = 'testMode1';
 		const disposableStore = new DisposableStore();
 		const instantiationService = createModelServices(disposableStore);
-		const languageService = instantiationService.invokeFunction((accessor) => accessor.get(ILanguageService));
+		const languageService = instantiationService.get(ILanguageService);
 		disposableStore.add(ModesRegistry.registerLanguage({ id: mode1 }));
 		const encodedMode1 = languageService.languageIdCodec.encodeLanguageId(mode1);
 

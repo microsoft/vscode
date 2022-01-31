@@ -6,6 +6,7 @@
 import { LocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-browser/localProcessExtensionHost';
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-browser/cachedExtensionScanner';
 
+import { env } from 'vs/base/common/process';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractExtensionService, ExtensionRunningPreference, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import * as nls from 'vs/nls';
@@ -54,6 +55,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	private readonly _lazyLocalWebWorker: boolean;
 	private readonly _remoteInitData: Map<string, IRemoteExtensionHostInitData>;
 	private readonly _extensionScanner: CachedExtensionScanner;
+	private readonly _crashTracker = new ExtensionHostCrashTracker();
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -277,50 +279,62 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly. No extensions were activated.`);
 			}
 
-			this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Extension host terminated unexpectedly."),
-				[{
-					label: nls.localize('devTools', "Open Developer Tools"),
-					run: () => this._nativeHostService.openDevTools()
-				},
-				{
-					label: nls.localize('restart', "Restart Extension Host"),
-					run: () => this.startExtensionHosts()
-				}]
-			);
+			this._sendExtensionHostCrashTelemetry(code, signal, activatedExtensions);
 
-			type ExtensionHostCrashClassification = {
+			this._crashTracker.registerCrash();
+
+			if (this._crashTracker.shouldAutomaticallyRestart()) {
+				this._logService.info(`Automatically restarting the extension host.`);
+				this._notificationService.status(nls.localize('extensionService.autoRestart', "The extension host terminated unexpectedly. Restarting..."), { hideAfter: 5000 });
+				this.startExtensionHosts();
+			} else {
+				this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Extension host terminated unexpectedly 3 times within the last 5 minutes."),
+					[{
+						label: nls.localize('devTools', "Open Developer Tools"),
+						run: () => this._nativeHostService.openDevTools()
+					},
+					{
+						label: nls.localize('restart', "Restart Extension Host"),
+						run: () => this.startExtensionHosts()
+					}]
+				);
+			}
+		}
+	}
+
+	private _sendExtensionHostCrashTelemetry(code: number, signal: string | null, activatedExtensions: ExtensionIdentifier[]): void {
+		type ExtensionHostCrashClassification = {
+			code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			signal: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			extensionIds: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+		};
+		type ExtensionHostCrashEvent = {
+			code: number;
+			signal: string | null;
+			extensionIds: string[];
+		};
+		this._telemetryService.publicLog2<ExtensionHostCrashEvent, ExtensionHostCrashClassification>('extensionHostCrash', {
+			code,
+			signal,
+			extensionIds: activatedExtensions.map(e => e.value)
+		});
+
+		for (const extensionId of activatedExtensions) {
+			type ExtensionHostCrashExtensionClassification = {
 				code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
 				signal: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				extensionIds: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
 			};
-			type ExtensionHostCrashEvent = {
+			type ExtensionHostCrashExtensionEvent = {
 				code: number;
 				signal: string | null;
-				extensionIds: string[];
+				extensionId: string;
 			};
-			this._telemetryService.publicLog2<ExtensionHostCrashEvent, ExtensionHostCrashClassification>('extensionHostCrash', {
+			this._telemetryService.publicLog2<ExtensionHostCrashExtensionEvent, ExtensionHostCrashExtensionClassification>('extensionHostCrashExtension', {
 				code,
 				signal,
-				extensionIds: activatedExtensions.map(e => e.value)
+				extensionId: extensionId.value
 			});
-
-			for (const extensionId of activatedExtensions) {
-				type ExtensionHostCrashExtensionClassification = {
-					code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					signal: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				};
-				type ExtensionHostCrashExtensionEvent = {
-					code: number;
-					signal: string | null;
-					extensionId: string;
-				};
-				this._telemetryService.publicLog2<ExtensionHostCrashExtensionEvent, ExtensionHostCrashExtensionClassification>('extensionHostCrashExtension', {
-					code,
-					signal,
-					extensionId: extensionId.value
-				});
-			}
 		}
 	}
 
@@ -363,13 +377,31 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 					return uri;
 				}
 				const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
-				return localProcessExtensionHost.getCanonicalURI(remoteAuthority, uri);
+				if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+					this._logService.info(`Invoking getCanonicalURI for authority ${getRemoteAuthorityPrefix(remoteAuthority)}...`);
+				}
+				try {
+					return localProcessExtensionHost.getCanonicalURI(remoteAuthority, uri);
+				} finally {
+					if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+						this._logService.info(`getCanonicalURI returned for authority ${getRemoteAuthorityPrefix(remoteAuthority)}.`);
+					}
+				}
 			});
+
+			if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+				this._logService.info(`Starting to wait on IWorkspaceTrustManagementService.workspaceResolved...`);
+			}
 
 			// Now that the canonical URI provider has been registered, we need to wait for the trust state to be
 			// calculated. The trust state will be used while resolving the authority, however the resolver can
 			// override the trust state through the resolver result.
 			await this._workspaceTrustManagementService.workspaceResolved;
+
+			if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+				this._logService.info(`Finished waiting on IWorkspaceTrustManagementService.workspaceResolved.`);
+			}
+
 			let resolverResult: ResolverResult;
 
 			const sw = StopWatch.create(false);
@@ -558,6 +590,35 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		}
 		return true;
+	}
+}
+
+export interface IExtensionHostCrashInfo {
+	timestamp: number;
+}
+
+class ExtensionHostCrashTracker {
+
+	private static _TIME_LIMIT = 5 * 60 * 1000; // 5 minutes
+	private static _CRASH_LIMIT = 3;
+
+	private readonly _recentCrashes: IExtensionHostCrashInfo[] = [];
+
+	private _removeOldCrashes(): void {
+		const limit = Date.now() - ExtensionHostCrashTracker._TIME_LIMIT;
+		while (this._recentCrashes.length > 0 && this._recentCrashes[0].timestamp < limit) {
+			this._recentCrashes.shift();
+		}
+	}
+
+	public registerCrash(): void {
+		this._removeOldCrashes();
+		this._recentCrashes.push({ timestamp: Date.now() });
+	}
+
+	public shouldAutomaticallyRestart(): boolean {
+		this._removeOldCrashes();
+		return (this._recentCrashes.length < ExtensionHostCrashTracker._CRASH_LIMIT);
 	}
 }
 

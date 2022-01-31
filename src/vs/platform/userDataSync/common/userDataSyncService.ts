@@ -149,7 +149,11 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		await this.resetLocal();
 
 		const enabledSynchronizers = this.getEnabledSynchronizers();
-		return new ManualSyncTask(executionId, manifest, syncHeaders, enabledSynchronizers, () => this.resetLocal(), this.configurationService, this.logService);
+		const onstop = async () => {
+			await this.stop(enabledSynchronizers);
+			await this.resetLocal();
+		};
+		return new ManualSyncTask(executionId, manifest, syncHeaders, enabledSynchronizers, onstop, this.configurationService, this.logService);
 	}
 
 	private async sync(synchronizers: IUserDataSynchroniser[], manifest: IUserDataManifest | null, executionId: string, token: CancellationToken): Promise<void> {

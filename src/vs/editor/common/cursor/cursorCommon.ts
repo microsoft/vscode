@@ -16,7 +16,7 @@ import { AutoClosingPairs } from 'vs/editor/common/languages/languageConfigurati
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
-import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 
 export interface IColumnSelectData {

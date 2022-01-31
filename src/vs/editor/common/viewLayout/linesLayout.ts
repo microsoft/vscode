@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
+import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel';
 import * as strings from 'vs/base/common/strings';
 
 export interface IEditorWhitespace {

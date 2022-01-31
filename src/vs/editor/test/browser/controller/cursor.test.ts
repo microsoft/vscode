@@ -4976,7 +4976,7 @@ suite('autoClosingPairs', () => {
 	test('issue #132912: quotes should not auto-close if they are closing a string', () => {
 		const disposables = new DisposableStore();
 		const instantiationService = createCodeEditorServices(disposables);
-		const languageService = instantiationService.invokeFunction((accessor) => accessor.get(ILanguageService));
+		const languageService = instantiationService.get(ILanguageService);
 		const mode = disposables.add(new AutoClosingMode(languageService));
 		withTestCodeEditor(
 			disposables.add(instantiateTextModel(instantiationService, 'const t2 = `something ${t1}', mode.languageId)),

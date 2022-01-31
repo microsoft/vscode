@@ -145,3 +145,8 @@
 .simple-fr-find-part .find-filter-button > .monaco-action-bar .action-label.notebook-filters {
 	padding: 2px;
 }
+
+.monaco-workbench .simple-fr-find-part .monaco-inputbox > .ibwrapper > .input,
+.monaco-workbench .simple-fr-replace-part .monaco-inputbox > .ibwrapper > .input {
+	height: 24px;
+}
