@@ -381,9 +381,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (e === TerminalCapability.CwdDetection) {
 				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd((e) => {
 					this._cwd = e;
-					if (this._linkManager) {
-						this._linkManager.processCwd = this._cwd;
-					}
 					this._xtermOnKey?.dispose();
 					this.refreshTabLabels(this.title, TitleEventSource.Api);
 				});
@@ -1546,9 +1543,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const cwd = await this.refreshProperty(ProcessPropertyType.Cwd);
 		if (typeof cwd !== 'string') {
 			throw new Error('cwd is not a string');
-		}
-		if (cwd && this._linkManager) {
-			this._linkManager.processCwd = cwd;
 		}
 		return cwd;
 	}
