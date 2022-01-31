@@ -611,7 +611,8 @@ export function registerSelectionRangeProvider(languageId: string, provider: lan
  * For the best user experience, register both a semantic tokens provider and a top-down tokenizer.
  */
 export function registerDocumentSemanticTokensProvider(languageId: string, provider: languages.DocumentSemanticTokensProvider): IDisposable {
-	return languages.DocumentSemanticTokensProviderRegistry.register(languageId, provider);
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.documentSemanticTokensProvider.register(languageId, provider);
 }
 
 /**

@@ -438,7 +438,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			this._registrations.set(eventHandle, emitter);
 			event = emitter.event;
 		}
-		this._registrations.set(handle, modes.DocumentSemanticTokensProviderRegistry.register(selector, new MainThreadDocumentSemanticTokensProvider(this._proxy, handle, legend, event)));
+		this._registrations.set(handle, this._languageFeaturesService.documentSemanticTokensProvider.register(selector, new MainThreadDocumentSemanticTokensProvider(this._proxy, handle, legend, event)));
 	}
 
 	$emitDocumentSemanticTokensEvent(eventHandle: number): void {

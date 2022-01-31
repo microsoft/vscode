@@ -16,7 +16,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { FontStyle, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens, ColorId } from 'vs/editor/common/languages';
+import { FontStyle, StandardTokenType, TokenMetadata, SemanticTokensLegend, SemanticTokens, ColorId } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -535,7 +535,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			return null;
 		}
 
-		const tokenProviders = DocumentSemanticTokensProviderRegistry.ordered(this._model);
+		const tokenProviders = this._languageFeaturesService.documentSemanticTokensProvider.ordered(this._model);
 		if (tokenProviders.length) {
 			const provider = tokenProviders[0];
 			const tokens = await Promise.resolve(provider.provideDocumentSemanticTokens(this._model, null, this._currentRequestCancellationTokenSource.token));

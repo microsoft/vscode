@@ -1895,11 +1895,6 @@ export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeAction
 /**
  * @internal
  */
-export const DocumentSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentSemanticTokensProvider>();
-
-/**
- * @internal
- */
 export interface ITokenizationSupportChangedEvent {
 	changedLanguages: string[];
 	changedColorMap: boolean;
