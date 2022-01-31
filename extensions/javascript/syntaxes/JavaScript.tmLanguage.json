@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/644389aef914fc6fbc97a4dd799cc2d1431ffc87",
+	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/56b7270f094b036256774702e3b7f96490981190",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js",
 	"patterns": [
@@ -5292,6 +5292,27 @@
 							"name": "variable.other.jsdoc"
 						}
 					}
+				},
+				{
+					"begin": "(?x)((@)template)\\s+(?={)",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.type.class.jsdoc"
+						},
+						"2": {
+							"name": "punctuation.definition.block.tag.jsdoc"
+						}
+					},
+					"end": "(?=\\s|\\*/|[^{}\\[\\]A-Za-z_$])",
+					"patterns": [
+						{
+							"include": "#jsdoctype"
+						},
+						{
+							"name": "variable.other.jsdoc",
+							"match": "([A-Za-z_$][\\w$.\\[\\]]*)"
+						}
+					]
 				},
 				{
 					"match": "(?x)\n(\n  (@)\n  (?:arg|argument|const|constant|member|namespace|param|var)\n)\n\\s+\n(\n  [A-Za-z_$]\n  [\\w$.\\[\\]]*\n)",
