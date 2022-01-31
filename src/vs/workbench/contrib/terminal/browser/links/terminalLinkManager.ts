@@ -29,7 +29,6 @@ import { ITerminalExternalLinkProvider, ITerminalInstance, TerminalLinkQuickPick
 import { ILinkHoverTargetOptions, TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { ILink, ILinkProvider, IViewportRange, Terminal } from 'xterm';
@@ -49,13 +48,12 @@ interface IPath {
 export class TerminalLinkManager extends DisposableStore {
 	private _widgetManager: TerminalWidgetManager | undefined;
 	private _processCwd: string | undefined;
-	private _standardLinkProviders: Map<string, ILinkProvider> = new Map();
-	private _linkProvidersDisposables: IDisposable[] = [];
-	private readonly _xterm: Terminal;
-	private _openers: Map<TerminalLinkType, ITerminalLinkOpener> = new Map();
+	private readonly _standardLinkProviders: Map<string, ILinkProvider> = new Map();
+	private readonly _linkProvidersDisposables: IDisposable[] = [];
+	private readonly _openers: Map<TerminalLinkType, ITerminalLinkOpener> = new Map();
 
 	constructor(
-		private _xtermTerminal: XtermTerminal,
+		private readonly _xterm: Terminal,
 		private readonly _processManager: ITerminalProcessManager,
 		capabilities: ITerminalCapabilityStore,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -64,16 +62,6 @@ export class TerminalLinkManager extends DisposableStore {
 		@ITunnelService private readonly _tunnelService: ITunnelService
 	) {
 		super();
-		this._xterm = _xtermTerminal.raw;
-		// Protocol links
-		// const wrappedActivateCallback = this._wrapLinkHandler((_, link) => this._handleProtocolLink(link));
-		// const protocolProvider = this._instantiationService.createInstance(TerminalProtocolLinkProvider,
-		// 	this._xterm,
-		// 	wrappedActivateCallback,
-		// 	this._wrapLinkHandler.bind(this),
-		// 	this._tooltipCallback.bind(this),
-		// 	async (link, cb) => cb(await this._resolvePath(link)));
-		// this._standardLinkProviders.set(TerminalProtocolLinkProvider.id, protocolProvider);
 
 		// Setup link detectors in their order of priority
 		this._setupLinkDetector(TerminalUriLinkDetector.id, this._instantiationService.createInstance(TerminalUriLinkDetector, this._xterm, this._resolvePath.bind(this)));
@@ -116,8 +104,8 @@ export class TerminalLinkManager extends DisposableStore {
 
 	async openRecentLink(type: 'file' | 'web'): Promise<ILink | undefined> {
 		let links;
-		let i = this._xtermTerminal.raw.buffer.active.length;
-		while ((!links || links.length === 0) && i >= this._xtermTerminal.raw.buffer.active.viewportY) {
+		let i = this._xterm.buffer.active.length;
+		while ((!links || links.length === 0) && i >= this._xterm.buffer.active.viewportY) {
 			links = await this.getLinksForType(i, type);
 			i--;
 		}
@@ -135,7 +123,7 @@ export class TerminalLinkManager extends DisposableStore {
 		const webResults: ILink[] = [];
 		const fileResults: ILink[] = [];
 
-		for (let i = this._xtermTerminal.raw.buffer.active.length - 1; i >= this._xtermTerminal.raw.buffer.active.viewportY; i--) {
+		for (let i = this._xterm.buffer.active.length - 1; i >= this._xterm.buffer.active.viewportY; i--) {
 			const links = await this._getLinksForLine(i);
 			if (links) {
 				const { wordLinks, webLinks, fileLinks } = links;
@@ -233,7 +221,7 @@ export class TerminalLinkManager extends DisposableStore {
 
 	private _clearLinkProviders(): void {
 		dispose(this._linkProvidersDisposables);
-		this._linkProvidersDisposables = [];
+		this._linkProvidersDisposables.length = 0;
 	}
 
 	private _registerStandardLinkProviders(): void {
