@@ -6,7 +6,6 @@
 import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import { IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -38,9 +37,6 @@ class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 	constructor(
 		private readonly options: IWorkbenchConstructionOptions
 	) { }
-
-	@memoize
-	get sessionId(): string { return generateUuid(); }
 
 	@memoize
 	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
