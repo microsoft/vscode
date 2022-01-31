@@ -44,15 +44,6 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	readonly filesToOpenOrCreate?: IPath[] | undefined
 	readonly filesToDiff?: IPath[] | undefined;
 
-	/**
-	 * @deprecated this property will go away eventually as it
-	 * duplicates many properties of the environment service
-	 *
-	 * Please consider using the environment service directly
-	 * if you can.
-	 */
-	readonly configuration2: IWorkbenchConfiguration;
-
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:
 	//       - PUT NON-WEB PROPERTIES INTO NATIVE WB ENV SERVICE

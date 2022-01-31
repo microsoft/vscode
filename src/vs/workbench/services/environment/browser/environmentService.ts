@@ -7,7 +7,7 @@ import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IPath } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -32,38 +32,9 @@ export interface IBrowserWorkbenchEnvironmentService extends IWorkbenchEnvironme
 	readonly options?: IWorkbenchConstructionOptions;
 }
 
-class BrowserWorkbenchConfiguration implements IWindowConfiguration {
-
-	constructor(
-		private readonly options: IWorkbenchConstructionOptions
-	) { }
-
-	@memoize
-	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
-}
-
-interface IExtensionHostDebugEnvironment {
-	params: IExtensionHostDebugParams;
-	debugRenderer: boolean;
-	isExtensionDevelopment: boolean;
-	extensionDevelopmentLocationURI?: URI[];
-	extensionDevelopmentKind?: ExtensionKind[];
-	extensionTestsLocationURI?: URI;
-	extensionEnabledProposedApi?: string[];
-}
-
 export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
-
-	private _configuration: IWindowConfiguration | undefined = undefined;
-	get configuration2(): IWindowConfiguration {
-		if (!this._configuration) {
-			this._configuration = new BrowserWorkbenchConfiguration(this.options);
-		}
-
-		return this._configuration;
-	}
 
 	@memoize
 	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
@@ -337,4 +308,14 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 		return undefined;
 	}
+}
+
+interface IExtensionHostDebugEnvironment {
+	params: IExtensionHostDebugParams;
+	debugRenderer: boolean;
+	isExtensionDevelopment: boolean;
+	extensionDevelopmentLocationURI?: URI[];
+	extensionDevelopmentKind?: ExtensionKind[];
+	extensionTestsLocationURI?: URI;
+	extensionEnabledProposedApi?: string[];
 }

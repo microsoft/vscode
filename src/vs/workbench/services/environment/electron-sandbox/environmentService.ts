@@ -56,52 +56,43 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 		isInitialStartup?: boolean;
 		marks: PerformanceMark[];
 	}
-
-	/**
-	 * @deprecated this property will go away eventually as it
-	 * duplicates many properties of the environment service
-	 *
-	 * Please consider using the environment service directly
-	 * if you can.
-	 */
-	readonly configuration2: INativeWorkbenchConfiguration;
 }
 
 export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironmentService implements INativeWorkbenchEnvironmentService {
 
 	@memoize
-	get windowId() { return this.configuration2.windowId; }
+	get windowId() { return this.configuration.windowId; }
 
 	@memoize
-	get mainPid() { return this.configuration2.mainPid; }
+	get mainPid() { return this.configuration.mainPid; }
 
 	@memoize
-	get machineId() { return this.configuration2.machineId; }
+	get machineId() { return this.configuration.machineId; }
 
 	@memoize
-	get remoteAuthority() { return this.configuration2.remoteAuthority; }
+	get remoteAuthority() { return this.configuration.remoteAuthority; }
 
 	@memoize
-	get execPath() { return this.configuration2.execPath; }
+	get execPath() { return this.configuration.execPath; }
 
 	@memoize
-	get backupPath() { return this.configuration2.backupPath; }
+	get backupPath() { return this.configuration.backupPath; }
 
 	@memoize
-	get accessibilitySupport() { return this.configuration2.accessibilitySupport; }
+	get accessibilitySupport() { return this.configuration.accessibilitySupport; }
 
 	@memoize
-	get windowMaximized() { return this.configuration2.maximized; }
+	get windowMaximized() { return this.configuration.maximized; }
 
 	@memoize
-	get colorScheme() { return this.configuration2.colorScheme; }
+	get colorScheme() { return this.configuration.colorScheme; }
 
 	@memoize
 	get perf() {
 		return {
-			codeCachePath: this.configuration2.codeCachePath,
-			isInitialStartup: this.configuration2.isInitialStartup,
-			marks: this.configuration2.perfMarks
+			codeCachePath: this.configuration.codeCachePath,
+			isInitialStartup: this.configuration.isInitialStartup,
+			marks: this.configuration.perfMarks
 		};
 	}
 
@@ -109,10 +100,10 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
 
 	@memoize
-	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration2.windowId}.log`)); }
+	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
 
 	@memoize
-	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration2.windowId}`)); }
+	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
 
 	@memoize
 	get webviewExternalEndpoint(): string { return `${Schemas.vscodeWebview}://{{uuid}}`; }
@@ -140,28 +131,28 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	}
 
 	get os(): IOSConfiguration {
-		return this.configuration2.os;
+		return this.configuration.os;
 	}
 
 	@memoize
 	get filesToOpenOrCreate(): IPath[] | undefined {
-		return this.configuration2.filesToOpenOrCreate;
+		return this.configuration.filesToOpenOrCreate;
 	}
 
 	@memoize
 	get filesToDiff(): IPath[] | undefined {
-		return this.configuration2.filesToDiff;
+		return this.configuration.filesToDiff;
 	}
 
 	@memoize
 	get filesToWait(): IPathsToWaitFor | undefined {
-		return this.configuration2.filesToWait;
+		return this.configuration.filesToWait;
 	}
 
 	constructor(
-		readonly configuration2: INativeWorkbenchConfiguration,
+		private readonly configuration: INativeWorkbenchConfiguration,
 		productService: IProductService
 	) {
-		super(configuration2, { homeDir: configuration2.homeDir, tmpDir: configuration2.tmpDir, userDataDir: configuration2.userDataDir }, productService);
+		super(configuration, { homeDir: configuration.homeDir, tmpDir: configuration.tmpDir, userDataDir: configuration.userDataDir }, productService);
 	}
 }
