@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { memoize } from 'vs/base/common/decorators';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event, EventMultiplexer, Relay } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import * as strings from 'vs/base/common/strings';
 import { isFunction, isUndefinedOrNull } from 'vs/base/common/types';
@@ -477,7 +477,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 			this.protocolListener.dispose();
 			this.protocolListener = null;
 		}
-		this.activeRequests.forEach(d => d.dispose());
+		dispose(this.activeRequests.values());
 		this.activeRequests.clear();
 	}
 }
@@ -731,7 +731,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			this.protocolListener.dispose();
 			this.protocolListener = null;
 		}
-		this.activeRequests.forEach(p => p.dispose());
+		dispose(this.activeRequests.values());
 		this.activeRequests.clear();
 	}
 }

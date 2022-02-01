@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
 import { isEqual } from 'vs/base/common/resources';
 import { assertType } from 'vs/base/common/types';
@@ -336,7 +336,7 @@ class CellInfoContentProvider {
 	}
 
 	dispose(): void {
-		this._disposables.forEach(d => d.dispose());
+		dispose(this._disposables);
 	}
 
 	async provideMetadataTextContent(resource: URI): Promise<ITextModel | null> {

@@ -5,7 +5,7 @@
 
 import { coalesce } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -109,7 +109,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 	private registerContributionPoints(): void {
 		// Clear all previous contributions we know
-		this._editorResolverDisposables.forEach(d => d.dispose());
+		dispose(this._editorResolverDisposables);
 		for (const contributedEditor of this._contributedEditors) {
 			for (const globPattern of contributedEditor.selector) {
 				if (!globPattern.filenamePattern) {

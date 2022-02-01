@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
@@ -290,10 +290,10 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	dispose(): void {
-		this._repositories.forEach(r => r.dispose());
+		dispose(this._repositories.values());
 		this._repositories.clear();
 
-		this._repositoryDisposables.forEach(d => d.dispose());
+		dispose(this._repositoryDisposables.values());
 		this._repositoryDisposables.clear();
 
 		this._disposables.dispose();
