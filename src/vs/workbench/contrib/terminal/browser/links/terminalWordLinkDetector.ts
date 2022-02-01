@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IBufferLine, Terminal } from 'xterm';
@@ -63,7 +63,7 @@ export class TerminalWordLinkDetector implements ITerminalLinkDetector {
 			links.push({
 				text: word.text,
 				bufferRange,
-				type: TerminalLinkType.Search
+				type: TerminalBuiltinLinkType.Search
 			});
 		}
 

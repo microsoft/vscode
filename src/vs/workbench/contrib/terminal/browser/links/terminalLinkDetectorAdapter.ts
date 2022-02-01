@@ -7,7 +7,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IBufferLine, ILink, ILinkProvider, IViewportRange } from 'xterm';
@@ -98,18 +98,21 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 				modifierDownCallback,
 				modifierUpCallback
 			}),
-			l.type !== TerminalLinkType.Search, // Only search is low confidence
+			l.type !== TerminalBuiltinLinkType.Search, // Only search is low confidence
 			this._getLabel(l.type)
 		);
 	}
 
 	private _getLabel(type: TerminalLinkType): string {
 		switch (type) {
-			case TerminalLinkType.Search: return localize('searchWorkspace', 'Search workspace');
-			case TerminalLinkType.LocalFile: return localize('openFile', 'Open file in editor');
-			case TerminalLinkType.LocalFolderInWorkspace: return localize('focusFolder', 'Focus folder in explorer');
-			case TerminalLinkType.LocalFolderOutsideWorkspace: return localize('openFolder', 'Open folder in new window');
-			case TerminalLinkType.Url: return localize('followLink', 'Follow link');
+			case TerminalBuiltinLinkType.Search: return localize('searchWorkspace', 'Search workspace');
+			case TerminalBuiltinLinkType.LocalFile: return localize('openFile', 'Open file in editor');
+			case TerminalBuiltinLinkType.LocalFolderInWorkspace: return localize('focusFolder', 'Focus folder in explorer');
+			case TerminalBuiltinLinkType.LocalFolderOutsideWorkspace: return localize('openFolder', 'Open folder in new window');
+			case TerminalBuiltinLinkType.Url: return localize('followLink', 'Follow link');
+			default:
+				// TODO: Fix extension type labels
+				return localize('followLink', 'Follow link');
 		}
 	}
 }

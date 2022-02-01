@@ -50,7 +50,9 @@ export interface ITerminalSimpleLink {
 	readonly type: TerminalLinkType;
 }
 
-export const enum TerminalLinkType {
+export type TerminalLinkType = TerminalBuiltinLinkType | ITerminalExternalLinkType;
+
+export const enum TerminalBuiltinLinkType {
 	/**
 	 * The link is validated to be a file on the file system and will open an editor.
 	 */
@@ -78,6 +80,10 @@ export const enum TerminalLinkType {
 	 * A link whose text is a valid URI.
 	 */
 	Url
+}
+
+export interface ITerminalExternalLinkType {
+	id: string;
 }
 
 export interface ITerminalLinkOpener {

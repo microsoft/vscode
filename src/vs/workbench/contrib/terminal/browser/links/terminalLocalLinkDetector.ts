@@ -8,7 +8,7 @@ import { withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { IBufferLine, Terminal } from 'xterm';
 
@@ -152,15 +152,15 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 			// Create the link if validated
 			if (linkStat) {
-				let type: TerminalLinkType;
+				let type: TerminalBuiltinLinkType;
 				if (linkStat.isDirectory) {
 					if (this._isDirectoryInsideWorkspace(linkStat.uri)) {
-						type = TerminalLinkType.LocalFolderInWorkspace;
+						type = TerminalBuiltinLinkType.LocalFolderInWorkspace;
 					} else {
-						type = TerminalLinkType.LocalFolderOutsideWorkspace;
+						type = TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
 					}
 				} else {
-					type = TerminalLinkType.LocalFile;
+					type = TerminalBuiltinLinkType.LocalFile;
 				}
 				links.push({
 					text: linkStat.link,

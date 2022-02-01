@@ -16,9 +16,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
-import { ITerminalLinkDetector, ITerminalLinkOpener, ITerminalSimpleLink, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { TerminalExternalLinkProviderAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkProviderAdapter';
+import { ITerminalLinkDetector, ITerminalLinkOpener, ITerminalSimpleLink, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
+import { TerminalExternalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkDetector';
 import { TerminalLinkDetectorAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkDetectorAdapter';
 import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalLocalFolderOutsideWorkspaceLinkOpener, TerminalSearchLinkOpener, TerminalUrlLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
 import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
@@ -76,18 +76,18 @@ export class TerminalLinkManager extends DisposableStore {
 		});
 
 		// Setup link openers
-		this._openers.set(TerminalLinkType.LocalFile, this._instantiationService.createInstance(TerminalLocalFileLinkOpener, this._processManager.os || OS));
-		this._openers.set(TerminalLinkType.LocalFolderInWorkspace, this._instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener));
-		this._openers.set(TerminalLinkType.LocalFolderOutsideWorkspace, this._instantiationService.createInstance(TerminalLocalFolderOutsideWorkspaceLinkOpener));
-		this._openers.set(TerminalLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities));
-		this._openers.set(TerminalLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processManager.remoteAuthority));
+		this._openers.set(TerminalBuiltinLinkType.LocalFile, this._instantiationService.createInstance(TerminalLocalFileLinkOpener, this._processManager.os || OS));
+		this._openers.set(TerminalBuiltinLinkType.LocalFolderInWorkspace, this._instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener));
+		this._openers.set(TerminalBuiltinLinkType.LocalFolderOutsideWorkspace, this._instantiationService.createInstance(TerminalLocalFolderOutsideWorkspaceLinkOpener));
+		this._openers.set(TerminalBuiltinLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities));
+		this._openers.set(TerminalBuiltinLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processManager.remoteAuthority));
 
 		// TODO: Verify external link providers work
 
 		this._registerStandardLinkProviders();
 	}
 
-	private _setupLinkDetector(id: string, detector: ITerminalLinkDetector): void {
+	private _setupLinkDetector(id: string, detector: ITerminalLinkDetector, isExternal: boolean = false): ILinkProvider {
 		const detectorAdapter = this._instantiationService.createInstance(TerminalLinkDetectorAdapter, detector);
 		detectorAdapter.onDidActivateLink(e => {
 			// Prevent default electron link handling so Alt+Click mode works normally
@@ -100,7 +100,10 @@ export class TerminalLinkManager extends DisposableStore {
 			this._openLink(e.link);
 		});
 		detectorAdapter.onDidShowHover(e => this._tooltipCallback(e.link, e.viewportRange, e.modifierDownCallback, e.modifierUpCallback));
-		this._standardLinkProviders.set(id, detectorAdapter);
+		if (!isExternal) {
+			this._standardLinkProviders.set(id, detectorAdapter);
+		}
+		return detectorAdapter;
 	}
 
 	private async _openLink(link: ITerminalSimpleLink): Promise<void> {
@@ -243,27 +246,12 @@ export class TerminalLinkManager extends DisposableStore {
 	registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable {
 		// Clear and re-register the standard link providers so they are a lower priority than the new one
 		this._clearLinkProviders();
-		const wrappedLinkProvider = this._instantiationService.createInstance(TerminalExternalLinkProviderAdapter, this._xterm, instance, linkProvider, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
+		// TODO: Support multiple extensions
+		const wrappedLinkProvider = this._setupLinkDetector('extension', new TerminalExternalLinkDetector('extension', this._xterm, instance, linkProvider), true);
 		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
 		this._linkProvidersDisposables.push(newLinkProvider);
 		this._registerStandardLinkProviders();
 		return newLinkProvider;
-	}
-
-	// TODO: Remove when external links are migrated
-	protected _wrapLinkHandler(handler: (event: MouseEvent | undefined, link: string) => void): XtermLinkMatcherHandler {
-		return async (event: MouseEvent | undefined, link: string) => {
-			// Prevent default electron link handling so Alt+Click mode works normally
-			event?.preventDefault();
-
-			// Require correct modifier on click unless event is coming from linkQuickPick selection
-			if (event && !(event instanceof TerminalLinkQuickPickEvent) && !this._isLinkActivationModifierDown(event)) {
-				return;
-			}
-
-			// Just call the handler if there is no before listener
-			handler(event, link);
-		};
 	}
 
 	protected get _localLinkRegex(): RegExp {
