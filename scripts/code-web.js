@@ -41,7 +41,7 @@ if (args.help) {
 		'./scripts/code-web.sh|bat [options]\n' +
 		' --host           Server host address\n' +
 		' --port           Server port\n' +
-		' --browserType    The browser type to launch:  `chromium` (default), `firefox`, `webkit` or `none`' +
+		' --browserType    The browser type to launch:  `chromium`, `firefox`, `webkit` or `none`. If not specified the OS default browser will be used.' +
 		' --extension      Path of an extension to include\n' +
 		' --open-devtools  Open the dev tools' +
 		' --verbose        Print out more information\n' +
