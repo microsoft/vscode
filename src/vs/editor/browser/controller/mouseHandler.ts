@@ -457,7 +457,7 @@ class MouseDownOperation extends Disposable {
 
 	private _getPositionOutsideEditor(e: EditorMouseEvent): IMouseTarget | null {
 		const editorContent = e.editorPos;
-		const model = this._context.model;
+		const model = this._context.viewModel;
 		const viewLayout = this._context.viewLayout;
 
 		const mouseColumn = this._getMouseColumn(e);

@@ -296,7 +296,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 	}
 	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		// invalidate color cache
-		this._context.model.invalidateOverviewRulerColorCache();
+		this._context.viewModel.invalidateOverviewRulerColorCache();
 		return this._updateSettings(false);
 	}
 
@@ -328,7 +328,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		const viewLayout = this._context.viewLayout;
 		const outerHeight = this._context.viewLayout.getScrollHeight();
 		const heightRatio = canvasHeight / outerHeight;
-		const decorations = this._context.model.getAllOverviewRulerDecorations(this._context.theme);
+		const decorations = this._context.viewModel.getAllOverviewRulerDecorations(this._context.theme);
 
 		const minDecorationHeight = (Constants.MIN_DECORATION_HEIGHT * this._settings.pixelRatio) | 0;
 		const halfMinDecorationHeight = (minDecorationHeight / 2) | 0;

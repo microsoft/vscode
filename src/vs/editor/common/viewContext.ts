@@ -39,7 +39,7 @@ export class EditorTheme {
 export class ViewContext {
 
 	public readonly configuration: IEditorConfiguration;
-	public readonly model: IViewModel;
+	public readonly viewModel: IViewModel;
 	public readonly viewLayout: IViewLayout;
 	public readonly theme: EditorTheme;
 
@@ -50,15 +50,15 @@ export class ViewContext {
 	) {
 		this.configuration = configuration;
 		this.theme = new EditorTheme(theme);
-		this.model = model;
+		this.viewModel = model;
 		this.viewLayout = model.viewLayout;
 	}
 
 	public addEventHandler(eventHandler: ViewEventHandler): void {
-		this.model.addViewEventHandler(eventHandler);
+		this.viewModel.addViewEventHandler(eventHandler);
 	}
 
 	public removeEventHandler(eventHandler: ViewEventHandler): void {
-		this.model.removeViewEventHandler(eventHandler);
+		this.viewModel.removeViewEventHandler(eventHandler);
 	}
 }

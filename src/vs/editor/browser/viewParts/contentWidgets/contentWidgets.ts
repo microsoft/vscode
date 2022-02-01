@@ -257,9 +257,9 @@ class Widget {
 
 		if (this._range) {
 			// Do not trust that widgets give a valid position
-			const validModelRange = this._context.model.validateModelRange(this._range);
-			if (this._context.model.coordinatesConverter.modelPositionIsVisible(validModelRange.getStartPosition()) || this._context.model.coordinatesConverter.modelPositionIsVisible(validModelRange.getEndPosition())) {
-				this._viewRange = this._context.model.coordinatesConverter.convertModelRangeToViewRange(validModelRange);
+			const validModelRange = this._context.viewModel.validateModelRange(this._range);
+			if (this._context.viewModel.coordinatesConverter.modelPositionIsVisible(validModelRange.getStartPosition()) || this._context.viewModel.coordinatesConverter.modelPositionIsVisible(validModelRange.getEndPosition())) {
+				this._viewRange = this._context.viewModel.coordinatesConverter.convertModelRangeToViewRange(validModelRange);
 			}
 		}
 	}

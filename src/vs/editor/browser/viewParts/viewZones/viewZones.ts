@@ -82,7 +82,7 @@ export class ViewZones extends ViewPart {
 			oldWhitespaces.set(whitespace.id, whitespace);
 		}
 		let hadAChange = false;
-		this._context.model.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
+		this._context.viewModel.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
 			const keys = Object.keys(this._zones);
 			for (let i = 0, len = keys.length; i < len; i++) {
 				const id = keys[i];
@@ -158,37 +158,37 @@ export class ViewZones extends ViewPart {
 
 		let zoneAfterModelPosition: Position;
 		if (typeof zone.afterColumn !== 'undefined') {
-			zoneAfterModelPosition = this._context.model.validateModelPosition({
+			zoneAfterModelPosition = this._context.viewModel.validateModelPosition({
 				lineNumber: zone.afterLineNumber,
 				column: zone.afterColumn
 			});
 		} else {
-			const validAfterLineNumber = this._context.model.validateModelPosition({
+			const validAfterLineNumber = this._context.viewModel.validateModelPosition({
 				lineNumber: zone.afterLineNumber,
 				column: 1
 			}).lineNumber;
 
 			zoneAfterModelPosition = new Position(
 				validAfterLineNumber,
-				this._context.model.getModelLineMaxColumn(validAfterLineNumber)
+				this._context.viewModel.getModelLineMaxColumn(validAfterLineNumber)
 			);
 		}
 
 		let zoneBeforeModelPosition: Position;
-		if (zoneAfterModelPosition.column === this._context.model.getModelLineMaxColumn(zoneAfterModelPosition.lineNumber)) {
-			zoneBeforeModelPosition = this._context.model.validateModelPosition({
+		if (zoneAfterModelPosition.column === this._context.viewModel.getModelLineMaxColumn(zoneAfterModelPosition.lineNumber)) {
+			zoneBeforeModelPosition = this._context.viewModel.validateModelPosition({
 				lineNumber: zoneAfterModelPosition.lineNumber + 1,
 				column: 1
 			});
 		} else {
-			zoneBeforeModelPosition = this._context.model.validateModelPosition({
+			zoneBeforeModelPosition = this._context.viewModel.validateModelPosition({
 				lineNumber: zoneAfterModelPosition.lineNumber,
 				column: zoneAfterModelPosition.column + 1
 			});
 		}
 
-		const viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition, zone.afterColumnAffinity);
-		const isVisible = this._context.model.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
+		const viewPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition, zone.afterColumnAffinity);
+		const isVisible = this._context.viewModel.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
 		return {
 			isInHiddenArea: !isVisible,
 			afterViewLineNumber: viewPosition.lineNumber,
@@ -200,7 +200,7 @@ export class ViewZones extends ViewPart {
 	public changeViewZones(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean {
 		let zonesHaveChanged = false;
 
-		this._context.model.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
+		this._context.viewModel.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
 
 			const changeAccessor: IViewZoneChangeAccessor = {
 				addZone: (zone: IViewZone): string => {

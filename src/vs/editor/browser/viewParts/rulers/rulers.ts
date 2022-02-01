@@ -64,7 +64,7 @@ export class Rulers extends ViewPart {
 		}
 
 		if (currentCount < desiredCount) {
-			const { tabSize } = this._context.model.getTextModelOptions();
+			const { tabSize } = this._context.viewModel.getTextModelOptions();
 			const rulerWidth = tabSize;
 			let addCount = desiredCount - currentCount;
 			while (addCount > 0) {
