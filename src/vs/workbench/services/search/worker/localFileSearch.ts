@@ -188,7 +188,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 			return true;
 		};
 
-		const proccessFile = (file: ISearchWorkerFileSystemFileHandle, prior: string): FileNode => {
+		const processFile = (file: ISearchWorkerFileSystemFileHandle, prior: string): FileNode => {
 
 			const resolved: FileNode = {
 				type: 'file',
@@ -245,7 +245,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 					if (handle.kind === 'directory' && !isFolderExcluded(path, basename, hasSibling)) {
 						dirs.push(processDirectory(handle, path + '/', ignoreFile));
 					} else if (handle.kind === 'file' && isFileIncluded(path, basename, hasSibling)) {
-						files.push(proccessFile(handle, path));
+						files.push(processFile(handle, path));
 					}
 				}
 				c([...await Promise.all(dirs), ...files]);
