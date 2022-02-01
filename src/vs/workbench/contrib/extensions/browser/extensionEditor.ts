@@ -993,7 +993,7 @@ export class ExtensionEditor extends EditorPane {
 	private renderMoreInfo(container: HTMLElement, extension: IExtension): void {
 		const gallery = extension.gallery;
 		const moreInfoContainer = append(container, $('.more-info-container'));
-		append(moreInfoContainer, $('.additional-details-title', undefined, localize('more info', "More Info")));
+		append(moreInfoContainer, $('.additional-details-title', undefined, localize('Marketplace Info', "Marketplace Info")));
 		const moreInfo = append(moreInfoContainer, $('.more-info'));
 		if (gallery) {
 			append(moreInfo,
