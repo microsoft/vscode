@@ -283,7 +283,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get workspaceFolder(): string | undefined { return this._workspaceFolder; }
 	get cwd(): string | undefined { return this._cwd; }
 	get initialCwd(): string | undefined { return this._initialCwd; }
-	get description(): string | undefined { return this._description || (this.shellLaunchConfig.type === 'Task' ? nls.localize('terminalTypeTask', "Task") : nls.localize('terminalTypeLocal', "Local")); }
+	get description(): string | undefined {
+		if (this._description) {
+			return this._description;
+		} else if (this._shellLaunchConfig.type) {
+			if (this._shellLaunchConfig.type === 'Task') {
+				return nls.localize('terminalTypeTask', "Task");
+			} else {
+				return nls.localize('terminalTypeLocal', "Local");
+			}
+		}
+		return undefined;
+	}
 	get userHome(): string | undefined { return this._userHome; }
 	// The onExit event is special in that it fires and is disposed after the terminal instance
 	// itself is disposed
