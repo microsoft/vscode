@@ -10,6 +10,7 @@ import API from '../utils/api';
 import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
 import { DocumentSelector } from '../utils/documentSelector';
+import { LanguageDescription } from '../utils/languageDescription';
 import { Position } from '../utils/typeConverters';
 import FileConfigurationManager, { getInlayHintsPreferences, InlayHintSettingNames } from './fileConfigurationManager';
 
@@ -31,15 +32,14 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 	public readonly onDidChangeInlayHints = this._onDidChangeInlayHints.event;
 
 	constructor(
-		private readonly modeId: string,
-		languageIds: readonly string[],
+		private readonly language: LanguageDescription,
 		private readonly client: ITypeScriptServiceClient,
 		private readonly fileConfigurationManager: FileConfigurationManager
 	) {
 		super();
 
 		this._register(vscode.workspace.onDidChangeConfiguration(e => {
-			if (inlayHintSettingNames.some(settingName => e.affectsConfiguration(modeId + '.' + settingName))) {
+			if (inlayHintSettingNames.some(settingName => e.affectsConfiguration(language.id + '.' + settingName))) {
 				this._onDidChangeInlayHints.fire();
 			}
 		}));
@@ -47,7 +47,7 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 		// When a JS/TS file changes, change inlay hints for all visible editors
 		// since changes in one file can effect the hints the others.
 		this._register(vscode.workspace.onDidChangeTextDocument(e => {
-			if (languageIds.includes(e.document.languageId)) {
+			if (language.languageIds.includes(e.document.languageId)) {
 				this._onDidChangeInlayHints.fire();
 			}
 		}));
@@ -59,7 +59,7 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 			return [];
 		}
 
-		if (!areInlayHintsEnabledForFile(this.modeId, model)) {
+		if (!areInlayHintsEnabledForFile(this.language, model)) {
 			return [];
 		}
 
@@ -95,8 +95,8 @@ function fromProtocolInlayHintKind(kind: Proto.InlayHintKind): vscode.InlayHintK
 	}
 }
 
-function areInlayHintsEnabledForFile(modeId: string, document: vscode.TextDocument) {
-	const config = vscode.workspace.getConfiguration(modeId, document);
+function areInlayHintsEnabledForFile(language: LanguageDescription, document: vscode.TextDocument) {
+	const config = vscode.workspace.getConfiguration(language.id, document);
 	const preferences = getInlayHintsPreferences(config);
 
 	return preferences.includeInlayParameterNameHints === 'literals' ||
@@ -110,8 +110,7 @@ function areInlayHintsEnabledForFile(modeId: string, document: vscode.TextDocume
 
 export function register(
 	selector: DocumentSelector,
-	modeId: string,
-	languageIds: readonly string[],
+	language: LanguageDescription,
 	client: ITypeScriptServiceClient,
 	fileConfigurationManager: FileConfigurationManager
 ) {
@@ -119,7 +118,7 @@ export function register(
 		requireMinVersion(client, TypeScriptInlayHintsProvider.minVersion),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
-		const provider = new TypeScriptInlayHintsProvider(modeId, languageIds, client, fileConfigurationManager);
+		const provider = new TypeScriptInlayHintsProvider(language, client, fileConfigurationManager);
 		return vscode.languages.registerInlayHintsProvider(selector.semantic, provider);
 	});
 }
