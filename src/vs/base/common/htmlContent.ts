@@ -99,7 +99,10 @@ export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boo
 	} else if (!a || !b) {
 		return false;
 	} else {
-		return a.value === b.value && a.isTrusted === b.isTrusted && a.supportThemeIcons === b.supportThemeIcons;
+		return a.value === b.value
+			&& a.isTrusted === b.isTrusted
+			&& a.supportThemeIcons === b.supportThemeIcons
+			&& a.supportHtml === b.supportHtml;
 	}
 }
 
