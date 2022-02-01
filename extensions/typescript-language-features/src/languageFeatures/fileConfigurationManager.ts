@@ -167,11 +167,11 @@ export default class FileConfigurationManager extends Disposable {
 
 		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
-			document.uri);
+			document);
 
 		const preferencesConfig = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
-			document.uri);
+			document);
 
 		const preferences: Proto.UserPreferences = {
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
