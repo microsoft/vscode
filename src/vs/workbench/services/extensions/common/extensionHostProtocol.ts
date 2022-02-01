@@ -4,6 +4,65 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from 'vs/base/common/buffer';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { LogLevel } from 'vs/platform/log/common/log';
+import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+
+export interface IExtensionHostInitData {
+	version: string;
+	commit?: string;
+	parentPid: number;
+	environment: IEnvironment;
+	workspace?: IStaticWorkspaceData | null;
+	resolvedExtensions: ExtensionIdentifier[];
+	hostExtensions: ExtensionIdentifier[];
+	extensions: IExtensionDescription[];
+	telemetryInfo: ITelemetryInfo;
+	logLevel: LogLevel;
+	logsLocation: URI;
+	logFile: URI;
+	autoStart: boolean;
+	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null; };
+	uiKind: UIKind;
+	messagePorts?: ReadonlyMap<string, MessagePortLike>;
+}
+
+export interface IEnvironment {
+	isExtensionDevelopmentDebug: boolean;
+	appName: string;
+	appHost: string;
+	appRoot?: URI;
+	appLanguage: string;
+	appUriScheme: string;
+	extensionDevelopmentLocationURI?: URI[];
+	extensionTestsLocationURI?: URI;
+	globalStorageHome: URI;
+	workspaceStorageHome: URI;
+	useHostProxy?: boolean;
+	skipWorkspaceStorageLock?: boolean;
+}
+
+export interface IStaticWorkspaceData {
+	id: string;
+	name: string;
+	transient?: boolean;
+	configuration?: UriComponents | null;
+	isUntitled?: boolean | null;
+}
+
+export interface MessagePortLike {
+	postMessage(message: any, transfer?: any[]): void;
+	addEventListener(type: 'message', listener: (e: any) => any): void;
+	removeEventListener(type: 'message', listener: (e: any) => any): void;
+	start(): void;
+}
+
+export enum UIKind {
+	Desktop = 1,
+	Web = 2
+}
 
 export const enum ExtensionHostExitCode {
 	// nodejs uses codes 1-13 and exit codes >128 are signal exits

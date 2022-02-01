@@ -238,7 +238,8 @@ steps:
       APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME"
-    timeoutInMinutes: 10
+    # Increased timeout because this test downloads stable code
+    timeoutInMinutes: 20
     displayName: Run smoke tests (Electron)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 

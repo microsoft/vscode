@@ -40,6 +40,7 @@ import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/serv
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, IWorkingCopyBackup, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 const enum CustomEditorModelType {
 	Custom,
@@ -55,7 +56,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 	private readonly _editorRenameBackups = new Map<string, CustomDocumentBackupData>();
 
 	constructor(
-		context: extHostProtocol.IExtHostContext,
+		context: IExtHostContext,
 		private readonly mainThreadWebview: MainThreadWebviews,
 		private readonly mainThreadWebviewPanels: MainThreadWebviewPanels,
 		@IExtensionService extensionService: IExtensionService,

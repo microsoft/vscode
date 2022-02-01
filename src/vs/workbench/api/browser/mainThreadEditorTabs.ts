@@ -5,8 +5,8 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ExtHostContext, IExtHostEditorTabsShape, IExtHostContext, MainContext, IEditorTabDto } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto } from 'vs/workbench/api/common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor, GroupModelChangeKind, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { isGroupEditorCloseEvent, isGroupEditorMoveEvent, isGroupEditorOpenEvent } from 'vs/workbench/common/editor/editorGroupModel';

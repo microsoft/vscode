@@ -5,8 +5,20 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConstructorSignature1, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { IExtensionHostProxy } from 'vs/workbench/services/extensions/common/extensionHostProxy';
+import { ExtensionHostKind, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IRPCProtocol, ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+
+export interface IExtHostContext extends IRPCProtocol {
+	readonly remoteAuthority: string | null;
+	readonly extensionHostKind: ExtensionHostKind;
+}
+
+export interface IInternalExtHostContext extends IExtHostContext {
+	readonly internalExtensionService: IInternalExtensionService;
+	_setExtensionHostProxy(extensionHostProxy: IExtensionHostProxy): void;
+	_setAllMainProxyIdentifiers(mainProxyIdentifiers: ProxyIdentifier<any>[]): void;
+}
 
 export type IExtHostNamedCustomer<T extends IDisposable> = [ProxyIdentifier<T>, IExtHostCustomerCtor<T>];
 

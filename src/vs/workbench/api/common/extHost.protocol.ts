@@ -34,15 +34,14 @@ import { ILoggerOptions, LogLevel } from 'vs/platform/log/common/log';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import * as quickInput from 'vs/platform/quickinput/common/quickInput';
-import { IRemoteConnectionData, RemoteAuthorityResolverErrorCode, ResolverResult, TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteConnectionData, TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryInfo, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ICreateContributedTerminalProfileOptions, IProcessProperty, IShellLaunchConfigDto, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IExtensionIdWithVersion } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
-import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
@@ -57,88 +56,31 @@ import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
-import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ISerializedTestResults, ITestItem, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, RunTestForControllerRequest, SerializedTestMessage, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { InternalTimelineOptions, Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { ActivationKind, ExtensionHostKind, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationKind, ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { createProxyIdentifier, Dto, IRPCProtocol, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ILanguageStatus } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import * as search from 'vs/workbench/services/search/common/search';
 import { IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
 import { ILineChange } from 'vs/editor/common/diff/diffComputer';
-
-export interface IEnvironment {
-	isExtensionDevelopmentDebug: boolean;
-	appName: string;
-	appHost: string;
-	appRoot?: URI;
-	appLanguage: string;
-	appUriScheme: string;
-	extensionDevelopmentLocationURI?: URI[];
-	extensionTestsLocationURI?: URI;
-	globalStorageHome: URI;
-	workspaceStorageHome: URI;
-	useHostProxy?: boolean;
-	skipWorkspaceStorageLock?: boolean;
-}
-
-export interface IStaticWorkspaceData {
-	id: string;
-	name: string;
-	transient?: boolean;
-	configuration?: UriComponents | null;
-	isUntitled?: boolean | null;
-}
+import { IStaticWorkspaceData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents, name: string, index: number; }[];
-}
-
-export interface MessagePortLike {
-	postMessage(message: any, transfer?: any[]): void;
-	addEventListener(type: 'message', listener: (e: any) => any): void;
-	removeEventListener(type: 'message', listener: (e: any) => any): void;
-	start(): void;
-}
-
-export interface IInitData {
-	version: string;
-	commit?: string;
-	parentPid: number;
-	environment: IEnvironment;
-	workspace?: IStaticWorkspaceData | null;
-	resolvedExtensions: ExtensionIdentifier[];
-	hostExtensions: ExtensionIdentifier[];
-	extensions: IExtensionDescription[];
-	telemetryInfo: ITelemetryInfo;
-	logLevel: LogLevel;
-	logsLocation: URI;
-	logFile: URI;
-	autoStart: boolean;
-	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null; };
-	uiKind: UIKind;
-	messagePorts?: ReadonlyMap<string, MessagePortLike>;
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
 	configurationScopes: [string, ConfigurationScope | undefined][];
 }
 
-export interface IExtHostContext extends IRPCProtocol {
-	readonly remoteAuthority: string | null;
-	readonly extensionHostKind: ExtensionHostKind;
-}
-
 export interface IMainContext extends IRPCProtocol {
-}
-
-export enum UIKind {
-	Desktop = 1,
-	Web = 2
 }
 
 // --- main thread
@@ -1372,22 +1314,6 @@ export interface ExtHostSearchShape {
 	$provideTextSearchResults(handle: number, session: number, query: search.IRawTextQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
 	$clearCache(cacheKey: string): Promise<void>;
 }
-
-export interface IResolveAuthorityErrorResult {
-	type: 'error';
-	error: {
-		message: string | undefined;
-		code: RemoteAuthorityResolverErrorCode;
-		detail: any;
-	};
-}
-
-export interface IResolveAuthorityOKResult {
-	type: 'ok';
-	value: ResolverResult;
-}
-
-export type IResolveAuthorityResult = IResolveAuthorityErrorResult | IResolveAuthorityOKResult;
 
 export interface ExtHostExtensionServiceShape {
 	$resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;

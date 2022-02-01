@@ -6,9 +6,8 @@
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter } from 'vs/base/common/event';
-import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/extensionHostMain';
+import { isMessageOfType, MessageType, createMessageOfType, IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { ExtensionHostMain } from 'vs/workbench/api/common/extensionHostMain';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { NestedWorker } from 'vs/workbench/services/extensions/worker/polyfillNestedWorker';
 import * as path from 'vs/base/common/path';
@@ -200,13 +199,13 @@ class ExtensionWorker {
 
 interface IRendererConnection {
 	protocol: IMessagePassingProtocol;
-	initData: IInitData;
+	initData: IExtensionHostInitData;
 }
 function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRendererConnection> {
 	return new Promise<IRendererConnection>(resolve => {
 		const once = protocol.onMessage(raw => {
 			once.dispose();
-			const initData = <IInitData>JSON.parse(raw.toString());
+			const initData = <IExtensionHostInitData>JSON.parse(raw.toString());
 			protocol.send(createMessageOfType(MessageType.Initialized));
 			resolve({ protocol, initData });
 		});

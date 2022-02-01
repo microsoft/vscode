@@ -43,7 +43,7 @@ export default class LanguageProvider extends Disposable {
 	private get documentSelector(): DocumentSelector {
 		const semantic: vscode.DocumentFilter[] = [];
 		const syntax: vscode.DocumentFilter[] = [];
-		for (const language of this.description.modeIds) {
+		for (const language of this.description.languageIds) {
 			syntax.push({ language });
 			for (const scheme of fileSchemes.semanticSupportedSchemes) {
 				semantic.push({ language, scheme });
@@ -60,9 +60,9 @@ export default class LanguageProvider extends Disposable {
 
 		await Promise.all([
 			import('./languageFeatures/callHierarchy').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/codeLens/implementationsCodeLens').then(provider => this._register(provider.register(selector, this.description.id, this.client, cachedResponse))),
-			import('./languageFeatures/codeLens/referencesCodeLens').then(provider => this._register(provider.register(selector, this.description.id, this.client, cachedResponse))),
-			import('./languageFeatures/completions').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager, this.telemetryReporter, this.onCompletionAccepted))),
+			import('./languageFeatures/codeLens/implementationsCodeLens').then(provider => this._register(provider.register(selector, this.description, this.client, cachedResponse))),
+			import('./languageFeatures/codeLens/referencesCodeLens').then(provider => this._register(provider.register(selector, this.description, this.client, cachedResponse))),
+			import('./languageFeatures/completions').then(provider => this._register(provider.register(selector, this.description, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager, this.telemetryReporter, this.onCompletionAccepted))),
 			import('./languageFeatures/definitions').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/directiveCommentCompletions').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/documentHighlight').then(provider => this._register(provider.register(selector, this.client))),
@@ -70,10 +70,10 @@ export default class LanguageProvider extends Disposable {
 			import('./languageFeatures/fileReferences').then(provider => this._register(provider.register(this.client, this.commandManager))),
 			import('./languageFeatures/fixAll').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.client.diagnosticsManager))),
 			import('./languageFeatures/folding').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/formatting').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.fileConfigurationManager))),
+			import('./languageFeatures/formatting').then(provider => this._register(provider.register(selector, this.description, this.client, this.fileConfigurationManager))),
 			import('./languageFeatures/hover').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager))),
 			import('./languageFeatures/implementations').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/jsDocCompletions').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.fileConfigurationManager))),
+			import('./languageFeatures/jsDocCompletions').then(provider => this._register(provider.register(selector, this.description, this.client, this.fileConfigurationManager))),
 			import('./languageFeatures/organizeImports').then(provider => this._register(provider.register(selector, this.client, this.commandManager, this.fileConfigurationManager, this.telemetryReporter))),
 			import('./languageFeatures/quickFix').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.client.diagnosticsManager, this.telemetryReporter))),
 			import('./languageFeatures/refactor').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.telemetryReporter))),
@@ -82,9 +82,9 @@ export default class LanguageProvider extends Disposable {
 			import('./languageFeatures/semanticTokens').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/signatureHelp').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/smartSelect').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/tagClosing').then(provider => this._register(provider.register(selector, this.description.id, this.client))),
+			import('./languageFeatures/tagClosing').then(provider => this._register(provider.register(selector, this.description, this.client))),
 			import('./languageFeatures/typeDefinitions').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/inlayHints').then(provider => this._register(provider.register(selector, this.description.id, this.description.modeIds, this.client, this.fileConfigurationManager))),
+			import('./languageFeatures/inlayHints').then(provider => this._register(provider.register(selector, this.description, this.client, this.fileConfigurationManager))),
 		]);
 	}
 
@@ -100,7 +100,7 @@ export default class LanguageProvider extends Disposable {
 	}
 
 	public handlesDocument(doc: vscode.TextDocument): boolean {
-		return this.description.modeIds.includes(doc.languageId) || this.handlesConfigFile(doc.uri);
+		return this.description.languageIds.includes(doc.languageId) || this.handlesConfigFile(doc.uri);
 	}
 
 	private handlesConfigFile(resource: vscode.Uri) {

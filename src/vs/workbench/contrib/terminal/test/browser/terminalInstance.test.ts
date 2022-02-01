@@ -10,7 +10,7 @@ import { IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspa
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { fixPath, getUri } from 'vs/workbench/contrib/search/test/browser/queryBuilder.test';
+import { fixPath, getUri } from 'vs/workbench/services/search/test/browser/queryBuilder.test';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -233,7 +233,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should resolve local', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${local}', description: '${local}' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { description: 'Local' } }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { type: 'Local' } }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			strictEqual(terminalLabelComputer.title, 'Local');
 			strictEqual(terminalLabelComputer.description, 'Local');
@@ -257,7 +257,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should resolve task', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${task}', description: '${task}' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { description: 'Task' } }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { type: 'Task' } }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			strictEqual(terminalLabelComputer.title, 'zsh ~ Task');
 			strictEqual(terminalLabelComputer.description, 'Task');
@@ -265,7 +265,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should resolve separator', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${separator}', description: '${separator}' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { description: 'Task' } }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { type: 'Task' } }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			strictEqual(terminalLabelComputer.title, 'zsh');
 			strictEqual(terminalLabelComputer.description, '');

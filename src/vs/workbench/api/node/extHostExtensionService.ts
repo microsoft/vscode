@@ -8,7 +8,7 @@ import { createApiFactoryAndRegisterActors } from 'vs/workbench/api/common/extHo
 import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
 import { MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { connectProxyResolver } from 'vs/workbench/services/extensions/node/proxyResolver';
+import { connectProxyResolver } from 'vs/workbench/api/node/proxyResolver';
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadService';
 import { URI } from 'vs/base/common/uri';

@@ -322,7 +322,6 @@
 					"vs/editor/~",
 					"vs/editor/contrib/*/~",
 					"vs/workbench/~",
-					"vs/workbench/api/~",
 					"vs/workbench/services/*/~",
 					{ "when": "test", "pattern": "vs/workbench/contrib/*/~" }, // TODO@layers
 					"tas-client-umd", // node module allowed even in /common/

@@ -13,6 +13,7 @@ import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import * as modes from 'vs/editor/common/languages';
 import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
 export interface TriggerContext {
 	readonly triggerKind: modes.SignatureHelpTriggerKind;
@@ -54,6 +55,7 @@ export class ParameterHintsModel extends Disposable {
 	public readonly onChangedHints = this._onChangedHints.event;
 
 	private readonly editor: ICodeEditor;
+	private readonly providers: LanguageFeatureRegistry<modes.SignatureHelpProvider>;
 	private triggerOnType = false;
 	private _state: ParameterHintState.State = ParameterHintState.Default;
 	private _pendingTriggers: TriggerContext[] = [];
@@ -66,11 +68,13 @@ export class ParameterHintsModel extends Disposable {
 
 	constructor(
 		editor: ICodeEditor,
+		providers: LanguageFeatureRegistry<modes.SignatureHelpProvider>,
 		delay: number = ParameterHintsModel.DEFAULT_DELAY
 	) {
 		super();
 
 		this.editor = editor;
+		this.providers = providers;
 
 		this.throttledDelayer = new Delayer(delay);
 
@@ -80,7 +84,7 @@ export class ParameterHintsModel extends Disposable {
 		this._register(this.editor.onDidChangeModelLanguage(_ => this.onModelChanged()));
 		this._register(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
 		this._register(this.editor.onDidChangeModelContent(e => this.onModelContentChange()));
-		this._register(modes.SignatureHelpProviderRegistry.onDidChange(this.onModelChanged, this));
+		this._register(this.providers.onDidChange(this.onModelChanged, this));
 		this._register(this.editor.onDidType(text => this.onDidType(text)));
 
 		this.onEditorConfigurationChange();
@@ -107,7 +111,7 @@ export class ParameterHintsModel extends Disposable {
 
 	trigger(context: TriggerContext, delay?: number): void {
 		const model = this.editor.getModel();
-		if (!model || !modes.SignatureHelpProviderRegistry.has(model)) {
+		if (!model || !this.providers.has(model)) {
 			return;
 		}
 
@@ -194,7 +198,7 @@ export class ParameterHintsModel extends Disposable {
 		const position = this.editor.getPosition();
 
 		this.state = new ParameterHintState.Pending(
-			createCancelablePromise(token => provideSignatureHelp(model, position, triggerContext, token)),
+			createCancelablePromise(token => provideSignatureHelp(this.providers, model, position, triggerContext, token)),
 			activeSignatureHelp);
 
 		try {
@@ -253,7 +257,7 @@ export class ParameterHintsModel extends Disposable {
 			return;
 		}
 
-		for (const support of modes.SignatureHelpProviderRegistry.ordered(model)) {
+		for (const support of this.providers.ordered(model)) {
 			for (const ch of support.signatureHelpTriggerCharacters || []) {
 				this.triggerChars.add(ch.charCodeAt(0));
 

@@ -11,7 +11,6 @@ import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensi
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
 import { getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 
@@ -152,6 +151,12 @@ export function checkProposedApiEnabled(extension: IExtensionDescription, propos
  * Extension id or one of the four known program states.
  */
 export type ProfileSegmentId = string | 'idle' | 'program' | 'gc' | 'self';
+
+export interface ExtensionActivationReason {
+	readonly startup: boolean;
+	readonly extensionId: ExtensionIdentifier;
+	readonly activationEvent: string;
+}
 
 export class ActivationTimes {
 	constructor(
@@ -307,25 +312,13 @@ export interface IExtensionService {
 	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
 	 */
 	_activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
-	/**
-	 * Please do not use!
-	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
-	 */
+}
+
+export interface IInternalExtensionService {
+	_activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
 	_onWillActivateExtension(extensionId: ExtensionIdentifier): void;
-	/**
-	 * Please do not use!
-	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
-	 */
 	_onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
-	/**
-	 * Please do not use!
-	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
-	 */
 	_onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void;
-	/**
-	 * Please do not use!
-	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
-	 */
 	_onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void;
 }
 
@@ -377,9 +370,4 @@ export class NullExtensionService implements IExtensionService {
 	canAddExtension(): boolean { return false; }
 	canRemoveExtension(): boolean { return false; }
 	_activateById(_extensionId: ExtensionIdentifier, _reason: ExtensionActivationReason): Promise<void> { return Promise.resolve(); }
-	_onWillActivateExtension(_extensionId: ExtensionIdentifier): void { }
-	_onDidActivateExtension(_extensionId: ExtensionIdentifier, _codeLoadingTime: number, _activateCallTime: number, _activateResolvedTime: number, _activationReason: ExtensionActivationReason): void { }
-	_onDidActivateExtensionError(_extensionId: ExtensionIdentifier, _error: Error): void { }
-	_onExtensionRuntimeError(_extensionId: ExtensionIdentifier, _err: Error): void { }
-	_onExtensionHostExit(code: number): void { }
 }

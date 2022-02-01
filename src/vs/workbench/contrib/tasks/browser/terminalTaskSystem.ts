@@ -1035,7 +1035,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		let needsFolderQualification = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		let terminalName = this.createTerminalName(task);
-		const description = nls.localize('TerminalTaskSystem.terminalDescription', 'Task');
+		const type = 'Task';
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
 			let os: Platform.OperatingSystem;
@@ -1052,7 +1052,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			});
 			shellLaunchConfig = {
 				name: terminalName,
-				description,
+				type,
 				executable: defaultProfile.path,
 				args: defaultProfile.args,
 				icon: defaultProfile.icon,
@@ -1147,7 +1147,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			// When we have a process task there is no need to quote arguments. So we go ahead and take the string value.
 			shellLaunchConfig = {
 				name: terminalName,
-				description,
+				type,
 				executable: executable,
 				args: args.map(a => Types.isString(a) ? a : a.value),
 				waitOnExit

@@ -9,7 +9,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { Range } from 'vs/editor/common/core/range';
-import { CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry } from 'vs/editor/common/languages';
+import { CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextModel';
@@ -33,6 +33,8 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { minimizeInlineCompletion } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { rangeStartsWith } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 suite('Suggest Widget Model', () => {
 	test('rangeStartsWith', () => {
@@ -172,7 +174,9 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			);
 
 			if (options.provider) {
-				const d = CompletionProviderRegistry.register({ pattern: '**' }, options.provider);
+				const languageFeaturesService = new LanguageFeaturesService();
+				serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
+				const d = languageFeaturesService.completionProvider.register({ pattern: '**' }, options.provider);
 				disposableStore.add(d);
 			}
 

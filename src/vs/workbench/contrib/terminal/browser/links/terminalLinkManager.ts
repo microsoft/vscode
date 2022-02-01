@@ -29,7 +29,7 @@ import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/termin
 import { TerminalExternalLinkProviderAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkProviderAdapter';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { EventType } from 'vs/base/browser/dom';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
@@ -94,6 +94,10 @@ export class TerminalLinkManager extends DisposableStore {
 				});
 			this._standardLinkProviders.set(TerminalValidatedLocalLinkProvider.id, validatedProvider);
 		}
+
+		this._capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(cwd => {
+			this.processCwd = cwd;
+		});
 
 		// Word links
 		const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xtermTerminal, this._capabilities, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));

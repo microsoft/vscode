@@ -9,6 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as modes from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -32,10 +33,11 @@ export class CodeActionDocumentationContribution extends Disposable implements I
 	constructor(
 		extensionPoint: IExtensionPoint<DocumentationExtensionPoint>,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
-		this._register(modes.CodeActionProviderRegistry.register('*', this));
+		this._register(languageFeaturesService.codeActionProvider.register('*', this));
 
 		extensionPoint.setHandler(points => {
 			this.contributions = [];
