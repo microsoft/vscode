@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareBy, findLastMaxBy, findMinBy } from 'vs/base/common/arrays';
-import { CursorContext, CursorState, PartialCursorState } from 'vs/editor/common/cursorCommon';
+import { CursorState, PartialCursorState } from 'vs/editor/common/cursorCommon';
+import { CursorContext } from 'vs/editor/common/cursor/cursorContext';
 import { Cursor } from 'vs/editor/common/cursor/oneCursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
