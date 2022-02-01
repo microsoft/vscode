@@ -40,6 +40,11 @@ export interface ITerminalSimpleLink {
 	uri?: URI
 
 	/**
+	 * A hover label to override the default for the type.
+	 */
+	label?: string;
+
+	/**
 	 * The buffer range of the link.
 	 */
 	readonly bufferRange: IBufferRange;

@@ -99,7 +99,7 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 				modifierUpCallback
 			}),
 			l.type !== TerminalBuiltinLinkType.Search, // Only search is low confidence
-			this._getLabel(l.type)
+			l.label || this._getLabel(l.type)
 		);
 	}
 
@@ -109,9 +109,8 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			case TerminalBuiltinLinkType.LocalFile: return localize('openFile', 'Open file in editor');
 			case TerminalBuiltinLinkType.LocalFolderInWorkspace: return localize('focusFolder', 'Focus folder in explorer');
 			case TerminalBuiltinLinkType.LocalFolderOutsideWorkspace: return localize('openFolder', 'Open folder in new window');
-			case TerminalBuiltinLinkType.Url: return localize('followLink', 'Follow link');
+			case TerminalBuiltinLinkType.Url:
 			default:
-				// TODO: Fix extension type labels
 				return localize('followLink', 'Follow link');
 		}
 	}

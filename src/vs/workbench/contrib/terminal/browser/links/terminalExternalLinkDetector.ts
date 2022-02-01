@@ -47,6 +47,7 @@ export class TerminalExternalLinkDetector implements ITerminalLinkDetector {
 
 			const l = {
 				text: matchingText,
+				label: link.label,
 				bufferRange,
 				type: { id: 'extension' }
 			};
