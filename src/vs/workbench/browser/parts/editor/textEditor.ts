@@ -27,9 +27,9 @@ import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ILogService } from 'vs/platform/log/common/log';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { isEqual } from 'vs/base/common/resources';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { env } from 'vs/base/common/process';
 
 export interface IEditorConfiguration {
@@ -264,7 +264,9 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 
 			// TODO@bpasero logging for https://github.com/microsoft/vscode/issues/141054
 			if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
-				onUnexpectedError('TextEditor: applying options ' + JSON.stringify(editorSettingsToApply));
+				this.instantiationService.invokeFunction(accessor => {
+					accessor.get(ILogService).info('TextEditor: applying options ' + JSON.stringify(editorSettingsToApply));
+				});
 			}
 			this.editorControl.updateOptions(editorSettingsToApply);
 		}

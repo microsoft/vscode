@@ -649,8 +649,15 @@ export interface IEditorOptions {
 	*/
 	guides?: IGuidesOptions;
 
+	/**
+	 * Controls the behavior of the unicode highlight feature
+	 * (by default, ambiguous and invisible characters are highlighted).
+	 */
 	unicodeHighlight?: IUnicodeHighlightOptions;
 
+	/**
+	 * Configures bracket pair colorization (disabled by default).
+	*/
 	bracketPairColorization?: IBracketPairColorizationOptions;
 }
 
@@ -3296,16 +3303,40 @@ export const inUntrustedWorkspace: InUntrustedWorkspace = 'inUntrustedWorkspace'
  * Configuration options for unicode highlighting.
  */
 export interface IUnicodeHighlightOptions {
+
+	/**
+	 * Controls whether all non-basic ASCII characters are highlighted. Only characters between U+0020 and U+007E, tab, line-feed and carriage-return are considered basic ASCII.
+	 */
 	nonBasicASCII?: boolean | InUntrustedWorkspace;
+
+	/**
+	 * Controls whether characters that just reserve space or have no width at all are highlighted.
+	 */
 	invisibleCharacters?: boolean;
+
+	/**
+	 * Controls whether characters are highlighted that can be confused with basic ASCII characters, except those that are common in the current user locale.
+	 */
 	ambiguousCharacters?: boolean;
+
+	/**
+	 * Controls whether characters in comments should also be subject to unicode highlighting.
+	 */
 	includeComments?: boolean | InUntrustedWorkspace;
+
+	/**
+	 * Controls whether characters in strings should also be subject to unicode highlighting.
+	 */
 	includeStrings?: boolean | InUntrustedWorkspace;
 
 	/**
-	 * A map of allowed characters (true: allowed).
-	*/
+	 * Defines allowed characters that are not being highlighted.
+	 */
 	allowedCharacters?: Record<string, true>;
+
+	/**
+	 * Unicode characters that are common in allowed locales are not being highlighted.
+	 */
 	allowedLocales?: Record<string | '_os' | '_vscode', true>;
 }
 
