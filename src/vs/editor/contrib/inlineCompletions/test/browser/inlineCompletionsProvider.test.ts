@@ -9,13 +9,16 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
-import { InlineCompletionsProvider, InlineCompletionsProviderRegistry, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
+import { InlineCompletionsProvider, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextModel';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/browser/utils';
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { inlineCompletionToGhostText } from '../../browser/inlineCompletionToGhostText';
 
 suite('Inline Completions', () => {
@@ -545,9 +548,15 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 	}, async () => {
 		const disposableStore = new DisposableStore();
 
+
 		try {
 			if (options.provider) {
-				const d = InlineCompletionsProviderRegistry.register({ pattern: '**' }, options.provider);
+				const languageFeaturesService = new LanguageFeaturesService();
+				if (!options.serviceCollection) {
+					options.serviceCollection = new ServiceCollection();
+				}
+				options.serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
+				const d = languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, options.provider);
 				disposableStore.add(d);
 			}
 

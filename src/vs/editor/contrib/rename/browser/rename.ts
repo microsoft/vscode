@@ -21,7 +21,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
-import { Rejection, RenameLocation, RenameProvider, RenameProviderRegistry, WorkspaceEdit } from 'vs/editor/common/languages';
+import { Rejection, RenameLocation, RenameProvider, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import * as nls from 'vs/nls';
@@ -34,6 +34,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CONTEXT_RENAME_INPUT_VISIBLE, RenameInputField } from './renameInputField';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 class RenameSkeleton {
 
@@ -42,9 +44,10 @@ class RenameSkeleton {
 
 	constructor(
 		private readonly model: ITextModel,
-		private readonly position: Position
+		private readonly position: Position,
+		registry: LanguageFeatureRegistry<RenameProvider>
 	) {
-		this._providers = RenameProviderRegistry.ordered(model);
+		this._providers = registry.ordered(model);
 	}
 
 	hasProvider() {
@@ -109,8 +112,8 @@ class RenameSkeleton {
 	}
 }
 
-export async function rename(model: ITextModel, position: Position, newName: string): Promise<WorkspaceEdit & Rejection> {
-	const skeleton = new RenameSkeleton(model, position);
+export async function rename(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel, position: Position, newName: string): Promise<WorkspaceEdit & Rejection> {
+	const skeleton = new RenameSkeleton(model, position, registry);
 	const loc = await skeleton.resolveRenameLocation(CancellationToken.None);
 	if (loc?.rejectReason) {
 		return { edits: [], rejectReason: loc.rejectReason };
@@ -140,6 +143,7 @@ class RenameController implements IEditorContribution {
 		@IEditorProgressService private readonly _progressService: IEditorProgressService,
 		@ILogService private readonly _logService: ILogService,
 		@ITextResourceConfigurationService private readonly _configService: ITextResourceConfigurationService,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) {
 		this._renameInputField = this._dispoableStore.add(new IdleValue(() => this._dispoableStore.add(this._instaService.createInstance(RenameInputField, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']))));
 	}
@@ -158,7 +162,7 @@ class RenameController implements IEditorContribution {
 		}
 
 		const position = this.editor.getPosition();
-		const skeleton = new RenameSkeleton(this.editor.getModel(), position);
+		const skeleton = new RenameSkeleton(this.editor.getModel(), position, this._languageFeaturesService.renameProvider);
 
 		if (!skeleton.hasProvider()) {
 			return undefined;
@@ -354,14 +358,16 @@ registerEditorCommand(new RenameCommand({
 
 // ---- api bridge command
 
-registerModelAndPositionCommand('_executeDocumentRenameProvider', function (model, position, ...args) {
+registerModelAndPositionCommand('_executeDocumentRenameProvider', function (accessor, model, position, ...args) {
 	const [newName] = args;
 	assertType(typeof newName === 'string');
-	return rename(model, position, newName);
+	const { renameProvider } = accessor.get(ILanguageFeaturesService);
+	return rename(renameProvider, model, position, newName);
 });
 
-registerModelAndPositionCommand('_executePrepareRename', async function (model, position) {
-	const skeleton = new RenameSkeleton(model, position);
+registerModelAndPositionCommand('_executePrepareRename', async function (accessor, model, position) {
+	const { renameProvider } = accessor.get(ILanguageFeaturesService);
+	const skeleton = new RenameSkeleton(model, position, renameProvider);
 	const loc = await skeleton.resolveRenameLocation(CancellationToken.None);
 	if (loc?.rejectReason) {
 		throw new Error(loc.rejectReason);

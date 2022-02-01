@@ -17,6 +17,8 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './types';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export const codeActionCommandId = 'editor.action.codeAction';
 export const refactorCommandId = 'editor.action.refactor';
@@ -100,6 +102,7 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 const emptyCodeActionsResponse = { actions: [] as CodeActionItem[], documentation: undefined };
 
 export function getCodeActions(
+	registry: LanguageFeatureRegistry<modes.CodeActionProvider>,
 	model: ITextModel,
 	rangeOrSelection: Range | Selection,
 	trigger: CodeActionTrigger,
@@ -114,7 +117,7 @@ export function getCodeActions(
 	};
 
 	const cts = new TextModelCancellationTokenSource(model, token);
-	const providers = getCodeActionProviders(model, filter);
+	const providers = getCodeActionProviders(registry, model, filter);
 
 	const disposables = new DisposableStore();
 	const promises = providers.map(async provider => {
@@ -144,8 +147,8 @@ export function getCodeActions(
 		}
 	});
 
-	const listener = modes.CodeActionProviderRegistry.onDidChange(() => {
-		const newProviders = modes.CodeActionProviderRegistry.all(model);
+	const listener = registry.onDidChange(() => {
+		const newProviders = registry.all(model);
 		if (!equals(newProviders, providers)) {
 			cts.cancel();
 		}
@@ -163,10 +166,11 @@ export function getCodeActions(
 }
 
 function getCodeActionProviders(
+	registry: LanguageFeatureRegistry<modes.CodeActionProvider>,
 	model: ITextModel,
 	filter: CodeActionFilter
 ) {
-	return modes.CodeActionProviderRegistry.all(model)
+	return registry.all(model)
 		// Don't include providers that we know will not return code actions of interest
 		.filter(provider => {
 			if (!provider.providedCodeActionKinds) {
@@ -228,6 +232,7 @@ CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (a
 		throw illegalArgument();
 	}
 
+	const { codeActionProvider } = accessor.get(ILanguageFeaturesService);
 	const model = accessor.get(IModelService).getModel(resource);
 	if (!model) {
 		throw illegalArgument();
@@ -245,6 +250,7 @@ CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (a
 
 	const include = typeof kind === 'string' ? new CodeActionKind(kind) : undefined;
 	const codeActionSet = await getCodeActions(
+		codeActionProvider,
 		model,
 		validatedRangeOrSelection,
 		{ type: modes.CodeActionTriggerType.Invoke, filter: { includeSourceActions: true, include } },

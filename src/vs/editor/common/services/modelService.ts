@@ -14,7 +14,7 @@ import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, ITextBuffer, 
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits } from 'vs/editor/common/languages';
+import { DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits } from 'vs/editor/common/languages';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService, DocumentTokensProvider } from 'vs/editor/common/services/model';
@@ -34,6 +34,8 @@ import { equals } from 'vs/base/common/objects';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
 export interface IEditorSemanticHighlightingOptions {
 	enabled: true | false | 'configuredByTheme';
@@ -166,7 +168,8 @@ export class ModelService extends Disposable implements IModelService {
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
-		@ILanguageFeatureDebounceService private readonly _languageFeatureDebounceService: ILanguageFeatureDebounceService
+		@ILanguageFeatureDebounceService private readonly _languageFeatureDebounceService: ILanguageFeatureDebounceService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
@@ -178,7 +181,7 @@ export class ModelService extends Disposable implements IModelService {
 		this._register(this._configurationService.onDidChangeConfiguration(() => this._updateModelOptions()));
 		this._updateModelOptions();
 
-		this._register(new SemanticColoringFeature(this._semanticStyling, this, this._themeService, this._configurationService, this._languageFeatureDebounceService));
+		this._register(new SemanticColoringFeature(this._semanticStyling, this, this._themeService, this._configurationService, this._languageFeatureDebounceService, languageFeaturesService));
 	}
 
 	private static _readModelOptions(config: IRawConfig, isForSimpleWidget: boolean): ITextModelCreationOptions {
@@ -660,14 +663,15 @@ class SemanticColoringFeature extends Disposable {
 		@IModelService modelService: IModelService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService
+		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 		this._watchers = Object.create(null);
 		this._semanticStyling = semanticStyling;
 
 		const register = (model: ITextModel) => {
-			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, this._semanticStyling, themeService, languageFeatureDebounceService);
+			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, this._semanticStyling, themeService, languageFeatureDebounceService, languageFeaturesService);
 		};
 		const deregister = (model: ITextModel, modelSemanticColoring: ModelSemanticColoring) => {
 			modelSemanticColoring.dispose();
@@ -751,6 +755,7 @@ export class ModelSemanticColoring extends Disposable {
 	private _isDisposed: boolean;
 	private readonly _model: ITextModel;
 	private readonly _semanticStyling: SemanticStyling;
+	private readonly _provider: LanguageFeatureRegistry<DocumentSemanticTokensProvider>;
 	private readonly _debounceInformation: IFeatureDebounceInformation;
 	private readonly _fetchDocumentSemanticTokens: RunOnceScheduler;
 	private _currentDocumentResponse: SemanticTokensResponse | null;
@@ -761,14 +766,16 @@ export class ModelSemanticColoring extends Disposable {
 		model: ITextModel,
 		stylingProvider: SemanticStyling,
 		@IThemeService themeService: IThemeService,
-		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService
+		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
 		this._isDisposed = false;
 		this._model = model;
 		this._semanticStyling = stylingProvider;
-		this._debounceInformation = languageFeatureDebounceService.for(DocumentSemanticTokensProviderRegistry, 'DocumentSemanticTokens', { min: ModelSemanticColoring.REQUEST_MIN_DELAY, max: ModelSemanticColoring.REQUEST_MAX_DELAY });
+		this._provider = languageFeaturesService.documentSemanticTokensProvider;
+		this._debounceInformation = languageFeatureDebounceService.for(this._provider, 'DocumentSemanticTokens', { min: ModelSemanticColoring.REQUEST_MIN_DELAY, max: ModelSemanticColoring.REQUEST_MAX_DELAY });
 		this._fetchDocumentSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchDocumentSemanticTokensNow(), ModelSemanticColoring.REQUEST_MIN_DELAY));
 		this._currentDocumentResponse = null;
 		this._currentDocumentRequestCancellationTokenSource = null;
@@ -796,14 +803,14 @@ export class ModelSemanticColoring extends Disposable {
 		const bindDocumentChangeListeners = () => {
 			dispose(this._documentProvidersChangeListeners);
 			this._documentProvidersChangeListeners = [];
-			for (const provider of DocumentSemanticTokensProviderRegistry.all(model)) {
+			for (const provider of this._provider.all(model)) {
 				if (typeof provider.onDidChange === 'function') {
 					this._documentProvidersChangeListeners.push(provider.onDidChange(() => this._fetchDocumentSemanticTokens.schedule(0)));
 				}
 			}
 		};
 		bindDocumentChangeListeners();
-		this._register(DocumentSemanticTokensProviderRegistry.onDidChange(() => {
+		this._register(this._provider.onDidChange(() => {
 			bindDocumentChangeListeners();
 			this._fetchDocumentSemanticTokens.schedule(this._debounceInformation.get(this._model));
 		}));
@@ -838,7 +845,7 @@ export class ModelSemanticColoring extends Disposable {
 			return;
 		}
 
-		if (!hasDocumentSemanticTokensProvider(this._model)) {
+		if (!hasDocumentSemanticTokensProvider(this._provider, this._model)) {
 			// there is no provider
 			if (this._currentDocumentResponse) {
 				// there are semantic tokens set
@@ -850,7 +857,7 @@ export class ModelSemanticColoring extends Disposable {
 		const cancellationTokenSource = new CancellationTokenSource();
 		const lastProvider = this._currentDocumentResponse ? this._currentDocumentResponse.provider : null;
 		const lastResultId = this._currentDocumentResponse ? this._currentDocumentResponse.resultId || null : null;
-		const request = getDocumentSemanticTokens(this._model, lastProvider, lastResultId, cancellationTokenSource.token);
+		const request = getDocumentSemanticTokens(this._provider, this._model, lastProvider, lastResultId, cancellationTokenSource.token);
 		this._currentDocumentRequestCancellationTokenSource = cancellationTokenSource;
 
 		const pendingChanges: IModelContentChangedEvent[] = [];
