@@ -43,7 +43,7 @@ export default class LanguageProvider extends Disposable {
 	private get documentSelector(): DocumentSelector {
 		const semantic: vscode.DocumentFilter[] = [];
 		const syntax: vscode.DocumentFilter[] = [];
-		for (const language of this.description.modeIds) {
+		for (const language of this.description.languageIds) {
 			syntax.push({ language });
 			for (const scheme of fileSchemes.semanticSupportedSchemes) {
 				semantic.push({ language, scheme });
@@ -84,7 +84,7 @@ export default class LanguageProvider extends Disposable {
 			import('./languageFeatures/smartSelect').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/tagClosing').then(provider => this._register(provider.register(selector, this.description.id, this.client))),
 			import('./languageFeatures/typeDefinitions').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/inlayHints').then(provider => this._register(provider.register(selector, this.description.id, this.description.modeIds, this.client, this.fileConfigurationManager))),
+			import('./languageFeatures/inlayHints').then(provider => this._register(provider.register(selector, this.description.id, this.description.languageIds, this.client, this.fileConfigurationManager))),
 		]);
 	}
 
@@ -100,7 +100,7 @@ export default class LanguageProvider extends Disposable {
 	}
 
 	public handlesDocument(doc: vscode.TextDocument): boolean {
-		return this.description.modeIds.includes(doc.languageId) || this.handlesConfigFile(doc.uri);
+		return this.description.languageIds.includes(doc.languageId) || this.handlesConfigFile(doc.uri);
 	}
 
 	private handlesConfigFile(resource: vscode.Uri) {

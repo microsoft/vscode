@@ -56,7 +56,7 @@ export function lazilyActivateClient(
 	const disposables: vscode.Disposable[] = [];
 
 	const supportedLanguage = flatten([
-		...standardLanguageDescriptions.map(x => x.modeIds),
+		...standardLanguageDescriptions.map(x => x.languageIds),
 		...pluginManager.plugins.map(x => x.languages)
 	]);
 

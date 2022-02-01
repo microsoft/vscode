@@ -9,7 +9,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { Disposable } from '../utils/dispose';
 import * as fileSchemes from '../utils/fileSchemes';
-import { isTypeScriptDocument } from '../utils/languageModeIds';
+import { isTypeScriptDocument } from '../utils/languageIds';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
 
