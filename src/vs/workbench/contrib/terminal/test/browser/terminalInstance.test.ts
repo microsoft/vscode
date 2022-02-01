@@ -233,7 +233,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should resolve local', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${local}', description: '${local}' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { description: 'Local' } }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { type: 'Local' } }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			strictEqual(terminalLabelComputer.title, 'Local');
 			strictEqual(terminalLabelComputer.description, 'Local');
@@ -257,7 +257,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should resolve task', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${task}', description: '${task}' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { description: 'Task' } }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { type: 'Task' } }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			strictEqual(terminalLabelComputer.title, 'zsh ~ Task');
 			strictEqual(terminalLabelComputer.description, 'Task');
@@ -265,7 +265,7 @@ suite('Workbench - TerminalInstance', () => {
 		test('should resolve separator', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${separator}', description: '${separator}' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { description: 'Task' } }), mockContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { type: 'Task' } }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			strictEqual(terminalLabelComputer.title, 'zsh');
 			strictEqual(terminalLabelComputer.description, '');

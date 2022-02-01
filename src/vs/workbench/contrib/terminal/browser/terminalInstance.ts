@@ -283,7 +283,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get workspaceFolder(): string | undefined { return this._workspaceFolder; }
 	get cwd(): string | undefined { return this._cwd; }
 	get initialCwd(): string | undefined { return this._initialCwd; }
-	get description(): string | undefined { return this._description || this.shellLaunchConfig.description; }
+	get description(): string | undefined { return this._description || (this.shellLaunchConfig.type === 'Task' ? nls.localize('terminalTypeTask', "Task") : nls.localize('terminalTypeLocal', "Local")); }
 	get userHome(): string | undefined { return this._userHome; }
 	// The onExit event is special in that it fires and is disposed after the terminal instance
 	// itself is disposed
@@ -2273,10 +2273,10 @@ export class TerminalLabelComputer extends Disposable {
 			cwd: this._instance.cwd || this._instance.initialCwd || '',
 			cwdFolder: '',
 			workspaceFolder: this._instance.workspaceFolder,
-			local: this._instance.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
+			local: this._instance.shellLaunchConfig.type === 'Local' ? this._instance.shellLaunchConfig.type : undefined,
 			process: this._instance.processName,
 			sequence: this._instance.sequence,
-			task: this._instance.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
+			task: this._instance.shellLaunchConfig.type === 'Task' ? this._instance.shellLaunchConfig.type : undefined,
 			fixedDimensions: this._instance.fixedCols
 				? (this._instance.fixedRows ? `\u2194${this._instance.fixedCols} \u2195${this._instance.fixedRows}` : `\u2194${this._instance.fixedCols}`)
 				: (this._instance.fixedRows ? `\u2195${this._instance.fixedRows}` : ''),
