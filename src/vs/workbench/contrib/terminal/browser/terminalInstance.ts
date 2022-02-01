@@ -2398,7 +2398,7 @@ export function parseExitResult(
 				}
 			}
 			message = nls.localize('launchFailed.errorMessage', "The terminal process failed to launch: {0}.", innerMessage);
-			code = null;
+			code = code ?? null;
 			break;
 		}
 	}
