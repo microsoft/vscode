@@ -17,7 +17,6 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWo
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -527,8 +526,9 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 	private getStatusbarEntry(trusted: boolean): IStatusbarEntry {
 		const text = workspaceTrustToString(trusted);
-		const backgroundColor = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_BACKGROUND);
-		const color = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_FOREGROUND);
+
+		const backgroundColor = { id: STATUS_BAR_PROMINENT_ITEM_BACKGROUND };
+		const color = { id: STATUS_BAR_PROMINENT_ITEM_FOREGROUND };
 
 		let ariaLabel = '';
 		let toolTip: IMarkdownString | string | undefined;
