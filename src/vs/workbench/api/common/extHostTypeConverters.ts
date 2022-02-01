@@ -26,8 +26,6 @@ import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from 'vs/
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { getPrivateApiFor, TestItemImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import { SaveReason } from 'vs/workbench/common/editor';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -551,7 +549,13 @@ export namespace TextEdit {
 }
 
 export namespace WorkspaceEdit {
-	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors, extHostNotebooks?: ExtHostNotebookController): extHostProtocol.IWorkspaceEditDto {
+
+	export interface IVersionInformationProvider {
+		getTextDocumentVersion(uri: URI): number | undefined
+		getNotebookDocumentVersion(uri: URI): number | undefined
+	}
+
+	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider): extHostProtocol.IWorkspaceEditDto {
 		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
@@ -571,12 +575,11 @@ export namespace WorkspaceEdit {
 
 				} else if (entry._type === types.FileEditType.Text) {
 					// text edits
-					const doc = documents?.getDocument(entry.uri);
 					result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{
 						_type: extHostProtocol.WorkspaceEditType.Text,
 						resource: entry.uri,
 						edit: TextEdit.from(entry.edit),
-						modelVersionId: doc?.version,
+						modelVersionId: versionInfo?.getTextDocumentVersion(entry.uri),
 						metadata: entry.metadata
 					});
 				} else if (entry._type === types.FileEditType.Cell) {
@@ -586,7 +589,7 @@ export namespace WorkspaceEdit {
 						resource: entry.uri,
 						edit: entry.edit,
 						notebookMetadata: entry.notebookMetadata,
-						notebookVersionId: extHostNotebooks?.getNotebookDocument(entry.uri, true)?.apiNotebook.version
+						notebookVersionId: versionInfo?.getNotebookDocumentVersion(entry.uri)
 					});
 
 				} else if (entry._type === types.FileEditType.CellReplace) {
@@ -594,7 +597,7 @@ export namespace WorkspaceEdit {
 						_type: extHostProtocol.WorkspaceEditType.Cell,
 						metadata: entry.metadata,
 						resource: entry.uri,
-						notebookVersionId: extHostNotebooks?.getNotebookDocument(entry.uri, true)?.apiNotebook.version,
+						notebookVersionId: versionInfo?.getNotebookDocumentVersion(entry.uri),
 						edit: {
 							editType: notebooks.CellEditType.Replace,
 							index: entry.index,
