@@ -406,10 +406,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private async navigate(): Promise<void> {
 		this.navigatingInEditorStack = true;
 
-		const navigateToStackEntry = this.editorNavigationStack[this.editorNavigationStackIndex];
-
 		try {
-			await this.doNavigate(navigateToStackEntry);
+			await this.doNavigate(this.editorNavigationStack[this.editorNavigationStackIndex]);
 		} finally {
 			this.navigatingInEditorStack = false;
 		}
@@ -519,12 +517,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Overwrite an entry in the stack if we have a matching input that comes
 		// with editor options to indicate that this entry is more specific. Also
-		// prevent entries that have the exact same options. Finally, Overwrite
+		// prevent entries that have the exact same options. Finally, overwrite
 		// entries if we detect that the change came in very fast which indicates
 		// that it was not coming in from a user change but rather rapid programmatic
 		// changes. We just take the last of the changes to not cause too many entries
 		// on the stack.
 		// We can also be instructed to force replace the last entry.
+
 		let replace = false;
 		const currentEntry = this.editorNavigationStack[this.editorNavigationStackIndex];
 		if (currentEntry) {
