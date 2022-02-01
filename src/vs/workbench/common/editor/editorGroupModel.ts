@@ -139,7 +139,7 @@ export interface IGroupEditorCloseEvent extends IGroupEditorChangeEvent {
 	/**
 	 * Signifies the context in which the editor
 	 * is being closed. This allows for understanding
-	 * if a replace or reopen is occuring
+	 * if a replace or reopen is occurring
 	 */
 	readonly context: EditorCloseContext;
 
