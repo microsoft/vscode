@@ -1542,7 +1542,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			DOMLineBreaksComputerFactory.create(),
 			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
 			(callback) => dom.scheduleAtNextAnimationFrame(callback),
-			this.languageConfigurationService
+			this.languageConfigurationService,
+			this._themeService
 		);
 
 		listenersToRemove.push(model.onDidChangeDecorations((e) => this._onDidChangeModelDecorations.fire(e)));
@@ -1706,7 +1707,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const view = new View(
 			commandDelegate,
 			this._configuration,
-			this._themeService,
+			this._themeService.getColorTheme(),
 			viewModel,
 			viewUserInputEvents,
 			this._overflowWidgetsDomNode

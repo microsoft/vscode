@@ -38,6 +38,7 @@ import { ICoordinatesConverter, IViewModel, MinimapLinesRenderingData, OverviewR
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { FocusChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from 'vs/editor/common/viewModelEventDispatcher';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -68,7 +69,8 @@ export class ViewModel extends Disposable implements IViewModel {
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable,
-		private readonly languageConfigurationService: ILanguageConfigurationService
+		private readonly languageConfigurationService: ILanguageConfigurationService,
+		private readonly _themeService: IThemeService,
 	) {
 		super();
 
@@ -147,6 +149,10 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewTokensColorsChangedEvent());
 		}));
 
+		this._register(this._themeService.onDidColorThemeChange((theme) => {
+			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewThemeChangedEvent(theme));
+		}));
+
 		this._updateConfigurationViewLineCountNow();
 	}
 
@@ -205,10 +211,6 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public onCompositionEnd(): void {
 		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewCompositionEndEvent());
-	}
-
-	public onDidColorThemeChange(): void {
-		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewThemeChangedEvent());
 	}
 
 	private _onConfigurationChanged(eventsCollector: ViewModelEventsCollector, e: ConfigurationChangedEvent): void {

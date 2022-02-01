@@ -47,7 +47,7 @@ import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import { IViewModel } from 'vs/editor/common/viewModel';
-import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
+import { getThemeTypeSelector, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 
@@ -92,7 +92,7 @@ export class View extends ViewEventHandler {
 	constructor(
 		commandDelegate: ICommandDelegate,
 		configuration: IEditorConfiguration,
-		themeService: IThemeService,
+		colorTheme: IColorTheme,
 		model: IViewModel,
 		userInputEvents: ViewUserInputEvents,
 		overflowWidgetsDomNode: HTMLElement | undefined
@@ -104,16 +104,10 @@ export class View extends ViewEventHandler {
 		const viewController = new ViewController(configuration, model, userInputEvents, commandDelegate);
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
-		this._context = new ViewContext(configuration, themeService.getColorTheme(), model);
+		this._context = new ViewContext(configuration, colorTheme, model);
 
 		// Ensure the view is the first event handler in order to update the layout
 		this._context.addEventHandler(this);
-
-		this._register(themeService.onDidColorThemeChange(theme => {
-			this._context.theme.update(theme);
-			this._context.viewModel.onDidColorThemeChange();
-			this.render(true, false);
-		}));
 
 		this._viewParts = [];
 
@@ -316,6 +310,7 @@ export class View extends ViewEventHandler {
 		return false;
 	}
 	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+		this._context.theme.update(e.theme);
 		this.domNode.setClassName(this._getEditorClassName());
 		return false;
 	}

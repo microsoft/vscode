@@ -41,7 +41,6 @@ export interface IViewModel extends ICursorSimpleModel {
 	setHasFocus(hasFocus: boolean): void;
 	onCompositionStart(): void;
 	onCompositionEnd(): void;
-	onDidColorThemeChange(): void;
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
