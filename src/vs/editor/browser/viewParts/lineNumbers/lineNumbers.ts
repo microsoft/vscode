@@ -10,7 +10,7 @@ import { RenderLineNumbersType, EditorOption } from 'vs/editor/common/config/edi
 import { Position } from 'vs/editor/common/core/position';
 import { editorActiveLineNumber, editorLineNumbers } from 'vs/editor/common/core/editorColorRegistry';
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 

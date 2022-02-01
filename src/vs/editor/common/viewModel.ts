@@ -13,7 +13,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IModelDecorationOptions, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from 'vs/editor/common/textModelGuides';
-import { EditorTheme } from 'vs/editor/common/viewContext';
+import { EditorTheme } from 'vs/editor/common/editorTheme';
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';

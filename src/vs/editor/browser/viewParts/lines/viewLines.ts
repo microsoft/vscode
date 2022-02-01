@@ -16,7 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IViewLines, LineVisibleRanges, VisibleRanges, HorizontalPosition, HorizontalRange } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { Viewport } from 'vs/editor/common/viewModel';

@@ -12,7 +12,8 @@ import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguratio
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { editorCursorForeground, editorOverviewRulerBorder, editorOverviewRulerBackground } from 'vs/editor/common/core/editorColorRegistry';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext, EditorTheme } from 'vs/editor/common/viewContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { EditorTheme } from 'vs/editor/common/editorTheme';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { OverviewRulerDecorationsGroup } from 'vs/editor/common/viewModel';

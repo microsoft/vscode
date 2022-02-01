@@ -27,7 +27,7 @@ import { ColorId, TokenizationRegistry } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { EditorTheme } from 'vs/editor/common/viewContext';
+import { EditorTheme } from 'vs/editor/common/editorTheme';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';

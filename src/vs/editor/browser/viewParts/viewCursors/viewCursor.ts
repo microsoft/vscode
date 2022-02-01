@@ -11,7 +11,7 @@ import { TextEditorCursorStyle, EditorOption } from 'vs/editor/common/config/edi
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 
