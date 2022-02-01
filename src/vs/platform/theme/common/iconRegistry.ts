@@ -133,8 +133,8 @@ class IconRegistry implements IIconRegistry {
 			icons: {
 				type: 'object',
 				properties: {
-					fontId: { type: 'string', description: localize('iconDefintion.fontId', 'The id of the font to use. If not set, the font that is defined first is used.') },
-					fontCharacter: { type: 'string', description: localize('iconDefintion.fontCharacter', 'The font character associated with the icon definition.') }
+					fontId: { type: 'string', description: localize('iconDefinition.fontId', 'The id of the font to use. If not set, the font that is defined first is used.') },
+					fontCharacter: { type: 'string', description: localize('iconDefinition.fontCharacter', 'The font character associated with the icon definition.') }
 				},
 				additionalProperties: false,
 				defaultSnippets: [{ body: { fontCharacter: '\\\\e030' } }]
