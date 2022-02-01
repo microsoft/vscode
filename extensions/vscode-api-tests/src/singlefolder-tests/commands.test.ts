@@ -119,9 +119,6 @@ suite('vscode API - commands', () => {
 		await commands.executeCommand('vscode.open', uri, ViewColumn.One);
 		assert.strictEqual(window.activeTextEditor?.viewColumn, ViewColumn.One);
 
-		await commands.executeCommand('vscode.open', uri.toString(), ViewColumn.Two); // call with string instead of URI
-		assert.strictEqual(window.activeTextEditor?.viewColumn, ViewColumn.Two);
-
 		let e1: Error | undefined = undefined;
 		try {
 			await commands.executeCommand('vscode.open');
@@ -137,6 +134,17 @@ suite('vscode API - commands', () => {
 			e2 = error;
 		}
 		assert.ok(e2);
+
+
+		// we support strings but only http/https. those we cannot test but we can
+		// enforce that other schemes are treated strict
+		try {
+			await commands.executeCommand('vscode.open', 'file:///some/path/not/http');
+			assert.fail('expecting exception');
+		} catch {
+			assert.ok(true);
+		}
+
 	});
 
 	test('api-command: vscode.open with untitled supports associated resource (#138925)', async function () {
