@@ -142,7 +142,7 @@ export class VSBuffer {
 		} else if (ArrayBuffer.isView(array)) {
 			this.buffer.set(new Uint8Array(array.buffer, array.byteOffset, array.byteLength), offset);
 		} else {
-			throw new Error(`Unkown argument 'array'`);
+			throw new Error(`Unknown argument 'array'`);
 		}
 	}
 

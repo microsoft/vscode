@@ -49,8 +49,8 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	protected _worker: IWorkerClient<ILocalFileSearchSimpleWorker> | null;
 	protected readonly _workerFactory: DefaultWorkerFactory;
 
-	private readonly _onDidRecieveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>, queryId: number }>();
-	readonly onDidRecieveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>, queryId: number }> = this._onDidRecieveTextSearchMatch.event;
+	private readonly _onDidReceiveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>, queryId: number }>();
+	readonly onDidReceiveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>, queryId: number }> = this._onDidReceiveTextSearchMatch.event;
 
 	private cache: { key: string, cache: ISearchComplete } | undefined;
 
@@ -65,7 +65,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	}
 
 	sendTextSearchMatch(match: IFileMatch<UriComponents>, queryId: number): void {
-		this._onDidRecieveTextSearchMatch.fire({ match, queryId });
+		this._onDidReceiveTextSearchMatch.fire({ match, queryId });
 	}
 
 	@memoize
@@ -102,7 +102,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 					results: result.results
 				});
 
-				queryDisposables.add(this.onDidRecieveTextSearchMatch(e => {
+				queryDisposables.add(this.onDidReceiveTextSearchMatch(e => {
 					if (e.queryId === queryId) {
 						onProgress?.(reviveMatch(e.match));
 					}
