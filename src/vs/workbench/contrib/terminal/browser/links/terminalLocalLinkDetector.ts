@@ -145,7 +145,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				if (link.match(/^(\.\.[\/\\])+/)) {
 					linkCandidates.push(link.replace(/^(\.\.[\/\\])+/, ''));
 				}
-				const linkStat = await this._validateLinkCandidates(linkCandidates);
+				linkStat = await this._validateLinkCandidates(linkCandidates);
 				if (this._enableCaching) {
 					cachedValidatedLinks.set(link, withUndefinedAsNull(linkStat));
 				}

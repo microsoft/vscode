@@ -7,6 +7,7 @@ import { deepStrictEqual } from 'assert';
 import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { URI } from 'vs/base/common/uri';
 import { IBufferLine } from 'xterm';
+import { Schemas } from 'vs/base/common/network';
 
 export async function assertLinkHelper(
 	text: string,
@@ -48,7 +49,7 @@ export async function assertLinkHelper(
 export async function resolveLinkForTest(link: string, uri?: URI): Promise<{ uri: URI, link: string, isDirectory: boolean } | undefined> {
 	return {
 		link,
-		uri: uri || URI.parse(link),
+		uri: URI.from({ scheme: Schemas.file, path: link }),
 		isDirectory: false,
 	};
 }
