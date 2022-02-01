@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
-import { Condition, conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
 import { DocumentSelector } from '../utils/documentSelector';
 import { Position } from '../utils/typeConverters';
@@ -31,7 +31,7 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 	public readonly onDidChangeInlayHints = this._onDidChangeInlayHints.event;
 
 	constructor(
-		modeId: string,
+		private readonly modeId: string,
 		languageIds: readonly string[],
 		private readonly client: ITypeScriptServiceClient,
 		private readonly fileConfigurationManager: FileConfigurationManager
@@ -59,6 +59,10 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 			return [];
 		}
 
+		if (!areInlayHintsEnabledForFile(this.modeId, model)) {
+			return [];
+		}
+
 		const start = model.offsetAt(range.start);
 		const length = model.offsetAt(range.end) - start;
 
@@ -82,7 +86,6 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 	}
 }
 
-
 function fromProtocolInlayHintKind(kind: Proto.InlayHintKind): vscode.InlayHintKind {
 	switch (kind) {
 		case 'Parameter': return vscode.InlayHintKind.Parameter;
@@ -92,24 +95,17 @@ function fromProtocolInlayHintKind(kind: Proto.InlayHintKind): vscode.InlayHintK
 	}
 }
 
-function requireInlayHintsConfiguration(
-	language: string
-) {
-	return new Condition(
-		() => {
-			const config = vscode.workspace.getConfiguration(language, null);
-			const preferences = getInlayHintsPreferences(config);
+function areInlayHintsEnabledForFile(modeId: string, document: vscode.TextDocument) {
+	const config = vscode.workspace.getConfiguration(modeId, document);
+	const preferences = getInlayHintsPreferences(config);
 
-			return preferences.includeInlayParameterNameHints === 'literals' ||
-				preferences.includeInlayParameterNameHints === 'all' ||
-				preferences.includeInlayEnumMemberValueHints ||
-				preferences.includeInlayFunctionLikeReturnTypeHints ||
-				preferences.includeInlayFunctionParameterTypeHints ||
-				preferences.includeInlayPropertyDeclarationTypeHints ||
-				preferences.includeInlayVariableTypeHints;
-		},
-		vscode.workspace.onDidChangeConfiguration
-	);
+	return preferences.includeInlayParameterNameHints === 'literals' ||
+		preferences.includeInlayParameterNameHints === 'all' ||
+		preferences.includeInlayEnumMemberValueHints ||
+		preferences.includeInlayFunctionLikeReturnTypeHints ||
+		preferences.includeInlayFunctionParameterTypeHints ||
+		preferences.includeInlayPropertyDeclarationTypeHints ||
+		preferences.includeInlayVariableTypeHints;
 }
 
 export function register(
@@ -120,7 +116,6 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager
 ) {
 	return conditionalRegistration([
-		requireInlayHintsConfiguration(modeId),
 		requireMinVersion(client, TypeScriptInlayHintsProvider.minVersion),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
