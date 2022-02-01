@@ -17,6 +17,7 @@ import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
 import { localize } from 'vs/nls';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { SnippetSession } from './snippetSession';
@@ -64,6 +65,7 @@ export class SnippetController2 implements IEditorContribution {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
@@ -184,7 +186,7 @@ export class SnippetController2 implements IEditorContribution {
 
 			const [first] = choice.options;
 
-			showSimpleSuggestions(this._editor, choice.options.map((option, i) => {
+			this._instantiationService.invokeFunction(showSimpleSuggestions, this._editor, choice.options.map((option, i) => {
 
 				// let before = choice.options.slice(0, i);
 				// let after = choice.options.slice(i);

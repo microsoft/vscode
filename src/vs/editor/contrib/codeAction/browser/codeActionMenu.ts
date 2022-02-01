@@ -14,7 +14,8 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { CodeAction, CodeActionProviderRegistry, Command } from 'vs/editor/common/languages';
+import { CodeAction, Command } from 'vs/editor/common/languages';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/browser/types';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -60,6 +61,7 @@ export class CodeActionMenu extends Disposable {
 		private readonly _delegate: CodeActionWidgetDelegate,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
@@ -122,7 +124,7 @@ export class CodeActionMenu extends Disposable {
 
 		const model = this._editor.getModel();
 		if (model && result.length) {
-			for (const provider of CodeActionProviderRegistry.all(model)) {
+			for (const provider of this._languageFeaturesService.codeActionProvider.all(model)) {
 				if (provider._getAdditionalMenuItems) {
 					allDocumentation.push(...provider._getAdditionalMenuItems({ trigger: trigger.type, only: trigger.filter?.include?.value }, actionsToShow.map(item => item.action)));
 				}
@@ -231,5 +233,3 @@ export class CodeActionKeybindingResolver {
 			}, undefined as ResolveCodeActionKeybinding | undefined);
 	}
 }
-
-

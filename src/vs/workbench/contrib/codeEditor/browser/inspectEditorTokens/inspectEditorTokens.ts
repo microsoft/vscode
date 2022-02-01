@@ -16,7 +16,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { FontStyle, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens, ColorId, DocumentRangeSemanticTokensProviderRegistry } from 'vs/editor/common/languages';
+import { FontStyle, StandardTokenType, TokenMetadata, SemanticTokensLegend, SemanticTokens, ColorId } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -32,6 +32,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/common/services/modelService';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { Schemas } from 'vs/base/common/network';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const $ = dom.$;
 
@@ -49,6 +50,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 	private _languageService: ILanguageService;
 	private _notificationService: INotificationService;
 	private _configurationService: IConfigurationService;
+	private _languageFeaturesService: ILanguageFeaturesService;
 	private _widget: InspectEditorTokensWidget | null;
 
 	constructor(
@@ -57,7 +59,8 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 		@ILanguageService languageService: ILanguageService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@INotificationService notificationService: INotificationService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService
 	) {
 		super();
 		this._editor = editor;
@@ -66,6 +69,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 		this._languageService = languageService;
 		this._notificationService = notificationService;
 		this._configurationService = configurationService;
+		this._languageFeaturesService = languageFeaturesService;
 		this._widget = null;
 
 		this._register(this._editor.onDidChangeModel((e) => this.stop()));
@@ -89,7 +93,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 			// disable in notebooks
 			return;
 		}
-		this._widget = new InspectEditorTokensWidget(this._editor, this._textMateService, this._languageService, this._themeService, this._notificationService, this._configurationService);
+		this._widget = new InspectEditorTokensWidget(this._editor, this._textMateService, this._languageService, this._themeService, this._notificationService, this._configurationService, this._languageFeaturesService);
 	}
 
 	public stop(): void {
@@ -190,6 +194,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	private readonly _textMateService: ITextMateService;
 	private readonly _notificationService: INotificationService;
 	private readonly _configurationService: IConfigurationService;
+	private readonly _languageFeaturesService: ILanguageFeaturesService;
 	private readonly _model: ITextModel;
 	private readonly _domNode: HTMLElement;
 	private readonly _currentRequestCancellationTokenSource: CancellationTokenSource;
@@ -200,7 +205,8 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		languageService: ILanguageService,
 		themeService: IWorkbenchThemeService,
 		notificationService: INotificationService,
-		configurationService: IConfigurationService
+		configurationService: IConfigurationService,
+		languageFeaturesService: ILanguageFeaturesService
 	) {
 		super();
 		this._isDisposed = false;
@@ -210,6 +216,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		this._textMateService = textMateService;
 		this._notificationService = notificationService;
 		this._configurationService = configurationService;
+		this._languageFeaturesService = languageFeaturesService;
 		this._model = this._editor.getModel();
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'token-inspect-widget';
@@ -528,7 +535,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			return null;
 		}
 
-		const tokenProviders = DocumentSemanticTokensProviderRegistry.ordered(this._model);
+		const tokenProviders = this._languageFeaturesService.documentSemanticTokensProvider.ordered(this._model);
 		if (tokenProviders.length) {
 			const provider = tokenProviders[0];
 			const tokens = await Promise.resolve(provider.provideDocumentSemanticTokens(this._model, null, this._currentRequestCancellationTokenSource.token));
@@ -536,7 +543,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				return { tokens, legend: provider.getLegend() };
 			}
 		}
-		const rangeTokenProviders = DocumentRangeSemanticTokensProviderRegistry.ordered(this._model);
+		const rangeTokenProviders = this._languageFeaturesService.documentRangeSemanticTokensProvider.ordered(this._model);
 		if (rangeTokenProviders.length) {
 			const provider = rangeTokenProviders[0];
 			const lineNumber = position.lineNumber;

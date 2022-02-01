@@ -12,7 +12,8 @@ import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguratio
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { editorCursorForeground, editorOverviewRulerBorder, editorOverviewRulerBackground } from 'vs/editor/common/core/editorColorRegistry';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext, EditorTheme } from 'vs/editor/common/viewContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { EditorTheme } from 'vs/editor/common/editorTheme';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { OverviewRulerDecorationsGroup } from 'vs/editor/common/viewModel';
@@ -296,7 +297,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 	}
 	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		// invalidate color cache
-		this._context.model.invalidateOverviewRulerColorCache();
+		this._context.viewModel.invalidateOverviewRulerColorCache();
 		return this._updateSettings(false);
 	}
 
@@ -328,7 +329,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		const viewLayout = this._context.viewLayout;
 		const outerHeight = this._context.viewLayout.getScrollHeight();
 		const heightRatio = canvasHeight / outerHeight;
-		const decorations = this._context.model.getAllOverviewRulerDecorations(this._context.theme);
+		const decorations = this._context.viewModel.getAllOverviewRulerDecorations(this._context.theme);
 
 		const minDecorationHeight = (Constants.MIN_DECORATION_HEIGHT * this._settings.pixelRatio) | 0;
 		const halfMinDecorationHeight = (minDecorationHeight / 2) | 0;

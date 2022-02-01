@@ -12,10 +12,9 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetCon
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { Codicon } from 'vs/base/common/codicons';
-import { Event } from 'vs/base/common/event';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { pickSnippet } from 'vs/workbench/contrib/snippets/browser/snippetPicker';
 
 
 class Args {
@@ -87,7 +86,7 @@ class InsertSnippetAction extends EditorAction {
 		}
 
 		const clipboardService = accessor.get(IClipboardService);
-		const quickInputService = accessor.get(IQuickInputService);
+		const instaService = accessor.get(IInstantiationService);
 
 		const snippet = await new Promise<Snippet | undefined>((resolve, reject) => {
 
@@ -132,7 +131,7 @@ class InsertSnippetAction extends EditorAction {
 
 			} else {
 				// let user pick a snippet
-				resolve(this._pickSnippet(snippetService, quickInputService, languageId));
+				resolve(instaService.invokeFunction(pickSnippet, languageId));
 			}
 		});
 
@@ -144,81 +143,6 @@ class InsertSnippetAction extends EditorAction {
 			clipboardText = await clipboardService.readText();
 		}
 		SnippetController2.get(editor)?.insert(snippet.codeSnippet, { clipboardText });
-	}
-
-	private async _pickSnippet(snippetService: ISnippetsService, quickInputService: IQuickInputService, languageId: string): Promise<Snippet | undefined> {
-
-		interface ISnippetPick extends IQuickPickItem {
-			snippet: Snippet;
-		}
-
-		const snippets = (await snippetService.getSnippets(languageId, { includeDisabledSnippets: true, includeNoPrefixSnippets: true })).sort(Snippet.compare);
-
-		const makeSnippetPicks = () => {
-			const result: QuickPickInput<ISnippetPick>[] = [];
-			let prevSnippet: Snippet | undefined;
-			for (const snippet of snippets) {
-				const pick: ISnippetPick = {
-					label: snippet.prefix || snippet.name,
-					detail: snippet.description,
-					snippet
-				};
-				if (!prevSnippet || prevSnippet.snippetSource !== snippet.snippetSource || prevSnippet.source !== snippet.source) {
-					let label = '';
-					switch (snippet.snippetSource) {
-						case SnippetSource.User:
-							label = nls.localize('sep.userSnippet', "User Snippets");
-							break;
-						case SnippetSource.Extension:
-							label = snippet.source;
-							break;
-						case SnippetSource.Workspace:
-							label = nls.localize('sep.workspaceSnippet', "Workspace Snippets");
-							break;
-					}
-					result.push({ type: 'separator', label });
-				}
-
-				if (snippet.snippetSource === SnippetSource.Extension) {
-					const isEnabled = snippetService.isEnabled(snippet);
-					if (isEnabled) {
-						pick.buttons = [{
-							iconClass: Codicon.eyeClosed.classNames,
-							tooltip: nls.localize('disableSnippet', 'Hide from IntelliSense')
-						}];
-					} else {
-						pick.description = nls.localize('isDisabled', "(hidden from IntelliSense)");
-						pick.buttons = [{
-							iconClass: Codicon.eye.classNames,
-							tooltip: nls.localize('enable.snippet', 'Show in IntelliSense')
-						}];
-					}
-				}
-
-				result.push(pick);
-				prevSnippet = snippet;
-			}
-			return result;
-		};
-
-		const picker = quickInputService.createQuickPick<ISnippetPick>();
-		picker.placeholder = nls.localize('pick.placeholder', "Select a snippet");
-		picker.matchOnDetail = true;
-		picker.ignoreFocusOut = false;
-		picker.keepScrollPosition = true;
-		picker.onDidTriggerItemButton(ctx => {
-			const isEnabled = snippetService.isEnabled(ctx.item.snippet);
-			snippetService.updateEnablement(ctx.item.snippet, !isEnabled);
-			picker.items = makeSnippetPicks();
-		});
-		picker.items = makeSnippetPicks();
-		picker.show();
-
-		// wait for an item to be picked or the picker to become hidden
-		await Promise.race([Event.toPromise(picker.onDidAccept), Event.toPromise(picker.onDidHide)]);
-		const result = picker.selectedItems[0]?.snippet;
-		picker.dispose();
-		return result;
 	}
 }
 

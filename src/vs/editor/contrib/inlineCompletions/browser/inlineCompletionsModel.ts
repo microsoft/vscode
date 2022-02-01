@@ -16,7 +16,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionsProviderRegistry, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
+import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
 import { BaseGhostTextWidgetModel, GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
@@ -24,6 +24,8 @@ import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions
 import { inlineCompletionToGhostText, NormalizedInlineCompletion } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionToGhostText';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { fixBracketsInLine } from 'vs/editor/common/model/bracketPairsTextModelPart/fixBrackets';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -39,6 +41,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		private readonly cache: SharedInlineCompletionCache,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
@@ -142,7 +145,8 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 			this.commandService,
 			this.cache,
 			triggerKind,
-			this.languageConfigurationService
+			this.languageConfigurationService,
+			this.languageFeaturesService.inlineCompletionsProvider
 		);
 		this.completionSession.value.takeOwnership(
 			this.completionSession.value.onDidChange(() => {
@@ -195,6 +199,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		private readonly cache: SharedInlineCompletionCache,
 		private initialTriggerKind: InlineCompletionTriggerKind,
 		private readonly languageConfigurationService: ILanguageConfigurationService,
+		private readonly registry: LanguageFeatureRegistry<InlineCompletionsProvider>
 	) {
 		super(editor);
 
@@ -225,7 +230,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			this.scheduleAutomaticUpdate();
 		}));
 
-		this._register(InlineCompletionsProviderRegistry.onDidChange(() => {
+		this._register(this.registry.onDidChange(() => {
 			this.updateSoon.schedule();
 		}));
 
@@ -344,7 +349,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		const promise = createCancelablePromise(async token => {
 			let result;
 			try {
-				result = await provideInlineCompletions(position,
+				result = await provideInlineCompletions(this.registry, position,
 					this.editor.getModel(),
 					{ triggerKind, selectedSuggestionInfo: undefined },
 					token,
@@ -547,6 +552,7 @@ function getDefaultRange(position: Position, model: ITextModel): Range {
 }
 
 export async function provideInlineCompletions(
+	registry: LanguageFeatureRegistry<InlineCompletionsProvider>,
 	position: Position,
 	model: ITextModel,
 	context: InlineCompletionContext,
@@ -555,7 +561,7 @@ export async function provideInlineCompletions(
 ): Promise<TrackedInlineCompletions> {
 	const defaultReplaceRange = getDefaultRange(position, model);
 
-	const providers = InlineCompletionsProviderRegistry.all(model);
+	const providers = registry.all(model);
 	const results = await Promise.all(
 		providers.map(
 			async provider => {

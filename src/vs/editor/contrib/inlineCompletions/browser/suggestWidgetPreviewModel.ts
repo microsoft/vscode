@@ -9,6 +9,7 @@ import { MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { InlineCompletionTriggerKind, SelectedSuggestionInfo } from 'vs/editor/common/languages';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextModel';
 import { BaseGhostTextWidgetModel, GhostText } from './ghostText';
 import { minimizeInlineCompletion, provideInlineCompletions, UpdateOperation } from './inlineCompletionsModel';
@@ -35,6 +36,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 	constructor(
 		editor: IActiveCodeEditor,
 		private readonly cache: SharedInlineCompletionCache,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super(editor);
 
@@ -95,7 +97,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 		const promise = createCancelablePromise(async token => {
 			let result;
 			try {
-				result = await provideInlineCompletions(position,
+				result = await provideInlineCompletions(this.languageFeaturesService.inlineCompletionsProvider, position,
 					this.editor.getModel(),
 					{ triggerKind: InlineCompletionTriggerKind.Automatic, selectedSuggestionInfo: info },
 					token

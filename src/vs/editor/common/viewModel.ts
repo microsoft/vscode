@@ -9,11 +9,11 @@ import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData,
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IModelDecorationOptions, ITextModel, PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { EndOfLinePreference, IModelDecorationOptions, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from 'vs/editor/common/textModelGuides';
-import { EditorTheme } from 'vs/editor/common/viewContext';
+import { EditorTheme } from 'vs/editor/common/editorTheme';
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
@@ -50,7 +50,6 @@ export interface IViewModel extends ICursorSimpleModel {
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
 
-	getTextModelOptions(): TextModelResolvedOptions;
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
 	getLineLength(lineNumber: number): number;
@@ -68,20 +67,9 @@ export interface IViewModel extends ICursorSimpleModel {
 
 	getInjectedTextAt(viewPosition: Position): InjectedText | null;
 
-	getModelLineMaxColumn(modelLineNumber: number): number;
-	validateModelPosition(modelPosition: IPosition): Position;
-	validateModelRange(range: IRange): Range;
-
 	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
-	getEOL(): string;
 	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
 	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string, mode: string } | null;
-
-	//#region model
-
-	pushStackElement(): void;
-
-	//#endregion
 
 	createLineBreaksComputer(): ILineBreaksComputer;
 
@@ -102,13 +90,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	//#endregion
 
 	//#region viewLayout
-	getVerticalOffsetForLineNumber(viewLineNumber: number): number;
-	getScrollTop(): number;
-	setScrollTop(newScrollTop: number, scrollType: ScrollType): void;
-	setScrollPosition(position: INewScrollPosition, type: ScrollType): void;
-	deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void;
 	changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void;
-	setMaxLineWidth(maxLineWidth: number): void;
 	//#endregion
 }
 
@@ -125,7 +107,12 @@ export interface IViewLayout {
 
 	getFutureViewport(): Viewport;
 
+	setScrollPosition(position: INewScrollPosition, type: ScrollType): void;
+	deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void;
+
 	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
+
+	setMaxLineWidth(maxLineWidth: number): void;
 
 	getLinesViewportData(): IPartialViewLinesViewportData;
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;

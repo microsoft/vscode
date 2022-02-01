@@ -355,7 +355,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		};
 	}
 
-	// ---- IVerticalLayoutProvider
+	// ----
 	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): boolean {
 		const hadAChange = this._linesLayout.changeWhitespace(callback);
 		if (hadAChange) {
@@ -406,7 +406,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		return this._linesLayout.getWhitespaces();
 	}
 
-	// ---- IScrollingProvider
+	// ----
 
 	public getContentWidth(): number {
 		const scrollDimensions = this._scrollable.getScrollDimensions();

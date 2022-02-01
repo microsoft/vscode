@@ -5,7 +5,7 @@
 
 import { basename } from 'path';
 import * as vscode from 'vscode';
-import * as languageModeIds from './languageModeIds';
+import * as languageIds from './languageIds';
 
 export const enum DiagnosticLanguage {
 	JavaScript,
@@ -19,7 +19,7 @@ export interface LanguageDescription {
 	readonly diagnosticOwner: string;
 	readonly diagnosticSource: string;
 	readonly diagnosticLanguage: DiagnosticLanguage;
-	readonly modeIds: readonly string[];
+	readonly languageIds: readonly string[];
 	readonly configFilePattern?: RegExp;
 	readonly isExternal?: boolean;
 	readonly standardFileExtensions: readonly string[],
@@ -31,7 +31,7 @@ export const standardLanguageDescriptions: LanguageDescription[] = [
 		diagnosticOwner: 'typescript',
 		diagnosticSource: 'ts',
 		diagnosticLanguage: DiagnosticLanguage.TypeScript,
-		modeIds: [languageModeIds.typescript, languageModeIds.typescriptreact],
+		languageIds: [languageIds.typescript, languageIds.typescriptreact],
 		configFilePattern: /^tsconfig(\..*)?\.json$/gi,
 		standardFileExtensions: [
 			'ts',
@@ -44,7 +44,7 @@ export const standardLanguageDescriptions: LanguageDescription[] = [
 		diagnosticOwner: 'typescript',
 		diagnosticSource: 'ts',
 		diagnosticLanguage: DiagnosticLanguage.JavaScript,
-		modeIds: [languageModeIds.javascript, languageModeIds.javascriptreact],
+		languageIds: [languageIds.javascript, languageIds.javascriptreact],
 		configFilePattern: /^jsconfig(\..*)?\.json$/gi,
 		standardFileExtensions: [
 			'js',

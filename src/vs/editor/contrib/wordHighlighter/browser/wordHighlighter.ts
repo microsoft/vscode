@@ -21,7 +21,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/languages';
+import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProvider } from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -29,6 +29,8 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { activeContrastBorder, editorSelectionHighlight, editorSelectionHighlightBorder, minimapSelectionOccurrenceHighlight, overviewRulerSelectionHighlightForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable. The color must not be opaque so as not to hide underlying decorations.'), true);
 const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable. The color must not be opaque so as not to hide underlying decorations.'), true);
@@ -38,9 +40,9 @@ const overviewRulerWordHighlightForeground = registerColor('editorOverviewRuler.
 const overviewRulerWordHighlightStrongForeground = registerColor('editorOverviewRuler.wordHighlightStrongForeground', { dark: '#C0A0C0CC', light: '#C0A0C0CC', hc: '#C0A0C0CC' }, nls.localize('overviewRulerWordHighlightStrongForeground', 'Overview ruler marker color for write-access symbol highlights. The color must not be opaque so as not to hide underlying decorations.'), true);
 const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
 
-export function getOccurrencesAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<DocumentHighlight[] | null | undefined> {
+export function getOccurrencesAtPosition(registry: LanguageFeatureRegistry<DocumentHighlightProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<DocumentHighlight[] | null | undefined> {
 
-	const orderedByScore = DocumentHighlightProviderRegistry.ordered(model);
+	const orderedByScore = registry.ordered(model);
 
 	// in order of score ask the occurrences provider
 	// until someone response with a good result
@@ -106,8 +108,16 @@ abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest
 }
 
 class SemanticOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
+
+	private readonly _providers: LanguageFeatureRegistry<DocumentHighlightProvider>;
+
+	constructor(model: ITextModel, selection: Selection, wordSeparators: string, providers: LanguageFeatureRegistry<DocumentHighlightProvider>) {
+		super(model, selection, wordSeparators);
+		this._providers = providers;
+	}
+
 	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<DocumentHighlight[]> {
-		return getOccurrencesAtPosition(model, selection.getPosition(), token).then(value => value || []);
+		return getOccurrencesAtPosition(this._providers, model, selection.getPosition(), token).then(value => value || []);
 	}
 }
 
@@ -150,18 +160,22 @@ class TextualOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
 	}
 }
 
-function computeOccurencesAtPosition(model: ITextModel, selection: Selection, wordSeparators: string): IOccurenceAtPositionRequest {
-	if (DocumentHighlightProviderRegistry.has(model)) {
-		return new SemanticOccurenceAtPositionRequest(model, selection, wordSeparators);
+function computeOccurencesAtPosition(registry: LanguageFeatureRegistry<DocumentHighlightProvider>, model: ITextModel, selection: Selection, wordSeparators: string): IOccurenceAtPositionRequest {
+	if (registry.has(model)) {
+		return new SemanticOccurenceAtPositionRequest(model, selection, wordSeparators, registry);
 	}
 	return new TextualOccurenceAtPositionRequest(model, selection, wordSeparators);
 }
 
-registerModelAndPositionCommand('_executeDocumentHighlights', (model, position) => getOccurrencesAtPosition(model, position, CancellationToken.None));
+registerModelAndPositionCommand('_executeDocumentHighlights', (accessor, model, position) => {
+	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+	return getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, position, CancellationToken.None);
+});
 
 class WordHighlighter {
 
 	private readonly editor: IActiveCodeEditor;
+	private readonly providers: LanguageFeatureRegistry<DocumentHighlightProvider>;
 	private occurrencesHighlight: boolean;
 	private readonly model: ITextModel;
 	private _decorationIds: string[];
@@ -178,8 +192,9 @@ class WordHighlighter {
 	private readonly _hasWordHighlights: IContextKey<boolean>;
 	private _ignorePositionChangeEvent: boolean;
 
-	constructor(editor: IActiveCodeEditor, contextKeyService: IContextKeyService) {
+	constructor(editor: IActiveCodeEditor, providers: LanguageFeatureRegistry<DocumentHighlightProvider>, contextKeyService: IContextKeyService) {
 		this.editor = editor;
+		this.providers = providers;
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
 		this._ignorePositionChangeEvent = false;
 		this.occurrencesHighlight = this.editor.getOption(EditorOption.occurrencesHighlight);
@@ -389,7 +404,7 @@ class WordHighlighter {
 			let myRequestId = ++this.workerRequestTokenId;
 			this.workerRequestCompleted = false;
 
-			this.workerRequest = computeOccurencesAtPosition(this.model, this.editor.getSelection(), this.editor.getOption(EditorOption.wordSeparators));
+			this.workerRequest = computeOccurencesAtPosition(this.providers, this.model, this.editor.getSelection(), this.editor.getOption(EditorOption.wordSeparators));
 
 			this.workerRequest.result.then(data => {
 				if (myRequestId === this.workerRequestTokenId) {
@@ -501,12 +516,12 @@ class WordHighlighterContribution extends Disposable implements IEditorContribut
 
 	private wordHighlighter: WordHighlighter | null;
 
-	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
+	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService, @ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService) {
 		super();
 		this.wordHighlighter = null;
 		const createWordHighlighterIfPossible = () => {
 			if (editor.hasModel()) {
-				this.wordHighlighter = new WordHighlighter(editor, contextKeyService);
+				this.wordHighlighter = new WordHighlighter(editor, languageFeaturesService.documentHighlightProvider, contextKeyService);
 			}
 		};
 		this._register(editor.onDidChangeModel((e) => {

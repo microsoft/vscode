@@ -167,7 +167,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (resource) {
 			await this._editorService.openEditor({
 				resource,
-				description: instance.description || instance.shellLaunchConfig.description,
+				description: instance.description || instance.shellLaunchConfig.type,
 				options:
 				{
 					pinned: true,

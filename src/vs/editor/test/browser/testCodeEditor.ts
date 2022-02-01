@@ -46,6 +46,8 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { EditorConfiguration, IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 
 export interface ITestCodeEditor extends IActiveCodeEditor {
 	getViewModel(): ViewModel | undefined;
@@ -173,6 +175,7 @@ export function createCodeEditorServices(disposables: DisposableStore, services:
 	define(ICommandService, TestCommandService);
 	define(ITelemetryService, NullTelemetryServiceShape);
 	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
+	define(ILanguageFeaturesService, LanguageFeaturesService);
 
 	const instantiationService = new TestInstantiationService(services);
 	disposables.add(toDisposable(() => {

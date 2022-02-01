@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CursorContext, CursorState, ICursorSimpleModel, SingleCursorState } from 'vs/editor/common/cursorCommon';
+import { CursorState, ICursorSimpleModel, SingleCursorState } from 'vs/editor/common/cursorCommon';
+import { CursorContext } from 'vs/editor/common/cursor/cursorContext';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';

@@ -1207,8 +1207,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const toggledOn = await terminalService.activeInstance?.toggleEscapeSequenceLogging();
-			terminalService.toggleDevTools(toggledOn);
+			await terminalService.toggleEscapeSequenceLogging();
 		}
 	});
 	registerAction2(class extends Action2 {

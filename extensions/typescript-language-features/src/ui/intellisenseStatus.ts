@@ -9,7 +9,7 @@ import { CommandManager } from '../commands/commandManager';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { ActiveJsTsEditorTracker } from '../utils/activeJsTsEditorTracker';
 import { Disposable } from '../utils/dispose';
-import { isSupportedLanguageMode, isTypeScriptDocument, jsTsLanguageModes } from '../utils/languageModeIds';
+import { isSupportedLanguageMode, isTypeScriptDocument, jsTsLanguageModes } from '../utils/languageIds';
 import { isImplicitProjectConfigFile, openOrCreateConfig, openProjectConfigForFile, openProjectConfigOrPromptToCreate, ProjectType } from '../utils/tsconfig';
 
 const localize = nls.loadMessageBundle();

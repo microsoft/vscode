@@ -15,11 +15,11 @@ import { CursorsController } from 'vs/editor/common/cursor/cursor';
 import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from 'vs/editor/common/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorState, INewScrollPosition, IViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { ICommand, ICursorState, IViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { EndOfLinePreference, ICursorStateComputer, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TextModelResolvedOptions, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { EndOfLinePreference, ICursorStateComputer, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide } from 'vs/editor/common/textModelGuides';
 import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/textModelEvents';
@@ -27,7 +27,7 @@ import { ColorId, TokenizationRegistry } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { EditorTheme } from 'vs/editor/common/viewContext';
+import { EditorTheme } from 'vs/editor/common/editorTheme';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
@@ -605,10 +605,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this.model.getOptions().tabSize;
 	}
 
-	public getTextModelOptions(): TextModelResolvedOptions {
-		return this.model.getOptions();
-	}
-
 	public getLineCount(): number {
 		return this._lines.getViewLineCount();
 	}
@@ -767,18 +763,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this.model.getValueInRange(modelRange, eol);
 	}
 
-	public getModelLineMaxColumn(modelLineNumber: number): number {
-		return this.model.getLineMaxColumn(modelLineNumber);
-	}
-
-	public validateModelPosition(position: IPosition): Position {
-		return this.model.validatePosition(position);
-	}
-
-	public validateModelRange(range: IRange): Range {
-		return this.model.validateRange(range);
-	}
-
 	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
 		const modelAnchor = this.coordinatesConverter.convertViewPositionToModelPosition(viewAnchorPosition);
 		if (this.model.getEOL().length === 2) {
@@ -793,10 +777,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		const modelAnchorOffset = this.model.getOffsetAt(modelAnchor);
 		const resultOffset = modelAnchorOffset + deltaOffset;
 		return this.model.getPositionAt(resultOffset);
-	}
-
-	public getEOL(): string {
-		return this.model.getEOL();
 	}
 
 	public getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[] {
@@ -956,14 +936,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		return result;
 	}
 
-	//#region model
-
-	public pushStackElement(): void {
-		this.model.pushStackElement();
-	}
-
-	//#endregion
-
 	//#region cursor operations
 
 	public getPrimaryCursorState(): CursorState {
@@ -1069,30 +1041,12 @@ export class ViewModel extends Disposable implements IViewModel {
 	//#endregion
 
 	//#region viewLayout
-	public getVerticalOffsetForLineNumber(viewLineNumber: number): number {
-		return this.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);
-	}
-	public getScrollTop(): number {
-		return this.viewLayout.getCurrentScrollTop();
-	}
-	public setScrollTop(newScrollTop: number, scrollType: ScrollType): void {
-		this.viewLayout.setScrollPosition({ scrollTop: newScrollTop }, scrollType);
-	}
-	public setScrollPosition(position: INewScrollPosition, type: ScrollType): void {
-		this.viewLayout.setScrollPosition(position, type);
-	}
-	public deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void {
-		this.viewLayout.deltaScrollNow(deltaScrollLeft, deltaScrollTop);
-	}
 	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void {
 		const hadAChange = this.viewLayout.changeWhitespace(callback);
 		if (hadAChange) {
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewZonesChangedEvent());
 			this._eventDispatcher.emitOutgoingEvent(new ViewZonesChangedEvent());
 		}
-	}
-	public setMaxLineWidth(maxLineWidth: number): void {
-		this.viewLayout.setMaxLineWidth(maxLineWidth);
 	}
 	//#endregion
 

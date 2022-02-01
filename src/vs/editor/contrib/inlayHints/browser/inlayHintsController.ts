@@ -20,6 +20,7 @@ import * as languages from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
@@ -95,14 +96,15 @@ export class InlayHintsController implements IEditorContribution {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageFeatureDebounceService _featureDebounce: ILanguageFeatureDebounceService,
 		@IInlayHintsCache private readonly _inlayHintsCache: IInlayHintsCache,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
-		this._debounceInfo = _featureDebounce.for(languages.InlayHintsProviderRegistry, 'InlayHint', { min: 25 });
-		this._disposables.add(languages.InlayHintsProviderRegistry.onDidChange(() => this._update()));
+		this._debounceInfo = _featureDebounce.for(_languageFeaturesService.inlayHintsProvider, 'InlayHint', { min: 25 });
+		this._disposables.add(_languageFeaturesService.inlayHintsProvider.onDidChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModelLanguage(() => this._update()));
 		this._disposables.add(_editor.onDidChangeConfiguration(e => {
@@ -128,7 +130,7 @@ export class InlayHintsController implements IEditorContribution {
 		}
 
 		const model = this._editor.getModel();
-		if (!model || !languages.InlayHintsProviderRegistry.has(model)) {
+		if (!model || !this._languageFeaturesService.inlayHintsProvider.has(model)) {
 			return;
 		}
 
@@ -156,7 +158,7 @@ export class InlayHintsController implements IEditorContribution {
 
 			try {
 				const myToken = cts.token;
-				const inlayHints = await InlayHintsFragments.create(model, this._getHintsRanges(), myToken);
+				const inlayHints = await InlayHintsFragments.create(this._languageFeaturesService.inlayHintsProvider, model, this._getHintsRanges(), myToken);
 				scheduler.delay = this._debounceInfo.update(model, Date.now() - t1);
 				if (myToken.isCancellationRequested) {
 					inlayHints.dispose();
@@ -514,9 +516,10 @@ CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, .
 	assertType(URI.isUri(uri));
 	assertType(Range.isIRange(range));
 
+	const { inlayHintsProvider } = accessor.get(ILanguageFeaturesService);
 	const ref = await accessor.get(ITextModelService).createModelReference(uri);
 	try {
-		const model = await InlayHintsFragments.create(ref.object.textEditorModel, [Range.lift(range)], CancellationToken.None);
+		const model = await InlayHintsFragments.create(inlayHintsProvider, ref.object.textEditorModel, [Range.lift(range)], CancellationToken.None);
 		const result = model.items.map(i => i.hint);
 		setTimeout(() => model.dispose(), 0); // dispose after sending to ext host
 		return result;

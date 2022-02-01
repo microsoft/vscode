@@ -42,7 +42,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
@@ -111,7 +111,7 @@ export class View extends ViewEventHandler {
 
 		this._register(themeService.onDidColorThemeChange(theme => {
 			this._context.theme.update(theme);
-			this._context.model.onDidColorThemeChange();
+			this._context.viewModel.onDidColorThemeChange();
 			this.render(true, false);
 		}));
 
@@ -381,13 +381,13 @@ export class View extends ViewEventHandler {
 		}
 
 		const partialViewportData = this._context.viewLayout.getLinesViewportData();
-		this._context.model.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
+		this._context.viewModel.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
 
 		const viewportData = new ViewportData(
 			this._selections,
 			partialViewportData,
 			this._context.viewLayout.getWhitespaceViewportData(),
-			this._context.model
+			this._context.viewModel
 		);
 
 		if (this._contentWidgets.shouldRender()) {
@@ -423,19 +423,19 @@ export class View extends ViewEventHandler {
 	}
 
 	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number; }): void {
-		this._context.model.setScrollPosition({ scrollTop: scrollPosition.scrollTop }, ScrollType.Immediate);
-		this._context.model.tokenizeViewport();
+		this._context.viewModel.viewLayout.setScrollPosition({ scrollTop: scrollPosition.scrollTop }, ScrollType.Immediate);
+		this._context.viewModel.tokenizeViewport();
 		this._renderNow();
 		this._viewLines.updateLineWidths();
-		this._context.model.setScrollPosition({ scrollLeft: scrollPosition.scrollLeft }, ScrollType.Immediate);
+		this._context.viewModel.viewLayout.setScrollPosition({ scrollLeft: scrollPosition.scrollLeft }, ScrollType.Immediate);
 	}
 
 	public getOffsetForColumn(modelLineNumber: number, modelColumn: number): number {
-		const modelPosition = this._context.model.validateModelPosition({
+		const modelPosition = this._context.viewModel.model.validatePosition({
 			lineNumber: modelLineNumber,
 			column: modelColumn
 		});
-		const viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+		const viewPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
 		this._flushAccumulatedAndRenderNow();
 		const visibleRange = this._viewLines.visibleRangeForPosition(new Position(viewPosition.lineNumber, viewPosition.column));
 		if (!visibleRange) {
@@ -449,7 +449,7 @@ export class View extends ViewEventHandler {
 		if (!mouseTarget) {
 			return null;
 		}
-		return ViewUserInputEvents.convertViewToModelMouseTarget(mouseTarget, this._context.model.coordinatesConverter);
+		return ViewUserInputEvents.convertViewToModelMouseTarget(mouseTarget, this._context.viewModel.coordinatesConverter);
 	}
 
 	public createOverviewRuler(cssClassName: string): OverviewRuler {

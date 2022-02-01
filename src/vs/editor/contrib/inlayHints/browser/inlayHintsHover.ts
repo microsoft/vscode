@@ -8,7 +8,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
-import { HoverProviderRegistry } from 'vs/editor/common/languages';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { HoverAnchor, HoverForeignElementAnchor, IEditorHoverParticipant } from 'vs/editor/contrib/hover/browser/hoverTypes';
@@ -19,6 +18,7 @@ import { MarkdownHover, MarkdownHoverParticipant } from 'vs/editor/contrib/hover
 import { RenderedInlayHintLabelPart, InlayHintsController } from 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 	constructor(readonly part: RenderedInlayHintLabelPart, owner: InlayHintsHover) {
@@ -35,9 +35,10 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		@ILanguageService languageService: ILanguageService,
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITextModelService private readonly _resolverService: ITextModelService
+		@ITextModelService private readonly _resolverService: ITextModelService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		super(editor, languageService, openerService, configurationService);
+		super(editor, languageService, openerService, configurationService, languageFeaturesService);
 	}
 
 	suggestHoverAnchor(mouseEvent: IEditorMouseEvent): HoverAnchor | null {
@@ -111,10 +112,10 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		const ref = await this._resolverService.createModelReference(uri);
 		try {
 			const model = ref.object.textEditorModel;
-			if (!HoverProviderRegistry.has(model)) {
+			if (!this._languageFeaturesService.hoverProvider.has(model)) {
 				return AsyncIterableObject.EMPTY;
 			}
-			return getHover(model, new Position(range.startLineNumber, range.startColumn), token)
+			return getHover(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), token)
 				.filter(item => !isEmptyMarkdownString(item.hover.contents))
 				.map(item => new MarkdownHover(this, part.item.anchor.range, item.hover.contents, 2 + item.ordinal));
 		} finally {

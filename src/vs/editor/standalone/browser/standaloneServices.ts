@@ -86,6 +86,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 
+import 'vs/editor/common/services/languageFeaturesService';
+
 class SimpleModel implements IResolvedTextEditorModel {
 
 	private readonly model: ITextModel;
