@@ -1052,9 +1052,9 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				if (seenVersions.has(version.version)) {
 					return;
 				}
-				seenVersions.add(version.version);
 				if (await this.isValidVersion(version, preRelease ? 'prerelease' : 'release', true, allTargetPlatforms, targetPlatform)) {
 					result.push({ version: version.version, date: version.lastUpdated, isPreReleaseVersion: isPreReleaseVersion(version) });
+					seenVersions.add(version.version);
 				}
 			} catch (error) { /* Ignore error and skip version */ }
 		}));
