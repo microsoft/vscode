@@ -117,7 +117,7 @@ declare module 'vscode' {
 		 * Extensions should fire `TreeDataProvider.onDidChangeTreeData` for any elements that need to be refreshed.
 		 *
 		 * @param source The data transfer items of the source of the drag.
-		 * @param target The target tree element that the drop is occuring on.
+		 * @param target The target tree element that the drop is occurring on.
 		 */
 		handleDrop(source: TreeDataTransfer, target: T): Thenable<void> | void;
 	}

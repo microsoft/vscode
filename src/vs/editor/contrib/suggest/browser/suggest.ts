@@ -245,7 +245,7 @@ export async function provideSuggestionItems(
 			disposables.add(container);
 		}
 		durations.push({
-			providerName: provider._debugDisplayName ?? 'unkown_provider', elapsedProvider: container.duration ?? -1, elapsedOverall: sw.elapsed()
+			providerName: provider._debugDisplayName ?? 'unknown_provider', elapsedProvider: container.duration ?? -1, elapsedOverall: sw.elapsed()
 		});
 		return didAddResult;
 	};

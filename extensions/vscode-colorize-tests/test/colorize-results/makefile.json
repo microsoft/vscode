@@ -1232,7 +1232,7 @@
 		}
 	},
 	{
-		"c": " Checking existance of ",
+		"c": " Checking existence of ",
 		"t": "source.makefile meta.scope.conditional.makefile string.interpolated.makefile meta.scope.function-call.makefile",
 		"r": {
 			"dark_plus": "string: #CE9178",

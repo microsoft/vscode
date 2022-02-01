@@ -391,7 +391,7 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	checkMetadataIfModified() {
-		const modified = hash(getFormatedMetadataJSON(this.mainDocumentTextModel, this.original?.metadata || {}, this.original?.language)) !== hash(getFormatedMetadataJSON(this.mainDocumentTextModel, this.modified?.metadata ?? {}, this.modified?.language));
+		const modified = hash(getFormattedMetadataJSON(this.mainDocumentTextModel, this.original?.metadata || {}, this.original?.language)) !== hash(getFormattedMetadataJSON(this.mainDocumentTextModel, this.modified?.metadata ?? {}, this.modified?.language));
 		if (modified) {
 			return { reason: undefined };
 		} else {
@@ -600,7 +600,7 @@ function outputsEqual(original: ICellOutput[], modified: ICellOutput[]) {
 	return OutputComparison.Unchanged;
 }
 
-export function getFormatedMetadataJSON(documentTextModel: NotebookTextModel, metadata: NotebookCellMetadata, language?: string) {
+export function getFormattedMetadataJSON(documentTextModel: NotebookTextModel, metadata: NotebookCellMetadata, language?: string) {
 	let filteredMetadata: { [key: string]: any } = {};
 
 	if (documentTextModel) {
@@ -643,7 +643,7 @@ export function getStreamOutputData(outputs: IOutputItemDto[]) {
 	}
 }
 
-export function getFormatedOutputJSON(outputs: IOutputDto[]) {
+export function getFormattedOutputJSON(outputs: IOutputDto[]) {
 	if (outputs.length === 1) {
 		const streamOutputData = getStreamOutputData(outputs[0].outputs);
 		if (streamOutputData) {
