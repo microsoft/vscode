@@ -10,6 +10,7 @@ import API from '../utils/api';
 import { Condition, conditionalRegistration, requireConfiguration, requireMinVersion } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
 import { DocumentSelector } from '../utils/documentSelector';
+import { LanguageDescription } from '../utils/languageDescription';
 import * as typeConverters from '../utils/typeConverters';
 
 class TagClosing extends Disposable {
@@ -156,12 +157,12 @@ function requireActiveDocument(
 
 export function register(
 	selector: DocumentSelector,
-	modeId: string,
+	language: LanguageDescription,
 	client: ITypeScriptServiceClient,
 ) {
 	return conditionalRegistration([
 		requireMinVersion(client, TagClosing.minVersion),
-		requireConfiguration(modeId, 'autoClosingTags'),
+		requireConfiguration(language.id, 'autoClosingTags'),
 		requireActiveDocument(selector.syntax)
 	], () => new TagClosing(client));
 }

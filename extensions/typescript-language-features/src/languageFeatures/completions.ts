@@ -14,6 +14,7 @@ import { nulToken } from '../utils/cancellation';
 import { applyCodeAction } from '../utils/codeAction';
 import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
+import { LanguageDescription } from '../utils/languageDescription';
 import { parseKindModifier } from '../utils/modifiers';
 import * as Previewer from '../utils/previewer';
 import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
@@ -643,7 +644,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly modeId: string,
+		private readonly language: LanguageDescription,
 		private readonly typingsStatus: TypingsStatus,
 		private readonly fileConfigurationManager: FileConfigurationManager,
 		commandManager: CommandManager,
@@ -678,7 +679,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		}
 
 		const line = document.lineAt(position.line);
-		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(this.modeId, document.uri);
+		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(this.language.id, document.uri);
 
 		if (!this.shouldTrigger(context, line, position, completionConfiguration)) {
 			return undefined;
@@ -919,7 +920,7 @@ function shouldExcludeCompletionEntry(
 
 export function register(
 	selector: DocumentSelector,
-	modeId: string,
+	language: LanguageDescription,
 	client: ITypeScriptServiceClient,
 	typingsStatus: TypingsStatus,
 	fileConfigurationManager: FileConfigurationManager,
@@ -928,11 +929,11 @@ export function register(
 	onCompletionAccepted: (item: vscode.CompletionItem) => void
 ) {
 	return conditionalRegistration([
-		requireConfiguration(modeId, 'suggest.enabled'),
+		requireConfiguration(language.id, 'suggest.enabled'),
 		requireSomeCapability(client, ClientCapability.EnhancedSyntax, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCompletionItemProvider(selector.syntax,
-			new TypeScriptCompletionItemProvider(client, modeId, typingsStatus, fileConfigurationManager, commandManager, telemetryReporter, onCompletionAccepted),
+			new TypeScriptCompletionItemProvider(client, language, typingsStatus, fileConfigurationManager, commandManager, telemetryReporter, onCompletionAccepted),
 			...TypeScriptCompletionItemProvider.triggerCharacters);
 	});
 }

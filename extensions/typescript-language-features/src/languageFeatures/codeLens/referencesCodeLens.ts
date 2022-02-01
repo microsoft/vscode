@@ -12,6 +12,7 @@ import { ExecutionTarget } from '../../tsServer/server';
 import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
 import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../../utils/dependentRegistration';
 import { DocumentSelector } from '../../utils/documentSelector';
+import { LanguageDescription } from '../../utils/languageDescription';
 import * as typeConverters from '../../utils/typeConverters';
 import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
 
@@ -21,7 +22,7 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 	public constructor(
 		client: ITypeScriptServiceClient,
 		protected _cachedResponse: CachedResponse<Proto.NavTreeResponse>,
-		private modeId: string
+		private readonly language: LanguageDescription
 	) {
 		super(client, _cachedResponse);
 	}
@@ -70,7 +71,7 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 
 		switch (item.kind) {
 			case PConst.Kind.function: {
-				const showOnAllFunctions = vscode.workspace.getConfiguration(this.modeId).get<boolean>('referencesCodeLens.showOnAllFunctions');
+				const showOnAllFunctions = vscode.workspace.getConfiguration(this.language.id).get<boolean>('referencesCodeLens.showOnAllFunctions');
 				if (showOnAllFunctions) {
 					return getSymbolRange(document, item);
 				}
@@ -126,15 +127,15 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 
 export function register(
 	selector: DocumentSelector,
-	modeId: string,
+	language: LanguageDescription,
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
 	return conditionalRegistration([
-		requireConfiguration(modeId, 'referencesCodeLens.enabled'),
+		requireConfiguration(language.id, 'referencesCodeLens.enabled'),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeLensProvider(selector.semantic,
-			new TypeScriptReferencesCodeLensProvider(client, cachedResponse, modeId));
+			new TypeScriptReferencesCodeLensProvider(client, cachedResponse, language));
 	});
 }

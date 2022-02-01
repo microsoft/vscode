@@ -84,12 +84,12 @@ export function requireMinVersion(
 }
 
 export function requireConfiguration(
-	language: string,
+	section: string,
 	configValue: string,
 ) {
 	return new Condition(
 		() => {
-			const config = vscode.workspace.getConfiguration(language, null);
+			const config = vscode.workspace.getConfiguration(section, null);
 			return !!config.get<boolean>(configValue);
 		},
 		vscode.workspace.onDidChangeConfiguration
