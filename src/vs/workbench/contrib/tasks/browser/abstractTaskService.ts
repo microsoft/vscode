@@ -284,7 +284,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._taskSystem = undefined;
 			}
 			this.updateSetup(folderSetup);
-			this.updateWorkspaceTasks(TaskRunSource.FolderOpen);
+			return this.updateWorkspaceTasks(TaskRunSource.FolderOpen);
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(() => {
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
@@ -295,7 +295,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 
 			this.setTaskLRUCacheLimit();
-			this.updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
+			return this.updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
@@ -664,7 +664,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const requestedFolder = TaskMap.getKey(folder);
 		const matchedTasks = await this._findWorkspaceTasks((task, workspaceFolder) => {
 			const taskFolder = TaskMap.getKey(workspaceFolder);
-			if (taskFolder !== requestedFolder || taskFolder !== USER_TASKS_GROUP_KEY) {
+			if (taskFolder !== requestedFolder && taskFolder !== USER_TASKS_GROUP_KEY) {
 				return false;
 			}
 			return task.matches(key, compareId);
@@ -1643,7 +1643,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		};
 	}
 
-	private executeTask(task: Task, resolver: ITaskResolver, runSource: TaskRunSource): Promise<ITaskSummary> {
+	private async saveBeforeRun(): Promise<boolean> {
 		enum SaveBeforeRunConfigOptions {
 			Always = 'always',
 			Never = 'never',
@@ -1652,20 +1652,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		const saveBeforeRunTaskConfig: SaveBeforeRunConfigOptions = this.configurationService.getValue('task.saveBeforeRun');
 
-		const execTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
-			return ProblemMatcherRegistry.onReady().then(() => {
-				let executeResult = this.getTaskSystem().run(task, resolver);
-				return this.handleExecuteResult(executeResult, runSource);
-			});
-		};
-
-		const saveAllEditorsAndExecTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
-			return this.editorService.saveAll({ reason: SaveReason.AUTO }).then(() => {
-				return execTask(task, resolver);
-			});
-		};
-
-		const promptAsk = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
+		if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Never) {
+			return false;
+		} else if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Prompt) {
 			const dialogOptions = await this.dialogService.show(
 				Severity.Info,
 				nls.localize('TaskSystem.saveBeforeRun.prompt.title', 'Save all editors?'),
@@ -1676,20 +1665,27 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			);
 
-			if (dialogOptions.choice === 0) {
-				return saveAllEditorsAndExecTask(task, resolver);
-			} else {
-				return execTask(task, resolver);
+			if (dialogOptions.choice !== 0) {
+				return false;
 			}
-		};
-
-		if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Never) {
-			return execTask(task, resolver);
-		} else if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Prompt) {
-			return promptAsk(task, resolver);
-		} else {
-			return saveAllEditorsAndExecTask(task, resolver);
 		}
+		await this.editorService.saveAll({ reason: SaveReason.AUTO });
+		return true;
+	}
+
+	private async executeTask(task: Task, resolver: ITaskResolver, runSource: TaskRunSource): Promise<ITaskSummary> {
+		let taskToRun: Task = task;
+		if (await this.saveBeforeRun()) {
+			await this.configurationService.reloadConfiguration();
+			await this.updateWorkspaceTasks();
+			const taskFolder = task.getWorkspaceFolder();
+			const taskIdentifier = task.configurationProperties.identifier;
+			// Since we save before running tasks, the task may have changed as part of the save.
+			taskToRun = ((taskFolder && taskIdentifier) ? await this.getTask(taskFolder, taskIdentifier) : task) ?? task;
+		}
+		await ProblemMatcherRegistry.onReady();
+		let executeResult = this.getTaskSystem().run(taskToRun, resolver);
+		return this.handleExecuteResult(executeResult, runSource);
 	}
 
 	private async handleExecuteResult(executeResult: ITaskExecuteResult, runSource?: TaskRunSource): Promise<ITaskSummary> {
@@ -2048,12 +2044,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (this._workspaceTasksPromise) {
 			return this._workspaceTasksPromise;
 		}
-		this.updateWorkspaceTasks(runSource);
-		return this._workspaceTasksPromise!;
+		return this.updateWorkspaceTasks(runSource);
 	}
 
-	private updateWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): void {
+	private updateWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, WorkspaceFolderTaskResult>> {
 		this._workspaceTasksPromise = this.computeWorkspaceTasks(runSource);
+		return this._workspaceTasksPromise;
 	}
 
 	private async getAFolder(): Promise<IWorkspaceFolder> {
