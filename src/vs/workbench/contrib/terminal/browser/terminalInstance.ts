@@ -382,7 +382,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd((e) => {
 					this._cwd = e;
 					this._xtermOnKey?.dispose();
-					this.refreshTabLabels(this.title, TitleEventSource.Api);
+					this.refreshTabLabels(this.title, TitleEventSource.Config);
 				});
 			}
 		}));
@@ -1259,7 +1259,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				case ProcessPropertyType.InitialCwd:
 					this._initialCwd = value;
 					this._cwd = this._initialCwd;
-					this.refreshTabLabels(this.title, TitleEventSource.Api);
+					this.refreshTabLabels(this.title, TitleEventSource.Config);
 					break;
 				case ProcessPropertyType.Title:
 					this.refreshTabLabels(value ? value : '', TitleEventSource.Process);
