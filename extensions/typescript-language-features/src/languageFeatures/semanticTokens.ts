@@ -33,11 +33,6 @@ export function register(
 	});
 }
 
-/**
- * Prototype of a DocumentSemanticTokensProvider, relying on the experimental `encodedSemanticClassifications-full` request from the TypeScript server.
- * As the results retured by the TypeScript server are limited, we also add a Typescript plugin (typescript-vscode-sh-plugin) to enrich the returned token.
- * See https://github.com/aeschli/typescript-vscode-sh-plugin.
- */
 class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensProvider, vscode.DocumentRangeSemanticTokensProvider {
 
 	constructor(private readonly client: ITypeScriptServiceClient) {
@@ -111,10 +106,9 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 			let tokenModifiers = 0;
 			let tokenType = getTokenTypeFromClassification(tsClassification);
 			if (tokenType !== undefined) {
-				// it's a classification as returned by the typescript-vscode-sh-plugin
 				tokenModifiers = getTokenModifierFromClassification(tsClassification);
 			} else {
-				// typescript-vscode-sh-plugin is not present
+				// an old TypeScript server that uses the original ExperimentalProtocol.ClassificationType's
 				tokenType = tokenTypeMap[tsClassification];
 				if (tokenType === undefined) {
 					continue;
