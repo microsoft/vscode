@@ -432,7 +432,7 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 }
 
-export interface LineColumnInfo {
+export interface ILineColumnInfo {
 	lineNumber: number;
 	columnNumber: number;
 }

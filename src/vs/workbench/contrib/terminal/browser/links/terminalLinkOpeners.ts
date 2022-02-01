@@ -15,7 +15,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalLinkOpener, ITerminalSimpleLink } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { LineColumnInfo } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
+import { ILineColumnInfo } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { lineAndColumnClause, lineAndColumnClauseGroupCount, unixLineAndColumnMatchIndex, unixLocalLinkClause, winLineAndColumnMatchIndex, winLocalLinkClause } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -35,7 +35,7 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 		if (!link.uri) {
 			throw new Error('Tried to open file link without a resolved URI');
 		}
-		const lineColumnInfo: LineColumnInfo = this.extractLineColumnInfo(link.text);
+		const lineColumnInfo: ILineColumnInfo = this.extractLineColumnInfo(link.text);
 		const selection: ITextEditorSelection = {
 			startLineNumber: lineColumnInfo.lineNumber,
 			startColumn: lineColumnInfo.columnNumber
@@ -61,9 +61,9 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	 *
 	 * @param link Url link which may contain line and column number.
 	 */
-	extractLineColumnInfo(link: string): LineColumnInfo {
+	extractLineColumnInfo(link: string): ILineColumnInfo {
 		const matches: string[] | null = this._localLinkRegex.exec(link);
-		const lineColumnInfo: LineColumnInfo = {
+		const lineColumnInfo: ILineColumnInfo = {
 			lineNumber: 1,
 			columnNumber: 1
 		};
@@ -92,9 +92,7 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 }
 
 export class TerminalLocalFolderInWorkspaceLinkOpener implements ITerminalLinkOpener {
-	constructor(
-		@ICommandService private readonly _commandService: ICommandService,
-	) {
+	constructor(@ICommandService private readonly _commandService: ICommandService) {
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
@@ -106,9 +104,7 @@ export class TerminalLocalFolderInWorkspaceLinkOpener implements ITerminalLinkOp
 }
 
 export class TerminalLocalFolderOutsideWorkspaceLinkOpener implements ITerminalLinkOpener {
-	constructor(
-		@IHostService private readonly _hostService: IHostService,
-	) {
+	constructor(@IHostService private readonly _hostService: IHostService) {
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
@@ -125,7 +121,6 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _localFileOpener: TerminalLocalFileLinkOpener,
-		@IEditorService private readonly _editorService: IEditorService,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
