@@ -49,6 +49,10 @@ export class TerminalWordLinkDetector implements ITerminalLinkDetector {
 			if (word.text === '') {
 				continue;
 			}
+			if (word.text.length > 0 && word.text.charAt(word.text.length - 1) === ':') {
+				word.text = word.text.slice(0, -1);
+				word.endIndex--;
+			}
 			const bufferRange = convertLinkRangeToBuffer(
 				lines,
 				this.xterm.cols,
