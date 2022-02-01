@@ -1061,37 +1061,37 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _shouldPasteText(text: string): Promise<boolean> {
-		const textForLines = text.split(/(\r?\n)/);
+		const textForLines = text.split(/\r?\n/);
 		let confirmation: IConfirmationResult;
 
 		// If the clipboard has only one line, no prompt will be triggered
 		if (textForLines.length === 1 || !this._configurationService.getValue<boolean>(TerminalSettingId.EnableMultiLinePasteWarning)) {
 			return true;
-		} else {
-			const message = nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to paste the following {0} lines to the terminal?", text.split(/\r\n|\n|\r/).length);
-
-			const displayItemsCount = 3;
-			const ellipsis = '…';
-
-			let detail = textForLines
-				.slice(0, displayItemsCount)
-				.map(s => s.length >= 30 ? s.slice(0, 30) + ellipsis : s)
-				.join('');
-			if (textForLines.length > displayItemsCount && !detail.endsWith(ellipsis)) {
-				detail += ellipsis;
-			}
-			const primaryButton = nls.localize({ key: 'multiLinePasteButton', comment: ['&& denotes a mnemonic'] }, "&&Paste");
-
-			confirmation = await this._dialogService.confirm({
-				type: 'question',
-				message: message,
-				detail: detail,
-				primaryButton: primaryButton,
-				checkbox: {
-					label: nls.localize('doNotAskAgain', "Do not ask me again")
-				}
-			});
 		}
+
+		const displayItemsCount = 3;
+		const maxPreviewLineLength = 30;
+
+		let detail = 'Preview:';
+		for (let i = 0; i < Math.min(textForLines.length, displayItemsCount); i++) {
+			const line = textForLines[i];
+			const cleanedLine = line.length > maxPreviewLineLength ? `${line.slice(0, maxPreviewLineLength)}…` : line;
+			detail += `\n${cleanedLine}`;
+		}
+
+		if (textForLines.length > displayItemsCount) {
+			detail += `\n…`;
+		}
+
+		confirmation = await this._dialogService.confirm({
+			type: 'question',
+			message: nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to paste {0} lines of text into the terminal?", textForLines.length),
+			detail,
+			primaryButton: nls.localize({ key: 'multiLinePasteButton', comment: ['&& denotes a mnemonic'] }, "&&Paste"),
+			checkbox: {
+				label: nls.localize('doNotAskAgain', "Do not ask me again")
+			}
+		});
 
 		if (confirmation.confirmed && confirmation.checkboxChecked) {
 			await this._configurationService.updateValue(TerminalSettingId.EnableMultiLinePasteWarning, false);
