@@ -16,6 +16,9 @@ import { getServiceMachineId } from 'vs/platform/externalServices/common/service
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { RemoteAuthorities } from 'vs/base/common/network';
+
+export const WEB_EXTENSION_RESOURCE_END_POINT = 'web-extension-resource';
 
 export const IExtensionResourceLoaderService = createDecorator<IExtensionResourceLoaderService>('extensionResourceLoaderService');
 
@@ -68,7 +71,8 @@ export abstract class AbstractExtensionResourceLoaderService implements IExtensi
 
 	public getExtensionGalleryResourceURL(galleryExtension: { publisher: string, name: string, version: string }, path?: string): URI | undefined {
 		if (this._extensionGalleryResourceUrlTemplate) {
-			return URI.parse(format2(this._extensionGalleryResourceUrlTemplate, { publisher: galleryExtension.publisher, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }));
+			const uri = URI.parse(format2(this._extensionGalleryResourceUrlTemplate, { publisher: galleryExtension.publisher, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }));
+			return this._isWebExtensionResourceEndPoint(uri) ? uri.with({ scheme: RemoteAuthorities.getPreferredWebSchema() }) : uri;
 		}
 		return undefined;
 	}
@@ -103,8 +107,15 @@ export abstract class AbstractExtensionResourceLoaderService implements IExtensi
 	}
 
 	private _getExtensionGalleryAuthority(uri: URI): string | undefined {
+		if (this._isWebExtensionResourceEndPoint(uri)) {
+			return uri.authority;
+		}
 		const index = uri.authority.indexOf('.');
 		return index !== -1 ? uri.authority.substring(index + 1) : undefined;
+	}
+
+	protected _isWebExtensionResourceEndPoint(uri: URI): boolean {
+		return uri.path.startsWith(`/${WEB_EXTENSION_RESOURCE_END_POINT}/`);
 	}
 
 }

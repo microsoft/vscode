@@ -5,20 +5,20 @@
 
 import { IScrollPosition, Scrollable } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
-import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from 'vs/editor/common/cursor/cursorCommon';
-import { CursorChangeReason } from 'vs/editor/common/cursor/cursorEvents';
+import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from 'vs/editor/common/cursorCommon';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IModelDecorationOptions, ITextModel, PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from 'vs/editor/common/textModelGuides';
-import { EditorTheme } from 'vs/editor/common/viewModel/viewContext';
-import { VerticalRevealType } from 'vs/editor/common/viewModel/viewEvents';
+import { EditorTheme } from 'vs/editor/common/viewContext';
+import { VerticalRevealType } from 'vs/editor/common/viewEvents';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { ILineBreaksComputer, InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { ILineBreaksComputer, InjectedText } from 'vs/editor/common/modelLineProjectionData';
+import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 
 export interface IViewModel extends ICursorSimpleModel {
 

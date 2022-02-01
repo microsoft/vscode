@@ -613,7 +613,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Then check for files to open, create or diff from main side
-		const { filesToOpenOrCreate, filesToDiff } = this.environmentService.configuration;
+		const { filesToOpenOrCreate, filesToDiff } = this.environmentService;
 		if (filesToOpenOrCreate || filesToDiff) {
 			return { filesToOpenOrCreate, filesToDiff };
 		}

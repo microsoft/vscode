@@ -23,7 +23,6 @@ import { Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { MainThreadAuthenticationProvider } from 'vs/workbench/api/browser/mainThreadAuthentication';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -114,7 +113,7 @@ export interface IAuthenticationService {
 
 	isAuthenticationProviderRegistered(id: string): boolean;
 	getProviderIds(): string[];
-	registerAuthenticationProvider(id: string, provider: MainThreadAuthenticationProvider): void;
+	registerAuthenticationProvider(id: string, provider: IAuthenticationProvider): void;
 	unregisterAuthenticationProvider(id: string): void;
 	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean | undefined;
 	updatedAllowedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string, isAllowed: boolean): Promise<void>;
@@ -142,6 +141,18 @@ export interface IAuthenticationService {
 
 	manageTrustedExtensionsForAccount(providerId: string, accountName: string): Promise<void>;
 	removeAccountSessions(providerId: string, accountName: string, sessions: AuthenticationSession[]): Promise<void>;
+}
+
+export interface IAuthenticationProvider {
+	readonly id: string,
+	readonly label: string,
+	readonly supportsMultipleAccounts: boolean,
+	dispose(): void;
+	manageTrustedExtensions(accountName: string): void;
+	removeAccountSessions(accountName: string, sessions: AuthenticationSession[]): Promise<void>;
+	getSessions(scopes?: string[]): Promise<readonly AuthenticationSession[]>;
+	createSession(scopes: string[]): Promise<AuthenticationSession>;
+	removeSession(sessionId: string): Promise<void>;
 }
 
 export interface AllowedExtension {
@@ -210,7 +221,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	private _sessionAccessRequestItems = new Map<string, { [extensionId: string]: { disposables: IDisposable[], possibleSessions: AuthenticationSession[] } }>();
 	private _accountBadgeDisposable = this._register(new MutableDisposable());
 
-	private _authenticationProviders: Map<string, MainThreadAuthenticationProvider> = new Map<string, MainThreadAuthenticationProvider>();
+	private _authenticationProviders: Map<string, IAuthenticationProvider> = new Map<string, IAuthenticationProvider>();
 
 	/**
 	 * All providers that have been statically declared by extensions. These may not be registered.
@@ -291,7 +302,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return this._authenticationProviders.has(id);
 	}
 
-	registerAuthenticationProvider(id: string, authenticationProvider: MainThreadAuthenticationProvider): void {
+	registerAuthenticationProvider(id: string, authenticationProvider: IAuthenticationProvider): void {
 		this._authenticationProviders.set(id, authenticationProvider);
 		this._onDidRegisterAuthenticationProvider.fire({ id, label: authenticationProvider.label });
 
@@ -342,7 +353,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	private async updateNewSessionRequests(provider: MainThreadAuthenticationProvider, addedSessions: readonly AuthenticationSession[]): Promise<void> {
+	private async updateNewSessionRequests(provider: IAuthenticationProvider, addedSessions: readonly AuthenticationSession[]): Promise<void> {
 		const existingRequestsForProvider = this._signInRequestItems.get(provider.id);
 		if (!existingRequestsForProvider) {
 			return;
@@ -696,7 +707,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	private async tryActivateProvider(providerId: string, activateImmediate: boolean): Promise<MainThreadAuthenticationProvider> {
+	private async tryActivateProvider(providerId: string, activateImmediate: boolean): Promise<IAuthenticationProvider> {
 		await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId), activateImmediate ? ActivationKind.Immediate : ActivationKind.Normal);
 		let provider = this._authenticationProviders.get(providerId);
 		if (provider) {
@@ -705,7 +716,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 		// When activate has completed, the extension has made the call to `registerAuthenticationProvider`.
 		// However, activate cannot block on this, so the renderer may not have gotten the event yet.
-		const didRegister: Promise<MainThreadAuthenticationProvider> = new Promise((resolve, _) => {
+		const didRegister: Promise<IAuthenticationProvider> = new Promise((resolve, _) => {
 			this.onDidRegisterAuthenticationProvider(e => {
 				if (e.id === providerId) {
 					provider = this._authenticationProviders.get(providerId);
@@ -718,7 +729,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			});
 		});
 
-		const didTimeout: Promise<MainThreadAuthenticationProvider> = new Promise((_, reject) => {
+		const didTimeout: Promise<IAuthenticationProvider> = new Promise((_, reject) => {
 			setTimeout(() => {
 				reject('Timed out waiting for authentication provider to register');
 			}, 5000);

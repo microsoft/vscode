@@ -318,12 +318,6 @@ export class ExplorerItem {
 
 		const items: ExplorerItem[] = [];
 		if (nestingConfig.enabled) {
-			const patterns = Object.entries(nestingConfig.patterns).map(
-				([parentPattern, childrenPatterns]) =>
-					[parentPattern.trim(), childrenPatterns.split(',').map(p => p.trim())] as [string, string[]]);
-
-			const nester = new ExplorerFileNestingTrie(patterns);
-
 			const fileChildren: [string, ExplorerItem][] = [];
 			const dirChildren: [string, ExplorerItem][] = [];
 			for (const child of this.children.entries()) {
@@ -334,7 +328,7 @@ export class ExplorerItem {
 				}
 			}
 
-			const nested = nester.nest(fileChildren.map(([name]) => name));
+			const nested = this.buildFileNester().nest(fileChildren.map(([name]) => name));
 
 			for (const [fileEntryName, fileEntryItem] of fileChildren) {
 				const nestedItems = nested.get(fileEntryName);
@@ -359,6 +353,18 @@ export class ExplorerItem {
 		}
 
 		return items;
+	}
+
+	// TODO:@jkearl, share one nester across all explorer items and only build on config change
+	private buildFileNester(): ExplorerFileNestingTrie {
+		const nestingConfig = this.configService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting;
+		const patterns = Object.entries(nestingConfig.patterns)
+			.filter(entry =>
+				typeof (entry[0]) === 'string' && typeof (entry[1]) === 'string' && entry[0] && entry[1])
+			.map(([parentPattern, childrenPatterns]) =>
+				[parentPattern.trim(), childrenPatterns.split(',').map(p => p.trim())] as [string, string[]]);
+
+		return new ExplorerFileNestingTrie(patterns);
 	}
 
 	/**

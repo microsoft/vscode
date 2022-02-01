@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
-import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { EndOfLinePreference, EndOfLineSequence } from 'vs/editor/common/model';
 import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
-export function testApplyEditsWithSyncedModels(original: string[], edits: IIdentifiedSingleEditOperation[], expected: string[], inputEditsAreInvalid: boolean = false): void {
+export function testApplyEditsWithSyncedModels(original: string[], edits: ISingleEditOperation[], expected: string[], inputEditsAreInvalid: boolean = false): void {
 	let originalStr = original.join('\n');
 	let expectedStr = expected.join('\n');
 
@@ -31,13 +32,11 @@ export function testApplyEditsWithSyncedModels(original: string[], edits: IIdent
 		assert.deepStrictEqual(model.getValue(EndOfLinePreference.LF), originalStr);
 
 		if (!inputEditsAreInvalid) {
-			const simplifyEdit = (edit: IIdentifiedSingleEditOperation) => {
+			const simplifyEdit = (edit: ISingleEditOperation) => {
 				return {
-					identifier: edit.identifier,
 					range: edit.range,
 					text: edit.text,
-					forceMoveMarkers: edit.forceMoveMarkers || false,
-					isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit || false
+					forceMoveMarkers: edit.forceMoveMarkers || false
 				};
 			};
 			// Assert the inverse of the inverse edits are the original edits

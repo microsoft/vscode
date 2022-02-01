@@ -6,11 +6,11 @@
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
+import { BrandedService, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IHoverPart {
 	/**
@@ -79,6 +79,10 @@ export interface IEditorHoverAction {
 	setEnabled(enabled: boolean): void;
 }
 
+export interface IEditorHoverColorPickerWidget {
+	layout(): void;
+}
+
 export interface IEditorHoverRenderContext {
 	/**
 	 * The fragment where dom elements should be attached.
@@ -91,7 +95,7 @@ export interface IEditorHoverRenderContext {
 	/**
 	 * Set if the hover will render a color picker widget.
 	 */
-	setColorPicker(widget: ColorPickerWidget): void;
+	setColorPicker(widget: IEditorHoverColorPickerWidget): void;
 	/**
 	 * The contents rendered inside the fragment have been changed, which means that the hover should relayout.
 	 */
@@ -103,9 +107,26 @@ export interface IEditorHoverRenderContext {
 }
 
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
+	readonly hoverOrdinal: number;
 	suggestHoverAnchor?(mouseEvent: IEditorMouseEvent): HoverAnchor | null;
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): T[];
 	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IDisposable;
 }
+
+export type IEditorHoverParticipantCtor = IConstructorSignature1<ICodeEditor, IEditorHoverParticipant>;
+
+export const HoverParticipantRegistry = (new class HoverParticipantRegistry {
+
+	_participants: IEditorHoverParticipantCtor[] = [];
+
+	public register<Services extends BrandedService[]>(ctor: { new(editor: ICodeEditor, ...services: Services): IEditorHoverParticipant }): void {
+		this._participants.push(ctor as IEditorHoverParticipantCtor);
+	}
+
+	public getAll(): IEditorHoverParticipantCtor[] {
+		return this._participants;
+	}
+
+}());

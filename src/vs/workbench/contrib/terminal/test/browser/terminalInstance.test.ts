@@ -10,7 +10,7 @@ import { IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspa
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { fixPath, getUri } from 'vs/workbench/contrib/search/test/browser/queryBuilder.test';
+import { fixPath, getUri } from 'vs/workbench/services/search/test/browser/queryBuilder.test';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';

@@ -5,7 +5,7 @@
 
 import * as strings from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
-import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
 import { LinePartMetadata } from 'vs/editor/common/viewLayout/viewLineRenderer';
 
 export class LineDecoration {

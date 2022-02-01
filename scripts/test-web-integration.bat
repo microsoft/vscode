@@ -18,9 +18,9 @@ IF "%~1" == "" (
 set REMOTE_VSCODE=%AUTHORITY%%EXT_PATH%
 
 if "%VSCODE_REMOTE_SERVER_PATH%"=="" (
-	echo "Using remote server out of sources for integration web tests"
+	echo Using remote server out of sources for integration web tests
 ) else (
-	echo "Using %VSCODE_REMOTE_SERVER_PATH% as server path for web integration tests"
+	echo Using '%VSCODE_REMOTE_SERVER_PATH%' as server path for web integration tests
 
 	:: Run from a built: need to compile all test extensions
 	:: because we run extension tests from their source folders
@@ -37,21 +37,34 @@ if not exist ".\test\integration\browser\out\index.js" (
 	call yarn --cwd test/integration/browser compile
 	call yarn playwright-install
 )
+
+echo.
+echo ### API tests (folder)
 call node .\test\integration\browser\out\index.js --workspacePath=.\extensions\vscode-api-tests\testWorkspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=.\extensions\vscode-api-tests --extensionTestsPath=.\extensions\vscode-api-tests\out\singlefolder-tests %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo.
+echo ### API tests (workspace)
 call node .\test\integration\browser\out\index.js --workspacePath=.\extensions\vscode-api-tests\testworkspace.code-workspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=.\extensions\vscode-api-tests --extensionTestsPath=.\extensions\vscode-api-tests\out\workspace-tests %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo.
+echo ### TypeScript tests
 call node .\test\integration\browser\out\index.js --workspacePath=.\extensions\typescript-language-features\test-workspace --extensionDevelopmentPath=.\extensions\typescript-language-features --extensionTestsPath=.\extensions\typescript-language-features\out\test\unit %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo.
+echo ### Markdown tests
 call node .\test\integration\browser\out\index.js --workspacePath=.\extensions\markdown-language-features\test-workspace --extensionDevelopmentPath=.\extensions\markdown-language-features --extensionTestsPath=.\extensions\markdown-language-features\out\test %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo.
+echo ### Emmet tests
 call node .\test\integration\browser\out\index.js --workspacePath=.\extensions\emmet\test-workspace --extensionDevelopmentPath=.\extensions\emmet --extensionTestsPath=.\extensions\emmet\out\test %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo.
+echo ### Git tests
 for /f "delims=" %%i in ('node -p "require('fs').realpathSync.native(require('os').tmpdir())"') do set TEMPDIR=%%i
 set GITWORKSPACE=%TEMPDIR%\git-%RANDOM%
 mkdir %GITWORKSPACE%

@@ -41,7 +41,7 @@
     "@types/underscore": "^1.8.9",
     "@types/webpack": "^4.41.25",
     "@types/xml2js": "0.0.33",
-    "@typescript-eslint/experimental-utils": "~2.13.0",
+    "@typescript-eslint/experimental-utils": "^5.10.0",
     "@typescript-eslint/parser": "^5.10.0",
     "@vscode/iconv-lite-umd": "0.7.0",
     "applicationinsights": "1.4.2",
@@ -66,9 +66,9 @@
     "vscode-universal-bundler": "^0.0.2"
   },
   "scripts": {
-    "compile": "tsc -p tsconfig.build.json",
-    "watch": "tsc -p tsconfig.build.json --watch",
-    "npmCheckJs": "tsc --noEmit"
+    "compile": "../node_modules/.bin/tsc -p tsconfig.build.json",
+    "watch": "../node_modules/.bin/tsc -p tsconfig.build.json --watch",
+    "npmCheckJs": "../node_modules/.bin/tsc --noEmit"
   },
   "dependencies": {}
 }

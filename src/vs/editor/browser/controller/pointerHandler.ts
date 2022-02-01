@@ -11,7 +11,7 @@ import { IPointerHandlerHelper, MouseHandler, createMouseMoveEventMerger } from 
 import { IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { EditorMouseEvent, EditorPointerEventFactory } from 'vs/editor/browser/editorDom';
 import { ViewController } from 'vs/editor/browser/view/viewController';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { ViewContext } from 'vs/editor/common/viewContext';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { TextAreaSyntethicEvents } from 'vs/editor/browser/controller/textAreaInput';
 

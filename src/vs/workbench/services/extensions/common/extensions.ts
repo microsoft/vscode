@@ -11,7 +11,6 @@ import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensi
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
 import { getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 
@@ -152,6 +151,12 @@ export function checkProposedApiEnabled(extension: IExtensionDescription, propos
  * Extension id or one of the four known program states.
  */
 export type ProfileSegmentId = string | 'idle' | 'program' | 'gc' | 'self';
+
+export interface ExtensionActivationReason {
+	readonly startup: boolean;
+	readonly extensionId: ExtensionIdentifier;
+	readonly activationEvent: string;
+}
 
 export class ActivationTimes {
 	constructor(

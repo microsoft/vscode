@@ -61,7 +61,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
-		const { filesToOpenOrCreate, filesToDiff } = environmentService.configuration;
+		const { filesToOpenOrCreate, filesToDiff } = environmentService;
 		const activeViewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
 		type WindowSizeFragment = {

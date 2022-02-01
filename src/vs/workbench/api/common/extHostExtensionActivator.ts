@@ -8,7 +8,7 @@ import * as errors from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -160,12 +160,6 @@ export class FailedExtension extends ActivatedExtension {
 export interface IExtensionsActivatorHost {
 	onExtensionActivationError(extensionId: ExtensionIdentifier, error: Error | null, missingExtensionDependency: MissingExtensionDependency | null): void;
 	actualActivateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension>;
-}
-
-export interface ExtensionActivationReason {
-	readonly startup: boolean;
-	readonly extensionId: ExtensionIdentifier;
-	readonly activationEvent: string;
 }
 
 type ActivationIdAndReason = { id: ExtensionIdentifier, reason: ExtensionActivationReason; };

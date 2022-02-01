@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { toFormattedString } from 'vs/base/common/jsonFormatter';
 import { ITextModel, ITextBufferFactory, DefaultEndOfLine, ITextBuffer } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { Extensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';

@@ -505,11 +505,14 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.AutoReplies]: {
-			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses. Note that the message includes escape sequences so the reply might not happen with styled text. Each reply can only happen once every second.\n\nTo unset a default key, set the value to null."),
+			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses.\n\nRemarks:\n\n- The message includes escape sequences so the reply might not happen with styled text.\n- Each reply can only happen once every second.\n- Use {0} in the reply to mean the enter key.\n- To unset a default key, set the value to null.", '`"\\r"`'),
 			type: 'object',
 			additionalProperties: {
-				type: 'string',
-				description: localize('terminal.integrated.autoReplies.reply', "The reply to send to the process.")
+				oneOf: [{
+					type: 'string',
+					description: localize('terminal.integrated.autoReplies.reply', "The reply to send to the process.")
+				},
+				{ type: 'null' }]
 			},
 			default: {
 				'Terminate batch job (Y/N)': 'Y\r'
@@ -517,7 +520,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.EnableShellIntegration]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.enableShellIntegration', "Enable shell integration which will turn on certain feature such enhanced command tracking and current working directory detection. Shell integration works by injecting a script that is run when the shell is initialized which lets the terminal gain additional insights into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, pwsh, zsh\n - Windows: pwsh"),
+			markdownDescription: localize('terminal.integrated.enableShellIntegration', "Enable the experimental shell integration feature which will turn on certain feature such enhanced command tracking and current working directory detection. Shell integration works by injecting a script that is run when the shell is initialized which lets the terminal gain additional insights into what is happening within the terminal, the script injection may not work if you have custom arguments defined in the terminal profile.\n\nSupported shells:\n\n- Linux/macOS: bash, pwsh, zsh\n - Windows: pwsh"),
 			type: 'boolean',
 			default: false
 		},

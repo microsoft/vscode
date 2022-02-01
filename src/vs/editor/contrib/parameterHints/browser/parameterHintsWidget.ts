@@ -17,7 +17,7 @@ import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markd
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as modes from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
 import { Context } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
 import * as nls from 'vs/nls';

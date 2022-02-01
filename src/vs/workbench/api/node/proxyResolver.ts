@@ -9,7 +9,8 @@ import * as tls from 'tls';
 
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
-import { MainThreadTelemetryShape, IInitData } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -22,7 +23,7 @@ export function connectProxyResolver(
 	extensionService: ExtHostExtensionService,
 	extHostLogService: ILogService,
 	mainThreadTelemetry: MainThreadTelemetryShape,
-	initData: IInitData,
+	initData: IExtensionHostInitData,
 ) {
 	const useHostProxy = initData.environment.useHostProxy;
 	const doUseHostProxy = typeof useHostProxy === 'boolean' ? useHostProxy : !initData.remote.isRemote;

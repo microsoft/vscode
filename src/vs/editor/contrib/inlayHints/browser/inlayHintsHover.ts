@@ -12,7 +12,7 @@ import { HoverProviderRegistry } from 'vs/editor/common/languages';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { HoverAnchor, HoverForeignElementAnchor, IEditorHoverParticipant } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { getHover } from 'vs/editor/contrib/hover/browser/getHover';
 import { MarkdownHover, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
@@ -27,6 +27,8 @@ class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 }
 
 export class InlayHintsHover extends MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
+
+	public override readonly hoverOrdinal: number = 6;
 
 	constructor(
 		editor: ICodeEditor,

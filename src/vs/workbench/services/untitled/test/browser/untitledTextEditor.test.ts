@@ -11,7 +11,7 @@ import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbe
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
@@ -479,7 +479,7 @@ suite('Untitled text editors', () => {
 		model.textEditorModel?.setValue('Hello\nWorld');
 		assert.strictEqual(counter, 7);
 
-		function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
+		function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): ISingleEditOperation {
 			let range = new Range(
 				selectionLineNumber,
 				selectionColumn,
@@ -488,7 +488,6 @@ suite('Untitled text editors', () => {
 			);
 
 			return {
-				identifier: null,
 				range,
 				text,
 				forceMoveMarkers: false

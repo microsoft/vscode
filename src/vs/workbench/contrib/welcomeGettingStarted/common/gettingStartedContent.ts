@@ -62,7 +62,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		icon: Codicon.newFile,
 		content: {
 			type: 'startEntry',
-			command: 'welcome.showNewFileEntries',
+			command: 'command:welcome.showNewFileEntries',
 		}
 	},
 	// {
@@ -83,7 +83,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		when: '!isWeb && isMac',
 		content: {
 			type: 'startEntry',
-			command: 'workbench.action.files.openFileFolder',
+			command: 'command:workbench.action.files.openFileFolder',
 		}
 	},
 	{
@@ -94,7 +94,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		when: 'isWeb || !isMac',
 		content: {
 			type: 'startEntry',
-			command: 'workbench.action.files.openFile',
+			command: 'command:workbench.action.files.openFile',
 		}
 	},
 	{
@@ -105,7 +105,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		when: '!isWeb && !isMac',
 		content: {
 			type: 'startEntry',
-			command: 'workbench.action.files.openFolder',
+			command: 'command:workbench.action.files.openFolder',
 		}
 	},
 	{
@@ -116,7 +116,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		when: 'isWeb && workbenchState == \'workspace\'',
 		content: {
 			type: 'startEntry',
-			command: 'workbench.action.addRootFolder',
+			command: 'command:workbench.action.addRootFolder',
 		}
 	},
 	{
@@ -127,7 +127,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		icon: Codicon.sourceControl,
 		content: {
 			type: 'startEntry',
-			command: 'git.clone',
+			command: 'command:git.clone',
 		}
 	},
 	{
@@ -138,7 +138,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		icon: Codicon.sourceControl,
 		content: {
 			type: 'startEntry',
-			command: 'remoteHub.openRepository',
+			command: 'command:remoteHub.openRepository',
 		}
 	},
 	{
@@ -149,7 +149,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		when: 'allWalkthroughsHidden',
 		content: {
 			type: 'startEntry',
-			command: 'welcome.showAllWalkthroughs',
+			command: 'command:welcome.showAllWalkthroughs',
 		}
 	},
 	{

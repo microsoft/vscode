@@ -11,13 +11,13 @@ import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandTha
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/browser/copyLinesCommand';
 import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/browser/moveLinesCommand';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/browser/sortLinesCommand';
@@ -302,7 +302,7 @@ export class DeleteDuplicateLinesAction extends EditorAction {
 			return;
 		}
 
-		let edits: IIdentifiedSingleEditOperation[] = [];
+		let edits: ISingleEditOperation[] = [];
 		let endCursorState: Selection[] = [];
 
 		let linesDeleted = 0;
@@ -430,7 +430,7 @@ export class DeleteLinesAction extends EditorAction {
 		}
 
 		let linesDeleted = 0;
-		let edits: IIdentifiedSingleEditOperation[] = [];
+		let edits: ISingleEditOperation[] = [];
 		let cursorState: Selection[] = [];
 		for (let i = 0, len = ops.length; i < len; i++) {
 			const op = ops[i];
@@ -625,7 +625,7 @@ export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
 
 		let endCursorState = this._getEndCursorState(primaryCursor, effectiveRanges);
 
-		let edits: IIdentifiedSingleEditOperation[] = effectiveRanges.map(range => {
+		let edits: ISingleEditOperation[] = effectiveRanges.map(range => {
 			return EditOperation.replace(range, '');
 		});
 
@@ -849,7 +849,7 @@ export class JoinLinesAction extends EditorAction {
 			return;
 		}
 
-		let edits: IIdentifiedSingleEditOperation[] = [];
+		let edits: ISingleEditOperation[] = [];
 		let endCursorState: Selection[] = [];
 		let endPrimaryCursor = primaryCursor;
 		let lineOffset = 0;
@@ -1018,7 +1018,7 @@ export abstract class AbstractCaseAction extends EditorAction {
 		}
 
 		const wordSeparators = editor.getOption(EditorOption.wordSeparators);
-		const textEdits: IIdentifiedSingleEditOperation[] = [];
+		const textEdits: ISingleEditOperation[] = [];
 
 		for (const selection of selections) {
 			if (selection.isEmpty()) {

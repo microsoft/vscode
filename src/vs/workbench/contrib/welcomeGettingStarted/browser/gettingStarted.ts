@@ -46,7 +46,7 @@ import { Link } from 'vs/platform/opener/browser/link';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
@@ -364,7 +364,7 @@ export class GettingStartedPage extends EditorPane {
 			case 'selectStartEntry': {
 				const selected = startEntries.find(e => e.id === argument);
 				if (selected) {
-					this.commandService.executeCommand(selected.content.command);
+					this.runStepCommand(selected.content.command);
 				} else {
 					throw Error('could not find start entry with id: ' + argument);
 				}

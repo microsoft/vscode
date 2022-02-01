@@ -147,9 +147,9 @@ async function start() {
 }
 
 /**
- * If `--pick - port` and `--port` is specified, connect to that port.
+ * If `--pick-port` and `--port` is specified, connect to that port.
  *
- * If not and a port range is specified through `--pick - port`
+ * If not and a port range is specified through `--pick-port`
  * then find a free port in that range. Throw error if no
  * free port available in range.
  *
@@ -176,14 +176,15 @@ async function parsePort(host, strPort, strPickPort) {
 			if (port !== undefined) {
 				return port;
 			}
-			console.warn(`--port: Could not find free port in range: ${range.start} - ${range.end}.`);
+			console.warn(`--port: Could not find free port in range: ${range.start} - ${range.end} (inclusive).`);
 			process.exit(1);
 
 		} else {
-			console.warn(`--port "${strPort}" is not a valid number or range.`);
+			console.warn(`--port "${strPort}" is not a valid number or range. Ranges must be in the form 'from-to' with 'from' an integer larger than 0 and not larger than 'end'.`);
 			process.exit(1);
 		}
 	}
+	// pick-port is deprecated and will be removed soon
 	if (strPickPort) {
 		const range = parseRange(strPickPort);
 		if (range) {
@@ -194,11 +195,11 @@ async function parsePort(host, strPort, strPickPort) {
 				if (port !== undefined) {
 					return port;
 				}
-				console.log(`--pick - port: Could not find free port in range: ${range.start} - ${range.end}.`);
+				console.log(`--pick-port: Could not find free port in range: ${range.start} - ${range.end}.`);
 				process.exit(1);
 			}
 		} else {
-			console.log(`--pick - port "${strPickPort}" is not properly formatted.`);
+			console.log(`--pick-port "${strPickPort}" is not a valid range. Ranges must be in the form 'from-to' with 'from' an integer larger than 0 and not larger than 'end'.`);
 			process.exit(1);
 		}
 	}
@@ -212,7 +213,10 @@ async function parsePort(host, strPort, strPickPort) {
 function parseRange(strRange) {
 	const match = strRange.match(/^(\d+)-(\d+)$/);
 	if (match) {
-		return { start: parseInt(match[1], 10), end: parseInt(match[2], 10) };
+		const start = parseInt(match[1], 10), end = parseInt(match[2], 10);
+		if (start > 0 && start <= end && end <= 65535) {
+			return { start, end };
+		}
 	}
 	return undefined;
 }
@@ -239,7 +243,7 @@ async function findFreePort(host, start, end) {
 			});
 		});
 	};
-	for (let port = start; port < end; port++) {
+	for (let port = start; port <= end; port++) {
 		if (await testPort(port)) {
 			return port;
 		}

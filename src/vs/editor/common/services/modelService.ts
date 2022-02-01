@@ -8,15 +8,15 @@ import { Disposable, IDisposable, DisposableStore, dispose } from 'vs/base/commo
 import * as platform from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
+import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits } from 'vs/editor/common/languages';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService, DocumentTokensProvider } from 'vs/editor/common/services/model';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -469,7 +469,7 @@ export class ModelService extends Disposable implements IModelService {
 	/**
 	 * Compute edits to bring `model` to the state of `textSource`.
 	 */
-	public static _computeEdits(model: ITextModel, textBuffer: ITextBuffer): IIdentifiedSingleEditOperation[] {
+	public static _computeEdits(model: ITextModel, textBuffer: ITextBuffer): ISingleEditOperation[] {
 		const modelLineCount = model.getLineCount();
 		const textBufferLineCount = textBuffer.getLineCount();
 		const commonPrefix = this._commonPrefix(model, modelLineCount, 1, textBuffer, textBufferLineCount, 1);

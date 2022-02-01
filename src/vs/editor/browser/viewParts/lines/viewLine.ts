@@ -14,7 +14,7 @@ import { FloatHorizontalRange, VisibleRanges } from 'vs/editor/browser/view/rend
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange, DomPosition } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 

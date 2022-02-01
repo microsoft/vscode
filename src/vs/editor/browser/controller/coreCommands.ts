@@ -12,22 +12,22 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Command, EditorCommand, ICommandOptions, registerEditorCommand, MultiCommand, UndoCommand, RedoCommand, SelectAllCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/cursor/cursorColumnSelection';
-import { CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from 'vs/editor/common/cursor/cursorCommon';
+import { CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from 'vs/editor/common/cursorCommon';
 import { DeleteOperations } from 'vs/editor/common/cursor/cursorDeleteOperations';
-import { CursorChangeReason } from 'vs/editor/common/cursor/cursorEvents';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { CursorMove as CursorMove_, CursorMoveCommands } from 'vs/editor/common/cursor/cursorMoveCommands';
 import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Handler, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { VerticalRevealType } from 'vs/editor/common/viewModel/viewEvents';
+import { VerticalRevealType } from 'vs/editor/common/viewEvents';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { IViewModel } from 'vs/editor/common/viewModel';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 

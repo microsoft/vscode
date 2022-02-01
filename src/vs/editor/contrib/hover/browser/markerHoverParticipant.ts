@@ -54,6 +54,8 @@ const markerCodeActionTrigger: CodeActionTrigger = {
 
 export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHover> {
 
+	public readonly hoverOrdinal: number = 5;
+
 	private recentMarkerCodeActionsInfo: { marker: IMarker, hasCodeActions: boolean } | undefined = undefined;
 
 	constructor(
@@ -256,4 +258,3 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-hover .hover-contents a.code-link span:hover { color: ${activeLinkFg}; }`);
 	}
 });
-

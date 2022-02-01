@@ -19,7 +19,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/languages';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';

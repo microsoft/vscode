@@ -21,7 +21,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IIdentifiedSingleEditOperation, IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { LinkedEditingRangeProviderRegistry, LinkedEditingRanges } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
@@ -30,6 +30,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 export const CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('LinkedEditingInputVisible', false);
 
@@ -186,7 +187,7 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 			}
 		}
 
-		let edits: IIdentifiedSingleEditOperation[] = [];
+		let edits: ISingleEditOperation[] = [];
 		for (let i = 1, len = decorations.length; i < len; i++) {
 			const mirrorRange = model.getDecorationRange(decorations[i]);
 			if (!mirrorRange) {

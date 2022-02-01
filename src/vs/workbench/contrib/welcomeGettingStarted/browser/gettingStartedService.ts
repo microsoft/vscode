@@ -30,7 +30,7 @@ import { coalesce, flatten } from 'vs/base/common/arrays';
 import { IViewsService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { checkGlobFileExists } from 'vs/workbench/api/common/shared/workspaceContains';
+import { checkGlobFileExists } from 'vs/workbench/services/extensions/common/workspaceContains';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
@@ -308,7 +308,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 			const isNewlyInstalled = !this.metadata.get(categoryID);
 			if (isNewlyInstalled) {
-				this.metadata.set(categoryID, { firstSeen: +new Date(), stepIDs: walkthrough.steps.map(s => s.id), manaullyOpened: false });
+				this.metadata.set(categoryID, { firstSeen: +new Date(), stepIDs: walkthrough.steps?.map(s => s.id) ?? [], manaullyOpened: false });
 			}
 
 			const override = await Promise.race([
@@ -327,8 +327,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				}
 			}
 
-
-			const steps = walkthrough.steps.map((step, index) => {
+			const steps = (walkthrough.steps ?? []).map((step, index) => {
 				const description = parseDescription(step.description || '');
 				const fullyQualifiedID = extension.identifier.value + '#' + walkthrough.id + '#' + step.id;
 

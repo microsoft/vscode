@@ -175,6 +175,10 @@ export abstract class AbstractScrollableElement extends Widget {
 	private readonly _onWillScroll = this._register(new Emitter<ScrollEvent>());
 	public readonly onWillScroll: Event<ScrollEvent> = this._onWillScroll.event;
 
+	public get options(): Readonly<ScrollableElementResolvedOptions> {
+		return this._options;
+	}
+
 	protected constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable: Scrollable) {
 		super();
 		element.style.overflow = 'hidden';

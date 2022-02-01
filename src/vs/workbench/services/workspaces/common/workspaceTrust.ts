@@ -215,12 +215,12 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private async resolveCanonicalUris(): Promise<void> {
 		// Open editors
 		const filesToOpen: IPath[] = [];
-		if (this.environmentService.configuration.filesToOpenOrCreate) {
-			filesToOpen.push(...this.environmentService.configuration.filesToOpenOrCreate);
+		if (this.environmentService.filesToOpenOrCreate) {
+			filesToOpen.push(...this.environmentService.filesToOpenOrCreate);
 		}
 
-		if (this.environmentService.configuration.filesToDiff) {
-			filesToOpen.push(...this.environmentService.configuration.filesToDiff);
+		if (this.environmentService.filesToDiff) {
+			filesToOpen.push(...this.environmentService.filesToDiff);
 		}
 
 		if (filesToOpen.length) {

@@ -221,6 +221,20 @@ suite('KeybindingResolver', () => {
 		]);
 	});
 
+	test('issue #141638: Keyboard Shortcuts: Change When Expression might actually remove keybinding in Insiders', () => {
+		const defaults = [
+			kbItem(KeyCode.KeyA, 'command1', null, undefined, true),
+		];
+		const overrides = [
+			kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.equals('a', '1'), false),
+			kbItem(KeyCode.KeyA, '-command1', null, undefined, false),
+		];
+		const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
+		assert.deepStrictEqual(actual, [
+			kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.equals('a', '1'), false)
+		]);
+	});
+
 	test('contextIsEntirelyIncluded', () => {
 		const toContextKeyExpression = (expr: ContextKeyExpression | string | null) => {
 			if (typeof expr === 'string' || !expr) {
