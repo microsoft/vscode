@@ -1499,6 +1499,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xtermTypeAheadAddon?.reset();
 	}
 
+	async setEscapeSequenceLogging(enable: boolean): Promise<void> {
+		const xterm = await this._xtermReadyPromise;
+		xterm.raw.options.logLevel = enable ? 'debug' : 'info';
+	}
+
 	@debounce(1000)
 	relaunch(): void {
 		this.reuseTerminal(this._shellLaunchConfig, true);

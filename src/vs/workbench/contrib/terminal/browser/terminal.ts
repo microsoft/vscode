@@ -205,8 +205,8 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
-	toggleDevTools(open?: boolean): Promise<void>;
 	handleNewRegisteredBackend(backend: ITerminalBackend): void;
+	toggleEscapeSequenceLogging(): Promise<void>;
 }
 export class TerminalLinkQuickPickEvent extends MouseEvent {
 
@@ -771,6 +771,8 @@ export interface ITerminalInstance {
 	addDisposable(disposable: IDisposable): void;
 
 	toggleEscapeSequenceLogging(): Promise<boolean>;
+
+	setEscapeSequenceLogging(enable: boolean): void;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
