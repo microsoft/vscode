@@ -378,9 +378,9 @@ export interface IShellLaunchConfig {
 	name?: string;
 
 	/**
-	 * An string to follow the name of the terminal with, indicating a special kind of terminal
+	 * A string to follow the name of the terminal with, indicating the type of terminal
 	 */
-	description?: string;
+	type?: 'Task' | 'Local';
 
 	/**
 	 * The shell executable (bash, cmd, etc.).

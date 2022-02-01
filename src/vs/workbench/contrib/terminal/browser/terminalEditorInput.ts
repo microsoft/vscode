@@ -226,7 +226,7 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	public override getDescription(): string | undefined {
-		return this._terminalInstance?.description || this._terminalInstance?.shellLaunchConfig.description;
+		return this._terminalInstance?.description || this._terminalInstance?.shellLaunchConfig.type;
 	}
 
 	public override toUntyped(): IUntypedEditorInput {
