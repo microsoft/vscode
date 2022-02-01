@@ -86,6 +86,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			return [];
 		}
 
+		// TODO: Filter out local links: length, resolved count, regex match count?
 		// clone regex to do a global search on text
 		const rex = new RegExp(this._localLinkRegex, 'g');
 		let match;

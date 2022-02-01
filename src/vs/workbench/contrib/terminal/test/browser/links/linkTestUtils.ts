@@ -34,8 +34,6 @@ export async function assertLinkHelper(
 	});
 	const expectedLinks = expected.map(e => {
 		return {
-			// TODO: Only URL links are tested currently but this detector can also detect loca
-			//       file/folder links
 			type: expectedType,
 			text: e.text,
 			bufferRange: {
