@@ -67,13 +67,13 @@ export interface IConfigurationRegistry {
 	notifyConfigurationSchemaUpdated(...configurations: IConfigurationNode[]): void;
 
 	/**
-	 * Event that fires whenver a configuration has been
+	 * Event that fires whenever a configuration has been
 	 * registered.
 	 */
 	readonly onDidSchemaChange: Event<void>;
 
 	/**
-	 * Event that fires whenver a configuration has been
+	 * Event that fires whenever a configuration has been
 	 * registered.
 	 */
 	readonly onDidUpdateConfiguration: Event<{ properties: string[], defaultsOverrides?: boolean }>;
