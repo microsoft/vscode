@@ -28,12 +28,12 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 
 const $ = dom.$;
 
-const enum Class {
-	ViewIsVertical = 'view-is-vertical',
+const enum CssClass {
+	ViewIsVertical = 'view-in-side-panel',
 	FindFocus = 'find-focused'
 }
 
-const enum Width {
+const enum WidthConstants {
 	StatusIcon = 30,
 	SplitAnnotation = 30
 }
@@ -135,17 +135,17 @@ export class TerminalTabbedView extends Disposable {
 		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this._updateTheme();
 
-		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer.classList.add(Class.FindFocus));
-		this._findWidget.focusTracker.onDidBlur(() => this._terminalContainer.classList.remove(Class.FindFocus));
+		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer.classList.add(CssClass.FindFocus));
+		this._findWidget.focusTracker.onDidBlur(() => this._terminalContainer.classList.remove(CssClass.FindFocus));
 
 		this._attachEventListeners(parentElement, this._terminalContainer);
 
 		this._terminalGroupService.onDidChangePanelOrientation((orientation) => {
 			this._panelOrientation = orientation;
 			if (this._panelOrientation === Orientation.VERTICAL) {
-				this._terminalContainer.classList.add(Class.ViewIsVertical);
+				this._terminalContainer.classList.add(CssClass.ViewIsVertical);
 			} else {
-				this._terminalContainer.classList.remove(Class.ViewIsVertical);
+				this._terminalContainer.classList.remove(CssClass.ViewIsVertical);
 			}
 		});
 
@@ -234,8 +234,8 @@ export class TerminalTabbedView extends Disposable {
 	private _getAdditionalWidth(instance: ITerminalInstance): number {
 		// Size to include padding, icon, status icon (if any), split annotation (if any), + a little more
 		const additionalWidth = 40;
-		const statusIconWidth = instance.statusList.statuses.length > 0 ? Width.StatusIcon : 0;
-		const splitAnnotationWidth = (this._terminalGroupService.getGroupForInstance(instance)?.terminalInstances.length || 0) > 1 ? Width.SplitAnnotation : 0;
+		const statusIconWidth = instance.statusList.statuses.length > 0 ? WidthConstants.StatusIcon : 0;
+		const splitAnnotationWidth = (this._terminalGroupService.getGroupForInstance(instance)?.terminalInstances.length || 0) > 1 ? WidthConstants.SplitAnnotation : 0;
 		return additionalWidth + splitAnnotationWidth + statusIconWidth;
 	}
 
