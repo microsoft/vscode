@@ -12,6 +12,7 @@ export enum Selector {
 	Xterm = `#terminal .terminal-wrapper`,
 	XtermEditor = `.editor-instance .terminal-wrapper`,
 	TabsEntry = '.terminal-tabs-entry',
+	Description = '.label-description',
 	XtermFocused = '.terminal.xterm.focus',
 	PlusButton = '.codicon-plus',
 	EditorGroups = '.editor .split-view-view',
@@ -55,6 +56,7 @@ export enum TerminalCommandId {
 }
 interface TerminalLabel {
 	name?: string,
+	description?: string,
 	icon?: string,
 	color?: string
 }
@@ -142,12 +144,15 @@ export class Terminal {
 		const tabCount = (await this.code.waitForElements(Selector.Tabs, true)).length;
 		const groups: TerminalGroup[] = [];
 		for (let i = 0; i < tabCount; i++) {
-			const instance = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry}`, e => e?.textContent?.length ? e?.textContent?.length > 1 : false);
+			const title = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry}`, e => e?.textContent?.length ? e?.textContent?.length > 1 : false);
+			const description = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry} ${Selector.Description}`, e => e?.textContent?.length ? e?.textContent?.length > 1 : false);
+
 			const label: TerminalLabel = {
-				name: instance.textContent.replace(/^[├┌└]\s*/, '')
+				name: title.textContent.replace(/^[├┌└]\s*/, ''),
+				description
 			};
 			// It's a new group if the the tab does not start with ├ or └
-			if (instance.textContent.match(/^[├└]/)) {
+			if (title.textContent.match(/^[├└]/)) {
 				groups[groups.length - 1].push(label);
 			} else {
 				groups.push([label]);
