@@ -10,7 +10,7 @@
 
 import * as vscode from 'vscode';
 import { Disposable } from '../utils/dispose';
-import * as languageModeIds from '../utils/languageModeIds';
+import * as languageModeIds from '../utils/languageIds';
 
 const jsTsLanguageConfiguration: vscode.LanguageConfiguration = {
 	indentationRules: {

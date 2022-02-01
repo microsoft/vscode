@@ -5,9 +5,9 @@
 
 import { SerializedError } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtensionService, ExtensionHostKind, MissingExtensionDependency, ExtensionActivationReason } from 'vs/workbench/services/extensions/common/extensions';
+import { extHostNamedCustomer, IExtHostContext, IInternalExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext, ExtHostExtensionServiceShape, MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtensionService, ExtensionHostKind, MissingExtensionDependency, ExtensionActivationReason, ActivationKind, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
@@ -21,11 +21,16 @@ import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensio
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { URI } from 'vs/base/common/uri';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
 
 	private readonly _extensionHostKind: ExtensionHostKind;
+	private readonly _internalExtensionService: IInternalExtensionService;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -39,26 +44,33 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		this._extensionHostKind = extHostContext.extensionHostKind;
+
+		const internalExtHostContext = (<IInternalExtHostContext>extHostContext);
+		this._internalExtensionService = internalExtHostContext.internalExtensionService;
+		internalExtHostContext._setExtensionHostProxy(
+			new ExtensionHostProxy(extHostContext.getProxy(ExtHostContext.ExtHostExtensionService))
+		);
+		internalExtHostContext._setAllMainProxyIdentifiers(Object.keys(MainContext).map((key) => (<any>MainContext)[key]));
 	}
 
 	public dispose(): void {
 	}
 
 	$activateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
-		return this._extensionService._activateById(extensionId, reason);
+		return this._internalExtensionService._activateById(extensionId, reason);
 	}
 	async $onWillActivateExtension(extensionId: ExtensionIdentifier): Promise<void> {
-		this._extensionService._onWillActivateExtension(extensionId);
+		this._internalExtensionService._onWillActivateExtension(extensionId);
 	}
 	$onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void {
-		this._extensionService._onDidActivateExtension(extensionId, codeLoadingTime, activateCallTime, activateResolvedTime, activationReason);
+		this._internalExtensionService._onDidActivateExtension(extensionId, codeLoadingTime, activateCallTime, activateResolvedTime, activationReason);
 	}
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, data: SerializedError): void {
 		const error = new Error();
 		error.name = data.name;
 		error.message = data.message;
 		error.stack = data.stack;
-		this._extensionService._onExtensionRuntimeError(extensionId, error);
+		this._internalExtensionService._onExtensionRuntimeError(extensionId, error);
 		console.error(`[${extensionId}]${error.message}`);
 		console.error(error.stack);
 	}
@@ -68,7 +80,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		error.message = data.message;
 		error.stack = data.stack;
 
-		this._extensionService._onDidActivateExtensionError(extensionId, error);
+		this._internalExtensionService._onDidActivateExtensionError(extensionId, error);
 
 		if (missingExtensionDependency) {
 			const extension = await this._extensionService.getExtension(extensionId.value);
@@ -169,5 +181,52 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		} else {
 			this._timerService.setPerformanceMarks('remoteExtHost', marks);
 		}
+	}
+}
+
+class ExtensionHostProxy implements IExtensionHostProxy {
+	constructor(
+		private readonly _actual: ExtHostExtensionServiceShape
+	) { }
+
+	resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
+		return this._actual.$resolveAuthority(remoteAuthority, resolveAttempt);
+	}
+	async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {
+		const uriComponents = await this._actual.$getCanonicalURI(remoteAuthority, uri);
+		return URI.revive(uriComponents);
+	}
+	startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
+		return this._actual.$startExtensionHost(enabledExtensionIds);
+	}
+	extensionTestsExecute(): Promise<number> {
+		return this._actual.$extensionTestsExecute();
+	}
+	extensionTestsExit(code: number): Promise<void> {
+		return this._actual.$extensionTestsExit(code);
+	}
+	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
+		return this._actual.$activateByEvent(activationEvent, activationKind);
+	}
+	activate(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean> {
+		return this._actual.$activate(extensionId, reason);
+	}
+	setRemoteEnvironment(env: { [key: string]: string | null; }): Promise<void> {
+		return this._actual.$setRemoteEnvironment(env);
+	}
+	updateRemoteConnectionData(connectionData: IRemoteConnectionData): Promise<void> {
+		return this._actual.$updateRemoteConnectionData(connectionData);
+	}
+	deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
+		return this._actual.$deltaExtensions(toAdd, toRemove);
+	}
+	test_latency(n: number): Promise<number> {
+		return this._actual.$test_latency(n);
+	}
+	test_up(b: VSBuffer): Promise<number> {
+		return this._actual.$test_up(b);
+	}
+	test_down(size: number): Promise<VSBuffer> {
+		return this._actual.$test_down(size);
 	}
 }

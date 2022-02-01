@@ -42,6 +42,10 @@ suite('RipgrepTextSearchEngine', () => {
 			['fo[^\\na-z]o', 'fo(?!\\r?\\n|[a-z])o'],
 			['foo[^\\n]+o', 'foo.+o'],
 			['foo[^\\nzq]+o', 'foo[^zq]+o'],
+			['foo[^\\nzq]+o', 'foo[^zq]+o'],
+			// preserves quantifies, #137899
+			['fo[^\\S\\n]*o', 'fo[^\\S]*o'],
+			['fo[^\\S\\n]{3,}o', 'fo[^\\S]{3,}o'],
 		];
 
 		for (const [input, expected] of ttable) {

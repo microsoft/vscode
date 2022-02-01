@@ -447,10 +447,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			params.purpose = options.purpose;
 		}
 
-		const queryString = (Object.keys(params) as Array<keyof typeof params>)
-			.map((key) => `${key}=${encodeURIComponent(params[key]!)}`)
-			.join('&');
-
+		const queryString = new URLSearchParams(params).toString();
 		this.element!.setAttribute('src', `${this.webviewContentEndpoint}/index.html?${queryString}`);
 	}
 
