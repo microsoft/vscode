@@ -36,7 +36,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 	private readonly _contributedEditors: ContributedCustomEditors;
 	private _untitledCounter = 0;
-	private readonly _editorResolverDisposables: IDisposable[] = [];
+	private readonly _editorResolverDisposables = new Set<IDisposable>();
 	private readonly _editorCapabilities = new Map<string, CustomEditorCapabilities>();
 
 	private readonly _models = new CustomEditorModelManager();
@@ -109,13 +109,15 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 	private registerContributionPoints(): void {
 		// Clear all previous contributions we know
-		dispose(this._editorResolverDisposables);
+		dispose(this._editorResolverDisposables.values());
+		this._editorResolverDisposables.clear();
+
 		for (const contributedEditor of this._contributedEditors) {
 			for (const globPattern of contributedEditor.selector) {
 				if (!globPattern.filenamePattern) {
 					continue;
 				}
-				this._editorResolverDisposables.push(this._register(this.editorResolverService.registerEditor(
+				this._editorResolverDisposables.add(this._register(this.editorResolverService.registerEditor(
 					globPattern.filenamePattern,
 					{
 						id: contributedEditor.id,
