@@ -7,6 +7,7 @@ case "$1" in
 	--inspect*) INSPECT="$1"; shift;;
 esac
 
-ROOT=$(dirname "$(dirname "$0")")
+function realpath() { python -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$0"; }
+ROOT=$(dirname $(dirname $(realpath "$0")))
 
 "$ROOT/node" ${INSPECT:-} "$ROOT/out/server-main.js" "$@"
