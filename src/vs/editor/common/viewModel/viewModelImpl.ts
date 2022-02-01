@@ -150,6 +150,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 
 		this._register(this._themeService.onDidColorThemeChange((theme) => {
+			this._invalidateDecorationsColorCache();
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewThemeChangedEvent(theme));
 		}));
 
@@ -162,7 +163,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		super.dispose();
 		this._decorations.dispose();
 		this._lines.dispose();
-		this.invalidateMinimapColorCache();
 		this._viewportStartLineTrackedRange = this.model._setTrackedRange(this._viewportStartLineTrackedRange, null, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 		this._eventDispatcher.dispose();
 	}
@@ -740,22 +740,16 @@ export class ViewModel extends Disposable implements IViewModel {
 		return result.asArray;
 	}
 
-	public invalidateOverviewRulerColorCache(): void {
+	private _invalidateDecorationsColorCache(): void {
 		const decorations = this.model.getOverviewRulerDecorations();
 		for (const decoration of decorations) {
-			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			if (opts) {
-				opts.invalidateCachedColor();
+			const opts1 = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
+			if (opts1) {
+				opts1.invalidateCachedColor();
 			}
-		}
-	}
-
-	public invalidateMinimapColorCache(): void {
-		const decorations = this.model.getAllDecorations();
-		for (const decoration of decorations) {
-			const opts = <ModelDecorationMinimapOptions>decoration.options.minimap;
-			if (opts) {
-				opts.invalidateCachedColor();
+			const opts2 = <ModelDecorationMinimapOptions>decoration.options.minimap;
+			if (opts2) {
+				opts2.invalidateCachedColor();
 			}
 		}
 	}
