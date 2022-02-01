@@ -25,7 +25,6 @@ import { EditorResolution, ITextEditorOptions } from 'vs/platform/editor/common/
 import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { getPrivateApiFor, TestItemImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import { SaveReason } from 'vs/workbench/common/editor';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -37,6 +36,14 @@ import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGro
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
+
+export namespace Command {
+
+	export interface ICommandsConverter {
+		fromInternal(command: extHostProtocol.ICommandDto): vscode.Command | undefined;
+		toInternal(command: vscode.Command | undefined, disposables: DisposableStore): extHostProtocol.ICommandDto | undefined;
+	}
+}
 
 export interface PositionLike {
 	line: number;
@@ -1061,7 +1068,7 @@ export namespace CompletionItemKind {
 
 export namespace CompletionItem {
 
-	export function to(suggestion: modes.CompletionItem, converter?: CommandsConverter): types.CompletionItem {
+	export function to(suggestion: modes.CompletionItem, converter?: Command.ICommandsConverter): types.CompletionItem {
 
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.insertText;
@@ -1155,7 +1162,7 @@ export namespace SignatureHelp {
 
 export namespace InlayHint {
 
-	export function to(converter: CommandsConverter, hint: modes.InlayHint): vscode.InlayHint {
+	export function to(converter: Command.ICommandsConverter, hint: modes.InlayHint): vscode.InlayHint {
 		const res = new types.InlayHint(
 			typeof hint.label === 'string' ? hint.label : hint.label.map(InlayHintLabelPart.to.bind(undefined, converter)),
 			Position.to(hint.position),
@@ -1170,7 +1177,7 @@ export namespace InlayHint {
 
 export namespace InlayHintLabelPart {
 
-	export function to(converter: CommandsConverter, part: modes.InlayHintLabelPart): types.InlayHintLabelPart {
+	export function to(converter: Command.ICommandsConverter, part: modes.InlayHintLabelPart): types.InlayHintLabelPart {
 		const result = new types.InlayHintLabelPart(part.label);
 		result.tooltip = htmlContent.isMarkdownString(part.tooltip)
 			? MarkdownString.to(part.tooltip)
@@ -1647,7 +1654,7 @@ export namespace NotebookDecorationRenderOptions {
 }
 
 export namespace NotebookStatusBarItem {
-	export function from(item: vscode.NotebookCellStatusBarItem, commandsConverter: CommandsConverter, disposables: DisposableStore): notebooks.INotebookCellStatusBarItem {
+	export function from(item: vscode.NotebookCellStatusBarItem, commandsConverter: Command.ICommandsConverter, disposables: DisposableStore): notebooks.INotebookCellStatusBarItem {
 		const command = typeof item.command === 'string' ? { title: '', command: item.command } : item.command;
 		return {
 			alignment: item.alignment === types.NotebookCellStatusBarAlignment.Left ? notebooks.CellStatusbarAlignment.Left : notebooks.CellStatusbarAlignment.Right,
