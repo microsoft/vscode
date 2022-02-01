@@ -289,7 +289,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		const scrollTopDelta = Math.abs(this._context.viewLayout.getCurrentScrollTop() - newScrollPosition.scrollTop);
 		const scrollType = (scrollTopDelta <= this._lineHeight ? ScrollType.Immediate : e.scrollType);
-		this._context.viewModel.setScrollPosition(newScrollPosition, scrollType);
+		this._context.viewModel.viewLayout.setScrollPosition(newScrollPosition, scrollType);
 
 		return true;
 	}
@@ -314,7 +314,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		return this._visibleLines.onTokensChanged(e);
 	}
 	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		this._context.viewModel.setMaxLineWidth(this._maxLineWidth);
+		this._context.viewModel.viewLayout.setMaxLineWidth(this._maxLineWidth);
 		return this._visibleLines.onZonesChanged(e);
 	}
 	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
@@ -594,7 +594,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 						this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
 					}
 					// set `scrollLeft`
-					this._context.viewModel.setScrollPosition({
+					this._context.viewModel.viewLayout.setScrollPosition({
 						scrollLeft: newScrollLeft.scrollLeft
 					}, horizontalRevealRequest.scrollType);
 				}
@@ -633,7 +633,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		const iLineWidth = Math.ceil(lineWidth);
 		if (this._maxLineWidth < iLineWidth) {
 			this._maxLineWidth = iLineWidth;
-			this._context.viewModel.setMaxLineWidth(this._maxLineWidth);
+			this._context.viewModel.viewLayout.setMaxLineWidth(this._maxLineWidth);
 		}
 	}
 

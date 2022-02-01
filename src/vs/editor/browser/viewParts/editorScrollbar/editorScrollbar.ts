@@ -90,7 +90,7 @@ export class EditorScrollbar extends ViewPart {
 				}
 			}
 
-			this._context.viewModel.setScrollPosition(newScrollPosition, ScrollType.Immediate);
+			this._context.viewModel.viewLayout.setScrollPosition(newScrollPosition, ScrollType.Immediate);
 		};
 
 		// I've seen this happen both on the view dom node & on the lines content dom node.

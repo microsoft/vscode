@@ -1256,7 +1256,7 @@ export namespace CoreNavigationCommands {
 				);
 			}
 
-			viewModel.setScrollTop(desiredScrollTop, ScrollType.Smooth);
+			viewModel.viewLayout.setScrollPosition({ scrollTop: desiredScrollTop }, ScrollType.Smooth);
 		}
 
 		private _computeDesiredScrollTop(viewModel: IViewModel, args: EditorScroll_.ParsedArguments): number {
@@ -1276,7 +1276,7 @@ export namespace CoreNavigationCommands {
 				}
 
 				const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(desiredTopModelLineNumber, 1));
-				return viewModel.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
+				return viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
 			}
 
 			let noOfLines: number;
@@ -1288,7 +1288,7 @@ export namespace CoreNavigationCommands {
 				noOfLines = args.value;
 			}
 			const deltaLines = (args.direction === EditorScroll_.Direction.Up ? -1 : 1) * noOfLines;
-			return viewModel.getScrollTop() + deltaLines * viewModel.cursorConfig.lineHeight;
+			return viewModel.viewLayout.getCurrentScrollTop() + deltaLines * viewModel.cursorConfig.lineHeight;
 		}
 	}
 

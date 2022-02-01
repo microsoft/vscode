@@ -412,7 +412,7 @@ class HitTestRequest extends BareHitTestRequest {
 	private _getMouseColumn(position: Position | null = null): number {
 		if (position && position.column < this._ctx.viewModel.getLineMaxColumn(position.lineNumber)) {
 			// Most likely, the line contains foreign decorations...
-			return CursorColumns.visibleColumnFromColumn(this._ctx.viewModel.getLineContent(position.lineNumber), position.column, this._ctx.viewModel.getTextModelOptions().tabSize) + 1;
+			return CursorColumns.visibleColumnFromColumn(this._ctx.viewModel.getLineContent(position.lineNumber), position.column, this._ctx.viewModel.model.getOptions().tabSize) + 1;
 		}
 		return this.mouseColumn;
 	}
@@ -952,7 +952,7 @@ export class MouseTargetFactory {
 
 	private static _snapToSoftTabBoundary(position: Position, viewModel: IViewModel): Position {
 		const lineContent = viewModel.getLineContent(position.lineNumber);
-		const { tabSize } = viewModel.getTextModelOptions();
+		const { tabSize } = viewModel.model.getOptions();
 		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, position.column - 1, tabSize, Direction.Nearest);
 		if (newPosition !== -1) {
 			return new Position(position.lineNumber, newPosition + 1);

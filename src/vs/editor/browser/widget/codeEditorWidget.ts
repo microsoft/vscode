@@ -902,7 +902,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (typeof newScrollLeft !== 'number') {
 			throw new Error('Invalid arguments');
 		}
-		this._modelData.viewModel.setScrollPosition({
+		this._modelData.viewModel.viewLayout.setScrollPosition({
 			scrollLeft: newScrollLeft
 		}, scrollType);
 	}
@@ -913,7 +913,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (typeof newScrollTop !== 'number') {
 			throw new Error('Invalid arguments');
 		}
-		this._modelData.viewModel.setScrollPosition({
+		this._modelData.viewModel.viewLayout.setScrollPosition({
 			scrollTop: newScrollTop
 		}, scrollType);
 	}
@@ -921,7 +921,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.setScrollPosition(position, scrollType);
+		this._modelData.viewModel.viewLayout.setScrollPosition(position, scrollType);
 	}
 
 	public saveViewState(): editorCommon.ICodeEditorViewState | null {

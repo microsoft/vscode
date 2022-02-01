@@ -423,15 +423,15 @@ export class View extends ViewEventHandler {
 	}
 
 	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number; }): void {
-		this._context.viewModel.setScrollPosition({ scrollTop: scrollPosition.scrollTop }, ScrollType.Immediate);
+		this._context.viewModel.viewLayout.setScrollPosition({ scrollTop: scrollPosition.scrollTop }, ScrollType.Immediate);
 		this._context.viewModel.tokenizeViewport();
 		this._renderNow();
 		this._viewLines.updateLineWidths();
-		this._context.viewModel.setScrollPosition({ scrollLeft: scrollPosition.scrollLeft }, ScrollType.Immediate);
+		this._context.viewModel.viewLayout.setScrollPosition({ scrollLeft: scrollPosition.scrollLeft }, ScrollType.Immediate);
 	}
 
 	public getOffsetForColumn(modelLineNumber: number, modelColumn: number): number {
-		const modelPosition = this._context.viewModel.validateModelPosition({
+		const modelPosition = this._context.viewModel.model.validatePosition({
 			lineNumber: modelLineNumber,
 			column: modelColumn
 		});

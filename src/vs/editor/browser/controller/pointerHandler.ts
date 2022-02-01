@@ -83,7 +83,7 @@ export class PointerEventHandler extends MouseHandler {
 
 	private onChange(e: GestureEvent): void {
 		if (this._lastPointerType === 'touch') {
-			this._context.viewModel.deltaScrollNow(-e.translationX, -e.translationY);
+			this._context.viewModel.viewLayout.deltaScrollNow(-e.translationX, -e.translationY);
 		}
 	}
 
@@ -126,7 +126,7 @@ class TouchHandler extends MouseHandler {
 	}
 
 	private onChange(e: GestureEvent): void {
-		this._context.viewModel.deltaScrollNow(-e.translationX, -e.translationY);
+		this._context.viewModel.viewLayout.deltaScrollNow(-e.translationX, -e.translationY);
 	}
 }
 

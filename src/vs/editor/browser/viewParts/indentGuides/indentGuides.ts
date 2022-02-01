@@ -191,7 +191,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			activeIndentLevel = activeIndentInfo.indent;
 		}
 
-		const { indentSize } = this._context.viewModel.getTextModelOptions();
+		const { indentSize } = this._context.viewModel.model.getOptions();
 
 		const result: IndentGuide[][] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
