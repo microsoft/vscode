@@ -1983,7 +1983,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._linkManager) {
 			throw new Error('TerminalInstance.registerLinkProvider before link manager was ready');
 		}
-		return this._linkManager.registerExternalLinkProvider(this, provider);
+		// Avoid a circular dependency by binding the terminal instances to the external link provider
+		return this._linkManager.registerExternalLinkProvider(provider.provideLinks.bind(provider, this));
 	}
 
 	async rename(title?: string | 'triggerQuickpick') {

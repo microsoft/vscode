@@ -16,7 +16,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
-import { ITerminalLinkDetector, ITerminalLinkOpener, ITerminalSimpleLink, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { ITerminalLinkDetector, ITerminalLinkOpener, ITerminalSimpleLink, OmitFirstArg, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalExternalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkDetector';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { TerminalLinkDetectorAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkDetectorAdapter';
@@ -25,7 +25,7 @@ import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminal/browser
 import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalUriLinkDetector';
 import { lineAndColumnClause, unixLocalLinkClause, winDrivePrefix, winLocalLinkClause } from 'vs/workbench/contrib/terminal/browser/links/terminalValidatedLocalLinkProvider';
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
-import { ITerminalExternalLinkProvider, ITerminalInstance, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILinkHoverTargetOptions, TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
@@ -243,11 +243,11 @@ export class TerminalLinkManager extends DisposableStore {
 		}
 	}
 
-	registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable {
+	registerExternalLinkProvider(provideLinks: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']>): IDisposable {
 		// Clear and re-register the standard link providers so they are a lower priority than the new one
 		this._clearLinkProviders();
 		// TODO: Support multiple extensions, multiple ids and don't add to disposables array
-		const wrappedLinkProvider = this._setupLinkDetector('extension', new TerminalExternalLinkDetector('extension', this._xterm, instance, linkProvider), true);
+		const wrappedLinkProvider = this._setupLinkDetector('extension', new TerminalExternalLinkDetector('extension', this._xterm, provideLinks), true);
 		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
 		this._linkProvidersDisposables.push(newLinkProvider);
 		this._registerStandardLinkProviders();

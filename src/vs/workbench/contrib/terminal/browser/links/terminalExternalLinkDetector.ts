@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalLinkDetector, ITerminalSimpleLink } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { ITerminalLinkDetector, ITerminalSimpleLink, OmitFirstArg } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
-import { ITerminalExternalLinkProvider, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IBufferLine, Terminal } from 'xterm';
 
 const enum Constants {
@@ -19,9 +19,7 @@ export class TerminalExternalLinkDetector implements ITerminalLinkDetector {
 	constructor(
 		readonly id: string,
 		readonly xterm: Terminal,
-		// TODO: This is a circular dependency
-		private readonly _instance: ITerminalInstance,
-		private readonly _externalLinkProvider: ITerminalExternalLinkProvider
+		private readonly _provideLinks: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']>
 	) {
 	}
 
@@ -32,7 +30,7 @@ export class TerminalExternalLinkDetector implements ITerminalLinkDetector {
 			return [];
 		}
 
-		const externalLinks = await this._externalLinkProvider.provideLinks(this._instance, text);
+		const externalLinks = await this._provideLinks(text);
 		console.log('external links', externalLinks);
 		if (!externalLinks) {
 			return [];
