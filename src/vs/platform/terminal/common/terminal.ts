@@ -49,6 +49,7 @@ export const enum TerminalSettingId {
 	MacOptionClickForcesSelection = 'terminal.integrated.macOptionClickForcesSelection',
 	AltClickMovesCursor = 'terminal.integrated.altClickMovesCursor',
 	CopyOnSelection = 'terminal.integrated.copyOnSelection',
+	EnableMultiLinePasteWarning = 'terminal.integrated.enableMultiLinePasteWarning',
 	DrawBoldTextInBrightColors = 'terminal.integrated.drawBoldTextInBrightColors',
 	FontFamily = 'terminal.integrated.fontFamily',
 	FontSize = 'terminal.integrated.fontSize',
