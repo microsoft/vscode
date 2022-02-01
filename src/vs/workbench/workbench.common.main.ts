@@ -261,6 +261,7 @@ import 'vs/workbench/contrib/keybindings/browser/keybindings.contribution';
 import 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import 'vs/workbench/contrib/snippets/browser/snippetsService';
 import 'vs/workbench/contrib/snippets/browser/insertSnippet';
+import 'vs/workbench/contrib/snippets/browser/surroundWithSnippet';
 import 'vs/workbench/contrib/snippets/browser/configureSnippets';
 import 'vs/workbench/contrib/snippets/browser/tabCompletion';
 
