@@ -29,7 +29,7 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 const $ = dom.$;
 
 const enum Class {
-	ViewIsVertical = 'vertical',
+	ViewIsVertical = 'view-is-vertical',
 	FindFocus = 'find-focused'
 }
 
