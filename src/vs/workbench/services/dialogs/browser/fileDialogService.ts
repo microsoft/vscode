@@ -60,7 +60,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showUnsupportedBrowserWarning('open');
 		}
 
-		let fileHandle: FileSystemHandle | undefined = undefined;
+		let fileHandle: FileSystemFileHandle | undefined = undefined;
 		try {
 			([fileHandle] = await window.showOpenFilePicker({ multiple: false }));
 		} catch (error) {
@@ -113,7 +113,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showUnsupportedBrowserWarning('save');
 		}
 
-		let fileHandle: FileSystemHandle | undefined = undefined;
+		let fileHandle: FileSystemFileHandle | undefined = undefined;
 		const startIn = Iterable.first(this.fileSystemProvider.directories);
 
 		try {
@@ -150,7 +150,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showUnsupportedBrowserWarning('save');
 		}
 
-		let fileHandle: FileSystemHandle | undefined = undefined;
+		let fileHandle: FileSystemFileHandle | undefined = undefined;
 		const startIn = Iterable.first(this.fileSystemProvider.directories);
 
 		try {
