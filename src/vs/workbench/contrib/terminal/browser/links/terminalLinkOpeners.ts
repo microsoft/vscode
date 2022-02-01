@@ -40,7 +40,9 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 			startLineNumber: lineColumnInfo.lineNumber,
 			startColumn: lineColumnInfo.columnNumber
 		};
-		console.log('TerminalLocalFileLinkOpener');
+
+		// TODO: Line and column information should be passed along from the detector to avoid this
+		//       work here.
 		await this._editorService.openEditor({
 			resource: link.uri,
 			options: { pinned: true, selection, revealIfOpened: true }

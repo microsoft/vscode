@@ -17,13 +17,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { ITerminalLinkDetector, ITerminalLinkOpener, ITerminalSimpleLink, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { TerminalExternalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkDetector';
+import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { TerminalLinkDetectorAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkDetectorAdapter';
 import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalLocalFolderOutsideWorkspaceLinkOpener, TerminalSearchLinkOpener, TerminalUrlLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
 import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
 import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalUriLinkDetector';
-import { lineAndColumnClause, lineAndColumnClauseGroupCount, unixLineAndColumnMatchIndex, unixLocalLinkClause, winDrivePrefix, winLineAndColumnMatchIndex, winLocalLinkClause } from 'vs/workbench/contrib/terminal/browser/links/terminalValidatedLocalLinkProvider';
+import { lineAndColumnClause, unixLocalLinkClause, winDrivePrefix, winLocalLinkClause } from 'vs/workbench/contrib/terminal/browser/links/terminalValidatedLocalLinkProvider';
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
 import { ITerminalExternalLinkProvider, ITerminalInstance, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILinkHoverTargetOptions, TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
@@ -246,7 +246,7 @@ export class TerminalLinkManager extends DisposableStore {
 	registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable {
 		// Clear and re-register the standard link providers so they are a lower priority than the new one
 		this._clearLinkProviders();
-		// TODO: Support multiple extensions
+		// TODO: Support multiple extensions, multiple ids and don't add to disposables array
 		const wrappedLinkProvider = this._setupLinkDetector('extension', new TerminalExternalLinkDetector('extension', this._xterm, instance, linkProvider), true);
 		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
 		this._linkProvidersDisposables.push(newLinkProvider);
@@ -415,40 +415,6 @@ export class TerminalLinkManager extends DisposableStore {
 			// Errors in parsing the path
 			return undefined;
 		}
-	}
-
-	/**
-	 * Returns line and column number of URl if that is present.
-	 *
-	 * @param link Url link which may contain line and column number.
-	 */
-	extractLineColumnInfo(link: string): LineColumnInfo {
-		const matches: string[] | null = this._localLinkRegex.exec(link);
-		const lineColumnInfo: LineColumnInfo = {
-			lineNumber: 1,
-			columnNumber: 1
-		};
-
-		if (!matches || !this._processManager) {
-			return lineColumnInfo;
-		}
-
-		const lineAndColumnMatchIndex = this._processManager.os === OperatingSystem.Windows ? winLineAndColumnMatchIndex : unixLineAndColumnMatchIndex;
-		for (let i = 0; i < lineAndColumnClause.length; i++) {
-			const lineMatchIndex = lineAndColumnMatchIndex + (lineAndColumnClauseGroupCount * i);
-			const rowNumber = matches[lineMatchIndex];
-			if (rowNumber) {
-				lineColumnInfo['lineNumber'] = parseInt(rowNumber, 10);
-				// Check if column number exists
-				const columnNumber = matches[lineMatchIndex + 2];
-				if (columnNumber) {
-					lineColumnInfo['columnNumber'] = parseInt(columnNumber, 10);
-				}
-				break;
-			}
-		}
-
-		return lineColumnInfo;
 	}
 
 	/**
