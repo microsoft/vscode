@@ -458,10 +458,10 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		this._escapeSequenceLoggingEnabled = await this.instances[0].toggleEscapeSequenceLogging();
-		this._toggleDevTools(this._escapeSequenceLoggingEnabled);
 		for (let i = 1; i < this.instances.length; i++) {
 			this.instances[i].setEscapeSequenceLogging(this._escapeSequenceLoggingEnabled);
 		}
+		await this._toggleDevTools(this._escapeSequenceLoggingEnabled);
 	}
 
 	private _attachProcessLayoutListeners(): void {
