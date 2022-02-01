@@ -19,7 +19,7 @@ export function setup(logger: Logger) {
 			await app.code.waitForElements('.line-numbers', false, elements => !!elements.length);
 
 			await app.workbench.settingsEditor.addUserSetting('editor.lineNumbers', '"off"');
-			await app.workbench.editors.selectTab('app.js');
+			await app.workbench.settingsEditor.openUserSettingsFile();
 			await app.code.waitForElements('.line-numbers', false, result => !result || result.length === 0);
 		});
 
