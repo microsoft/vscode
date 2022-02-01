@@ -73,7 +73,7 @@ export interface IMatchOptions {
 export interface IGroupModelChangeEvent {
 
 	/**
-	 * The kind of change that occured in the group model.
+	 * The kind of change that occurred in the group model.
 	 */
 	readonly kind: GroupModelChangeKind;
 
