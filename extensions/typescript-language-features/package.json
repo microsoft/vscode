@@ -727,13 +727,13 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.suggest.completeJSDocs%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "typescript.suggest.completeJSDocs": {
           "type": "boolean",
           "default": true,
           "description": "%configuration.suggest.completeJSDocs%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "javascript.suggest.jsdoc.generateReturns": {
           "type": "boolean",
@@ -979,24 +979,26 @@
         "typescript.autoClosingTags": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.autoClosingTags%"
+          "description": "%typescript.autoClosingTags%",
+          "scope": "language-overridable"
         },
         "javascript.autoClosingTags": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.autoClosingTags%"
+          "description": "%typescript.autoClosingTags%",
+          "scope": "language-overridable"
         },
         "javascript.suggest.enabled": {
           "type": "boolean",
           "default": true,
           "description": "%typescript.suggest.enabled%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "typescript.suggest.enabled": {
           "type": "boolean",
           "default": true,
           "description": "%typescript.suggest.enabled%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "typescript.surveys.enabled": {
           "type": "boolean",

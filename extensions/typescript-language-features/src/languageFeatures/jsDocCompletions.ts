@@ -6,7 +6,6 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireConfiguration } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
 import { LanguageDescription } from '../utils/languageDescription';
 import * as typeConverters from '../utils/typeConverters';
@@ -39,6 +38,7 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
+		private readonly language: LanguageDescription,
 		private readonly fileConfigurationManager: FileConfigurationManager,
 	) { }
 
@@ -47,6 +47,10 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.CompletionItem[] | undefined> {
+		if (!vscode.workspace.getConfiguration(this.language.id, document).get('suggest.completeJSDocs')) {
+			return undefined;
+		}
+
 		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return undefined;
@@ -127,11 +131,7 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager,
 
 ): vscode.Disposable {
-	return conditionalRegistration([
-		requireConfiguration(language.id, 'suggest.completeJSDocs')
-	], () => {
-		return vscode.languages.registerCompletionItemProvider(selector.syntax,
-			new JsDocCompletionProvider(client, fileConfigurationManager),
-			'*');
-	});
+	return vscode.languages.registerCompletionItemProvider(selector.syntax,
+		new JsDocCompletionProvider(client, language, fileConfigurationManager),
+		'*');
 }

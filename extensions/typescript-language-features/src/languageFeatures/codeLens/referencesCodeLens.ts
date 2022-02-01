@@ -10,7 +10,7 @@ import * as PConst from '../../protocol.const';
 import { CachedResponse } from '../../tsServer/cachedResponse';
 import { ExecutionTarget } from '../../tsServer/server';
 import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
-import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../../utils/dependentRegistration';
+import { conditionalRegistration, requireGlobalConfiguration, requireSomeCapability } from '../../utils/dependentRegistration';
 import { DocumentSelector } from '../../utils/documentSelector';
 import { LanguageDescription } from '../../utils/languageDescription';
 import * as typeConverters from '../../utils/typeConverters';
@@ -132,7 +132,7 @@ export function register(
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
 	return conditionalRegistration([
-		requireConfiguration(language.id, 'referencesCodeLens.enabled'),
+		requireGlobalConfiguration(language.id, 'referencesCodeLens.enabled'),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeLensProvider(selector.semantic,

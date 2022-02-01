@@ -12,7 +12,7 @@ import { ClientCapability, ITypeScriptServiceClient, ServerResponse } from '../t
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { applyCodeAction } from '../utils/codeAction';
-import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
 import { LanguageDescription } from '../utils/languageDescription';
 import { parseKindModifier } from '../utils/modifiers';
@@ -662,6 +662,10 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		token: vscode.CancellationToken,
 		context: vscode.CompletionContext
 	): Promise<vscode.CompletionList<MyCompletionItem> | undefined> {
+		if (!vscode.workspace.getConfiguration(this.language.id, document).get('suggest.enabled')) {
+			return undefined;
+		}
+
 		if (this.typingsStatus.isAcquiringTypings) {
 			return Promise.reject<vscode.CompletionList<MyCompletionItem>>({
 				label: localize(
@@ -929,7 +933,6 @@ export function register(
 	onCompletionAccepted: (item: vscode.CompletionItem) => void
 ) {
 	return conditionalRegistration([
-		requireConfiguration(language.id, 'suggest.enabled'),
 		requireSomeCapability(client, ClientCapability.EnhancedSyntax, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCompletionItemProvider(selector.syntax,

@@ -83,7 +83,7 @@ export function requireMinVersion(
 	);
 }
 
-export function requireConfiguration(
+export function requireGlobalConfiguration(
 	section: string,
 	configValue: string,
 ) {

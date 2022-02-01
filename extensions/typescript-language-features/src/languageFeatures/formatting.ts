@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireConfiguration } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireGlobalConfiguration } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
 import { LanguageDescription } from '../utils/languageDescription';
 import * as typeConverters from '../utils/typeConverters';
@@ -92,7 +92,7 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager
 ) {
 	return conditionalRegistration([
-		requireConfiguration(language.id, 'format.enable'),
+		requireGlobalConfiguration(language.id, 'format.enable'),
 	], () => {
 		const formattingProvider = new TypeScriptFormattingProvider(client, fileConfigurationManager);
 		return vscode.Disposable.from(
