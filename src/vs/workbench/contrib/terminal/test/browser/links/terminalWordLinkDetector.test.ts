@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
-import { IBufferLine, Terminal } from 'xterm';
+import { assertLinkHelper } from 'vs/workbench/contrib/terminal/test/browser/links/linkTestUtils';
+import { Terminal } from 'xterm';
 
 suite('Workbench - TerminalWordLinkDetector', () => {
 	let configurationService: TestConfigurationService;
@@ -30,32 +30,7 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 		text: string,
 		expected: (Pick<ITerminalSimpleLink, 'text'> & { range: [number, number][] })[]
 	) {
-		xterm.reset();
-
-		// Write the text and wait for the parser to finish
-		await new Promise<void>(r => xterm.write(text, r));
-
-		// Ensure all links are provided
-		const lines: IBufferLine[] = [];
-		for (let i = 0; i < xterm.buffer.active.cursorY; i++) {
-			lines.push(xterm.buffer.active.getLine(i)!);
-		}
-
-		const actualLinks = detector.detect(lines, 0, xterm.buffer.active.cursorY);
-		const expectedLinks = expected.map(e => {
-			return {
-				type: TerminalBuiltinLinkType.Search,
-				text: e.text,
-				bufferRange: {
-					start: { x: e.range[0][0], y: e.range[0][1] },
-					end: { x: e.range[1][0], y: e.range[1][1] },
-				}
-			};
-		});
-		assert.deepStrictEqual(
-			actualLinks,
-			expectedLinks
-		);
+		await assertLinkHelper(text, expected, detector, TerminalBuiltinLinkType.Search);
 	}
 
 	test('should link words as defined by wordSeparators', async () => {

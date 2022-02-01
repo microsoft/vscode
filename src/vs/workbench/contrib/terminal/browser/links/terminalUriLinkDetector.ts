@@ -13,6 +13,20 @@ import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalBuiltinLinkType } f
 import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { IBufferLine, Terminal } from 'xterm';
 
+const enum Constants {
+	/**
+	 * The maximum number of links in a line to resolve against the file system. This limit is put
+	 * in place to avoid sending excessive data when remote connections are in place.
+	 */
+	MaxResolvedLinksInLine = 10,
+
+	/**
+	 * The maximum length of a link to resolve against the file system. This limit is put in place
+	 * to avoid sending excessive data when remote connections are in place.
+	 */
+	MaxResolvedLinkLength = 1024,
+}
+
 // TODO: Share caching code with local link detector
 const cachedValidatedLinks = new Map<string, { uri: URI, link: string, isDirectory: boolean } | null>();
 
@@ -44,6 +58,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 		const linkComputerTarget = new TerminalLinkAdapter(this.xterm, startLine, endLine);
 		const computedLinks = LinkComputer.computeLinks(linkComputerTarget);
 
+		let resolvedLinkCount = 0;
 		for (const computedLink of computedLinks) {
 			const bufferRange = convertLinkRangeToBuffer(lines, this.xterm.cols, computedLink.range, startLine);
 
@@ -69,8 +84,13 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 				continue;
 			}
 
-			// Filter out any URI with an authority, none are supported currently
-			if (uri.authority !== '') {
+			// Don't try resolve any links of excessive length
+			if (text.length > Constants.MaxResolvedLinkLength) {
+				continue;
+			}
+
+			// Filter out URI with unrecognized authorities
+			if (uri.authority.length !== 2 && uri.authority.endsWith(':')) {
 				continue;
 			}
 
@@ -83,7 +103,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 
 			// The link isn't cached
 			if (linkStat === undefined) {
-				const linkStat = await this._resolvePath(text, uri);
+				linkStat = await this._resolvePath(text, uri);
 				if (this._enableCaching) {
 					cachedValidatedLinks.set(text, withUndefinedAsNull(linkStat));
 				}
@@ -107,6 +127,11 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 					bufferRange,
 					type
 				});
+
+				// Stop early if too many links exist in the line
+				if (resolvedLinkCount >= Constants.MaxResolvedLinksInLine) {
+					break;
+				}
 			}
 		}
 
