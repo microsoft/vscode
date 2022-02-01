@@ -475,7 +475,10 @@ export class AzureActiveDirectoryService {
 		const nonce = randomBytes(16).toString('base64');
 		const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
 		const callbackEnvironment = this.getCallbackEnvironment(callbackUri);
-		const state = `${callbackEnvironment},${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
+		// NOTE: We encode that second time to work around the fact that the Microsoft OAuth API decodes our state parameter before
+		// sending it back to us. This use to "just work" because vscode.env.openExternal used to encode before opening it but that has
+		// changed as of https://github.com/microsoft/vscode/commit/a81c3b045dde741a05c8f8365c47d4207a5fc1a6
+		const state = encodeURIComponent(`${callbackEnvironment},${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`);
 		const signInUrl = `${loginEndpointUrl}${scopeData.tenant}/oauth2/v2.0/authorize`;
 		let uri = vscode.Uri.parse(signInUrl);
 		const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
