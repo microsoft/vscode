@@ -119,6 +119,9 @@ suite('vscode API - commands', () => {
 		await commands.executeCommand('vscode.open', uri, ViewColumn.One);
 		assert.strictEqual(window.activeTextEditor?.viewColumn, ViewColumn.One);
 
+		await commands.executeCommand('vscode.open', uri.toString(), ViewColumn.Two); // call with string instead of URI
+		assert.strictEqual(window.activeTextEditor?.viewColumn, ViewColumn.Two);
+
 		let e1: Error | undefined = undefined;
 		try {
 			await commands.executeCommand('vscode.open');
