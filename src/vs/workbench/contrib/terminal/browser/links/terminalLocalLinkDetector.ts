@@ -88,7 +88,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 		// TODO: Filter out local links: length, resolved count, regex match count?
 		// clone regex to do a global search on text
-		const rex = new RegExp(this._localLinkRegex, 'g');
+		const rex = new RegExp(getLocalLinkRegex(this._os), 'g');
 		let match;
 		let stringIndex = -1;
 		while ((match = rex.exec(text)) !== null) {
@@ -175,12 +175,6 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		return links;
 	}
 
-	protected get _localLinkRegex(): RegExp {
-		const baseLocalLinkClause = this._os === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
-		// Append line and column number regex
-		return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
-	}
-
 	private _isDirectoryInsideWorkspace(uri: URI) {
 		const folders = this._workspaceContextService.getWorkspace().folders;
 		for (let i = 0; i < folders.length; i++) {
@@ -200,4 +194,10 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		}
 		return undefined;
 	}
+}
+
+export function getLocalLinkRegex(os: OperatingSystem): RegExp {
+	const baseLocalLinkClause = os === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
+	// Append line and column number regex
+	return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
 }

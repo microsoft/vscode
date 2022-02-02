@@ -16,7 +16,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalLinkOpener, ITerminalSimpleLink } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { ILineColumnInfo } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
-import { lineAndColumnClause, lineAndColumnClauseGroupCount, unixLineAndColumnMatchIndex, unixLocalLinkClause, winLineAndColumnMatchIndex, winLocalLinkClause } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
+import { getLocalLinkRegex, lineAndColumnClause, lineAndColumnClauseGroupCount, unixLineAndColumnMatchIndex, winLineAndColumnMatchIndex } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -40,20 +40,10 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 			startLineNumber: lineColumnInfo.lineNumber,
 			startColumn: lineColumnInfo.columnNumber
 		};
-
-		// TODO: Line and column information should be passed along from the detector to avoid this
-		//       work here.
 		await this._editorService.openEditor({
 			resource: link.uri,
 			options: { pinned: true, selection, revealIfOpened: true }
 		});
-	}
-
-	// TODO: This is duplicated
-	protected get _localLinkRegex(): RegExp {
-		const baseLocalLinkClause = this._os === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
-		// Append line and column number regex
-		return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
 	}
 
 	/**
@@ -62,7 +52,7 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	 * @param link Url link which may contain line and column number.
 	 */
 	extractLineColumnInfo(link: string): ILineColumnInfo {
-		const matches: string[] | null = this._localLinkRegex.exec(link);
+		const matches: string[] | null = getLocalLinkRegex(this._os).exec(link);
 		const lineColumnInfo: ILineColumnInfo = {
 			lineNumber: 1,
 			columnNumber: 1

@@ -172,7 +172,6 @@ export class TerminalLinkManager extends DisposableStore {
 		return { wordLinks, webLinks, fileLinks };
 	}
 
-	// TODO: Convert to use ITerminalSimpleLink
 	protected async _getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined> {
 		switch (type) {
 			case 'word':
