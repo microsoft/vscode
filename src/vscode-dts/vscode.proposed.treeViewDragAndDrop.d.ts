@@ -114,8 +114,9 @@ declare module 'vscode' {
 		 *
 		 * @param source The source items for the drag and drop operation.
 		 * @param treeDataTransfer The data transfer associated with this drag.
+		 * @param token A cancellation token indicating that drag has been cancelled.
 		 */
-		handleDrag?(source: T[], treeDataTransfer: TreeDataTransfer): Thenable<void> | void;
+		handleDrag?(source: T[], treeDataTransfer: TreeDataTransfer, token: CancellationToken): Thenable<void> | void;
 
 		/**
 		 * Called when a drag and drop action results in a drop on the tree that this `DragAndDropController` belongs too.
@@ -124,7 +125,8 @@ declare module 'vscode' {
 		 *
 		 * @param source The data transfer items of the source of the drag.
 		 * @param target The target tree element that the drop is occurring on.
+		 * @param token TODO @alexr00: When would this operation actually be cancelled?
 		 */
-		handleDrop(source: TreeDataTransfer, target: T): Thenable<void> | void;
+		handleDrop(source: TreeDataTransfer, target: T, token: CancellationToken): Thenable<void> | void;
 	}
 }
