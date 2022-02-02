@@ -86,6 +86,9 @@ function installHeaders() {
 		return;
 	}
 
+	// The node gyp package got installed using the above yarn command using the gyp/package.json
+	// file checked into our repository. So from that point it is save to construct the path
+	// to that executable
 	const node_gyp = path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd');
 	const result = cp.execSync(`${node_gyp} list`, { encoding: 'utf8' });
 	const versions = new Set(result.split(/\n/g).filter(line => !line.startsWith('gyp info')).map(value => `"${value}"`));
@@ -94,10 +97,12 @@ function installHeaders() {
 	const remote = getHeaderInfo(path.join(__dirname, '..', '..', 'remote', '.yarnrc'));
 
 	if (local !== undefined && !versions.has(local.target)) {
+		// Both disturl and target come from a file checked into our repository
 		cp.execSync(`${node_gyp} install --dist-url ${local.disturl} ${local.target}`);
 	}
 
 	if (remote !== undefined && !versions.has(remote.target)) {
+		// Both disturl and target come from a file checked into our repository
 		cp.execSync(`${node_gyp} install --dist-url ${remote.disturl} ${remote.target}`);
 	}
 }
