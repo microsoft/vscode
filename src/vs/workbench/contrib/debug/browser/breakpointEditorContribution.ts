@@ -52,8 +52,8 @@ const breakpointHelperDecoration: IModelDecorationOptions = {
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 };
 
-export function createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArray<IBreakpoint>, state: State, breakpointsActivated: boolean, showBreakpointsInOverviewRuler: boolean): { range: Range; options: IModelDecorationOptions; }[] {
-	const result: { range: Range; options: IModelDecorationOptions; }[] = [];
+export function createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArray<IBreakpoint>, state: State, breakpointsActivated: boolean, showBreakpointsInOverviewRuler: boolean): { range: Range; options: IModelDecorationOptions }[] {
+	const result: { range: Range; options: IModelDecorationOptions }[] = [];
 	breakpoints.forEach((breakpoint) => {
 		if (breakpoint.lineNumber > model.getLineCount()) {
 			return;
@@ -165,7 +165,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 	private ignoreDecorationsChangedEvent = false;
 	private ignoreBreakpointsChangeEvent = false;
 	private breakpointDecorations: IBreakpointDecoration[] = [];
-	private candidateDecorations: { decorationId: string, inlineWidget: InlineBreakpointWidget }[] = [];
+	private candidateDecorations: { decorationId: string; inlineWidget: InlineBreakpointWidget }[] = [];
 	private setDecorationsScheduler: RunOnceScheduler;
 
 	constructor(

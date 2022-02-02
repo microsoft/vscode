@@ -38,12 +38,12 @@ interface CompletionContext {
 	readonly dotAccessorContext?: DotAccessorContext;
 
 	readonly enableCallCompletions: boolean;
-	readonly useCodeSnippetsOnMethodSuggest: boolean,
+	readonly useCodeSnippetsOnMethodSuggest: boolean;
 
 	readonly wordRange: vscode.Range | undefined;
 	readonly line: string;
 
-	readonly useFuzzyWordRangeLogic: boolean,
+	readonly useFuzzyWordRangeLogic: boolean;
 }
 
 type ResolvedCompletionItem = {
@@ -299,7 +299,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 	private getCodeActions(
 		detail: Proto.CompletionEntryDetails,
 		filepath: string
-	): { command?: vscode.Command, additionalTextEdits?: vscode.TextEdit[] } {
+	): { command?: vscode.Command; additionalTextEdits?: vscode.TextEdit[] } {
 		if (!detail.codeActions || !detail.codeActions.length) {
 			return {};
 		}

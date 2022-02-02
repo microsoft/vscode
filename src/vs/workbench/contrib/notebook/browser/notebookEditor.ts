@@ -233,14 +233,14 @@ export class NotebookEditor extends EditorPane {
 		mark(input.resource, 'editorLoaded');
 
 		type WorkbenchNotebookOpenClassification = {
-			scheme: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			ext: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			viewType: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			extensionActivated: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			inputLoaded: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			webviewCommLoaded: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			customMarkdownLoaded: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			editorLoaded: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			extensionActivated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			inputLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			webviewCommLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			customMarkdownLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			editorLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 
 		type WorkbenchNotebookOpenEvent = {

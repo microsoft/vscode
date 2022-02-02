@@ -5,10 +5,11 @@
 
 // @ts-check
 
-const testWeb = require('@vscode/test-web');
+const testWebLocation = require.resolve('@vscode/test-web');
 
 const fs = require('fs');
 const path = require('path');
+const cp = require('child_process');
 
 const minimist = require('minimist');
 const fancyLog = require('fancy-log');
@@ -22,67 +23,86 @@ const WEB_DEV_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'builtInWebDevExte
 
 const WEB_PLAYGROUND_VERSION = '0.0.13';
 
-const args = minimist(process.argv.slice(2), {
-	boolean: [
-		'help',
-		'verbose',
-		'open-devtools'
-	],
-	string: [
-		'host',
-		'port',
-		'extension',
-		'browserType'
-	],
-});
+async function main() {
 
-if (args.help) {
-	console.log(
-		'./scripts/code-web.sh|bat [options]\n' +
-		' --host           Server host address\n' +
-		' --port           Server port\n' +
-		' --browserType    The browser type to launch:  `chromium`, `firefox`, `webkit` or `none`. If not specified the OS default browser will be used.' +
-		' --extension      Path of an extension to include\n' +
-		' --open-devtools  Open the dev tools' +
-		' --verbose        Print out more information\n' +
-		' --help\n' +
-		'[Example]\n' +
-		' ./scripts/code-web.sh|bat --port 8080'
-	);
-	process.exit(0);
-}
-
-openTestWeb();
-
-
-async function openTestWeb() {
-	await ensureWebDevExtensions();
-	const extensionPaths = [WEB_DEV_EXTENSIONS_ROOT];
-	const extensions = args['extension'];
-	if (Array.isArray(extensions)) {
-		extensionPaths.push(...extensions);
-	} else if (extensions) {
-		extensionPaths.push(extensions);
-	}
-	const host = args.host || 'localhost';
-	const port = args.port || 8080;
-
-	await testWeb.open({
-		browserType: args['browserType'] ?? 'none',
-		host,
-		port,
-		folderUri: 'memfs:///sample-folder',
-		vsCodeDevPath: APP_ROOT,
-		extensionPaths,
-		devTools: !!args['open-devtools'],
-		hideServerLog: !args['verbose'],
-		verbose: !!args['verbose']
+	const args = minimist(process.argv.slice(2), {
+		boolean: [
+			'help',
+			'playground'
+		],
+		string: [
+			'host',
+			'port',
+			'extensionPath',
+			'browserType'
+		],
 	});
 
-
-	if (!args['browserType']) {
-		opn(`http://${host}:${port}/`);
+	if (args.help) {
+		console.log(
+			'./scripts/code-web.sh|bat [options]\n' +
+			' --playground             Include the vscode-web-playground extension (added by default if no folderPath is provided)\n'
+		);
+		startServer(['--help']);
+		return;
 	}
+
+	const serverArgs = [];
+
+	const HOST = args['host'] ?? 'localhost';
+	const PORT = args['port'] ?? '8080';
+
+	if (args['host'] === undefined) {
+		serverArgs.push('--host', HOST);
+	}
+	if (args['port'] === undefined) {
+		serverArgs.push('--port', PORT);
+	}
+
+	if (args['playground'] || args['_'].length === 0) {
+		serverArgs.push('--extensionPath', WEB_DEV_EXTENSIONS_ROOT);
+		serverArgs.push('--folder-uri', 'memfs:///sample-folder');
+		await ensureWebDevExtensions(args['verbose']);
+	}
+
+	let openSystemBrowser = false;
+	if (!args['browserType']) {
+		serverArgs.push('--browserType', 'none');
+		openSystemBrowser = true;
+	}
+
+	if (!args['verbose'] && args['hideServerLog'] === undefined) {
+		serverArgs.push('--hideServerLog');
+	}
+
+	serverArgs.push('--sourcesPath', APP_ROOT);
+
+	serverArgs.push(...process.argv.slice(2).filter(v => v !== '--playground'));
+
+
+	startServer(serverArgs);
+	if (openSystemBrowser) {
+		opn(`http://${HOST}:${PORT}/`);
+	}
+}
+
+function startServer(runnerArguments) {
+	const env = { ...process.env };
+
+	console.log(`Starting @vscode/test-web: ${testWebLocation} ${runnerArguments.join(' ')}`);
+	const proc = cp.spawn(process.execPath, [testWebLocation, ...runnerArguments], { env, stdio: 'inherit' });
+
+	proc.on('exit', (code) => process.exit(code));
+
+	process.on('exit', () => proc.kill());
+	process.on('SIGINT', () => {
+		proc.kill();
+		process.exit(128 + 2); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+	});
+	process.on('SIGTERM', () => {
+		proc.kill();
+		process.exit(128 + 15); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+	});
 }
 
 async function directoryExists(path) {
@@ -93,7 +113,7 @@ async function directoryExists(path) {
 	}
 }
 
-async function ensureWebDevExtensions() {
+async function ensureWebDevExtensions(verbose) {
 
 	// Playground (https://github.com/microsoft/vscode-web-playground)
 	const webDevPlaygroundRoot = path.join(WEB_DEV_EXTENSIONS_ROOT, 'vscode-web-playground');
@@ -114,7 +134,7 @@ async function ensureWebDevExtensions() {
 	}
 
 	if (downloadPlayground) {
-		if (args.verbose) {
+		if (verbose) {
 			fancyLog(`${ansiColors.magenta('Web Development extensions')}: Downloading vscode-web-playground to ${webDevPlaygroundRoot}`);
 		}
 		await new Promise((resolve, reject) => {
@@ -123,8 +143,11 @@ async function ensureWebDevExtensions() {
 			}).pipe(vfs.dest(webDevPlaygroundRoot)).on('end', resolve).on('error', reject);
 		});
 	} else {
-		if (args.verbose) {
+		if (verbose) {
 			fancyLog(`${ansiColors.magenta('Web Development extensions')}: Using existing vscode-web-playground in ${webDevPlaygroundRoot}`);
 		}
 	}
 }
+
+
+main();

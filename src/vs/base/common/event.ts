@@ -400,7 +400,7 @@ export interface EmitterOptions {
 	leakWarningThreshold?: number;
 
 	/** ONLY enable this during development */
-	_profName?: string
+	_profName?: string;
 }
 
 
@@ -770,7 +770,7 @@ export class DebounceEmitter<T> extends PauseableEmitter<T> {
 	private readonly _delay: number;
 	private _handle: any | undefined;
 
-	constructor(options: EmitterOptions & { merge: (input: T[]) => T, delay?: number }) {
+	constructor(options: EmitterOptions & { merge: (input: T[]) => T; delay?: number }) {
 		super(options);
 		this._delay = options.delay ?? 100;
 	}
@@ -818,7 +818,7 @@ export class EventMultiplexer<T> implements IDisposable {
 
 	private readonly emitter: Emitter<T>;
 	private hasListeners = false;
-	private events: { event: Event<T>; listener: IDisposable | null; }[] = [];
+	private events: { event: Event<T>; listener: IDisposable | null }[] = [];
 
 	constructor() {
 		this.emitter = new Emitter<T>({
@@ -861,11 +861,11 @@ export class EventMultiplexer<T> implements IDisposable {
 		this.events.forEach(e => this.unhook(e));
 	}
 
-	private hook(e: { event: Event<T>; listener: IDisposable | null; }): void {
+	private hook(e: { event: Event<T>; listener: IDisposable | null }): void {
 		e.listener = e.event(r => this.emitter.fire(r));
 	}
 
-	private unhook(e: { event: Event<T>; listener: IDisposable | null; }): void {
+	private unhook(e: { event: Event<T>; listener: IDisposable | null }): void {
 		if (e.listener) {
 			e.listener.dispose();
 		}

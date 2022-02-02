@@ -39,7 +39,7 @@ export interface IExternalUriOpener {
 }
 
 export interface IExternalUriOpenerService {
-	readonly _serviceBrand: undefined
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Registers a provider for external resources openers.
@@ -50,7 +50,7 @@ export interface IExternalUriOpenerService {
 	 * Get the configured IExternalUriOpener for the the uri.
 	 * If there is no opener configured, then returns the first opener that can handle the uri.
 	 */
-	getOpener(uri: URI, ctx: { sourceUri: URI, preferredOpenerId?: string }, token: CancellationToken): Promise<IExternalUriOpener | undefined>;
+	getOpener(uri: URI, ctx: { sourceUri: URI; preferredOpenerId?: string }, token: CancellationToken): Promise<IExternalUriOpener | undefined>;
 }
 
 export class ExternalUriOpenerService extends Disposable implements IExternalUriOpenerService, IExternalOpener {
@@ -76,7 +76,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		return { dispose: remove };
 	}
 
-	private async getOpeners(targetUri: URI, allowOptional: boolean, ctx: { sourceUri: URI, preferredOpenerId?: string }, token: CancellationToken): Promise<IExternalUriOpener[]> {
+	private async getOpeners(targetUri: URI, allowOptional: boolean, ctx: { sourceUri: URI; preferredOpenerId?: string }, token: CancellationToken): Promise<IExternalUriOpener[]> {
 		const allOpeners = await this.getAllOpenersForUri(targetUri);
 
 		if (allOpeners.size === 0) {
@@ -104,7 +104,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		}
 
 		// Then check to see if there is a valid opener
-		const validOpeners: Array<{ opener: IExternalUriOpener, priority: modes.ExternalUriOpenerPriority }> = [];
+		const validOpeners: Array<{ opener: IExternalUriOpener; priority: modes.ExternalUriOpenerPriority }> = [];
 		await Promise.all(Array.from(allOpeners.values()).map(async opener => {
 			let priority: modes.ExternalUriOpenerPriority;
 			try {
@@ -141,7 +141,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		return validOpeners.map(value => value.opener);
 	}
 
-	async openExternal(href: string, ctx: { sourceUri: URI, preferredOpenerId?: string }, token: CancellationToken): Promise<boolean> {
+	async openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string }, token: CancellationToken): Promise<boolean> {
 
 		const targetUri = typeof href === 'string' ? URI.parse(href) : href;
 
@@ -156,7 +156,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		return this.showOpenerPrompt(allOpeners, targetUri, ctx, token);
 	}
 
-	async getOpener(targetUri: URI, ctx: { sourceUri: URI, preferredOpenerId?: string }, token: CancellationToken): Promise<IExternalUriOpener | undefined> {
+	async getOpener(targetUri: URI, ctx: { sourceUri: URI; preferredOpenerId?: string }, token: CancellationToken): Promise<IExternalUriOpener | undefined> {
 		const allOpeners = await this.getOpeners(targetUri, true, ctx, token);
 		if (allOpeners.length >= 1) {
 			return allOpeners[0];

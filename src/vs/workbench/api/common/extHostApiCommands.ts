@@ -155,7 +155,7 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.prepareRename', '_executePrepareRename', 'Execute the prepareRename of rename provider.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<modes.RenameLocation, { range: types.Range, placeholder: string } | undefined>('A promise that resolves to a range and placeholder text.', value => {
+		new ApiCommandResult<modes.RenameLocation, { range: types.Range; placeholder: string } | undefined>('A promise that resolves to a range and placeholder text.', value => {
 			if (!value) {
 				return undefined;
 			}
@@ -321,7 +321,7 @@ const newCommands: ApiCommand[] = [
 		'vscode.executeColorPresentationProvider', '_executeColorPresentationProvider', 'Execute color presentation provider.',
 		[
 			new ApiCommandArgument<types.Color, [number, number, number, number]>('color', 'The color to show and insert', v => v instanceof types.Color, typeConverters.Color.from),
-			new ApiCommandArgument<{ uri: URI, range: types.Range; }, { uri: URI, range: IRange; }>('context', 'Context object with uri and range', _v => true, v => ({ uri: v.uri, range: typeConverters.Range.from(v.range) })),
+			new ApiCommandArgument<{ uri: URI; range: types.Range }, { uri: URI; range: IRange }>('context', 'Context object with uri and range', _v => true, v => ({ uri: v.uri, range: typeConverters.Range.from(v.range) })),
 		],
 		new ApiCommandResult<modes.IColorPresentation[], types.ColorPresentation[]>('A promise that resolves to an array of ColorPresentation objects.', result => {
 			if (result) {
@@ -349,12 +349,12 @@ const newCommands: ApiCommand[] = [
 		new ApiCommandResult<{
 			viewType: string;
 			displayName: string;
-			options: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; };
-			filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern, exclude: vscode.GlobPattern })[]
+			options: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata };
+			filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern; exclude: vscode.GlobPattern })[];
 		}[], {
 			viewType: string;
 			displayName: string;
-			filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern; exclude: vscode.GlobPattern; })[];
+			filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern; exclude: vscode.GlobPattern })[];
 			options: vscode.NotebookDocumentContentOptions;
 		}[] | undefined>('A promise that resolves to an array of NotebookContentProvider static info objects.', tryMapWith(item => {
 			return {

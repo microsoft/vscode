@@ -10,7 +10,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 export class TestView implements IView {
 
-	private readonly _onDidChange = new Emitter<{ width: number; height: number; } | undefined>();
+	private readonly _onDidChange = new Emitter<{ width: number; height: number } | undefined>();
 	readonly onDidChange = this._onDidChange.event;
 
 	get minimumWidth(): number { return this._minimumWidth; }
@@ -39,8 +39,8 @@ export class TestView implements IView {
 
 	get size(): [number, number] { return [this.width, this.height]; }
 
-	private readonly _onDidLayout = new Emitter<{ width: number; height: number; }>();
-	readonly onDidLayout: Event<{ width: number; height: number; }> = this._onDidLayout.event;
+	private readonly _onDidLayout = new Emitter<{ width: number; height: number }>();
+	readonly onDidLayout: Event<{ width: number; height: number }> = this._onDidLayout.event;
 
 	private readonly _onDidFocus = new Emitter<void>();
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;

@@ -18,7 +18,7 @@ suite('TokensStore', () => {
 
 	const SEMANTIC_COLOR: ColorId = 5;
 
-	function parseTokensState(state: string[]): { text: string; tokens: SparseMultilineTokens; } {
+	function parseTokensState(state: string[]): { text: string; tokens: SparseMultilineTokens } {
 		let text: string[] = [];
 		let tokens: number[] = [];
 		let baseLine = 1;

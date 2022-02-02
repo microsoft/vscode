@@ -366,14 +366,14 @@ export class WalkThroughPart extends EditorPane {
 					}));
 
 					type WalkThroughSnippetInteractionClassification = {
-						from?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-						type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-						snippet: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+						from?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+						type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+						snippet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 					};
 					type WalkThroughSnippetInteractionEvent = {
-						from?: string,
-						type: string,
-						snippet: number
+						from?: string;
+						type: string;
+						snippet: number;
 					};
 
 					this.contentDisposables.push(Event.once(editor.onMouseDown)(() => {

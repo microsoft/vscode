@@ -295,6 +295,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		options.fontFamily = editorConfig.fontFamily;
 		options.lineHeight = editorConfig.lineHeight;
 		options.fontLigatures = editorConfig.fontLigatures;
+		options.ariaLabel = this.placeholder;
 		return options;
 	}
 

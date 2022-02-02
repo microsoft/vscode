@@ -14,8 +14,8 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 
 export interface TunnelDto {
-	remoteAddress: { port: number, host: string };
-	localAddress: { port: number, host: string } | string;
+	remoteAddress: { port: number; host: string };
+	localAddress: { port: number; host: string } | string;
 	public: boolean;
 	privacy: TunnelPrivacyId | string;
 	protocol: string | undefined;
@@ -46,7 +46,7 @@ export namespace TunnelDto {
 }
 
 export interface Tunnel extends vscode.Disposable {
-	remote: { port: number, host: string };
+	remote: { port: number; host: string };
 	localAddress: string;
 }
 
@@ -56,7 +56,7 @@ export interface IExtHostTunnelService extends ExtHostTunnelServiceShape {
 	getTunnels(): Promise<vscode.TunnelDescription[]>;
 	onDidChangeTunnels: vscode.Event<void>;
 	setTunnelFactory(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable>;
-	registerPortsAttributesProvider(portSelector: { pid?: number, portRange?: [number, number], commandMatcher?: RegExp }, provider: vscode.PortAttributesProvider): IDisposable;
+	registerPortsAttributesProvider(portSelector: { pid?: number; portRange?: [number, number]; commandMatcher?: RegExp }, provider: vscode.PortAttributesProvider): IDisposable;
 }
 
 export const IExtHostTunnelService = createDecorator<IExtHostTunnelService>('IExtHostTunnelService');
@@ -82,7 +82,7 @@ export class ExtHostTunnelService implements IExtHostTunnelService {
 	async setTunnelFactory(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
 		return { dispose: () => { } };
 	}
-	registerPortsAttributesProvider(portSelector: { pid?: number, portRange?: [number, number] }, provider: vscode.PortAttributesProvider) {
+	registerPortsAttributesProvider(portSelector: { pid?: number; portRange?: [number, number] }, provider: vscode.PortAttributesProvider) {
 		return { dispose: () => { } };
 	}
 
@@ -91,7 +91,7 @@ export class ExtHostTunnelService implements IExtHostTunnelService {
 	}
 
 	async $forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined> { return undefined; }
-	async $closeTunnel(remote: { host: string, port: number }): Promise<void> { }
+	async $closeTunnel(remote: { host: string; port: number }): Promise<void> { }
 	async $onDidTunnelsChange(): Promise<void> { }
 	async $registerCandidateFinder(): Promise<void> { }
 }

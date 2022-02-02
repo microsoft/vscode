@@ -345,7 +345,7 @@ export interface IReference<T> extends IDisposable {
 
 export abstract class ReferenceCollection<T> {
 
-	private readonly references: Map<string, { readonly object: T; counter: number; }> = new Map();
+	private readonly references: Map<string, { readonly object: T; counter: number }> = new Map();
 
 	acquire(key: string, ...args: any[]): IReference<T> {
 		let reference = this.references.get(key);

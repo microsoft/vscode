@@ -61,7 +61,7 @@ export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 		return opener.canOpenExternalUri(uri, token);
 	}
 
-	async $openUri(id: string, context: { resolvedUri: UriComponents, sourceUri: UriComponents }, token: CancellationToken): Promise<void> {
+	async $openUri(id: string, context: { resolvedUri: UriComponents; sourceUri: UriComponents }, token: CancellationToken): Promise<void> {
 		const opener = this._openers.get(id);
 		if (!opener) {
 			throw new Error(`Unknown opener id: '${id}'`);

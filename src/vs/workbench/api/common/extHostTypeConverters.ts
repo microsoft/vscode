@@ -329,7 +329,7 @@ export namespace MarkdownString {
 		}
 
 		// extract uris into a separate object
-		const resUris: { [href: string]: UriComponents; } = Object.create(null);
+		const resUris: { [href: string]: UriComponents } = Object.create(null);
 		res.uris = resUris;
 
 		const collectUri = (href: string): string => {
@@ -351,7 +351,7 @@ export namespace MarkdownString {
 		return res;
 	}
 
-	function _uriMassage(part: string, bucket: { [n: string]: UriComponents; }): string {
+	function _uriMassage(part: string, bucket: { [n: string]: UriComponents }): string {
 		if (!part) {
 			return part;
 		}
@@ -558,8 +558,8 @@ export namespace TextEdit {
 export namespace WorkspaceEdit {
 
 	export interface IVersionInformationProvider {
-		getTextDocumentVersion(uri: URI): number | undefined
-		getNotebookDocumentVersion(uri: URI): number | undefined
+		getTextDocumentVersion(uri: URI): number | undefined;
+		getNotebookDocumentVersion(uri: URI): number | undefined;
 	}
 
 	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider): extHostProtocol.IWorkspaceEditDto {
@@ -642,7 +642,7 @@ export namespace WorkspaceEdit {
 
 export namespace SymbolKind {
 
-	const _fromMapping: { [kind: number]: modes.SymbolKind; } = Object.create(null);
+	const _fromMapping: { [kind: number]: modes.SymbolKind } = Object.create(null);
 	_fromMapping[types.SymbolKind.File] = modes.SymbolKind.File;
 	_fromMapping[types.SymbolKind.Module] = modes.SymbolKind.Module;
 	_fromMapping[types.SymbolKind.Namespace] = modes.SymbolKind.Namespace;
@@ -1417,8 +1417,8 @@ export namespace GlobPattern {
 		return pattern; // preserve `undefined` and `null`
 	}
 
-	function isRelativePatternShape(obj: unknown): obj is { base: string, baseUri: URI, pattern: string } {
-		const rp = obj as { base: string, baseUri: URI, pattern: string } | undefined | null;
+	function isRelativePatternShape(obj: unknown): obj is { base: string; baseUri: URI; pattern: string } {
+		const rp = obj as { base: string; baseUri: URI; pattern: string } | undefined | null;
 		if (!rp) {
 			return false;
 		}
@@ -1426,13 +1426,13 @@ export namespace GlobPattern {
 		return URI.isUri(rp.baseUri) && typeof rp.pattern === 'string';
 	}
 
-	function isLegacyRelativePatternShape(obj: unknown): obj is { base: string, pattern: string } {
+	function isLegacyRelativePatternShape(obj: unknown): obj is { base: string; pattern: string } {
 
 		// Before 1.64.x, `RelativePattern` did not have any `baseUri: Uri`
 		// property. To preserve backwards compatibility with older extensions
 		// we allow this old format when creating the `vscode.RelativePattern`.
 
-		const rp = obj as { base: string, pattern: string } | undefined | null;
+		const rp = obj as { base: string; pattern: string } | undefined | null;
 		if (!rp) {
 			return false;
 		}
@@ -1607,11 +1607,11 @@ export namespace NotebookCellOutput {
 
 
 export namespace NotebookExclusiveDocumentPattern {
-	export function from(pattern: { include: vscode.GlobPattern | undefined, exclude: vscode.GlobPattern | undefined }): { include: string | extHostProtocol.IRelativePatternDto | undefined, exclude: string | extHostProtocol.IRelativePatternDto | undefined };
+	export function from(pattern: { include: vscode.GlobPattern | undefined; exclude: vscode.GlobPattern | undefined }): { include: string | extHostProtocol.IRelativePatternDto | undefined; exclude: string | extHostProtocol.IRelativePatternDto | undefined };
 	export function from(pattern: vscode.GlobPattern): string | extHostProtocol.IRelativePatternDto;
 	export function from(pattern: undefined): undefined;
-	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | extHostProtocol.IRelativePatternDto | { include: string | extHostProtocol.IRelativePatternDto | undefined, exclude: string | extHostProtocol.IRelativePatternDto | undefined } | undefined;
-	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | extHostProtocol.IRelativePatternDto | { include: string | extHostProtocol.IRelativePatternDto | undefined, exclude: string | extHostProtocol.IRelativePatternDto | undefined } | undefined {
+	export function from(pattern: { include: vscode.GlobPattern | undefined | null; exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | extHostProtocol.IRelativePatternDto | { include: string | extHostProtocol.IRelativePatternDto | undefined; exclude: string | extHostProtocol.IRelativePatternDto | undefined } | undefined;
+	export function from(pattern: { include: vscode.GlobPattern | undefined | null; exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | extHostProtocol.IRelativePatternDto | { include: string | extHostProtocol.IRelativePatternDto | undefined; exclude: string | extHostProtocol.IRelativePatternDto | undefined } | undefined {
 		if (isExclusivePattern(pattern)) {
 			return {
 				include: withNullAsUndefined(GlobPattern.from(pattern.include)),
@@ -1622,7 +1622,7 @@ export namespace NotebookExclusiveDocumentPattern {
 		return withNullAsUndefined(GlobPattern.from(pattern));
 	}
 
-	export function to(pattern: string | extHostProtocol.IRelativePatternDto | { include: string | extHostProtocol.IRelativePatternDto, exclude: string | extHostProtocol.IRelativePatternDto }): { include: vscode.GlobPattern, exclude: vscode.GlobPattern } | vscode.GlobPattern {
+	export function to(pattern: string | extHostProtocol.IRelativePatternDto | { include: string | extHostProtocol.IRelativePatternDto; exclude: string | extHostProtocol.IRelativePatternDto }): { include: vscode.GlobPattern; exclude: vscode.GlobPattern } | vscode.GlobPattern {
 		if (isExclusivePattern(pattern)) {
 			return {
 				include: GlobPattern.to(pattern.include),
@@ -1633,8 +1633,8 @@ export namespace NotebookExclusiveDocumentPattern {
 		return GlobPattern.to(pattern);
 	}
 
-	function isExclusivePattern<T>(obj: any): obj is { include?: T, exclude?: T } {
-		const ep = obj as { include?: T, exclude?: T } | undefined | null;
+	function isExclusivePattern<T>(obj: any): obj is { include?: T; exclude?: T } {
+		const ep = obj as { include?: T; exclude?: T } | undefined | null;
 		if (!ep) {
 			return false;
 		}

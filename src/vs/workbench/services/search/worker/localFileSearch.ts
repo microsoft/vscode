@@ -19,16 +19,16 @@ import { Promises } from 'vs/base/common/async';
 const PERF = false;
 
 type FileNode = {
-	type: 'file',
-	name: string,
-	path: string,
-	resolve: () => Promise<ArrayBuffer>
+	type: 'file';
+	name: string;
+	path: string;
+	resolve: () => Promise<ArrayBuffer>;
 };
 
 type DirNode = {
-	type: 'dir',
-	name: string,
-	entries: Promise<(DirNode | FileNode)[]>
+	type: 'dir';
+	name: string;
+	entries: Promise<(DirNode | FileNode)[]>;
 };
 
 const globalStart = +new Date();

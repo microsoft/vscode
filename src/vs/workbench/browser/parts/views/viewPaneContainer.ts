@@ -73,7 +73,7 @@ const enum DropDirection {
 	RIGHT
 }
 
-type BoundingRect = { top: number, left: number, bottom: number, right: number };
+type BoundingRect = { top: number; left: number; bottom: number; right: number };
 
 class ViewPaneDropOverlay extends Themable {
 
@@ -271,7 +271,7 @@ class ViewPaneDropOverlay extends Themable {
 		this.overlay.style.borderRightWidth = direction === DropDirection.RIGHT ? '2px' : '0px';
 	}
 
-	private doPositionOverlay(options: { top?: string, bottom?: string, left?: string, right?: string, width: string, height: string }): void {
+	private doPositionOverlay(options: { top?: string; bottom?: string; left?: string; right?: string; width: string; height: string }): void {
 
 		// Container
 		this.container.style.height = '100%';
@@ -435,7 +435,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			};
 		};
 
-		const inBounds = (bounds: BoundingRect, pos: { x: number, y: number }) => {
+		const inBounds = (bounds: BoundingRect, pos: { x: number; y: number }) => {
 			return pos.x >= bounds.left && pos.x <= bounds.right && pos.y >= bounds.top && pos.y <= bounds.bottom;
 		};
 
@@ -580,7 +580,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		event.stopPropagation();
 		event.preventDefault();
 
-		let anchor: { x: number, y: number; } = { x: event.posx, y: event.posy };
+		let anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => this.menuActions?.getContextMenuActions() ?? []
@@ -647,7 +647,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return optimalWidth + additionalMargin;
 	}
 
-	addPanes(panes: { pane: ViewPane, size: number, index?: number; }[]): void {
+	addPanes(panes: { pane: ViewPane; size: number; index?: number }[]): void {
 		const wasMerged = this.isViewMergedWithContainer();
 
 		for (const { pane: pane, size, index } of panes) {
@@ -743,7 +743,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		const actions: IAction[] = viewPane.menuActions.getContextMenuActions();
 
-		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
+		let anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions
@@ -766,7 +766,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	protected onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
-		const panesToAdd: { pane: ViewPane, size: number, index: number }[] = [];
+		const panesToAdd: { pane: ViewPane; size: number; index: number }[] = [];
 
 		for (const { viewDescriptor, collapsed, index, size } of added) {
 			const pane = this.createView(viewDescriptor,
@@ -823,10 +823,10 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		if (this.viewContainerModel.activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === viewId)) {
 			const visible = !this.viewContainerModel.isVisible(viewId);
 			type ViewsToggleVisibilityClassification = {
-				viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				visible: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				viewId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				visible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};
-			this.telemetryService.publicLog2<{ viewId: String, visible: boolean }, ViewsToggleVisibilityClassification>('views.toggleVisibility', { viewId, visible });
+			this.telemetryService.publicLog2<{ viewId: String; visible: boolean }, ViewsToggleVisibilityClassification>('views.toggleVisibility', { viewId, visible });
 			this.viewContainerModel.setVisible(viewId, visible);
 		}
 	}
@@ -1262,7 +1262,7 @@ registerAction2(class MoveViews extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, options: { viewIds: string[], destinationId: string }): Promise<void> {
+	async run(accessor: ServicesAccessor, options: { viewIds: string[]; destinationId: string }): Promise<void> {
 		if (!Array.isArray(options?.viewIds) || typeof options?.destinationId !== 'string') {
 			return Promise.reject('Invalid arguments');
 		}

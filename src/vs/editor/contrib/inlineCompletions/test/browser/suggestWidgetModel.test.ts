@@ -140,8 +140,8 @@ const provider: CompletionItemProvider = {
 
 async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 	text: string,
-	options: TestCodeEditorInstantiationOptions & { provider?: CompletionItemProvider, fakeClock?: boolean, serviceCollection?: never },
-	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: SuggestWidgetPreviewModel, context: GhostTextContext }) => Promise<void>
+	options: TestCodeEditorInstantiationOptions & { provider?: CompletionItemProvider; fakeClock?: boolean; serviceCollection?: never },
+	callback: (args: { editor: ITestCodeEditor; editorViewModel: ViewModel; model: SuggestWidgetPreviewModel; context: GhostTextContext }) => Promise<void>
 ): Promise<void> {
 	await runWithFakedTimers({ useFakeTimers: options.fakeClock }, async () => {
 		const disposableStore = new DisposableStore();

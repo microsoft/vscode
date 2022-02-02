@@ -21,7 +21,6 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
@@ -202,7 +201,7 @@ export interface IDebugSessionOptions {
 export interface IDataBreakpointInfoResponse {
 	dataId: string | null;
 	description: string;
-	canPersist?: boolean,
+	canPersist?: boolean;
 	accessTypes?: DebugProtocol.DataBreakpointAccessType[];
 }
 
@@ -227,7 +226,7 @@ export interface IValidMemoryRange extends IMemoryRange {
 	type: MemoryRangeType.Valid;
 	offset: number;
 	length: number;
-	data: VSBuffer
+	data: VSBuffer;
 }
 
 export interface IUnreadableMemoryRange extends IMemoryRange {
@@ -301,7 +300,7 @@ export interface IDebugSession extends ITreeElement {
 	getSourceForUri(modelUri: uri): Source | undefined;
 	getSource(raw?: DebugProtocol.Source): Source;
 
-	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }): void;
+	setConfiguration(configuration: { resolved: IConfig; unresolved: IConfig | undefined }): void;
 	rawUpdate(data: IRawModelUpdate): void;
 
 	getThread(threadId: number): IThread | undefined;
@@ -314,7 +313,7 @@ export interface IDebugSession extends ITreeElement {
 	removeReplExpressions(): void;
 	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void>;
 	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void;
-	logToRepl(sev: severity, args: any[], frame?: { uri: uri, line: number, column: number }): void;
+	logToRepl(sev: severity, args: any[], frame?: { uri: uri; line: number; column: number }): void;
 
 	// session events
 	readonly onDidEndAdapter: Event<AdapterEndEvent | undefined>;
@@ -364,7 +363,7 @@ export interface IDebugSession extends ITreeElement {
 	restartFrame(frameId: number, threadId: number): Promise<void>;
 	next(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
 	stepIn(threadId: number, targetId?: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
-	stepInTargets(frameId: number): Promise<{ id: number, label: string }[] | undefined>;
+	stepInTargets(frameId: number): Promise<{ id: number; label: string }[] | undefined>;
 	stepOut(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
 	stepBack(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
 	continue(threadId: number): Promise<void>;
@@ -509,7 +508,7 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly column?: number;
 	readonly endColumn?: number;
 	readonly adapterData: any;
-	readonly sessionAgnosticData: { lineNumber: number, column: number | undefined };
+	readonly sessionAgnosticData: { lineNumber: number; column: number | undefined };
 }
 
 export interface IFunctionBreakpoint extends IBaseBreakpoint {
@@ -567,7 +566,7 @@ export interface IViewModel extends ITreeElement {
 	isMultiSessionView(): boolean;
 
 	onDidFocusSession: Event<IDebugSession | undefined>;
-	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined, explicit: boolean }>;
+	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined; explicit: boolean }>;
 	onDidSelectExpression: Event<{ expression: IExpression; settingWatch: boolean } | undefined>;
 	onWillUpdateViews: Event<void>;
 }
@@ -579,7 +578,7 @@ export interface IEvaluate {
 export interface IDebugModel extends ITreeElement {
 	getSession(sessionId: string | undefined, includeInactive?: boolean): IDebugSession | undefined;
 	getSessions(includeInactive?: boolean): IDebugSession[];
-	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
+	getBreakpoints(filter?: { uri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
 	getDataBreakpoints(): ReadonlyArray<IDataBreakpoint>;
@@ -632,7 +631,7 @@ export interface IDebugConfiguration {
 	confirmOnExit: 'always' | 'never';
 	disassemblyView: {
 		showSourceCode: boolean;
-	}
+	};
 }
 
 export interface IGlobalConfig {
@@ -681,7 +680,7 @@ export interface ICompound {
 	name: string;
 	stopAll?: boolean;
 	preLaunchTask?: string | TaskIdentifier;
-	configurations: (string | { name: string, folder: string })[];
+	configurations: (string | { name: string; folder: string })[];
 	presentation?: IConfigPresentation;
 }
 
@@ -767,6 +766,17 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	when?: string;
 }
 
+export enum DebugConfigurationProviderTriggerKind {
+	/**
+	 *	`DebugConfigurationProvider.provideDebugConfigurations` is called to provide the initial debug configurations for a newly created launch.json.
+	 */
+	Initial = 1,
+	/**
+	 * `DebugConfigurationProvider.provideDebugConfigurations` is called to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
+	 */
+	Dynamic = 2
+}
+
 export interface IDebugConfigurationProvider {
 	readonly type: string;
 	readonly triggerKind: DebugConfigurationProviderTriggerKind;
@@ -806,9 +816,9 @@ export interface IConfigurationManager {
 
 	getLaunches(): ReadonlyArray<ILaunch>;
 	getLaunch(workspaceUri: uri | undefined): ILaunch | undefined;
-	getAllConfigurations(): { launch: ILaunch, name: string, presentation?: IConfigPresentation }[];
+	getAllConfigurations(): { launch: ILaunch; name: string; presentation?: IConfigPresentation }[];
 	removeRecentDynamicConfigurations(name: string, type: string): void;
-	getRecentDynamicConfigurations(): { name: string, type: string }[];
+	getRecentDynamicConfigurations(): { name: string; type: string }[];
 
 	/**
 	 * Allows to register on change of selected debug configuration.
@@ -816,7 +826,7 @@ export interface IConfigurationManager {
 	onDidSelectConfiguration: Event<void>;
 
 	hasDebugConfigurationProvider(debugType: string): boolean;
-	getDynamicProviders(): Promise<{ label: string, type: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]>;
+	getDynamicProviders(): Promise<{ label: string; type: string; pick: () => Promise<{ launch: ILaunch; config: IConfig } | undefined> }[]>;
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
 	unregisterDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): void;
@@ -886,7 +896,7 @@ export interface ILaunch {
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
-	openConfigFile(preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null, created: boolean }>;
+	openConfigFile(preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null; created: boolean }>;
 }
 
 // Debug service interfaces
@@ -980,7 +990,7 @@ export interface IDebugService {
 	 * Updates an already existing function breakpoint.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
-	updateFunctionBreakpoint(id: string, update: { name?: string, hitCondition?: string, condition?: string }): Promise<void>;
+	updateFunctionBreakpoint(id: string, update: { name?: string; hitCondition?: string; condition?: string }): Promise<void>;
 
 	/**
 	 * Removes all function breakpoints. If id is passed only removes the function breakpoint with the passed id.

@@ -42,7 +42,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		instance: IMainThreadTestController;
 		label: MutableObservableValue<string>;
 		canRefresh: MutableObservableValue<boolean>;
-		disposable: IDisposable
+		disposable: IDisposable;
 	}>();
 
 	constructor(

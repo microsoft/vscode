@@ -506,7 +506,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		private _sticky: boolean | undefined,
 		private _silent: boolean | undefined,
 		private _message: INotificationMessage,
-		private _source: string | { label: string, id: string; } | undefined,
+		private _source: string | { label: string; id: string } | undefined,
 		progress: INotificationProgressProperties | undefined,
 		actions?: INotificationActions
 	) {

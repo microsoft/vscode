@@ -159,8 +159,8 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 
 	async provideCompletionItems(model: ITextModel, position: Position): Promise<modes.CompletionList | undefined> {
 		type WordBasedSuggestionsConfig = {
-			wordBasedSuggestions?: boolean,
-			wordBasedSuggestionsMode?: 'currentDocument' | 'matchingDocuments' | 'allDocuments'
+			wordBasedSuggestions?: boolean;
+			wordBasedSuggestionsMode?: 'currentDocument' | 'matchingDocuments' | 'allDocuments';
 		};
 		const config = this._configurationService.getValue<WordBasedSuggestionsConfig>(model.uri, position, 'editor');
 		if (!config.wordBasedSuggestions) {
@@ -287,8 +287,8 @@ class EditorModelManager extends Disposable {
 
 	private readonly _proxy: EditorSimpleWorker;
 	private readonly _modelService: IModelService;
-	private _syncedModels: { [modelUrl: string]: IDisposable; } = Object.create(null);
-	private _syncedModelsLastUsedTime: { [modelUrl: string]: number; } = Object.create(null);
+	private _syncedModels: { [modelUrl: string]: IDisposable } = Object.create(null);
+	private _syncedModelsLastUsedTime: { [modelUrl: string]: number } = Object.create(null);
 
 	constructor(proxy: EditorSimpleWorker, modelService: IModelService, keepIdleModels: boolean) {
 		super();
@@ -515,7 +515,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		});
 	}
 
-	public async textualSuggest(resources: URI[], leadingWord: string | undefined, wordDefRegExp: RegExp): Promise<{ words: string[], duration: number } | null> {
+	public async textualSuggest(resources: URI[], leadingWord: string | undefined, wordDefRegExp: RegExp): Promise<{ words: string[]; duration: number } | null> {
 		const proxy = await this._withSyncedResources(resources);
 		const wordDef = wordDefRegExp.source;
 		const wordDefFlags = regExpFlags(wordDefRegExp);

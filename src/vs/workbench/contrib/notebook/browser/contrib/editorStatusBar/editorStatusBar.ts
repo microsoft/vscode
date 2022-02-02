@@ -95,7 +95,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: SelectKernelReturnArgs | { ui?: boolean, notebookEditor?: NotebookEditorWidget }): Promise<boolean> {
+	async run(accessor: ServicesAccessor, context?: SelectKernelReturnArgs | { ui?: boolean; notebookEditor?: NotebookEditorWidget }): Promise<boolean> {
 		const notebookKernelService = accessor.get(INotebookKernelService);
 		const editorService = accessor.get(IEditorService);
 		const quickInputService = accessor.get(IQuickInputService);
@@ -153,7 +153,7 @@ registerAction2(class extends Action2 {
 		}
 
 		if (!newKernel) {
-			type KernelPick = IQuickPickItem & { kernel: INotebookKernel; };
+			type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 			const configButton: IQuickInputButton = {
 				iconClass: ThemeIcon.asClassName(configureKernelIcon),
 				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default for '{0}' notebooks", editor.textModel.viewType)

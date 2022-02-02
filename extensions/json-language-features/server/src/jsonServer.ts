@@ -56,12 +56,12 @@ export interface RequestService {
 
 export interface RuntimeEnvironment {
 	file?: RequestService;
-	http?: RequestService
+	http?: RequestService;
 	configureHttpRequests?(proxy: string, strictSSL: boolean): void;
 	readonly timer: {
 		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable;
 		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
-	}
+	};
 }
 
 export function startServer(connection: Connection, runtime: RuntimeEnvironment) {
@@ -168,7 +168,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	interface Settings {
 		json: {
 			schemas: JSONSchemaSettings[];
-			format: { enable: boolean; };
+			format: { enable: boolean };
 			resultLimit?: number;
 		};
 		http: {
@@ -185,7 +185,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 
 	const limitExceededWarnings = function () {
-		const pendingWarnings: { [uri: string]: { features: { [name: string]: string }; timeout?: Disposable; } } = {};
+		const pendingWarnings: { [uri: string]: { features: { [name: string]: string }; timeout?: Disposable } } = {};
 
 		const showLimitedNotification = (uri: string, resultLimit: number) => {
 			const warning = pendingWarnings[uri];
@@ -358,7 +358,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
 	});
 
-	const pendingValidationRequests: { [uri: string]: Disposable; } = {};
+	const pendingValidationRequests: { [uri: string]: Disposable } = {};
 	const validationDelayMs = 300;
 
 	function cleanPendingValidation(textDocument: TextDocument): void {

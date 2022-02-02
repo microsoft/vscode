@@ -327,7 +327,7 @@ export class NotebookOutputRendererInfoStore {
 		const preferred = notebookProviderInfo && this.preferredMimetype.getValue()[notebookProviderInfo.id]?.[mimeType];
 		const notebookExtId = notebookProviderInfo?.extension?.value;
 		const notebookId = notebookProviderInfo?.id;
-		const renderers: { ordered: IOrderedMimeType, score: number }[] = Array.from(this.contributedRenderers.values())
+		const renderers: { ordered: IOrderedMimeType; score: number }[] = Array.from(this.contributedRenderers.values())
 			.map(renderer => {
 				const ownScore = kernelProvides === undefined
 					? renderer.matchesWithoutKernel(mimeType)
@@ -719,7 +719,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		this._lastClipboardIsCopy = isCopy;
 	}
 
-	getToCopy(): { items: NotebookCellTextModel[], isCopy: boolean; } | undefined {
+	getToCopy(): { items: NotebookCellTextModel[]; isCopy: boolean } | undefined {
 		if (this._cutItems) {
 			return { items: this._cutItems, isCopy: this._lastClipboardIsCopy };
 		}

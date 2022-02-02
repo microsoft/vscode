@@ -50,7 +50,7 @@ CommandsRegistry.registerCommand('_executeDocumentColorProvider', function (acce
 		throw illegalArgument();
 	}
 
-	const rawCIs: { range: IRange, color: [number, number, number, number] }[] = [];
+	const rawCIs: { range: IRange; color: [number, number, number, number] }[] = [];
 	const providers = colorProviderRegistry.ordered(model).reverse();
 	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, CancellationToken.None)).then(result => {
 		if (Array.isArray(result)) {

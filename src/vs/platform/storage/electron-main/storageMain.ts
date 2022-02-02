@@ -270,7 +270,7 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		}), { hint: wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined });
 	}
 
-	private async prepareWorkspaceStorageFolder(): Promise<{ storageFilePath: string, wasCreated: boolean }> {
+	private async prepareWorkspaceStorageFolder(): Promise<{ storageFilePath: string; wasCreated: boolean }> {
 
 		// Return early if using inMemory storage
 		if (this.options.useInMemoryStorage) {

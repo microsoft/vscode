@@ -50,14 +50,14 @@ const opts = minimist(args, {
 		verbose: false
 	}
 }) as {
-	verbose?: boolean,
-	remote?: boolean,
-	headless?: boolean,
-	web?: boolean,
-	build?: string,
-	'stable-build'?: string,
-	browser?: string,
-	electronArgs?: string
+	verbose?: boolean;
+	remote?: boolean;
+	headless?: boolean;
+	web?: boolean;
+	build?: string;
+	'stable-build'?: string;
+	browser?: string;
+	electronArgs?: string;
 };
 
 const logger = createLogger();
@@ -113,7 +113,7 @@ function fail(errorMessage): void {
 let quality: Quality;
 let version: string | undefined;
 
-function parseVersion(version: string): { major: number, minor: number, patch: number } {
+function parseVersion(version: string): { major: number; minor: number; patch: number } {
 	const [, major, minor, patch] = /^(\d+)\.(\d+)\.(\d+)/.exec(version)!;
 	return { major: parseInt(major), minor: parseInt(minor), patch: parseInt(patch) };
 }

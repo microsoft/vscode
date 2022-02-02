@@ -112,7 +112,7 @@ const procSockets =
 			lrwx------ 1 alex alex 64 Dec  8 15:22 /proc/4496/fd/3 -> socket:[2331511]
 			lrwx------ 1 alex alex 64 Dec  8 15:22 /proc/4496/fd/31 -> socket:[2338285]`;
 
-const processes: { pid: number, cwd: string, cmd: string }[] = [
+const processes: { pid: number; cwd: string; cmd: string }[] = [
 	{
 		pid: 230,
 		cwd: '/mnt/c/WINDOWS/system32',

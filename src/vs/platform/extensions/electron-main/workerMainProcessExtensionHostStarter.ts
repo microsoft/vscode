@@ -123,15 +123,15 @@ export class WorkerMainProcessExtensionHostStarter implements IDisposable, IExte
 		return this._proxy!.onDynamicMessage(id);
 	}
 
-	onDynamicError(id: string): Event<{ error: SerializedError; }> {
+	onDynamicError(id: string): Event<{ error: SerializedError }> {
 		return this._proxy!.onDynamicError(id);
 	}
 
-	onDynamicExit(id: string): Event<{ code: number; signal: string; }> {
+	onDynamicExit(id: string): Event<{ code: number; signal: string }> {
 		return this._proxy!.onDynamicExit(id);
 	}
 
-	async createExtensionHost(): Promise<{ id: string; }> {
+	async createExtensionHost(): Promise<{ id: string }> {
 		const proxy = await this._worker.getProxyObject();
 		if (this._shutdown) {
 			throw canceled();
@@ -139,7 +139,7 @@ export class WorkerMainProcessExtensionHostStarter implements IDisposable, IExte
 		return proxy.createExtensionHost();
 	}
 
-	async start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number; }> {
+	async start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number }> {
 		const sw = StopWatch.create(false);
 		const proxy = await this._worker.getProxyObject();
 		if (this._shutdown) {

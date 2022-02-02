@@ -50,9 +50,9 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 			.then(undefined, err => {
 
 				type RemoteConnectionFailureClassification = {
-					web: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					message: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+					web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+					remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+					message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				};
 				type RemoteConnectionFailureEvent = {
 					web: boolean;

@@ -37,8 +37,8 @@ export interface ICommentService {
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
 	readonly onDidChangeActiveCommentThread: Event<CommentThread | null>;
-	readonly onDidUpdateCommentingRanges: Event<{ owner: string; }>
-	readonly onDidChangeActiveCommentingRange: Event<{ range: Range, commentingRangesInfo: CommentingRanges }>;
+	readonly onDidUpdateCommentingRanges: Event<{ owner: string }>;
+	readonly onDidChangeActiveCommentingRange: Event<{ range: Range; commentingRangesInfo: CommentingRanges }>;
 	readonly onDidSetDataProvider: Event<void>;
 	readonly onDidDeleteDataProvider: Event<string>;
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
@@ -78,20 +78,20 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidUpdateCommentThreads: Emitter<ICommentThreadChangedEvent> = this._register(new Emitter<ICommentThreadChangedEvent>());
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
 
-	private readonly _onDidUpdateCommentingRanges: Emitter<{ owner: string; }> = this._register(new Emitter<{ owner: string; }>());
-	readonly onDidUpdateCommentingRanges: Event<{ owner: string; }> = this._onDidUpdateCommentingRanges.event;
+	private readonly _onDidUpdateCommentingRanges: Emitter<{ owner: string }> = this._register(new Emitter<{ owner: string }>());
+	readonly onDidUpdateCommentingRanges: Event<{ owner: string }> = this._onDidUpdateCommentingRanges.event;
 
 	private readonly _onDidChangeActiveCommentThread = this._register(new Emitter<CommentThread | null>());
 	readonly onDidChangeActiveCommentThread = this._onDidChangeActiveCommentThread.event;
 
 	private readonly _onDidChangeActiveCommentingRange: Emitter<{
-		range: Range, commentingRangesInfo:
-		CommentingRanges
+		range: Range; commentingRangesInfo:
+		CommentingRanges;
 	}> = this._register(new Emitter<{
-		range: Range, commentingRangesInfo:
-		CommentingRanges
+		range: Range; commentingRangesInfo:
+		CommentingRanges;
 	}>());
-	readonly onDidChangeActiveCommentingRange: Event<{ range: Range, commentingRangesInfo: CommentingRanges }> = this._onDidChangeActiveCommentingRange.event;
+	readonly onDidChangeActiveCommentingRange: Event<{ range: Range; commentingRangesInfo: CommentingRanges }> = this._onDidChangeActiveCommentingRange.event;
 
 	private _commentControls = new Map<string, MainThreadCommentController>();
 	private _commentMenus = new Map<string, CommentMenus>();

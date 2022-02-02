@@ -400,7 +400,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 
 		this._register(this.model.onDidChangeTokens((e) => {
-			const viewRanges: { fromLineNumber: number; toLineNumber: number; }[] = [];
+			const viewRanges: { fromLineNumber: number; toLineNumber: number }[] = [];
 			for (let j = 0, lenJ = e.ranges.length; j < lenJ; j++) {
 				const modelRange = e.ranges[j];
 				const viewStartLineNumber = this.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.fromLineNumber, 1)).lineNumber;
@@ -580,7 +580,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		};
 	}
 
-	public reduceRestoreState(state: IViewState): { scrollLeft: number; scrollTop: number; } {
+	public reduceRestoreState(state: IViewState): { scrollLeft: number; scrollTop: number } {
 		if (typeof state.firstPosition === 'undefined') {
 			// This is a view state serialized by an older version
 			return this._reduceRestoreStateCompatibility(state);
@@ -595,7 +595,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		};
 	}
 
-	private _reduceRestoreStateCompatibility(state: IViewState): { scrollLeft: number; scrollTop: number; } {
+	private _reduceRestoreStateCompatibility(state: IViewState): { scrollLeft: number; scrollTop: number } {
 		return {
 			scrollLeft: state.scrollLeft,
 			scrollTop: state.scrollTopWithoutViewZones!
@@ -835,7 +835,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		return result.length === 1 ? result[0] : result;
 	}
 
-	public getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string, mode: string } | null {
+	public getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null {
 		const languageId = this.model.getLanguageId();
 		if (languageId === PLAINTEXT_LANGUAGE_ID) {
 			return null;
@@ -1069,7 +1069,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 class OverviewRulerDecorations {
 
-	private readonly _asMap: { [color: string]: OverviewRulerDecorationsGroup; } = Object.create(null);
+	private readonly _asMap: { [color: string]: OverviewRulerDecorationsGroup } = Object.create(null);
 	readonly asArray: OverviewRulerDecorationsGroup[] = [];
 
 	public accept(color: string, zIndex: number, startLineNumber: number, endLineNumber: number, lane: number): void {

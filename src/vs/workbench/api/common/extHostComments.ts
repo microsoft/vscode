@@ -217,11 +217,11 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 	}
 	type CommentThreadModification = Partial<{
-		range: vscode.Range,
-		label: string | undefined,
-		contextValue: string | undefined,
-		comments: vscode.Comment[],
-		collapsibleState: vscode.CommentThreadCollapsibleState
+		range: vscode.Range;
+		label: string | undefined;
+		contextValue: string | undefined;
+		comments: vscode.Comment[];
+		collapsibleState: vscode.CommentThreadCollapsibleState;
 		canReply: boolean;
 	}>;
 
@@ -622,7 +622,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			checkProposedApiEnabled(thread.extensionDescription, 'commentTimestamp');
 		}
 
-		let timestamp: { $mid: MarshalledId.Date, source: any } | undefined;
+		let timestamp: { $mid: MarshalledId.Date; source: any } | undefined;
 		if (vscodeComment.timestamp) {
 			timestamp = {
 				source: vscodeComment.timestamp,

@@ -34,8 +34,8 @@ export interface IAutomaticLanguageDetectionLikelyWrongData {
 }
 
 export type AutomaticLanguageDetectionLikelyWrongClassification = {
-	currentLanguageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
-	nextLanguageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }
+	currentLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	nextLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 export const LanguageDetectionStatsId = 'automaticlanguagedetection.stats';
@@ -47,9 +47,9 @@ export interface ILanguageDetectionStats {
 }
 
 export type LanguageDetectionStatsClassification = {
-	languages: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	confidences: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	timeSpent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 //#endregion

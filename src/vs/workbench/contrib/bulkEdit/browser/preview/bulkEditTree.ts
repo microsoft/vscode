@@ -359,7 +359,7 @@ export class BulkEditAccessibilityProvider implements IListAccessibilityProvider
 
 export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditElement> {
 
-	getId(element: BulkEditElement): { toString(): string; } {
+	getId(element: BulkEditElement): { toString(): string } {
 		if (element instanceof FileElement) {
 			return element.edit.uri + (element.parent instanceof CategoryElement ? JSON.stringify(element.parent.category.metadata) : '');
 		} else if (element instanceof TextEditElement) {

@@ -45,8 +45,8 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private _backgroundColor?: ThemeColor;
 	private readonly _internalCommandRegistration = new DisposableStore();
 	private _command?: {
-		readonly fromApi: string | vscode.Command,
-		readonly internal: ICommandDto,
+		readonly fromApi: string | vscode.Command;
+		readonly internal: ICommandDto;
 	};
 
 	private _timeoutHandle: any;

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.64.0",
-  "distro": "674cec30e4b34119b7567a73aaa391cc67b89422",
+  "distro": "91fce8a983c56d50df300b3767a8848483dfd8f9",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -124,7 +124,7 @@
     "@typescript-eslint/eslint-plugin": "^5.10.0",
     "@typescript-eslint/parser": "^5.10.0",
     "@vscode/telemetry-extractor": "^1.9.5",
-    "@vscode/test-web": "^0.0.19",
+    "@vscode/test-web": "^0.0.21",
     "ansi-colors": "^3.2.3",
     "asar": "^3.0.3",
     "chromium-pickle-js": "^0.2.0",

@@ -453,7 +453,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async function (accessor: ServicesAccessor, extension: { publisher: string, name: string, version: string; }, themeSettingsId?: string) {
+CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async function (accessor: ServicesAccessor, extension: { publisher: string; name: string; version: string }, themeSettingsId?: string) {
 	const themeService = accessor.get(IWorkbenchThemeService);
 
 	const themes = await themeService.getMarketplaceColorThemes(extension.publisher, extension.name, extension.version);
@@ -540,7 +540,7 @@ registerAction2(class extends Action2 {
 		const theme = themeService.getColorTheme();
 		const colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
 		const colorIds = colors.map(c => c.id).sort();
-		const resultingColors: { [key: string]: string | null; } = {};
+		const resultingColors: { [key: string]: string | null } = {};
 		const inherited: string[] = [];
 		for (const colorId of colorIds) {
 			const color = theme.getColor(colorId, false);

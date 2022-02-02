@@ -63,7 +63,7 @@ export interface IconFontDefinition {
 }
 
 export interface IconFontSource {
-	readonly location: URI,
+	readonly location: URI;
 	readonly format: string;
 }
 
@@ -143,7 +143,7 @@ class IconRegistry implements IIconRegistry {
 		type: 'object',
 		properties: {}
 	};
-	private iconReferenceSchema: IJSONSchema & { enum: string[], enumDescriptions: string[] } = { type: 'string', pattern: `^${CSSIcon.iconNameExpression}$`, enum: [], enumDescriptions: [] };
+	private iconReferenceSchema: IJSONSchema & { enum: string[]; enumDescriptions: string[] } = { type: 'string', pattern: `^${CSSIcon.iconNameExpression}$`, enum: [], enumDescriptions: [] };
 
 	private iconFontsById: { [key: string]: IconFontDefinition };
 

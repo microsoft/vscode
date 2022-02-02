@@ -62,11 +62,19 @@ interface IOccurenceAtPositionRequest {
 abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest {
 
 	private readonly _wordRange: Range | null;
-	public readonly result: CancelablePromise<DocumentHighlight[]>;
+	private _result: CancelablePromise<DocumentHighlight[]> | null;
 
-	constructor(model: ITextModel, selection: Selection, wordSeparators: string) {
-		this._wordRange = this._getCurrentWordRange(model, selection);
-		this.result = createCancelablePromise(token => this._compute(model, selection, wordSeparators, token));
+	constructor(private readonly _model: ITextModel, private readonly _selection: Selection, private readonly _wordSeparators: string) {
+		this._wordRange = this._getCurrentWordRange(_model, _selection);
+		this._result = null;
+	}
+
+	get result() {
+		if (!this._result) {
+			this._result = createCancelablePromise(token => this._compute(this._model, this._selection, this._wordSeparators, token));
+		}
+		return this._result;
+
 	}
 
 	protected abstract _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<DocumentHighlight[]>;

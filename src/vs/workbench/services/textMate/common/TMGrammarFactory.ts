@@ -27,8 +27,8 @@ export class TMGrammarFactory extends Disposable {
 	private readonly _host: ITMGrammarFactoryHost;
 	private readonly _initialState: StackElement;
 	private readonly _scopeRegistry: TMScopeRegistry;
-	private readonly _injections: { [scopeName: string]: string[]; };
-	private readonly _injectedEmbeddedLanguages: { [scopeName: string]: IValidEmbeddedLanguagesMap[]; };
+	private readonly _injections: { [scopeName: string]: string[] };
+	private readonly _injectedEmbeddedLanguages: { [scopeName: string]: IValidEmbeddedLanguagesMap[] };
 	private readonly _languageToScope: Map<string, string>;
 	private readonly _grammarRegistry: Registry;
 

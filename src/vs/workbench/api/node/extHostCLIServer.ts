@@ -36,7 +36,7 @@ export interface StatusPipeArgs {
 
 export interface ExtensionManagementPipeArgs {
 	type: 'extensionManagement';
-	list?: { showVersions?: boolean, category?: string; };
+	list?: { showVersions?: boolean; category?: string };
 	install?: string[];
 	uninstall?: string[];
 	force?: boolean;
@@ -79,39 +79,45 @@ export class CLIServerBase {
 	}
 
 	private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+		const sendResponse = (statusCode: number, returnObj: any) => {
+			res.writeHead(statusCode, { 'content-type': 'application/json' });
+			res.end(JSON.stringify(returnObj), (err?: any) => err && this.logService.error(err));
+		};
+
 		const chunks: string[] = [];
 		req.setEncoding('utf8');
 		req.on('data', (d: string) => chunks.push(d));
-		req.on('end', () => {
-			const data: PipeCommand | any = JSON.parse(chunks.join(''));
-			switch (data.type) {
-				case 'open':
-					this.open(data, res);
-					break;
-				case 'openExternal':
-					this.openExternal(data, res);
-					break;
-				case 'status':
-					this.getStatus(data, res);
-					break;
-				case 'extensionManagement':
-					this.manageExtensions(data, res)
-						.catch(this.logService.error);
-					break;
-				default:
-					res.writeHead(404);
-					res.write(`Unknown message type: ${data.type}`, err => {
-						if (err) {
-							this.logService.error(err);
-						}
-					});
-					res.end();
-					break;
+		req.on('end', async () => {
+			try {
+				const data: PipeCommand | any = JSON.parse(chunks.join(''));
+				let returnObj;
+				switch (data.type) {
+					case 'open':
+						returnObj = await this.open(data);
+						break;
+					case 'openExternal':
+						returnObj = await this.openExternal(data);
+						break;
+					case 'status':
+						returnObj = await this.getStatus(data);
+						break;
+					case 'extensionManagement':
+						returnObj = await this.manageExtensions(data);
+						break;
+					default:
+						sendResponse(404, `Unknown message type: ${data.type}`);
+						break;
+				}
+				sendResponse(200, returnObj);
+			} catch (e) {
+				const message = e instanceof Error ? e.message : JSON.stringify(e);
+				sendResponse(500, message);
+				this.logService.error('Error while processing pipe request', e);
 			}
 		});
 	}
 
-	private open(data: OpenCommandPipeArgs, res: http.ServerResponse) {
+	private async open(data: OpenCommandPipeArgs): Promise<string> {
 		const { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow, gotoLineMode, waitMarkerFilePath, remoteAuthority } = data;
 		const urisToOpen: IWindowOpenable[] = [];
 		if (Array.isArray(folderURIs)) {
@@ -141,58 +147,30 @@ export class CLIServerBase {
 		const windowOpenArgs: IOpenWindowOptions = { forceNewWindow, diffMode, addMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI, remoteAuthority };
 		this._commands.executeCommand('_remoteCLI.windowOpen', urisToOpen, windowOpenArgs);
 
-		res.writeHead(200);
-		res.end();
+		return '';
 	}
 
-	private async openExternal(data: OpenExternalCommandPipeArgs, res: http.ServerResponse) {
+	private async openExternal(data: OpenExternalCommandPipeArgs): Promise<any> {
 		for (const uriString of data.uris) {
 			const uri = URI.parse(uriString);
 			const urioOpen = uri.scheme === 'file' ? uri : uriString; // workaround for #112577
 			await this._commands.executeCommand('_remoteCLI.openExternal', urioOpen);
 		}
-		res.writeHead(200);
-		res.end();
 	}
 
-	private async manageExtensions(data: ExtensionManagementPipeArgs, res: http.ServerResponse) {
-		try {
-			const toExtOrVSIX = (inputs: string[] | undefined) => inputs?.map(input => /\.vsix$/i.test(input) ? URI.parse(input) : input);
-			const commandArgs = {
-				list: data.list,
-				install: toExtOrVSIX(data.install),
-				uninstall: toExtOrVSIX(data.uninstall),
-				force: data.force
-			};
-			const output = await this._commands.executeCommand('_remoteCLI.manageExtensions', commandArgs);
-			res.writeHead(200);
-			res.write(output);
-		} catch (err) {
-			res.writeHead(500);
-			res.write(String(err), err => {
-				if (err) {
-					this.logService.error(err);
-				}
-			});
-		}
-		res.end();
+	private async manageExtensions(data: ExtensionManagementPipeArgs): Promise<any> {
+		const toExtOrVSIX = (inputs: string[] | undefined) => inputs?.map(input => /\.vsix$/i.test(input) ? URI.parse(input) : input);
+		const commandArgs = {
+			list: data.list,
+			install: toExtOrVSIX(data.install),
+			uninstall: toExtOrVSIX(data.uninstall),
+			force: data.force
+		};
+		return await this._commands.executeCommand('_remoteCLI.manageExtensions', commandArgs);
 	}
 
-	private async getStatus(data: StatusPipeArgs, res: http.ServerResponse) {
-		try {
-			const status = await this._commands.executeCommand('_remoteCLI.getSystemStatus');
-			res.writeHead(200);
-			res.write(status);
-			res.end();
-		} catch (err) {
-			res.writeHead(500);
-			res.write(String(err), err => {
-				if (err) {
-					this.logService.error(err);
-				}
-			});
-			res.end();
-		}
+	private async getStatus(data: StatusPipeArgs) {
+		return await this._commands.executeCommand('_remoteCLI.getSystemStatus');
 	}
 
 	dispose(): void {

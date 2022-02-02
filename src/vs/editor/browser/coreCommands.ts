@@ -332,7 +332,7 @@ export namespace CoreNavigationCommands {
 		private readonly _minimalReveal: boolean;
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { minimalReveal: boolean; inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { minimalReveal: boolean; inSelectionMode: boolean }) {
 			super(opts);
 			this._minimalReveal = opts.minimalReveal;
 			this._inSelectionMode = opts.inSelectionMode;
@@ -452,7 +452,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _isPaged: boolean;
 
-		constructor(opts: ICommandOptions & { isPaged: boolean; }) {
+		constructor(opts: ICommandOptions & { isPaged: boolean }) {
 			super(opts);
 			this._isPaged = opts.isPaged;
 		}
@@ -490,7 +490,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _isPaged: boolean;
 
-		constructor(opts: ICommandOptions & { isPaged: boolean; }) {
+		constructor(opts: ICommandOptions & { isPaged: boolean }) {
 			super(opts);
 			this._isPaged = opts.isPaged;
 		}
@@ -907,7 +907,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}
@@ -951,7 +951,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}
@@ -1005,7 +1005,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}
@@ -1083,7 +1083,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}
@@ -1138,7 +1138,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}
@@ -1182,7 +1182,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}
@@ -1400,7 +1400,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}
@@ -1458,7 +1458,7 @@ export namespace CoreNavigationCommands {
 	class LineCommand extends CoreEditorCommand {
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}
@@ -1491,7 +1491,7 @@ export namespace CoreNavigationCommands {
 	class LastCursorLineCommand extends CoreEditorCommand {
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}

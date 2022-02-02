@@ -71,7 +71,7 @@ export class Application {
 		await this.code.waitForElement('.explorer-folders-view');
 	}
 
-	async restart(options?: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
+	async restart(options?: { workspaceOrFolder?: string; extraArgs?: string[] }): Promise<any> {
 		await this.stop();
 		await this._start(options?.workspaceOrFolder, options?.extraArgs);
 	}

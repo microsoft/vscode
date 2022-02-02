@@ -34,13 +34,13 @@ let cachedTasks: TaskWithLocation[] | undefined = undefined;
 const INSTALL_SCRIPT = 'install';
 
 export interface TaskLocation {
-	document: Uri,
-	line: Position
+	document: Uri;
+	line: Position;
 }
 
 export interface TaskWithLocation {
-	task: Task,
-	location?: Location
+	task: Task;
+	location?: Location;
 }
 
 export class NpmTaskProvider implements TaskProvider {
@@ -416,7 +416,7 @@ export async function startDebugging(context: ExtensionContext, scriptName: stri
 }
 
 
-export type StringMap = { [s: string]: string; };
+export type StringMap = { [s: string]: string };
 
 export function findScriptAtPosition(document: TextDocument, buffer: string, position: Position): string | undefined {
 	const read = readScripts(document, buffer);

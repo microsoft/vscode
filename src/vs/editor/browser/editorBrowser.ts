@@ -728,7 +728,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Get value of the current model attached to this editor.
 	 * @see {@link ITextModel.getValue}
 	 */
-	getValue(options?: { preserveBOM: boolean; lineEnding: string; }): string;
+	getValue(options?: { preserveBOM: boolean; lineEnding: string }): string;
 
 	/**
 	 * Set the value of the current model attached to this editor.
@@ -973,7 +973,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
 	 * Warning: the results of this method are inaccurate for positions that are outside the current editor viewport.
 	 */
-	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; } | null;
+	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number } | null;
 
 	/**
 	 * Apply the same font settings as the editor to `target`.
@@ -1040,7 +1040,7 @@ export interface IActiveCodeEditor extends ICodeEditor {
 	 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
 	 * Warning: the results of this method are inaccurate for positions that are outside the current editor viewport.
 	 */
-	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; };
+	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number };
 }
 
 /**

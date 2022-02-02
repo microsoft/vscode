@@ -36,7 +36,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	public outputFoldingState: PropertyFoldingState;
 	protected _layoutInfoEmitter = this._register(new Emitter<CellDiffViewModelLayoutChangeEvent>());
 	onDidLayoutChange = this._layoutInfoEmitter.event;
-	protected _stateChangeEmitter = this._register(new Emitter<{ renderOutput: boolean; }>());
+	protected _stateChangeEmitter = this._register(new Emitter<{ renderOutput: boolean }>());
 	onDidStateChange = this._stateChangeEmitter.event;
 	protected _layoutInfo!: IDiffElementLayoutInfo;
 
@@ -115,8 +115,8 @@ export abstract class DiffElementViewModelBase extends Disposable {
 		readonly type: 'unchanged' | 'insert' | 'delete' | 'modified',
 		readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher,
 		readonly initData: {
-			metadataStatusHeight: number,
-			outputStatusHeight: number
+			metadataStatusHeight: number;
+			outputStatusHeight: number;
 		}
 	) {
 		super();
@@ -274,8 +274,8 @@ export abstract class DiffElementViewModelBase extends Disposable {
 		this.editorEventDispatcher.emit([{ type: NotebookDiffViewEventType.CellLayoutChanged, source: this._layoutInfo }]);
 	}
 
-	abstract checkIfOutputsModified(): false | { reason: string | undefined; };
-	abstract checkMetadataIfModified(): false | { reason: string | undefined; };
+	abstract checkIfOutputsModified(): false | { reason: string | undefined };
+	abstract checkMetadataIfModified(): false | { reason: string | undefined };
 	abstract isOutputEmpty(): boolean;
 	abstract getRichOutputTotalHeight(): number;
 	abstract getCellByUri(cellUri: URI): IGenericCellViewModel;
@@ -338,8 +338,8 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 		type: 'unchanged' | 'modified',
 		editorEventDispatcher: NotebookDiffEditorEventDispatcher,
 		initData: {
-			metadataStatusHeight: number,
-			outputStatusHeight: number
+			metadataStatusHeight: number;
+			outputStatusHeight: number;
 		}
 	) {
 		super(
@@ -489,8 +489,8 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 		type: 'insert' | 'delete',
 		editorEventDispatcher: NotebookDiffEditorEventDispatcher,
 		initData: {
-			metadataStatusHeight: number,
-			outputStatusHeight: number
+			metadataStatusHeight: number;
+			outputStatusHeight: number;
 		}
 	) {
 		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher, initData);

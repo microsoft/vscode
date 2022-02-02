@@ -741,7 +741,7 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 		@ILabelService private readonly labelService: ILabelService,
 	) { }
 
-	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } | { toString(): string; }[] | undefined {
+	getKeyboardNavigationLabel(element: TreeElement): { toString(): string } | { toString(): string }[] | undefined {
 		if (ResourceTree.isResourceNode(element)) {
 			return element.name;
 		} else if (isSCMRepository(element) || isSCMInput(element) || isSCMActionButton(element)) {
@@ -766,7 +766,7 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 		}
 	}
 
-	getCompressedNodeKeyboardNavigationLabel(elements: TreeElement[]): { toString(): string | undefined; } | undefined {
+	getCompressedNodeKeyboardNavigationLabel(elements: TreeElement[]): { toString(): string | undefined } | undefined {
 		const folders = elements as IResourceNode<ISCMResource, ISCMResourceGroup>[];
 		return folders.map(e => e.name).join('/');
 	}
@@ -1603,7 +1603,7 @@ class SCMInputWidget extends Disposable {
 	private placeholderTextContainer: HTMLElement;
 	private inputEditor: CodeEditorWidget;
 
-	private model: { readonly input: ISCMInput; readonly textModel: ITextModel; } | undefined;
+	private model: { readonly input: ISCMInput; readonly textModel: ITextModel } | undefined;
 	private repositoryContextKey: IContextKey<ISCMRepository | undefined>;
 	private repositoryDisposables = new DisposableStore();
 

@@ -79,9 +79,9 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 
 	//#region Events
 
-	private onDidCreateEditors = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+	private onDidCreateEditors = this._register(new Emitter<{ width: number; height: number } | undefined>());
 
-	private _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number; } | undefined>());
+	private _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number } | undefined>());
 	override readonly onDidChangeSizeConstraints = Event.any(this.onDidCreateEditors.event, this._onDidChangeSizeConstraints.event);
 
 	//#endregion
@@ -262,7 +262,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		]);
 	}
 
-	private loadViewState(input: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): { primary: IEditorOptions | undefined, secondary: IEditorOptions | undefined, viewState: ISideBySideEditorViewState | undefined } {
+	private loadViewState(input: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): { primary: IEditorOptions | undefined; secondary: IEditorOptions | undefined; viewState: ISideBySideEditorViewState | undefined } {
 		const viewState = isSideBySideEditorViewState(options?.viewState) ? options?.viewState : this.loadEditorViewState(input, context);
 
 		const primaryOptions: IEditorOptions = {

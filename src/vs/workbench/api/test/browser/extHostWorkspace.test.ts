@@ -567,7 +567,7 @@ suite('ExtHostWorkspace', function () {
 		};
 	}
 
-	function asUpdateWorkspaceFolderData(uri: URI, name?: string): { uri: URI, name?: string } {
+	function asUpdateWorkspaceFolderData(uri: URI, name?: string): { uri: URI; name?: string } {
 		return { uri, name };
 	}
 

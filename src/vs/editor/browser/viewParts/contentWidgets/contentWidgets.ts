@@ -32,7 +32,7 @@ class Coordinate {
 export class ViewContentWidgets extends ViewPart {
 
 	private readonly _viewDomNode: FastDomNode<HTMLElement>;
-	private _widgets: { [key: string]: Widget; };
+	private _widgets: { [key: string]: Widget };
 
 	public domNode: FastDomNode<HTMLElement>;
 	public overflowingContentWidgetsDomNode: FastDomNode<HTMLElement>;
@@ -173,8 +173,8 @@ interface IBoxLayoutResult {
 }
 
 interface IRenderData {
-	coordinate: Coordinate,
-	position: ContentWidgetPositionPreference
+	coordinate: Coordinate;
+	position: ContentWidgetPositionPreference;
 }
 
 class Widget {

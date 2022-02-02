@@ -134,7 +134,7 @@ export class LinkDetector implements IEditorContribution {
 	private activeLinkDecorationId: string | null;
 	private readonly openerService: IOpenerService;
 	private readonly notificationService: INotificationService;
-	private currentOccurrences: { [decorationId: string]: LinkOccurrence; };
+	private currentOccurrences: { [decorationId: string]: LinkOccurrence };
 
 	constructor(
 		editor: ICodeEditor,

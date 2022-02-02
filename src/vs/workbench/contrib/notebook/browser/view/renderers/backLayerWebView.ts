@@ -69,9 +69,9 @@ export interface INotebookDelegateForWebview {
 	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
 	updateMarkupCellHeight(cellId: string, height: number, isInit: boolean): void;
 	setMarkupCellEditState(cellId: string, editState: CellEditState): void;
-	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
-	didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
-	didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void;
+	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number }): void;
+	didDragMarkupCell(cellId: string, event: { dragOffsetY: number }): void;
+	didDropMarkupCell(cellId: string, event: { dragOffsetY: number; ctrlKey: boolean; altKey: boolean }): void;
 	didEndDragMarkupCell(cellId: string): void;
 	setScrollTop(scrollTop: number): void;
 	triggerScroll(event: IMouseWheelEvent): void;
@@ -415,7 +415,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		});
 	}
 
-	private resolveOutputId(id: string): { cellInfo: T, output: ICellOutputViewModel } | undefined {
+	private resolveOutputId(id: string): { cellInfo: T; output: ICellOutputViewModel } | undefined {
 		const output = this.reversedInsetMapping.get(id);
 		if (!output) {
 			return;
@@ -820,7 +820,7 @@ var requirejs = (function() {
 				case 'telemetryFoundUnrenderedMarkdownMath':
 					{
 						type Classification = {
-							latexDirective: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+							latexDirective: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 						};
 
 						type TelemetryEvent = {
@@ -948,7 +948,7 @@ var requirejs = (function() {
 		});
 	}
 
-	updateScrollTops(outputRequests: IDisplayOutputLayoutUpdateRequest[], markupPreviews: { id: string, top: number }[]) {
+	updateScrollTops(outputRequests: IDisplayOutputLayoutUpdateRequest[], markupPreviews: { id: string; top: number }[]) {
 		if (this._disposed) {
 			return;
 		}
@@ -1287,7 +1287,7 @@ var requirejs = (function() {
 		}, 50);
 	}
 
-	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; }): Promise<IFindMatch[]> {
+	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean }): Promise<IFindMatch[]> {
 		if (query === '') {
 			return [];
 		}

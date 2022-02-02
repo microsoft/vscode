@@ -121,7 +121,7 @@ declare module 'vscode' {
 		 * The {@link NotebookEditor notebook editor} for which the selections have changed.
 		 */
 		readonly notebookEditor: NotebookEditor;
-		readonly selections: ReadonlyArray<NotebookRange>
+		readonly selections: ReadonlyArray<NotebookRange>;
 	}
 
 	export interface NotebookEditorVisibleRangesChangeEvent {

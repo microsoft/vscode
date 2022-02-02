@@ -23,7 +23,7 @@ export class InlayHintItem {
 
 	constructor(readonly hint: InlayHint, readonly anchor: InlayHintAnchor, readonly provider: InlayHintsProvider) { }
 
-	with(delta: { anchor: InlayHintAnchor; }): InlayHintItem {
+	with(delta: { anchor: InlayHintAnchor }): InlayHintItem {
 		const result = new InlayHintItem(this.hint, delta.anchor, this.provider);
 		result._isResolved = this._isResolved;
 		result._currentResolve = this._currentResolve;

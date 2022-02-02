@@ -145,7 +145,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 			}]);
 	}
 
-	async $closeTunnel(remote: { host: string, port: number }): Promise<void> {
+	async $closeTunnel(remote: { host: string; port: number }): Promise<void> {
 		return this.remoteExplorerService.close(remote);
 	}
 
