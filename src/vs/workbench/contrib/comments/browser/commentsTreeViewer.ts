@@ -124,8 +124,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
 		templateData.userName.textContent = node.element.comment.userName;
-		const timestamp = typeof node.element.comment.detail === 'string' ? undefined : node.element.comment.detail;
-		templateData.timestamp.setTimestamp(timestamp);
+		templateData.timestamp.setTimestamp(node.element.comment.timestamp);
 		templateData.commentText.innerText = '';
 		if (typeof node.element.comment.body === 'string') {
 			templateData.commentText.innerText = node.element.comment.body;
