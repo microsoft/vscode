@@ -2341,11 +2341,24 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 
 	getAriaLabel(element: SettingsTreeElement) {
 		if (element instanceof SettingsTreeSettingElement) {
-			const modifiedText = element.isConfigured ? localize('settings.Modified', 'Modified.') : '';
+			const ariaLabelSections: string[] = [];
+			ariaLabelSections.push(`${element.displayCategory} ${element.displayLabel}.`);
 
-			const otherOverridesLabel = this.getMiscLabelAriaLabel(element);
+			if (element.isConfigured) {
+				const modifiedText = localize('settings.Modified', 'Modified.');
+				ariaLabelSections.push(modifiedText);
+			}
+
+			const miscLabelAriaLabel = this.getMiscLabelAriaLabel(element);
+			if (miscLabelAriaLabel.length) {
+				ariaLabelSections.push(`${miscLabelAriaLabel}.`);
+			}
+
 			const descriptionWithoutSettingLinks = fixSettingLinks(element.description, false);
-			return `${element.displayCategory} ${element.displayLabel}. ${modifiedText} ${otherOverridesLabel}. ${descriptionWithoutSettingLinks}.`;
+			if (descriptionWithoutSettingLinks.length) {
+				ariaLabelSections.push(descriptionWithoutSettingLinks);
+			}
+			return ariaLabelSections.join(' ');
 		} else if (element instanceof SettingsTreeGroupElement) {
 			return element.label;
 		} else {
