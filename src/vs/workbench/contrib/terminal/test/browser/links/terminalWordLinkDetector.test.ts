@@ -104,47 +104,4 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 		await assertLink('file:///C:/users/test/file.txt ', [{ range: [[1, 1], [30, 1]], text: 'file:///C:/users/test/file.txt' }]);
 		await assertLink('file:///C:/users/test/file.txt:1:10 ', [{ range: [[1, 1], [35, 1]], text: 'file:///C:/users/test/file.txt:1:10' }]);
 	});
-
-	// TODO: Test this as part of the opener tests
-	// test('should apply the cwd to the link only when the file exists and cwdDetection is enabled', async () => {
-	// 	const cwd = (isWindows
-	// 		? 'c:\\Users\\home\\folder'
-	// 		: '/Users/home/folder'
-	// 	);
-	// 	const absoluteFile = (isWindows
-	// 		? 'c:\\Users\\home\\folder\\file.txt'
-	// 		: '/Users/home/folder/file.txt'
-	// 	);
-	// 	fileService.setFiles([absoluteFile]);
-
-	// 	// Set a fake detected command starting as line 0 to establish the cwd
-	// 	commandDetection.setCommands([{
-	// 		command: '',
-	// 		cwd,
-	// 		timestamp: 0,
-	// 		getOutput() { return undefined; },
-	// 		marker: {
-	// 			line: 0
-	// 		} as Partial<IXtermMarker> as any
-	// 	}]);
-	// 	await assertLink('file.txt', [{
-	// 		range: [[1, 1], [8, 1]],
-	// 		text: 'file.txt',
-	// 		linkActivationResult: {
-	// 			link: (isWindows
-	// 				? 'file:///c%3A%5CUsers%5Chome%5Cfolder%5Cfile.txt'
-	// 				: 'file:///Users/home/folder/file.txt'
-	// 			),
-	// 			source: 'editor'
-	// 		}
-	// 	}]);
-
-	// 	// Clear deteceted commands and ensure the same request results in a search
-	// 	commandDetection.setCommands([]);
-	// 	await assertLink('file.txt', [{
-	// 		range: [[1, 1], [8, 1]],
-	// 		text: 'file.txt',
-	// 		linkActivationResult: { link: 'file.txt', source: 'search' }
-	// 	}]);
-	// });
 });

@@ -31,7 +31,6 @@ export class TerminalExternalLinkDetector implements ITerminalLinkDetector {
 		}
 
 		const externalLinks = await this._provideLinks(text);
-		console.log('external links', externalLinks);
 		if (!externalLinks) {
 			return [];
 		}
@@ -49,17 +48,11 @@ export class TerminalExternalLinkDetector implements ITerminalLinkDetector {
 				text: matchingText,
 				label: link.label,
 				bufferRange,
-				type: { id: 'extension' }
+				type: { id: this.id }
 			};
-			console.log('create simple link', l);
 			return l;
-			// const activateLink = this._wrapLinkHandler((_, text) => link.activate(text));
-			// const l = this._instantiationService.createInstance(TerminalLink, this.xterm, bufferRange, matchingText, this.xterm.buffer.active.viewportY, activateLink, this._tooltipCallback, true, link.label);
-			// console.log('external link', l);
-			// return l;
 		});
 
-		console.log('external link result', result);
 		return result;
 	}
 }

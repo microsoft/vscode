@@ -71,7 +71,6 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 
 		const detectedLinks = await this._detector.detect(lines, startLine, endLine);
 		for (const link of detectedLinks) {
-			// TODO: This probably shouldn't be async
 			links.push(this._createTerminalLink(link, async (event) => {
 				this._onDidActivateLink.fire({ link, event });
 			}));

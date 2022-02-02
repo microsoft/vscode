@@ -50,6 +50,7 @@ export class TerminalLinkManager extends DisposableStore {
 	private _processCwd: string | undefined;
 	private readonly _standardLinkProviders: Map<string, ILinkProvider> = new Map();
 	private readonly _linkProvidersDisposables: IDisposable[] = [];
+	private readonly _externalLinkProviders: IDisposable[] = [];
 	private readonly _openers: Map<TerminalLinkType, ITerminalLinkOpener> = new Map();
 
 	constructor(
@@ -82,8 +83,6 @@ export class TerminalLinkManager extends DisposableStore {
 		this._openers.set(TerminalBuiltinLinkType.LocalFolderOutsideWorkspace, this._instantiationService.createInstance(TerminalLocalFolderOutsideWorkspaceLinkOpener));
 		this._openers.set(TerminalBuiltinLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, localFileOpener, this._processManager.os || OS));
 		this._openers.set(TerminalBuiltinLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processManager.remoteAuthority));
-
-		// TODO: Verify external link providers work
 
 		this._registerStandardLinkProviders();
 	}
@@ -247,10 +246,10 @@ export class TerminalLinkManager extends DisposableStore {
 	registerExternalLinkProvider(provideLinks: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']>): IDisposable {
 		// Clear and re-register the standard link providers so they are a lower priority than the new one
 		this._clearLinkProviders();
-		// TODO: Support multiple extensions, multiple ids and don't add to disposables array
-		const wrappedLinkProvider = this._setupLinkDetector('extension', new TerminalExternalLinkDetector('extension', this._xterm, provideLinks), true);
+		const detectorId = `extension-${this._externalLinkProviders.length}`;
+		const wrappedLinkProvider = this._setupLinkDetector(detectorId, new TerminalExternalLinkDetector(detectorId, this._xterm, provideLinks), true);
 		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
-		this._linkProvidersDisposables.push(newLinkProvider);
+		this._externalLinkProviders.push(newLinkProvider);
 		this._registerStandardLinkProviders();
 		return newLinkProvider;
 	}
