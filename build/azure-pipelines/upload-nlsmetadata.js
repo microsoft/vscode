@@ -47,7 +47,7 @@ function main() {
                     case 'nls.metadata.header.json':
                         parsedJson = { header: parsedJson };
                         break;
-                    case 'nls.metadata.json':
+                    case 'nls.metadata.json': {
                         // put nls.metadata.json content in Core NlsMetadata format
                         const modules = Object.keys(parsedJson);
                         const json = {
@@ -64,6 +64,7 @@ function main() {
                         }
                         parsedJson = json;
                         break;
+                    }
                 }
                 key = 'vscode.' + file.relative.split('/')[0];
                 return { [key]: parsedJson };
