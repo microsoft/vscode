@@ -16,7 +16,19 @@ const enum Constants {
 	/**
 	 * The max line length to try extract word links from.
 	 */
-	MaxLineLength = 2000
+	MaxLineLength = 2000,
+
+	/**
+	 * The maximum number of links in a line to resolve against the file system. This limit is put
+	 * in place to avoid sending excessive data when remote connections are in place.
+	 */
+	MaxResolvedLinksInLine = 10,
+
+	/**
+	 * The maximum length of a link to resolve against the file system. This limit is put in place
+	 * to avoid sending excessive data when remote connections are in place.
+	 */
+	MaxResolvedLinkLength = 1024,
 }
 
 const pathPrefix = '(\\.\\.?|\\~)';
@@ -86,11 +98,11 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			return [];
 		}
 
-		// TODO: Filter out local links: length, resolved count, regex match count?
 		// clone regex to do a global search on text
 		const rex = new RegExp(getLocalLinkRegex(this._os), 'g');
 		let match;
 		let stringIndex = -1;
+		let resolvedLinkCount = 0;
 		while ((match = rex.exec(text)) !== null) {
 			// const link = match[typeof matcher.matchIndex !== 'number' ? 0 : matcher.matchIndex];
 			let link = match[0];
@@ -132,6 +144,12 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				endLineNumber: 1
 			}, startLine);
 
+
+			// Don't try resolve any links of excessive length
+			if (link.length > Constants.MaxResolvedLinkLength) {
+				continue;
+			}
+
 			let linkStat = cachedValidatedLinks.get(link);
 
 			// The link is cached as doesn't exist
@@ -169,6 +187,11 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					bufferRange,
 					type
 				});
+
+				// Stop early if too many links exist in the line
+				if (++resolvedLinkCount >= Constants.MaxResolvedLinksInLine) {
+					break;
+				}
 			}
 		}
 

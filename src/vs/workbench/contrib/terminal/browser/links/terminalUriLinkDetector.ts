@@ -129,7 +129,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 				});
 
 				// Stop early if too many links exist in the line
-				if (resolvedLinkCount >= Constants.MaxResolvedLinksInLine) {
+				if (++resolvedLinkCount >= Constants.MaxResolvedLinksInLine) {
 					break;
 				}
 			}
