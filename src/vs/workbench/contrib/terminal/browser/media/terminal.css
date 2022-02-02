@@ -55,7 +55,7 @@
 	right: 0;
 }
 
-.view-in-side-panel .terminal.xterm {
+.terminal-side-view .terminal.xterm {
 	/* Top align the terminal within the split pane when the panel is vertical */
 	top: 0;
 }
