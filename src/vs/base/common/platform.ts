@@ -13,6 +13,7 @@ let _isNative = false;
 let _isWeb = false;
 let _isElectron = false;
 let _isIOS = false;
+let _isCI = false;
 let _locale: string | undefined = undefined;
 let _language: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
@@ -92,6 +93,7 @@ else if (typeof nodeProcess === 'object') {
 	_isLinux = (nodeProcess.platform === 'linux');
 	_isLinuxSnap = _isLinux && !!nodeProcess.env['SNAP'] && !!nodeProcess.env['SNAP_REVISION'];
 	_isElectron = isElectronProcess;
+	_isCI = !!nodeProcess.env['CI'] || !!nodeProcess.env['BUILD_ARTIFACTSTAGINGDIRECTORY'];
 	_locale = LANGUAGE_DEFAULT;
 	_language = LANGUAGE_DEFAULT;
 	const rawNlsConfig = nodeProcess.env['VSCODE_NLS_CONFIG'];
@@ -146,6 +148,11 @@ export const isNative = _isNative;
 export const isElectron = _isElectron;
 export const isWeb = _isWeb;
 export const isIOS = _isIOS;
+/**
+ * Whether we run inside a CI environment, such as
+ * GH actions or Azure Pipelines.
+ */
+export const isCI = _isCI;
 export const platform = _platform;
 export const userAgent = _userAgent;
 

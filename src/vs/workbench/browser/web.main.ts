@@ -107,7 +107,7 @@ export class BrowserMain extends Disposable {
 		this._register(instantiationService.createInstance(BrowserWindow));
 
 		// Logging
-		services.logService.trace('workbench configuration', safeStringify(this.configuration));
+		services.logService.trace('workbench#open with configuration', safeStringify(this.configuration));
 
 		// Return API Facade
 		return instantiationService.invokeFunction(accessor => {

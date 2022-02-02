@@ -12,7 +12,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { mixin } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { cwd, env } from 'vs/base/common/process';
+import { cwd } from 'vs/base/common/process';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
 
@@ -48,7 +48,7 @@ class ExtensionHostProcess extends Disposable {
 	}
 
 	start(opts: IExtensionHostProcessOptions): { pid: number; } {
-		if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+		if (platform.isCI) {
 			this._host.logInfo(`Calling fork to start extension host...`);
 		}
 		const sw = StopWatch.create(false);

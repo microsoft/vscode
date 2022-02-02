@@ -47,7 +47,7 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } fr
 import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { safeStringify } from 'vs/base/common/objects';
 import { ISharedProcessWorkerWorkbenchService, SharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isCI, isMacintosh } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-sandbox/diskFileSystemProvider';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
@@ -117,8 +117,12 @@ export class DesktopMain extends Disposable {
 		// Window
 		this._register(instantiationService.createInstance(NativeWindow));
 
-		// Logging
-		services.logService.trace('workbench configuration', safeStringify(this.configuration));
+		// Logging (as `info` when running CI to aid failing test diagnosis)
+		if (isCI) {
+			services.logService.info('workbench#open with configuration', safeStringify(this.configuration));
+		} else {
+			services.logService.trace('workbench#open with configuration', safeStringify(this.configuration));
+		}
 
 		// Driver
 		if (this.configuration.driver) {

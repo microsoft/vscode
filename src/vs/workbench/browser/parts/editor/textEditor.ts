@@ -30,7 +30,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { isEqual } from 'vs/base/common/resources';
-import { env } from 'vs/base/common/process';
+import { isCI } from 'vs/base/common/platform';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -275,7 +275,7 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 
 	private logConditional(msg: string): void {
 		// TODO@bpasero logging for https://github.com/microsoft/vscode/issues/141054
-		if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+		if (isCI) {
 			this.instantiationService.invokeFunction(accessor => {
 				accessor.get(ILogService).info(msg);
 			});
