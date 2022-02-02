@@ -287,7 +287,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	// The onExit event is special in that it fires and is disposed after the terminal instance
 	// itself is disposed
-	private readonly _onExit = new Emitter<{ code: number | undefined | null, message: string | undefined } | undefined>();
+	private readonly _onExit = new Emitter<number | ITerminalLaunchError | undefined>();
 	readonly onExit = this._onExit.event;
 	private readonly _onDisposed = this._register(new Emitter<ITerminalInstance>());
 	readonly onDisposed = this._onDisposed.event;
@@ -1371,7 +1371,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) with code ${this._exitCode}`);
 
 		const parsedExitResult = parseExitResult(exitCodeOrError, this.shellLaunchConfig, this._processManager.processState, this._initialCwd, shellIntegrationAttempted);
-		this._exitCode = parsedExitResult?.code ?? undefined;
+		this._exitCode = parsedExitResult?.code;
 		const exitMessage = parsedExitResult?.message;
 
 		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) state ${this._processManager.processState}`);
@@ -1412,7 +1412,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// First onExit to consumers, this can happen after the terminal has already been disposed.
-		this._onExit.fire(parsedExitResult);
+		this._onExit.fire(exitCodeOrError);
 
 		// Dispose of the onExit event if the terminal will not be reused again
 		if (this._isDisposed) {
@@ -2333,13 +2333,13 @@ export function parseExitResult(
 	processState: ProcessState,
 	initialCwd: string | undefined,
 	shellIntegrationAttempted?: boolean
-): { code: number | undefined | null, message: string | undefined } | undefined {
+): { code: number | undefined, message: string | undefined } | undefined {
 	// Only return a message if the exit code is non-zero
 	if (exitCodeOrError === undefined || exitCodeOrError === 0) {
 		return { code: exitCodeOrError, message: undefined };
 	}
 
-	let code: number | undefined | null = typeof exitCodeOrError === 'number' ? exitCodeOrError : exitCodeOrError.code;
+	const code = typeof exitCodeOrError === 'number' ? exitCodeOrError : exitCodeOrError.code;
 
 	// Create exit code message
 	let message: string | undefined = undefined;
@@ -2398,7 +2398,6 @@ export function parseExitResult(
 				}
 			}
 			message = nls.localize('launchFailed.errorMessage', "The terminal process failed to launch: {0}.", innerMessage);
-			code = code ?? null;
 			break;
 		}
 	}

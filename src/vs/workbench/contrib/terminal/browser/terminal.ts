@@ -523,10 +523,9 @@ export interface ITerminalInstance {
 	/**
 	 * Attach a listener that fires when the terminal's pty process exits. The number in the event
 	 * is the processes' exit code, an exit code of undefined means the process was killed as a result of
-	 * the ITerminalInstance being disposed. An exit code of null indicates that the process associated with
-	 * the terminal never started.
+	 * the ITerminalInstance being disposed.
 	 */
-	onExit: Event<{ code: number | undefined | null, message: string | undefined } | undefined>;
+	onExit: Event<number | ITerminalLaunchError | undefined>;
 
 	readonly exitCode: number | undefined;
 

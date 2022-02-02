@@ -841,7 +841,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			});
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
 				const onExit = terminal!.onExit((terminalLaunchResult) => {
-					const exitCode = terminalLaunchResult?.code;
+					const exitCode = typeof terminalLaunchResult === 'number' ? terminalLaunchResult : terminalLaunchResult?.code;
 					onData.dispose();
 					onExit.dispose();
 					let key = task.getMapKey();
@@ -850,7 +850,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					}
 					this.removeFromActiveTasks(task);
 					this.fireTaskEvent(TaskEvent.create(TaskEventKind.Changed));
-					if (exitCode !== undefined) {
+					if (terminalLaunchResult !== undefined) {
 						// Only keep a reference to the terminal if it is not being disposed.
 						switch (task.command.presentation!.panel) {
 							case PanelKind.Dedicated:
@@ -921,12 +921,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			});
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
 				const onExit = terminal!.onExit((terminalLaunchResult) => {
-					const exitCode = terminalLaunchResult?.code;
+					const exitCode = typeof terminalLaunchResult === 'number' ? terminalLaunchResult : terminalLaunchResult?.code;
 					onExit.dispose();
 					let key = task.getMapKey();
 					this.removeFromActiveTasks(task);
 					this.fireTaskEvent(TaskEvent.create(TaskEventKind.Changed));
-					if (exitCode !== undefined) {
+					if (terminalLaunchResult !== undefined) {
 						// Only keep a reference to the terminal if it is not being disposed.
 						switch (task.command.presentation!.panel) {
 							case PanelKind.Dedicated:
