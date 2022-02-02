@@ -87,9 +87,10 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if (!options || !options.treeDataProvider) {
 			throw new Error('Options with treeDataProvider is mandatory');
 		}
-		const dragAndDropMimeTypes = options.dragAndDropController?.supportedMimeTypes;
+		const dropMimeTypes = options.dragAndDropController?.dropMimeTypes;
+		const dragMimeTypes = options.dragAndDropController?.dragMimeTypes;
 		const hasHandleDrag = !!options.dragAndDropController?.handleDrag;
-		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dragAndDropMimeTypes, hasHandleDrag: hasHandleDrag });
+		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag: hasHandleDrag });
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },

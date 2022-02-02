@@ -82,8 +82,8 @@ declare module 'vscode' {
 	export interface TreeDragAndDropController<T> {
 
 		/**
-		 * The mime types that the `drop` method of this `DragAndDropController` supports. This could be well-defined, existing, mime types,
-		 * and also mime types defined by the extension that are returned in the `TreeDataTransfer` from `handleDrag`.
+		 * The mime types that the `handleDrop` method of this `DragAndDropController` supports.
+		 * This could be well-defined, existing, mime types, and also mime types defined by the extension.
 		 *
 		 * Each tree will automatically support drops from it's own `DragAndDropController`. To support drops from other trees,
 		 * you will need to add the mime type of that tree. The mime type of a tree is of the format `tree/treeidlowercase`.
@@ -93,7 +93,13 @@ declare module 'vscode' {
 		 * 2. Use the Developer: Set Log Level... command to set the level to "Debug"
 		 * 3. Open the developer tools and drag the item with unknown mime type over your tree. The mime types will be logged to the developer console
 		 */
-		readonly supportedMimeTypes: string[];
+		readonly dropMimeTypes: string[];
+
+		/**
+		 * The mime types that the `handleDrag` method of this `TreeDragAndDropController` may add to the tree data transfer.
+		 * This could be well-defined, existing, mime types, and also mime types defined by the extension.
+		 */
+		readonly dragMimeTypes: string[];
 
 		/**
 		 * When the user starts dragging items from this `DragAndDropController`, `handleDrag` will be called.

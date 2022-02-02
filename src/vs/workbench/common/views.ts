@@ -832,7 +832,8 @@ export interface ITreeViewDataProvider {
 }
 
 export interface ITreeViewDragAndDropController {
-	readonly supportedMimeTypes: string[];
+	readonly dropMimeTypes: string[];
+	readonly dragMimeTypes: string[];
 	handleDrag(sourceTreeItemHandles: string[], operationUuid: string): Promise<ITreeDataTransfer | undefined>;
 	handleDrop(elements: ITreeDataTransfer, target: ITreeItem, operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 }
