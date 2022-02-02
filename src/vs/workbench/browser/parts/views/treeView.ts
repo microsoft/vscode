@@ -799,7 +799,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 }
 
 class TreeViewIdentityProvider implements IIdentityProvider<ITreeItem> {
-	getId(element: ITreeItem): { toString(): string; } {
+	getId(element: ITreeItem): { toString(): string } {
 		return element.handle;
 	}
 }
@@ -980,7 +980,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		templateData.icon.style.color = '';
 
 		if (resource || this.isFileKindThemeIcon(node.themeIcon)) {
-			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean; }>('explorer.decorations');
+			const fileDecorations = this.configurationService.getValue<{ colors: boolean; badges: boolean }>('explorer.decorations');
 			const labelResource = resource ? resource : URI.parse('missing:_icon_resource');
 			templateData.resourceLabel.setResource({ name: label, description, resource: labelResource }, {
 				fileKind: this.getFileKind(node),
@@ -1163,7 +1163,7 @@ class TreeMenus extends Disposable implements IDisposable {
 		this.contextKeyService = service;
 	}
 
-	private getActions(menuId: MenuId, context: { key: string, value?: string; }): { primary: IAction[]; secondary: IAction[]; } {
+	private getActions(menuId: MenuId, context: { key: string; value?: string }): { primary: IAction[]; secondary: IAction[] } {
 		if (!this.contextKeyService) {
 			return { primary: [], secondary: [] };
 		}
@@ -1233,7 +1233,7 @@ export class TreeView extends AbstractTreeView {
 }
 
 interface TreeDragSourceInfo {
-	id: string,
+	id: string;
 	itemHandles: string[];
 }
 

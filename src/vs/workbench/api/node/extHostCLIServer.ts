@@ -36,7 +36,7 @@ export interface StatusPipeArgs {
 
 export interface ExtensionManagementPipeArgs {
 	type: 'extensionManagement';
-	list?: { showVersions?: boolean, category?: string; };
+	list?: { showVersions?: boolean; category?: string };
 	install?: string[];
 	uninstall?: string[];
 	force?: boolean;

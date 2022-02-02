@@ -31,7 +31,7 @@ import { ExtHostContext, ExtHostWorkspaceShape, ITextSearchComplete, IWorkspaceD
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	private readonly _toDispose = new DisposableStore();
-	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource; } = Object.create(null);
+	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
 	private readonly _queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 
@@ -75,7 +75,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- workspace ---
 
-	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, foldersToAdd: { uri: UriComponents, name?: string; }[]): Promise<void> {
+	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, foldersToAdd: { uri: UriComponents; name?: string }[]): Promise<void> {
 		const workspaceFoldersToAdd = foldersToAdd.map(f => ({ uri: URI.revive(f.uri), name: f.name }));
 
 		// Indicate in status message

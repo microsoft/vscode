@@ -106,7 +106,7 @@ export function createTextBufferFactoryFromSnapshot(snapshot: model.ITextSnapsho
 	return builder.finish();
 }
 
-export function createTextBuffer(value: string | model.ITextBufferFactory, defaultEOL: model.DefaultEndOfLine): { textBuffer: model.ITextBuffer; disposable: IDisposable; } {
+export function createTextBuffer(value: string | model.ITextBufferFactory, defaultEOL: model.DefaultEndOfLine): { textBuffer: model.ITextBuffer; disposable: IDisposable } {
 	const factory = (typeof value === 'string' ? createTextBufferFactory(value) : value);
 	return factory.create(defaultEOL);
 }
@@ -291,7 +291,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	 */
 	private readonly _instanceId: string;
 	private _lastDecorationId: number;
-	private _decorations: { [decorationId: string]: IntervalNode; };
+	private _decorations: { [decorationId: string]: IntervalNode };
 	private _decorationsTree: DecorationsTrees;
 	private readonly _decorationProvider: DecorationProvider;
 	//#endregion
@@ -1938,7 +1938,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public setTokens(tokens: ContiguousMultilineTokens[], backgroundTokenizationCompleted: boolean = false): void {
 		if (tokens.length !== 0) {
-			const ranges: { fromLineNumber: number; toLineNumber: number; }[] = [];
+			const ranges: { fromLineNumber: number; toLineNumber: number }[] = [];
 
 			for (let i = 0, len = tokens.length; i < len; i++) {
 				const element = tokens[i];

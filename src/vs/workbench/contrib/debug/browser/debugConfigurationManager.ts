@@ -48,7 +48,7 @@ const DEBUG_SELECTED_ROOT = 'debug.selectedroot';
 const DEBUG_SELECTED_TYPE = 'debug.selectedtype';
 const DEBUG_RECENT_DYNAMIC_CONFIGURATIONS = 'debug.recentdynamicconfigurations';
 
-interface IDynamicPickItem { label: string, launch: ILaunch, config: IConfig }
+interface IDynamicPickItem { label: string; launch: ILaunch; config: IConfig }
 
 export class ConfigurationManager implements IConfigurationManager {
 	private launches!: ILaunch[];
@@ -163,7 +163,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return results.reduce((first, second) => first.concat(second), []);
 	}
 
-	async getDynamicProviders(): Promise<{ label: string, type: string, getProvider: () => Promise<IDebugConfigurationProvider | undefined>, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]> {
+	async getDynamicProviders(): Promise<{ label: string; type: string; getProvider: () => Promise<IDebugConfigurationProvider | undefined>; pick: () => Promise<{ launch: ILaunch; config: IConfig } | undefined> }[]> {
 		const extensions = await this.extensionService.getExtensions();
 		const onDebugDynamicConfigurationsName = 'onDebugDynamicConfigurations';
 		const debugDynamicExtensionsTypes = extensions.reduce((acc, e) => {
@@ -262,7 +262,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	getAllConfigurations(): { launch: ILaunch; name: string; presentation?: IConfigPresentation }[] {
-		const all: { launch: ILaunch, name: string, presentation?: IConfigPresentation }[] = [];
+		const all: { launch: ILaunch; name: string; presentation?: IConfigPresentation }[] = [];
 		for (const l of this.launches) {
 			for (const name of l.getConfigurationNames()) {
 				const config = l.getConfiguration(name) || l.getCompound(name);
@@ -285,7 +285,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 	}
 
-	getRecentDynamicConfigurations(): { name: string, type: string }[] {
+	getRecentDynamicConfigurations(): { name: string; type: string }[] {
 		return JSON.parse(this.storageService.get(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, StorageScope.WORKSPACE, '[]'));
 	}
 
@@ -344,7 +344,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this.launches.find(l => l.workspace && this.uriIdentityService.extUri.isEqual(l.workspace.uri, workspaceUri));
 	}
 
-	get selectedConfiguration(): { launch: ILaunch | undefined, name: string | undefined, getConfig: () => Promise<IConfig | undefined>, type: string | undefined } {
+	get selectedConfiguration(): { launch: ILaunch | undefined; name: string | undefined; getConfig: () => Promise<IConfig | undefined>; type: string | undefined } {
 		return {
 			launch: this.selectedLaunch,
 			name: this.selectedName,
@@ -573,7 +573,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch', { resource: this.workspace.uri }).workspaceFolderValue;
 	}
 
-	async openConfigFile(preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null, created: boolean }> {
+	async openConfigFile(preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null; created: boolean }> {
 		const resource = this.uri;
 		let created = false;
 		let content = '';
@@ -658,7 +658,7 @@ class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').workspaceValue;
 	}
 
-	async openConfigFile(preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null, created: boolean }> {
+	async openConfigFile(preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null; created: boolean }> {
 		const launchExistInFile = !!this.getConfig();
 		if (!launchExistInFile) {
 			// Launch property in workspace config not found: create one by collecting launch configs from debugConfigProviders
@@ -713,7 +713,7 @@ class UserLaunch extends AbstractLaunch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').userValue;
 	}
 
-	async openConfigFile(preserveFocus: boolean): Promise<{ editor: IEditorPane | null, created: boolean }> {
+	async openConfigFile(preserveFocus: boolean): Promise<{ editor: IEditorPane | null; created: boolean }> {
 		const editor = await this.preferencesService.openUserSettings({ jsonEditor: true, preserveFocus, revealSetting: { key: 'launch' } });
 		return ({
 			editor: withUndefinedAsNull(editor),

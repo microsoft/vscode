@@ -15,7 +15,7 @@ const localize = nls.loadMessageBundle();
 function parseLink(
 	document: vscode.TextDocument,
 	link: string,
-): { uri: vscode.Uri, tooltip?: string } | undefined {
+): { uri: vscode.Uri; tooltip?: string } | undefined {
 
 	const cleanLink = stripAngleBrackets(link);
 	const externalSchemeUri = getUriForLinkWithKnownExternalScheme(cleanLink);
@@ -225,7 +225,7 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 	}
 
 	public static getDefinitions(text: string, document: vscode.TextDocument) {
-		const out = new Map<string, { link: string, linkRange: vscode.Range }>();
+		const out = new Map<string, { link: string; linkRange: vscode.Range }>();
 		for (const match of text.matchAll(definitionPattern)) {
 			const pre = match[1];
 			const reference = match[2];

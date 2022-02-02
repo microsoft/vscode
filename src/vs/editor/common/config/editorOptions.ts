@@ -798,7 +798,7 @@ export interface IEditorOption<K extends EditorOption, V> {
 	/**
 	 * @internal
 	 */
-	readonly schema: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; } | undefined;
+	readonly schema: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema } | undefined;
 	/**
 	 * @internal
 	 */
@@ -831,9 +831,9 @@ abstract class BaseEditorOption<K extends EditorOption, T, V> implements IEditor
 	public readonly id: K;
 	public readonly name: string;
 	public readonly defaultValue: V;
-	public readonly schema: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; } | undefined;
+	public readonly schema: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema } | undefined;
 
-	constructor(id: K, name: PossibleKeyName<T>, defaultValue: V, schema?: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; }) {
+	constructor(id: K, name: PossibleKeyName<T>, defaultValue: V, schema?: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }) {
 		this.id = id;
 		this.name = name;
 		this.defaultValue = defaultValue;
@@ -2107,7 +2107,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		height: number;
 		lineHeight: number;
 		pixelRatio: number;
-	}): { typicalViewportLineCount: number; extraLinesBeyondLastLine: number; desiredRatio: number; minimapLineCount: number; } {
+	}): { typicalViewportLineCount: number; extraLinesBeyondLastLine: number; desiredRatio: number; minimapLineCount: number } {
 		const typicalViewportLineCount = input.height / input.lineHeight;
 		const extraLinesBeyondLastLine = input.scrollBeyondLastLine ? (typicalViewportLineCount - 1) : 0;
 		const desiredRatio = (input.viewLineCount + extraLinesBeyondLastLine) / (input.pixelRatio * input.height);
@@ -4185,7 +4185,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 //#region smart select
 
 export interface ISmartSelectOptions {
-	selectLeadingAndTrailingWhitespace?: boolean
+	selectLeadingAndTrailingWhitespace?: boolean;
 }
 
 /**

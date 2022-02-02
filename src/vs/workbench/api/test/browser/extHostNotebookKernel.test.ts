@@ -43,7 +43,7 @@ suite('NotebookKernel', function () {
 	const kernelData = new Map<number, INotebookKernelDto2>();
 	const disposables = new DisposableStore();
 
-	const cellExecuteCreate: { notebook: UriComponents, cell: number }[] = [];
+	const cellExecuteCreate: { notebook: UriComponents; cell: number }[] = [];
 	const cellExecuteUpdates: ICellExecuteUpdateDto[] = [];
 	const cellExecuteComplete: ICellExecutionCompleteDto[] = [];
 

@@ -193,7 +193,7 @@ function getDocumentation(
 	const documentation = provider.documentation.map(entry => ({ kind: new CodeActionKind(entry.kind), command: entry.command }));
 
 	if (only) {
-		let currentBest: { readonly kind: CodeActionKind, readonly command: modes.Command; } | undefined;
+		let currentBest: { readonly kind: CodeActionKind; readonly command: modes.Command } | undefined;
 		for (const entry of documentation) {
 			if (entry.kind.contains(only)) {
 				if (!currentBest) {

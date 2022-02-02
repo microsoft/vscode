@@ -45,7 +45,7 @@ export namespace WebviewResourceResponse {
 export async function loadLocalResource(
 	requestUri: URI,
 	options: {
-		ifNoneMatch: string | undefined,
+		ifNoneMatch: string | undefined;
 		roots: ReadonlyArray<URI>;
 	},
 	fileService: IFileService,

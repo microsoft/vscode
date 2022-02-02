@@ -56,7 +56,7 @@ export async function hasChildProcesses(processId: number | undefined): Promise<
 const enum ShellType { cmd, powershell, bash }
 
 
-export function prepareCommand(shell: string, args: string[], cwd?: string, env?: { [key: string]: string | null; }): string {
+export function prepareCommand(shell: string, args: string[], cwd?: string, env?: { [key: string]: string | null }): string {
 
 	shell = shell.trim().toLowerCase();
 

@@ -23,7 +23,7 @@ class ExtHostSaveParticipant implements ITextFileSaveParticipant {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentSaveParticipant);
 	}
 
-	async participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason; }, _progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	async participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }, _progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
 		if (!editorModel.textEditorModel || !shouldSynchronizeModel(editorModel.textEditorModel)) {
 			// the model never made it to the extension

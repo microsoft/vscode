@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 
-export function randomFilePath(args: { root: vscode.Uri, ext: string }): vscode.Uri {
+export function randomFilePath(args: { root: vscode.Uri; ext: string }): vscode.Uri {
 	const fileName = rndName();
 	return vscode.Uri.joinPath(args.root, fileName + args.ext);
 }

@@ -49,17 +49,17 @@ export function connectProxyResolver(
 		getLogLevel: () => extHostLogService.getLevel(),
 		proxyResolveTelemetry: event => {
 			type ResolveProxyClassification = {
-				count: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				errorCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				cacheCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				cacheSize: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				cacheRolls: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				envCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				settingsCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				localhostCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				envNoProxyCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				results: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				count: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				errorCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				cacheCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				cacheSize: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				cacheRolls: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				envCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				settingsCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				localhostCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				envNoProxyCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				results: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			};
 			mainThreadTelemetry.$publicLog2<ProxyResolveEvent, ResolveProxyClassification>('resolveProxy', event);
 		},
@@ -107,13 +107,13 @@ function createPatchedModules(configProvider: ExtHostConfigProvider, resolveProx
 	};
 }
 
-const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof http, https?: typeof https }>();
+const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof http; https?: typeof https }>();
 function configureModuleLoading(extensionService: ExtHostExtensionService, lookup: ReturnType<typeof createPatchedModules>): Promise<void> {
 	return extensionService.getExtensionPathIndex()
 		.then(extensionPaths => {
 			const node_module = <any>require.__$__nodeRequire('module');
 			const original = node_module._load;
-			node_module._load = function load(request: string, parent: { filename: string; }, isMain: boolean) {
+			node_module._load = function load(request: string, parent: { filename: string }, isMain: boolean) {
 				if (request === 'tls') {
 					return lookup.tls;
 				}

@@ -220,10 +220,10 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
-	readonly layoutInfo: { totalHeight: number; bottomToolbarOffset: number; editorWidth: number; };
+	readonly layoutInfo: { totalHeight: number; bottomToolbarOffset: number; editorWidth: number };
 	readonly onDidChangeLayout: Event<ICommonCellViewModelLayoutChangeInfo>;
 	readonly onDidChangeCellStatusBarItems: Event<void>;
-	readonly onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }>;
+	readonly onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }>;
 	readonly onDidChangeState: Event<CellViewModelStateChangeEvent>;
 	readonly editStateSource: string;
 	readonly editorAttached: boolean;
@@ -332,16 +332,16 @@ export interface INotebookWebviewMessage {
 
 //#region Notebook View Model
 export interface INotebookEditorViewState {
-	editingCells: { [key: number]: boolean; };
-	collapsedInputCells: { [key: number]: boolean; };
-	collapsedOutputCells: { [key: number]: boolean; };
-	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null; };
+	editingCells: { [key: number]: boolean };
+	collapsedInputCells: { [key: number]: boolean };
+	collapsedOutputCells: { [key: number]: boolean };
+	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null };
 	hiddenFoldingRanges?: ICellRange[];
-	cellTotalHeights?: { [key: number]: number; };
-	scrollPosition?: { left: number; top: number; };
+	cellTotalHeights?: { [key: number]: number };
+	scrollPosition?: { left: number; top: number };
 	focus?: number;
 	editorFocused?: boolean;
-	contributionsState?: { [id: string]: unknown; };
+	contributionsState?: { [id: string]: unknown };
 }
 
 export interface ICellModelDecorations {
@@ -734,7 +734,7 @@ export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INote
 	const input = editorPane.input;
 
 	if (input && isCompositeNotebookEditorInput(input)) {
-		return (editorPane.getControl() as { notebookEditor: INotebookEditor | undefined; }).notebookEditor;
+		return (editorPane.getControl() as { notebookEditor: INotebookEditor | undefined }).notebookEditor;
 	}
 
 	return undefined;

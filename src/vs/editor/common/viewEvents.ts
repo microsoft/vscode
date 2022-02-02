@@ -278,7 +278,7 @@ export class ViewTokensChangedEvent {
 		readonly toLineNumber: number;
 	}[];
 
-	constructor(ranges: { fromLineNumber: number; toLineNumber: number; }[]) {
+	constructor(ranges: { fromLineNumber: number; toLineNumber: number }[]) {
 		this.ranges = ranges;
 	}
 }

@@ -56,7 +56,7 @@ export interface IOpener {
 }
 
 export interface IExternalOpener {
-	openExternal(href: string, ctx: { sourceUri: URI, preferredOpenerId?: string }, token: CancellationToken): Promise<boolean>;
+	openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string }, token: CancellationToken): Promise<boolean>;
 	dispose?(): void;
 }
 
@@ -65,7 +65,7 @@ export interface IValidator {
 }
 
 export interface IExternalUriResolver {
-	resolveExternalUri(resource: URI, options?: OpenOptions): Promise<{ resolved: URI, dispose(): void } | undefined>;
+	resolveExternalUri(resource: URI, options?: OpenOptions): Promise<{ resolved: URI; dispose(): void } | undefined>;
 }
 
 export interface IOpenerService {
@@ -137,8 +137,8 @@ export function matchesSomeScheme(target: URI | string, ...schemes: string[]): b
 	return schemes.some(scheme => matchesScheme(target, scheme));
 }
 
-export function selectionFragment(target: URI): { startLineNumber: number; startColumn: number; } | undefined {
-	let selection: { startLineNumber: number; startColumn: number; } | undefined = undefined;
+export function selectionFragment(target: URI): { startLineNumber: number; startColumn: number } | undefined {
+	let selection: { startLineNumber: number; startColumn: number } | undefined = undefined;
 	const match = /^L?(\d+)(?:,(\d+))?/.exec(target.fragment);
 	if (match) {
 		// support file:///some/file.js#73,84

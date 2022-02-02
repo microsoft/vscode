@@ -87,7 +87,7 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 		instantiationService.stub(IConfigurationService, TestConfigurationService);
 	});
 
-	async function assertLink(text: string, os: OperatingSystem, expected: { text: string, range: [number, number][] }[]) {
+	async function assertLink(text: string, os: OperatingSystem, expected: { text: string; range: [number, number][] }[]) {
 		const xterm = new Terminal();
 		const provider = instantiationService.createInstance(
 			TestTerminalValidatedLocalLinkProvider,
@@ -96,7 +96,7 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 			() => { },
 			() => { },
 			() => { },
-			(linkCandidates: string, cb: (result: { uri: URI, link: string, isDirectory: boolean } | undefined) => void) => {
+			(linkCandidates: string, cb: (result: { uri: URI; link: string; isDirectory: boolean } | undefined) => void) => {
 				cb({ uri: URI.file('/'), link: linkCandidates[0], isDirectory: false });
 			}
 		);

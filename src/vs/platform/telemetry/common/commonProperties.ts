@@ -28,8 +28,8 @@ export async function resolveCommonProperties(
 	msftInternalDomains: string[] | undefined,
 	installSourcePath: string,
 	product?: string
-): Promise<{ [name: string]: string | boolean | undefined; }> {
-	const result: { [name: string]: string | boolean | undefined; } = Object.create(null);
+): Promise<{ [name: string]: string | boolean | undefined }> {
+	const result: { [name: string]: string | boolean | undefined } = Object.create(null);
 
 	// __GDPR__COMMON__ "common.machineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 	result['common.machineId'] = machineId;

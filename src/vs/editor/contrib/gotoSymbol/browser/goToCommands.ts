@@ -58,7 +58,7 @@ export interface SymbolNavigationActionConfig {
 
 const _goToActionIds = new Set<string>();
 
-function registerGoToAction<T extends EditorAction>(ctor: { new(): T; }): T {
+function registerGoToAction<T extends EditorAction>(ctor: { new(): T }): T {
 	const result = new ctor();
 	registerInstantiatedEditorAction(result);
 	_goToActionIds.add(result.id);

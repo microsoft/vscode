@@ -32,7 +32,7 @@ interface ProductDescription {
 	executableName: string;
 }
 
-interface RemoteParsedArgs extends NativeParsedArgs { 'gitCredential'?: string; 'openExternal'?: boolean; }
+interface RemoteParsedArgs extends NativeParsedArgs { 'gitCredential'?: string; 'openExternal'?: boolean }
 
 
 const isSupportedForCmd = (optionId: keyof RemoteParsedArgs) => {

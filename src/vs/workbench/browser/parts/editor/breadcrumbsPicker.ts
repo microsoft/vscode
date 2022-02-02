@@ -111,7 +111,7 @@ export abstract class BreadcrumbsPicker {
 			}
 			// send telemetry
 			interface OpenEvent { type: string }
-			interface OpenEventGDPR { type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' } }
+			interface OpenEventGDPR { type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' } }
 			this._telemetryService.publicLog2<OpenEvent, OpenEventGDPR>('breadcrumbs/open', { type: element instanceof OutlineElement2 ? 'symbol' : 'file' });
 		}));
 		this._disposables.add(this._tree.onDidChangeFocus(e => {
@@ -167,7 +167,7 @@ class FileVirtualDelegate implements IListVirtualDelegate<IFileStat | IWorkspace
 }
 
 class FileIdentityProvider implements IIdentityProvider<IWorkspace | IWorkspaceFolder | IFileStat | URI> {
-	getId(element: IWorkspace | IWorkspaceFolder | IFileStat | URI): { toString(): string; } {
+	getId(element: IWorkspace | IWorkspaceFolder | IFileStat | URI): { toString(): string } {
 		if (URI.isUri(element)) {
 			return element.toString();
 		} else if (isWorkspace(element)) {
@@ -226,7 +226,7 @@ class FileRenderer implements ITreeRenderer<IFileStat | IWorkspaceFolder, FuzzyS
 	}
 
 	renderElement(node: ITreeNode<IWorkspaceFolder | IFileStat, [number, number, number]>, index: number, templateData: IResourceLabel): void {
-		const fileDecorations = this._configService.getValue<{ colors: boolean, badges: boolean; }>('explorer.decorations');
+		const fileDecorations = this._configService.getValue<{ colors: boolean; badges: boolean }>('explorer.decorations');
 		const { element } = node;
 		let resource: URI;
 		let fileKind: FileKind;
@@ -253,7 +253,7 @@ class FileRenderer implements ITreeRenderer<IFileStat | IWorkspaceFolder, FuzzyS
 
 class FileNavigationLabelProvider implements IKeyboardNavigationLabelProvider<IWorkspaceFolder | IFileStat> {
 
-	getKeyboardNavigationLabel(element: IWorkspaceFolder | IFileStat): { toString(): string; } {
+	getKeyboardNavigationLabel(element: IWorkspaceFolder | IFileStat): { toString(): string } {
 		return element.name;
 	}
 }

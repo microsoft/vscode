@@ -24,7 +24,7 @@ export interface IExtensionHostInitData {
 	logsLocation: URI;
 	logFile: URI;
 	autoStart: boolean;
-	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null; };
+	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null };
 	uiKind: UIKind;
 	messagePorts?: ReadonlyMap<string, MessagePortLike>;
 }

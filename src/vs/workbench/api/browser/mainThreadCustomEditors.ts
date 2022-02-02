@@ -226,7 +226,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		modelType: CustomEditorModelType,
 		resource: URI,
 		viewType: string,
-		options: { backupId?: string; },
+		options: { backupId?: string },
 		cancellation: CancellationToken,
 	): Promise<IReference<ICustomEditorModel>> {
 		const existingModel = this._customEditorService.models.tryRetain(resource, viewType);
@@ -348,7 +348,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		proxy: extHostProtocol.ExtHostCustomEditorsShape,
 		viewType: string,
 		resource: URI,
-		options: { backupId?: string; },
+		options: { backupId?: string },
 		getEditors: () => CustomEditorInput[],
 		cancellation: CancellationToken,
 	): Promise<MainThreadCustomEditorModel> {

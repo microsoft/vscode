@@ -29,7 +29,7 @@ registerSingleton(IEditorCancellationTokens, class implements IEditorCancellatio
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _tokens = new WeakMap<ICodeEditor, { key: IContextKey<boolean>, tokens: LinkedList<CancellationTokenSource> }>();
+	private readonly _tokens = new WeakMap<ICodeEditor, { key: IContextKey<boolean>; tokens: LinkedList<CancellationTokenSource> }>();
 
 	add(editor: ICodeEditor, cts: CancellationTokenSource): () => void {
 		let data = this._tokens.get(editor);

@@ -184,7 +184,7 @@ export interface IPathData {
 		readonly startColumn: number;
 		readonly endLineNumber?: number;
 		readonly endColumn?: number;
-	}
+	};
 
 	// a hint that the file exists. if true, the
 	// file exists, if false it does not. with
@@ -266,7 +266,7 @@ export interface IPartsSplash {
 		statusBarBackground: string | undefined;
 		statusBarNoFolderBackground: string | undefined;
 		windowBorder: string | undefined;
-	}
+	};
 	layoutInfo: {
 		sideBarSide: string;
 		editorPartMinWidth: number;
@@ -276,7 +276,7 @@ export interface IPartsSplash {
 		statusBarHeight: number;
 		windowBorder: boolean;
 		windowBorderRadius: string | undefined;
-	} | undefined
+	} | undefined;
 }
 
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {

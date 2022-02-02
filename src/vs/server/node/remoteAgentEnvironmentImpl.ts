@@ -201,9 +201,9 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	private static _massageWhenConditions(extensions: IExtensionDescription[]): void {
 		// Massage "when" conditions which mention `resourceScheme`
 
-		interface WhenUser { when?: string; }
+		interface WhenUser { when?: string }
 
-		interface LocWhenUser { [loc: string]: WhenUser[]; }
+		interface LocWhenUser { [loc: string]: WhenUser[] }
 
 		const _mapResourceSchemeValue = (value: string, isRegex: boolean): string => {
 			// console.log(`_mapResourceSchemeValue: ${value}, ${isRegex}`);

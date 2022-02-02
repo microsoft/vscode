@@ -91,7 +91,7 @@ export class EncodedTokenizationSupportAdapter implements languages.ITokenizatio
 
 	public tokenize(line: string, hasEOL: boolean, state: languages.IState): languages.TokenizationResult {
 		if (typeof this._actual.tokenize === 'function') {
-			return TokenizationSupportAdapter.adaptTokenize(this._languageId, <{ tokenize(line: string, state: languages.IState): ILineTokens; }>this._actual, line, state);
+			return TokenizationSupportAdapter.adaptTokenize(this._languageId, <{ tokenize(line: string, state: languages.IState): ILineTokens }>this._actual, line, state);
 		}
 		throw new Error('Not supported!');
 	}
@@ -142,7 +142,7 @@ export class TokenizationSupportAdapter implements languages.ITokenizationSuppor
 		return result;
 	}
 
-	public static adaptTokenize(language: string, actual: { tokenize(line: string, state: languages.IState): ILineTokens; }, line: string, state: languages.IState): languages.TokenizationResult {
+	public static adaptTokenize(language: string, actual: { tokenize(line: string, state: languages.IState): ILineTokens }, line: string, state: languages.IState): languages.TokenizationResult {
 		const actualResult = actual.tokenize(line, state);
 		const tokens = TokenizationSupportAdapter._toClassicTokens(actualResult.tokens, language);
 

@@ -57,7 +57,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 
 	public readonly hoverOrdinal: number = 5;
 
-	private recentMarkerCodeActionsInfo: { marker: IMarker, hasCodeActions: boolean } | undefined = undefined;
+	private recentMarkerCodeActionsInfo: { marker: IMarker; hasCodeActions: boolean } | undefined = undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,

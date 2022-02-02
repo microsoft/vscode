@@ -19,9 +19,9 @@ suite('Workbench - TerminalProtocolLinkProvider', () => {
 		instantiationService.stub(IConfigurationService, TestConfigurationService);
 	});
 
-	async function assertLink(text: string, expected: { text: string, range: [number, number][] }[]) {
+	async function assertLink(text: string, expected: { text: string; range: [number, number][] }[]) {
 		const xterm = new Terminal();
-		const provider = instantiationService.createInstance(TerminalProtocolLinkProvider, xterm, () => { }, () => { }, () => { }, (text: string, cb: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => {
+		const provider = instantiationService.createInstance(TerminalProtocolLinkProvider, xterm, () => { }, () => { }, () => { }, (text: string, cb: (result: { uri: URI; isDirectory: boolean } | undefined) => void) => {
 			cb({ uri: URI.parse(text), isDirectory: false });
 		});
 

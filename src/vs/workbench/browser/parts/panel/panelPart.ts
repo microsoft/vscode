@@ -52,7 +52,7 @@ interface ICachedPanel {
 	pinned: boolean;
 	order?: number;
 	visible: boolean;
-	views?: { when?: string; }[];
+	views?: { when?: string }[];
 }
 
 interface IPlaceholderViewContainer {
@@ -61,8 +61,8 @@ interface IPlaceholderViewContainer {
 }
 
 interface IPanelPartOptions extends IPartOptions {
-	hasTitle: true,
-	borderWidth?: (() => number),
+	hasTitle: true;
+	borderWidth?: (() => number);
 	useIcons?: boolean;
 }
 
@@ -107,7 +107,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	readonly onDidPaneCompositeClose = this.onDidCompositeClose.event as Event<IPaneComposite>;
 
 	private compositeBar: CompositeBar;
-	private readonly compositeActions = new Map<string, { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; }>();
+	private readonly compositeActions = new Map<string, { activityAction: PanelActivityAction; pinnedAction: ToggleCompositePinnedAction }>();
 
 	private readonly panelDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
 
@@ -685,7 +685,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		return viewContainer && this.viewDescriptorService.getViewContainerLocation(viewContainer) === this.viewContainerLocation ? viewContainer : undefined;
 	}
 
-	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; } {
+	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction; pinnedAction: ToggleCompositePinnedAction } {
 		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			// const panel = this.getPaneComposite(compositeId);

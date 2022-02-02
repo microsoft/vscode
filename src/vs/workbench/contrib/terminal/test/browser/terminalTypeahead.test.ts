@@ -439,8 +439,8 @@ function stubPrediction(): IPrediction {
 }
 
 function createMockTerminal({ lines, cursorAttrs }: {
-	lines: string[],
-	cursorAttrs?: any,
+	lines: string[];
+	cursorAttrs?: any;
 }) {
 	const written: string[] = [];
 	const cursor = { y: 1, x: 1 };

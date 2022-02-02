@@ -70,7 +70,7 @@ import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/co
 
 const eventPrefix = 'monacoworkbench';
 
-const _uriTransformerCache: { [remoteAuthority: string]: IURITransformer; } = Object.create(null);
+const _uriTransformerCache: { [remoteAuthority: string]: IURITransformer } = Object.create(null);
 
 function getUriTransformer(remoteAuthority: string): IURITransformer {
 	if (!_uriTransformerCache[remoteAuthority]) {

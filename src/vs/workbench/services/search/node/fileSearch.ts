@@ -59,7 +59,7 @@ export class FileWalker {
 	private folderExcludePatterns: Map<string, AbsoluteAndRelativeParsedExpression>;
 	private globalExcludePattern: glob.ParsedExpression | undefined;
 
-	private walkedPaths: { [path: string]: boolean; };
+	private walkedPaths: { [path: string]: boolean };
 
 	constructor(config: IFileQuery) {
 		this.config = config;

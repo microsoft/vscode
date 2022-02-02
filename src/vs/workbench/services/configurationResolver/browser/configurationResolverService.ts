@@ -27,8 +27,8 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 
 	constructor(
 		context: {
-			getAppRoot: () => string | undefined,
-			getExecPath: () => string | undefined
+			getAppRoot: () => string | undefined;
+			getExecPath: () => string | undefined;
 		},
 		envVariablesPromise: Promise<IProcessEnvironment>,
 		editorService: IEditorService,

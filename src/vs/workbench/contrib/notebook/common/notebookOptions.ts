@@ -50,7 +50,7 @@ export interface NotebookLayoutConfiguration {
 	collapsedIndicatorHeight: number;
 	showCellStatusBar: ShowCellStatusBarType;
 	cellStatusBarHeight: number;
-	cellToolbarLocation: string | { [key: string]: string; };
+	cellToolbarLocation: string | { [key: string]: string };
 	cellToolbarInteraction: string;
 	compactView: boolean;
 	focusIndicator: 'border' | 'gutter';
@@ -117,7 +117,7 @@ export class NotebookOptions extends Disposable {
 	constructor(
 		private readonly configurationService: IConfigurationService,
 		private readonly notebookExecutionStateService: INotebookExecutionStateService,
-		private readonly overrides?: { cellToolbarInteraction: string, globalToolbar: boolean, defaultCellCollapseConfig?: NotebookCellDefaultCollapseConfig }
+		private readonly overrides?: { cellToolbarInteraction: string; globalToolbar: boolean; defaultCellCollapseConfig?: NotebookCellDefaultCollapseConfig }
 	) {
 		super();
 		const showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(NotebookSetting.showCellStatusBar);
@@ -125,7 +125,7 @@ export class NotebookOptions extends Disposable {
 		const consolidatedOutputButton = this.configurationService.getValue<boolean | undefined>(NotebookSetting.consolidatedOutputButton) ?? true;
 		const consolidatedRunButton = this.configurationService.getValue<boolean | undefined>(NotebookSetting.consolidatedRunButton) ?? false;
 		const dragAndDropEnabled = this.configurationService.getValue<boolean | undefined>(NotebookSetting.dragAndDropEnabled) ?? true;
-		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string; }>(NotebookSetting.cellToolbarLocation) ?? { 'default': 'right' };
+		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(NotebookSetting.cellToolbarLocation) ?? { 'default': 'right' };
 		const cellToolbarInteraction = overrides?.cellToolbarInteraction ?? this.configurationService.getValue<string>(NotebookSetting.cellToolbarVisibility);
 		const compactView = this.configurationService.getValue<boolean | undefined>(NotebookSetting.compactView) ?? true;
 		const focusIndicator = this._computeFocusIndicatorOption();
@@ -230,7 +230,7 @@ export class NotebookOptions extends Disposable {
 		}
 
 		if (cellToolbarLocation) {
-			configuration.cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string; }>(NotebookSetting.cellToolbarLocation) ?? { 'default': 'right' };
+			configuration.cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(NotebookSetting.cellToolbarLocation) ?? { 'default': 'right' };
 		}
 
 		if (cellToolbarInteraction && !this.overrides?.cellToolbarInteraction) {
@@ -384,7 +384,7 @@ export class NotebookOptions extends Disposable {
 		return this._layoutConfiguration.cellStatusBarHeight;
 	}
 
-	private _computeBottomToolbarDimensions(compactView: boolean, insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden', insertToolbarAlignment: 'left' | 'center', cellToolbar: 'right' | 'left' | 'hidden'): { bottomToolbarGap: number, bottomToolbarHeight: number; } {
+	private _computeBottomToolbarDimensions(compactView: boolean, insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden', insertToolbarAlignment: 'left' | 'center', cellToolbar: 'right' | 'left' | 'hidden'): { bottomToolbarGap: number; bottomToolbarHeight: number } {
 		if (insertToolbarAlignment === 'left' || cellToolbar !== 'hidden') {
 			return {
 				bottomToolbarGap: 18,
@@ -408,7 +408,7 @@ export class NotebookOptions extends Disposable {
 		}
 	}
 
-	computeBottomToolbarDimensions(viewType?: string): { bottomToolbarGap: number, bottomToolbarHeight: number; } {
+	computeBottomToolbarDimensions(viewType?: string): { bottomToolbarGap: number; bottomToolbarHeight: number } {
 		const configuration = this._layoutConfiguration;
 		const cellToolbarPosition = this.computeCellToolbarLocation(viewType);
 		const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(configuration.compactView, configuration.insertToolbarPosition, configuration.insertToolbarAlignment, cellToolbarPosition);

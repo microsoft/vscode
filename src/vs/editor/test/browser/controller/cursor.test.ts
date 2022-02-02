@@ -4829,7 +4829,7 @@ suite('autoClosingPairs', () => {
 					tokenize: undefined!,
 					tokenizeEncoded: function (line: string, hasEOL: boolean, _state: IState): EncodedTokenizationResult {
 						let state = <State>_state;
-						const tokens: { length: number; type: StandardTokenType; }[] = [];
+						const tokens: { length: number; type: StandardTokenType }[] = [];
 						const generateToken = (length: number, type: StandardTokenType, newState?: State) => {
 							if (tokens.length > 0 && tokens[tokens.length - 1].type === type) {
 								// grow last tokens

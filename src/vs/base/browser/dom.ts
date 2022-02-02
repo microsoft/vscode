@@ -490,7 +490,7 @@ export class Dimension implements IDimension {
 	}
 }
 
-export function getTopLeftOffset(element: HTMLElement): { left: number; top: number; } {
+export function getTopLeftOffset(element: HTMLElement): { left: number; top: number } {
 	// Adapted from WinJS.Utilities.getPosition
 	// and added borders to the mix
 
@@ -1044,7 +1044,7 @@ export enum Namespace {
 	SVG = 'http://www.w3.org/2000/svg'
 }
 
-function _$<T extends Element>(namespace: Namespace, description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
+function _$<T extends Element>(namespace: Namespace, description: string, attrs?: { [key: string]: any }, ...children: Array<Node | string>): T {
 	let match = SELECTOR_REGEX.exec(description);
 
 	if (!match) {
@@ -1093,11 +1093,11 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 	return result as T;
 }
 
-export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
+export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any }, ...children: Array<Node | string>): T {
 	return _$(Namespace.HTML, description, attrs, ...children);
 }
 
-$.SVG = function <T extends SVGElement>(description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
+$.SVG = function <T extends SVGElement>(description: string, attrs?: { [key: string]: any }, ...children: Array<Node | string>): T {
 	return _$(Namespace.SVG, description, attrs, ...children);
 };
 

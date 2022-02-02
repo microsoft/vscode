@@ -382,7 +382,7 @@ function getShowAddButtonList(dataElement: SettingsTreeSettingElement, listDispl
 	}
 }
 
-export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGroups: ISettingsGroup[], logService: ILogService): { tree: ITOCEntry<ISetting>, leftoverSettings: Set<ISetting> } {
+export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGroups: ISettingsGroup[], logService: ILogService): { tree: ITOCEntry<ISetting>; leftoverSettings: Set<ISetting> } {
 	const allSettings = getFlatSettings(coreSettingsGroups);
 	return {
 		tree: _resolveSettingsTree(tocData, allSettings, logService),
@@ -625,7 +625,7 @@ interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
 }
 
 interface ISettingObjectItemTemplate extends ISettingItemTemplate<Record<string, unknown> | undefined> {
-	objectDropdownWidget?: ObjectSettingDropdownWidget,
+	objectDropdownWidget?: ObjectSettingDropdownWidget;
 	objectCheckboxWidget?: ObjectSettingCheckboxWidget;
 	validationErrorMessageElement: HTMLElement;
 }
@@ -779,7 +779,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		return syncIgnoredElement;
 	}
 
-	protected createDefaultOverrideIndicator(container: HTMLElement): { element: HTMLElement, label: SimpleIconLabel } {
+	protected createDefaultOverrideIndicator(container: HTMLElement): { element: HTMLElement; label: SimpleIconLabel } {
 		const defaultOverrideIndicator = DOM.append(container, $('span.setting-item-default-overridden'));
 		const defaultOverrideLabel = new SimpleIconLabel(defaultOverrideIndicator);
 		return { element: defaultOverrideIndicator, label: defaultOverrideLabel };

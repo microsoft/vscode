@@ -299,13 +299,13 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 }
 
 export interface ISuggestEnabledHistoryOptions {
-	id: string,
-	ariaLabel: string,
-	parent: HTMLElement,
-	suggestionProvider: SuggestResultsProvider,
-	resourceHandle: string,
-	suggestOptions: SuggestEnabledInputOptions,
-	history: string[],
+	id: string;
+	ariaLabel: string;
+	parent: HTMLElement;
+	suggestionProvider: SuggestResultsProvider;
+	resourceHandle: string;
+	suggestOptions: SuggestEnabledInputOptions;
+	history: string[];
 }
 
 export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implements IHistoryNavigationWidget {

@@ -40,9 +40,9 @@ export interface IContextScopedHistoryNavigationWidget extends IContextScopedWid
 }
 
 export interface IHistoryNavigationContext {
-	scopedContextKeyService: IContextKeyService,
-	historyNavigationForwardsEnablement: IContextKey<boolean>,
-	historyNavigationBackwardsEnablement: IContextKey<boolean>,
+	scopedContextKeyService: IContextKeyService;
+	historyNavigationForwardsEnablement: IContextKey<boolean>;
+	historyNavigationBackwardsEnablement: IContextKey<boolean>;
 }
 
 export function createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService: IContextKeyService, widget: IContextScopedHistoryNavigationWidget): IHistoryNavigationContext {

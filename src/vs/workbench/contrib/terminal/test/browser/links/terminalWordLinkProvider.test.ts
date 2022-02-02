@@ -50,8 +50,8 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 };
 
 export interface ITerminalLinkActivationResult {
-	source: 'editor' | 'search',
-	link: string
+	source: 'editor' | 'search';
+	link: string;
 }
 
 class TestFileService extends FileService {
@@ -142,7 +142,7 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 	});
 
-	async function assertLink(text: string, expected: { text: string, range: [number, number][], linkActivationResult?: ITerminalLinkActivationResult }[], assertActicationResult?: boolean) {
+	async function assertLink(text: string, expected: { text: string; range: [number, number][]; linkActivationResult?: ITerminalLinkActivationResult }[], assertActicationResult?: boolean) {
 		xterm.dispose();
 		xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, capabilities);
 		// We don't want to cancel the event or anything from the tests so just pass in a wrapped

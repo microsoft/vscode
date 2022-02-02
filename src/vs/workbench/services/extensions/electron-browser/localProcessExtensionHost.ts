@@ -79,7 +79,7 @@ class ExtensionHostProcess {
 		return this._extensionHostStarter.onDynamicMessage(this._id);
 	}
 
-	public get onError(): Event<{ error: SerializedError; }> {
+	public get onError(): Event<{ error: SerializedError }> {
 		return this._extensionHostStarter.onDynamicError(this._id);
 	}
 
@@ -94,7 +94,7 @@ class ExtensionHostProcess {
 		this._id = id;
 	}
 
-	public start(opts: IExtensionHostProcessOptions): Promise<{ pid: number; }> {
+	public start(opts: IExtensionHostProcessOptions): Promise<{ pid: number }> {
 		return this._extensionHostStarter.start(this._id, opts);
 	}
 
@@ -292,7 +292,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				}
 
 				// Catch all output coming from the extension host process
-				type Output = { data: string, format: string[] };
+				type Output = { data: string; format: string[] };
 				const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.onStdout);
 				const onStderr = this._handleProcessOutputStream(this._extensionHostProcess.onStderr);
 				const onOutput = Event.any(

@@ -13,7 +13,7 @@ const SEARCH_RESULT_SELECTOR = { language: 'search-result', exclusive: true };
 const DIRECTIVES = ['# Query:', '# Flags:', '# Including:', '# Excluding:', '# ContextLines:'];
 const FLAGS = ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch'];
 
-let cachedLastParse: { version: number, parse: ParsedSearchResults, uri: vscode.Uri } | undefined;
+let cachedLastParse: { version: number; parse: ParsedSearchResults; uri: vscode.Uri } | undefined;
 let documentChangeListener: vscode.Disposable | undefined;
 
 
@@ -174,8 +174,8 @@ function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | u
 	return undefined;
 }
 
-type ParsedSearchFileLine = { type: 'file', location: vscode.LocationLink, allLocations: vscode.LocationLink[], path: string };
-type ParsedSearchResultLine = { type: 'result', locations: Required<vscode.LocationLink>[], isContext: boolean, prefixRange: vscode.Range };
+type ParsedSearchFileLine = { type: 'file'; location: vscode.LocationLink; allLocations: vscode.LocationLink[]; path: string };
+type ParsedSearchResultLine = { type: 'result'; locations: Required<vscode.LocationLink>[]; isContext: boolean; prefixRange: vscode.Range };
 type ParsedSearchResults = Array<ParsedSearchFileLine | ParsedSearchResultLine>;
 const isFileLine = (line: ParsedSearchResultLine | ParsedSearchFileLine): line is ParsedSearchFileLine => line.type === 'file';
 const isResultLine = (line: ParsedSearchResultLine | ParsedSearchFileLine): line is ParsedSearchResultLine => line.type === 'result';

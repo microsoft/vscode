@@ -85,7 +85,7 @@ export class OverviewZoneManager {
 	private _pixelRatio: number;
 
 	private _lastAssignedId: number;
-	private readonly _color2Id: { [color: string]: number; };
+	private readonly _color2Id: { [color: string]: number };
 	private readonly _id2Color: string[];
 
 	constructor(getVerticalOffsetForLine: (lineNumber: number) => number) {

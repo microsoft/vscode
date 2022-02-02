@@ -51,7 +51,7 @@ export interface ICommonNativeHostService {
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
-	readonly onDidChangePassword: Event<{ service: string, account: string }>;
+	readonly onDidChangePassword: Event<{ service: string; account: string }>;
 
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;
@@ -82,7 +82,7 @@ export interface ICommonNativeHostService {
 	 * should only be used if it is necessary to steal focus from the current
 	 * focused application which may not be VSCode.
 	 */
-	focusWindow(options?: { windowId?: number, force?: boolean }): Promise<void>;
+	focusWindow(options?: { windowId?: number; force?: boolean }): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
@@ -136,8 +136,8 @@ export interface ICommonNativeHostService {
 	uninstallShellCommand(): Promise<void>;
 
 	// Lifecycle
-	notifyReady(): Promise<void>
-	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
+	notifyReady(): Promise<void>;
+	relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void>;
 	reload(options?: { disableExtensions?: boolean }): Promise<void>;
 	closeWindow(): Promise<void>;
 	closeWindowById(windowId: number): Promise<void>;

@@ -16,7 +16,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 
 export class ExtensionsWatcher extends Disposable {
 
-	private readonly _onDidChangeExtensionsByAnotherSource = this._register(new Emitter<{ added: ILocalExtension[], removed: IExtensionIdentifier[] }>());
+	private readonly _onDidChangeExtensionsByAnotherSource = this._register(new Emitter<{ added: ILocalExtension[]; removed: IExtensionIdentifier[] }>());
 	readonly onDidChangeExtensionsByAnotherSource = this._onDidChangeExtensionsByAnotherSource.event;
 
 	private startTimestamp = 0;

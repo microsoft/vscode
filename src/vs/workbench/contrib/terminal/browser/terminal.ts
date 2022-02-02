@@ -76,8 +76,8 @@ export const enum Direction {
 }
 
 export interface IQuickPickTerminalObject {
-	config: IRegisterContributedProfileArgs | ITerminalProfile | { profile: IExtensionTerminalProfile, options: { icon?: string, color?: string } } | undefined,
-	keyMods: IKeyMods | undefined
+	config: IRegisterContributedProfileArgs | ITerminalProfile | { profile: IExtensionTerminalProfile; options: { icon?: string; color?: string } } | undefined;
+	keyMods: IKeyMods | undefined;
 }
 
 export interface ICommandTracker {
@@ -203,7 +203,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getInstanceHost(target: ITerminalLocationOptions | undefined): ITerminalInstanceHost;
 	getFindHost(instance?: ITerminalInstance): ITerminalFindHost;
 
-	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined
+	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined;
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
 	handleNewRegisteredBackend(backend: ITerminalBackend): void;
 	toggleEscapeSequenceLogging(): Promise<void>;
@@ -262,8 +262,8 @@ export interface ICreateTerminalOptions {
 }
 
 export interface TerminalEditorLocation {
-	viewColumn: EditorGroupColumn,
-	preserveFocus?: boolean
+	viewColumn: EditorGroupColumn;
+	preserveFocus?: boolean;
 }
 
 /**
@@ -593,7 +593,7 @@ export interface ITerminalInstance {
 
 	description: string | undefined;
 
-	userHome: string | undefined
+	userHome: string | undefined;
 	/**
 	 * Shows the environment information hover if the widget exists.
 	 */
@@ -723,7 +723,7 @@ export interface ITerminalInstance {
 	 *
 	 * @param dimension The dimensions of the container.
 	 */
-	layout(dimension: { width: number, height: number }): void;
+	layout(dimension: { width: number; height: number }): void;
 
 	/**
 	 * Sets whether the terminal instance's element is visible in the DOM.
@@ -873,7 +873,7 @@ export interface IXtermTerminal {
 
 export interface IRequestAddInstanceToGroupEvent {
 	uri: URI;
-	side: 'before' | 'after'
+	side: 'before' | 'after';
 }
 
 export const enum LinuxDistro {

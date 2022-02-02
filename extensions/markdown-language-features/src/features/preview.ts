@@ -26,7 +26,7 @@ interface WebviewMessage {
 
 interface CacheImageSizesMessage extends WebviewMessage {
 	readonly type: 'cacheImageSizes';
-	readonly body: { id: string, width: number, height: number; }[];
+	readonly body: { id: string; width: number; height: number }[];
 }
 
 interface RevealLineMessage extends WebviewMessage {
@@ -79,7 +79,7 @@ export class PreviewDocumentVersion {
 
 interface MarkdownPreviewDelegate {
 	getTitle?(resource: vscode.Uri): string;
-	getAdditionalState(): {},
+	getAdditionalState(): {};
 	openPreviewLinkToMarkdownFile(markdownLink: vscode.Uri, fragment: string): void;
 }
 
@@ -117,7 +117,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	private currentVersion?: PreviewDocumentVersion;
 	private isScrolling = false;
 	private _disposed: boolean = false;
-	private imageInfo: { readonly id: string, readonly width: number, readonly height: number; }[] = [];
+	private imageInfo: { readonly id: string; readonly width: number; readonly height: number }[] = [];
 
 	private readonly _fileWatchersBySrc = new Map</* src: */ string, vscode.FileSystemWatcher>();
 	private readonly _unwatchedImageSchemes = new Set(['https', 'http', 'data']);

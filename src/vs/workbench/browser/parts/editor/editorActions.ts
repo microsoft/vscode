@@ -527,7 +527,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 		}
 	}
 
-	private getTarget(context?: IEditorIdentifier): { editor: EditorInput | null, group: IEditorGroup | undefined } {
+	private getTarget(context?: IEditorIdentifier): { editor: EditorInput | null; group: IEditorGroup | undefined } {
 		if (context) {
 			return { editor: context.editor, group: this.editorGroupService.getGroup(context.groupId) };
 		}

@@ -49,10 +49,10 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	protected _worker: IWorkerClient<ILocalFileSearchSimpleWorker> | null;
 	protected readonly _workerFactory: DefaultWorkerFactory;
 
-	private readonly _onDidReceiveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>, queryId: number }>();
-	readonly onDidReceiveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>, queryId: number }> = this._onDidReceiveTextSearchMatch.event;
+	private readonly _onDidReceiveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>; queryId: number }>();
+	readonly onDidReceiveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>; queryId: number }> = this._onDidReceiveTextSearchMatch.event;
 
-	private cache: { key: string, cache: ISearchComplete } | undefined;
+	private cache: { key: string; cache: ISearchComplete } | undefined;
 
 	private queryId: number = 0;
 

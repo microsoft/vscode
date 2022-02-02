@@ -155,7 +155,7 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 
 class SharedProcessWebWorker extends Disposable {
 
-	private readonly _onDidProcessSelfTerminate = this._register(new Emitter<{ configuration: ISharedProcessWorkerConfiguration, reason: ISharedProcessWorkerProcessExit }>());
+	private readonly _onDidProcessSelfTerminate = this._register(new Emitter<{ configuration: ISharedProcessWorkerConfiguration; reason: ISharedProcessWorkerProcessExit }>());
 	readonly onDidProcessSelfTerminate = this._onDidProcessSelfTerminate.event;
 
 	private readonly workerReady: Promise<Worker> = this.doInit();

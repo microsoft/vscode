@@ -514,7 +514,7 @@ export class QueryBuilder {
 	}
 }
 
-function splitGlobFromPath(searchPath: string): { pathPortion: string, globPortion?: string } {
+function splitGlobFromPath(searchPath: string): { pathPortion: string; globPortion?: string } {
 	const globCharMatch = searchPath.match(/[\*\{\}\(\)\[\]\?]/);
 	if (globCharMatch) {
 		const globCharIdx = globCharMatch.index;

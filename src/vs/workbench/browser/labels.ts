@@ -24,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 
 export interface IResourceLabelProps {
-	resource?: URI | { primary?: URI, secondary?: URI };
+	resource?: URI | { primary?: URI; secondary?: URI };
 	name?: string | string[];
 	description?: string;
 }
@@ -51,7 +51,7 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	/**
 	 * File decorations to use for the label.
 	 */
-	readonly fileDecorations?: { colors: boolean, badges: boolean };
+	readonly fileDecorations?: { colors: boolean; badges: boolean };
 
 	/**
 	 * Will take the provided label as is and e.g. not override it for untitled files.
@@ -492,7 +492,7 @@ class ResourceLabelWidget extends IconLabel {
 		this.setLabel('');
 	}
 
-	private render(options: { updateIcon: boolean, updateDecoration: boolean }): boolean {
+	private render(options: { updateIcon: boolean; updateDecoration: boolean }): boolean {
 		if (this.isHidden) {
 			if (this.needsRedraw !== Redraw.Full) {
 				this.needsRedraw = (options.updateIcon || options.updateDecoration) ? Redraw.Full : Redraw.Basic;

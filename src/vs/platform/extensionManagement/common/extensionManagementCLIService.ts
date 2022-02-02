@@ -27,7 +27,7 @@ function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
 	}
 }
 
-type InstallExtensionInfo = { id: string, version?: string, installOptions: InstallOptions; };
+type InstallExtensionInfo = { id: string; version?: string; installOptions: InstallOptions };
 
 
 export class ExtensionManagementCLIService implements IExtensionManagementCLIService {

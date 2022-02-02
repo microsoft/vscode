@@ -182,7 +182,7 @@ export interface ServerParsedArgs {
 	help: boolean;
 	version: boolean;
 
-	compatibility: string
+	compatibility: string;
 
 	_: string[];
 }

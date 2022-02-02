@@ -28,7 +28,7 @@ export async function resolveWorkbenchCommonProperties(
 	productIdentifier?: string,
 	resolveAdditionalProperties?: () => { [key: string]: any }
 ): Promise<{ [name: string]: string | undefined }> {
-	const result: { [name: string]: string | undefined; } = Object.create(null);
+	const result: { [name: string]: string | undefined } = Object.create(null);
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL)!;
 

@@ -361,7 +361,7 @@ export class NullExtensionService implements IExtensionService {
 	getExtensions(): Promise<IExtensionDescription[]> { return Promise.resolve([]); }
 	getExtension() { return Promise.resolve(undefined); }
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
-	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
+	getExtensionsStatus(): { [id: string]: IExtensionsStatus } { return Object.create(null); }
 	getInspectPort(_tryEnableInspector: boolean): Promise<number> { return Promise.resolve(0); }
 	stopExtensionHosts(): void { }
 	async restartExtensionHost(): Promise<void> { }

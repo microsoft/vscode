@@ -61,7 +61,7 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 		return disposables;
 	}
 
-	private getQuickAccessProviders(): { editorProviders: IHelpQuickAccessPickItem[], globalProviders: IHelpQuickAccessPickItem[] } {
+	private getQuickAccessProviders(): { editorProviders: IHelpQuickAccessPickItem[]; globalProviders: IHelpQuickAccessPickItem[] } {
 		const globalProviders: IHelpQuickAccessPickItem[] = [];
 		const editorProviders: IHelpQuickAccessPickItem[] = [];
 

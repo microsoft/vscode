@@ -964,7 +964,7 @@ class CommandExecutor {
 		};
 	}
 
-	private static _getLoserCursorMap(operations: IIdentifiedSingleEditOperation[]): { [index: string]: boolean; } {
+	private static _getLoserCursorMap(operations: IIdentifiedSingleEditOperation[]): { [index: string]: boolean } {
 		// This is destructive on the array
 		operations = operations.slice(0);
 
@@ -975,7 +975,7 @@ class CommandExecutor {
 		});
 
 		// Operations can not overlap!
-		const loserCursorsMap: { [index: string]: boolean; } = {};
+		const loserCursorsMap: { [index: string]: boolean } = {};
 
 		for (let i = 1; i < operations.length; i++) {
 			const previousOp = operations[i - 1];

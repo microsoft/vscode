@@ -29,7 +29,7 @@ export class MarkdownString implements IMarkdownString {
 
 	constructor(
 		value: string = '',
-		isTrustedOrOptions: boolean | { isTrusted?: boolean, supportThemeIcons?: boolean, supportHtml?: boolean } = false,
+		isTrustedOrOptions: boolean | { isTrusted?: boolean; supportThemeIcons?: boolean; supportHtml?: boolean } = false,
 	) {
 		this.value = value;
 		if (typeof this.value !== 'string') {
@@ -118,7 +118,7 @@ export function removeMarkdownEscapes(text: string): string {
 	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
 }
 
-export function parseHrefAndDimensions(href: string): { href: string, dimensions: string[] } {
+export function parseHrefAndDimensions(href: string): { href: string; dimensions: string[] } {
 	const dimensions: string[] = [];
 	const splitted = href.split('|').map(s => s.trim());
 	href = splitted[0];

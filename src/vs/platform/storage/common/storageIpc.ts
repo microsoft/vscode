@@ -14,7 +14,7 @@ export type Value = string;
 export type Item = [Key, Value];
 
 export interface IBaseSerializableStorageRequest {
-	readonly workspace: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined
+	readonly workspace: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined;
 }
 
 export interface ISerializableUpdateRequest extends IBaseSerializableStorageRequest {

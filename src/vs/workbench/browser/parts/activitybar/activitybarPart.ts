@@ -49,7 +49,7 @@ interface IPlaceholderViewContainer {
 	readonly iconUrl?: UriComponents;
 	readonly themeIcon?: ThemeIcon;
 	readonly isBuiltin?: boolean;
-	readonly views?: { when?: string; }[];
+	readonly views?: { when?: string }[];
 }
 
 interface IPinnedViewContainer {
@@ -67,7 +67,7 @@ interface ICachedViewContainer {
 	readonly order?: number;
 	visible: boolean;
 	isBuiltin?: boolean;
-	views?: { when?: string; }[];
+	views?: { when?: string }[];
 }
 
 export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart {
@@ -108,7 +108,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 
 	private readonly accountsActivity: ICompositeActivity[] = [];
 
-	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction; }>();
+	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction }>();
 	private readonly viewContainerDisposables = new Map<string, IDisposable>();
 
 	private readonly keyboardNavigationDisposables = this._register(new DisposableStore());
@@ -259,7 +259,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		}));
 	}
 
-	private onDidChangeViewContainers(added: readonly { container: ViewContainer, location: ViewContainerLocation; }[], removed: readonly { container: ViewContainer, location: ViewContainerLocation; }[]) {
+	private onDidChangeViewContainers(added: readonly { container: ViewContainer; location: ViewContainerLocation }[], removed: readonly { container: ViewContainer; location: ViewContainerLocation }[]) {
 		removed.filter(({ location }) => location === ViewContainerLocation.Sidebar).forEach(({ container }) => this.onDidDeregisterViewContainer(container));
 		this.onDidRegisterViewContainers(added.filter(({ location }) => location === ViewContainerLocation.Sidebar).map(({ container }) => container));
 	}
@@ -564,7 +564,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		this.updateGlobalActivity(ACCOUNTS_ACTIVITY_ID);
 	}
 
-	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction; } {
+	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction } {
 		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			const viewContainer = this.getViewContainer(compositeId);
@@ -850,7 +850,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			const viewContainer = this.getViewContainer(compositeItem.id);
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				const views: { when: string | undefined; }[] = [];
+				const views: { when: string | undefined }[] = [];
 				for (const { when } of viewContainerModel.allViewDescriptors) {
 					views.push({ when: when ? when.serialize() : undefined });
 				}

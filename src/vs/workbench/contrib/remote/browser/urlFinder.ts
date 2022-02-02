@@ -26,7 +26,7 @@ export class UrlFinder extends Disposable {
 
 	private static readonly excludeTerminals = ['Dev Containers'];
 
-	private _onDidMatchLocalUrl: Emitter<{ host: string, port: number }> = new Emitter();
+	private _onDidMatchLocalUrl: Emitter<{ host: string; port: number }> = new Emitter();
 	public readonly onDidMatchLocalUrl = this._onDidMatchLocalUrl.event;
 	private listeners: Map<ITerminalInstance | string, IDisposable> = new Map();
 
@@ -68,7 +68,7 @@ export class UrlFinder extends Disposable {
 		}
 	}
 
-	private replPositions: Map<string, { position: number, tail: IReplElement }> = new Map();
+	private replPositions: Map<string, { position: number; tail: IReplElement }> = new Map();
 	private processNewReplElements(session: IDebugSession) {
 		const oldReplPosition = this.replPositions.get(session.getId());
 		const replElements = session.getReplElements();

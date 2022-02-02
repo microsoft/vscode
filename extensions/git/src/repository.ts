@@ -1071,7 +1071,7 @@ export class Repository implements Disposable {
 		return await this.repository.getCommitTemplate();
 	}
 
-	getConfigs(): Promise<{ key: string; value: string; }[]> {
+	getConfigs(): Promise<{ key: string; value: string }[]> {
 		return this.run(Operation.Config, () => this.repository.getConfigs('local'));
 	}
 
@@ -1152,7 +1152,7 @@ export class Repository implements Disposable {
 		return this.run(Operation.HashObject, () => this.repository.hashObject(data));
 	}
 
-	async add(resources: Uri[], opts?: { update?: boolean; }): Promise<void> {
+	async add(resources: Uri[], opts?: { update?: boolean }): Promise<void> {
 		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.fsPath), opts));
 	}
 
@@ -1289,11 +1289,11 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async checkout(treeish: string, opts?: { detached?: boolean; }): Promise<void> {
+	async checkout(treeish: string, opts?: { detached?: boolean }): Promise<void> {
 		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, [], opts));
 	}
 
-	async checkoutTracking(treeish: string, opts: { detached?: boolean; } = {}): Promise<void> {
+	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
 		await this.run(Operation.CheckoutTracking, () => this.repository.checkout(treeish, [], { ...opts, track: true }));
 	}
 
@@ -1326,7 +1326,7 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async fetchDefault(options: { silent?: boolean; } = {}): Promise<void> {
+	async fetchDefault(options: { silent?: boolean } = {}): Promise<void> {
 		await this._fetch({ silent: options.silent });
 	}
 
@@ -1344,7 +1344,7 @@ export class Repository implements Disposable {
 		await this._fetch(options);
 	}
 
-	private async _fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean; } = {}): Promise<void> {
+	private async _fetch(options: { remote?: string; ref?: string; all?: boolean; prune?: boolean; depth?: number; silent?: boolean } = {}): Promise<void> {
 		if (!options.prune) {
 			const config = workspace.getConfiguration('git', Uri.file(this.root));
 			const prune = config.get<boolean>('pruneOnFetch');
@@ -1570,11 +1570,11 @@ export class Repository implements Disposable {
 		});
 	}
 
-	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string, object: string, size: number; }> {
+	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string; object: string; size: number }> {
 		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, filePath));
 	}
 
-	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string; }> {
+	detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {
 		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
 	}
 

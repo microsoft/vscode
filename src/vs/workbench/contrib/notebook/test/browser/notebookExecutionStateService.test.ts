@@ -152,7 +152,7 @@ class TestNotebookKernel implements INotebookKernel {
 	async executeNotebookCellsRequest(): Promise<void> { }
 	async cancelNotebookCellExecution(): Promise<void> { }
 
-	constructor(opts?: { languages?: string[], id?: string }) {
+	constructor(opts?: { languages?: string[]; id?: string }) {
 		this.supportedLanguages = opts?.languages ?? [PLAINTEXT_LANGUAGE_ID];
 		if (opts?.id) {
 			this.id = opts?.id;

@@ -859,7 +859,7 @@ export interface CodeActionList extends IDisposable {
  */
 export interface CodeActionProvider {
 
-	displayName?: string
+	displayName?: string;
 
 	/**
 	 * Provide commands for the given document and range.
@@ -876,7 +876,7 @@ export interface CodeActionProvider {
 	 */
 	readonly providedCodeActionKinds?: ReadonlyArray<string>;
 
-	readonly documentation?: ReadonlyArray<{ readonly kind: string, readonly command: Command }>;
+	readonly documentation?: ReadonlyArray<{ readonly kind: string; readonly command: Command }>;
 
 	/**
 	 * @internal
@@ -1275,7 +1275,7 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: model.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 }
 
-export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence; };
+export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence };
 
 /**
  * Interface used to format a model
@@ -1541,7 +1541,7 @@ export interface WorkspaceEditMetadata {
 	/**
 	 * @internal
 	 */
-	iconPath?: ThemeIcon | URI | { light: URI, dark: URI };
+	iconPath?: ThemeIcon | URI | { light: URI; dark: URI };
 }
 
 export interface WorkspaceFileEditOptions {
@@ -1595,7 +1595,7 @@ export interface AuthenticationSession {
 	account: {
 		label: string;
 		id: string;
-	}
+	};
 	scopes: ReadonlyArray<string>;
 	idToken?: string;
 }
@@ -1824,15 +1824,15 @@ export enum InlayHintKind {
 
 export interface InlayHintLabelPart {
 	label: string;
-	tooltip?: string | IMarkdownString
+	tooltip?: string | IMarkdownString;
 	// collapsible?: boolean;
-	command?: Command
+	command?: Command;
 	location?: Location;
 }
 
 export interface InlayHint {
 	label: string | InlayHintLabelPart[];
-	tooltip?: string | IMarkdownString
+	tooltip?: string | IMarkdownString;
 	position: IPosition;
 	kind: InlayHintKind;
 	paddingLeft?: boolean;
@@ -1845,7 +1845,7 @@ export interface InlayHintList {
 }
 
 export interface InlayHintsProvider {
-	displayName?: string
+	displayName?: string;
 	onDidChangeInlayHints?: Event<void>;
 	provideInlayHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHintList>;
 	resolveInlayHint?(hint: InlayHint, token: CancellationToken): ProviderResult<InlayHint>;

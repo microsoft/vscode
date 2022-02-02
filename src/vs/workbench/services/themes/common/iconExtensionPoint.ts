@@ -16,7 +16,7 @@ import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/ex
 interface IIconExtensionPoint {
 	id: string;
 	description: string;
-	default: { fontId: string; fontCharacter: string; } | string;
+	default: { fontId: string; fontCharacter: string } | string;
 }
 
 interface IIconFontExtensionPoint {

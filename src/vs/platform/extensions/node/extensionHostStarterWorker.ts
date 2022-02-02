@@ -31,7 +31,7 @@ class ExtensionHostProcess extends Disposable {
 	readonly _onMessage = this._register(new Emitter<any>());
 	readonly onMessage = this._onMessage.event;
 
-	readonly _onError = this._register(new Emitter<{ error: SerializedError; }>());
+	readonly _onError = this._register(new Emitter<{ error: SerializedError }>());
 	readonly onError = this._onError.event;
 
 	readonly _onExit = this._register(new Emitter<{ pid: number; code: number; signal: string }>());
@@ -47,7 +47,7 @@ class ExtensionHostProcess extends Disposable {
 		super();
 	}
 
-	start(opts: IExtensionHostProcessOptions): { pid: number; } {
+	start(opts: IExtensionHostProcessOptions): { pid: number } {
 		if (platform.isCI) {
 			this._host.logInfo(`Calling fork to start extension host...`);
 		}
@@ -176,15 +176,15 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		return this._getExtHost(id).onMessage;
 	}
 
-	onDynamicError(id: string): Event<{ error: SerializedError; }> {
+	onDynamicError(id: string): Event<{ error: SerializedError }> {
 		return this._getExtHost(id).onError;
 	}
 
-	onDynamicExit(id: string): Event<{ code: number; signal: string; }> {
+	onDynamicExit(id: string): Event<{ code: number; signal: string }> {
 		return this._getExtHost(id).onExit;
 	}
 
-	async createExtensionHost(): Promise<{ id: string; }> {
+	async createExtensionHost(): Promise<{ id: string }> {
 		const id = String(++ExtensionHostStarter._lastId);
 		const extHost = new ExtensionHostProcess(id, this._host);
 		this._extHosts.set(id, extHost);
@@ -198,7 +198,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		return { id };
 	}
 
-	async start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number; }> {
+	async start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number }> {
 		return this._getExtHost(id).start(opts);
 	}
 

@@ -6,8 +6,8 @@
 import { IEditorWhitespace, IPartialViewLinesViewportData, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from 'vs/editor/common/viewModel';
 import * as strings from 'vs/base/common/strings';
 
-interface IPendingChange { id: string; newAfterLineNumber: number; newHeight: number; }
-interface IPendingRemove { id: string; }
+interface IPendingChange { id: string; newAfterLineNumber: number; newHeight: number }
+interface IPendingRemove { id: string }
 
 class PendingChanges {
 	private _hasPending: boolean;

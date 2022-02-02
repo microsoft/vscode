@@ -207,7 +207,7 @@ export class UserDataSyncDataViews extends Disposable {
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const commandService = accessor.get(ICommandService);
-				const { resource, comparableResource } = <{ resource: string, comparableResource: string }>JSON.parse(handle.$treeItemHandle);
+				const { resource, comparableResource } = <{ resource: string; comparableResource: string }>JSON.parse(handle.$treeItemHandle);
 				const remoteResource = URI.parse(resource);
 				const localResource = URI.parse(comparableResource);
 				return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID,
@@ -235,7 +235,7 @@ export class UserDataSyncDataViews extends Disposable {
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const dialogService = accessor.get(IDialogService);
 				const userDataSyncService = accessor.get(IUserDataSyncService);
-				const { resource, syncResource } = <{ resource: string, syncResource: SyncResource }>JSON.parse(handle.$treeItemHandle);
+				const { resource, syncResource } = <{ resource: string; syncResource: SyncResource }>JSON.parse(handle.$treeItemHandle);
 				const result = await dialogService.confirm({
 					message: localize({ key: 'confirm replace', comment: ['A confirmation message to replace current user data (settings, extensions, keybindings, snippets) with selected version'] }, "Would you like to replace your current {0} with selected?", getSyncAreaLabel(syncResource)),
 					type: 'info',

@@ -44,7 +44,7 @@ export class VSBuffer {
 	 * When running in a nodejs context, the backing store for the returned `VSBuffer` instance
 	 * might use a nodejs Buffer allocated from node's Buffer pool, which is not transferrable.
 	 */
-	static fromString(source: string, options?: { dontUseNodeBuffer?: boolean; }): VSBuffer {
+	static fromString(source: string, options?: { dontUseNodeBuffer?: boolean }): VSBuffer {
 		const dontUseNodeBuffer = options?.dontUseNodeBuffer || false;
 		if (!dontUseNodeBuffer && hasBuffer) {
 			return new VSBuffer(Buffer.from(source));

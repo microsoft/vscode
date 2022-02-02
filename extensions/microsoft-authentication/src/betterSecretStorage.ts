@@ -9,7 +9,7 @@ import { Event, EventEmitter, ExtensionContext, SecretStorage, SecretStorageChan
 export interface IDidChangeInOtherWindowEvent<T> {
 	added: string[];
 	updated: string[];
-	removed: Array<{ key: string, value: T; }>;
+	removed: Array<{ key: string; value: T }>;
 }
 
 export class BetterTokenStorage<T> {
@@ -48,7 +48,7 @@ export class BetterTokenStorage<T> {
 
 					const keyList: Array<string> = JSON.parse(keyListStr);
 					// Gather promises that contain key value pairs our of secret storage
-					const promises = keyList.map(key => new Promise<{ key: string, value: string | undefined }>((res, rej) => {
+					const promises = keyList.map(key => new Promise<{ key: string; value: string | undefined }>((res, rej) => {
 						this._secretStorage.get(key).then((value) => {
 							res({ key, value });
 						}, rej);

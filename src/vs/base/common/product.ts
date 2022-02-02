@@ -13,21 +13,21 @@ export interface IBuiltInExtension {
 }
 
 export type ConfigurationSyncStore = {
-	url: string,
-	insidersUrl: string,
-	stableUrl: string,
-	canSwitch: boolean,
-	authenticationProviders: IStringDictionary<{ scopes: string[] }>
+	url: string;
+	insidersUrl: string;
+	stableUrl: string;
+	canSwitch: boolean;
+	authenticationProviders: IStringDictionary<{ scopes: string[] }>;
 };
 
 export type ExtensionUntrustedWorkspaceSupport = {
-	readonly default?: boolean | 'limited',
-	readonly override?: boolean | 'limited'
+	readonly default?: boolean | 'limited';
+	readonly override?: boolean | 'limited';
 };
 
 export type ExtensionVirtualWorkspaceSupport = {
-	readonly default?: boolean,
-	readonly override?: boolean
+	readonly default?: boolean;
+	readonly override?: boolean;
 };
 
 export interface IProductConfiguration {
@@ -76,16 +76,16 @@ export interface IProductConfiguration {
 		readonly recommendationsUrl: string;
 	};
 
-	readonly extensionTips?: { [id: string]: string; };
+	readonly extensionTips?: { [id: string]: string };
 	readonly extensionImportantTips?: IStringDictionary<ImportantExtensionTip>;
-	readonly configBasedExtensionTips?: { [id: string]: IConfigBasedExtensionTip; };
-	readonly exeBasedExtensionTips?: { [id: string]: IExeBasedExtensionTip; };
-	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip; };
-	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
+	readonly configBasedExtensionTips?: { [id: string]: IConfigBasedExtensionTip };
+	readonly exeBasedExtensionTips?: { [id: string]: IExeBasedExtensionTip };
+	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip };
+	readonly extensionKeywords?: { [extension: string]: readonly string[] };
 	readonly keymapExtensionTips?: readonly string[];
 	readonly webExtensionTips?: readonly string[];
 	readonly languageExtensionTips?: readonly string[];
-	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[]; };
+	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[] };
 
 	readonly crashReporter?: {
 		readonly companyName: string;
@@ -99,8 +99,8 @@ export interface IProductConfiguration {
 	};
 
 	readonly sendASmile?: {
-		readonly reportIssueUrl: string,
-		readonly requestFeatureUrl: string
+		readonly reportIssueUrl: string;
+		readonly requestFeatureUrl: string;
 	};
 
 	readonly documentationUrl?: string;
@@ -129,19 +129,19 @@ export interface IProductConfiguration {
 	readonly cesSurveyUrl?: string;
 	readonly surveys?: readonly ISurveyData[];
 
-	readonly checksums?: { [path: string]: string; };
+	readonly checksums?: { [path: string]: string };
 	readonly checksumFailMoreInfoUrl?: string;
 
 	readonly appCenter?: IAppCenterConfiguration;
 
 	readonly portable?: string;
 
-	readonly extensionKind?: { readonly [extensionId: string]: ('ui' | 'workspace' | 'web')[]; };
-	readonly extensionPointExtensionKind?: { readonly [extensionPointId: string]: ('ui' | 'workspace' | 'web')[]; };
-	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[]; };
+	readonly extensionKind?: { readonly [extensionId: string]: ('ui' | 'workspace' | 'web')[] };
+	readonly extensionPointExtensionKind?: { readonly [extensionPointId: string]: ('ui' | 'workspace' | 'web')[] };
+	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[] };
 	/** @deprecated */
 	readonly extensionAllowedProposedApi?: readonly string[];
-	readonly extensionEnabledApiProposals?: { readonly [extensionId: string]: string[] }
+	readonly extensionEnabledApiProposals?: { readonly [extensionId: string]: string[] };
 	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
 	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
 
@@ -166,14 +166,14 @@ export interface IConfigBasedExtensionTip {
 	configPath: string;
 	configName: string;
 	configScheme?: string;
-	recommendations: IStringDictionary<{ name: string, remotes?: string[], important?: boolean, isExtensionPack?: boolean }>;
+	recommendations: IStringDictionary<{ name: string; remotes?: string[]; important?: boolean; isExtensionPack?: boolean }>;
 }
 
 export interface IExeBasedExtensionTip {
 	friendlyName: string;
 	windowsPath?: string;
 	important?: boolean;
-	recommendations: IStringDictionary<{ name: string, important?: boolean, isExtensionPack?: boolean }>;
+	recommendations: IStringDictionary<{ name: string; important?: boolean; isExtensionPack?: boolean }>;
 }
 
 export interface IRemoteExtensionTip {

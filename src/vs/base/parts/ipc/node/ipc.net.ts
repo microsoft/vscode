@@ -175,7 +175,7 @@ const enum ReadState {
 }
 
 interface ISocketTracer {
-	traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void
+	traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void;
 }
 
 /**
@@ -438,7 +438,7 @@ class WebSocketFlowManager extends Disposable {
 	private readonly _zlibInflateStream: ZlibInflateStream | null;
 	private readonly _zlibDeflateStream: ZlibDeflateStream | null;
 	private readonly _writeQueue: VSBuffer[] = [];
-	private readonly _readQueue: { data: VSBuffer, isCompressed: boolean, isLastFrameOfMessage: boolean }[] = [];
+	private readonly _readQueue: { data: VSBuffer; isCompressed: boolean; isLastFrameOfMessage: boolean }[] = [];
 
 	private readonly _onDidFinishProcessingWriteQueue = this._register(new Emitter<void>());
 	public readonly onDidFinishProcessingWriteQueue = this._onDidFinishProcessingWriteQueue.event;
@@ -795,7 +795,7 @@ export function serve(hook: any): Promise<Server> {
 	});
 }
 
-export function connect(options: { host: string, port: number }, clientId: string): Promise<Client>;
+export function connect(options: { host: string; port: number }, clientId: string): Promise<Client>;
 export function connect(port: number, clientId: string): Promise<Client>;
 export function connect(namedPipe: string, clientId: string): Promise<Client>;
 export function connect(hook: any, clientId: string): Promise<Client> {

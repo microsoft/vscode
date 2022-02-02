@@ -417,7 +417,7 @@ export class View extends ViewEventHandler {
 		this._scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
 	}
 
-	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number; }): void {
+	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number }): void {
 		this._context.viewModel.viewLayout.setScrollPosition({ scrollTop: scrollPosition.scrollTop }, ScrollType.Immediate);
 		this._context.viewModel.tokenizeViewport();
 		this._renderNow();

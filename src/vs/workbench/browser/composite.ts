@@ -62,7 +62,7 @@ export abstract class Composite extends Component implements IComposite {
 		return this._hasFocus;
 	}
 
-	private registerFocusTrackEvents(): { onDidFocus: Emitter<void>, onDidBlur: Emitter<void> } {
+	private registerFocusTrackEvents(): { onDidFocus: Emitter<void>; onDidBlur: Emitter<void> } {
 		const container = assertIsDefined(this.getContainer());
 		const focusTracker = this._register(trackFocus(container));
 

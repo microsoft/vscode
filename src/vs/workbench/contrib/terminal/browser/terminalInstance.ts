@@ -184,7 +184,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _messageTitleDisposable: IDisposable | undefined;
 	private _widgetManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
 	private _linkManager: TerminalLinkManager | undefined;
-	private _environmentInfo: { widget: EnvironmentVariableInfoWidget, disposable: IDisposable } | undefined;
+	private _environmentInfo: { widget: EnvironmentVariableInfoWidget; disposable: IDisposable } | undefined;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 	private _dndObserver: IDisposable | undefined;
 	private _terminalLinkQuickpick: TerminalLinkQuickpick | undefined;
@@ -2299,7 +2299,7 @@ export class TerminalLabelComputer extends Disposable {
 	get title(): string | undefined { return this._title; }
 	get description(): string | undefined { return this._description; }
 
-	private readonly _onDidChangeLabel = this._register(new Emitter<{ title: string, description: string }>());
+	private readonly _onDidChangeLabel = this._register(new Emitter<{ title: string; description: string }>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 	constructor(
 		private readonly _configHelper: TerminalConfigHelper,
@@ -2350,7 +2350,7 @@ export class TerminalLabelComputer extends Disposable {
 		}
 
 		//Remove special characters that could mess with rendering
-		let label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null; }).replace(/[\n\r\t]/g, '').trim();
+		let label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null }).replace(/[\n\r\t]/g, '').trim();
 		return label === '' && labelType === TerminalLabelType.Title ? (this._instance.processName || '') : label;
 	}
 
@@ -2382,7 +2382,7 @@ export function parseExitResult(
 	processState: ProcessState,
 	initialCwd: string | undefined,
 	shellIntegrationAttempted?: boolean
-): { code: number | undefined, message: string | undefined } | undefined {
+): { code: number | undefined; message: string | undefined } | undefined {
 	// Only return a message if the exit code is non-zero
 	if (exitCodeOrError === undefined || exitCodeOrError === 0) {
 		return { code: exitCodeOrError, message: undefined };

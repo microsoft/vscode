@@ -130,7 +130,7 @@ function convertLinkTags(
 
 	const out: string[] = [];
 
-	let currentLink: { name?: string, target?: Proto.FileSpan, text?: string, readonly linkcode: boolean } | undefined;
+	let currentLink: { name?: string; target?: Proto.FileSpan; text?: string; readonly linkcode: boolean } | undefined;
 	for (const part of parts) {
 		switch (part.kind) {
 			case 'link':

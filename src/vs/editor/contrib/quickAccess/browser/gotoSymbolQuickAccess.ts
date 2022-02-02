@@ -21,14 +21,14 @@ import { IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/qui
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
-	kind: SymbolKind,
-	index: number,
+	kind: SymbolKind;
+	index: number;
 	score?: number;
-	range?: { decoration: IRange, selection: IRange }
+	range?: { decoration: IRange; selection: IRange };
 }
 
 export interface IGotoSymbolQuickAccessProviderOptions extends IEditorNavigationQuickAccessOptions {
-	openSideBySideDirection?: () => undefined | 'right' | 'down'
+	openSideBySideDirection?: () => undefined | 'right' | 'down';
 }
 
 export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {

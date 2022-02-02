@@ -28,7 +28,7 @@ declare module 'vscode' {
 		/**
 		 * The icon path or {@link ThemeIcon} for the timeline item.
 		 */
-		iconPath?: Uri | { light: Uri; dark: Uri; } | ThemeIcon;
+		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 
 		/**
 		 * A human readable string describing less prominent details of the timeline item.
@@ -114,7 +114,7 @@ declare module 'vscode' {
 		 * An optional maximum number timeline items or the all timeline items newer (inclusive) than the timestamp or id that should be returned.
 		 * If `undefined` all timeline items should be returned.
 		 */
-		limit?: number | { timestamp: number; id?: string; };
+		limit?: number | { timestamp: number; id?: string };
 	}
 
 	export interface TimelineProvider {

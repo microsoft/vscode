@@ -20,7 +20,7 @@ export interface IEditorTab {
 	resource: vscode.Uri | undefined;
 	viewId: string | undefined;
 	isActive: boolean;
-	additionalResourcesAndViewIds: { resource: vscode.Uri | undefined, viewId: string | undefined }[];
+	additionalResourcesAndViewIds: { resource: vscode.Uri | undefined; viewId: string | undefined }[];
 	move(index: number, viewColumn: ViewColumn): Promise<void>;
 	close(): Promise<void>;
 }

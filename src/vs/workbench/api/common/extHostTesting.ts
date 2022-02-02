@@ -26,9 +26,9 @@ import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/test
 import type * as vscode from 'vscode';
 
 interface ControllerInfo {
-	controller: vscode.TestController,
-	profiles: Map<number, vscode.TestRunProfile>,
-	collection: SingleUseTestCollection,
+	controller: vscode.TestController;
+	profiles: Map<number, vscode.TestRunProfile>;
+	collection: SingleUseTestCollection;
 }
 
 export class ExtHostTesting implements ExtHostTestingShape {
@@ -292,7 +292,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 }
 
 class TestRunTracker extends Disposable {
-	private readonly tasks = new Map</* task ID */string, { run: vscode.TestRun, coverage: TestRunCoverageBearer }>();
+	private readonly tasks = new Map</* task ID */string, { run: vscode.TestRun; coverage: TestRunCoverageBearer }>();
 	private readonly sharedTestIds = new Set<string>();
 	private readonly cts: CancellationTokenSource;
 	private readonly endEmitter = this._register(new Emitter<void>());

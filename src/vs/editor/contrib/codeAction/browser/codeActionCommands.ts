@@ -154,9 +154,9 @@ export async function applyCodeAction(
 		codeActionIsPreferred: boolean;
 	};
 	type ApplyCodeEventClassification = {
-		codeActionTitle: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-		codeActionKind: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-		codeActionIsPreferred: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		codeActionTitle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+		codeActionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+		codeActionIsPreferred: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	};
 
 	telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {

@@ -97,7 +97,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	private readonly _onDidChangeColorScheme = this._register(new Emitter<IColorScheme>());
 	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
 
-	private readonly _onDidChangePassword = this._register(new Emitter<{ account: string, service: string }>());
+	private readonly _onDidChangePassword = this._register(new Emitter<{ account: string; service: string }>());
 	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	readonly onDidChangeDisplay = Event.debounce(Event.any(
@@ -222,7 +222,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async focusWindow(windowId: number | undefined, options?: { windowId?: number; force?: boolean; }): Promise<void> {
+	async focusWindow(windowId: number | undefined, options?: { windowId?: number; force?: boolean }): Promise<void> {
 		if (options && typeof options.windowId === 'number') {
 			windowId = options.windowId;
 		}
@@ -350,7 +350,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	private async getShellCommandLink(): Promise<{ readonly source: string, readonly target: string }> {
+	private async getShellCommandLink(): Promise<{ readonly source: string; readonly target: string }> {
 		const target = resolve(this.environmentMainService.appRoot, 'bin', 'code');
 		const source = `/usr/local/bin/${this.productService.applicationName}`;
 
@@ -697,7 +697,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async relaunch(windowId: number | undefined, options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
+	async relaunch(windowId: number | undefined, options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void> {
 		return this.lifecycleMainService.relaunch(options);
 	}
 
