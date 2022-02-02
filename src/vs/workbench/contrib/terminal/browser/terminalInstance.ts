@@ -2354,9 +2354,11 @@ export class TerminalLabelComputer extends Disposable {
 			return this._instance.staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process?.replace(/[\n\r\t]/g, '') || '';
 		}
 		const detection = this._instance.capabilities.has(TerminalCapability.CwdDetection) || this._instance.capabilities.has(TerminalCapability.NaiveCwdDetection);
-		const zeroRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 0 && this.pathsEqual(templateProperties.cwd, this._instance.userHome || this._configHelper.config.cwd);
-		const singleRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 1 && this.pathsEqual(templateProperties.cwd, this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath);
-		if (this._instance.cwd !== this._instance.initialCwd) {
+		const folders = this._workspaceContextService.getWorkspace().folders;
+		const zeroRootWorkspace = folders.length === 0 && this.pathsEqual(templateProperties.cwd, this._instance.userHome || this._configHelper.config.cwd);
+		const singleRootWorkspace = folders.length === 1 && this.pathsEqual(templateProperties.cwd, this._configHelper.config.cwd || folders[0]?.uri.fsPath);
+		const multiRootWorkspace = folders.length > 1;
+		if (this._instance.cwd !== this._instance.initialCwd || multiRootWorkspace) {
 			templateProperties.cwdFolder = (!templateProperties.cwd || !detection || zeroRootWorkspace || singleRootWorkspace) ? '' : path.basename(templateProperties.cwd);
 		}
 
