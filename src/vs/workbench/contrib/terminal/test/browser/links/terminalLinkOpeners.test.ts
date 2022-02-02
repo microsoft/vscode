@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
+import { Schemas } from 'vs/base/common/network';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -25,8 +26,8 @@ import { TestContextService } from 'vs/workbench/test/common/workbenchTestServic
 import { Terminal } from 'xterm';
 
 export interface ITerminalLinkActivationResult {
-	source: 'editor' | 'search',
-	link: string
+	source: 'editor' | 'search';
+	link: string;
 }
 
 class TestCommandDetectionCapability extends CommandDetectionCapability {
@@ -36,17 +37,17 @@ class TestCommandDetectionCapability extends CommandDetectionCapability {
 }
 
 class TestFileService extends FileService {
-	private _files: string[] | '*' = '*';
+	private _files: URI[] | '*' = '*';
 	override async resolve(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
 	override async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
 	override async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
-		if (this._files === '*' || this._files.includes(resource.fsPath)) {
+		if (this._files === '*' || this._files.some(e => e.toString() === resource.toString())) {
 			return { isFile: true, isDirectory: false, isSymbolicLink: false } as IFileStat;
 		} else {
 			return { isFile: false, isDirectory: false, isSymbolicLink: false } as IFileStat;
 		}
 	}
-	setFiles(files: string[]): void {
+	setFiles(files: URI[] | '*'): void {
 		this._files = files;
 	}
 }
@@ -108,7 +109,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			test('should apply the cwd to the link only when the file exists and cwdDetection is enabled', async () => {
 				const cwd = '/Users/home/folder';
 				const absoluteFile = '/Users/home/folder/file.txt';
-				fileService.setFiles([absoluteFile]);
+				fileService.setFiles([
+					URI.from({ scheme: Schemas.file, path: absoluteFile })
+				]);
 
 				// Set a fake detected command starting as line 0 to establish the cwd
 				commandDetection.setCommands([{
@@ -153,7 +156,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			test('should apply the cwd to the link only when the file exists and cwdDetection is enabled', async () => {
 				const cwd = 'c:\\Users\\home\\folder';
 				const absoluteFile = 'c:\\Users\\home\\folder\\file.txt';
-				fileService.setFiles([absoluteFile]);
+				fileService.setFiles([
+					URI.from({ scheme: Schemas.file, path: absoluteFile })
+				]);
 
 				// Set a fake detected command starting as line 0 to establish the cwd
 				commandDetection.setCommands([{

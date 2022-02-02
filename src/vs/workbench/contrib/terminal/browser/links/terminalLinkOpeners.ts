@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { normalize, posix, win32 } from 'vs/base/common/path';
+import { IPath, posix, win32 } from 'vs/base/common/path';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -132,10 +132,10 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
-		const pathSeparator = (this._os === OperatingSystem.Windows ? '\\' : '/');
+		const pathSeparator = osPathModule(this._os).sep;
 		// Remove file:/// and any leading ./ or ../ since quick access doesn't understand that format
 		let text = link.text.replace(/^file:\/\/\/?/, '');
-		text = normalize(text).replace(/^(\.+[\\/])+/, '');
+		text = osPathModule(this._os).normalize(text).replace(/^(\.+[\\/])+/, '');
 
 		// Remove `:in` from the end which is how Ruby outputs stack traces
 		text = text.replace(/:in$/, '');
@@ -199,7 +199,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 
 	private async _getExactMatch(sanitizedLink: string): Promise<URI | undefined> {
 		let exactResource: URI | undefined;
-		if ((this._os === OperatingSystem.Windows ? win32 : posix).isAbsolute(sanitizedLink)) {
+		if (osPathModule(this._os).isAbsolute(sanitizedLink)) {
 			const scheme = this._workbenchEnvironmentService.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
 			const resource = URI.from({ scheme, path: sanitizedLink });
 			try {
@@ -243,4 +243,8 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 			allowContributedOpeners: true,
 		});
 	}
+}
+
+function osPathModule(os: OperatingSystem): IPath {
+	return os === OperatingSystem.Windows ? win32 : posix;
 }
