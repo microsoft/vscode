@@ -388,9 +388,10 @@ export class SuggestWidget implements IDisposable {
 						this.showDetails(true);
 					}
 				}, 250);
-				token.onCancellationRequested(() => loading.dispose());
+				const sub = token.onCancellationRequested(() => loading.dispose());
 				const result = await item.resolve(token);
 				loading.dispose();
+				sub.dispose();
 				return result;
 			});
 
