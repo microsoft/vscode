@@ -6,7 +6,7 @@
 import { Application, Terminal } from '../../../../automation';
 
 export function setup() {
-	describe('Terminal splitCwd', () => {
+	describe.only('Terminal splitCwd', () => {
 		// Acquire automation API
 		let terminal: Terminal;
 		before(async function () {
@@ -16,10 +16,10 @@ export function setup() {
 		});
 
 		it('should inherit cwd when split and update the tab description', async () => {
-			const t = await terminal.createTerminal();
+			await terminal.createTerminal();
 			const cwd = 'test';
-			t.writeText(`mkdir ${cwd}`);
-			t.writeText(`cd ${cwd}`);
+			terminal.runCommandInTerminal(`mkdir ${cwd}`);
+			terminal.runCommandInTerminal(`cd ${cwd}`);
 			const page = await terminal.getPage();
 			page.keyboard.down('Alt');
 			await terminal.clickSingleTab();

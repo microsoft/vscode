@@ -149,7 +149,7 @@ export class Terminal {
 
 			const label: TerminalLabel = {
 				name: title.textContent.replace(/^[├┌└]\s*/, ''),
-				description
+				description: description.textContent
 			};
 			// It's a new group if the the tab does not start with ├ or └
 			if (title.textContent.match(/^[├└]/)) {
