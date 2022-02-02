@@ -62,7 +62,7 @@ async function main() {
 	if (args['playground'] || args['_'].length === 0) {
 		serverArgs.push('--extensionPath', WEB_DEV_EXTENSIONS_ROOT);
 		serverArgs.push('--folder-uri', 'memfs:///sample-folder');
-		await ensureWebDevExtensions(args['verbose'])
+		await ensureWebDevExtensions(args['verbose']);
 	}
 
 	let openSystemBrowser = false;
@@ -77,7 +77,7 @@ async function main() {
 
 	serverArgs.push('--sourcesPath', APP_ROOT);
 
-	serverArgs.push(...process.argv.slice(2).filter(v => v !== '--playground'))
+	serverArgs.push(...process.argv.slice(2).filter(v => v !== '--playground'));
 
 
 	startServer(serverArgs);

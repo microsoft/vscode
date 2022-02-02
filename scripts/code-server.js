@@ -33,7 +33,7 @@ function main() {
 			' --launch              Opens a browser'
 		);
 		startServer(['--help']);
-		return
+		return;
 	}
 
 	const serverArgs = process.argv.slice(2).filter(v => v !== '--launch');
