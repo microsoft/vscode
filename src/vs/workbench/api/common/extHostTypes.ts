@@ -2939,17 +2939,6 @@ export enum DebugConsoleMode {
 	MergeWithParent = 1
 }
 
-export enum DebugConfigurationProviderTriggerKind {
-	/**
-	 *	`DebugConfigurationProvider.provideDebugConfigurations` is called to provide the initial debug configurations for a newly created launch.json.
-	 */
-	Initial = 1,
-	/**
-	 * `DebugConfigurationProvider.provideDebugConfigurations` is called to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
-	 */
-	Dynamic = 2
-}
-
 //#endregion
 
 @es5ClassCompat
