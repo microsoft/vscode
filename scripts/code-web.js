@@ -41,10 +41,10 @@ async function main() {
 	if (args.help) {
 		console.log(
 			'./scripts/code-web.sh|bat [options]\n' +
-			' --playground             Include the vscode-web-playground extension\n'
+			' --playground             Include the vscode-web-playground extension (added by default if no folderPath is provided)\n'
 		);
 		startServer(['--help']);
-		process.exit(0);
+		return;
 	}
 
 	const serverArgs = [];
