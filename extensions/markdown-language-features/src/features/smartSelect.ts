@@ -164,7 +164,7 @@ function createFencedRange(token: MarkdownItTokenWithMap, cursorLine: number, do
 }
 
 function createBoldRange(lineText: string, cursorChar: number, cursorLine: number, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
-	const regex = /(?:\*\*([^*]+)(?:\*([^*]+)([^*]+)\*)*([^*]+)\*\*)/g;
+	const regex = /\*\*([^*]+\*?[^*]+\*?[^*]+)\*\*/gim;
 	const matches = [...lineText.matchAll(regex)].filter(match => lineText.indexOf(match[0]) <= cursorChar && lineText.indexOf(match[0]) + match[0].length >= cursorChar);
 	if (matches.length) {
 		// should only be one match, so select first and index 0 contains the entire match

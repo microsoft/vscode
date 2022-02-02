@@ -90,428 +90,6 @@
 				]
 			}
 		],
-		"code-import-patterns": [
-			"warn",
-			{
-				// imports that are allowed in all files of layers:
-				// - browser
-				// - electron-sandbox
-				// - electron-browser
-				"when": "hasBrowser",
-				"allow": [
-					"vs/css!./**/*"
-				]
-			},
-			{
-				// imports that are allowed in all files of layers:
-				// - node
-				// - electron-browser
-				// - electron-main
-				"when": "hasNode",
-				"allow": [
-					"@microsoft/applicationinsights-web",
-					"@parcel/watcher",
-					"@vscode/sqlite3",
-					"@vscode/vscode-languagedetection",
-					"@vscode/ripgrep",
-					"@vscode/iconv-lite-umd",
-					"applicationinsights",
-					"assert",
-					"child_process",
-					"console",
-					"cookie",
-					"crypto",
-					"electron",
-					"events",
-					"fs",
-					"graceful-fs",
-					"http",
-					"https",
-					"minimist",
-					"native-keymap",
-					"native-watchdog",
-					"net",
-					"node-pty",
-					"os",
-					"path",
-					"perf_hooks",
-					"spdlog",
-					"stream",
-					"string_decoder",
-					"tas-client-umd",
-					"tls",
-					"url",
-					"util",
-					"v8-inspect-profiler",
-					"vscode-proxy-agent",
-					"vscode-regexpp",
-					"vscode-textmate",
-					"windows-process-tree",
-					"worker_threads",
-					"xterm",
-					"xterm-addon-search",
-					"xterm-addon-serialize",
-					"xterm-addon-unicode11",
-					"xterm-addon-webgl",
-					"xterm-headless",
-					"yauzl",
-					"yazl",
-					"zlib"
-				]
-			},
-			{
-				// imports that are allowed in all /test/ files
-				"when": "test",
-				"allow": [
-					"assert",
-					"sinon",
-					"sinon-test"
-				]
-			},
-
-			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			// !!! Do not relax these rules !!!
-			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			//
-			// A path ending in /~ has a special meaning. It indicates a template position
-			// which will be substituted with one or more layers.
-			//
-			// When /~ is used in the target, the rule will be expanded to 14 distinct rules.
-			// e.g. "src/vs/base/~" will be expanded to:
-			//  - src/vs/base/common
-			//  - src/vs/base/worker
-			//  - src/vs/base/browser
-			//  - src/vs/base/electron-sandbox
-			//  - src/vs/base/node
-			//  - src/vs/base/electron-browser
-			//  - src/vs/base/electron-main
-			//  - src/vs/base/test/common
-			//  - src/vs/base/test/worker
-			//  - src/vs/base/test/browser
-			//  - src/vs/base/test/electron-sandbox
-			//  - src/vs/base/test/node
-			//  - src/vs/base/test/electron-browser
-			//  - src/vs/base/test/electron-main
-			//
-			// When /~ is used in the restrictions, it will be replaced with the correct
-			// layers that can be used e.g. "src/vs/base/electron-sandbox" will be able
-			// to import "{common,browser,electron-sanbox}", etc.
-			//
-			// It is possible to use /~ in the restrictions property even without using it in
-			// the target property by adding a layer property.
-			{
-				"target": "src/vs/base/~",
-				"restrictions": [
-					"vs/base/~"
-				]
-			},
-			{
-				"target": "src/vs/base/parts/*/~",
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~"
-				]
-			},
-			{
-				"target": "src/vs/platform/*/~",
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"tas-client-umd" // node module allowed even in /common/
-				]
-			},
-			{
-				"target": "src/vs/editor/~",
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/editor/~"
-				]
-			},
-			{
-				"target": "src/vs/editor/contrib/*/~",
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/editor/~",
-					"vs/editor/contrib/*/~"
-				]
-			},
-			{
-				"target": "src/vs/editor/standalone/~",
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/editor/~",
-					"vs/editor/contrib/*/~",
-					"vs/editor/standalone/~"
-				]
-			},
-			{
-				"target": "src/vs/editor/editor.all.ts",
-				"layer": "browser",
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/editor/~",
-					"vs/editor/contrib/*/~"
-				]
-			},
-			{
-				"target": "src/vs/editor/editor.worker.ts",
-				"layer": "worker",
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/editor/~"
-				]
-			},
-			{
-				"target": "src/vs/editor/{editor.api.ts,editor.main.ts}",
-				"layer": "browser",
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/editor/~",
-					"vs/editor/contrib/*/~",
-					"vs/editor/standalone/~",
-					"vs/editor/*"
-				]
-			},
-			{
-				"target": "src/vs/workbench/~",
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/editor/~",
-					"vs/editor/contrib/*/~",
-					"vs/workbench/~",
-					"vs/workbench/services/*/~",
-					"assert",
-					{ "when": "test", "pattern": "vs/workbench/contrib/*/~" } // TODO@layers
-				]
-			},
-			{
-				"target": "src/vs/workbench/api/~",
-				"restrictions": [
-					"vscode",
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/editor/~",
-					"vs/editor/contrib/*/~",
-					"vs/workbench/api/~",
-					"vs/workbench/~",
-					"vs/workbench/services/*/~",
-					"vs/workbench/contrib/*/~"
-				]
-			},
-			{
-				"target": "src/vs/workbench/services/*/~",
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/editor/~",
-					"vs/editor/contrib/*/~",
-					"vs/workbench/~",
-					"vs/workbench/services/*/~",
-					{ "when": "test", "pattern": "vs/workbench/contrib/*/~" }, // TODO@layers
-					"tas-client-umd", // node module allowed even in /common/
-					"vscode-textmate", // node module allowed even in /common/
-					"@vscode/vscode-languagedetection", // node module allowed even in /common/
-					"@microsoft/applicationinsights-web" // node module allowed even in /common/
-				]
-			},
-			{
-				"target": "src/vs/workbench/contrib/*/~",
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/editor/~",
-					"vs/editor/contrib/*/~",
-					"vs/workbench/~",
-					"vs/workbench/api/~",
-					"vs/workbench/services/*/~",
-					"vs/workbench/contrib/*/~",
-					{ "when": "hasBrowser", "pattern": "xterm" }, // node module allowed even in /browser/
-					{ "when": "hasBrowser", "pattern": "xterm-addon-*" }, // node module allowed even in /browser/
-					{ "when": "hasBrowser", "pattern": "vscode-textmate" } // node module allowed even in /browser/
-				]
-			},
-			{
-				"target": "src/vs/code/~",
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/editor/~",
-					"vs/editor/contrib/*/~",
-					"vs/code/~",
-					{ "when": "hasBrowser", "pattern": "vs/workbench/workbench.web.main" }
-				]
-			},
-			{
-				"target": "src/vs/server/~",
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/workbench/~",
-					"vs/workbench/api/~",
-					"vs/workbench/services/*/~",
-					"vs/workbench/contrib/*/~",
-					"vs/server/~"
-				]
-			},
-			{
-				"target": "src/vs/workbench/workbench.common.main.ts",
-				"layer": "browser",
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/editor/~",
-					"vs/editor/contrib/*/~",
-					"vs/editor/editor.all",
-					"vs/workbench/~",
-					"vs/workbench/api/~",
-					"vs/workbench/services/*/~",
-					"vs/workbench/contrib/*/~"
-				]
-			},
-			{
-				"target": "src/vs/workbench/workbench.web.main.ts",
-				"layer": "browser",
-				"restrictions": [
-					"vs/base/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/editor/~",
-					"vs/editor/contrib/*/~",
-					"vs/editor/editor.all",
-					"vs/workbench/~",
-					"vs/workbench/api/~",
-					"vs/workbench/services/*/~",
-					"vs/workbench/contrib/*/~",
-					"vs/workbench/workbench.common.main"
-				]
-			},
-			{
-				"target": "src/vs/workbench/{workbench.sandbox.main.ts,workbench.desktop.sandbox.main.ts}",
-				"layer": "electron-sandbox",
-				"restrictions": [
-					"vs/base/*/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/editor/~",
-					"vs/editor/contrib/*/~",
-					"vs/editor/editor.all",
-					"vs/workbench/~",
-					"vs/workbench/api/~",
-					"vs/workbench/services/*/~",
-					"vs/workbench/contrib/*/~",
-					"vs/workbench/workbench.common.main",
-					"vs/workbench/workbench.sandbox.main"
-				]
-			},
-			{
-				"target": "src/vs/workbench/workbench.desktop.main.ts",
-				"layer": "electron-browser",
-				"restrictions": [
-					"vs/base/*/~",
-					"vs/base/parts/*/~",
-					"vs/platform/*/~",
-					"vs/editor/~",
-					"vs/editor/contrib/*/~",
-					"vs/editor/editor.all",
-					"vs/workbench/~",
-					"vs/workbench/api/~",
-					"vs/workbench/services/*/~",
-					"vs/workbench/contrib/*/~",
-					"vs/workbench/workbench.common.main",
-					"vs/workbench/workbench.sandbox.main"
-				]
-			},
-			{
-				"target": "src/vs/workbench/{workbench.desktop.main.nls.js,workbench.web.main.nls.js}",
-				"restrictions": []
-			},
-			{
-				"target": "src/vs/{css.d.ts,monaco.d.ts,nls.d.ts,nls.mock.ts}",
-				"restrictions": []
-			},
-			{
-				"target": "src/vscode-dts/**",
-				"restrictions": []
-			},
-			{
-				"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,bootstrap.js,cli.js,main.js,server-cli.js,server-main.js}",
-				"restrictions": []
-			},
-			{
-				"target": "extensions/**",
-				"restrictions": "**/*"
-			},
-			{
-				"target": "test/smoke/**",
-				"restrictions": [
-					"test/automation",
-					"test/smoke/**",
-					"@vscode/*",
-					"@parcel/*",
-					"@playwright/*",
-					"*" // node modules
-				]
-			},
-			{
-				"target": "test/automation/**",
-				"restrictions": [
-					"test/automation/**",
-					"@vscode/*",
-					"@parcel/*",
-					"playwright-core/**",
-					"@playwright/*",
-					"*" // node modules
-				]
-			},
-			{
-				"target": "test/integration/**",
-				"restrictions": [
-					"test/integration/**",
-					"@vscode/*",
-					"@parcel/*",
-					"@playwright/*",
-					"*" // node modules
-				]
-			},
-			{
-				"target": "test/monaco/**",
-				"restrictions": [
-					"test/monaco/**",
-					"@vscode/*",
-					"@parcel/*",
-					"@playwright/*",
-					"*" // node modules
-				]
-			},
-			{
-				"target": "build/**",
-				"restrictions": "**/*"
-			},
-			{
-				"target": "**/{buildfile.js,buildfile.desktop.js,buildfile.web.js}",
-				"restrictions": "**/*"
-			}
-		],
 		"header/header": [
 			2,
 			"block",
@@ -537,7 +115,8 @@
 				"**/*.test.ts"
 			],
 			"rules": {
-				"code-no-test-only": "error"
+				"code-no-test-only": "error",
+				"code-no-unexternalized-strings": "off"
 			}
 		},
 		{
@@ -603,6 +182,450 @@
 							"trigger",
 							"unregister",
 							"write"
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": [
+				"src/**/*.ts"
+			],
+			"rules": {
+				"code-import-patterns": [
+					"warn",
+					{
+						// imports that are allowed in all files of layers:
+						// - browser
+						// - electron-sandbox
+						// - electron-browser
+						"when": "hasBrowser",
+						"allow": [
+							"vs/css!./**/*"
+						]
+					},
+					{
+						// imports that are allowed in all files of layers:
+						// - node
+						// - electron-browser
+						// - electron-main
+						"when": "hasNode",
+						"allow": [
+							"@microsoft/applicationinsights-web",
+							"@parcel/watcher",
+							"@vscode/sqlite3",
+							"@vscode/vscode-languagedetection",
+							"@vscode/ripgrep",
+							"@vscode/iconv-lite-umd",
+							"applicationinsights",
+							"assert",
+							"child_process",
+							"console",
+							"cookie",
+							"crypto",
+							"electron",
+							"events",
+							"fs",
+							"graceful-fs",
+							"http",
+							"https",
+							"minimist",
+							"native-keymap",
+							"native-watchdog",
+							"net",
+							"node-pty",
+							"os",
+							"path",
+							"perf_hooks",
+							"spdlog",
+							"stream",
+							"string_decoder",
+							"tas-client-umd",
+							"tls",
+							"url",
+							"util",
+							"v8-inspect-profiler",
+							"vscode-proxy-agent",
+							"vscode-regexpp",
+							"vscode-textmate",
+							"windows-process-tree",
+							"worker_threads",
+							"xterm",
+							"xterm-addon-search",
+							"xterm-addon-serialize",
+							"xterm-addon-unicode11",
+							"xterm-addon-webgl",
+							"xterm-headless",
+							"yauzl",
+							"yazl",
+							"zlib"
+						]
+					},
+					{
+						// imports that are allowed in all /test/ files
+						"when": "test",
+						"allow": [
+							"assert",
+							"sinon",
+							"sinon-test"
+						]
+					},
+					// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+					// !!! Do not relax these rules !!!
+					// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+					//
+					// A path ending in /~ has a special meaning. It indicates a template position
+					// which will be substituted with one or more layers.
+					//
+					// When /~ is used in the target, the rule will be expanded to 14 distinct rules.
+					// e.g. "src/vs/base/~" will be expanded to:
+					//  - src/vs/base/common
+					//  - src/vs/base/worker
+					//  - src/vs/base/browser
+					//  - src/vs/base/electron-sandbox
+					//  - src/vs/base/node
+					//  - src/vs/base/electron-browser
+					//  - src/vs/base/electron-main
+					//  - src/vs/base/test/common
+					//  - src/vs/base/test/worker
+					//  - src/vs/base/test/browser
+					//  - src/vs/base/test/electron-sandbox
+					//  - src/vs/base/test/node
+					//  - src/vs/base/test/electron-browser
+					//  - src/vs/base/test/electron-main
+					//
+					// When /~ is used in the restrictions, it will be replaced with the correct
+					// layers that can be used e.g. "src/vs/base/electron-sandbox" will be able
+					// to import "{common,browser,electron-sanbox}", etc.
+					//
+					// It is possible to use /~ in the restrictions property even without using it in
+					// the target property by adding a layer property.
+					{
+						"target": "src/vs/base/~",
+						"restrictions": [
+							"vs/base/~"
+						]
+					},
+					{
+						"target": "src/vs/base/parts/*/~",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~"
+						]
+					},
+					{
+						"target": "src/vs/platform/*/~",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"tas-client-umd" // node module allowed even in /common/
+						]
+					},
+					{
+						"target": "src/vs/editor/~",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~"
+						]
+					},
+					{
+						"target": "src/vs/editor/contrib/*/~",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~"
+						]
+					},
+					{
+						"target": "src/vs/editor/standalone/~",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/editor/standalone/~"
+						]
+					},
+					{
+						"target": "src/vs/editor/editor.all.ts",
+						"layer": "browser",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~"
+						]
+					},
+					{
+						"target": "src/vs/editor/editor.worker.ts",
+						"layer": "worker",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~"
+						]
+					},
+					{
+						"target": "src/vs/editor/{editor.api.ts,editor.main.ts}",
+						"layer": "browser",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/editor/standalone/~",
+							"vs/editor/*"
+						]
+					},
+					{
+						"target": "src/vs/workbench/~",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/workbench/~",
+							"vs/workbench/services/*/~",
+							"assert",
+							{
+								"when": "test",
+								"pattern": "vs/workbench/contrib/*/~"
+							} // TODO@layers
+						]
+					},
+					{
+						"target": "src/vs/workbench/api/~",
+						"restrictions": [
+							"vscode",
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/workbench/api/~",
+							"vs/workbench/~",
+							"vs/workbench/services/*/~",
+							"vs/workbench/contrib/*/~"
+						]
+					},
+					{
+						"target": "src/vs/workbench/services/*/~",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/workbench/~",
+							"vs/workbench/services/*/~",
+							{
+								"when": "test",
+								"pattern": "vs/workbench/contrib/*/~"
+							}, // TODO@layers
+							"tas-client-umd", // node module allowed even in /common/
+							"vscode-textmate", // node module allowed even in /common/
+							"@vscode/vscode-languagedetection", // node module allowed even in /common/
+							"@microsoft/applicationinsights-web" // node module allowed even in /common/
+						]
+					},
+					{
+						"target": "src/vs/workbench/contrib/*/~",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/workbench/~",
+							"vs/workbench/api/~",
+							"vs/workbench/services/*/~",
+							"vs/workbench/contrib/*/~",
+							{
+								"when": "hasBrowser",
+								"pattern": "xterm"
+							}, // node module allowed even in /browser/
+							{
+								"when": "hasBrowser",
+								"pattern": "xterm-addon-*"
+							}, // node module allowed even in /browser/
+							{
+								"when": "hasBrowser",
+								"pattern": "vscode-textmate"
+							} // node module allowed even in /browser/
+						]
+					},
+					{
+						"target": "src/vs/code/~",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/code/~",
+							{
+								"when": "hasBrowser",
+								"pattern": "vs/workbench/workbench.web.main"
+							}
+						]
+					},
+					{
+						"target": "src/vs/server/~",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/workbench/~",
+							"vs/workbench/api/~",
+							"vs/workbench/services/*/~",
+							"vs/workbench/contrib/*/~",
+							"vs/server/~"
+						]
+					},
+					{
+						"target": "src/vs/workbench/workbench.common.main.ts",
+						"layer": "browser",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/editor/editor.all",
+							"vs/workbench/~",
+							"vs/workbench/api/~",
+							"vs/workbench/services/*/~",
+							"vs/workbench/contrib/*/~"
+						]
+					},
+					{
+						"target": "src/vs/workbench/workbench.web.main.ts",
+						"layer": "browser",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/editor/editor.all",
+							"vs/workbench/~",
+							"vs/workbench/api/~",
+							"vs/workbench/services/*/~",
+							"vs/workbench/contrib/*/~",
+							"vs/workbench/workbench.common.main"
+						]
+					},
+					{
+						"target": "src/vs/workbench/{workbench.sandbox.main.ts,workbench.desktop.sandbox.main.ts}",
+						"layer": "electron-sandbox",
+						"restrictions": [
+							"vs/base/*/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/editor/editor.all",
+							"vs/workbench/~",
+							"vs/workbench/api/~",
+							"vs/workbench/services/*/~",
+							"vs/workbench/contrib/*/~",
+							"vs/workbench/workbench.common.main",
+							"vs/workbench/workbench.sandbox.main"
+						]
+					},
+					{
+						"target": "src/vs/workbench/workbench.desktop.main.ts",
+						"layer": "electron-browser",
+						"restrictions": [
+							"vs/base/*/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/editor/editor.all",
+							"vs/workbench/~",
+							"vs/workbench/api/~",
+							"vs/workbench/services/*/~",
+							"vs/workbench/contrib/*/~",
+							"vs/workbench/workbench.common.main",
+							"vs/workbench/workbench.sandbox.main"
+						]
+					},
+					{
+						"target": "src/vs/workbench/{workbench.desktop.main.nls.js,workbench.web.main.nls.js}",
+						"restrictions": []
+					},
+					{
+						"target": "src/vs/{css.d.ts,monaco.d.ts,nls.d.ts,nls.mock.ts}",
+						"restrictions": []
+					},
+					{
+						"target": "src/vscode-dts/**",
+						"restrictions": []
+					},
+					{
+						"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,bootstrap.js,cli.js,main.js,server-cli.js,server-main.js}",
+						"restrictions": []
+					}
+				]
+			}
+		},
+		{
+			"files": [
+				"test/**/*.ts"
+			],
+			"rules": {
+				"code-import-patterns": [
+					"warn",
+					{
+						"target": "test/smoke/**",
+						"restrictions": [
+							"test/automation",
+							"test/smoke/**",
+							"@vscode/*",
+							"@parcel/*",
+							"@playwright/*",
+							"*" // node modules
+						]
+					},
+					{
+						"target": "test/automation/**",
+						"restrictions": [
+							"test/automation/**",
+							"@vscode/*",
+							"@parcel/*",
+							"playwright-core/**",
+							"@playwright/*",
+							"*" // node modules
+						]
+					},
+					{
+						"target": "test/integration/**",
+						"restrictions": [
+							"test/integration/**",
+							"@vscode/*",
+							"@parcel/*",
+							"@playwright/*",
+							"*" // node modules
+						]
+					},
+					{
+						"target": "test/monaco/**",
+						"restrictions": [
+							"test/monaco/**",
+							"@vscode/*",
+							"@parcel/*",
+							"@playwright/*",
+							"*" // node modules
 						]
 					}
 				]

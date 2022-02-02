@@ -80,7 +80,7 @@ export class InsertCursorAbove extends EditorAction {
 			return;
 		}
 
-		viewModel.pushStackElement();
+		viewModel.model.pushStackElement();
 		const previousCursorState = viewModel.getCursorStates();
 		viewModel.setCursorStates(
 			args.source,
@@ -133,7 +133,7 @@ export class InsertCursorBelow extends EditorAction {
 			return;
 		}
 
-		viewModel.pushStackElement();
+		viewModel.model.pushStackElement();
 		const previousCursorState = viewModel.getCursorStates();
 		viewModel.setCursorStates(
 			args.source,

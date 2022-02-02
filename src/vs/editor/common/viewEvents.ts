@@ -9,6 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
 
 export const enum ViewEventType {
 	ViewCompositionStart,
@@ -256,6 +257,10 @@ export class ViewScrollChangedEvent {
 export class ViewThemeChangedEvent {
 
 	public readonly type = ViewEventType.ViewThemeChanged;
+
+	constructor(
+		public readonly theme: IColorTheme
+	) { }
 }
 
 export class ViewTokensChangedEvent {

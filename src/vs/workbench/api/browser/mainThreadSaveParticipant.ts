@@ -12,8 +12,8 @@ import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensio
 import { ITextFileSaveParticipant, ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape } from '../common/extHost.protocol';
-import { canceled } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { raceCancellationError } from 'vs/base/common/async';
 
 class ExtHostSaveParticipant implements ITextFileSaveParticipant {
 
@@ -31,9 +31,7 @@ class ExtHostSaveParticipant implements ITextFileSaveParticipant {
 			return undefined;
 		}
 
-		return new Promise<any>((resolve, reject) => {
-
-			token.onCancellationRequested(() => reject(canceled()));
+		const p = new Promise<any>((resolve, reject) => {
 
 			setTimeout(
 				() => reject(new Error(localize('timeout.onWillSave', "Aborted onWillSaveTextDocument-event after 1750ms"))),
@@ -46,6 +44,8 @@ class ExtHostSaveParticipant implements ITextFileSaveParticipant {
 				return undefined;
 			}).then(resolve, reject);
 		});
+
+		return raceCancellationError(p, token);
 	}
 }
 

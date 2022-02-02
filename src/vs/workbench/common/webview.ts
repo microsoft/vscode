@@ -6,7 +6,6 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import type * as vscode from 'vscode';
 
 export interface WebviewInitData {
 	readonly remote: {
@@ -41,9 +40,9 @@ export const webviewGenericCspSource = `https://*.${webviewResourceBaseHost}`;
  * @param remoteInfo Optional information about the remote that specifies where `resource` should be resolved from.
  */
 export function asWebviewUri(
-	resource: vscode.Uri,
+	resource: URI,
 	remoteInfo?: { authority: string | undefined, isRemote: boolean }
-): vscode.Uri {
+): URI {
 	if (resource.scheme === Schemas.http || resource.scheme === Schemas.https) {
 		return resource;
 	}

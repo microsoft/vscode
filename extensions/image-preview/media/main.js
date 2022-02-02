@@ -319,6 +319,11 @@
 	});
 
 	window.addEventListener('message', e => {
+		if (e.origin !== window.origin) {
+			console.error('Dropping message from unknown origin in image preview');
+			return;
+		}
+
 		switch (e.data.type) {
 			case 'setScale':
 				updateScale(e.data.scale);

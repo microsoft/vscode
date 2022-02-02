@@ -6,7 +6,6 @@
 import { LocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-browser/localProcessExtensionHost';
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-browser/cachedExtensionScanner';
 
-import { env } from 'vs/base/common/process';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractExtensionService, ExtensionRunningPreference, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import * as nls from 'vs/nls';
@@ -48,6 +47,7 @@ import { IExtensionManifestPropertiesService } from 'vs/workbench/services/exten
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { isCI } from 'vs/base/common/platform';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -377,19 +377,19 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 					return uri;
 				}
 				const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
-				if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+				if (isCI) {
 					this._logService.info(`Invoking getCanonicalURI for authority ${getRemoteAuthorityPrefix(remoteAuthority)}...`);
 				}
 				try {
 					return localProcessExtensionHost.getCanonicalURI(remoteAuthority, uri);
 				} finally {
-					if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+					if (isCI) {
 						this._logService.info(`getCanonicalURI returned for authority ${getRemoteAuthorityPrefix(remoteAuthority)}.`);
 					}
 				}
 			});
 
-			if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+			if (isCI) {
 				this._logService.info(`Starting to wait on IWorkspaceTrustManagementService.workspaceResolved...`);
 			}
 
@@ -398,7 +398,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			// override the trust state through the resolver result.
 			await this._workspaceTrustManagementService.workspaceResolved;
 
-			if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+			if (isCI) {
 				this._logService.info(`Finished waiting on IWorkspaceTrustManagementService.workspaceResolved.`);
 			}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -287,7 +287,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		this._textEditor = undefined;
-		this._editorListeners.forEach(e => e.dispose());
+		dispose(this._editorListeners);
 		this._editorListeners = [];
 		this._onDidChangeEditorAttachState.fire();
 
@@ -598,7 +598,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	override dispose() {
 		super.dispose();
 
-		this._editorListeners.forEach(e => e.dispose());
+		dispose(this._editorListeners);
 		this._undoRedoService.removeElements(this.uri);
 
 		if (this._textModelRef) {

@@ -57,7 +57,7 @@ export class GhostTextController extends Disposable {
 		this.updateModelController();
 	}
 
-	// Don't call this method when not neccessary. It will recreate the activeController.
+	// Don't call this method when not necessary. It will recreate the activeController.
 	private updateModelController(): void {
 		const suggestOptions = this.editor.getOption(EditorOption.suggest);
 		const inlineSuggestOptions = this.editor.getOption(EditorOption.inlineSuggest);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IConstructorSignature1, BrandedService } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionHostProxy } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { ExtensionHostKind, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IRPCProtocol, ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -22,7 +22,7 @@ export interface IInternalExtHostContext extends IExtHostContext {
 
 export type IExtHostNamedCustomer<T extends IDisposable> = [ProxyIdentifier<T>, IExtHostCustomerCtor<T>];
 
-export type IExtHostCustomerCtor<T extends IDisposable> = IConstructorSignature1<IExtHostContext, T>;
+export type IExtHostCustomerCtor<T extends IDisposable> = IConstructorSignature<T, [IExtHostContext]>;
 
 export function extHostNamedCustomer<T extends IDisposable>(id: ProxyIdentifier<T>) {
 	return function <Services extends BrandedService[]>(ctor: { new(context: IExtHostContext, ...services: Services): T }): void {

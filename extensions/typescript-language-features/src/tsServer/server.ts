@@ -186,9 +186,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 			return false;
 		} finally {
 			const callback = this.fetchCallback(seq);
-			if (callback) {
-				callback.onSuccess(new ServerResponse.Cancelled(`Cancelled request ${seq} - ${command}`));
-			}
+			callback?.onSuccess(new ServerResponse.Cancelled(`Cancelled request ${seq} - ${command}`));
 		}
 	}
 
@@ -273,9 +271,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 			this.write(serverRequest);
 		} catch (err) {
 			const callback = this.fetchCallback(serverRequest.seq);
-			if (callback) {
-				callback.onError(err);
-			}
+			callback?.onError(err);
 		}
 	}
 

@@ -33,11 +33,11 @@ class DecorationRequestsQueue {
 			this._resolver.set(id, resolve);
 			this._processQueue();
 		});
-		token.onCancellationRequested(() => {
+		const sub = token.onCancellationRequested(() => {
 			this._requests.delete(id);
 			this._resolver.delete(id);
 		});
-		return result;
+		return result.finally(() => sub.dispose());
 	}
 
 	private _processQueue(): void {
