@@ -52,7 +52,7 @@ export const unixLineAndColumnMatchIndex = 11;
 // Each line and column clause have 6 groups (ie no. of expressions in round brackets)
 export const lineAndColumnClauseGroupCount = 6;
 
-const cachedValidatedLinks = new Map<string, { uri: URI, link: string, isDirectory: boolean } | null>();
+const cachedValidatedLinks = new Map<string, { uri: URI; link: string; isDirectory: boolean } | null>();
 
 export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	static id = 'local';
@@ -63,7 +63,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	constructor(
 		readonly xterm: Terminal,
 		private readonly _os: OperatingSystem,
-		private readonly _resolvePath: (link: string) => Promise<{ uri: URI, link: string, isDirectory: boolean } | undefined>,
+		private readonly _resolvePath: (link: string) => Promise<{ uri: URI; link: string; isDirectory: boolean } | undefined>,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
@@ -191,7 +191,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		return false;
 	}
 
-	private async _validateLinkCandidates(linkCandidates: string[]): Promise<{ uri: URI, link: string, isDirectory: boolean } | undefined> {
+	private async _validateLinkCandidates(linkCandidates: string[]): Promise<{ uri: URI; link: string; isDirectory: boolean } | undefined> {
 		for (const link of linkCandidates) {
 			const result = await this._resolvePath(link);
 			if (result) {

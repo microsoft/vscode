@@ -28,7 +28,7 @@ const enum Constants {
 }
 
 // TODO: Share caching code with local link detector
-const cachedValidatedLinks = new Map<string, { uri: URI, link: string, isDirectory: boolean } | null>();
+const cachedValidatedLinks = new Map<string, { uri: URI; link: string; isDirectory: boolean } | null>();
 
 export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 	static id = 'uri';
@@ -38,7 +38,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 
 	constructor(
 		readonly xterm: Terminal,
-		private readonly _resolvePath: (link: string, uri?: URI) => Promise<{ uri: URI, link: string, isDirectory: boolean } | undefined>,
+		private readonly _resolvePath: (link: string, uri?: URI) => Promise<{ uri: URI; link: string; isDirectory: boolean } | undefined>,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {

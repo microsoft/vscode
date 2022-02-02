@@ -37,7 +37,7 @@ export interface ITerminalSimpleLink {
 	/**
 	 * The URI of the link if it has been resolved.
 	 */
-	uri?: URI
+	uri?: URI;
 
 	/**
 	 * A hover label to override the default for the type.
