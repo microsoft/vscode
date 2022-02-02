@@ -9,7 +9,7 @@ import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardE
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
+import * as event from 'vs/base/common/event';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -149,7 +149,7 @@ export function addDisposableNonBubblingPointerOutListener(node: Element, handle
 	});
 }
 
-export function createEventEmitter<K extends keyof HTMLElementEventMap>(target: HTMLElement, type: K, options?: boolean | AddEventListenerOptions): Emitter<HTMLElementEventMap[K]> {
+export function createEventEmitter<K extends keyof HTMLElementEventMap>(target: HTMLElement, type: K, options?: boolean | AddEventListenerOptions): event.Emitter<HTMLElementEventMap[K]> {
 	let domListener: DomListener | null = null;
 	const handler = (e: HTMLElementEventMap[K]) => result.fire(e);
 	const onFirstListenerAdd = () => {
@@ -163,7 +163,7 @@ export function createEventEmitter<K extends keyof HTMLElementEventMap>(target: 
 			domListener = null;
 		}
 	};
-	const result = new Emitter<HTMLElementEventMap[K]>({ onFirstListenerAdd, onLastListenerRemove });
+	const result = new event.Emitter<HTMLElementEventMap[K]>({ onFirstListenerAdd, onLastListenerRemove });
 	return result;
 }
 
@@ -308,17 +308,12 @@ export interface IEventMerger<R, E> {
 	(lastEvent: R | null, currentEvent: E): R;
 }
 
-export interface DOMEvent {
-	preventDefault(): void;
-	stopPropagation(): void;
-}
-
 const MINIMUM_TIME_MS = 8;
-const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent | null, currentEvent: DOMEvent) {
+const DEFAULT_EVENT_MERGER: IEventMerger<Event, Event> = function (lastEvent: Event | null, currentEvent: Event) {
 	return currentEvent;
 };
 
-class TimeoutThrottledDomListener<R, E extends DOMEvent> extends Disposable {
+class TimeoutThrottledDomListener<R, E extends Event> extends Disposable {
 
 	constructor(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R, E> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS) {
 		super();
@@ -348,7 +343,7 @@ class TimeoutThrottledDomListener<R, E extends DOMEvent> extends Disposable {
 	}
 }
 
-export function addDisposableThrottledListener<R, E extends DOMEvent = DOMEvent>(node: any, type: string, handler: (event: R) => void, eventMerger?: IEventMerger<R, E>, minimumTimeMs?: number): IDisposable {
+export function addDisposableThrottledListener<R, E extends Event = Event>(node: any, type: string, handler: (event: R) => void, eventMerger?: IEventMerger<R, E>, minimumTimeMs?: number): IDisposable {
 	return new TimeoutThrottledDomListener<R, E>(node, type, handler, eventMerger, minimumTimeMs);
 }
 
@@ -924,8 +919,8 @@ export const EventHelper = {
 };
 
 export interface IFocusTracker extends Disposable {
-	onDidFocus: Event<void>;
-	onDidBlur: Event<void>;
+	onDidFocus: event.Event<void>;
+	onDidBlur: event.Event<void>;
 	refreshState(): void;
 }
 
@@ -949,11 +944,11 @@ export function restoreParentsScrollTop(node: Element, state: number[]): void {
 
 class FocusTracker extends Disposable implements IFocusTracker {
 
-	private readonly _onDidFocus = this._register(new Emitter<void>());
-	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
+	private readonly _onDidFocus = this._register(new event.Emitter<void>());
+	public readonly onDidFocus: event.Event<void> = this._onDidFocus.event;
 
-	private readonly _onDidBlur = this._register(new Emitter<void>());
-	public readonly onDidBlur: Event<void> = this._onDidBlur.event;
+	private readonly _onDidBlur = this._register(new event.Emitter<void>());
+	public readonly onDidBlur: event.Event<void> = this._onDidBlur.event;
 
 	private _refreshStateHandler: () => void;
 
@@ -1173,7 +1168,7 @@ export function getElementsByTagName(tag: string): HTMLElement[] {
 	return Array.prototype.slice.call(document.getElementsByTagName(tag), 0);
 }
 
-export function finalHandler<T extends DOMEvent>(fn: (event: T) => any): (event: T) => any {
+export function finalHandler<T extends Event>(fn: (event: T) => any): (event: T) => any {
 	return e => {
 		e.preventDefault();
 		e.stopPropagation();
@@ -1343,7 +1338,7 @@ export function triggerUpload(): Promise<FileList | undefined> {
 		input.multiple = true;
 
 		// Resolve once the input event has fired once
-		Event.once(Event.fromDOMEventEmitter(input, 'input'))(() => {
+		event.Event.once(event.Event.fromDOMEventEmitter(input, 'input'))(() => {
 			resolve(withNullAsUndefined(input.files));
 		});
 
@@ -1510,7 +1505,7 @@ export interface IModifierKeyStatus {
 	event?: KeyboardEvent;
 }
 
-export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
+export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 
 	private readonly _subscriptions = new DisposableStore();
 	private _keyStatus: IModifierKeyStatus;
