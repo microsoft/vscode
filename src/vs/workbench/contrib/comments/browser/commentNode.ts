@@ -124,7 +124,10 @@ export class CommentNode extends Disposable {
 
 	private updateCommentBody(body: string | IMarkdownString) {
 		this._body.innerText = '';
-		this._md = undefined;
+		if (this._md) {
+			this._md.remove();
+			this._md = undefined;
+		}
 		if (typeof body === 'string') {
 			this._body.innerText = body;
 		} else {
