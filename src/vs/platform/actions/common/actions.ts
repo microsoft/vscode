@@ -484,7 +484,7 @@ export class SyncActionDescriptor {
 		this._keybindings = keybindings;
 		this._keybindingContext = keybindingContext;
 		this._keybindingWeight = keybindingWeight;
-		this._descriptor = new SyncDescriptor(ctor, [this._id, this._label]) as unknown as SyncDescriptor0<Action>;
+		this._descriptor = new SyncDescriptor(ctor, [this._id, this._label]);
 	}
 
 	public get syncDescriptor(): SyncDescriptor0<Action> {
