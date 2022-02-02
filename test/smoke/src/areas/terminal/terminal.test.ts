@@ -47,6 +47,8 @@ export function setup(logger: Logger) {
 		setupTerminalPersistenceTests();
 		setupTerminalProfileTests();
 		setupTerminalTabsTests();
-		setupTerminalSplitCwdTests();
+		if (!process.platform.startsWith('win')) {
+			setupTerminalSplitCwdTests();
+		}
 	});
 }
