@@ -633,7 +633,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 					while (lineNumber && lineNumber >= 1 && lineNumber <= textModel.getLineCount()) {
 						const lineContent = textModel.getLineContent(lineNumber);
 						sourceSB.appendASCIIString(`  ${lineNumber}: `);
-						sourceSB.appendASCIIString(lineContent.replace(/[ ]/g, ' ') + '\n');
+						sourceSB.appendASCIIString(lineContent + '\n');
 
 						if (instruction.endLine && lineNumber < instruction.endLine) {
 							lineNumber++;
