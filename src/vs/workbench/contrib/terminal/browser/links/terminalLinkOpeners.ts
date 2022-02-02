@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { isAbsolute, normalize } from 'vs/base/common/path';
-import { isWindows, OperatingSystem } from 'vs/base/common/platform';
+import { normalize, posix, win32 } from 'vs/base/common/path';
+import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
@@ -121,6 +121,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _localFileOpener: TerminalLocalFileLinkOpener,
+		private readonly _os: OperatingSystem,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
@@ -131,7 +132,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
-		const pathSeparator = (isWindows ? '\\' : '/');
+		const pathSeparator = (this._os === OperatingSystem.Windows ? '\\' : '/');
 		// Remove file:/// and any leading ./ or ../ since quick access doesn't understand that format
 		let text = link.text.replace(/^file:\/\/\/?/, '');
 		text = normalize(text).replace(/^(\.+[\\/])+/, '');
@@ -198,7 +199,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 
 	private async _getExactMatch(sanitizedLink: string): Promise<URI | undefined> {
 		let exactResource: URI | undefined;
-		if (isAbsolute(sanitizedLink)) {
+		if ((this._os === OperatingSystem.Windows ? win32 : posix).isAbsolute(sanitizedLink)) {
 			const scheme = this._workbenchEnvironmentService.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
 			const resource = URI.from({ scheme, path: sanitizedLink });
 			try {
