@@ -27,7 +27,6 @@ const enum Constants {
 	MaxResolvedLinkLength = 1024,
 }
 
-// TODO: Share caching code with local link detector
 const cachedValidatedLinks = new Map<string, { uri: URI; link: string; isDirectory: boolean } | null>();
 
 export class TerminalUriLinkDetector implements ITerminalLinkDetector {

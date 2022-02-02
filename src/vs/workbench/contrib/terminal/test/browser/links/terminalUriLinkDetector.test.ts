@@ -31,8 +31,6 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 		text: string,
 		expected: (Pick<ITerminalSimpleLink, 'text'> & { range: [number, number][] })[]
 	) {
-		// TODO: Only URL links are tested currently but this detector can also detect loca
-		//       file/folder links
 		await assertLinkHelper(text, expected, detector, type);
 	}
 
